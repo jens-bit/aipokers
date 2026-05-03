@@ -16,9 +16,20 @@ export function initTelegram() {
   return tg;
 }
 
+// Returns the Telegram user object: { id, first_name, last_name, username, ... }
+// or null. Read at call time, not module load — initDataUnsafe is populated
+// only after the SDK script loads.
 export function getTelegramUser() {
   const tg = getWebApp();
   return tg?.initDataUnsafe?.user || null;
+}
+
+// Best-effort display name from a Telegram user. Prefers first_name, falls
+// back to username, then a generic placeholder.
+export function getTelegramDisplayName() {
+  const u = getTelegramUser();
+  if (!u) return '';
+  return (u.first_name || u.username || '').toString().trim();
 }
 
 export function isInTelegram() {

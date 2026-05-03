@@ -6,6 +6,7 @@ import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
+import { HandHistory } from './components/HandHistory.jsx';
 import { Streets } from './lib/protocol.js';
 
 // Resolve the WebSocket endpoint:
@@ -22,7 +23,16 @@ const WS_URL = resolveWsUrl();
 
 export default function App() {
   const table = useTable({ wsUrl: WS_URL });
-  const { game, mySeat, legalActions, history, error, dismissError, status, config, connect, disconnect, act, deal, rename } = table;
+  const {
+    game, mySeat, legalActions, history,
+    error, dismissError, status,
+    reconnectAttempt, maxReconnectAttempts,
+    config, connect, disconnect, act, deal, rename,
+  } = table;
+  const displayNames = {
+    0: game?.seats?.[0]?.displayName ?? 'Seat A',
+    1: game?.seats?.[1]?.displayName ?? 'Seat B',
+  };
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -51,6 +61,8 @@ export default function App() {
         mySeat={mySeat}
         hasConfig
         historyCount={history.length}
+        reconnectAttempt={reconnectAttempt}
+        maxReconnectAttempts={maxReconnectAttempts}
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         onLeave={disconnect}
       />
@@ -67,17 +79,22 @@ export default function App() {
         mySeat={mySeat}
         legalActions={legalActions}
         status={status}
+        reconnectAttempt={reconnectAttempt}
+        maxReconnectAttempts={maxReconnectAttempts}
         onAct={act}
         onDeal={deal}
       />
+      {/* Desktop: side panel always visible. Mobile: hidden by CSS. */}
+      <aside className="app__sidebar">
+        <h3>HAND HISTORY</h3>
+        <HandHistory history={history} displayNames={displayNames} />
+      </aside>
+      {/* Mobile: drawer on demand. Desktop: hidden by CSS. */}
       <HistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         history={history}
-        displayNames={{
-          0: game?.seats?.[0]?.displayName ?? 'Seat A',
-          1: game?.seats?.[1]?.displayName ?? 'Seat B',
-        }}
+        displayNames={displayNames}
       />
     </div>
   );

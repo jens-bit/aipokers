@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Actions, Streets } from '../lib/protocol.js';
 
 const PRESETS = [
@@ -12,43 +12,77 @@ function findLegal(legal, type) {
   return legal.find((a) => a.type === type) || null;
 }
 
-export function ActionBar({ game, mySeat, legalActions, status, onAct, onDeal }) {
-  if (status === 'connecting') return <Shell hint="Connecting…" />;
+export function ActionBar(props) {
+  return (
+    <ActionBarFrame>
+      <ActionBarContent {...props} />
+    </ActionBarFrame>
+  );
+}
+
+// Owns the .action-bar wrapper and exposes its measured height to the rest
+// of the layout via the --action-bar-h CSS custom property. Whenever the bar
+// re-renders with more or fewer rows (e.g. between idle DEAL and active
+// betting controls), .app__main's bottom padding updates so the bottom seat
+// is never hidden behind the fixed bar.
+function ActionBarFrame({ children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const sync = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty('--action-bar-h', `${h}px`);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  return <div ref={ref} className="action-bar">{children}</div>;
+}
+
+function ActionBarContent({ game, mySeat, legalActions, status, reconnectAttempt, maxReconnectAttempts, onAct, onDeal }) {
+  if (status === 'connecting') return <Hint text="Connecting…" />;
+  if (status === 'reconnecting') {
+    return <Hint text={`Reconnecting… (${reconnectAttempt}/${maxReconnectAttempts})`} />;
+  }
 
   if (status === 'waiting' && (!game || game.street === Streets.WAITING)) {
     return (
-      <Shell hint="Waiting for opponent — share the link to fill the seat.">
-        <button type="button" className="btn btn--deal" disabled>DEAL</button>
-      </Shell>
+      <>
+        <Hint text="Waiting for opponent — share the link to fill the seat." />
+        <div className="action-bar__row action-bar__row--primary">
+          <button type="button" className="btn btn--deal" disabled>DEAL</button>
+        </div>
+      </>
     );
   }
-  if (status === 'closed') return <Shell hint="Disconnected." />;
+  if (status === 'closed') return <Hint text="Disconnected." />;
 
   const handOver = !game || game.toAct === null || game.street === Streets.COMPLETE;
   if (handOver) {
     return (
-      <Shell hint="Hand complete">
-        <button type="button" className="btn btn--deal" onClick={onDeal}>DEAL</button>
-      </Shell>
+      <>
+        <Hint text="Hand complete" />
+        <div className="action-bar__row action-bar__row--primary">
+          <button type="button" className="btn btn--deal" onClick={onDeal}>DEAL</button>
+        </div>
+      </>
     );
   }
 
   const yourTurn = game.toAct === mySeat;
   if (!yourTurn) {
     const opponentName = game.seats[game.toAct]?.displayName || 'opponent';
-    return <Shell hint={`${opponentName} to act…`} />;
+    return <Hint text={`${opponentName} to act…`} />;
   }
 
   return <ActiveControls game={game} mySeat={mySeat} legalActions={legalActions} onAct={onAct} />;
 }
 
-function Shell({ hint, children }) {
-  return (
-    <div className="action-bar">
-      <div className="action-bar__hint">{hint}</div>
-      {children && <div className="action-bar__row action-bar__row--primary">{children}</div>}
-    </div>
-  );
+function Hint({ text }) {
+  return <div className="action-bar__hint">{text}</div>;
 }
 
 function ActiveControls({ game, mySeat, legalActions, onAct }) {
@@ -60,7 +94,6 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
   const aggressive = bet || raise;
   const isRaise = !!raise;
 
-  const player = game.seats[mySeat];
   const callAmount = call ? call.amount : 0;
   const potAfterCall = game.pot + callAmount;
 
@@ -85,10 +118,8 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
   };
 
   return (
-    <div className="action-bar">
-      <div className="action-bar__hint">
-        Pot {game.pot.toLocaleString()} · bet {game.currentBet.toLocaleString()}
-      </div>
+    <>
+      <Hint text={`Pot ${game.pot.toLocaleString()} · bet ${game.currentBet.toLocaleString()}`} />
 
       {aggressive && (
         <>
@@ -147,6 +178,6 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
           </button>
         )}
       </div>
-    </div>
+    </>
   );
 }

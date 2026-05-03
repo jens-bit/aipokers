@@ -1,20 +1,19 @@
 import { useState } from 'react';
-import { getTelegramUser, isInTelegram } from '../lib/telegram.js';
+import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
 
 const DEFAULTS = {
   tableId: 'lounge',
   smallBlind: 10,
   bigBlind: 20,
   buyIn: 1000,
-  displayName: '',
 };
 
-const tgUser = getTelegramUser();
-const inTelegram = isInTelegram();
-
 export function Setup({ onConnect }) {
+  // Read Telegram user inside the initializer so it runs at mount time —
+  // by then main.jsx has called initTelegram() and initDataUnsafe is set.
   const [tableId, setTableId] = useState(DEFAULTS.tableId);
-  const [displayName, setDisplayName] = useState(tgUser?.first_name || DEFAULTS.displayName);
+  const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
+  const inTelegram = isInTelegram();
   const [buyIn, setBuyIn] = useState(DEFAULTS.buyIn);
   const [sb, setSb] = useState(DEFAULTS.smallBlind);
   const [bb, setBb] = useState(DEFAULTS.bigBlind);

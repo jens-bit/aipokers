@@ -1,31 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg, Streets } from '../lib/protocol.js';
 
-const PLAYER_ID_KEY = 'aipoker.playerId';
+const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000]; // attempts 1..5
+const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS_MS.length;
 
-// Per-tab stable identifier. sessionStorage survives a refresh but a new tab
-// gets a fresh ID, so two tabs naturally take two different seats.
-function getOrCreatePlayerId() {
-  let id = sessionStorage.getItem(PLAYER_ID_KEY);
-  if (!id) {
-    id = 'p_' + Math.random().toString(36).slice(2, 10);
-    sessionStorage.setItem(PLAYER_ID_KEY, id);
+// Per-page-load random ID. Memory-only — no sessionStorage. Embedded WebViews
+// like Telegram desktop can share storage between Mini App opens of the same
+// URL, so a persistent ID can collide between two clients the user thinks of
+// as separate. A fresh ID per page load avoids that. The ID is kept in a ref
+// for the page's lifetime so a transient WebSocket reconnect still presents
+// the same identity to the server (server treats it as a reconnect, not a
+// new player).
+function generatePlayerId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return 'p_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   }
-  return id;
+  return 'p_' + Math.random().toString(36).slice(2, 14) + Date.now().toString(36).slice(-4);
 }
 
-// One WebSocket per browser tab. The tab joins a table as a single player and
-// is assigned exactly one seat by the server (via the `joined` message).
+const HUMAN_CLOSE_REASONS = {
+  1000: 'normal closure',
+  1001: 'going away',
+  1006: 'connection lost',
+  1011: 'server error',
+  1012: 'service restart',
+  4000: 'replaced by another connection',
+};
+
+function describeClose(event) {
+  if (event.reason && event.reason.trim()) return event.reason;
+  return HUMAN_CLOSE_REASONS[event.code] || `closed (${event.code})`;
+}
+
+// One WebSocket per browser tab. The tab joins as a single player and is
+// assigned exactly one seat by the server (via the `joined` message). On
+// involuntary disconnects we retry with exponential backoff (1, 2, 4, 8, 16s).
 export function useTable({ wsUrl }) {
   const [game, setGame] = useState(null);
   const [legalActions, setLegalActions] = useState([]);
   const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle | connecting | connected | waiting | playing | closed | error
-  const [config, setConfig] = useState(null);   // { tableId, displayName, buyIn, smallBlind, bigBlind }
+  const [status, setStatus] = useState('idle');
+  // status: idle | connecting | waiting | playing | reconnecting | closed | error
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [config, setConfig] = useState(null);
   const [mySeat, setMySeat] = useState(null);
 
   const wsRef = useRef(null);
+  const playerIdRef = useRef(null);
+  const configRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const reconnectAttemptRef = useRef(0);
+  const userInitiatedCloseRef = useRef(false);
   const lastStreetRef = useRef(null);
 
   const handleServerMessage = useCallback((msg) => {
@@ -77,61 +103,123 @@ export function useTable({ wsUrl }) {
     }
   }, []);
 
-  const connect = useCallback(
-    (cfg) => {
-      // Tear down any prior connection cleanly before opening a new one.
-      const prev = wsRef.current;
-      if (prev && prev.readyState === WebSocket.OPEN) {
-        try { prev.close(); } catch {}
-      }
-      wsRef.current = null;
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  };
 
+  // openSocketRef holds the latest implementation so the close-event reconnect
+  // schedule can call into it without forming an explicit dependency cycle
+  // between openSocket and scheduleReconnect.
+  const openSocketRef = useRef(() => {});
+
+  const scheduleReconnect = useCallback(() => {
+    const next = reconnectAttemptRef.current + 1;
+    if (next > MAX_RECONNECT_ATTEMPTS) {
+      setStatus('closed');
+      setError(`Could not reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts.`);
+      return;
+    }
+    reconnectAttemptRef.current = next;
+    setReconnectAttempt(next);
+    setStatus('reconnecting');
+    const delay = RECONNECT_DELAYS_MS[next - 1];
+    console.log(`[ws] scheduling reconnect ${next}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      openSocketRef.current();
+    }, delay);
+  }, []);
+
+  openSocketRef.current = () => {
+    const cfg = configRef.current;
+    if (!cfg) return;
+    if (!playerIdRef.current) playerIdRef.current = generatePlayerId();
+
+    setStatus((s) => (s === 'reconnecting' ? s : 'connecting'));
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.addEventListener('open', () => {
+      console.log('[ws] open', wsUrl);
+      ws.send(JSON.stringify({
+        type: ClientMsg.JOIN,
+        tableId: cfg.tableId,
+        playerId: playerIdRef.current,
+        displayName: cfg.displayName,
+        buyIn: cfg.buyIn,
+        smallBlind: cfg.smallBlind,
+        bigBlind: cfg.bigBlind,
+      }));
+      reconnectAttemptRef.current = 0;
+      setReconnectAttempt(0);
       setError(null);
-      setHistory([]);
-      setGame(null);
-      setLegalActions([]);
-      setMySeat(null);
-      lastStreetRef.current = null;
-      setConfig(cfg);
-      setStatus('connecting');
+    });
 
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    ws.addEventListener('message', (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); }
+      catch { setError('received invalid JSON from server'); return; }
+      handleServerMessage(msg);
+    });
 
-      ws.addEventListener('open', () => {
-        ws.send(
-          JSON.stringify({
-            type: ClientMsg.JOIN,
-            tableId: cfg.tableId,
-            playerId: getOrCreatePlayerId(),
-            displayName: cfg.displayName,
-            buyIn: cfg.buyIn,
-            smallBlind: cfg.smallBlind,
-            bigBlind: cfg.bigBlind,
-          })
-        );
-      });
+    ws.addEventListener('close', (event) => {
+      console.log('[ws] close', { code: event.code, reason: event.reason, wasClean: event.wasClean, url: wsUrl });
 
-      ws.addEventListener('message', (event) => {
-        let msg;
-        try { msg = JSON.parse(event.data); }
-        catch { setError('received invalid JSON from server'); return; }
-        handleServerMessage(msg);
-      });
+      // User clicked Leave — don't reconnect.
+      if (userInitiatedCloseRef.current) {
+        userInitiatedCloseRef.current = false;
+        return;
+      }
 
-      ws.addEventListener('close', () => {
-        setStatus((s) => (s === 'closed' ? s : 'closed'));
-      });
+      // Server kicked us because another connection took our seat. Reconnecting
+      // would just collide again, so stop and surface the reason.
+      if (event.code === 4000) {
+        setStatus('closed');
+        setError(describeClose(event));
+        return;
+      }
 
-      ws.addEventListener('error', () => {
-        setStatus('error');
-        setError('WebSocket connection error');
-      });
-    },
-    [wsUrl, handleServerMessage]
-  );
+      // Anything else (network blip, server restart, etc.) — retry.
+      scheduleReconnect();
+    });
+
+    ws.addEventListener('error', () => {
+      // Browsers don't expose details here; the close event fires next and
+      // carries code + reason. Just log so devtools shows it happened.
+      console.warn('[ws] error event');
+    });
+  };
+
+  const connect = useCallback((cfg) => {
+    clearReconnectTimer();
+    const prev = wsRef.current;
+    if (prev) {
+      try { prev.close(); } catch {}
+      wsRef.current = null;
+    }
+
+    setError(null);
+    setHistory([]);
+    setGame(null);
+    setLegalActions([]);
+    setMySeat(null);
+    lastStreetRef.current = null;
+    reconnectAttemptRef.current = 0;
+    setReconnectAttempt(0);
+
+    configRef.current = cfg;
+    playerIdRef.current = generatePlayerId();
+    setConfig(cfg);
+    setStatus('connecting');
+    openSocketRef.current();
+  }, []);
 
   const disconnect = useCallback(() => {
+    clearReconnectTimer();
+    userInitiatedCloseRef.current = true;
     const ws = wsRef.current;
     if (ws) {
       try {
@@ -140,12 +228,16 @@ export function useTable({ wsUrl }) {
       } catch {}
     }
     wsRef.current = null;
+    configRef.current = null;
+    playerIdRef.current = null;
     setStatus('idle');
     setConfig(null);
     setGame(null);
     setMySeat(null);
     setHistory([]);
     setLegalActions([]);
+    reconnectAttemptRef.current = 0;
+    setReconnectAttempt(0);
   }, []);
 
   const send = useCallback((msg) => {
@@ -164,18 +256,13 @@ export function useTable({ wsUrl }) {
     }
   }, [send, mySeat]);
 
-  const deal = useCallback(() => {
-    send({ type: ClientMsg.DEAL });
-  }, [send]);
-
-  const rename = useCallback((displayName) => {
-    send({ type: ClientMsg.RENAME, displayName });
-  }, [send]);
-
+  const deal = useCallback(() => { send({ type: ClientMsg.DEAL }); }, [send]);
+  const rename = useCallback((displayName) => { send({ type: ClientMsg.RENAME, displayName }); }, [send]);
   const dismissError = useCallback(() => setError(null), []);
 
-  // Cleanup on unmount only — disconnect is stable so this won't loop.
+  // Cleanup on unmount.
   useEffect(() => () => {
+    clearReconnectTimer();
     const ws = wsRef.current;
     if (ws) try { ws.close(); } catch {}
   }, []);
@@ -188,6 +275,8 @@ export function useTable({ wsUrl }) {
     error,
     dismissError,
     status,
+    reconnectAttempt,
+    maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
     config,
     connect,
     disconnect,

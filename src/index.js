@@ -17,12 +17,12 @@ const app = express();
 
 if (existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR, { extensions: ['html'] }));
-  // SPA fallback: any unmatched GET serves index.html so the client can route
-  // client-side. Skips paths with file extensions so 404s on missing assets
-  // remain real 404s.
+  // SPA fallback: any unmatched GET serves index.html so deep links and
+  // browser refresh on client-side routes load the app instead of 404ing.
+  // Real /assets/* requests are handled by express.static above; only paths
+  // it didn't resolve fall through to here.
   app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
-    if (path.extname(req.path)) return next();
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
   });
 } else {

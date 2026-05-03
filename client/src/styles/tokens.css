@@ -1,0 +1,66 @@
+/* Design tokens — single source of truth for color.
+ *
+ * Two palettes coexist:
+ *   1. Product UI (95% of surfaces): black + teal. Use --bg-*, --accent*,
+ *      --text-*, --your-turn / --opponent-turn, --error, etc.
+ *   2. Marketing (landing page, replay cards, share images): burgundy + gold.
+ *      Use --marketing-* tokens. None of the current product components touch
+ *      these — defined here for future marketing surfaces.
+ *
+ * Gold reward tones (--gold-reward, --gold-highlight) are used sparingly in
+ * the product UI only for win/achievement moments. Never on buttons or
+ * structural chrome.
+ */
+
+:root {
+  /* Product surfaces */
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1A1A1A;
+
+  /* Brand teal */
+  --accent: #00D4AA;
+  --accent-hover: #00E6B8;
+  --accent-dim: #00A88A;
+  --glow-soft: rgba(0, 212, 170, 0.25);
+  --glow-strong: rgba(0, 212, 170, 0.40);
+
+  /* Text */
+  --text-primary: #EDEDED;
+  --text-secondary: #A1A1A1;
+  --text-muted: #6B6B6B;
+
+  /* State */
+  --success: #00D4AA;
+  --error: #FF4D4F;
+  --warning: #FFB020;
+  --neutral: #888888;
+
+  /* Game state */
+  --your-turn: #00E6B8;
+  --opponent-turn: #6B6B6B;
+  --timer-warning: #FFB020;
+  --timer-critical: #FF4D4F;
+
+  /* Reward — wins / achievements only. Never on buttons. */
+  --gold-reward: #CDB380;
+  --gold-highlight: #E6CFA3;
+
+  /* Cards (face stays white with classic suit colors — recognition, not brand) */
+  --card-bg: #FFFFFF;
+  --card-border: #E5E5E5;
+  --suit-red: #E04F5F;
+  --suit-black: #111111;
+  --card-back: #0A0A0A;
+  --card-back-accent: #00D4AA;
+
+  /* Marketing palette — burgundy + gold. Reserved for marketing surfaces. */
+  --marketing-bg: #1A0A10;
+  --marketing-bg-depth: #2A0F18;
+  --marketing-bg-highlight: #3A1420;
+  --marketing-gold: #CDB380;
+  --marketing-gold-highlight: #E6CFA3;
+  --marketing-gold-shadow: #A89260;
+  --marketing-text: #F5EBDD;
+  --marketing-text-secondary: #D6C6AA;
+}
