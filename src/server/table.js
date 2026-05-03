@@ -11,12 +11,12 @@ export class Table {
     this.bigBlind = bigBlind;
     this.onEmpty = onEmpty;
     this.connections = [null, null]; // ws by seat
-    this.pending = [null, null];     // { playerId, buyIn } per seat before hand starts
+    this.pending = [null, null];     // { playerId, buyIn, displayName } per seat before hand starts
     this.game = null;
   }
 
   // Returns the seat the player got, or throws.
-  seatPlayer(ws, { playerId, buyIn }) {
+  seatPlayer(ws, { playerId, buyIn, displayName }) {
     const existingSeat = this.pending.findIndex((p) => p?.playerId === playerId);
     if (existingSeat !== -1) {
       // Reconnect: replace the WebSocket on that seat.
@@ -25,6 +25,7 @@ export class Table {
         prev.close(4000, 'replaced by new connection');
       }
       this.connections[existingSeat] = ws;
+      if (displayName) this.pending[existingSeat].displayName = displayName;
       return existingSeat;
     }
 
@@ -33,19 +34,34 @@ export class Table {
     if (!Number.isInteger(buyIn) || buyIn < this.bigBlind * 10) {
       throw new Error(`buy-in must be an integer >= ${this.bigBlind * 10}`);
     }
-    this.pending[free] = { playerId, buyIn };
+    this.pending[free] = {
+      playerId,
+      buyIn,
+      displayName: (displayName && String(displayName).trim()) || playerId,
+    };
     this.connections[free] = ws;
     return free;
+  }
+
+  rename(ws, displayName) {
+    const seat = this.connections.indexOf(ws);
+    if (seat === -1) throw new Error('connection not seated');
+    if (!displayName || !String(displayName).trim()) throw new Error('displayName required');
+    this.pending[seat].displayName = String(displayName).trim();
+    if (this.game) this._broadcastState();
   }
 
   removeConnection(ws) {
     for (let i = 0; i < this.connections.length; i++) {
       if (this.connections[i] === ws) {
         this.connections[i] = null;
-        // Keep `pending` so the player can reconnect mid-hand. Only fully
-        // remove the seat if no game is in progress.
-        if (!this.game || this.game.street === Streets.WAITING || this.game.street === Streets.COMPLETE) {
-          this.pending[i] = null;
+        // For Phase 1 dev simplicity, always release the seat on disconnect so
+        // a fresh tab can take it. This means abandoning a tab mid-hand opens
+        // the seat back up; we'll add proper sit-out / timeout handling later.
+        this.pending[i] = null;
+        if (this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE) {
+          // Reset the in-progress hand so the table is in a clean state.
+          this.game = null;
         }
       }
     }
@@ -100,10 +116,20 @@ export class Table {
     for (let seat = 0; seat < this.connections.length; seat++) {
       const ws = this.connections[seat];
       if (!ws || ws.readyState !== ws.OPEN) continue;
-      const state = this.game.getPublicState(seat);
+      const state = this._augmentState(this.game.getPublicState(seat));
       const legal = this.game.legalActions(seat);
-      ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal }));
+      ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
     }
+  }
+
+  // Inject Table-level metadata (display names) into the seat objects so
+  // clients can show real names without coupling Game to display concerns.
+  _augmentState(state) {
+    state.seats = state.seats.map((s, i) => ({
+      ...s,
+      displayName: this.pending[i]?.displayName || s.playerId,
+    }));
+    return state;
   }
 
   _broadcast(msg) {

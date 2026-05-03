@@ -2,9 +2,10 @@
 // Messages are JSON in both directions.
 
 export const ClientMsg = Object.freeze({
-  JOIN: 'join',         // { type, tableId, playerId, buyIn, smallBlind?, bigBlind? }
+  JOIN: 'join',         // { type, tableId, playerId, buyIn, displayName?, smallBlind?, bigBlind? }
   ACTION: 'action',     // { type, action: { type, amount? } }
   DEAL: 'deal',         // { type } — start the next hand once both players are seated and chipped
+  RENAME: 'rename',     // { type, displayName } — change your seat's display name
   LEAVE: 'leave',       // { type }
   PING: 'ping',
 });

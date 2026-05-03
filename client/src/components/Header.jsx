@@ -1,9 +1,21 @@
-function StatusDot({ state }) {
-  const cls = state === 'connected' ? 'on' : state === 'connecting' ? 'connecting' : 'off';
+function StatusDot({ status }) {
+  const cls =
+    status === 'connected' || status === 'playing' || status === 'waiting' ? 'on'
+    : status === 'connecting' ? 'connecting'
+    : 'off';
   return <span className={`dot ${cls}`} />;
 }
 
-export function Header({ connectionStatus, tableId, onLeave, hasConfig }) {
+const STATUS_LABEL = {
+  idle: 'IDLE',
+  connecting: 'CONNECTING',
+  waiting: 'WAITING',
+  playing: 'IN HAND',
+  closed: 'DISCONNECTED',
+  error: 'ERROR',
+};
+
+export function Header({ status, tableId, onLeave, hasConfig, mySeat }) {
   return (
     <header className="header">
       <div className="header__brand">
@@ -12,10 +24,10 @@ export function Header({ connectionStatus, tableId, onLeave, hasConfig }) {
       </div>
       <div className="header__status">
         {tableId && <span className="muted">TABLE {tableId}</span>}
-        <span><StatusDot state={connectionStatus.a} /> SEAT A</span>
-        <span><StatusDot state={connectionStatus.b} /> SEAT B</span>
+        {mySeat != null && <span className="muted">SEAT {mySeat === 0 ? 'A' : 'B'}</span>}
+        <span><StatusDot status={status} /> {STATUS_LABEL[status] || status}</span>
         {hasConfig && (
-          <button className="preset" onClick={onLeave}>Leave</button>
+          <button type="button" className="preset" onClick={onLeave}>Leave</button>
         )}
       </div>
     </header>

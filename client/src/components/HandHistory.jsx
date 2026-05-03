@@ -17,16 +17,19 @@ function actionLabel(action) {
   }
 }
 
+function nameOf(seat, displayNames) {
+  return displayNames[seat] ?? `Seat ${seat}`;
+}
+
 function describeResult(result, displayNames) {
   if (!result) return null;
   if (result.type === 'uncontested') {
     const w = result.winners[0];
-    const name = displayNames[w.seat] ?? `Seat ${w.seat}`;
-    return `${name} wins ${w.amount} uncontested`;
+    return `${nameOf(w.seat, displayNames)} wins ${w.amount} uncontested`;
   }
   if (result.type === 'showdown') {
     return result.winners
-      .map((w) => `${displayNames[w.seat] ?? `Seat ${w.seat}`} wins ${w.amount} — ${w.descr}`)
+      .map((w) => `${nameOf(w.seat, displayNames)} wins ${w.amount} — ${w.descr}`)
       .join(' · ');
   }
   return null;
@@ -62,19 +65,16 @@ function Entry({ entry, displayNames }) {
     );
   }
   if (entry.kind === 'action') {
-    const name = displayNames[entry.seat] ?? `Seat ${entry.seat}`;
+    const name = nameOf(entry.seat, displayNames);
     return (
       <div className="history__entry">
-        <span className="who">{name[0]}</span>
+        <span className="who">{(name[0] || '·').toUpperCase()}</span>
         <span>{name} {actionLabel(entry.action)}</span>
       </div>
     );
   }
   if (entry.kind === 'result') {
-    const text = describeResult(entry.result, displayNames);
-    return (
-      <div className="history__entry result">{text}</div>
-    );
+    return <div className="history__entry result">{describeResult(entry.result, displayNames)}</div>;
   }
   if (entry.kind === 'closed') {
     return <div className="history__entry result">Table closed: {entry.reason}</div>;

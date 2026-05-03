@@ -3,6 +3,7 @@ export const ClientMsg = Object.freeze({
   JOIN: 'join',
   ACTION: 'action',
   DEAL: 'deal',
+  RENAME: 'rename',
   LEAVE: 'leave',
   PING: 'ping',
 });

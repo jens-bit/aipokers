@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "PowerShell(npm run *)",
-      "PowerShell(npm start *)"
+      "PowerShell(npm start *)",
+      "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git status --short)",
+      "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git add .; & $git commit -m \"client v2: working two-player game\")"
     ]
   }
 }

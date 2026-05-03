@@ -49,10 +49,21 @@ export function createServer({ port, host = '0.0.0.0', defaultBlinds = { smallBl
           case ClientMsg.JOIN: {
             if (!msg.tableId || !msg.playerId) throw new Error('tableId and playerId required');
             const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind });
-            const seat = table.seatPlayer(ws, { playerId: msg.playerId, buyIn: msg.buyIn });
+            const seat = table.seatPlayer(ws, {
+              playerId: msg.playerId,
+              buyIn: msg.buyIn,
+              displayName: msg.displayName,
+            });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             table.maybeStartHand();
+            return;
+          }
+
+          case ClientMsg.RENAME: {
+            const table = tables.get(ws.tableId);
+            if (!table) throw new Error('not seated at any table');
+            table.rename(ws, msg.displayName);
             return;
           }
 
