@@ -1,0 +1,23 @@
+{
+  "name": "ai-poker",
+  "version": "0.1.0",
+  "description": "AI Poker — Telegram Mini App for heads-up NLHE on TON. Phase 1: game server.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "smoke": "node scripts/smoke-hand.js",
+    "smoke:ws": "node scripts/smoke-ws.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pokersolver": "^2.1.4",
+    "ws": "^8.18.0"
+  },
+  "author": "Jens",
+  "license": "UNLICENSED",
+  "private": true
+}
