@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getTelegramUser, isInTelegram } from '../lib/telegram.js';
 
 const DEFAULTS = {
   tableId: 'lounge',
@@ -8,9 +9,12 @@ const DEFAULTS = {
   displayName: '',
 };
 
+const tgUser = getTelegramUser();
+const inTelegram = isInTelegram();
+
 export function Setup({ onConnect }) {
   const [tableId, setTableId] = useState(DEFAULTS.tableId);
-  const [displayName, setDisplayName] = useState(DEFAULTS.displayName);
+  const [displayName, setDisplayName] = useState(tgUser?.first_name || DEFAULTS.displayName);
   const [buyIn, setBuyIn] = useState(DEFAULTS.buyIn);
   const [sb, setSb] = useState(DEFAULTS.smallBlind);
   const [bb, setBb] = useState(DEFAULTS.bigBlind);
@@ -68,7 +72,9 @@ export function Setup({ onConnect }) {
         </div>
 
         <div className="setup__hint">
-          Open this page in two browser tabs to play heads-up. Each tab takes one seat.
+          {inTelegram
+            ? 'Welcome from Telegram. Send the link to a friend so they can take the other seat.'
+            : 'Open this page in two browser tabs to play heads-up. Each tab takes one seat.'}
         </div>
 
         <button className="setup__btn" type="submit">Take Seat</button>

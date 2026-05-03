@@ -4,7 +4,9 @@
       "PowerShell(npm run *)",
       "PowerShell(npm start *)",
       "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git status --short)",
-      "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git add .; & $git commit -m \"client v2: working two-player game\")"
+      "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git add .; & $git commit -m \"client v2: working two-player game\")",
+      "PowerShell($resp = Invoke-WebRequest -Uri \"http://localhost:8765/\" -UseBasicParsing; Write-Host \"HTTP status: $\\($resp.StatusCode\\)\"; Write-Host \"Content-Type: $\\($resp.Headers['Content-Type']\\)\"; Write-Host \"Length: $\\($resp.Content.Length\\)\"; Write-Host \"Has telegram-web-app.js: $\\($resp.Content -match 'telegram-web-app.js'\\)\"; Write-Host \"Has root div: $\\($resp.Content -match 'id=`\"root`\"'\\)\"; Write-Host \"---\"; $bundle = Invoke-WebRequest -Uri \"http://localhost:8765/assets/index-DEaFgMbf.js\" -UseBasicParsing; Write-Host \"Bundle status: $\\($bundle.StatusCode\\), size: $\\($bundle.Content.Length\\) bytes\")",
+      "PowerShell(Set-Location C:\\\\Projects\\\\ai-poker; $git = \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"; & $git add .; & $git commit -m \"telegram mini app integration + combined server\" 2>&1)"
     ]
   }
 }

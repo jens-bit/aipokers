@@ -2,8 +2,13 @@ import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
 import { Table } from './table.js';
 
-export function createServer({ port, host = '0.0.0.0', defaultBlinds = { smallBlind: 10, bigBlind: 20 } }) {
-  const wss = new WebSocketServer({ port, host });
+// Either pass `server` (an existing http.Server, e.g. shared with Express) to
+// attach the WebSocket upgrade handler to it, or pass `port`/`host` to create
+// a standalone listening WS server. Returns { wss, tables }.
+export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = { smallBlind: 10, bigBlind: 20 } }) {
+  const wss = server
+    ? new WebSocketServer({ server })
+    : new WebSocketServer({ port, host });
   const tables = new Map();   // tableId -> Table
 
   function getOrCreateTable(tableId, opts = {}) {

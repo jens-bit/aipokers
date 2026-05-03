@@ -7,7 +7,17 @@ import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 
-const WS_URL = `ws://${window.location.hostname}:8765`;
+// Resolve the WebSocket endpoint:
+//   - explicit override via VITE_WS_URL (set in .env.local or build env)
+//   - dev: separate Vite dev server on 5173, WS on 8765 of the same host
+//   - prod: same origin as the page (wss when the page is https)
+function resolveWsUrl() {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (import.meta.env.DEV) return `${proto}//${window.location.hostname}:8765`;
+  return `${proto}//${window.location.host}`;
+}
+const WS_URL = resolveWsUrl();
 
 export default function App() {
   const table = useTable({ wsUrl: WS_URL });
