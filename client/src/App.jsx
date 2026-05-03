@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Setup } from './components/Setup.jsx';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
-import { HandHistory } from './components/HandHistory.jsx';
+import { HistoryDrawer } from './components/HistoryDrawer.jsx';
+import { Streets } from './lib/protocol.js';
 
 // Resolve the WebSocket endpoint:
 //   - explicit override via VITE_WS_URL (set in .env.local or build env)
@@ -23,16 +24,20 @@ export default function App() {
   const table = useTable({ wsUrl: WS_URL });
   const { game, mySeat, legalActions, history, error, dismissError, status, config, connect, disconnect, act, deal, rename } = table;
 
-  // Track buy-in for P/L. Set on connect; doesn't change during a session.
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   const buyInRef = useRef(null);
   useEffect(() => {
     if (config && buyInRef.current == null) buyInRef.current = config.buyIn;
     if (!config) buyInRef.current = null;
   }, [config]);
 
+  // Close the drawer if we leave the table.
+  useEffect(() => { if (!config) setHistoryOpen(false); }, [config]);
+
   if (!config) {
     return (
-      <div className="app app--solo">
+      <div className="app">
         <Header status={status} hasConfig={false} />
         <Setup onConnect={connect} />
       </div>
@@ -41,32 +46,39 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header status={status} tableId={config.tableId} mySeat={mySeat} onLeave={disconnect} hasConfig />
+      <Header
+        status={status}
+        mySeat={mySeat}
+        hasConfig
+        historyCount={history.length}
+        onToggleHistory={() => setHistoryOpen((v) => !v)}
+        onLeave={disconnect}
+      />
       <main className="app__main">
         {error && (
           <div className="error-banner" onClick={dismissError}>
-            {error} · click to dismiss
+            {error} · tap to dismiss
           </div>
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} />
-        <ActionBar
-          game={game}
-          mySeat={mySeat}
-          legalActions={legalActions}
-          status={status}
-          onAct={act}
-          onDeal={deal}
-        />
       </main>
-      <aside className="app__sidebar">
-        <HandHistory
-          history={history}
-          displayNames={{
-            0: game?.seats?.[0]?.displayName ?? 'Seat A',
-            1: game?.seats?.[1]?.displayName ?? 'Seat B',
-          }}
-        />
-      </aside>
+      <ActionBar
+        game={game}
+        mySeat={mySeat}
+        legalActions={legalActions}
+        status={status}
+        onAct={act}
+        onDeal={deal}
+      />
+      <HistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        history={history}
+        displayNames={{
+          0: game?.seats?.[0]?.displayName ?? 'Seat A',
+          1: game?.seats?.[1]?.displayName ?? 'Seat B',
+        }}
+      />
     </div>
   );
 }
@@ -86,6 +98,8 @@ function TableView({ game, mySeat, buyIn, onRename }) {
     return { 0: sp(0), 1: sp(1) };
   }, [game]);
 
+  const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
+
   const emptyData = (label) => ({
     displayName: label, stack: 0, contribTotal: 0, contribThisStreet: 0,
     folded: false, allIn: false, holeCards: [],
@@ -101,6 +115,7 @@ function TableView({ game, mySeat, buyIn, onRename }) {
         position="top"
         data={oppData}
         isMine={false}
+        inHand={inHand}
         isDealer={!!seatProps?.[opponentSeat]?.isDealer}
         isSmallBlind={!!seatProps?.[opponentSeat]?.isSmallBlind}
         isBigBlind={!!seatProps?.[opponentSeat]?.isBigBlind}
@@ -117,6 +132,7 @@ function TableView({ game, mySeat, buyIn, onRename }) {
         data={meData}
         buyIn={buyIn}
         isMine
+        inHand={inHand}
         onRename={onRename}
         isDealer={!!seatProps?.[mySeat]?.isDealer}
         isSmallBlind={!!seatProps?.[mySeat]?.isSmallBlind}

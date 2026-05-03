@@ -37,44 +37,44 @@ export function Setup({ onConnect }) {
         <h1 className="setup__title">SIT DOWN</h1>
         <div className="setup__sub">PRIVATE TABLE — HEADS-UP</div>
 
-        <div className="setup__row">
-          <div className="setup__field" style={{ gridColumn: '1 / -1' }}>
+        <div className="setup__row setup__row--full">
+          <div className="setup__field">
             <span className="label">Your name</span>
             <input
-              autoFocus
+              autoFocus={!inTelegram}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Alice"
+              placeholder="Name"
             />
           </div>
         </div>
 
         <div className="setup__row">
           <div className="setup__field">
-            <span className="label">Table ID</span>
+            <span className="label">Table</span>
             <input value={tableId} onChange={(e) => setTableId(e.target.value)} />
           </div>
           <div className="setup__field">
             <span className="label">Buy-in</span>
-            <input type="number" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
+            <input type="number" inputMode="numeric" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
           </div>
         </div>
 
         <div className="setup__row">
           <div className="setup__field">
             <span className="label">Small blind</span>
-            <input type="number" value={sb} onChange={(e) => setSb(e.target.value)} />
+            <input type="number" inputMode="numeric" value={sb} onChange={(e) => setSb(e.target.value)} />
           </div>
           <div className="setup__field">
             <span className="label">Big blind</span>
-            <input type="number" value={bb} onChange={(e) => setBb(e.target.value)} />
+            <input type="number" inputMode="numeric" value={bb} onChange={(e) => setBb(e.target.value)} />
           </div>
         </div>
 
         <div className="setup__hint">
           {inTelegram
-            ? 'Welcome from Telegram. Send the link to a friend so they can take the other seat.'
-            : 'Open this page in two browser tabs to play heads-up. Each tab takes one seat.'}
+            ? 'Share the bot link with a friend to fill the second seat.'
+            : 'Open this page in two browser tabs to play heads-up.'}
         </div>
 
         <button className="setup__btn" type="submit">Take Seat</button>

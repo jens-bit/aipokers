@@ -17,6 +17,7 @@ export function PlayerSeat({
   isBigBlind,
   isToAct,
   isMine,
+  inHand,             // are we mid-hand (cards are dealt or hidden)?
   onRename,
 }) {
   const [editingName, setEditingName] = useState(data.displayName || '');
@@ -24,7 +25,13 @@ export function PlayerSeat({
 
   const pl = formatPL(data.stack - (buyIn ?? data.stack));
   const holeCards = data.holeCards || [];
-  const cards = holeCards.length === 2 ? holeCards : [null, null];
+
+  // Card slots: own hole cards, face-down backs for opponent during a hand,
+  // dashed placeholders otherwise.
+  let cardSlots;
+  if (holeCards.length === 2) cardSlots = holeCards;
+  else if (inHand && !data.folded) cardSlots = [null, null];
+  else cardSlots = ['placeholder', 'placeholder'];
 
   const commitRename = () => {
     const next = editingName.trim();
@@ -35,8 +42,8 @@ export function PlayerSeat({
   return (
     <div className={`seat seat--${position} ${isToAct ? 'is-acting' : ''} ${data.folded ? 'is-folded' : ''} ${isMine ? 'is-mine' : ''}`}>
       <div className="seat__cards">
-        <Card card={cards[0]} size="sm" />
-        <Card card={cards[1]} size="sm" />
+        <Card card={cardSlots[0]} size="sm" />
+        <Card card={cardSlots[1]} size="sm" />
       </div>
 
       <div className="seat__info">
@@ -67,8 +74,8 @@ export function PlayerSeat({
 
       {data.contribThisStreet > 0 && (
         <div className="seat__bet">
-          <div className="seat__bet-amount">{data.contribThisStreet.toLocaleString()}</div>
-          <div className="seat__bet-label">In this street</div>
+          <span className="seat__bet-label">Bet</span>
+          <span>{data.contribThisStreet.toLocaleString()}</span>
         </div>
       )}
     </div>

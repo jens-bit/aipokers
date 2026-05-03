@@ -13,33 +13,30 @@ function findLegal(legal, type) {
 }
 
 export function ActionBar({ game, mySeat, legalActions, status, onAct, onDeal }) {
-  if (status === 'connecting') {
-    return <Shell hint="Connecting…" />;
-  }
+  if (status === 'connecting') return <Shell hint="Connecting…" />;
+
   if (status === 'waiting' && (!game || game.street === Streets.WAITING)) {
     return (
-      <Shell hint="Seated. Waiting for an opponent — open this page in another browser tab to play.">
-        <button className="btn btn--deal" disabled>DEAL</button>
+      <Shell hint="Waiting for opponent — share the link to fill the seat.">
+        <button type="button" className="btn btn--deal" disabled>DEAL</button>
       </Shell>
     );
   }
-  if (status === 'closed') {
-    return <Shell hint="Disconnected." />;
-  }
+  if (status === 'closed') return <Shell hint="Disconnected." />;
 
   const handOver = !game || game.toAct === null || game.street === Streets.COMPLETE;
   if (handOver) {
     return (
-      <Shell hint="Hand complete. Press DEAL when ready for the next one.">
-        <button className="btn btn--deal" onClick={onDeal} type="button">DEAL</button>
+      <Shell hint="Hand complete">
+        <button type="button" className="btn btn--deal" onClick={onDeal}>DEAL</button>
       </Shell>
     );
   }
 
   const yourTurn = game.toAct === mySeat;
   if (!yourTurn) {
-    const opponentName = game.seats[game.toAct]?.displayName || `Seat ${game.toAct}`;
-    return <Shell hint={`Waiting on ${opponentName}…`} />;
+    const opponentName = game.seats[game.toAct]?.displayName || 'opponent';
+    return <Shell hint={`${opponentName} to act…`} />;
   }
 
   return <ActiveControls game={game} mySeat={mySeat} legalActions={legalActions} onAct={onAct} />;
@@ -49,7 +46,7 @@ function Shell({ hint, children }) {
   return (
     <div className="action-bar">
       <div className="action-bar__hint">{hint}</div>
-      {children && <div className="action-bar__row" style={{ justifyContent: 'center' }}>{children}</div>}
+      {children && <div className="action-bar__row action-bar__row--primary">{children}</div>}
     </div>
   );
 }
@@ -90,11 +87,11 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
   return (
     <div className="action-bar">
       <div className="action-bar__hint">
-        Your turn · pot {game.pot.toLocaleString()} · current bet {game.currentBet.toLocaleString()}
+        Pot {game.pot.toLocaleString()} · bet {game.currentBet.toLocaleString()}
       </div>
 
       {aggressive && (
-        <div className="action-bar__row">
+        <>
           <div className="action-bar__sizing">
             {PRESETS.map((p) => (
               <button
@@ -106,21 +103,24 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
                 {p.label}
               </button>
             ))}
-            <button type="button" className="preset" onClick={() => setAmount(maxTotal)}>ALL-IN</button>
+            <button type="button" className="preset" onClick={() => setAmount(maxTotal)}>MAX</button>
           </div>
-          <input
-            className="amount-input"
-            type="number"
-            min={minTotal}
-            max={maxTotal}
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-          />
-          <span className="muted">min {minTotal} · max {maxTotal}</span>
-        </div>
+          <div className="action-bar__row">
+            <input
+              className="amount-input"
+              type="number"
+              inputMode="numeric"
+              min={minTotal}
+              max={maxTotal}
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              aria-label={`bet amount; min ${minTotal} max ${maxTotal}`}
+            />
+          </div>
+        </>
       )}
 
-      <div className="action-bar__row">
+      <div className="action-bar__row action-bar__row--primary">
         {fold && (
           <button type="button" className="btn btn--fold" onClick={() => onAct({ type: Actions.FOLD })}>
             FOLD
@@ -143,16 +143,7 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
             onClick={submitAggressive}
             disabled={!Number.isFinite(amount) || amount < minTotal || amount > maxTotal}
           >
-            {isRaise ? 'RAISE TO' : 'BET'} {clamp(amount).toLocaleString()}
-          </button>
-        )}
-        {aggressive && maxTotal === player.stack + player.contribThisStreet && (
-          <button
-            type="button"
-            className="btn btn--allin"
-            onClick={() => onAct({ type: aggressive.type, amount: maxTotal })}
-          >
-            ALL-IN
+            {isRaise ? 'RAISE' : 'BET'} {clamp(amount).toLocaleString()}
           </button>
         )}
       </div>
