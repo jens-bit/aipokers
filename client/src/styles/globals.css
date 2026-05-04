@@ -1408,17 +1408,20 @@ input:focus { border-color: var(--accent); }
    one screen above the fixed action bar. No scrolling allowed.
    EXIT button in PlayHeader handles leaving; no footer needed. */
 @media (max-width: 599px) {
-  /* Footer removed entirely — EXIT is in the header */
+  /* Footer: completely gone on mobile */
   .ps-footer { display: none; }
 
-  /* Opponent and player rows: compact, won't overflow */
+  /* Opponent and player rows: compact */
   .ps-opponent-row { max-height: 80px; overflow: hidden; }
   .ps-you-row      { max-height: 80px; overflow: hidden; }
 
-  /* Oval table: 4:3 ratio, max 220px tall, centred horizontally */
+  /* Oval table: hard cap at 200px tall.
+     min-height:0 overrides the base 220px so max-height actually wins. */
   .play-app .app__main .ps-table {
+    min-height: 0;
+    max-height: 200px;
+    overflow: hidden;
     aspect-ratio: 4 / 3;
-    max-height: 220px;
     align-self: center;
     margin: 0 auto 8px;
   }
