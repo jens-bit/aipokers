@@ -1,5 +1,46 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Actions, Streets } from '../lib/protocol.js';
+
+const TIMER_TOTAL = 15;
+
+function ActionTimer({ isMyTurn, onTimeout }) {
+  const [left, setLeft] = useState(TIMER_TOTAL);
+  const onTimeoutRef = useRef(onTimeout);
+  const firedRef = useRef(false);
+  useEffect(() => { onTimeoutRef.current = onTimeout; });
+
+  useEffect(() => {
+    if (!isMyTurn) return;
+    firedRef.current = false;
+    const id = setInterval(() => setLeft(prev => Math.max(0, prev - 1)), 1000);
+    return () => clearInterval(id);
+  }, [isMyTurn]);
+
+  useEffect(() => {
+    if (isMyTurn && left === 0 && !firedRef.current) {
+      firedRef.current = true;
+      onTimeoutRef.current?.();
+    }
+  }, [left, isMyTurn]);
+
+  if (!isMyTurn) return null;
+
+  const pct = (left / TIMER_TOTAL) * 100;
+  const color = left <= 5 ? 'var(--timer-critical)' : left <= 10 ? 'var(--timer-warning)' : 'var(--accent)';
+  const pulse = left <= 5 && left > 0;
+
+  return (
+    <div className="action-timer">
+      <div className="action-timer__track">
+        <div
+          className={`action-timer__fill${pulse ? ' action-timer__fill--pulse' : ''}`}
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+      <span className="action-timer__count" style={{ color }}>{left}s</span>
+    </div>
+  );
+}
 
 const PRESETS = [
   { label: '⅓', fraction: 1 / 3 },
@@ -13,8 +54,15 @@ function findLegal(legal, type) {
 }
 
 export function ActionBar(props) {
+  const { game, mySeat, onAct } = props;
+  const handIsActive = !!game && game.toAct !== null && game.street !== Streets.COMPLETE;
+  const yourTurn = handIsActive && game.toAct === mySeat;
+  const timerKey = `${game?.handNumber ?? 0}-${game?.toAct ?? -1}`;
+  const handleTimeout = useCallback(() => onAct?.({ type: Actions.FOLD }), [onAct]);
+
   return (
     <ActionBarFrame>
+      <ActionTimer key={timerKey} isMyTurn={yourTurn} onTimeout={handleTimeout} />
       <ActionBarContent {...props} />
     </ActionBarFrame>
   );

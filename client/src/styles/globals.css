@@ -429,6 +429,21 @@ input:focus { border-color: var(--accent); }
 .card.back .card__suit-center,
 .card.back .card__rank,
 .card.back .card__suit-corner { display: none; }
+.card.back::after {
+  content: "AP";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--accent);
+  opacity: 0.5;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
 .card.placeholder {
   background: transparent;
   border: 1px dashed var(--text-muted);
@@ -464,6 +479,44 @@ input:focus { border-color: var(--accent); }
   z-index: 50;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
 }
+/* ------------ action timer (countdown bar, shown when isMyTurn) ------------ */
+.action-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.action-timer__track {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.action-timer__fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 2px;
+  transition: width 0.95s linear, background-color 0.3s ease;
+}
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.action-timer__fill--pulse { animation: timer-pulse 0.8s ease-in-out infinite; }
+.action-timer__count {
+  font-family: var(--font-label);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  min-width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .action-bar__hint {
   font-size: 10px;
   color: var(--text-muted);
@@ -773,7 +826,7 @@ input:focus { border-color: var(--accent); }
 
   .action-bar {
     grid-area: actions;
-    position: static;
+    position: relative;
     transform: none;
     width: auto;
     max-width: none;
@@ -1262,4 +1315,29 @@ input:focus { border-color: var(--accent); }
     align-items: flex-start;
     gap: 3px;
   }
+}
+
+/* ============================================================
+ * MOBILE FLEX CHAIN (explicit reinforcement, ≤599px)
+ *
+ * Belt-and-suspenders to ensure the board zone grows to fill
+ * available height between the two seats on iPhone viewports.
+ * These properties are also in the mobile-first base styles
+ * above; the explicit max-width block ensures no desktop rule
+ * accidentally overrides them for narrow viewports.
+ * ============================================================ */
+@media (max-width: 599px) {
+  .app__main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .table-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .center { flex: 1; }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Setup } from './components/Setup.jsx';
@@ -32,6 +32,21 @@ export default function App() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const handleLeave = useCallback(() => {
+    const gameInProgress = game &&
+      game.street !== Streets.WAITING &&
+      game.street !== Streets.COMPLETE;
+    const tg = window.Telegram?.WebApp;
+    if (gameInProgress && tg?.showConfirm) {
+      tg.showConfirm('Your game is still running. Leave anyway?', (confirmed) => {
+        if (confirmed) { disconnect(); tg.close?.(); }
+      });
+    } else {
+      disconnect();
+      tg?.close?.();
+    }
+  }, [game, disconnect]);
+
   const buyInRef = useRef(null);
   useEffect(() => {
     if (config && buyInRef.current == null) buyInRef.current = config.buyIn;
@@ -60,7 +75,7 @@ export default function App() {
         reconnectAttempt={reconnectAttempt}
         maxReconnectAttempts={maxReconnectAttempts}
         onToggleHistory={() => setHistoryOpen((v) => !v)}
-        onLeave={disconnect}
+        onLeave={handleLeave}
       />
       <main className="app__main">
         {error && (
