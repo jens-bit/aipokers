@@ -408,18 +408,19 @@ input:focus { border-color: var(--accent); }
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--max-w-mobile);
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 4px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--edge);
-  padding: 12px 12px calc(12px + var(--safe-bottom));
+  /* Zero top-padding so the drawer-rule line sits right at the top edge of the bar */
+  padding: 0 12px calc(8px + var(--safe-bottom));
   z-index: 50;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
 }
 /* ------------ seat timer ring (circular countdown, replaces action bar bar) ------------ */
 .seat__timer-ring {
   position: absolute;
-  /* Sits inside the seat card, top-right area — below the floating bet badge */
-  top: 6px; right: 6px;
+  /* Bottom-right corner — avoids the floating bet badge which sits at top-right */
+  bottom: 6px; right: 6px;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   pointer-events: none;
@@ -436,13 +437,15 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ------------ collapsible bet-sizing drawer ------------ */
-/* The divider row: a full-width hairline with the chevron sitting on top of it */
+/* The divider row: a full-width hairline with the chevron sitting on top of it.
+   Zero top-margin keeps it flush with the action-bar's border-top. */
 .action-bar__drawer-rule {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 18px;
+  height: 20px;
+  margin-top: -1px; /* overlap the action-bar border-top by 1px so lines merge */
 }
 .action-bar__drawer-rule::before {
   content: '';
@@ -485,13 +488,18 @@ input:focus { border-color: var(--accent); }
   letter-spacing: 0.2em;
   text-transform: uppercase;
   text-align: center;
-  min-height: 14px;
+  /* Match the height of the primary controls row so the bar doesn't jump in size */
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .action-bar__row {
   display: flex; gap: 8px; align-items: center; justify-content: center;
   flex-wrap: wrap;
 }
-.action-bar__row--primary > .btn { flex: 1 1 0; min-width: 0; }
+.action-bar__row--primary { padding: 6px 0; }
+.action-bar__row--primary > .btn { flex: 1 1 0; min-width: 0; min-height: 36px; }
 .action-bar__sizing {
   display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%;
 }
