@@ -124,26 +124,14 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
 
   return (
     <>
-      {/* Desktop context row — styled as plain hint on mobile */}
-      <div className="action-bar__context">
-        <span className="action-bar__context-text">
-          <strong>To call:</strong> {callAmount.toLocaleString()} &nbsp;·&nbsp; <strong>Pot:</strong> {game.pot.toLocaleString()}
-        </span>
-        {aggressive && (
-          <span className="action-bar__context-text action-bar__context-right">
-            Min raise: {minTotal.toLocaleString()}
-          </span>
-        )}
-      </div>
-
-      {/* Bet sizing: toggle pill + collapsible drawer */}
+      {/* Bet sizing: chevron-on-line divider + collapsible drawer */}
       {aggressive && (
         <>
-          {/* Toggle pill sits above the drawer */}
-          <div className="action-bar__drawer-toggle-row">
+          {/* Hairline with chevron centered on it */}
+          <div className="action-bar__drawer-rule">
             <button
               type="button"
-              className="action-bar__drawer-toggle"
+              className="action-bar__drawer-chevron"
               onClick={() => setDrawerOpen((v) => !v)}
               aria-label={drawerOpen ? 'Close bet sizing' : 'Open bet sizing'}
             >
