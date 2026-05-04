@@ -1405,28 +1405,53 @@ input:focus { border-color: var(--accent); }
   }
 }
 
-/* ── Mobile compact layout (≤599px) ─────────────────────────────
-   Full-screen, no scroll. Flex distributes space dynamically:
-   opponent (80px) + table (flex:1) + your seat (90px).
-   Action bar is fixed — padding-bottom reserves its space. */
+/* ── Mobile layout (≤599px) — four fixes ───────────────────────
+   1. No footer (removed from JSX).
+   2. Oval table: explicit wide-oval shape, not flex-grown circle.
+   3. Card rendering: Arial font, correct sizes, emoji prevention.
+   4. Tight spacing: compact rows, no gap below YouRow. */
 @media (max-width: 599px) {
-  /* Footer gone — EXIT is in the header */
+  /* Fix 1: safety net in case FooterActions ever returns to JSX */
   .ps-footer { display: none; }
 
-  /* Give play-app a definite height so flex:1 on the table resolves */
+  /* Fix 3 (layout): definite height so rows + table stack cleanly */
   .play-app { height: 100vh; overflow: hidden; }
 
-  /* Rows: fixed heights, won't steal space from the table */
-  .ps-opponent-row { flex-shrink: 0; height: 80px; overflow: hidden; }
-  .ps-you-row      { flex-shrink: 0; height: 90px; overflow: hidden; }
+  /* Fix 4: compact rows, fixed heights, no bottom margin on YouRow */
+  .ps-opponent-row {
+    flex-shrink: 0;
+    max-height: 76px;
+    overflow: hidden;
+    padding: 8px 10px;
+  }
+  .ps-you-row {
+    flex-shrink: 0;
+    max-height: 84px;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
 
-  /* Table: fills all remaining space between the two rows.
-     No fixed cap — flex:1 (from global rule) does the work. */
+  /* Fix 2: wide oval — explicit dimensions, border-radius:50% = ellipse */
   .play-app .app__main .ps-table {
+    flex: none;
+    width: calc(100% - 32px);
+    height: 220px;
+    border-radius: 50%;
+    margin: 0 16px;
     min-height: 0;
     max-height: none;
     overflow: hidden;
   }
+
+  /* Fix 3: card font/size — Arial forces plain glyph rendering, no emoji */
+  .card {
+    font-family: Arial, Helvetica, sans-serif;
+    border-radius: 8px;
+  }
+  .card.small { width: 52px; height: 72px; }
+  .card.small .card__rank    { font-size: 14px; }
+  .card.small .card__suit-corner { font-size: 11px; }
+  .card.small .card__suit-center { font-size: 28px; }
 }
 
 /* ── Chip dot (replaces SVG ChipIcon) ──────────────────────── */

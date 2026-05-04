@@ -5,7 +5,7 @@ import { Setup } from './components/Setup.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
-import { PlayHeader, PlayTable, OpponentRow, YouRow, FooterActions } from './components/PlayScreen.jsx';
+import { PlayHeader, PlayTable, OpponentRow, YouRow } from './components/PlayScreen.jsx';
 import { Streets } from './lib/protocol.js';
 
 function resolveWsUrl() {
@@ -122,7 +122,6 @@ export default function App() {
           inHand={inHand}
         />
 
-        <FooterActions onLeave={handleLeave} />
       </main>
 
       {/* ── Action bar (fixed on mobile, inline on desktop) ── */}
