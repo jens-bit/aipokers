@@ -22,13 +22,16 @@
   --accent: #00D4AA;
   --accent-hover: #00E6B8;
   --accent-dim: #00A88A;
+  --accent-deep: #006B5A;
   --glow-soft: rgba(0, 212, 170, 0.25);
   --glow-strong: rgba(0, 212, 170, 0.40);
+  --glow-faint: rgba(0, 212, 170, 0.08);
 
   /* Text */
   --text-primary: #EDEDED;
   --text-secondary: #A1A1A1;
   --text-muted: #6B6B6B;
+  --text-faded: #4A4A4A;
 
   /* State */
   --success: #00D4AA;

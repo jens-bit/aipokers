@@ -97,7 +97,7 @@ input:focus { border-color: var(--accent); }
 .app__main {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 1;
   /* --action-bar-h is measured by ActionBar at runtime so the bottom seat
      never hides behind the fixed bar. Desktop overrides this below. */
   padding: 12px 12px calc(var(--action-bar-h) + 20px);
@@ -144,6 +144,17 @@ input:focus { border-color: var(--accent); }
 
 @media (max-width: 360px) {
   .header__brand { font-size: 12px; letter-spacing: 0.14em; }
+}
+
+.header__tagline {
+  display: none;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .icon-btn {
@@ -218,7 +229,7 @@ input:focus { border-color: var(--accent); }
 
 /* ------------ table area ------------ */
 .table-area {
-  flex: 1 1 auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -347,6 +358,7 @@ input:focus { border-color: var(--accent); }
 /* ------------ center (pot + community) ------------ */
 .center {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1;
   gap: 8px;
   padding: 8px 0 4px;
 }
@@ -601,8 +613,10 @@ input:focus { border-color: var(--accent); }
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* ------------ hand history ------------ */
-.history h3 { display: none; }     /* drawer/sidebar header replaces this */
+/* ------------ hand history ------------
+ * HandHistory renders only the list. Its container (drawer header on mobile,
+ * sidebar header on desktop) renders the title — so there's no internal h3
+ * to hide here. */
 .history__list { display: flex; flex-direction: column; gap: 0; }
 .history__hand { border-top: 1px solid var(--edge); padding: 10px 0; }
 .history__hand:first-child { border-top: none; }
@@ -650,6 +664,72 @@ input:focus { border-color: var(--accent); }
 
 .muted { color: var(--text-muted); font-size: 11px; letter-spacing: 0.12em; }
 
+/* ------------ new desktop-prep elements (hidden/minimal until 1100px) ------------ */
+
+/* Header pill — hidden on mobile, shown on desktop */
+.header__pill { display: none; }
+.live-dot { display: none; }
+
+/* Hide LOG (drawer toggle) at ≥600px; re-shown at ≥1100px */
+.icon-btn--log { display: none; }
+
+/* Mobile status elements — toggled off at ≥1100px */
+.header__mobile-seat,
+.header__mobile-sep,
+.header__mobile-label { /* visible by default */ }
+
+/* Action bar context row — shown as compact hint on mobile, full row on desktop */
+.action-bar__context {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  min-height: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+.action-bar__context-right { display: none; }
+.action-bar__context-text { color: var(--text-muted); font-size: 10px; }
+.action-bar__context-text strong { color: var(--text-secondary); }
+
+/* Panel container elements — used in sidebar at ≥600px, full panel at ≥1100px */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.panel-meta {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.history-content {
+  /* At tablet (600px), sidebar handles scrolling itself. At ≥1100px overridden to flex-scroll. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.panel-footer {
+  padding-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
 /* ============================================================
  * DESKTOP LAYOUT (>=600px)
  *
@@ -663,11 +743,13 @@ input:focus { border-color: var(--accent); }
     max-width: var(--max-w-desktop);
     display: grid;
     grid-template-columns: 1fr 280px;
+    grid-template-rows: auto 1fr auto;
     grid-template-areas:
       "header  header"
       "main    sidebar"
       "actions sidebar";
     align-items: stretch;
+    min-height: 100vh;
   }
   .header { grid-area: header; }
 
@@ -687,16 +769,6 @@ input:focus { border-color: var(--accent); }
     padding: 16px;
     overflow-y: auto;
     min-height: 0;
-  }
-  .app__sidebar h3 {
-    display: block;
-    font-family: var(--font-display);
-    margin: 0 0 12px;
-    color: var(--text-primary);
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    font-size: 14px;
-    text-transform: uppercase;
   }
 
   .action-bar {
@@ -723,4 +795,471 @@ input:focus { border-color: var(--accent); }
   .card__suit-center { font-size: 36px; }
 
   .table-area { padding: 16px; }
+}
+
+/* ============================================================
+ * DESKTOP LAYOUT (≥1100px)
+ *
+ * Full two-column grid: play area (left) | sticky history panel (right).
+ * ActionBar is inline below the play area — NOT fixed at viewport bottom.
+ * Mobile layout (≤600px) is entirely untouched by this block.
+ * ============================================================ */
+@media (min-width: 1100px) {
+
+  /* ── APP GRID ─────────────────────────────────────────────── */
+  .app {
+    max-width: 1600px;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-rows: 64px 1fr auto;
+    grid-template-areas:
+      "header  header"
+      "main    sidebar"
+      "actions sidebar";
+    gap: 0 32px;
+    padding: 0 40px 40px;
+    align-items: stretch;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ──────────────────────────────────────────────── */
+  .header {
+    height: 64px;
+    min-height: 64px;
+    padding: 0 40px;
+    background: rgba(10, 10, 10, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background-image: none;
+  }
+  .header__brand { font-size: 22px; letter-spacing: 0.08em; font-weight: 500; }
+  .header__brand .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--glow-strong);
+    margin: 0 10px;
+    vertical-align: middle;
+    color: transparent;
+    font-size: 0;
+  }
+  /* Hide mobile status elements; show desktop pill instead */
+  .header__status > .dot { display: none; }
+  .header__mobile-seat,
+  .header__mobile-sep,
+  .header__mobile-label { display: none; }
+  .header__pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 100px;
+    background: var(--bg-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+  }
+  .live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--glow-strong);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+  /* icon-btn: slimmer, more refined at desktop */
+  .icon-btn {
+    min-height: 36px;
+    padding: 6px 16px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+  }
+  .icon-btn:hover,
+  .icon-btn:focus-visible {
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--bg-secondary);
+  }
+  .icon-btn--badge::after { width: 5px; height: 5px; }
+  /* Show LOG button — sidebar is always visible so it acts as a visual affordance */
+  .icon-btn--log { display: inline-flex; }
+
+  .header__status { gap: 20px; }
+  /* DEAL spans the full primary row when it's the only button */
+  .btn--deal { grid-column: 1 / -1; }
+
+  /* ── MAIN / PLAY AREA ────────────────────────────────────── */
+  .app__main { padding: 32px 0 0; }
+  .table-area {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+    gap: 0;
+  }
+  /* Radial table-glow behind the board zone */
+  .table-area::before {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: 140%;
+    height: 60%;
+    transform: translate(-50%, -50%);
+    border: none;
+    border-radius: 0;
+    background: radial-gradient(ellipse at center, rgba(0, 212, 170, 0.06) 0%, transparent 60%);
+  }
+
+  /* ── SEATS ───────────────────────────────────────────────── */
+  .seat {
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
+    padding: 24px 28px;
+    background: linear-gradient(180deg, var(--bg-secondary) 0%, rgba(17, 17, 17, 0.4) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+  }
+  .seat.is-acting { border-color: rgba(255, 255, 255, 0.1); box-shadow: none; }
+  .seat.is-acting.is-mine {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px var(--glow-soft),
+      0 0 32px var(--glow-soft),
+      inset 0 0 60px rgba(0, 212, 170, 0.04);
+  }
+  .seat.is-folded { opacity: 0.4; }
+  .seat__name {
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    padding: 0;
+    min-height: auto;
+  }
+  .seat__stack { font-size: 28px; font-weight: 700; }
+  /* Bet pill: grid 3rd column, no longer absolutely positioned */
+  .seat__bet {
+    position: static;
+    top: auto;
+    right: auto;
+    align-self: start;
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: 100px;
+    box-shadow: 0 0 24px var(--glow-soft);
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .seat__bet-label { color: var(--bg-primary); opacity: 0.7; }
+  /* Hole cards: use full size at desktop */
+  .seat__cards .card.small {
+    width: 64px;
+    height: 90px;
+    padding: 5px 6px;
+  }
+  .seat__cards .card.small .card__rank { font-size: 18px; }
+  .seat__cards .card.small .card__suit-corner { font-size: 14px; }
+  .seat__cards .card.small .card__suit-center { font-size: 32px; }
+
+  /* ── BOARD ZONE ──────────────────────────────────────────── */
+  .center { padding: 36px 28px 32px; gap: 16px; }
+  .pot__amount {
+    font-size: 56px;
+    text-shadow: 0 0 32px var(--glow-soft);
+  }
+  .community { gap: 10px; min-height: 90px; }
+
+  /* ── CARD BACKS ──────────────────────────────────────────── */
+  .card.back {
+    background: linear-gradient(135deg, #0F0F0F 0%, #1A1A1A 50%, #0A0A0A 100%);
+    background-image: none;
+    border-color: rgba(0, 212, 170, 0.15);
+  }
+  .card.back::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    border-radius: 4px;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent 0,
+      transparent 4px,
+      rgba(0, 212, 170, 0.06) 4px,
+      rgba(0, 212, 170, 0.06) 5px
+    );
+    pointer-events: none;
+  }
+  .card.back::after {
+    content: "AP";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--accent);
+    opacity: 0.5;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
+
+  /* ── ACTION BAR (inline card) ────────────────────────────── */
+  .action-bar {
+    grid-area: actions;
+    max-width: 920px;
+    margin: 16px auto 0;
+    width: 100%;
+    padding: 20px 24px;
+    gap: 16px;
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: none;
+  }
+  /* Context row replaces the simple hint for the active-controls case */
+  .action-bar__context {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+  }
+  .action-bar__context-right { display: block; }
+  .action-bar__context-text {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .action-bar__context-text strong { color: var(--text-secondary); font-weight: 600; }
+  .action-bar__sizing { flex-wrap: nowrap; }
+  .preset { min-height: 40px; padding: 10px 0; text-align: center; }
+  .amount-input {
+    font-size: 28px;
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 14px;
+  }
+  .amount-input:focus { border-color: var(--accent); }
+  /* Primary action row: proportional 3-column grid */
+  .action-bar__row--primary {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1.4fr;
+    gap: 8px;
+  }
+  .action-bar__row--primary > .btn { flex: none; min-height: 52px; font-size: 13px; }
+  /* Desktop button styles */
+  .btn--fold {
+    background: rgba(255, 77, 79, 0.08);
+    color: var(--error);
+    border: 1px solid rgba(255, 77, 79, 0.2);
+  }
+  .btn--fold:hover:not(:disabled) {
+    filter: none;
+    background: rgba(255, 77, 79, 0.16);
+    border-color: var(--error);
+  }
+  .btn--check {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .btn--call {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .btn--bet,
+  .btn--raise {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: none;
+    box-shadow: 0 0 24px var(--glow-soft);
+  }
+  .btn--bet:hover:not(:disabled),
+  .btn--raise:hover:not(:disabled) {
+    filter: none;
+    background: var(--accent-hover);
+    box-shadow: 0 0 32px var(--glow-strong);
+  }
+
+  /* ── HISTORY PANEL (right column) ───────────────────────── */
+  .app__sidebar {
+    position: sticky;
+    top: 96px;
+    height: calc(100vh - 128px);
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-left: none;
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 0;
+    margin-top: 32px;
+    flex-direction: column;
+    display: flex;
+  }
+  .panel-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    margin-bottom: 0;
+  }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    text-transform: uppercase;
+  }
+  .panel-meta {
+    font-family: var(--font-label);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .history-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 0;
+    min-height: 0;
+    /* scrollbar is inside the panel */
+  }
+  .history-content::-webkit-scrollbar { width: 4px; }
+  .history-content::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+  }
+  .panel-footer {
+    padding: 12px 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 12px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-faded);
+    display: flex;
+    justify-content: space-between;
+    text-transform: uppercase;
+  }
+  /* Hand sections */
+  .hand-section {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 12px 0;
+  }
+  .hand-section:last-child { border-bottom: none; }
+  .hand-section-header {
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .hand-num {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .street-tag {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  /* History rows */
+  .history-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 24px;
+    transition: background 0.15s ease;
+  }
+  .history-row:hover { background: var(--bg-tertiary); }
+  .action-marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: 0;
+  }
+  .action-marker.bet { background: rgba(0, 212, 170, 0.12); color: var(--accent); }
+  .action-marker.call { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.06); }
+  .action-marker.raise { background: rgba(0, 212, 170, 0.12); color: var(--accent); border: 1px solid var(--accent-deep); }
+  .action-marker.fold { background: rgba(255, 77, 79, 0.10); color: var(--error); }
+  .action-marker.check { background: var(--bg-tertiary); color: var(--text-muted); }
+  .action-marker.win { background: rgba(0, 212, 170, 0.12); color: var(--accent); }
+  .history-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .history-text .who { color: var(--text-primary); font-weight: 500; }
+  .history-text--result { color: var(--gold-reward); font-weight: 600; }
+  .history-text--street {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+  }
+  .history-amount {
+    font-family: var(--font-label);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* ── SETUP SCREEN ────────────────────────────────────── */
+  .setup {
+    grid-column: 1 / -1;
+    min-height: calc(100vh - 64px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .setup__card { max-width: 480px; }
+
+  /* Brand tagline — shown only on setup screen at desktop */
+  .header__tagline { display: block; }
+  .header__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
 }

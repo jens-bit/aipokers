@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agentic Poker — Desktop Layout v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&family=Oswald:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Product surfaces */
+    --bg-primary: #0A0A0A;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1A1A1A;
+    --bg-elevated: #181818;
+
+    /* Brand teal */
+    --accent: #00D4AA;
+    --accent-hover: #00E6B8;
+    --accent-dim: #00A88A;
+    --accent-deep: #006B5A;
+    --glow-soft: rgba(0, 212, 170, 0.25);
+    --glow-strong: rgba(0, 212, 170, 0.40);
+    --glow-faint: rgba(0, 212, 170, 0.08);
+
+    /* Text */
+    --text-primary: #EDEDED;
+    --text-secondary: #A1A1A1;
+    --text-muted: #6B6B6B;
+    --text-faded: #4A4A4A;
+
+    /* State */
+    --error: #FF4D4F;
+    --error-bg: rgba(255, 77, 79, 0.08);
+    --warning: #FFB020;
+
+    /* Cards */
+    --card-bg: #FAFAFA;
+    --card-border: #E5E5E5;
+    --suit-red: #C9303F;
+    --suit-black: #0F0F0F;
+
+    /* Type */
+    --font-display: "Playfair Display", Georgia, serif;
+    --font-ui: "Oswald", "Helvetica Neue", sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Subtle ambient texture so the page doesn't feel like a blank void */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 45%, var(--glow-faint) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 20% 80%, rgba(0, 212, 170, 0.04) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Faint diagonal grain for depth */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(255, 255, 255, 0.008) 2px,
+        rgba(255, 255, 255, 0.008) 3px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    position: relative;
+    z-index: 10;
+    height: 64px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    background: rgba(10, 10, 10, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: 0.08em;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .brand .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--glow-strong);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .status-pill {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 100px;
+    background: var(--bg-secondary);
+  }
+  .status-pill .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--glow-strong);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .icon-btn {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .icon-btn:hover {
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--bg-secondary);
+  }
+
+  /* ─── MAIN GRID ─── */
+  .main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 32px;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 32px 40px;
+    min-height: calc(100vh - 64px);
+  }
+
+  /* ─── PLAY AREA ─── */
+  .play-area {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+    position: relative;
+  }
+
+  /* The "table" radial behind the board zone */
+  .play-area::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 140%;
+    height: 60%;
+    background:
+      radial-gradient(ellipse at center, rgba(0, 212, 170, 0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .seat {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
+    align-items: center;
+    padding: 24px 28px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, var(--bg-secondary) 0%, rgba(17, 17, 17, 0.4) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: all 0.2s ease;
+  }
+  .seat--opponent {
+    /* dimmed when not their turn */
+  }
+  .seat--active {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px var(--glow-soft),
+      0 0 32px var(--glow-soft),
+      inset 0 0 60px rgba(0, 212, 170, 0.04);
+  }
+
+  .seat-cards {
+    display: flex;
+    gap: 6px;
+  }
+
+  .card {
+    width: 64px;
+    height: 90px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    position: relative;
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.4),
+      0 8px 16px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+  }
+  .card--back {
+    background:
+      linear-gradient(135deg, #0F0F0F 0%, #1A1A1A 50%, #0A0A0A 100%);
+    border: 1px solid rgba(0, 212, 170, 0.15);
+    position: relative;
+  }
+  .card--back::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    border-radius: 4px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        transparent 0,
+        transparent 4px,
+        rgba(0, 212, 170, 0.06) 4px,
+        rgba(0, 212, 170, 0.06) 5px
+      );
+  }
+  .card--back::after {
+    content: "AI";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    opacity: 0.5;
+  }
+
+  .card-corner {
+    position: absolute;
+    font-family: var(--font-display);
+    font-weight: 500;
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .card-corner .rank {
+    font-size: 18px;
+  }
+  .card-corner .suit {
+    font-size: 14px;
+    margin-top: 1px;
+  }
+  .card-corner.tl { top: 6px; left: 7px; }
+  .card-corner.br {
+    bottom: 6px;
+    right: 7px;
+    transform: rotate(180deg);
+  }
+  .card-center-suit {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px;
+    line-height: 1;
+  }
+  .card.red { color: var(--suit-red); }
+  .card.black { color: var(--suit-black); }
+
+  .card--slot {
+    background: transparent;
+    border: 1.5px dashed rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+  }
+
+  .seat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .seat-name {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .seat-stack {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .seat-stack .delta {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--error);
+  }
+  .seat-badges {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .badge {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .badge--you {
+    background: rgba(0, 212, 170, 0.12);
+    color: var(--accent);
+    border-color: var(--accent-deep);
+  }
+  .badge--position {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .bet-pill {
+    align-self: start;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--bg-primary);
+    background: var(--accent);
+    padding: 8px 16px;
+    border-radius: 100px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 0 24px var(--glow-soft);
+  }
+  .bet-pill .amount {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0;
+  }
+
+  /* Board zone */
+  .board-zone {
+    position: relative;
+    z-index: 1;
+    padding: 36px 28px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .street-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .pot-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .pot-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    color: var(--text-muted);
+  }
+  .pot-amount {
+    font-family: var(--font-display);
+    font-size: 56px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 32px var(--glow-soft);
+  }
+
+  .board {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  /* Action bar */
+  .action-bar {
+    margin-top: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .action-context {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .action-context-text {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+  }
+  .action-context-text strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .preset-row {
+    display: flex;
+    gap: 6px;
+  }
+  .preset {
+    flex: 1;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    padding: 10px 0;
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .preset:hover {
+    border-color: var(--accent-deep);
+    color: var(--accent);
+  }
+  .preset.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0, 212, 170, 0.06);
+  }
+
+  .amount-input {
+    width: 100%;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 14px;
+    color: var(--accent);
+    outline: none;
+  }
+  .amount-input:focus {
+    border-color: var(--accent);
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1.4fr;
+    gap: 8px;
+  }
+  .action-btn {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    padding: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-transform: uppercase;
+  }
+  .action-btn--fold {
+    background: rgba(255, 77, 79, 0.08);
+    color: var(--error);
+    border: 1px solid rgba(255, 77, 79, 0.2);
+  }
+  .action-btn--fold:hover {
+    background: rgba(255, 77, 79, 0.16);
+    border-color: var(--error);
+  }
+  .action-btn--call {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .action-btn--call:hover {
+    border-color: var(--text-secondary);
+  }
+  .action-btn--raise {
+    background: var(--accent);
+    color: var(--bg-primary);
+    box-shadow: 0 0 24px var(--glow-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .action-btn--raise .raise-amt {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0;
+  }
+  .action-btn--raise:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 0 32px var(--glow-strong);
+  }
+
+  /* ─── HISTORY PANEL ─── */
+  .history-panel {
+    position: sticky;
+    top: 96px;
+    height: calc(100vh - 128px);
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    color: var(--text-secondary);
+  }
+  .panel-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .history-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .history-content::-webkit-scrollbar {
+    width: 4px;
+  }
+  .history-content::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+  }
+
+  .hand-section {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 12px 0;
+  }
+  .hand-section:last-child {
+    border-bottom: none;
+  }
+  .hand-section-header {
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .hand-num {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .street-tag {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    color: var(--text-muted);
+  }
+
+  .history-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 24px;
+    transition: background 0.15s ease;
+  }
+  .history-row:hover {
+    background: var(--bg-tertiary);
+  }
+  .action-marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+  .action-marker.bet { background: rgba(0, 212, 170, 0.12); color: var(--accent); }
+  .action-marker.call { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.06); }
+  .action-marker.raise { background: rgba(0, 212, 170, 0.12); color: var(--accent); border: 1px solid var(--accent-deep); }
+  .action-marker.fold { background: rgba(255, 77, 79, 0.1); color: var(--error); }
+  .action-marker.check { background: var(--bg-tertiary); color: var(--text-muted); }
+
+  .history-text {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+  }
+  .history-text .who {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .history-amount {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  /* Subtle ASIDE annotation under history */
+  .panel-footer {
+    padding: 12px 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-faded);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* responsive guard so it doesn't completely break on smaller screens */
+  @media (max-width: 1100px) {
+    .main {
+      grid-template-columns: 1fr;
+    }
+    .history-panel {
+      position: static;
+      height: auto;
+      max-height: 400px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="brand">
+    AGENTIC <span class="dot"></span> POKER
+  </div>
+  <div class="header-right">
+    <div class="status-pill">
+      <span class="live-dot"></span>
+      Hand 1 · Preflop
+    </div>
+    <button class="icon-btn">LOG</button>
+    <button class="icon-btn">EXIT</button>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ── PLAY AREA ── -->
+  <section class="play-area">
+
+    <!-- Opponent seat -->
+    <div class="seat seat--opponent">
+      <div class="seat-cards">
+        <div class="card card--back"></div>
+        <div class="card card--back"></div>
+      </div>
+      <div class="seat-info">
+        <div class="seat-name">Jens</div>
+        <div class="seat-stack">990</div>
+        <div class="seat-badges">
+          <span class="badge badge--position">Dealer</span>
+          <span class="badge">SB</span>
+        </div>
+      </div>
+      <div class="bet-pill">
+        BET <span class="amount">10</span>
+      </div>
+    </div>
+
+    <!-- Board zone -->
+    <div class="board-zone">
+      <div class="street-label">Preflop</div>
+      <div class="pot-block">
+        <div class="pot-label">Pot</div>
+        <div class="pot-amount">40</div>
+      </div>
+      <div class="board">
+        <div class="card card--slot"></div>
+        <div class="card card--slot"></div>
+        <div class="card card--slot"></div>
+        <div class="card card--slot"></div>
+        <div class="card card--slot"></div>
+      </div>
+    </div>
+
+    <!-- Your seat (active) -->
+    <div class="seat seat--you seat--active">
+      <div class="seat-cards">
+        <!-- 9 of diamonds -->
+        <div class="card red">
+          <div class="card-corner tl"><span class="rank">9</span><span class="suit">♦</span></div>
+          <div class="card-center-suit">♦</div>
+          <div class="card-corner br"><span class="rank">9</span><span class="suit">♦</span></div>
+        </div>
+        <!-- J of clubs -->
+        <div class="card black">
+          <div class="card-corner tl"><span class="rank">J</span><span class="suit">♣</span></div>
+          <div class="card-center-suit">♣</div>
+          <div class="card-corner br"><span class="rank">J</span><span class="suit">♣</span></div>
+        </div>
+      </div>
+      <div class="seat-info">
+        <div class="seat-name">Anon</div>
+        <div class="seat-stack">980 <span class="delta">−20</span></div>
+        <div class="seat-badges">
+          <span class="badge badge--you">YOU</span>
+          <span class="badge">BB</span>
+        </div>
+      </div>
+      <div class="bet-pill">
+        BET <span class="amount">20</span>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <div class="action-context">
+        <div class="action-context-text">
+          <strong>To call:</strong> 0 &nbsp;·&nbsp; <strong>Pot:</strong> 40
+        </div>
+        <div class="action-context-text">
+          Min raise: 40
+        </div>
+      </div>
+      <div class="preset-row">
+        <button class="preset">⅓</button>
+        <button class="preset">½</button>
+        <button class="preset active">⅔</button>
+        <button class="preset">POT</button>
+        <button class="preset">MAX</button>
+      </div>
+      <input class="amount-input" type="text" value="40" />
+      <div class="action-row">
+        <button class="action-btn action-btn--fold">Fold</button>
+        <button class="action-btn action-btn--call">Check</button>
+        <button class="action-btn action-btn--raise">
+          Raise <span class="raise-amt">40</span>
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ── HISTORY PANEL ── -->
+  <aside class="history-panel">
+    <div class="panel-header">
+      <div class="panel-title">Hand History</div>
+      <div class="panel-meta">#1</div>
+    </div>
+
+    <div class="history-content">
+
+      <div class="hand-section">
+        <div class="hand-section-header">
+          <div class="hand-num">Hand 1</div>
+          <div class="street-tag">Preflop</div>
+        </div>
+
+        <div class="history-row">
+          <div class="action-marker bet">SB</div>
+          <div class="history-text"><span class="who">Jens</span> posts small blind</div>
+          <div class="history-amount">10</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker bet">BB</div>
+          <div class="history-text"><span class="who">Anon</span> posts big blind</div>
+          <div class="history-amount">20</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker call">C</div>
+          <div class="history-text"><span class="who">Jens</span> calls</div>
+          <div class="history-amount">10</div>
+        </div>
+
+      </div>
+
+      <div class="hand-section">
+        <div class="hand-section-header">
+          <div class="hand-num">Hand 0</div>
+          <div class="street-tag">Showdown</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker raise">R</div>
+          <div class="history-text"><span class="who">Anon</span> raises</div>
+          <div class="history-amount">60</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker call">C</div>
+          <div class="history-text"><span class="who">Jens</span> calls</div>
+          <div class="history-amount">40</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker check">·</div>
+          <div class="history-text"><span class="who">Both</span> check flop</div>
+          <div class="history-amount">—</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker bet">B</div>
+          <div class="history-text"><span class="who">Anon</span> bets turn</div>
+          <div class="history-amount">80</div>
+        </div>
+        <div class="history-row">
+          <div class="action-marker fold">F</div>
+          <div class="history-text"><span class="who">Jens</span> folds</div>
+          <div class="history-amount">—</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="panel-footer">
+      <span>Session</span>
+      <span>2 hands · 4 min</span>
+    </div>
+  </aside>
+
+</main>
+
+</body>
+</html>

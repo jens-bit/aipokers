@@ -138,9 +138,24 @@ export class Game {
     const owed = this.currentBet - player.contribThisStreet;
     const out = [{ type: Actions.FOLD }];
     if (owed === 0) {
+      // Player has matched (or there's nothing to match). They may always
+      // CHECK. Whether they can BET vs RAISE depends on whether anything
+      // has been put in on this street: BET opens action when currentBet
+      // is zero; RAISE bumps an existing bet (e.g. BB option preflop —
+      // currentBet === BB amount, owed === 0, but a BET would be illegal).
       out.push({ type: Actions.CHECK });
-      const min = Math.min(this.bigBlind, player.stack);
-      out.push({ type: Actions.BET, min, max: player.stack });
+      if (this.currentBet === 0 && player.stack > 0) {
+        const min = Math.min(this.bigBlind, player.stack);
+        out.push({ type: Actions.BET, min, max: player.stack });
+      } else if (this.currentBet > 0 && player.stack > 0) {
+        const minRaiseTotal = this.currentBet + Math.max(this.lastRaiseSize, this.bigBlind);
+        const maxRaiseTotal = player.contribThisStreet + player.stack;
+        out.push({
+          type: Actions.RAISE,
+          min: Math.min(minRaiseTotal, maxRaiseTotal),
+          max: maxRaiseTotal,
+        });
+      }
     } else {
       out.push({ type: Actions.CALL, amount: Math.min(owed, player.stack) });
       if (player.stack > owed) {

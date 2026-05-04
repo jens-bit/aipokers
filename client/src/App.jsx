@@ -9,10 +9,6 @@ import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { Streets } from './lib/protocol.js';
 
-// Resolve the WebSocket endpoint:
-//   - explicit override via VITE_WS_URL (set in .env.local or build env)
-//   - dev: separate Vite dev server on 5173, WS on 8765 of the same host
-//   - prod: same origin as the page (wss when the page is https)
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -42,7 +38,6 @@ export default function App() {
     if (!config) buyInRef.current = null;
   }, [config]);
 
-  // Close the drawer if we leave the table.
   useEffect(() => { if (!config) setHistoryOpen(false); }, [config]);
 
   if (!config) {
@@ -58,6 +53,7 @@ export default function App() {
     <div className="app">
       <Header
         status={status}
+        game={game}
         mySeat={mySeat}
         hasConfig
         historyCount={history.length}
@@ -84,12 +80,21 @@ export default function App() {
         onAct={act}
         onDeal={deal}
       />
-      {/* Desktop: side panel always visible. Mobile: hidden by CSS. */}
+      {/* Desktop: sticky history panel. Mobile: hidden by CSS. */}
       <aside className="app__sidebar">
-        <h3>HAND HISTORY</h3>
-        <HandHistory history={history} displayNames={displayNames} />
+        <div className="panel-header">
+          <span className="panel-title">Hand History</span>
+          <span className="panel-meta">#{history.length}</span>
+        </div>
+        <div className="history-content">
+          <HandHistory history={history} displayNames={displayNames} variant="panel" />
+        </div>
+        <div className="panel-footer">
+          <span>Session</span>
+          <span>{history.length} hand{history.length !== 1 ? 's' : ''}</span>
+        </div>
       </aside>
-      {/* Mobile: drawer on demand. Desktop: hidden by CSS. */}
+      {/* Mobile: slide-in drawer on demand. Hidden at ≥600px. */}
       <HistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}

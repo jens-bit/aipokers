@@ -252,7 +252,7 @@ export function useTable({ wsUrl }) {
 
   const act = useCallback((action) => {
     if (send({ type: ClientMsg.ACTION, action })) {
-      setHistory((h) => appendEntry(h, { kind: 'action', seat: mySeat, action }));
+      setHistory((h) => appendEntry(h, { kind: 'action', seat: mySeat, action, t: Date.now() }));
     }
   }, [send, mySeat]);
 
@@ -291,5 +291,22 @@ function appendEntry(history, entry) {
     return [{ kind: 'handStart', handNumber: 0, entries: [entry] }];
   }
   const [head, ...rest] = history;
+  // Dedup: actions are logged on send, but the server may reject them. A
+  // user spamming an illegal button shouldn't fill the log with phantom
+  // entries. Drop a new action entry that matches the previous entry's
+  // kind/seat/action/amount within 500ms — the server has had no chance
+  // to apply a different action in that window.
+  const last = head.entries[head.entries.length - 1];
+  if (
+    last
+    && entry.kind === 'action' && last.kind === 'action'
+    && entry.seat === last.seat
+    && entry.action?.type === last.action?.type
+    && entry.action?.amount === last.action?.amount
+    && entry.t && last.t
+    && (entry.t - last.t) < 500
+  ) {
+    return history;
+  }
   return [{ ...head, entries: [...head.entries, entry] }, ...rest];
 }

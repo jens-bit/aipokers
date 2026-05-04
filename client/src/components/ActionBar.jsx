@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Actions, Streets } from '../lib/protocol.js';
 
 const PRESETS = [
-  { label: '1/3', fraction: 1 / 3 },
-  { label: '1/2', fraction: 1 / 2 },
-  { label: '2/3', fraction: 2 / 3 },
+  { label: '⅓', fraction: 1 / 3 },
+  { label: '½', fraction: 1 / 2 },
+  { label: '⅔', fraction: 2 / 3 },
   { label: 'POT', fraction: 1 },
 ];
 
@@ -20,11 +20,9 @@ export function ActionBar(props) {
   );
 }
 
-// Owns the .action-bar wrapper and exposes its measured height to the rest
-// of the layout via the --action-bar-h CSS custom property. Whenever the bar
-// re-renders with more or fewer rows (e.g. between idle DEAL and active
-// betting controls), .app__main's bottom padding updates so the bottom seat
-// is never hidden behind the fixed bar.
+// Owns the .action-bar wrapper and measures its height so the mobile layout can
+// push the bottom seat above the fixed bar. At ≥1100px the bar is inline and
+// --action-bar-h is unused, but keeping the observer here is harmless.
 function ActionBarFrame({ children }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
@@ -119,7 +117,17 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
 
   return (
     <>
-      <Hint text={`Pot ${game.pot.toLocaleString()} · bet ${game.currentBet.toLocaleString()}`} />
+      {/* Desktop context row — styled as plain hint on mobile */}
+      <div className="action-bar__context">
+        <span className="action-bar__context-text">
+          <strong>To call:</strong> {callAmount.toLocaleString()} &nbsp;·&nbsp; <strong>Pot:</strong> {game.pot.toLocaleString()}
+        </span>
+        {aggressive && (
+          <span className="action-bar__context-text action-bar__context-right">
+            Min raise: {minTotal.toLocaleString()}
+          </span>
+        )}
+      </div>
 
       {aggressive && (
         <>
