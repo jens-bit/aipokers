@@ -5,7 +5,7 @@ export function Play({ onConnect }) {
   const [step, setStep] = useState('pick');         // 'pick' | 'form'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
-  const [tableId, setTableId] = useState('lounge');
+  const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
   const inTelegram = isInTelegram();
 
   function pickMode(m) {
@@ -16,7 +16,7 @@ export function Play({ onConnect }) {
   function submit(e) {
     e.preventDefault();
     onConnect({
-      tableId: (tableId || '').trim() || 'lounge',
+      tableId: (tableId || '').trim() || 'table-' + Math.random().toString(16).slice(2, 8),
       displayName: (displayName || '').trim() || 'Anon',
       buyIn: 1000,
       smallBlind: 10,
@@ -32,10 +32,9 @@ export function Play({ onConnect }) {
         <div className="play__ai-card">
           <div className="play__ai-eyebrow">Play AI</div>
           <div className="play__ai-title">
-            Your agent is ready.<br />
-            <span>Sit back and watch.</span>
+            Go heads-up against Claude.
           </div>
-          <p className="play__ai-sub">Your AI opponent joins automatically.</p>
+          <p className="play__ai-sub">Real decisions, real hands.</p>
           <button type="button" className="play__ai-btn" onClick={() => pickMode('ai')}>
             PLAY VS AI
             <ArrowRight />

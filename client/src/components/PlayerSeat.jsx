@@ -7,6 +7,30 @@ function formatPL(pl) {
   return { text: `${pl}`, cls: 'down' };
 }
 
+// Circular SVG countdown ring, shown in the top-right corner of the acting seat.
+function SeatTimerRing({ timeLeft, total = 15 }) {
+  const r = 12;
+  const circumference = 2 * Math.PI * r;
+  const progress = Math.max(0, timeLeft) / total;
+  const dashOffset = circumference * (1 - progress);
+  const color = timeLeft <= 5 ? 'var(--timer-critical)' : timeLeft <= 10 ? 'var(--timer-warning)' : 'var(--accent)';
+
+  return (
+    <div className="seat__timer-ring">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden>
+        <circle cx="16" cy="16" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3" />
+        <circle
+          cx="16" cy="16" r={r} fill="none" stroke={color} strokeWidth="3"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset}
+          strokeLinecap="round" transform="rotate(-90 16 16)"
+          style={{ transition: 'stroke-dashoffset 0.95s linear, stroke 0.3s ease' }}
+        />
+      </svg>
+      <span className="seat__timer-num">{timeLeft}</span>
+    </div>
+  );
+}
+
 export function PlayerSeat({
   seat,
   position,           // 'top' | 'bottom'
@@ -19,6 +43,8 @@ export function PlayerSeat({
   isMine,
   inHand,             // are we mid-hand (cards are dealt or hidden)?
   onRename,
+  timeLeft,           // seconds remaining on the acting player's timer (optional)
+  timerTotal,         // total timer seconds, defaults to 15
 }) {
   const [editingName, setEditingName] = useState(data.displayName || '');
   useEffect(() => { setEditingName(data.displayName || ''); }, [data.displayName]);
@@ -61,7 +87,10 @@ export function PlayerSeat({
         )}
         <div className="seat__row">
           <div className="seat__stack">{data.stack.toLocaleString()}</div>
-          {buyIn != null && <div className={`seat__pl ${pl.cls}`}>{pl.text}</div>}
+          {/* Suppress P/L when stack is 0 — avoids showing −buyIn in waiting state */}
+          {buyIn != null && data.stack > 0 && (
+            <div className={`seat__pl ${pl.cls}`}>{pl.text}</div>
+          )}
         </div>
         <div className="badges">
           {isMine && <span className="badge badge--you">YOU</span>}
@@ -77,6 +106,11 @@ export function PlayerSeat({
           <span className="seat__bet-label">Bet</span>
           <span>{data.contribThisStreet.toLocaleString()}</span>
         </div>
+      )}
+
+      {/* Circular countdown ring, visible only for the currently acting player */}
+      {isToAct && timeLeft != null && (
+        <SeatTimerRing timeLeft={timeLeft} total={timerTotal ?? 15} />
       )}
     </div>
   );

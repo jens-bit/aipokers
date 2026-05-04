@@ -1,46 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Actions, Streets } from '../lib/protocol.js';
-
-const TIMER_TOTAL = 15;
-
-function ActionTimer({ isMyTurn, onTimeout }) {
-  const [left, setLeft] = useState(TIMER_TOTAL);
-  const onTimeoutRef = useRef(onTimeout);
-  const firedRef = useRef(false);
-  useEffect(() => { onTimeoutRef.current = onTimeout; });
-
-  useEffect(() => {
-    if (!isMyTurn) return;
-    firedRef.current = false;
-    const id = setInterval(() => setLeft(prev => Math.max(0, prev - 1)), 1000);
-    return () => clearInterval(id);
-  }, [isMyTurn]);
-
-  useEffect(() => {
-    if (isMyTurn && left === 0 && !firedRef.current) {
-      firedRef.current = true;
-      onTimeoutRef.current?.();
-    }
-  }, [left, isMyTurn]);
-
-  if (!isMyTurn) return null;
-
-  const pct = (left / TIMER_TOTAL) * 100;
-  const color = left <= 5 ? 'var(--timer-critical)' : left <= 10 ? 'var(--timer-warning)' : 'var(--accent)';
-  const pulse = left <= 5 && left > 0;
-
-  return (
-    <div className="action-timer">
-      <div className="action-timer__track">
-        <div
-          className={`action-timer__fill${pulse ? ' action-timer__fill--pulse' : ''}`}
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
-      <span className="action-timer__count" style={{ color }}>{left}s</span>
-    </div>
-  );
-}
 
 const PRESETS = [
   { label: '⅓', fraction: 1 / 3 },
@@ -54,15 +13,8 @@ function findLegal(legal, type) {
 }
 
 export function ActionBar(props) {
-  const { game, mySeat, onAct } = props;
-  const handIsActive = !!game && game.toAct !== null && game.street !== Streets.COMPLETE;
-  const yourTurn = handIsActive && game.toAct === mySeat;
-  const timerKey = `${game?.handNumber ?? 0}-${game?.toAct ?? -1}`;
-  const handleTimeout = useCallback(() => onAct?.({ type: Actions.FOLD }), [onAct]);
-
   return (
     <ActionBarFrame>
-      <ActionTimer key={timerKey} isMyTurn={yourTurn} onTimeout={handleTimeout} />
       <ActionBarContent {...props} />
     </ActionBarFrame>
   );
@@ -147,9 +99,16 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
   const maxTotal = aggressive?.max ?? 0;
 
   const [amount, setAmount] = useState(minTotal);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   useEffect(() => {
     setAmount(minTotal);
   }, [minTotal, maxTotal, game.street, game.handNumber]);
+
+  // Collapse drawer on every new street or hand
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [game.street, game.handNumber]);
 
   const clamp = (v) => Math.max(minTotal, Math.min(maxTotal, Math.round(v)));
 
@@ -177,36 +136,53 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
         )}
       </div>
 
+      {/* Bet sizing: toggle pill + collapsible drawer */}
       {aggressive && (
         <>
-          <div className="action-bar__sizing">
-            {PRESETS.map((p) => (
-              <button
-                type="button"
-                key={p.label}
-                className="preset"
-                onClick={() => setAmount(presetTotal(p.fraction))}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button type="button" className="preset" onClick={() => setAmount(maxTotal)}>MAX</button>
+          {/* Toggle pill sits above the drawer */}
+          <div className="action-bar__drawer-toggle-row">
+            <button
+              type="button"
+              className="action-bar__drawer-toggle"
+              onClick={() => setDrawerOpen((v) => !v)}
+              aria-label={drawerOpen ? 'Close bet sizing' : 'Open bet sizing'}
+            >
+              {drawerOpen ? '∨' : '∧'}
+            </button>
           </div>
-          <div className="action-bar__row">
-            <input
-              className="amount-input"
-              type="number"
-              inputMode="numeric"
-              min={minTotal}
-              max={maxTotal}
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              aria-label={`bet amount; min ${minTotal} max ${maxTotal}`}
-            />
+
+          {/* Drawer slides down from toggle */}
+          <div className={`action-bar__bet-drawer${drawerOpen ? ' action-bar__bet-drawer--open' : ''}`}>
+            <div className="action-bar__sizing">
+              {PRESETS.map((p) => (
+                <button
+                  type="button"
+                  key={p.label}
+                  className="preset"
+                  onClick={() => setAmount(presetTotal(p.fraction))}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button type="button" className="preset" onClick={() => setAmount(maxTotal)}>MAX</button>
+            </div>
+            <div className="action-bar__row">
+              <input
+                className="amount-input"
+                type="number"
+                inputMode="numeric"
+                min={minTotal}
+                max={maxTotal}
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                aria-label={`bet amount; min ${minTotal} max ${maxTotal}`}
+              />
+            </div>
           </div>
         </>
       )}
 
+      {/* Primary action buttons */}
       <div className="action-bar__row action-bar__row--primary">
         {fold && (
           <button type="button" className="btn btn--fold" onClick={() => onAct({ type: Actions.FOLD })}>

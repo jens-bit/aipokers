@@ -479,42 +479,58 @@ input:focus { border-color: var(--accent); }
   z-index: 50;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
 }
-/* ------------ action timer (countdown bar, shown when isMyTurn) ------------ */
-.action-timer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  flex-shrink: 0;
-}
-.action-timer__track {
-  flex: 1;
-  height: 3px;
-  background: var(--bg-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-  position: relative;
-}
-.action-timer__fill {
+/* ------------ seat timer ring (circular countdown, replaces action bar bar) ------------ */
+.seat__timer-ring {
   position: absolute;
-  left: 0; top: 0; bottom: 0;
-  border-radius: 2px;
-  transition: width 0.95s linear, background-color 0.3s ease;
+  top: -8px; right: -8px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  z-index: 2;
 }
-@keyframes timer-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-.action-timer__fill--pulse { animation: timer-pulse 0.8s ease-in-out infinite; }
-.action-timer__count {
+.seat__timer-num {
+  position: absolute;
   font-family: var(--font-label);
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
   line-height: 1;
-  white-space: nowrap;
-  min-width: 20px;
-  text-align: right;
-  flex-shrink: 0;
+  text-align: center;
+}
+
+/* ------------ collapsible bet-sizing drawer ------------ */
+.action-bar__drawer-toggle-row {
+  display: flex;
+  justify-content: center;
+}
+.action-bar__drawer-toggle {
+  width: 40px;
+  height: 20px;
+  min-height: 0;        /* override the global 44px tap-target */
+  background: var(--bg-tertiary);
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.action-bar__drawer-toggle:hover, .action-bar__drawer-toggle:focus-visible {
+  border-color: var(--accent);
+  color: var(--text-secondary);
+}
+.action-bar__bet-drawer {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 200ms ease;
+}
+.action-bar__bet-drawer--open {
+  max-height: 200px; /* enough for presets + input */
 }
 
 .action-bar__hint {

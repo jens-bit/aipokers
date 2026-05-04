@@ -18,6 +18,7 @@ export class Table {
     // AI seat tracking
     this.aiSeats = [false, false];   // true if that seat is controlled by the AI agent
     this.aiStrategy = [null, null];  // per-seat strategy string (passed to prompt)
+    this._aiInactivityTimer = null;  // 60s timeout for AI tables
   }
 
   // Returns the seat the player got, or throws.
@@ -85,6 +86,19 @@ export class Table {
     if (this.game) this._broadcastState();
   }
 
+  // Clears any existing inactivity timer and starts a fresh 60s countdown.
+  // Only runs on AI tables; harmless no-op on human vs human.
+  _resetAiInactivityTimer() {
+    if (!this.aiSeats.some(Boolean)) return;
+    if (this._aiInactivityTimer) clearTimeout(this._aiInactivityTimer);
+    this._aiInactivityTimer = setTimeout(() => {
+      this._aiInactivityTimer = null;
+      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'Session ended — no activity for 60 seconds' });
+      this.game = null;
+      this.onEmpty?.(this.tableId);
+    }, 60_000);
+  }
+
   removeConnection(ws) {
     for (let i = 0; i < this.connections.length; i++) {
       if (this.connections[i] === ws) {
@@ -102,8 +116,12 @@ export class Table {
         }
       }
     }
-    if (this.connections.every((c) => c === null) && this.onEmpty) {
-      this.onEmpty(this.tableId);
+    if (this.connections.every((c) => c === null)) {
+      if (this._aiInactivityTimer) {
+        clearTimeout(this._aiInactivityTimer);
+        this._aiInactivityTimer = null;
+      }
+      this.onEmpty?.(this.tableId);
     }
   }
 
@@ -128,6 +146,7 @@ export class Table {
 
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
+    this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
   }
@@ -137,6 +156,7 @@ export class Table {
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
     this.game.act(seat, action);
+    this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
   }

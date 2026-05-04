@@ -32,6 +32,39 @@ export default function App() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
+  const TIMER_TOTAL = 15;
+  const [timerLeft, setTimerLeft] = useState(TIMER_TOTAL);
+  const timerFiredRef = useRef(false);
+  const actRef = useRef(act);
+  useEffect(() => { actRef.current = act; });
+
+  const handIsActive = !!game && game.toAct !== null &&
+    game.street !== Streets.COMPLETE && game.street !== Streets.WAITING;
+  const isMyTurn = handIsActive && game.toAct === mySeat;
+  const timerKey = `${game?.handNumber ?? 0}-${game?.toAct ?? -1}`;
+
+  // Reset to full duration whenever the acting seat changes
+  useEffect(() => {
+    setTimerLeft(TIMER_TOTAL);
+    timerFiredRef.current = false;
+  }, [timerKey]);
+
+  // Tick down while a hand is active (shows countdown for whichever seat is acting)
+  useEffect(() => {
+    if (!handIsActive) return;
+    const id = setInterval(() => setTimerLeft((p) => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(id);
+  }, [handIsActive, timerKey]);
+
+  // Auto-fold when timer hits 0 on the human player's turn
+  useEffect(() => {
+    if (isMyTurn && timerLeft === 0 && !timerFiredRef.current) {
+      timerFiredRef.current = true;
+      actRef.current?.({ type: 'fold' });
+    }
+  }, [timerLeft, isMyTurn]);
+
   const handleLeave = useCallback(() => {
     const gameInProgress = game &&
       game.street !== Streets.WAITING &&
@@ -83,7 +116,7 @@ export default function App() {
             {error} · tap to dismiss
           </div>
         )}
-        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} />
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
       <ActionBar
         game={game}
@@ -120,7 +153,7 @@ export default function App() {
   );
 }
 
-function TableView({ game, mySeat, buyIn, onRename }) {
+function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
   const opponentSeat = mySeat === 0 ? 1 : 0;
 
   const seatProps = useMemo(() => {
@@ -157,6 +190,8 @@ function TableView({ game, mySeat, buyIn, onRename }) {
         isSmallBlind={!!seatProps?.[opponentSeat]?.isSmallBlind}
         isBigBlind={!!seatProps?.[opponentSeat]?.isBigBlind}
         isToAct={!!seatProps?.[opponentSeat]?.isToAct}
+        timeLeft={timerLeft}
+        timerTotal={timerTotal}
       />
       <Board
         pot={game?.pot ?? 0}
@@ -175,6 +210,8 @@ function TableView({ game, mySeat, buyIn, onRename }) {
         isSmallBlind={!!seatProps?.[mySeat]?.isSmallBlind}
         isBigBlind={!!seatProps?.[mySeat]?.isBigBlind}
         isToAct={!!seatProps?.[mySeat]?.isToAct}
+        timeLeft={timerLeft}
+        timerTotal={timerTotal}
       />
     </div>
   );
