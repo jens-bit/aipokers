@@ -1,16 +1,16 @@
 // Home / Main Menu screen — designed to pull the user toward engagement
 
-const Logo = () => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-    <svg width="22" height="26" viewBox="0 0 22 26" style={{display:'block'}}>
+const Logo = ({ onClick }) => (
+  <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: onClick ? 'pointer' : 'default' }}>
+    <svg width="20" height="24" viewBox="0 0 22 26" style={{display:'block'}}>
       <path d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
         fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"/>
       <path d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12" stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
     </svg>
     <div style={{
-      fontFamily: 'Inter', fontWeight: 700, fontSize: 15,
-      letterSpacing: '0.18em', color: '#EDEDED',
-    }}>AI POKER</div>
+      fontFamily: 'Inter', fontWeight: 700, fontSize: 12,
+      letterSpacing: '0.16em', color: '#EDEDED', whiteSpace: 'nowrap',
+    }}>AGENTIC POKER</div>
   </div>
 );
 
@@ -36,6 +36,14 @@ const TopBar = () => (
           color: '#00D4AA', fontSize: 14, fontWeight: 600, lineHeight: 1, paddingBottom: 2,
         }}>+</div>
       </div>
+      <button onClick={() => window.gotoCreate && window.gotoCreate()} style={{
+        width: 34, height: 34, borderRadius: '50%',
+        background: 'rgba(0, 212, 170, 0.10)', border: '1px solid rgba(0, 212, 170, 0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#00D4AA', cursor: 'pointer', padding: 0,
+      }}>
+        <Icon name="plus" size={16} color="#00D4AA" strokeWidth={2.2}/>
+      </button>
       <button style={{
         width: 34, height: 34, borderRadius: '50%',
         background: '#141414', border: '1px solid rgba(255,255,255,0.06)',
@@ -129,7 +137,7 @@ const Hero = () => (
         Your AI plays for you, 24/7.
       </div>
 
-      <button onClick={() => window.gotoAgent && window.gotoAgent()} style={{
+      <button onClick={() => window.gotoCreate && window.gotoCreate()} style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
         height: 44, padding: '0 18px',
         background: '#00D4AA', border: 'none', borderRadius: 10,
@@ -138,7 +146,7 @@ const Hero = () => (
         cursor: 'pointer',
         boxShadow: '0 0 20px rgba(0, 212, 170, 0.35)',
       }}>
-        RUN AGENT
+        BUILD AGENT
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12h14M13 6l6 6-6 6"/>
         </svg>
@@ -166,8 +174,8 @@ const Hero = () => (
 );
 
 // Secondary action — play yourself (smaller, more restrained)
-const PlayYourselfRow = () => (
-  <div style={{
+const PlayYourselfRow = ({ onClick }) => (
+  <div onClick={onClick} style={{
     margin: '0 16px 16px',
     background: '#141414',
     border: '1px solid rgba(255,255,255,0.06)',
@@ -186,7 +194,7 @@ const PlayYourselfRow = () => (
       <Icon name="profile" size={20} color="#EDEDED"/>
     </div>
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#EDEDED', marginBottom: 2 }}>Play yourself</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: '#EDEDED', marginBottom: 2 }}>Human vs Human</div>
       <div style={{ fontSize: 11, color: '#A1A1A1' }}>
         <span style={{ color: '#00D4AA' }}>12 tables</span> active · join in seconds
       </div>
@@ -382,7 +390,7 @@ const RecentActivity = () => (
   </div>
 );
 
-const HomeScreen = () => (
+const HomeScreen = ({ onPlay }) => (
   <div style={{
     width: '100%', height: '100%',
     background: '#0A0A0A',
@@ -394,7 +402,7 @@ const HomeScreen = () => (
       <TopBar/>
       <ActiveAgentsPill/>
       <Hero/>
-      <PlayYourselfRow/>
+      <PlayYourselfRow onClick={onPlay}/>
       <ActiveSession/>
       <MyAgents/>
       <RecentActivity/>
@@ -402,4 +410,4 @@ const HomeScreen = () => (
   </div>
 );
 
-Object.assign(window, { HomeScreen });
+Object.assign(window, { HomeScreen, Logo });
