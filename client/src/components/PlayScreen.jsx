@@ -94,12 +94,6 @@ export function PlayHeader({ stack, onToggleHistory, onLeave }) {
         <span className="ps-header__stack">{(stack ?? 0).toLocaleString()}</span>
       </div>
       <div className="ps-header__icons">
-        <button type="button" className="ps-icon-btn" onClick={onToggleHistory} aria-label="Hand history">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-        </button>
         <button type="button" className="ps-icon-btn" onClick={onLeave} aria-label="Leave table">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
             <path d="M3 6h18M3 12h18M3 18h18" />
@@ -220,7 +214,7 @@ export function YouRow({ name, stack, position, holeCards, isToAct }) {
 
   return (
     <div className={`ps-you-row${isToAct ? ' ps-you-row--active' : ''}`}>
-      <div className="ps-you-avatar">♠</div>
+      <div className="ps-you-avatar">{'♠︎'}</div>
       <div className="ps-you-row__info">
         <div className="ps-you-row__name">{name || 'You'}</div>
         <div className="ps-you-row__stack-row">
@@ -247,14 +241,9 @@ export function YouRow({ name, stack, position, holeCards, isToAct }) {
 }
 
 // ─── FooterActions ────────────────────────────────────────────────────────────
-export function FooterActions({ historyCount, onToggleHistory, onLeave }) {
+export function FooterActions({ onLeave }) {
   return (
     <div className="ps-footer">
-      <button type="button" className="ps-footer-btn" onClick={onToggleHistory}>
-        <span className="ps-footer-icon" aria-hidden>↺</span>
-        HAND HISTORY
-        {historyCount > 0 && <span className="ps-footer-badge">{historyCount}</span>}
-      </button>
       <button type="button" className="ps-footer-btn" onClick={onLeave}>
         <span className="ps-footer-icon" aria-hidden>→</span>
         LEAVE TABLE

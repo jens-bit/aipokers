@@ -405,6 +405,8 @@ input:focus { border-color: var(--accent); }
 }
 .card__rank { font-size: 18px; font-weight: 700; line-height: 1; }
 .card__suit-corner { font-size: 14px; line-height: 1; }
+/* U+FE0E variation selector forces text presentation — belt-and-suspenders */
+.card__rank, .card__suit-corner, .card__suit-center { font-variant-emoji: text; }
 .card__suit-center {
   position: absolute;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -1404,26 +1406,26 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ── Mobile compact layout (≤599px) ─────────────────────────────
-   Everything — header, opponent, table, your seat — must fit in
-   one screen above the fixed action bar. No scrolling allowed.
-   EXIT button in PlayHeader handles leaving; no footer needed. */
+   Full-screen, no scroll. Flex distributes space dynamically:
+   opponent (80px) + table (flex:1) + your seat (90px).
+   Action bar is fixed — padding-bottom reserves its space. */
 @media (max-width: 599px) {
-  /* Footer: completely gone on mobile */
+  /* Footer gone — EXIT is in the header */
   .ps-footer { display: none; }
 
-  /* Opponent and player rows: compact */
-  .ps-opponent-row { max-height: 80px; overflow: hidden; }
-  .ps-you-row      { max-height: 80px; overflow: hidden; }
+  /* Give play-app a definite height so flex:1 on the table resolves */
+  .play-app { height: 100vh; overflow: hidden; }
 
-  /* Oval table: hard cap at 200px tall.
-     min-height:0 overrides the base 220px so max-height actually wins. */
+  /* Rows: fixed heights, won't steal space from the table */
+  .ps-opponent-row { flex-shrink: 0; height: 80px; overflow: hidden; }
+  .ps-you-row      { flex-shrink: 0; height: 90px; overflow: hidden; }
+
+  /* Table: fills all remaining space between the two rows.
+     No fixed cap — flex:1 (from global rule) does the work. */
   .play-app .app__main .ps-table {
     min-height: 0;
-    max-height: 200px;
+    max-height: none;
     overflow: hidden;
-    aspect-ratio: 4 / 3;
-    align-self: center;
-    margin: 0 auto 8px;
   }
 }
 
@@ -1640,6 +1642,7 @@ input:focus { border-color: var(--accent); }
 }
 .ps-you-avatar {
   width: 36px; height: 36px; border-radius: 50%;
+  font-variant-emoji: text;
   background: #0e1418;
   border: 1px solid rgba(0,212,170,0.4);
   display: flex; align-items: center; justify-content: center;

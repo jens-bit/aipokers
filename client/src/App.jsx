@@ -122,11 +122,7 @@ export default function App() {
           inHand={inHand}
         />
 
-        <FooterActions
-          historyCount={history.length}
-          onToggleHistory={() => setHistoryOpen(v => !v)}
-          onLeave={handleLeave}
-        />
+        <FooterActions onLeave={handleLeave} />
       </main>
 
       {/* ── Action bar (fixed on mobile, inline on desktop) ── */}

@@ -1,4 +1,5 @@
-const SUIT_GLYPH = { s: '♠', h: '♥', d: '♦', c: '♣' };
+// ︎ forces text (not emoji) presentation on iOS
+const SUIT_GLYPH = { s: '♠︎', h: '♥︎', d: '♦︎', c: '♣︎' };
 const SUIT_COLOR = { s: 'black', h: 'red', d: 'red', c: 'black' };
 
 // `card` is a 2-char string like 'As', 'Th', '7c'. Pass `null` for face-down,
