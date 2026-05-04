@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Setup } from './components/Setup.jsx';
+import { PlayerSeat } from './components/PlayerSeat.jsx';
+import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
-import { PlayHeader, PlayTable, OpponentRow, YouRow } from './components/PlayScreen.jsx';
 import { Streets } from './lib/protocol.js';
 
 function resolveWsUrl() {
@@ -24,7 +25,6 @@ export default function App() {
     reconnectAttempt, maxReconnectAttempts,
     config, connect, disconnect, act, deal, rename,
   } = table;
-
   const displayNames = {
     0: game?.seats?.[0]?.displayName ?? 'Seat A',
     1: game?.seats?.[1]?.displayName ?? 'Seat B',
@@ -55,7 +55,6 @@ export default function App() {
 
   useEffect(() => { if (!config) setHistoryOpen(false); }, [config]);
 
-  // ── Setup / lobby screen ──────────────────────────────────────────────────
   if (!config) {
     return (
       <div className="app">
@@ -65,66 +64,27 @@ export default function App() {
     );
   }
 
-  // ── Game screen ───────────────────────────────────────────────────────────
-  const opponentSeat = mySeat === 0 ? 1 : 0;
-  const inHand = !!game && [
-    Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN,
-  ].includes(game.street);
-
-  const myData = game?.seats?.[mySeat] ?? { displayName: 'You', stack: 0, holeCards: [] };
-  const oppData = game?.seats?.[opponentSeat] ?? { displayName: 'Opponent', stack: 0, holeCards: [] };
-
-  const getPosition = (seat) => {
-    if (!game) return '';
-    return game.dealerSeat === seat ? 'SB' : 'BB';
-  };
-
-  const handIsActive = !!game && game.toAct !== null && game.street !== Streets.COMPLETE;
-  const isOpponentTurn = handIsActive && game.toAct === opponentSeat;
-
   return (
-    <div className="app play-app">
-      {/* ── Main scroll area (header + opponent + table + player) ── */}
-      <main className="app__main ps-main">
-        <PlayHeader
-          stack={myData.stack}
-          onToggleHistory={() => setHistoryOpen(v => !v)}
-          onLeave={handleLeave}
-        />
-
+    <div className="app">
+      <Header
+        status={status}
+        game={game}
+        mySeat={mySeat}
+        hasConfig
+        historyCount={history.length}
+        reconnectAttempt={reconnectAttempt}
+        maxReconnectAttempts={maxReconnectAttempts}
+        onToggleHistory={() => setHistoryOpen((v) => !v)}
+        onLeave={handleLeave}
+      />
+      <main className="app__main">
         {error && (
-          <div className="error-banner" onClick={dismissError} style={{ margin: '0 16px 8px' }}>
+          <div className="error-banner" onClick={dismissError}>
             {error} · tap to dismiss
           </div>
         )}
-
-        <OpponentRow
-          name={oppData.displayName || displayNames[opponentSeat]}
-          stack={oppData.stack}
-          position={getPosition(opponentSeat)}
-          isToAct={isOpponentTurn}
-          holeCards={oppData.holeCards}
-          inHand={inHand}
-        />
-
-        <PlayTable
-          pot={game?.pot ?? 0}
-          community={game?.community ?? []}
-          street={game?.street ?? Streets.WAITING}
-        />
-
-        <YouRow
-          name={myData.displayName || 'You'}
-          stack={myData.stack}
-          position={getPosition(mySeat)}
-          holeCards={myData.holeCards}
-          isToAct={handIsActive && game?.toAct === mySeat}
-          inHand={inHand}
-        />
-
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} />
       </main>
-
-      {/* ── Action bar (fixed on mobile, inline on desktop) ── */}
       <ActionBar
         game={game}
         mySeat={mySeat}
@@ -135,8 +95,7 @@ export default function App() {
         onAct={act}
         onDeal={deal}
       />
-
-      {/* Desktop: sticky history panel */}
+      {/* Desktop: sticky history panel. Mobile: hidden by CSS. */}
       <aside className="app__sidebar">
         <div className="panel-header">
           <span className="panel-title">Hand History</span>
@@ -150,13 +109,72 @@ export default function App() {
           <span>{history.length} hand{history.length !== 1 ? 's' : ''}</span>
         </div>
       </aside>
-
-      {/* Mobile: slide-in drawer */}
+      {/* Mobile: slide-in drawer on demand. Hidden at ≥600px. */}
       <HistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         history={history}
         displayNames={displayNames}
+      />
+    </div>
+  );
+}
+
+function TableView({ game, mySeat, buyIn, onRename }) {
+  const opponentSeat = mySeat === 0 ? 1 : 0;
+
+  const seatProps = useMemo(() => {
+    if (!game) return null;
+    const sp = (i) => ({
+      isDealer: game.dealerSeat === i,
+      isSmallBlind: game.dealerSeat === i,
+      isBigBlind: game.dealerSeat !== i,
+      isToAct: game.toAct === i,
+      data: game.seats[i],
+    });
+    return { 0: sp(0), 1: sp(1) };
+  }, [game]);
+
+  const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
+
+  const emptyData = (label) => ({
+    displayName: label, stack: 0, contribTotal: 0, contribThisStreet: 0,
+    folded: false, allIn: false, holeCards: [],
+  });
+
+  const oppData = seatProps?.[opponentSeat]?.data ?? emptyData('Waiting…');
+  const meData = seatProps?.[mySeat]?.data ?? emptyData('You');
+
+  return (
+    <div className="table-area">
+      <PlayerSeat
+        seat={opponentSeat}
+        position="top"
+        data={oppData}
+        isMine={false}
+        inHand={inHand}
+        isDealer={!!seatProps?.[opponentSeat]?.isDealer}
+        isSmallBlind={!!seatProps?.[opponentSeat]?.isSmallBlind}
+        isBigBlind={!!seatProps?.[opponentSeat]?.isBigBlind}
+        isToAct={!!seatProps?.[opponentSeat]?.isToAct}
+      />
+      <Board
+        pot={game?.pot ?? 0}
+        community={game?.community ?? []}
+        street={game?.street ?? 'waiting'}
+      />
+      <PlayerSeat
+        seat={mySeat ?? 0}
+        position="bottom"
+        data={meData}
+        buyIn={buyIn}
+        isMine
+        inHand={inHand}
+        onRename={onRename}
+        isDealer={!!seatProps?.[mySeat]?.isDealer}
+        isSmallBlind={!!seatProps?.[mySeat]?.isSmallBlind}
+        isBigBlind={!!seatProps?.[mySeat]?.isBigBlind}
+        isToAct={!!seatProps?.[mySeat]?.isToAct}
       />
     </div>
   );
