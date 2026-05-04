@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Agentic Poker — Print</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  html, body {
+    background: #0a0a0c !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    display: block;
+  }
+  .print-page {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  @page {
+    size: 5.5in 11in;
+    margin: 0.3cm;
+  }
+  @media print {
+    .print-page {
+      padding: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="table.jsx"></script>
+<script type="text/babel" src="analysis.jsx"></script>
+<script type="text/babel" src="bottom.jsx"></script>
+<script type="text/babel" src="home.jsx"></script>
+
+<script type="text/babel">
+function AgentViewScreen() {
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      background: '#0A0A0A', color: '#EDEDED',
+      display: 'flex', flexDirection: 'column', paddingTop: 54,
+    }}>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', paddingBottom: 4 }}>
+        <Header/>
+        <StatsStrip/>
+        <PokerTable/>
+        <AnalysisSection/>
+        <RecentHands/>
+      </div>
+    </div>
+  );
+}
+
+function Frame({ children, label }) {
+  return (
+    <IOSDevice width={402} height={874} dark={true}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
+        <NavTabBar active={label} onChange={() => {}}/>
+        <div style={{ height: 28, background: '#0A0A0A' }}/>
+      </div>
+    </IOSDevice>
+  );
+}
+
+function PrintApp() {
+  return (
+    <div>
+      <div className="print-page">
+        <Frame label="home"><HomeScreen/></Frame>
+      </div>
+      <div className="print-page">
+        <Frame label="agents"><AgentViewScreen/></Frame>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PrintApp/>);
+
+// Auto-print after fonts + JSX ready
+(function autoPrint() {
+  const ready = async () => {
+    try { await document.fonts.ready; } catch (e) {}
+    setTimeout(() => window.print(), 800);
+  };
+  if (document.readyState === 'complete') ready();
+  else window.addEventListener('load', ready);
+})();
+</script>
+</body>
+</html>
