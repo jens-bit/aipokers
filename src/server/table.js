@@ -260,20 +260,4 @@ export class Table {
 
     try {
       this.game.act(aiSeat, decision);
-      this._broadcastState();
-      if (this.game.street === Streets.COMPLETE) this._handCompleted();
-    } catch (err) {
-      console.error(`[table:${this.tableId}] AI action rejected (${JSON.stringify(decision)}):`, err.message);
-      // Safe fallback — play whatever is available.
-      const legal = this.game.legalActions(aiSeat);
-      const fallback = legal.find((a) => a.type === 'check') ?? legal.find((a) => a.type === 'call') ?? { type: 'fold' };
-      try {
-        this.game.act(aiSeat, { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) });
-        this._broadcastState();
-        if (this.game.street === Streets.COMPLETE) this._handCompleted();
-      } catch (e2) {
-        console.error(`[table:${this.tableId}] fallback action also failed:`, e2.message);
-      }
-    }
-  }
-}
+  

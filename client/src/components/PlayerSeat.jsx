@@ -77,41 +77,4 @@ export function PlayerSeat({
           <input
             className="seat__name"
             value={editingName}
-            onChange={(e) => setEditingName(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-            aria-label="your name"
-          />
-        ) : (
-          <div className="seat__name seat__name--readonly">{data.displayName || `Seat ${seat}`}</div>
-        )}
-        <div className="seat__row">
-          <div className="seat__stack">{data.stack.toLocaleString()}</div>
-          {/* Suppress P/L when stack is 0 — avoids showing −buyIn in waiting state */}
-          {buyIn != null && data.stack > 0 && (
-            <div className={`seat__pl ${pl.cls}`}>{pl.text}</div>
-          )}
-        </div>
-        <div className="badges">
-          {isMine && <span className="badge badge--you">YOU</span>}
-          {isDealer && <span className="badge badge--dealer">D</span>}
-          {isSmallBlind && <span className="badge badge--sb">SB</span>}
-          {isBigBlind && <span className="badge badge--bb">BB</span>}
-          {data.allIn && <span className="badge badge--allin">ALL-IN</span>}
-        </div>
-      </div>
-
-      {data.contribThisStreet > 0 && (
-        <div className="seat__bet">
-          <span className="seat__bet-label">Bet</span>
-          <span>{data.contribThisStreet.toLocaleString()}</span>
-        </div>
-      )}
-
-      {/* Circular countdown ring, visible only for the currently acting player */}
-      {isToAct && timeLeft != null && (
-        <SeatTimerRing timeLeft={timeLeft} total={timerTotal ?? 15} />
-      )}
-    </div>
-  );
-}
+            onChange={(e) => se
