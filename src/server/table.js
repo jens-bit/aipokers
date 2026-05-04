@@ -1,5 +1,6 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
+import { getAgentAction } from '../agent/handler.js';
 
 // A Table owns a single Game instance and the WebSocket connections for its
 // two seats. It serializes incoming actions, broadcasts filtered state, and
@@ -13,6 +14,10 @@ export class Table {
     this.connections = [null, null]; // ws by seat
     this.pending = [null, null];     // { playerId, buyIn, displayName } per seat before hand starts
     this.game = null;
+
+    // AI seat tracking
+    this.aiSeats = [false, false];   // true if that seat is controlled by the AI agent
+    this.aiStrategy = [null, null];  // per-seat strategy string (passed to prompt)
   }
 
   // Returns the seat the player got, or throws.
@@ -43,6 +48,35 @@ export class Table {
     return free;
   }
 
+  // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
+  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn } = {}) {
+    const free = this.pending.findIndex((p) => p === null);
+    if (free === -1) throw new Error('table full — cannot seat AI');
+
+    // Match the human player's buy-in if not specified.
+    const humanSeat = this.pending.findIndex((p) => p !== null && !this.aiSeats[this.pending.indexOf(p)]);
+    const aiBuyIn = buyIn ?? this.pending[humanSeat]?.buyIn ?? this.bigBlind * 100;
+
+    this.pending[free] = {
+      playerId: `ai_agent_${free}`,
+      buyIn: aiBuyIn,
+      displayName,
+    };
+    this.aiSeats[free] = true;
+    this.aiStrategy[free] = strategy || process.env.AI_STRATEGY || '';
+    console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'})`);
+    return free;
+  }
+
+  // Auto-seat AI at the free slot when one human is seated. No-op if table is
+  // already full or has no human seated.
+  maybeAutoSeatAI() {
+    const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
+    const hasFree = this.pending.some((p) => p === null);
+    if (!humanSeated || !hasFree) return;
+    this.seatAI();
+  }
+
   rename(ws, displayName) {
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
@@ -59,6 +93,9 @@ export class Table {
         // a fresh tab can take it. This means abandoning a tab mid-hand opens
         // the seat back up; we'll add proper sit-out / timeout handling later.
         this.pending[i] = null;
+        // Also clear AI flags so the table slot can be reused cleanly.
+        this.aiSeats[i] = false;
+        this.aiStrategy[i] = null;
         if (this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE) {
           // Reset the in-progress hand so the table is in a clean state.
           this.game = null;
@@ -120,10 +157,13 @@ export class Table {
       const legal = this.game.legalActions(seat);
       ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
     }
+    // Schedule AI turn if applicable — async, fire-and-forget.
+    this._maybeRunAiTurn().catch((err) =>
+      console.error(`[table:${this.tableId}] AI turn error:`, err.message),
+    );
   }
 
-  // Inject Table-level metadata (display names) into the seat objects so
-  // clients can show real names without coupling Game to display concerns.
+  // Augment state with display names from Table metadata.
   _augmentState(state) {
     state.seats = state.seats.map((s, i) => ({
       ...s,
@@ -136,6 +176,84 @@ export class Table {
     const payload = JSON.stringify(msg);
     for (const ws of this.connections) {
       if (ws && ws.readyState === ws.OPEN) ws.send(payload);
+    }
+  }
+
+  // Build the gameState object for the agent handler from the current game.
+  _buildAiGameState(aiSeat) {
+    const g = this.game;
+    const oppSeat = 1 - aiSeat;
+    const me = g.seats[aiSeat];
+    const opp = g.seats[oppSeat];
+    const legal = g.legalActions(aiSeat);
+
+    const callAction   = legal.find((a) => a.type === 'call')  ?? null;
+    const betAction    = legal.find((a) => a.type === 'bet')   ?? null;
+    const raiseAction  = legal.find((a) => a.type === 'raise') ?? null;
+
+    return {
+      holeCards:  me.holeCards,
+      community:  g.community,
+      pot:        g.pot,
+      street:     g.street,
+      myStack:    me.stack,
+      oppStack:   opp.stack,
+      myContrib:  me.contribThisStreet,
+      position:   g.dealerSeat === aiSeat ? 'BTN/SB' : 'BB',
+      sb:         g.smallBlind,
+      bb:         g.bigBlind,
+      canCheck:   legal.some((a) => a.type === 'check'),
+      canBet:     !!betAction,
+      canRaise:   !!raiseAction,
+      toCall:     callAction?.amount ?? 0,
+      minBet:     betAction?.min ?? 0,
+      maxBet:     betAction?.max ?? 0,
+      minRaise:   raiseAction?.min ?? 0,
+      maxRaise:   raiseAction?.max ?? 0,
+    };
+  }
+
+  // If it's currently an AI seat's turn, fetch a decision and apply it.
+  // Async — called fire-and-forget from _broadcastState.
+  async _maybeRunAiTurn() {
+    const g = this.game;
+    if (!g) return;
+    const aiSeat = g.toAct;
+    if (aiSeat === null || aiSeat === undefined) return;
+    if (!this.aiSeats[aiSeat]) return;
+    if (g.street === Streets.COMPLETE || g.street === Streets.WAITING) return;
+
+    const gameState = this._buildAiGameState(aiSeat);
+    const strategy = this.aiStrategy[aiSeat];
+
+    // Human-like thinking delay (0.8–2.5 s).
+    const thinkMs = 800 + Math.random() * 1700;
+    await new Promise((r) => setTimeout(r, thinkMs));
+
+    // Re-check: the human might have acted somehow, or hand ended.
+    if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
+
+    const decision = await getAgentAction(gameState, strategy);
+
+    // One final guard before mutating game state.
+    if (!this.game || this.game.toAct !== aiSeat) return;
+
+    try {
+      this.game.act(aiSeat, decision);
+      this._broadcastState();
+      if (this.game.street === Streets.COMPLETE) this._handCompleted();
+    } catch (err) {
+      console.error(`[table:${this.tableId}] AI action rejected (${JSON.stringify(decision)}):`, err.message);
+      // Safe fallback — play whatever is available.
+      const legal = this.game.legalActions(aiSeat);
+      const fallback = legal.find((a) => a.type === 'check') ?? legal.find((a) => a.type === 'call') ?? { type: 'fold' };
+      try {
+        this.game.act(aiSeat, { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) });
+        this._broadcastState();
+        if (this.game.street === Streets.COMPLETE) this._handCompleted();
+      } catch (e2) {
+        console.error(`[table:${this.tableId}] fallback action also failed:`, e2.message);
+      }
     }
   }
 }

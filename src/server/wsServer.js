@@ -61,6 +61,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
+            // Auto-seat AI opponent when enabled and a seat is free.
+            if (process.env.AI_ENABLED === 'true') table.maybeAutoSeatAI();
             table.maybeStartHand();
             return;
           }
