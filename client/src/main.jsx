@@ -8,4 +8,11 @@ import './styles/globals.css';
 
 initTelegram();
 
-const params = new URLSearchParams(windo
+const params = new URLSearchParams(window.location.search);
+const useDesignRef = params.has('design-ref') || window.location.hash === '#design-ref';
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    {useDesignRef ? <DesignRefApp /> : <App />}
+  </StrictMode>
+);

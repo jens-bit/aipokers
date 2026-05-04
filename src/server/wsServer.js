@@ -111,4 +111,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     ws.on('error', () => {
       const table = tables.get(ws.tableId);
       if (table) table.removeConnection(ws);
-  
+    });
+  });
+
+  return { wss, tables };
+}

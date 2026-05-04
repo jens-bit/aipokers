@@ -309,4 +309,5 @@ function appendEntry(history, entry) {
   ) {
     return history;
   }
-  return [{ ...head, entries: [..
+  return [{ ...head, entries: [...head.entries, entry] }, ...rest];
+}
