@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
-import { Setup } from './components/Setup.jsx';
+import { Play } from './components/Play.jsx';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
@@ -59,7 +59,7 @@ export default function App() {
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
-        <Setup onConnect={connect} />
+        <Play onConnect={connect} />
       </div>
     );
   }

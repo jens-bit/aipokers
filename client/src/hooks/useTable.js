@@ -152,6 +152,7 @@ export function useTable({ wsUrl }) {
         buyIn: cfg.buyIn,
         smallBlind: cfg.smallBlind,
         bigBlind: cfg.bigBlind,
+        wantAI: cfg.wantAI ?? false,
       }));
       reconnectAttemptRef.current = 0;
       setReconnectAttempt(0);
