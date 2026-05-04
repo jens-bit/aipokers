@@ -1355,7 +1355,7 @@ input:focus { border-color: var(--accent); }
   gap: 0;
   /* Reserve bottom space for fixed action bar */
   padding-bottom: calc(var(--action-bar-h) + 12px);
-  overflow-y: auto;
+  overflow: hidden; /* no scrolling — everything must fit in one screen */
 }
 
 /* Fix 2 (mobile + desktop): oval table fills the space between opponent and
@@ -1403,24 +1403,25 @@ input:focus { border-color: var(--accent); }
   }
 }
 
-/* Fix 1 (mobile ≤599px): remove HAND HISTORY from footer, show only a slim
-   muted "Leave table" link so it doesn't clutter the small screen. */
+/* ── Mobile compact layout (≤599px) ─────────────────────────────
+   Everything — header, opponent, table, your seat — must fit in
+   one screen above the fixed action bar. No scrolling allowed.
+   EXIT button in PlayHeader handles leaving; no footer needed. */
 @media (max-width: 599px) {
-  .ps-footer-btn:first-child { display: none; }
-  .ps-footer {
-    justify-content: flex-end;
-    border-top: none;
-    padding: 2px 16px 10px;
-    margin: 0;
+  /* Footer removed entirely — EXIT is in the header */
+  .ps-footer { display: none; }
+
+  /* Opponent and player rows: compact, won't overflow */
+  .ps-opponent-row { max-height: 80px; overflow: hidden; }
+  .ps-you-row      { max-height: 80px; overflow: hidden; }
+
+  /* Oval table: 4:3 ratio, max 220px tall, centred horizontally */
+  .play-app .app__main .ps-table {
+    aspect-ratio: 4 / 3;
+    max-height: 220px;
+    align-self: center;
+    margin: 0 auto 8px;
   }
-  .ps-footer-btn {
-    font-size: 10px;
-    color: var(--text-muted);
-    font-weight: 400;
-    letter-spacing: 0.1em;
-    text-transform: none;
-  }
-  .ps-footer-icon { display: none; }
 }
 
 /* ── Chip dot (replaces SVG ChipIcon) ──────────────────────── */
