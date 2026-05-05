@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
+import { AgentsTab } from './components/AgentsTab.jsx';
+import { getTelegramDisplayName } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
@@ -31,6 +33,9 @@ export default function App() {
   };
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('play');
+  const [playInitialStep, setPlayInitialStep] = useState('pick');
+  const [playKey, setPlayKey] = useState(0);
 
   // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
   const TIMER_TOTAL = 15;
@@ -92,7 +97,47 @@ export default function App() {
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
-        <Play onConnect={connect} />
+        <div className="pre-game">
+          {activeTab === 'play' && (
+            <Play
+              key={playKey}
+              onConnect={connect}
+              initialStep={playInitialStep}
+            />
+          )}
+          {activeTab === 'agents' && (
+            <AgentsTab
+              onDeploy={(payload) => connect({
+                tableId: payload.tableId,
+                displayName: getTelegramDisplayName() || payload.agentName || 'Anon',
+                buyIn: 1000,
+                smallBlind: 10,
+                bigBlind: 20,
+                wantAI: true,
+                agentStrategy: payload.strategy,
+              })}
+              onCreateAgent={() => {
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+            />
+          )}
+        </div>
+        <nav className="tab-bar">
+          <button
+            className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => setActiveTab('play')}
+          >
+            PLAY
+          </button>
+          <button
+            className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => setActiveTab('agents')}
+          >
+            AGENTS
+          </button>
+        </nav>
       </div>
     );
   }

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-export function Play({ onConnect }) {
-  const [step, setStep] = useState('pick');         // 'pick' | 'form' | 'create-agent'
+export function Play({ onConnect, initialStep = 'pick' }) {
+  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
