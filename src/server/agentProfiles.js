@@ -99,6 +99,7 @@ export function installAgentProfileRoutes(app) {
         agent = inferFallback(combined);
       }
       agent.id = 'agent_' + Date.now().toString(36);
+      console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}) strategy: "${agent.strategy?.slice(0, 80)}"`);
 
       const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
       profile.chat.push({ role: 'assistant', content: confirmMsg });
