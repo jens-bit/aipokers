@@ -1,6 +1,7 @@
 // Mirrors src/server/protocol.js. Keep in sync.
 export const ClientMsg = Object.freeze({
   JOIN: 'join',
+  WATCH: 'watch',
   ACTION: 'action',
   DEAL: 'deal',
   RENAME: 'rename',
@@ -10,6 +11,7 @@ export const ClientMsg = Object.freeze({
 
 export const ServerMsg = Object.freeze({
   JOINED: 'joined',
+  WATCHING: 'watching',
   STATE: 'state',
   HAND_START: 'hand_start',
   HAND_RESULT: 'hand_result',

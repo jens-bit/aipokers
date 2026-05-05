@@ -67,6 +67,23 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             return;
           }
 
+          case ClientMsg.WATCH: {
+            if (!msg.tableId) throw new Error('tableId required');
+            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20 });
+            const spectatorSeat = table.addSpectator(ws, {
+              agentStrategy: msg.agentStrategy ?? null,
+              displayName: msg.displayName,
+            });
+            ws.tableId = msg.tableId;
+            send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
+            // Solo mode: seat a second AI as the opponent if requested.
+            if (process.env.AI_ENABLED === 'true' && msg.wantOpponentAI === true) {
+              table.maybeAutoSeatAI(null);
+            }
+            table.maybeStartHand();
+            return;
+          }
+
           case ClientMsg.RENAME: {
             const table = tables.get(ws.tableId);
             if (!table) throw new Error('not seated at any table');

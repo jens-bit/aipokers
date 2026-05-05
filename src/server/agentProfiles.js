@@ -41,6 +41,10 @@ function getOrCreate(userId) {
 
 const activeTables = new Set();
 
+// ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
+// { tableId, expiresAt }
+let matchmakingSlot = null;
+
 // ── Conversation constants ───────────────────────────────────────────────────
 
 const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
@@ -161,6 +165,51 @@ export function installAgentProfileRoutes(app) {
       agentName: agent.name,
       strategy: agent.strategy,
       displayName: 'Agent',
+    });
+  });
+
+  // POST /api/agents/:agentId/queue — PvP matchmaking
+  // Pairs two agents on the same table without manual ID sharing.
+  app.post('/api/agents/:agentId/queue', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    // Clear expired slot (5-min TTL).
+    if (matchmakingSlot && Date.now() > matchmakingSlot.expiresAt) {
+      matchmakingSlot = null;
+    }
+
+    let tableId;
+    let matched;
+
+    if (matchmakingSlot) {
+      // Match found — join the waiting table.
+      tableId = matchmakingSlot.tableId;
+      matchmakingSlot = null;
+      matched = true;
+      console.log(`[agents] matched ${agent.name} to table ${tableId} (PvP)`);
+    } else {
+      // No one waiting — create a table and queue it.
+      tableId = 'table-' + randomUUID().slice(0, 8);
+      matchmakingSlot = { tableId, expiresAt: Date.now() + 5 * 60_000 };
+      matched = false;
+      console.log(`[agents] ${agent.name} queued on table ${tableId}, waiting for opponent`);
+    }
+
+    activeTables.add(tableId);
+    agent.activeTableId = tableId;
+    agent.status = 'playing';
+    saveStore(userId);
+
+    res.json({
+      tableId,
+      matched,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
     });
   });
 

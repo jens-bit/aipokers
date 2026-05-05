@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-export function Play({ onConnect, initialStep = 'pick' }) {
+export function Play({ onConnect, initialStep = 'pick', agentName = null }) {
   const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
@@ -30,6 +30,7 @@ export function Play({ onConnect, initialStep = 'pick' }) {
     return (
       <CreateAgent
         onBack={() => setStep('pick')}
+        agentName={agentName}
         onDeploy={(agent) => {
           onConnect({
             tableId: 'table-' + Math.random().toString(16).slice(2, 8),

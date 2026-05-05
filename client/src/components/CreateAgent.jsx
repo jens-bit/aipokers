@@ -7,7 +7,7 @@ const QUICK_CHIPS = [
   'Balanced strategy',
 ];
 
-export function CreateAgent({ onBack, onDeploy }) {
+export function CreateAgent({ onBack, onDeploy, agentName = null }) {
   const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
 
   const [chat, setChat] = useState([]);
@@ -15,7 +15,7 @@ export function CreateAgent({ onBack, onDeploy }) {
   const [loading, setLoading] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
   const [ready, setReady] = useState(false);
-  const bottomRef = useRef(null);
+  const chatRef = useRef(null);
 
   useEffect(() => {
     fetch('/api/agents/chat/reset', {
@@ -31,7 +31,8 @@ export function CreateAgent({ onBack, onDeploy }) {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
   async function send(text) {
@@ -73,10 +74,13 @@ export function CreateAgent({ onBack, onDeploy }) {
           </svg>
           Back
         </button>
-        <span className="create-agent__title">Agent Creator</span>
+        <span className="create-agent__title">
+          AGENT CREATOR
+          {agentName && <span className="create-agent__agent-label"> · {agentName}</span>}
+        </span>
       </div>
 
-      <div className="create-agent__chat">
+      <div className="create-agent__chat" ref={chatRef}>
         {chat.map((msg, i) => (
           <div key={i} className={`create-agent__msg create-agent__msg--${msg.role}`}>
             {msg.role === 'assistant' && (
@@ -109,7 +113,6 @@ export function CreateAgent({ onBack, onDeploy }) {
           </div>
         )}
 
-        <div ref={bottomRef} />
       </div>
 
       <div className="create-agent__footer">

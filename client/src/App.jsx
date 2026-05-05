@@ -25,7 +25,7 @@ export default function App() {
     game, mySeat, legalActions, history,
     error, dismissError, status,
     reconnectAttempt, maxReconnectAttempts,
-    config, connect, disconnect, act, deal, rename,
+    config, connect, watch, disconnect, act, deal, rename,
   } = table;
   const displayNames = {
     0: game?.seats?.[0]?.displayName ?? 'Seat A',
@@ -37,6 +37,7 @@ export default function App() {
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
+  const [editingAgentName, setEditingAgentName] = useState(null);
 
   // Task 3: call /finish when the table session ends.
   const callAgentFinish = useCallback((agentId) => {
@@ -109,28 +110,37 @@ export default function App() {
               key={playKey}
               onConnect={connect}
               initialStep={playInitialStep}
+              agentName={editingAgentName}
             />
           )}
           {activeTab === 'agents' && (
             <AgentsTab
               onDeploy={(payload) => {
                 setActiveAgentId(payload.agentId);
-                connect({
+                watch({
                   tableId: payload.tableId,
-                  displayName: getTelegramDisplayName() || payload.agentName || 'Anon',
-                  buyIn: 1000,
-                  smallBlind: 10,
-                  bigBlind: 20,
-                  wantAI: true,
                   agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: true,
+                });
+              }}
+              onChallenge={(payload) => {
+                setActiveAgentId(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
                 });
               }}
               onCreateAgent={() => {
+                setEditingAgentName(null);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
               }}
-              onChatAgent={() => {
+              onChatAgent={(agent) => {
+                setEditingAgentName(agent.name);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
@@ -177,16 +187,20 @@ export default function App() {
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
-      <ActionBar
-        game={game}
-        mySeat={mySeat}
-        legalActions={legalActions}
-        status={status}
-        reconnectAttempt={reconnectAttempt}
-        maxReconnectAttempts={maxReconnectAttempts}
-        onAct={act}
-        onDeal={deal}
-      />
+      {config?.isSpectator ? (
+        <div className="watch-banner">👁 Watching your agent play</div>
+      ) : (
+        <ActionBar
+          game={game}
+          mySeat={mySeat}
+          legalActions={legalActions}
+          status={status}
+          reconnectAttempt={reconnectAttempt}
+          maxReconnectAttempts={maxReconnectAttempts}
+          onAct={act}
+          onDeal={deal}
+        />
+      )}
       {/* Desktop: sticky history panel. Mobile: hidden by CSS. */}
       <aside className="app__sidebar">
         <div className="panel-header">

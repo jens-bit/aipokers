@@ -61,6 +61,11 @@ export function useTable({ wsUrl }) {
         setStatus('waiting');
         break;
 
+      case ServerMsg.WATCHING:
+        setMySeat(msg.spectatorSeat);
+        setStatus('watching');
+        break;
+
       case ServerMsg.STATE: {
         const s = msg.state;
         setGame(s);
@@ -144,17 +149,29 @@ export function useTable({ wsUrl }) {
 
     ws.addEventListener('open', () => {
       console.log('[ws] open', wsUrl);
-      ws.send(JSON.stringify({
-        type: ClientMsg.JOIN,
-        tableId: cfg.tableId,
-        playerId: playerIdRef.current,
-        displayName: cfg.displayName,
-        buyIn: cfg.buyIn,
-        smallBlind: cfg.smallBlind,
-        bigBlind: cfg.bigBlind,
-        wantAI: cfg.wantAI ?? false,
-        agentStrategy: cfg.agentStrategy ?? null,
-      }));
+      if (cfg.isSpectator) {
+        ws.send(JSON.stringify({
+          type: ClientMsg.WATCH,
+          tableId: cfg.tableId,
+          agentStrategy: cfg.agentStrategy ?? null,
+          displayName: cfg.displayName,
+          wantOpponentAI: cfg.wantOpponentAI ?? false,
+          smallBlind: cfg.smallBlind ?? 10,
+          bigBlind: cfg.bigBlind ?? 20,
+        }));
+      } else {
+        ws.send(JSON.stringify({
+          type: ClientMsg.JOIN,
+          tableId: cfg.tableId,
+          playerId: playerIdRef.current,
+          displayName: cfg.displayName,
+          buyIn: cfg.buyIn,
+          smallBlind: cfg.smallBlind,
+          bigBlind: cfg.bigBlind,
+          wantAI: cfg.wantAI ?? false,
+          agentStrategy: cfg.agentStrategy ?? null,
+        }));
+      }
       reconnectAttemptRef.current = 0;
       setReconnectAttempt(0);
       setError(null);
@@ -194,6 +211,29 @@ export function useTable({ wsUrl }) {
       console.warn('[ws] error event');
     });
   };
+
+  // Watch your AI agent play — spectator mode (no player input).
+  const watch = useCallback((cfg) => {
+    clearReconnectTimer();
+    const prev = wsRef.current;
+    if (prev) { try { prev.close(); } catch {} wsRef.current = null; }
+
+    setError(null);
+    setHistory([]);
+    setGame(null);
+    setLegalActions([]);
+    setMySeat(null);
+    lastStreetRef.current = null;
+    reconnectAttemptRef.current = 0;
+    setReconnectAttempt(0);
+
+    const spectatorCfg = { ...cfg, isSpectator: true };
+    configRef.current = spectatorCfg;
+    playerIdRef.current = generatePlayerId();
+    setConfig(spectatorCfg);
+    setStatus('connecting');
+    openSocketRef.current();
+  }, []);
 
   const connect = useCallback((cfg) => {
     clearReconnectTimer();
@@ -281,6 +321,7 @@ export function useTable({ wsUrl }) {
     maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
     config,
     connect,
+    watch,
     disconnect,
     act,
     deal,

@@ -13,6 +13,7 @@ const STATUS_LABEL = {
   idle: 'IDLE',
   connecting: 'CONNECTING',
   waiting: 'WAITING',
+  watching: 'WATCHING',
   playing: 'IN HAND',
   reconnecting: 'RECONNECTING',
   closed: 'DISCONNECTED',

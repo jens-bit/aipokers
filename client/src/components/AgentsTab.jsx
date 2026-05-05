@@ -4,7 +4,7 @@ function getUserId() {
   return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
 }
 
-export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent }) {
+export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +25,17 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent }) {
     if (!res.ok) return;
     const data = await res.json();
     onDeploy(data);
+  }
+
+  async function challenge(agent) {
+    const res = await fetch(`/api/agents/${agent.id}/queue`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: getUserId() }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    onChallenge(data);
   }
 
   async function remove(agentId) {
@@ -76,6 +87,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent }) {
             key={agent.id}
             agent={agent}
             onDeploy={() => deploy(agent)}
+            onChallenge={() => challenge(agent)}
             onChat={() => onChatAgent(agent)}
             onDelete={() => remove(agent.id)}
           />
@@ -85,7 +97,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent }) {
   );
 }
 
-function AgentCard({ agent, onDeploy, onChat, onDelete }) {
+function AgentCard({ agent, onDeploy, onChallenge, onChat, onDelete }) {
   const isLive = agent.status === 'playing';
   const strategy = agent.strategy || '';
   const preview = strategy.length > 80 ? strategy.slice(0, 80) + '…' : strategy;
@@ -106,15 +118,22 @@ function AgentCard({ agent, onDeploy, onChat, onDelete }) {
       )}
       {preview && <div className="agent-card__strategy">{preview}</div>}
       <div className="agent-card__actions">
-        <button className="agent-card__deploy-btn" onClick={onDeploy} disabled={isLive}>
-          PLAY →
-        </button>
-        <button className="agent-card__chat-btn" onClick={onChat}>
-          CHAT
-        </button>
-        <button className="agent-card__delete-btn" onClick={onDelete}>
-          DELETE
-        </button>
+        <div className="agent-card__primary-row">
+          <button className="agent-card__deploy-btn" onClick={onDeploy} disabled={isLive}>
+            PLAY →
+          </button>
+          <button className="agent-card__challenge-btn" onClick={onChallenge} disabled={isLive}>
+            CHALLENGE
+          </button>
+        </div>
+        <div className="agent-card__secondary-row">
+          <button className="agent-card__chat-btn" onClick={onChat}>
+            CHAT
+          </button>
+          <button className="agent-card__delete-btn" onClick={onDelete}>
+            DELETE
+          </button>
+        </div>
       </div>
     </div>
   );
