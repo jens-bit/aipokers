@@ -255,7 +255,7 @@ export class Table {
     // Re-check: the human might have acted somehow, or hand ended.
     if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
 
-    console.log(`[agent] strategy: "${(this.agentStrategy || 'default').slice(0, 80)}"`);
+    console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
     const decision = await getAgentAction(gameState, strategy);
 
     // One final guard before mutating game state.

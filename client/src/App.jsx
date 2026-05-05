@@ -36,6 +36,22 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('play');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
+  const [activeAgentId, setActiveAgentId] = useState(null);
+
+  // Task 3: call /finish when the table session ends.
+  const callAgentFinish = useCallback((agentId) => {
+    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
+    fetch(`/api/agents/${agentId}/finish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
+    setActiveAgentId(null);
+  }, []);
+
+  useEffect(() => {
+    if (activeAgentId && status === 'closed') callAgentFinish(activeAgentId);
+  }, [status, activeAgentId, callAgentFinish]);
 
   // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
   const TIMER_TOTAL = 15;
@@ -71,19 +87,9 @@ export default function App() {
   }, [timerLeft, isMyTurn]);
 
   const handleLeave = useCallback(() => {
-    const gameInProgress = game &&
-      game.street !== Streets.WAITING &&
-      game.street !== Streets.COMPLETE;
-    const tg = window.Telegram?.WebApp;
-    if (gameInProgress && tg?.showConfirm) {
-      tg.showConfirm('Your game is still running. Leave anyway?', (confirmed) => {
-        if (confirmed) { disconnect(); tg.close?.(); }
-      });
-    } else {
-      disconnect();
-      tg?.close?.();
-    }
-  }, [game, disconnect]);
+    if (activeAgentId) callAgentFinish(activeAgentId);
+    disconnect();
+  }, [disconnect, activeAgentId, callAgentFinish]);
 
   const buyInRef = useRef(null);
   useEffect(() => {
@@ -107,15 +113,18 @@ export default function App() {
           )}
           {activeTab === 'agents' && (
             <AgentsTab
-              onDeploy={(payload) => connect({
-                tableId: payload.tableId,
-                displayName: getTelegramDisplayName() || payload.agentName || 'Anon',
-                buyIn: 1000,
-                smallBlind: 10,
-                bigBlind: 20,
-                wantAI: true,
-                agentStrategy: payload.strategy,
-              })}
+              onDeploy={(payload) => {
+                setActiveAgentId(payload.agentId);
+                connect({
+                  tableId: payload.tableId,
+                  displayName: getTelegramDisplayName() || payload.agentName || 'Anon',
+                  buyIn: 1000,
+                  smallBlind: 10,
+                  bigBlind: 20,
+                  wantAI: true,
+                  agentStrategy: payload.strategy,
+                });
+              }}
               onCreateAgent={() => {
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
