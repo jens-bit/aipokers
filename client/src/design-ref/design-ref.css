@@ -13,7 +13,8 @@
   --dr-border-strong: rgba(255, 255, 255, 0.12);
   --dr-gold: #cdb380;
   --dr-error: #ff4d4f;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   display: flex;
   justify-content: center;
   color: var(--dr-text);
@@ -23,7 +24,7 @@
     var(--dr-bg);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .dr-app *,
@@ -40,6 +41,8 @@
 .dr-app button {
   color: inherit;
   cursor: pointer;
+  letter-spacing: 0;
+  text-transform: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -51,7 +54,8 @@
 .dr-miniapp {
   width: 100%;
   max-width: 430px;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -411,10 +415,8 @@
 }
 
 .dr-prompt-list {
-  display: flex;
+  display: grid;
   gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 .dr-prompt-list button,
@@ -431,6 +433,12 @@
   color: var(--dr-text);
   font-size: 12px;
   font-weight: 700;
+}
+
+.dr-prompt-list button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
 }
 
 .dr-hero--loading {
@@ -458,7 +466,7 @@
 }
 
 .dr-screen--chat {
-  min-height: calc(100vh - 76px);
+  min-height: 100%;
 }
 
 .dr-chat-header,
@@ -553,11 +561,16 @@
 
 .dr-chat-suggestions {
   max-width: 100%;
-  display: flex;
+  display: grid;
   gap: 8px;
-  overflow-x: auto;
-  padding: 0 16px 10px;
-  scrollbar-width: none;
+  overflow: visible;
+  padding: 0 16px 12px;
+}
+
+.dr-chat-suggestions button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
 }
 
 .dr-chat-input {
@@ -629,7 +642,7 @@
 .dr-blueprint-grid,
 .dr-session-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 0.85fr 1.25fr 0.9fr;
   gap: 8px;
   margin-bottom: 10px;
 }

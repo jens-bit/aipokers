@@ -55,7 +55,7 @@ function createAgentFromChat(profile, text) {
     status: 'ready',
     bankroll: 0,
     bankrollStatus: 'unfunded',
-    tablePreference: 'Heads-up NLH / $10-$20',
+    tablePreference: 'HU NLH / $10-$20',
     deployStatus: 'needs_funding',
     hands: 0,
     winRate: null,

@@ -3,9 +3,9 @@ import { getTelegramUser } from '../lib/telegram.js';
 import './design-ref.css';
 
 const QUICK_PROMPTS = [
-  'Build a balanced heads-up agent',
-  'Make it tight and low risk',
-  'Create an aggressive bluffing agent',
+  'Balanced heads-up player',
+  'Tight, low-risk grinder',
+  'Aggressive pressure agent',
 ];
 
 const INITIAL_CHAT = [
@@ -96,8 +96,8 @@ function telegramIdentity(user) {
     const devName = previewUser || 'dev-zero-agent';
     return {
       id: `telegram:${devName}`,
-      name: 'Telegram User',
-      handle: 'dev preview',
+      name: 'You',
+      handle: '@you',
     };
   }
 
@@ -148,7 +148,7 @@ function inferFallbackAgent(content) {
     status: 'ready',
     bankroll: 0,
     bankrollStatus: 'unfunded',
-    tablePreference: 'Heads-up NLH / $10-$20',
+    tablePreference: 'HU NLH / $10-$20',
     deployStatus: 'needs_funding',
     hands: 0,
     winRate: null,
@@ -223,13 +223,17 @@ function Logo() {
 }
 
 function AppHeader({ identity, agentCount, onCreate }) {
+  const agentLabel = agentCount === 0
+    ? 'No agents'
+    : `${agentCount} agent${agentCount === 1 ? '' : 's'}`;
+
   return (
     <header className="dr-topbar">
       <Logo />
       <div className="dr-topbar__right">
         <span className="dr-user-pill">
           <b>{identity.name.slice(0, 1).toUpperCase()}</b>
-          <small>{agentCount} agent{agentCount === 1 ? '' : 's'}</small>
+          <small>{agentLabel}</small>
         </span>
         <button className="dr-icon-button" type="button" onClick={onCreate} aria-label="Create agent">
           <Icon name="plus" size={18} />
@@ -262,9 +266,9 @@ function EmptyHome({ identity, onCreate }) {
       <section className="dr-hero">
         <p className="dr-label dr-label--accent">New agent</p>
         <h1>Build your first poker agent.</h1>
-        <p>No agents are attached to {identity.handle} yet. Start with a style and chat will shape version one.</p>
+        <p>You have no agents yet. Start with a playing style and chat will shape version one.</p>
         <button className="dr-primary-btn" type="button" onClick={onCreate}>
-          Create with chat
+          Start in chat
           <Icon name="chevron-right" size={15} />
         </button>
       </section>
@@ -304,7 +308,7 @@ function QuickPromptPanel({ onPick }) {
   return (
     <section className="dr-panel">
       <div className="dr-section-head">
-        <p className="dr-label">Suggested starts</p>
+        <p className="dr-label">Pick a starting point</p>
       </div>
       <div className="dr-prompt-list">
         {QUICK_PROMPTS.map((prompt) => (
