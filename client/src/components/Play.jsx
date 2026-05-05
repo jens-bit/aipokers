@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
+import { CreateAgent } from './CreateAgent.jsx';
 
 export function Play({ onConnect }) {
-  const [step, setStep] = useState('pick');         // 'pick' | 'form'
+  const [step, setStep] = useState('pick');         // 'pick' | 'form' | 'create-agent'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
@@ -25,37 +26,60 @@ export function Play({ onConnect }) {
     });
   }
 
+  if (step === 'create-agent') {
+    return (
+      <CreateAgent
+        onBack={() => setStep('pick')}
+        onDeploy={(agent) => {
+          onConnect({
+            tableId: 'table-' + Math.random().toString(16).slice(2, 8),
+            displayName: getTelegramDisplayName() || 'Anon',
+            buyIn: 1000,
+            smallBlind: 10,
+            bigBlind: 20,
+            wantAI: true,
+            agentStrategy: agent.strategy,
+          });
+        }}
+      />
+    );
+  }
+
   if (step === 'pick') {
     return (
       <div className="play">
-        {/* ── AI card — Hero style ── */}
+        {/* ── Deploy Agent hero card ── */}
         <div className="play__ai-card">
-          <div className="play__ai-eyebrow">Play AI</div>
-          <div className="play__ai-title">
-            Go heads-up against Claude.
-          </div>
-          <p className="play__ai-sub">Real decisions, real hands.</p>
-          <button type="button" className="play__ai-btn" onClick={() => pickMode('ai')}>
-            PLAY VS AI
+          <div className="play__ai-eyebrow">Deploy Agent</div>
+          <div className="play__ai-title">Deploy your agent.</div>
+          <p className="play__ai-sub">Your AI plays for you · sit back and watch</p>
+          <button type="button" className="play__ai-btn" onClick={() => setStep('create-agent')}>
+            DEPLOY AGENT
             <ArrowRight />
           </button>
         </div>
 
-        {/* ── Human card — PlayYourselfRow style ── */}
+        {/* ── Play Yourself card ── */}
         <div className="play__human-card">
           <div className="play__human-header">
             <div className="play__human-icon" aria-hidden>
               <PersonIcon />
             </div>
             <div>
-              <div className="play__human-title">Play Human</div>
+              <div className="play__human-title">Play Yourself</div>
               <div className="play__human-sub">Jump in and play a hand.</div>
             </div>
           </div>
-          <button type="button" className="play__human-btn" onClick={() => pickMode('human')}>
-            PLAY VS HUMAN
-            <ArrowRight />
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" className="play__human-btn" style={{ flex: 1 }} onClick={() => pickMode('ai')}>
+              vs AI
+              <ArrowRight />
+            </button>
+            <button type="button" className="play__human-btn" style={{ flex: 1 }} onClick={() => pickMode('human')}>
+              vs Human
+              <ArrowRight />
+            </button>
+          </div>
         </div>
       </div>
     );

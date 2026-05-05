@@ -153,6 +153,7 @@ export function useTable({ wsUrl }) {
         smallBlind: cfg.smallBlind,
         bigBlind: cfg.bigBlind,
         wantAI: cfg.wantAI ?? false,
+        agentStrategy: cfg.agentStrategy ?? null,
       }));
       reconnectAttemptRef.current = 0;
       setReconnectAttempt(0);

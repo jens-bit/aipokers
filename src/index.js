@@ -4,6 +4,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
+import { installAgentProfileRoutes } from './server/agentProfiles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -14,6 +15,8 @@ const smallBlind = Number(process.env.SMALL_BLIND ?? 10);
 const bigBlind = Number(process.env.BIG_BLIND ?? 20);
 
 const app = express();
+app.use(express.json());
+installAgentProfileRoutes(app);
 
 if (existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR, { extensions: ['html'] }));
