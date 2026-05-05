@@ -444,7 +444,8 @@ input:focus { border-color: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
+  height: 28px;
+  margin-bottom: 2px;
   margin-top: -1px; /* overlap the action-bar border-top by 1px so lines merge */
 }
 .action-bar__drawer-rule::before {
@@ -457,21 +458,23 @@ input:focus { border-color: var(--accent); }
 .action-bar__drawer-chevron {
   position: relative;  /* sits on top of the pseudo ::before line */
   z-index: 1;
-  width: 32px;
-  height: 18px;
+  width: 80px;
+  height: 26px;
   min-height: 0;
-  background: var(--bg-secondary);
-  border: none;
+  background: rgba(0, 212, 170, 0.12);
+  border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent);
   text-shadow: 0 0 8px var(--glow-soft);
-  font-size: 14px;
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
+  font-size: 13px;
   line-height: 1;
   letter-spacing: 0;
   text-transform: none;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  padding: 0;
+  gap: 4px;
+  padding: 0 8px;
 }
 .action-bar__drawer-chevron:hover { color: var(--accent-hover); }
 .action-bar__bet-drawer {

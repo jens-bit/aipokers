@@ -1,9 +1,47 @@
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
 
-const profiles = new Map();
+// ── Persistence ──────────────────────────────────────────────────────────────
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'agents.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+let store = {};
+try {
+  store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+} catch {
+  store = {};
+}
+
+function saveStore(userId) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+  const agents = store[userId]?.agents ?? [];
+  console.log(`[agents] saved profile for ${userId} — ${agents.length} agent(s)`);
+}
+
+function getOrCreate(userId) {
+  if (!store[userId]) {
+    store[userId] = {
+      userId,
+      agents: [],
+      chat: [{ role: 'assistant', content: OPENING_MSG }],
+    };
+  }
+  return store[userId];
+}
+
+// ── In-memory active table tracking ─────────────────────────────────────────
+
+const activeTables = new Set();
+
+// ── Conversation constants ───────────────────────────────────────────────────
 
 const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
 
@@ -19,16 +57,7 @@ const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no mar
 
 const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
 
-function getOrCreate(userId) {
-  if (!profiles.has(userId)) {
-    profiles.set(userId, {
-      userId,
-      agents: [],
-      chat: [{ role: 'assistant', content: OPENING_MSG }],
-    });
-  }
-  return profiles.get(userId);
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function userTurns(chat) {
   return chat.filter((m) => m.role === 'user').length;
@@ -64,7 +93,10 @@ async function callClaude(messages, systemText, maxTokens) {
   }
 }
 
+// ── Routes ───────────────────────────────────────────────────────────────────
+
 export function installAgentProfileRoutes(app) {
+  // GET /api/agent-profile — full profile (chat + agents)
   app.get('/api/agent-profile', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
@@ -76,6 +108,78 @@ export function installAgentProfileRoutes(app) {
     });
   });
 
+  // GET /api/agents?userId=... — agents array only
+  app.get('/api/agents', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const profile = getOrCreate(userId);
+    res.json({ agents: profile.agents });
+  });
+
+  // DELETE /api/agents/:agentId?userId=...
+  app.delete('/api/agents/:agentId', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const idx = profile.agents.findIndex((a) => a.id === agentId);
+    if (idx === -1) return res.status(404).json({ error: 'Agent not found' });
+    profile.agents.splice(idx, 1);
+    saveStore(userId);
+    res.json({ success: true });
+  });
+
+  // PATCH /api/agents/:agentId — update name and/or strategy
+  app.patch('/api/agents/:agentId', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (req.body.name !== undefined) agent.name = String(req.body.name);
+    if (req.body.strategy !== undefined) agent.strategy = String(req.body.strategy);
+    saveStore(userId);
+    res.json(agent);
+  });
+
+  // POST /api/agents/:agentId/deploy
+  app.post('/api/agents/:agentId/deploy', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const tableId = 'table-' + randomUUID().slice(0, 8);
+    activeTables.add(tableId);
+    agent.activeTableId = tableId;
+    agent.status = 'playing';
+    saveStore(userId);
+    console.log(`[agents] deployed ${agent.name} to table ${tableId}`);
+
+    res.json({
+      tableId,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
+      displayName: 'Agent',
+    });
+  });
+
+  // POST /api/agents/:agentId/finish
+  app.post('/api/agents/:agentId/finish', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    if (agent.activeTableId) activeTables.delete(agent.activeTableId);
+    agent.status = 'idle';
+    agent.activeTableId = null;
+    saveStore(userId);
+    res.json(agent);
+  });
+
+  // POST /api/agents/chat — create agent via conversation
   app.post('/api/agents/chat', async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
@@ -92,6 +196,7 @@ export function installAgentProfileRoutes(app) {
         const reply = await callClaude(profile.chat, SYSTEM_CONV, 120);
         const msg = reply || "Great! How aggressive do you like to play, and how often do you bluff?";
         profile.chat.push({ role: 'assistant', content: msg });
+        saveStore(userId);
         return res.json({ userId: profile.userId, hasAgents: profile.agents.length > 0, agents: profile.agents, chat: profile.chat });
       }
 
@@ -105,11 +210,14 @@ export function installAgentProfileRoutes(app) {
         agent = inferFallback(combined);
       }
       agent.id = 'agent_' + Date.now().toString(36);
+      agent.status = 'idle';
+      agent.activeTableId = null;
       console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}) strategy: "${agent.strategy?.slice(0, 80)}"`);
 
       const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
       profile.chat.push({ role: 'assistant', content: confirmMsg });
       profile.agents.push(agent);
+      saveStore(userId);
 
       return res.json({
         userId: profile.userId,
@@ -121,10 +229,11 @@ export function installAgentProfileRoutes(app) {
     } catch (err) {
       console.error('[agentProfiles] error:', err.message);
       const combined = profile.chat.map((m) => m.content).join(' ');
-      const agent = { ...inferFallback(combined), id: 'agent_' + Date.now().toString(36) };
+      const agent = { ...inferFallback(combined), id: 'agent_' + Date.now().toString(36), status: 'idle', activeTableId: null };
       const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
       profile.chat.push({ role: 'assistant', content: confirmMsg });
       profile.agents.push(agent);
+      saveStore(userId);
       return res.json({
         userId: profile.userId,
         hasAgents: true,
