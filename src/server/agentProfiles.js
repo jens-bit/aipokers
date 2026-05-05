@@ -57,7 +57,7 @@ Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be dir
 
 After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<invent a UNIQUE poker agent name. Draw from any domain: science, geography, chess, weather, military, nature, finance. Examples: 'Iron Curtain', 'Sandstorm', 'Ghost Protocol', 'Quiet Storm', 'Patient Zero', 'Cold Shoulder', 'The Algorithm', 'Permafrost', 'Entropy', 'Dead Reckoning'. Rules: NEVER end in v1/v2. NEVER use 'The Pressmaker', 'Balanced v1', or alliterative names. Generate something unexpected each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
 
 const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
 
@@ -69,12 +69,12 @@ function userTurns(chat) {
 
 function inferFallback(text) {
   if (/aggressive|bluff|pressure/i.test(text)) {
-    return { name: 'Sandstorm', style: 'Aggressive', risk: 'High', strategy: 'You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire sustained bluffs to keep opponents permanently off-balance.' };
+    return { name: 'Loose Cannon', style: 'Aggressive', risk: 'High', strategy: 'You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire sustained bluffs to keep opponents permanently off-balance.' };
   }
   if (/tight|safe|conservative/i.test(text)) {
-    return { name: 'Permafrost', style: 'Tight', risk: 'Low', strategy: 'You are a disciplined, patient player who only commits chips with strong holdings. You wait for premium spots, fold marginal hands without hesitation, and extract maximum value when you hold the nuts.' };
+    return { name: 'Rock Solid', style: 'Tight', risk: 'Low', strategy: 'You are a disciplined, patient player who only commits chips with premium holdings. You wait for the best spots, fold marginal hands without hesitation, and extract maximum value when you hold the nuts.' };
   }
-  return { name: 'Dead Reckoning', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range dynamically based on opponent tendencies.' };
+  return { name: 'The Grinder', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range based on how your opponent plays.' };
 }
 
 async function callClaude(messages, systemText, maxTokens) {
@@ -185,16 +185,19 @@ export function installAgentProfileRoutes(app) {
     let tableId;
     let matched;
 
+    let opponentName = null;
+
     if (matchmakingSlot) {
       // Match found — join the waiting table.
       tableId = matchmakingSlot.tableId;
+      opponentName = matchmakingSlot.agentName;
       matchmakingSlot = null;
       matched = true;
-      console.log(`[agents] matched ${agent.name} to table ${tableId} (PvP)`);
+      console.log(`[agents] matched ${agent.name} vs ${opponentName} on table ${tableId} (PvP)`);
     } else {
       // No one waiting — create a table and queue it.
       tableId = 'table-' + randomUUID().slice(0, 8);
-      matchmakingSlot = { tableId, expiresAt: Date.now() + 5 * 60_000 };
+      matchmakingSlot = { tableId, agentName: agent.name, expiresAt: Date.now() + 5 * 60_000 };
       matched = false;
       console.log(`[agents] ${agent.name} queued on table ${tableId}, waiting for opponent`);
     }
@@ -207,6 +210,7 @@ export function installAgentProfileRoutes(app) {
     res.json({
       tableId,
       matched,
+      opponentName,
       agentId: agent.id,
       agentName: agent.name,
       strategy: agent.strategy,

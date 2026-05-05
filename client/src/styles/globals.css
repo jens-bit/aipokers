@@ -89,7 +89,9 @@ input:focus { border-color: var(--accent); }
   width: 100%;
   max-width: var(--max-w-mobile);
   margin: 0 auto;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh; /* responds to virtual keyboard on iOS/Android */
+  overflow: hidden;
   position: relative;
   padding-top: var(--safe-top);
 }

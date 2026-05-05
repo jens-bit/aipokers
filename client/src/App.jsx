@@ -38,7 +38,7 @@ export default function App() {
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
-  const [editingAgentName, setEditingAgentName] = useState(null);
+  const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -121,7 +121,7 @@ export default function App() {
                   tableId: payload.tableId,
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: true,
+                  wantOpponentAI: false,
                 });
               }}
               onDone={() => {
@@ -130,7 +130,7 @@ export default function App() {
                 setActiveTab('agents');
               }}
               initialStep={playInitialStep}
-              agentName={editingAgentName}
+              existingAgent={editingAgent}
             />
           )}
           {activeTab === 'agents' && (
@@ -141,7 +141,7 @@ export default function App() {
                   tableId: payload.tableId,
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: true,
+                  wantOpponentAI: false,
                 });
               }}
               onVsYou={(payload) => {
@@ -154,25 +154,17 @@ export default function App() {
                   bigBlind: 20,
                   wantAI: true,
                   agentStrategy: payload.strategy,
-                });
-              }}
-              onChallenge={(payload) => {
-                setActiveAgent(payload.agentId);
-                watch({
-                  tableId: payload.tableId,
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
+                  agentDisplayName: payload.agentName,
                 });
               }}
               onCreateAgent={() => {
-                setEditingAgentName(null);
+                setEditingAgent(null);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
               }}
               onChatAgent={(agent) => {
-                setEditingAgentName(agent.name);
+                setEditingAgent(agent);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
@@ -185,7 +177,7 @@ export default function App() {
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => {
               setPlayInitialStep('pick');
-              setEditingAgentName(null);
+              setEditingAgent(null);
               setPlayKey((k) => k + 1); // force Play remount → clears internal step state
               setActiveTab('play');
             }}
@@ -225,7 +217,7 @@ export default function App() {
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
       {config?.isSpectator ? (
-        <div className="watch-banner">👁 Watching your agent play</div>
+        <WatchBanner config={config} game={game} mySeat={mySeat} />
       ) : (
         <ActionBar
           game={game}
@@ -261,6 +253,23 @@ export default function App() {
       />
     </div>
   );
+}
+
+function WatchBanner({ config, game, mySeat }) {
+  const myName = config?.displayName || 'Agent';
+  const opponentSeat = mySeat === 0 ? 1 : 0;
+  const oppName = game?.seats?.[opponentSeat]?.displayName;
+  const handNum = game?.handNumber;
+
+  let text;
+  if (oppName && handNum) {
+    text = `${myName} vs ${oppName} — Hand #${handNum}`;
+  } else if (oppName) {
+    text = `${myName} vs ${oppName}`;
+  } else {
+    text = `Waiting for opponent…`;
+  }
+  return <div className="watch-banner">👁 {text}</div>;
 }
 
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {

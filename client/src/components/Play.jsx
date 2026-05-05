@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getTelegramDisplayName, isInTelegram, getUserId } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentName = null }) {
+export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentName = null, existingAgent = null }) {
   const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent' | 'picker'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
@@ -37,7 +37,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
   async function deployAgent(agent) {
     setDeploying(agent.id);
     try {
-      const res = await fetch(`/api/agents/${agent.id}/deploy`, {
+      const res = await fetch(`/api/agents/${agent.id}/queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: getUserId() }),
@@ -53,7 +53,8 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
     return (
       <CreateAgent
         onBack={() => setStep('pick')}
-        agentName={agentName}
+        agentName={agentName || existingAgent?.name}
+        existingAgent={existingAgent}
         onDone={onDone}
       />
     );

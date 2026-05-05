@@ -86,12 +86,12 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI(agentStrategy = null) {
+  maybeAutoSeatAI(agentStrategy = null, agentDisplayName = null) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     if (!humanSeated || !hasFree) return;
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI();
+    this.seatAI({ displayName: agentDisplayName || undefined });
   }
 
   rename(ws, displayName) {
@@ -192,8 +192,12 @@ export class Table {
     this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
     if (this.game.seats.some((s) => s.stack <= 0)) {
       this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
+      return;
     }
-    // The next hand waits for an explicit DEAL message from a seated player.
+    // Auto-deal when all seats are AI (spectator mode — no human to click DEAL).
+    if (this.aiSeats.every(Boolean)) {
+      setTimeout(() => this.maybeStartHand(), 2500);
+    }
   }
 
   _broadcastState() {

@@ -8,7 +8,7 @@ const QUICK_CHIPS = [
   'Balanced strategy',
 ];
 
-export function CreateAgent({ onBack, onDone, agentName = null }) {
+export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = null }) {
   const userId = getUserId();
 
   const [chat, setChat] = useState([]);
@@ -19,16 +19,26 @@ export function CreateAgent({ onBack, onDone, agentName = null }) {
   const chatRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/agents/chat/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
-      .then(() => fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`))
-      .then((r) => r.json())
-      .then((data) => { setChat(data.chat || []); })
-      .catch(() => {})
-      .finally(() => setReady(true));
+    if (existingAgent) {
+      // Editing mode: skip reset, synthesize a context bubble at the top.
+      const contextMsg = {
+        role: 'assistant',
+        content: `You're editing ${existingAgent.name}. Currently: ${existingAgent.style}, ${existingAgent.risk} risk. Tell me what you'd like to change.`,
+      };
+      setChat([contextMsg]);
+      setReady(true);
+    } else {
+      fetch('/api/agents/chat/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+        .then(() => fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`))
+        .then((r) => r.json())
+        .then((data) => { setChat(data.chat || []); })
+        .catch(() => {})
+        .finally(() => setReady(true));
+    }
   }, []);
 
   useEffect(() => {

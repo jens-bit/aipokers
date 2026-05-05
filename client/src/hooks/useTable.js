@@ -170,6 +170,7 @@ export function useTable({ wsUrl }) {
           bigBlind: cfg.bigBlind,
           wantAI: cfg.wantAI ?? false,
           agentStrategy: cfg.agentStrategy ?? null,
+          agentDisplayName: cfg.agentDisplayName ?? null,
         }));
       }
       reconnectAttemptRef.current = 0;
