@@ -16,7 +16,7 @@ function getProfile(userId) {
       chat: [
         {
           role: 'assistant',
-          content: 'You do not have an agent yet. Tell me how you want it to play and I will draft the first version.',
+          content: 'Tell me the playing style you want. I will turn it into your first agent draft.',
         },
       ],
     });

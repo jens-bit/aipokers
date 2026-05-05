@@ -11,7 +11,7 @@ const QUICK_PROMPTS = [
 const INITIAL_CHAT = [
   {
     role: 'assistant',
-    content: 'You do not have an agent yet. Tell me how you want it to play and I will draft the first version.',
+    content: 'Tell me the playing style you want. I will turn it into your first agent draft.',
   },
 ];
 
@@ -244,9 +244,9 @@ function LoadingState({ identity }) {
     <div className="dr-screen">
       <AppHeader identity={identity} agentCount={0} onCreate={() => {}} />
       <section className="dr-hero dr-hero--loading">
-        <p className="dr-label dr-label--accent">Checking server</p>
+        <p className="dr-label dr-label--accent">Loading profile</p>
         <h1>Looking for your agents</h1>
-        <p>Reading the Telegram profile before showing the first-run flow.</p>
+        <p>Getting your Telegram profile ready before the app opens.</p>
         <div className="dr-skeleton-grid">
           <i /><i /><i />
         </div>
@@ -260,9 +260,9 @@ function EmptyHome({ identity, onCreate }) {
     <div className="dr-screen">
       <AppHeader identity={identity} agentCount={0} onCreate={onCreate} />
       <section className="dr-hero">
-        <p className="dr-label dr-label--accent">0 agents found</p>
-        <h1>Create your first poker agent in chat.</h1>
-        <p>The server profile for {identity.handle} has no agents yet. Start with a style and the assistant will build version one.</p>
+        <p className="dr-label dr-label--accent">New agent</p>
+        <h1>Build your first poker agent.</h1>
+        <p>No agents are attached to {identity.handle} yet. Start with a style and chat will shape version one.</p>
         <button className="dr-primary-btn" type="button" onClick={onCreate}>
           Create with chat
           <Icon name="chevron-right" size={15} />
@@ -272,12 +272,12 @@ function EmptyHome({ identity, onCreate }) {
         <div className="dr-empty-orbit">
           <AgentAvatar size="lg" />
         </div>
-        <h2>No agent deployed</h2>
-        <p>Your first action is not joining a table. It is creating the player that will sit for you.</p>
+        <h2>Start with a style</h2>
+        <p>Describe how the agent should play, then review the draft before funding its first table.</p>
         <div className="dr-state-list">
-          <span><Icon name="check" size={14} color="#00d4aa" /> Server knows this user has zero agents</span>
-          <span><Icon name="check" size={14} color="#00d4aa" /> Chat creates and stores the first agent</span>
-          <span><Icon name="check" size={14} color="#00d4aa" /> Agent view unlocks after creation</span>
+          <span><Icon name="check" size={14} color="#00d4aa" /> Choose a playing style</span>
+          <span><Icon name="check" size={14} color="#00d4aa" /> Review the strategy draft</span>
+          <span><Icon name="check" size={14} color="#00d4aa" /> Fund and deploy when ready</span>
         </div>
       </section>
       <section className="dr-setup-strip">
@@ -371,7 +371,7 @@ function DraftBlueprint({ messages, agent }) {
         <BlueprintCell label="Risk" value={hasPrompt || agent ? inferred.risk : 'Unset'} />
         <BlueprintCell label="Table" value="HU NLH" />
       </div>
-      <p>{hasPrompt || agent ? inferred.strategy : 'The assistant will turn your chat into a saved strategy profile.'}</p>
+      <p>{hasPrompt || agent ? inferred.strategy : 'Your first prompt becomes the strategy draft for version one.'}</p>
     </section>
   );
 }
@@ -389,6 +389,9 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
   const [draft, setDraft] = useState('');
   const messages = profile.chat?.length ? profile.chat : INITIAL_CHAT;
   const busy = chatStatus === 'thinking';
+  const agentSummary = profile.agents.length === 0
+    ? 'No agents yet'
+    : `${profile.agents.length} agent${profile.agents.length === 1 ? '' : 's'}`;
 
   function submit(content = draft) {
     const text = content.trim();
@@ -406,7 +409,7 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
         <div>
           <p className="dr-label dr-label--accent">Create agent</p>
           <h1>Chat to build v1</h1>
-          <small>{identity.handle} / server profile has {profile.agents.length} agent{profile.agents.length === 1 ? '' : 's'}</small>
+          <small>{identity.handle} / {agentSummary}</small>
         </div>
       </header>
       <div className="dr-chat-log">
@@ -720,7 +723,7 @@ function ProfileState({ identity, agentCount, onReset }) {
         <small>{identity.handle}</small>
         <div className="dr-state-list">
           <span>User id: {identity.id}</span>
-          <span>Agents on server: {agentCount}</span>
+          <span>Agents created: {agentCount}</span>
           <span>Mini app mode: full viewport, no phone chrome</span>
         </div>
         <button className="dr-secondary-wide" type="button" onClick={onReset}>

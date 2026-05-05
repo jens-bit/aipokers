@@ -23,6 +23,7 @@
     var(--dr-bg);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 .dr-app *,
@@ -57,18 +58,21 @@
   background: var(--dr-bg);
   border-left: 1px solid rgba(255, 255, 255, 0.04);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
+  overflow-x: hidden;
 }
 
 .dr-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
 }
 
 .dr-content::-webkit-scrollbar,
 .dr-prompt-list::-webkit-scrollbar,
+.dr-chat-suggestions::-webkit-scrollbar,
 .dr-tabs::-webkit-scrollbar {
   display: none;
 }
@@ -78,6 +82,7 @@
   display: flex;
   flex-direction: column;
   padding: 0 0 18px;
+  overflow-x: hidden;
 }
 
 .dr-label {
@@ -547,10 +552,12 @@
 }
 
 .dr-chat-suggestions {
+  max-width: 100%;
   display: flex;
   gap: 8px;
   overflow-x: auto;
   padding: 0 16px 10px;
+  scrollbar-width: none;
 }
 
 .dr-chat-input {
