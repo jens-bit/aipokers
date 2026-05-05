@@ -170,6 +170,7 @@ export default function App() {
             onClick={() => {
               setPlayInitialStep('pick');
               setEditingAgentName(null);
+              setPlayKey((k) => k + 1); // force Play remount → clears internal step state
               setActiveTab('play');
             }}
           >

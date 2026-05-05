@@ -76,10 +76,10 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
-            // Solo mode: seat a second AI as opponent. Call seatAI() directly —
-            // maybeAutoSeatAI requires a human seat and won't fire in spectator mode.
-            if (process.env.AI_ENABLED === 'true' && msg.wantOpponentAI === true) {
-              try { table.seatAI(); } catch {}
+            // Solo mode: seat a server AI as opponent immediately.
+            // No AI_ENABLED guard — if the user is watching their agent, they always need an opponent.
+            if (msg.wantOpponentAI === true) {
+              try { table.seatAI({ displayName: 'Rival', strategy: process.env.AI_STRATEGY || '' }); } catch {}
             }
             table.maybeStartHand();
             return;

@@ -12,6 +12,7 @@ export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = nul
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
   const [agents, setAgents] = useState([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
   const [deploying, setDeploying] = useState(null); // agentId being deployed
   const inTelegram = isInTelegram();
 
@@ -19,7 +20,8 @@ export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = nul
     fetch(`/api/agents?userId=${getUserId()}`)
       .then((r) => r.json())
       .then((data) => setAgents(data.agents || []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setAgentsLoading(false));
   }, []);
 
   function pickMode(m) { setMode(m); setStep('form'); }
@@ -114,7 +116,7 @@ export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = nul
               <div className="play__ai-eyebrow">Deploy Agent</div>
               <div className="play__ai-title">Send in your agent.</div>
               <p className="play__ai-sub">Pick an agent · watch it play · sit back</p>
-              <button type="button" className="play__ai-btn" onClick={() => setStep('picker')}>
+              <button type="button" className="play__ai-btn" disabled={agentsLoading} onClick={() => setStep('picker')}>
                 DEPLOY AGENT
                 <ArrowRight />
               </button>
@@ -124,9 +126,9 @@ export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = nul
               <div className="play__ai-eyebrow">Build Agent</div>
               <div className="play__ai-title">Create your agent.</div>
               <p className="play__ai-sub">Design an AI that plays for you</p>
-              <button type="button" className="play__ai-btn" onClick={() => setStep('create-agent')}>
-                CREATE AGENT
-                <ArrowRight />
+              <button type="button" className="play__ai-btn" disabled={agentsLoading} onClick={() => setStep('create-agent')}>
+                {agentsLoading ? '…' : 'CREATE AGENT'}
+                {!agentsLoading && <ArrowRight />}
               </button>
             </>
           )}
