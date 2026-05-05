@@ -54,6 +54,9 @@ function createAgentFromChat(profile, text) {
     risk: draft.risk,
     status: 'ready',
     bankroll: 0,
+    bankrollStatus: 'unfunded',
+    tablePreference: 'Heads-up NLH / $10-$20',
+    deployStatus: 'needs_funding',
     hands: 0,
     winRate: null,
     strategy: draft.strategy,
@@ -69,6 +72,18 @@ export function installAgentProfileRoutes(app) {
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
+      agents: profile.agents,
+      chat: profile.chat,
+    });
+  });
+
+  app.delete('/api/agent-profile', (req, res) => {
+    const userId = normalizeUserId(req.query.userId || req.body?.userId);
+    profiles.delete(userId);
+    const profile = getProfile(userId);
+    res.json({
+      userId: profile.userId,
+      hasAgents: false,
       agents: profile.agents,
       chat: profile.chat,
     });

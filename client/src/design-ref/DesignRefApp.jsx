@@ -89,9 +89,13 @@ function Icon({ name, size = 20, color = 'currentColor', strokeWidth = 1.7 }) {
 }
 
 function telegramIdentity(user) {
+  const params = new URLSearchParams(window.location.search);
+  const previewUser = params.get('dr-user');
+
   if (!user) {
+    const devName = previewUser || 'dev-zero-agent';
     return {
-      id: 'telegram:dev-zero-agent',
+      id: `telegram:${devName}`,
       name: 'Telegram User',
       handle: 'dev preview',
     };
@@ -121,6 +125,14 @@ async function sendChatTurn(userId, content) {
   return response.json();
 }
 
+async function resetProfile(userId) {
+  const response = await fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('reset request failed');
+  return response.json();
+}
+
 function inferFallbackAgent(content) {
   const lower = content.toLowerCase();
   const aggressive = /\b(aggro|aggressive|pressure|bluff|attack)\b/.test(lower);
@@ -135,6 +147,9 @@ function inferFallbackAgent(content) {
     risk,
     status: 'ready',
     bankroll: 0,
+    bankrollStatus: 'unfunded',
+    tablePreference: 'Heads-up NLH / $10-$20',
+    deployStatus: 'needs_funding',
     hands: 0,
     winRate: null,
     strategy: aggressive
@@ -265,8 +280,23 @@ function EmptyHome({ identity, onCreate }) {
           <span><Icon name="check" size={14} color="#00d4aa" /> Agent view unlocks after creation</span>
         </div>
       </section>
+      <section className="dr-setup-strip">
+        <SetupStep number="1" label="Create" value="Agent style" active />
+        <SetupStep number="2" label="Fund" value="Bankroll" />
+        <SetupStep number="3" label="Deploy" value="First table" />
+      </section>
       <QuickPromptPanel onPick={onCreate} />
     </div>
+  );
+}
+
+function SetupStep({ number, label, value, active = false, complete = false }) {
+  return (
+    <span className={`dr-setup-step${active ? ' is-active' : ''}${complete ? ' is-complete' : ''}`}>
+      <b>{complete ? <Icon name="check" size={13} /> : number}</b>
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </span>
   );
 }
 
@@ -309,11 +339,49 @@ function CreatedAgentCard({ agent, onOpenAgent, onKeepEditing }) {
         </span>
       </div>
       <p>{agent.strategy}</p>
+      <div className="dr-readiness-list">
+        <span><Icon name="check" size={14} color="#00d4aa" /> Strategy saved</span>
+        <span><Icon name="check" size={14} color="#00d4aa" /> Table profile selected</span>
+        <span><Icon name="chip" size={14} color="#cdb380" /> Bankroll still empty</span>
+      </div>
       <div className="dr-card-actions">
         <button className="dr-primary-btn" type="button" onClick={onOpenAgent}>Open agent</button>
         <button className="dr-secondary-btn" type="button" onClick={onKeepEditing}>Keep tuning</button>
       </div>
     </section>
+  );
+}
+
+function getLastUserPrompt(messages) {
+  return [...messages].reverse().find((message) => message.role === 'user')?.content || '';
+}
+
+function DraftBlueprint({ messages, agent }) {
+  const inferred = agent || inferFallbackAgent(getLastUserPrompt(messages));
+  const hasPrompt = messages.some((message) => message.role === 'user');
+
+  return (
+    <section className="dr-blueprint-card">
+      <div className="dr-section-head">
+        <p className="dr-label">{agent ? 'Created blueprint' : 'Draft blueprint'}</p>
+        <span>{hasPrompt ? 'Tuned' : 'Waiting'}</span>
+      </div>
+      <div className="dr-blueprint-grid">
+        <BlueprintCell label="Style" value={hasPrompt || agent ? inferred.style : 'Unset'} />
+        <BlueprintCell label="Risk" value={hasPrompt || agent ? inferred.risk : 'Unset'} />
+        <BlueprintCell label="Table" value="HU NLH" />
+      </div>
+      <p>{hasPrompt || agent ? inferred.strategy : 'The assistant will turn your chat into a saved strategy profile.'}</p>
+    </section>
+  );
+}
+
+function BlueprintCell({ label, value }) {
+  return (
+    <span>
+      <small>{label}</small>
+      <b>{value}</b>
+    </span>
   );
 }
 
@@ -349,6 +417,7 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
           </div>
         )}
       </div>
+      <DraftBlueprint messages={messages} agent={createdAgent} />
       <CreatedAgentCard agent={createdAgent} onOpenAgent={onOpenAgent} onKeepEditing={() => setDraft('Tune it for 3-bet pots and river discipline')} />
       {!createdAgent && (
         <div className="dr-chat-suggestions">
@@ -393,8 +462,37 @@ function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
         <button className="dr-primary-btn" type="button">Deploy to table</button>
       </section>
       <AgentStats agent={agent} />
+      <FirstSessionSetup agent={agent} />
       <RecentActivity hasAgent />
     </div>
+  );
+}
+
+function FirstSessionSetup({ agent }) {
+  return (
+    <section className="dr-panel dr-session-setup">
+      <div className="dr-section-head">
+        <p className="dr-label">First session</p>
+        <span>{agent.deployStatus === 'needs_funding' ? 'Not funded' : 'Ready'}</span>
+      </div>
+      <div className="dr-session-grid">
+        <SessionCell label="Bankroll" value={`$${agent.bankroll ?? 0}`} tone="warn" />
+        <SessionCell label="Table" value={agent.tablePreference || 'HU NLH / $10-$20'} />
+        <SessionCell label="Mode" value="Watch first" />
+      </div>
+      <button className="dr-secondary-wide" type="button">
+        <Icon name="chip" size={16} /> Fund agent
+      </button>
+    </section>
+  );
+}
+
+function SessionCell({ label, value, tone }) {
+  return (
+    <span className={tone ? `is-${tone}` : ''}>
+      <small>{label}</small>
+      <b>{value}</b>
+    </span>
   );
 }
 
@@ -403,7 +501,7 @@ function AgentStats({ agent }) {
     ['Status', agent.status || 'ready'],
     ['Hands', String(agent.hands ?? 0)],
     ['Win rate', agent.winRate == null ? '--' : `${agent.winRate}%`],
-    ['Bankroll', `$${agent.bankroll ?? 0}`],
+    ['Funds', agent.bankrollStatus === 'unfunded' ? 'Empty' : `$${agent.bankroll ?? 0}`],
   ];
   return (
     <section className="dr-stats">
@@ -612,7 +710,7 @@ function HistoryState({ agent, onCreate }) {
   );
 }
 
-function ProfileState({ identity, agentCount }) {
+function ProfileState({ identity, agentCount, onReset }) {
   return (
     <div className="dr-screen">
       <section className="dr-panel dr-profile-card">
@@ -625,6 +723,9 @@ function ProfileState({ identity, agentCount }) {
           <span>Agents on server: {agentCount}</span>
           <span>Mini app mode: full viewport, no phone chrome</span>
         </div>
+        <button className="dr-secondary-wide" type="button" onClick={onReset}>
+          Reset first-run flow
+        </button>
       </section>
     </div>
   );
@@ -706,6 +807,23 @@ export default function DesignRefApp() {
     }
   }
 
+  async function handleReset() {
+    try {
+      const nextProfile = await resetProfile(identity.id);
+      setProfile({ ...nextProfile, chat: nextProfile.chat?.length ? nextProfile.chat : INITIAL_CHAT });
+    } catch {
+      setProfile({
+        userId: identity.id,
+        hasAgents: false,
+        agents: [],
+        chat: INITIAL_CHAT,
+      });
+    }
+    setCreatedAgent(null);
+    setChatStatus('idle');
+    setTab('home');
+  }
+
   function openCreate(seedPrompt) {
     setTab('create');
     if (typeof seedPrompt === 'string') handleSend(seedPrompt);
@@ -730,7 +848,7 @@ export default function DesignRefApp() {
       ? <AgentViewScreen agent={activeAgent} onBack={() => setTab('home')} />
       : <AgentRoster onCreate={() => openCreate()} />;
   } else if (tab === 'history') screen = <HistoryState agent={activeAgent} onCreate={() => openCreate()} />;
-  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={profile.agents.length} />;
+  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={profile.agents.length} onReset={handleReset} />;
   else {
     screen = activeAgent
       ? <ExistingHome identity={identity} agent={activeAgent} onCreate={() => openCreate()} onOpenAgent={() => setTab('agents')} />

@@ -292,6 +292,68 @@
   padding: 14px;
 }
 
+.dr-setup-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0 16px 14px;
+}
+
+.dr-setup-step {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--dr-border);
+  border-radius: 12px;
+  background: var(--dr-panel);
+}
+
+.dr-setup-step b {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--dr-secondary);
+  font-size: 11px;
+}
+
+.dr-setup-step small,
+.dr-blueprint-grid small,
+.dr-session-grid small {
+  color: var(--dr-muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dr-setup-step strong {
+  overflow: hidden;
+  color: var(--dr-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dr-setup-step.is-active {
+  border-color: rgba(0, 212, 170, 0.28);
+  background: rgba(0, 212, 170, 0.06);
+}
+
+.dr-setup-step.is-active b,
+.dr-setup-step.is-complete b {
+  background: var(--dr-accent);
+  color: var(--dr-bg);
+}
+
+.dr-setup-step.is-active strong {
+  color: var(--dr-text);
+}
+
 .dr-empty-panel {
   display: flex;
   flex-direction: column;
@@ -538,6 +600,60 @@
   border-color: rgba(0, 212, 170, 0.25);
 }
 
+.dr-blueprint-card {
+  margin: 0 16px 14px;
+  padding: 14px;
+  border: 1px solid rgba(0, 212, 170, 0.18);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(0, 212, 170, 0.06), transparent),
+    var(--dr-panel);
+}
+
+.dr-blueprint-card .dr-section-head span,
+.dr-session-setup .dr-section-head span {
+  color: var(--dr-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dr-blueprint-grid,
+.dr-session-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dr-blueprint-grid span,
+.dr-session-grid span {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--dr-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.dr-blueprint-grid b,
+.dr-session-grid b {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--dr-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dr-blueprint-card p {
+  margin: 0;
+  color: var(--dr-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .dr-created-card > div:first-child {
   display: flex;
   align-items: center;
@@ -547,6 +663,24 @@
 
 .dr-created-card p {
   margin-bottom: 12px;
+}
+
+.dr-readiness-list {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.dr-readiness-list span {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--dr-secondary);
+  font-size: 12px;
 }
 
 .dr-card-actions {
@@ -644,6 +778,21 @@
   color: var(--dr-text);
   font-size: 14px;
   text-transform: capitalize;
+}
+
+.dr-session-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dr-session-grid span.is-warn {
+  border-color: rgba(205, 179, 128, 0.24);
+  background: rgba(205, 179, 128, 0.06);
+}
+
+.dr-session-grid span.is-warn b {
+  color: var(--dr-gold);
 }
 
 .dr-agent-row {
