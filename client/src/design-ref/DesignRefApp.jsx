@@ -346,7 +346,7 @@ function CreatedAgentCard({ agent, onOpenAgent, onKeepEditing }) {
       <div className="dr-readiness-list">
         <span><Icon name="check" size={14} color="#00d4aa" /> Strategy saved</span>
         <span><Icon name="check" size={14} color="#00d4aa" /> Table profile selected</span>
-        <span><Icon name="chip" size={14} color="#cdb380" /> Bankroll still empty</span>
+        <span><Icon name="chip" size={14} color="#cdb380" /> Add bankroll before deploy</span>
       </div>
       <div className="dr-card-actions">
         <button className="dr-primary-btn" type="button" onClick={onOpenAgent}>Open agent</button>
@@ -412,7 +412,7 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
         </button>
         <div>
           <p className="dr-label dr-label--accent">Create agent</p>
-          <h1>Chat to build v1</h1>
+          <h1>Build agent v1</h1>
           <small>{identity.handle} / {agentSummary}</small>
         </div>
       </header>
@@ -529,8 +529,8 @@ function AgentRoster({ agent, onCreate, onOpenAgent }) {
         <section className="dr-panel dr-empty-panel dr-full-empty">
           <AgentAvatar size="lg" />
           <h2>No agents yet</h2>
-          <p>Create the first one in chat before this tab has anything to manage.</p>
-          <button className="dr-primary-btn" type="button" onClick={onCreate}>Create agent</button>
+          <p>Create your first agent to unlock tuning, funding, and deployment.</p>
+          <button className="dr-primary-btn" type="button" onClick={onCreate}>Start in chat</button>
         </section>
       </div>
     );
@@ -722,13 +722,13 @@ function ProfileState({ identity, agentCount, onReset }) {
     <div className="dr-screen">
       <section className="dr-panel dr-profile-card">
         <span className="dr-profile-avatar">{identity.name.slice(0, 1).toUpperCase()}</span>
-        <p className="dr-label dr-label--accent">Telegram profile</p>
+        <p className="dr-label dr-label--accent">Telegram account</p>
         <h1>{identity.name}</h1>
         <small>{identity.handle}</small>
         <div className="dr-state-list">
-          <span>User id: {identity.id}</span>
-          <span>Agents created: {agentCount}</span>
-          <span>Mini app mode: full viewport, no phone chrome</span>
+          <span><Icon name="check" size={14} color="#00d4aa" /> Connected for this session</span>
+          <span><Icon name="agent" size={14} color="#00d4aa" /> {agentCount} agent{agentCount === 1 ? '' : 's'} created</span>
+          <span><Icon name="history" size={14} color="#cdb380" /> Reset preview to test first run</span>
         </div>
         <button className="dr-secondary-wide" type="button" onClick={onReset}>
           Reset first-run flow
@@ -753,7 +753,7 @@ function NavTabBar({ active, onChange, agentCount }) {
         <button key={id} type="button" className={active === id ? 'is-active' : ''} onClick={() => onChange(id)}>
           <Icon name={icon} size={20} />
           <span>{label}</span>
-          {id === 'agents' && agentCount === 0 && <i />}
+          {id === 'agents' && agentCount > 0 && <i />}
         </button>
       ))}
     </nav>
