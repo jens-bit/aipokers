@@ -59,12 +59,26 @@ After the user has clarified once, say: 'Got it — building your agent now.' an
 
 const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
 
-const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function userTurns(chat) {
-  return chat.filter((m) => m.role === 'user').length;
+// Update an agent in-place if existingAgentId is set, otherwise push a new one.
+function commitAgent(profile, existingAgentId, agentData) {
+  let agent = { ...agentData };
+  if (existingAgentId) {
+    const existing = profile.agents.find((a) => a.id === existingAgentId);
+    if (existing) {
+      Object.assign(existing, { name: agent.name, style: agent.style, risk: agent.risk, strategy: agent.strategy });
+      agent = existing;
+      console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk})`);
+      return agent;
+    }
+  }
+  agent.id = 'agent_' + Date.now().toString(36);
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  profile.agents.push(agent);
+  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
+  return agent;
 }
 
 function inferFallback(text) {
@@ -241,7 +255,7 @@ export function installAgentProfileRoutes(app) {
     res.json({ ok: true });
   });
 
-  // POST /api/agents/chat — create or update agent via conversation
+  // POST /api/agents/chat — pure conversational reply, never generates an agent
   app.post('/api/agents/chat', async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
@@ -251,48 +265,48 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     profile.chat.push({ role: 'user', content });
 
-    const turns = userTurns(profile.chat);
-    const shouldGenerate = turns >= 3 || TRIGGER_RE.test(content);
-
-    // Commit the generated agent: update in-place if editing, push as new otherwise.
-    function commitAgent(agent) {
-      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
-      profile.chat.push({ role: 'assistant', content: confirmMsg });
-      if (existingAgentId) {
-        const existing = profile.agents.find((a) => a.id === existingAgentId);
-        if (existing) {
-          Object.assign(existing, { name: agent.name, style: agent.style, risk: agent.risk, strategy: agent.strategy });
-          agent = existing;
-          console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk})`);
-        } else {
-          agent.id = 'agent_' + Date.now().toString(36);
-          agent.status = 'idle';
-          agent.activeTableId = null;
-          profile.agents.push(agent);
-          console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
-        }
-      } else {
-        agent.id = 'agent_' + Date.now().toString(36);
-        agent.status = 'idle';
-        agent.activeTableId = null;
-        profile.agents.push(agent);
-        console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
-      }
-      saveStore(userId);
-      return agent;
-    }
+    // Include existing agent context so the AI knows what's being changed.
+    const existingAgentForCtx = existingAgentId
+      ? profile.agents.find((a) => a.id === existingAgentId)
+      : null;
+    const existingCtx = existingAgentForCtx
+      ? `\n\nThe user is editing an existing agent: "${existingAgentForCtx.name}" — ${existingAgentForCtx.style} style, ${existingAgentForCtx.risk} risk. Current strategy: "${existingAgentForCtx.strategy}". When they suggest changes, acknowledge what's shifting and why it matters tactically.`
+      : '';
+    const systemText = SYSTEM_CONV + existingCtx;
 
     try {
-      if (!shouldGenerate) {
-        const reply = await callClaude(profile.chat, SYSTEM_CONV, 120);
-        const msg = reply || "Great! How aggressive do you like to play, and how often do you bluff?";
-        profile.chat.push({ role: 'assistant', content: msg });
-        saveStore(userId);
-        return res.json({ userId: profile.userId, hasAgents: profile.agents.length > 0, agents: profile.agents, chat: profile.chat });
-      }
+      const reply = await callClaude(profile.chat, systemText, 150);
+      const msg = reply || "How aggressive do you like to play, and how often do you bluff?";
+      profile.chat.push({ role: 'assistant', content: msg });
+      saveStore(userId);
+      return res.json({ chat: profile.chat });
+    } catch (err) {
+      console.error('[agentProfiles] chat error:', err.message);
+      const fallback = "Could you tell me more about your preferred style?";
+      profile.chat.push({ role: 'assistant', content: fallback });
+      saveStore(userId);
+      return res.json({ chat: profile.chat });
+    }
+  });
 
+  // POST /api/agents/build — generate agent from current chat, commit it
+  app.post('/api/agents/build', async (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const existingAgentId = req.body?.existingAgentId ?? null;
+
+    const profile = getOrCreate(userId);
+
+    const existingAgentForCtx = existingAgentId
+      ? profile.agents.find((a) => a.id === existingAgentId)
+      : null;
+    const editNote = existingAgentForCtx
+      ? `\n\nNote: you are updating the existing agent "${existingAgentForCtx.name}" (${existingAgentForCtx.style}/${existingAgentForCtx.risk}). Output the complete updated agent profile.`
+      : '';
+    const genSystem = SYSTEM_GEN + editNote;
+
+    try {
       let agent = null;
-      const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
+      const raw = await callClaude(profile.chat, genSystem, 200);
       if (raw) {
         try { agent = JSON.parse(raw); } catch {}
       }
@@ -300,27 +314,15 @@ export function installAgentProfileRoutes(app) {
         const combined = profile.chat.map((m) => m.content).join(' ');
         agent = inferFallback(combined);
       }
-      agent = commitAgent(agent);
-
-      return res.json({
-        userId: profile.userId,
-        hasAgents: true,
-        agents: profile.agents,
-        chat: profile.chat,
-        createdAgent: agent,
-      });
+      agent = commitAgent(profile, existingAgentId, agent);
+      saveStore(userId);
+      return res.json({ createdAgent: agent });
     } catch (err) {
-      console.error('[agentProfiles] error:', err.message);
+      console.error('[agentProfiles] build error:', err.message);
       const combined = profile.chat.map((m) => m.content).join(' ');
-      let agent = inferFallback(combined);
-      agent = commitAgent(agent);
-      return res.json({
-        userId: profile.userId,
-        hasAgents: true,
-        agents: profile.agents,
-        chat: profile.chat,
-        createdAgent: agent,
-      });
+      const agent = commitAgent(profile, existingAgentId, inferFallback(combined));
+      saveStore(userId);
+      return res.json({ createdAgent: agent });
     }
   });
 }

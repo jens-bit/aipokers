@@ -1647,6 +1647,71 @@ input:focus { border-color: var(--accent); }
   color: var(--accent);
 }
 
+.create-agent__build-btn {
+  flex-shrink: 0;
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  height: 44px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-label);
+  font-size: 13px;
+  letter-spacing: 0.10em;
+  cursor: pointer;
+  box-shadow: 0 0 16px var(--glow-soft);
+}
+
+.create-agent__build-btn:hover:not(:disabled) { background: var(--accent-hover); }
+
+.create-agent__building {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.create-agent__result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.create-agent__result-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.create-agent__result-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.create-agent__keep-btn {
+  flex: 1;
+  height: 40px;
+  background: none;
+  border: 1px solid var(--edge);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.create-agent__keep-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .create-agent__footer {
   flex-shrink: 0;
   padding: 8px 16px calc(12px + var(--safe-bottom));
@@ -1677,22 +1742,25 @@ input:focus { border-color: var(--accent); }
 }
 
 .create-agent__deploy-btn {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 0 16px;
-  height: 36px;
-  min-height: 36px;
+  height: 40px;
+  min-height: 40px;
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 12px;
+  font-family: var(--font-label);
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   white-space: nowrap;
-  flex-shrink: 0;
   box-shadow: 0 0 16px var(--glow-soft);
+  cursor: pointer;
 }
 
 .create-agent__deploy-btn:hover:not(:disabled),

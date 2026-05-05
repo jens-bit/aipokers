@@ -9,7 +9,6 @@ const QUICK_CHIPS = [
 ];
 
 // Extract 2-3 contextual reply chips from an assistant message.
-// Looks for "A, B, or C" / "A or B" patterns; falls back to generic options.
 function extractChips(text) {
   if (!text) return ['More aggressive', 'More conservative'];
   const triple = text.match(/\b([\w][^,?!]{1,22}),\s*([\w][^,?!]{1,22}),?\s+or\s+([\w][^?!.]{1,22})/i);
@@ -31,9 +30,17 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
   const [chat, setChat] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
   const [chips, setChips] = useState(QUICK_CHIPS);
+  // Track the current agent being edited (updated after Keep Tuning).
+  const [localAgent, setLocalAgent] = useState(existingAgent);
   const chatRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const hasSentMessage = chat.some((m) => m.role === 'user');
+  const activeAgentId = localAgent?.id ?? null;
+  const displayName = agentName || localAgent?.name || null;
 
   useEffect(() => {
     // Always reset server-side chat first.
@@ -56,10 +63,7 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
       })
       .catch(() => {
         if (existingAgent) {
-          setChat([{
-            role: 'assistant',
-            content: `You're editing ${existingAgent.name}. What would you like to change?`,
-          }]);
+          setChat([{ role: 'assistant', content: `You're editing ${existingAgent.name}. What would you like to change?` }]);
         }
       });
   }, []);
@@ -69,35 +73,35 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
     if (el) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
-  async function send(text) {
-    const msg = (text || input).trim();
+  function appendChip(chip) {
+    setInput((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip));
+    inputRef.current?.focus();
+  }
+
+  async function send() {
+    const msg = input.trim();
     if (!msg || loading) return;
     setInput('');
     setLoading(true);
-    setChips([]);
     setChat((prev) => [...prev, { role: 'user', content: msg }]);
 
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content: msg, existingAgentId: existingAgent?.id ?? null }),
+        body: JSON.stringify({ userId, content: msg, existingAgentId: activeAgentId }),
       });
       const data = await res.json();
       const serverChat = data.chat || [];
 
-      if (existingAgent) {
+      if (existingAgent || localAgent) {
         // Edit mode: append only the new AI reply — don't replace the context bubble.
         const newAiMsg = serverChat.filter((m) => m.role === 'assistant').pop();
         if (newAiMsg) setChat((prev) => [...prev, newAiMsg]);
+        const lastAi = newAiMsg;
+        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
       } else {
         setChat(serverChat);
-      }
-
-      if (data.createdAgent) {
-        setCreatedAgent(data.createdAgent);
-        setChips([]);
-      } else {
         const lastAi = serverChat.filter((m) => m.role === 'assistant').pop();
         setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
       }
@@ -109,12 +113,36 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
     }
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    send(input);
+  async function buildAgent() {
+    setBuilding(true);
+    try {
+      const res = await fetch('/api/agents/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, existingAgentId: activeAgentId }),
+      });
+      const data = await res.json();
+      if (data.createdAgent) setCreatedAgent(data.createdAgent);
+    } catch {
+      // silently ignore — user can retry
+    } finally {
+      setBuilding(false);
+    }
   }
 
-  const displayName = agentName || existingAgent?.name || null;
+  function handleSubmit(e) {
+    e.preventDefault();
+    send();
+  }
+
+  function keepTuning() {
+    setLocalAgent(createdAgent);
+    setCreatedAgent(null);
+    // Add context bubble for the newly updated agent
+    const ctx = `${createdAgent.name} updated. Currently: ${createdAgent.style}, ${createdAgent.risk} risk. Keep going — what else would you change?`;
+    setChat((prev) => [...prev, { role: 'assistant', content: ctx }]);
+    setChips(QUICK_CHIPS);
+  }
 
   return (
     <div className="create-agent">
@@ -145,9 +173,7 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
 
         {loading && (
           <div className="create-agent__msg create-agent__msg--assistant">
-            <div className="create-agent__avatar" aria-hidden>
-              <SpadeIcon />
-            </div>
+            <div className="create-agent__avatar" aria-hidden><SpadeIcon /></div>
             <div className="create-agent__bubble create-agent__bubble--loading">
               <span className="create-agent__dots"><span /><span /><span /></span>
             </div>
@@ -155,39 +181,50 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
         )}
       </div>
 
-      {chips.length > 0 && !createdAgent && !loading && (
+      {!createdAgent && chips.length > 0 && !loading && (
         <div className="create-agent__chips-bar">
           {chips.map((chip) => (
-            <button key={chip} type="button" className="create-agent__chip" onClick={() => send(chip)}>
+            <button key={chip} type="button" className="create-agent__chip" onClick={() => appendChip(chip)}>
               {chip}
             </button>
           ))}
         </div>
       )}
 
-      <div className="create-agent__footer">
-        {createdAgent && (
-          <div className="create-agent__deploy-wrap">
-            <div className="create-agent__agent-name">{createdAgent.name} is ready</div>
-            <button type="button" className="create-agent__deploy-btn" onClick={() => onDone()}>
-              Go to Agents
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </button>
-          </div>
-        )}
+      {!createdAgent && hasSentMessage && !loading && !building && (
+        <button type="button" className="create-agent__build-btn" onClick={buildAgent}>
+          BUILD AGENT →
+        </button>
+      )}
 
-        {!createdAgent && (
+      {building && (
+        <div className="create-agent__building">Building your agent…</div>
+      )}
+
+      <div className="create-agent__footer">
+        {createdAgent ? (
+          <div className="create-agent__result">
+            <div className="create-agent__result-name">{createdAgent.name} is ready</div>
+            <div className="create-agent__result-actions">
+              <button type="button" className="create-agent__deploy-btn" onClick={() => onDone()}>
+                Open Agent
+              </button>
+              <button type="button" className="create-agent__keep-btn" onClick={keepTuning}>
+                Keep Tuning
+              </button>
+            </div>
+          </div>
+        ) : (
           <form className="create-agent__input-row" onSubmit={handleSubmit}>
             <input
+              ref={inputRef}
               className="create-agent__input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Describe your playstyle…"
-              disabled={loading}
+              disabled={loading || building}
             />
-            <button type="submit" className="create-agent__send" disabled={loading || !input.trim()}>
+            <button type="submit" className="create-agent__send" disabled={loading || building || !input.trim()}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
