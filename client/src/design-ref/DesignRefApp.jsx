@@ -161,6 +161,38 @@ function inferFallbackAgent(content) {
   };
 }
 
+function normalizeAgent(agent) {
+  if (!agent) return null;
+  const bankroll = Number(agent.bankroll ?? 0);
+  const hands = Number(agent.hands ?? 0);
+  const isPlaying = agent.status === 'playing' || Boolean(agent.activeTableId);
+  const isFunded = bankroll > 0 || agent.bankrollStatus === 'funded';
+  return {
+    ...agent,
+    name: agent.name || 'Agent v1',
+    style: agent.style || 'Balanced',
+    risk: agent.risk || 'Medium',
+    status: isPlaying ? 'playing' : agent.status || 'idle',
+    bankroll,
+    hands,
+    winRate: agent.winRate ?? null,
+    bankrollStatus: isFunded ? 'funded' : 'unfunded',
+    tablePreference: agent.tablePreference || 'HU NLH / $10-$20',
+    deployStatus: isPlaying ? 'playing' : isFunded ? 'ready' : 'needs_funding',
+    strategy: agent.strategy || 'You are a balanced poker player who mixes value betting with selective pressure.',
+  };
+}
+
+function normalizeProfile(profile) {
+  const agents = (profile?.agents || []).map(normalizeAgent).filter(Boolean);
+  return {
+    userId: profile?.userId,
+    hasAgents: agents.length > 0,
+    agents,
+    chat: profile?.chat?.length ? profile.chat : INITIAL_CHAT,
+  };
+}
+
 function fallbackChat(profile, content) {
   const createdAgent = profile.agents.length === 0 ? inferFallbackAgent(content) : null;
   const chat = [
@@ -173,8 +205,8 @@ function fallbackChat(profile, content) {
         : 'I updated the draft. You can deploy it or keep refining the strategy.',
     },
   ];
-  const agents = createdAgent ? [createdAgent] : profile.agents;
-  return { ...profile, hasAgents: agents.length > 0, agents, chat, createdAgent };
+  const agents = createdAgent ? [normalizeAgent(createdAgent)] : profile.agents.map(normalizeAgent);
+  return { ...profile, hasAgents: agents.length > 0, agents, chat, createdAgent: normalizeAgent(createdAgent) };
 }
 
 function Suit({ suit, size = 14 }) {
@@ -449,12 +481,14 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
 }
 
 function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
+  const needsFunding = agent.deployStatus === 'needs_funding';
+  const statusLabel = agent.status === 'playing' ? 'Playing now' : needsFunding ? 'Needs bankroll' : 'Ready to deploy';
   return (
     <div className="dr-screen">
       <AppHeader identity={identity} agentCount={1} onCreate={onCreate} />
       <section className="dr-active-agent-card">
         <div className="dr-active-agent-card__top">
-          <span><i /> Ready to deploy</span>
+          <span><i /> {statusLabel}</span>
           <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
         </div>
         <div className="dr-active-agent-card__main">
@@ -466,21 +500,22 @@ function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
           </div>
         </div>
         <p>{agent.strategy}</p>
-        <button className="dr-primary-btn" type="button">Deploy to table</button>
+        <button className="dr-primary-btn" type="button">{needsFunding ? 'Fund agent' : 'Deploy to table'}</button>
       </section>
       <AgentStats agent={agent} />
       <FirstSessionSetup agent={agent} />
-      <RecentActivity hasAgent />
+      <RecentActivity agent={agent} />
     </div>
   );
 }
 
 function FirstSessionSetup({ agent }) {
+  const needsFunding = agent.deployStatus === 'needs_funding';
   return (
     <section className="dr-panel dr-session-setup">
       <div className="dr-section-head">
         <p className="dr-label">First session</p>
-        <span>{agent.deployStatus === 'needs_funding' ? 'Not funded' : 'Ready'}</span>
+        <span>{needsFunding ? 'Not funded' : 'Ready'}</span>
       </div>
       <div className="dr-session-grid">
         <SessionCell label="Bankroll" value={`$${agent.bankroll ?? 0}`} tone="warn" />
@@ -504,8 +539,13 @@ function SessionCell({ label, value, tone }) {
 }
 
 function AgentStats({ agent }) {
+  const status = agent.deployStatus === 'needs_funding'
+    ? 'draft'
+    : agent.status === 'idle'
+      ? 'ready'
+      : agent.status || 'ready';
   const stats = [
-    ['Status', agent.status || 'ready'],
+    ['Status', status],
     ['Hands', String(agent.hands ?? 0)],
     ['Win rate', agent.winRate == null ? '--' : `${agent.winRate}%`],
     ['Funds', agent.bankrollStatus === 'unfunded' ? 'Empty' : `$${agent.bankroll ?? 0}`],
@@ -653,16 +693,22 @@ function AnalysisPreview({ agent }) {
   );
 }
 
-function RecentActivity({ hasAgent = false }) {
+function RecentActivity({ agent = null }) {
+  const needsFunding = agent?.deployStatus === 'needs_funding';
   return (
     <section className="dr-panel">
       <div className="dr-section-head">
         <p className="dr-label">Recent activity</p>
       </div>
-      {hasAgent ? (
+      {agent ? (
         <>
-          <ActivityRow icon="sparkle" iconColor="#cdb380" title="Agent created" subtitle="Strategy draft saved" amount="v1" />
-          <ActivityRow icon="agent" iconColor="#00d4aa" title="Ready for first table" subtitle="No hands played yet" />
+          <ActivityRow icon="sparkle" iconColor="#cdb380" title="Agent draft saved" subtitle={`${agent.style} style / ${agent.risk} risk`} amount="v1" />
+          <ActivityRow
+            icon={needsFunding ? 'chip' : 'agent'}
+            iconColor={needsFunding ? '#cdb380' : '#00d4aa'}
+            title={needsFunding ? 'Bankroll needed' : 'Ready for first table'}
+            subtitle={needsFunding ? 'Add funds before deployment' : 'No hands played yet'}
+          />
         </>
       ) : (
         <p className="dr-muted-copy">No activity until your first agent exists.</p>
@@ -781,8 +827,9 @@ export default function DesignRefApp() {
     loadProfile(identity.id)
       .then((nextProfile) => {
         if (cancelled) return;
-        setProfile({ ...nextProfile, chat: nextProfile.chat?.length ? nextProfile.chat : INITIAL_CHAT });
-        setCreatedAgent(nextProfile.agents?.[0] || null);
+        const normalized = normalizeProfile(nextProfile);
+        setProfile(normalized);
+        setCreatedAgent(normalized.agents[0] || null);
         setProfileStatus('ready');
       })
       .catch(() => {
@@ -803,8 +850,10 @@ export default function DesignRefApp() {
 
     try {
       const nextProfile = await sendChatTurn(identity.id, content);
-      setProfile({ ...nextProfile, chat: nextProfile.chat?.length ? nextProfile.chat : INITIAL_CHAT });
-      if (nextProfile.createdAgent) setCreatedAgent(nextProfile.createdAgent);
+      const normalized = normalizeProfile(nextProfile);
+      const nextAgent = normalizeAgent(nextProfile.createdAgent) || normalized.agents[0] || null;
+      setProfile(normalized);
+      if (nextAgent) setCreatedAgent(nextAgent);
     } catch {
       const nextProfile = fallbackChat(profile, content);
       setProfile(nextProfile);
@@ -817,7 +866,7 @@ export default function DesignRefApp() {
   async function handleReset() {
     try {
       const nextProfile = await resetProfile(identity.id);
-      setProfile({ ...nextProfile, chat: nextProfile.chat?.length ? nextProfile.chat : INITIAL_CHAT });
+      setProfile(normalizeProfile(nextProfile));
     } catch {
       setProfile({
         userId: identity.id,
