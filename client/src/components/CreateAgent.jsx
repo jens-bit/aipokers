@@ -8,6 +8,23 @@ const QUICK_CHIPS = [
   'Balanced strategy',
 ];
 
+// Extract 2-3 contextual reply chips from an assistant message.
+// Looks for "A, B, or C" / "A or B" patterns; falls back to generic options.
+function extractChips(text) {
+  if (!text) return ['More aggressive', 'More conservative'];
+  const triple = text.match(/\b([\w][^,?!]{1,22}),\s*([\w][^,?!]{1,22}),?\s+or\s+([\w][^?!.]{1,22})/i);
+  if (triple) {
+    return [triple[1].trim(), triple[2].trim(), triple[3].replace(/[?!.\s]+$/, '').trim()]
+      .filter((s) => s.length >= 2 && s.length <= 30);
+  }
+  const pair = text.match(/\b([\w][^?!,]{1,22})\s+or\s+([\w][^?!.]{1,22})/i);
+  if (pair) {
+    return [pair[1].trim(), pair[2].replace(/[?!.\s]+$/, '').trim()]
+      .filter((s) => s.length >= 2 && s.length <= 30);
+  }
+  return ['More aggressive', 'More conservative'];
+}
+
 export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = null }) {
   const userId = getUserId();
 
@@ -15,30 +32,36 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
-  const [ready, setReady] = useState(false);
+  const [chips, setChips] = useState(QUICK_CHIPS);
   const chatRef = useRef(null);
 
   useEffect(() => {
-    if (existingAgent) {
-      // Editing mode: skip reset, synthesize a context bubble at the top.
-      const contextMsg = {
-        role: 'assistant',
-        content: `You're editing ${existingAgent.name}. Currently: ${existingAgent.style}, ${existingAgent.risk} risk. Tell me what you'd like to change.`,
-      };
-      setChat([contextMsg]);
-      setReady(true);
-    } else {
-      fetch('/api/agents/chat/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+    // Always reset server-side chat first.
+    fetch('/api/agents/chat/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+      .then(() => {
+        if (existingAgent) {
+          setChat([{
+            role: 'assistant',
+            content: `You're editing ${existingAgent.name}. Currently: ${existingAgent.style}, ${existingAgent.risk} risk. Tell me what you'd like to change.`,
+          }]);
+        } else {
+          return fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
+            .then((r) => r.json())
+            .then((data) => setChat(data.chat || []));
+        }
       })
-        .then(() => fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`))
-        .then((r) => r.json())
-        .then((data) => { setChat(data.chat || []); })
-        .catch(() => {})
-        .finally(() => setReady(true));
-    }
+      .catch(() => {
+        if (existingAgent) {
+          setChat([{
+            role: 'assistant',
+            content: `You're editing ${existingAgent.name}. What would you like to change?`,
+          }]);
+        }
+      });
   }, []);
 
   useEffect(() => {
@@ -51,19 +74,36 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
     if (!msg || loading) return;
     setInput('');
     setLoading(true);
+    setChips([]);
     setChat((prev) => [...prev, { role: 'user', content: msg }]);
 
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content: msg }),
+        body: JSON.stringify({ userId, content: msg, existingAgentId: existingAgent?.id ?? null }),
       });
       const data = await res.json();
-      setChat(data.chat || []);
-      if (data.createdAgent) setCreatedAgent(data.createdAgent);
+      const serverChat = data.chat || [];
+
+      if (existingAgent) {
+        // Edit mode: append only the new AI reply — don't replace the context bubble.
+        const newAiMsg = serverChat.filter((m) => m.role === 'assistant').pop();
+        if (newAiMsg) setChat((prev) => [...prev, newAiMsg]);
+      } else {
+        setChat(serverChat);
+      }
+
+      if (data.createdAgent) {
+        setCreatedAgent(data.createdAgent);
+        setChips([]);
+      } else {
+        const lastAi = serverChat.filter((m) => m.role === 'assistant').pop();
+        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
+      }
     } catch {
       setChat((prev) => [...prev, { role: 'assistant', content: 'Something went wrong — please try again.' }]);
+      setChips(QUICK_CHIPS);
     } finally {
       setLoading(false);
     }
@@ -74,7 +114,7 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
     send(input);
   }
 
-  const showChips = ready && !loading && chat.length <= 1;
+  const displayName = agentName || existingAgent?.name || null;
 
   return (
     <div className="create-agent">
@@ -87,7 +127,7 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
         </button>
         <span className="create-agent__title">
           AGENT CREATOR
-          {agentName && <span className="create-agent__agent-label"> · {agentName}</span>}
+          {displayName && <span className="create-agent__agent-label"> · {displayName}</span>}
         </span>
       </div>
 
@@ -113,18 +153,17 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
             </div>
           </div>
         )}
-
-        {showChips && (
-          <div className="create-agent__chips">
-            {QUICK_CHIPS.map((chip) => (
-              <button key={chip} type="button" className="create-agent__chip" onClick={() => send(chip)}>
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
-
       </div>
+
+      {chips.length > 0 && !createdAgent && !loading && (
+        <div className="create-agent__chips-bar">
+          {chips.map((chip) => (
+            <button key={chip} type="button" className="create-agent__chip" onClick={() => send(chip)}>
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="create-agent__footer">
         {createdAgent && (

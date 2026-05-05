@@ -1611,6 +1611,15 @@ input:focus { border-color: var(--accent); }
   40% { opacity: 1; transform: scale(1); }
 }
 
+.create-agent__chips-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--edge-soft);
+}
+
 .create-agent__chips {
   display: flex;
   flex-wrap: wrap;

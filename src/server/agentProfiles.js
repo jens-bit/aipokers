@@ -241,10 +241,11 @@ export function installAgentProfileRoutes(app) {
     res.json({ ok: true });
   });
 
-  // POST /api/agents/chat — create agent via conversation
+  // POST /api/agents/chat — create or update agent via conversation
   app.post('/api/agents/chat', async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
+    const existingAgentId = req.body?.existingAgentId ?? null;
     if (!content) return res.status(400).json({ error: 'content required' });
 
     const profile = getOrCreate(userId);
@@ -252,6 +253,34 @@ export function installAgentProfileRoutes(app) {
 
     const turns = userTurns(profile.chat);
     const shouldGenerate = turns >= 3 || TRIGGER_RE.test(content);
+
+    // Commit the generated agent: update in-place if editing, push as new otherwise.
+    function commitAgent(agent) {
+      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
+      profile.chat.push({ role: 'assistant', content: confirmMsg });
+      if (existingAgentId) {
+        const existing = profile.agents.find((a) => a.id === existingAgentId);
+        if (existing) {
+          Object.assign(existing, { name: agent.name, style: agent.style, risk: agent.risk, strategy: agent.strategy });
+          agent = existing;
+          console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk})`);
+        } else {
+          agent.id = 'agent_' + Date.now().toString(36);
+          agent.status = 'idle';
+          agent.activeTableId = null;
+          profile.agents.push(agent);
+          console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
+        }
+      } else {
+        agent.id = 'agent_' + Date.now().toString(36);
+        agent.status = 'idle';
+        agent.activeTableId = null;
+        profile.agents.push(agent);
+        console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
+      }
+      saveStore(userId);
+      return agent;
+    }
 
     try {
       if (!shouldGenerate) {
@@ -271,15 +300,7 @@ export function installAgentProfileRoutes(app) {
         const combined = profile.chat.map((m) => m.content).join(' ');
         agent = inferFallback(combined);
       }
-      agent.id = 'agent_' + Date.now().toString(36);
-      agent.status = 'idle';
-      agent.activeTableId = null;
-      console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}) strategy: "${agent.strategy?.slice(0, 80)}"`);
-
-      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
-      profile.chat.push({ role: 'assistant', content: confirmMsg });
-      profile.agents.push(agent);
-      saveStore(userId);
+      agent = commitAgent(agent);
 
       return res.json({
         userId: profile.userId,
@@ -291,11 +312,8 @@ export function installAgentProfileRoutes(app) {
     } catch (err) {
       console.error('[agentProfiles] error:', err.message);
       const combined = profile.chat.map((m) => m.content).join(' ');
-      const agent = { ...inferFallback(combined), id: 'agent_' + Date.now().toString(36), status: 'idle', activeTableId: null };
-      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
-      profile.chat.push({ role: 'assistant', content: confirmMsg });
-      profile.agents.push(agent);
-      saveStore(userId);
+      let agent = inferFallback(combined);
+      agent = commitAgent(agent);
       return res.json({
         userId: profile.userId,
         hasAgents: true,
