@@ -597,21 +597,23 @@ function AgentRoster({ agent, onCreate, onOpenAgent }) {
 function AgentViewScreen({ agent, onBack }) {
   if (!agent) return null;
   return (
-    <div className="dr-screen">
+    <div className="dr-screen dr-screen--agent">
       <header className="dr-agent-header">
         <button className="dr-plain-button" type="button" onClick={onBack} aria-label="Back">
           <Icon name="arrow-left" size={22} />
         </button>
-        <AgentAvatar size="md" />
-        <div>
-          <p className="dr-label dr-label--accent">Agent view</p>
-          <h1>{agent.name} <span>AI</span></h1>
-          <small>{agent.status || 'ready'} / not seated</small>
+        <div className="dr-agent-brand">
+          <Icon name="spade" size={16} color="#00d4aa" />
+          <b>Agentic Poker</b>
+        </div>
+        <div className="dr-agent-state">
+          <i />
+          <span>{agent.status || 'idle'}</span>
         </div>
         <button className="dr-square-button" type="button" aria-label="Settings"><Icon name="settings" size={18} /></button>
       </header>
-      <AgentStats agent={agent} />
       <PokerTablePreview agent={agent} />
+      <AgentStats agent={agent} />
       <AnalysisPreview agent={agent} />
       <RecentHands />
     </div>
@@ -679,35 +681,56 @@ function PlayerRow({ name, stack, position }) {
 }
 
 function AnalysisPreview({ agent }) {
+  const [activeTab, setActiveTab] = useState('Live');
   const reasons = agent.style === 'Aggressive'
     ? ['Position advantage', 'Fold equity available', 'Board pressure is credible', 'River pressure remains high']
     : agent.style === 'Tight'
       ? ['Value threshold met', 'Risk stays capped', 'Opponent range is wide', 'Avoids marginal bluff catch']
       : ['Top pair, strong kicker', 'Good pot odds', 'Range advantage is stable'];
+  const tabs = ['Live', 'Range', 'History', 'Notes'];
 
   return (
     <section className="dr-analysis">
       <div className="dr-tabs">
-        {['Live analysis', 'Range', 'History', 'Notes'].map((tab, index) => (
-          <button type="button" className={index === 0 ? 'is-active' : ''} key={tab}>{tab}</button>
+        {tabs.map((tab) => (
+          <button
+            type="button"
+            className={activeTab === tab ? 'is-active' : ''}
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === 'Live' ? 'Live analysis' : tab}
+          </button>
         ))}
       </div>
-      <div className="dr-analysis-stack">
-        <div className="dr-decision-card">
-          <div>
-            <p className="dr-label">Current decision</p>
-            <h2>Call $120</h2>
-            <small>EV: <b>+$87.40</b></small>
+      {activeTab === 'Live' && (
+        <>
+          <div className="dr-analysis-stack">
+            <div className="dr-decision-card">
+              <div>
+                <p className="dr-label">Current decision</p>
+                <h2>Call $120</h2>
+                <small>EV: <b>+$87.40</b></small>
+              </div>
+              <ConfidenceRing value={67} />
+            </div>
+            <div className="dr-reason-card">
+              <p className="dr-label">Reasoning</p>
+              {reasons.slice(0, 3).map((reason) => <span key={reason}><Icon name="check" size={13} color="#00d4aa" /> {reason}</span>)}
+            </div>
           </div>
-          <ConfidenceRing value={67} />
+          <ActionQueue />
+        </>
+      )}
+      {activeTab === 'Range' && <RangeCompare />}
+      {activeTab === 'History' && <RecentHands compact />}
+      {activeTab === 'Notes' && (
+        <div className="dr-note-card">
+          <p className="dr-label">Session note</p>
+          <b>Balanced v1 is unfunded.</b>
+          <small>Review preflop ranges before its first seated hand.</small>
         </div>
-        <div className="dr-reason-card">
-          <p className="dr-label">Reasoning</p>
-          {reasons.map((reason) => <span key={reason}><Icon name="check" size={13} color="#00d4aa" /> {reason}</span>)}
-        </div>
-        <RangeMatrix />
-      </div>
-      <ActionQueue />
+      )}
     </section>
   );
 }
@@ -728,9 +751,23 @@ function ConfidenceRing({ value = 67 }) {
   );
 }
 
-function RangeMatrix() {
+function RangeCompare() {
+  return (
+    <div className="dr-range-compare">
+      <RangeMatrix title="Agent range" variant="agent" />
+      <RangeMatrix title="Opponent range" variant="opponent" />
+    </div>
+  );
+}
+
+function RangeMatrix({ title, variant = 'opponent' }) {
   const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
   function intensity(row, column) {
+    if (variant === 'agent') {
+      if (row === column) return Math.max(0, 0.9 - row * 0.045);
+      if (row < column) return Math.max(0, 0.72 - (column - row) * 0.08 - row * 0.025);
+      return Math.max(0, 0.48 - (row - column) * 0.08 - column * 0.03);
+    }
     if (row === column) return Math.max(0, 0.95 - row * 0.06);
     if (row < column) return Math.max(0, 0.85 - (column - row) * 0.11 - row * 0.035);
     return Math.max(0, 0.55 - (row - column) * 0.09 - column * 0.035);
@@ -738,7 +775,7 @@ function RangeMatrix() {
 
   return (
     <div className="dr-range-card">
-      <p className="dr-label">Opponent range</p>
+      <p className="dr-label">{title}</p>
       <div className="dr-range-axis dr-range-axis--top">
         {ranks.map((rank) => <small key={rank}>{rank}</small>)}
       </div>
@@ -819,14 +856,14 @@ function ActivityRow({ icon, iconColor, title, subtitle, amount }) {
   );
 }
 
-function RecentHands() {
+function RecentHands({ compact = false }) {
   const hands = [
     ['Won vs Balanced v2.1', '+$340.00', '#00d4aa'],
     ['Won vs Bluff Master', '+$180.00', '#00d4aa'],
     ['Lost vs Value Bot', '-$120.00', '#ff4d4f'],
   ];
   return (
-    <section className="dr-panel">
+    <section className={compact ? 'dr-panel dr-panel--compact' : 'dr-panel'}>
       <div className="dr-section-head">
         <p className="dr-label">Recent hands</p>
       </div>
