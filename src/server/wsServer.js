@@ -76,9 +76,10 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
-            // Solo mode: seat a second AI as the opponent if requested.
+            // Solo mode: seat a second AI as opponent. Call seatAI() directly —
+            // maybeAutoSeatAI requires a human seat and won't fire in spectator mode.
             if (process.env.AI_ENABLED === 'true' && msg.wantOpponentAI === true) {
-              table.maybeAutoSeatAI(null);
+              try { table.seatAI(); } catch {}
             }
             table.maybeStartHand();
             return;

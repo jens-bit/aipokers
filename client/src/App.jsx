@@ -37,16 +37,23 @@ export default function App() {
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
+  const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgentName, setEditingAgentName] = useState(null);
 
-  // Task 3: call /finish when the table session ends.
+  function setActiveAgent(id) {
+    activeAgentIdRef.current = id;
+    setActiveAgentId(id);
+  }
+
   const callAgentFinish = useCallback((agentId) => {
+    if (!agentId) return;
     const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
     fetch(`/api/agents/${agentId}/finish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     }).catch(() => {});
+    activeAgentIdRef.current = null;
     setActiveAgentId(null);
   }, []);
 
@@ -88,9 +95,9 @@ export default function App() {
   }, [timerLeft, isMyTurn]);
 
   const handleLeave = useCallback(() => {
-    if (activeAgentId) callAgentFinish(activeAgentId);
+    callAgentFinish(activeAgentIdRef.current); // use ref — never stale
     disconnect();
-  }, [disconnect, activeAgentId, callAgentFinish]);
+  }, [disconnect, callAgentFinish]);
 
   const buyInRef = useRef(null);
   useEffect(() => {
@@ -109,6 +116,15 @@ export default function App() {
             <Play
               key={playKey}
               onConnect={connect}
+              onWatch={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: true,
+                });
+              }}
               initialStep={playInitialStep}
               agentName={editingAgentName}
             />
@@ -116,7 +132,7 @@ export default function App() {
           {activeTab === 'agents' && (
             <AgentsTab
               onDeploy={(payload) => {
-                setActiveAgentId(payload.agentId);
+                setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
                   agentStrategy: payload.strategy,
@@ -125,7 +141,7 @@ export default function App() {
                 });
               }}
               onChallenge={(payload) => {
-                setActiveAgentId(payload.agentId);
+                setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
                   agentStrategy: payload.strategy,
@@ -151,7 +167,11 @@ export default function App() {
         <nav className="tab-bar">
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('play')}
+            onClick={() => {
+              setPlayInitialStep('pick');
+              setEditingAgentName(null);
+              setActiveTab('play');
+            }}
           >
             PLAY
           </button>

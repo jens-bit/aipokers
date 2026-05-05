@@ -1438,6 +1438,54 @@ input:focus { border-color: var(--accent); }
   line-height: 1.5;
 }
 
+.play__picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.play__picker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.play__picker-card:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.play__picker-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.play__picker-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.play__picker-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.play__picker-loading {
+  font-size: 12px;
+  color: var(--accent);
+  align-self: flex-end;
+}
+
 /* ============================================================
  * CREATE AGENT — chat UI for building a custom agent
  * ============================================================ */

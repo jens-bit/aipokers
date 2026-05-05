@@ -1,18 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-export function Play({ onConnect, initialStep = 'pick', agentName = null }) {
-  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent'
+function getUserId() {
+  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
+}
+
+export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = null }) {
+  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent' | 'picker'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
+  const [agents, setAgents] = useState([]);
+  const [deploying, setDeploying] = useState(null); // agentId being deployed
   const inTelegram = isInTelegram();
 
-  function pickMode(m) {
-    setMode(m);
-    setStep('form');
-  }
+  useEffect(() => {
+    fetch(`/api/agents?userId=${getUserId()}`)
+      .then((r) => r.json())
+      .then((data) => setAgents(data.agents || []))
+      .catch(() => {});
+  }, []);
+
+  function pickMode(m) { setMode(m); setStep('form'); }
 
   function submit(e) {
     e.preventDefault();
@@ -24,6 +34,21 @@ export function Play({ onConnect, initialStep = 'pick', agentName = null }) {
       bigBlind: 20,
       wantAI: mode === 'ai',
     });
+  }
+
+  async function deployAgent(agent) {
+    setDeploying(agent.id);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: getUserId() }),
+      });
+      const data = await res.json();
+      onWatch(data);
+    } finally {
+      setDeploying(null);
+    }
   }
 
   if (step === 'create-agent') {
@@ -46,18 +71,65 @@ export function Play({ onConnect, initialStep = 'pick', agentName = null }) {
     );
   }
 
+  if (step === 'picker') {
+    return (
+      <div className="play">
+        <button type="button" className="play__back" onClick={() => setStep('pick')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M19 12H5M11 6l-6 6 6 6" />
+          </svg>
+          Back
+        </button>
+        <p className="play__mode-label">Choose an agent to deploy</p>
+        <div className="play__picker-list">
+          {agents.map((agent) => (
+            <button
+              key={agent.id}
+              type="button"
+              className="play__picker-card"
+              disabled={!!deploying || agent.status === 'playing'}
+              onClick={() => deployAgent(agent)}
+            >
+              <span className="play__picker-name">{agent.name}</span>
+              <span className="play__picker-meta">{agent.style} · {agent.risk} risk</span>
+              {deploying === agent.id && <span className="play__picker-loading">…</span>}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="play__human-btn" style={{ marginTop: '8px', width: '100%' }} onClick={() => setStep('create-agent')}>
+          + Create new agent
+        </button>
+      </div>
+    );
+  }
+
   if (step === 'pick') {
+    const hasAgents = agents.length > 0;
     return (
       <div className="play">
         {/* ── Deploy Agent hero card ── */}
         <div className="play__ai-card">
-          <div className="play__ai-eyebrow">Deploy Agent</div>
-          <div className="play__ai-title">Deploy your agent.</div>
-          <p className="play__ai-sub">Your AI plays for you · sit back and watch</p>
-          <button type="button" className="play__ai-btn" onClick={() => setStep('create-agent')}>
-            DEPLOY AGENT
-            <ArrowRight />
-          </button>
+          {hasAgents ? (
+            <>
+              <div className="play__ai-eyebrow">Deploy Agent</div>
+              <div className="play__ai-title">Send in your agent.</div>
+              <p className="play__ai-sub">Pick an agent · watch it play · sit back</p>
+              <button type="button" className="play__ai-btn" onClick={() => setStep('picker')}>
+                DEPLOY AGENT
+                <ArrowRight />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="play__ai-eyebrow">Build Agent</div>
+              <div className="play__ai-title">Create your agent.</div>
+              <p className="play__ai-sub">Design an AI that plays for you</p>
+              <button type="button" className="play__ai-btn" onClick={() => setStep('create-agent')}>
+                CREATE AGENT
+                <ArrowRight />
+              </button>
+            </>
+          )}
         </div>
 
         {/* ── Play Yourself card ── */}
