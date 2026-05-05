@@ -460,11 +460,12 @@ input:focus { border-color: var(--accent); }
   width: 32px;
   height: 18px;
   min-height: 0;
-  background: var(--bg-primary);  /* masks the line behind the button */
+  background: var(--bg-secondary);
   border: none;
   border-radius: 999px;
-  color: var(--text-muted);
-  font-size: 11px;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--glow-soft);
+  font-size: 14px;
   line-height: 1;
   letter-spacing: 0;
   text-transform: none;
@@ -472,7 +473,7 @@ input:focus { border-color: var(--accent); }
   display: flex; align-items: center; justify-content: center;
   padding: 0;
 }
-.action-bar__drawer-chevron:hover { color: var(--text-secondary); }
+.action-bar__drawer-chevron:hover { color: var(--accent-hover); }
 .action-bar__bet-drawer {
   overflow: hidden;
   max-height: 0;
@@ -1639,7 +1640,7 @@ input:focus { border-color: var(--accent); }
   background: var(--bg-tertiary);
   border: 1px solid var(--edge);
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 16px;
   padding: 10px 14px;
   font-family: var(--font-label);
   letter-spacing: 0.02em;

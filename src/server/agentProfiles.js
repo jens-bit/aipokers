@@ -7,7 +7,13 @@ const profiles = new Map();
 
 const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
 
-const SYSTEM_CONV = `You are a poker strategy assistant helping a user design their AI poker agent for heads-up No-Limit Texas Hold'em. Ask one short friendly question at a time to understand their playstyle. Cover: aggression, bluff frequency, risk tolerance, preflop tightness. Keep every response under 2 sentences. After the user has answered 2 questions, tell them you have enough to build their agent and that you'll create it now.`;
+const SYSTEM_CONV = `You are a poker strategy assistant helping a user design their AI poker agent for heads-up No-Limit Texas Hold'em. Be brief and casual — 1-2 sentences max. Ask ONE specific follow-up question to understand their intent better before building the agent.
+
+If the user is vague or uses slang (e.g. 'be retarded', 'go crazy', 'be stupid'), ask what they mean in poker terms — e.g. do they mean random raises? calling everything? never folding?
+
+Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be direct and poker-focused.
+
+After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
 
 const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<creative agent name e.g. Iron Sentinel v1>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
 
@@ -79,7 +85,7 @@ export function installAgentProfileRoutes(app) {
     profile.chat.push({ role: 'user', content });
 
     const turns = userTurns(profile.chat);
-    const shouldGenerate = turns >= 2 || TRIGGER_RE.test(content);
+    const shouldGenerate = turns >= 3 || TRIGGER_RE.test(content);
 
     try {
       if (!shouldGenerate) {

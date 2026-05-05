@@ -134,8 +134,9 @@ function ActiveControls({ game, mySeat, legalActions, onAct }) {
               className="action-bar__drawer-chevron"
               onClick={() => setDrawerOpen((v) => !v)}
               aria-label={drawerOpen ? 'Close bet sizing' : 'Open bet sizing'}
+              style={{ fontSize: '14px' }}
             >
-              {drawerOpen ? '∨' : '∧'}
+              {drawerOpen ? '↓' : '↑'}
             </button>
           </div>
 
