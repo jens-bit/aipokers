@@ -130,6 +130,11 @@ export default function App() {
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
               }}
+              onChatAgent={() => {
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
             />
           )}
         </div>

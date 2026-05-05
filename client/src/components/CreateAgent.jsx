@@ -18,12 +18,14 @@ export function CreateAgent({ onBack, onDeploy }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
+    fetch('/api/agents/chat/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+      .then(() => fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`))
       .then((r) => r.json())
-      .then((data) => {
-        setChat(data.chat || []);
-        if (data.agents?.length > 0) setCreatedAgent(data.agents[data.agents.length - 1]);
-      })
+      .then((data) => { setChat(data.chat || []); })
       .catch(() => {})
       .finally(() => setReady(true));
   }, []);
@@ -123,21 +125,23 @@ export function CreateAgent({ onBack, onDeploy }) {
           </div>
         )}
 
-        <form className="create-agent__input-row" onSubmit={handleSubmit}>
-          <input
-            className="create-agent__input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe your playstyle…"
-            disabled={loading}
-          />
-          <button type="submit" className="create-agent__send" disabled={loading || !input.trim()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </form>
+        {!createdAgent && (
+          <form className="create-agent__input-row" onSubmit={handleSubmit}>
+            <input
+              className="create-agent__input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Describe your playstyle…"
+              disabled={loading}
+            />
+            <button type="submit" className="create-agent__send" disabled={loading || !input.trim()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

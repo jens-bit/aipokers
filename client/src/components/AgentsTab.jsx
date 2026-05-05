@@ -4,7 +4,7 @@ function getUserId() {
   return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
 }
 
-export function AgentsTab({ onDeploy, onCreateAgent }) {
+export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +76,7 @@ export function AgentsTab({ onDeploy, onCreateAgent }) {
             key={agent.id}
             agent={agent}
             onDeploy={() => deploy(agent)}
+            onChat={() => onChatAgent(agent)}
             onDelete={() => remove(agent.id)}
           />
         ))}
@@ -84,7 +85,7 @@ export function AgentsTab({ onDeploy, onCreateAgent }) {
   );
 }
 
-function AgentCard({ agent, onDeploy, onDelete }) {
+function AgentCard({ agent, onDeploy, onChat, onDelete }) {
   const isLive = agent.status === 'playing';
   const strategy = agent.strategy || '';
   const preview = strategy.length > 80 ? strategy.slice(0, 80) + '…' : strategy;
@@ -106,7 +107,10 @@ function AgentCard({ agent, onDeploy, onDelete }) {
       {preview && <div className="agent-card__strategy">{preview}</div>}
       <div className="agent-card__actions">
         <button className="agent-card__deploy-btn" onClick={onDeploy} disabled={isLive}>
-          DEPLOY →
+          PLAY →
+        </button>
+        <button className="agent-card__chat-btn" onClick={onChat}>
+          CHAT
         </button>
         <button className="agent-card__delete-btn" onClick={onDelete}>
           DELETE

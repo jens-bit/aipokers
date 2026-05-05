@@ -179,6 +179,15 @@ export function installAgentProfileRoutes(app) {
     res.json(agent);
   });
 
+  // POST /api/agents/chat/reset — clear chat history to opening message
+  app.post('/api/agents/chat/reset', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const profile = getOrCreate(userId);
+    profile.chat = [{ role: 'assistant', content: OPENING_MSG }];
+    saveStore(userId);
+    res.json({ ok: true });
+  });
+
   // POST /api/agents/chat — create agent via conversation
   app.post('/api/agents/chat', async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
