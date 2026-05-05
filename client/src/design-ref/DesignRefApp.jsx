@@ -623,12 +623,13 @@ function PokerTablePreview({ agent }) {
     <section className="dr-table-card">
       <div className="dr-table-card__head">
         <b>Heads-up NLH</b>
-        <span>Preview <i /></span>
+        <span><small>02:14:38</small><i /></span>
       </div>
       <div className="dr-felt">
         <div className="dr-felt-row">
           <PlayerRow name="Opponent" stack="$1,820" position="BB" />
           <span className="dr-card-pair"><CardBack /><CardBack /></span>
+          <ThinkingBadge />
         </div>
         <div className="dr-pot">
           <small>Pot</small>
@@ -641,6 +642,10 @@ function PokerTablePreview({ agent }) {
           <PlayingCard rank="J" suit="d" />
           <PlayingCard rank="10" suit="s" />
         </div>
+        <div className="dr-pot-chip">
+          <Icon name="chip" size={15} color="#00d4aa" />
+          <span>$340</span>
+        </div>
         <div className="dr-felt-row dr-felt-row--bottom">
           <PlayerRow name={agent.name} stack="$2,340" position="BTN" />
           <span className="dr-card-pair"><PlayingCard rank="K" suit="s" mini /><PlayingCard rank="Q" suit="h" mini /></span>
@@ -648,6 +653,15 @@ function PokerTablePreview({ agent }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ThinkingBadge() {
+  return (
+    <span className="dr-thinking-badge">
+      <small>Opponent turn</small>
+      <b>Thinking <i /><i /><i /></b>
+    </span>
   );
 }
 
@@ -666,30 +680,108 @@ function PlayerRow({ name, stack, position }) {
 
 function AnalysisPreview({ agent }) {
   const reasons = agent.style === 'Aggressive'
-    ? ['Position advantage', 'Fold equity available', 'Board pressure is credible']
+    ? ['Position advantage', 'Fold equity available', 'Board pressure is credible', 'River pressure remains high']
     : agent.style === 'Tight'
-      ? ['Value threshold met', 'Risk stays capped', 'Opponent range is wide']
+      ? ['Value threshold met', 'Risk stays capped', 'Opponent range is wide', 'Avoids marginal bluff catch']
       : ['Top pair, strong kicker', 'Good pot odds', 'Range advantage is stable'];
 
   return (
     <section className="dr-analysis">
       <div className="dr-tabs">
-        {['Live analysis', 'Range', 'History'].map((tab, index) => (
+        {['Live analysis', 'Range', 'History', 'Notes'].map((tab, index) => (
           <button type="button" className={index === 0 ? 'is-active' : ''} key={tab}>{tab}</button>
         ))}
       </div>
-      <div className="dr-analysis-grid">
+      <div className="dr-analysis-stack">
         <div className="dr-decision-card">
-          <p className="dr-label">Current decision</p>
-          <h2>Call $120</h2>
-          <small>EV: <b>+$87.40</b></small>
+          <div>
+            <p className="dr-label">Current decision</p>
+            <h2>Call $120</h2>
+            <small>EV: <b>+$87.40</b></small>
+          </div>
+          <ConfidenceRing value={67} />
         </div>
         <div className="dr-reason-card">
           <p className="dr-label">Reasoning</p>
           {reasons.map((reason) => <span key={reason}><Icon name="check" size={13} color="#00d4aa" /> {reason}</span>)}
         </div>
+        <RangeMatrix />
       </div>
+      <ActionQueue />
     </section>
+  );
+}
+
+function ConfidenceRing({ value = 67 }) {
+  const radius = 25;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - value / 100);
+  return (
+    <span className="dr-confidence-ring">
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <circle cx="32" cy="32" r={radius} />
+        <circle cx="32" cy="32" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
+      </svg>
+      <b>{value}%</b>
+      <small>Confidence</small>
+    </span>
+  );
+}
+
+function RangeMatrix() {
+  const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+  function intensity(row, column) {
+    if (row === column) return Math.max(0, 0.95 - row * 0.06);
+    if (row < column) return Math.max(0, 0.85 - (column - row) * 0.11 - row * 0.035);
+    return Math.max(0, 0.55 - (row - column) * 0.09 - column * 0.035);
+  }
+
+  return (
+    <div className="dr-range-card">
+      <p className="dr-label">Opponent range</p>
+      <div className="dr-range-axis dr-range-axis--top">
+        {ranks.map((rank) => <small key={rank}>{rank}</small>)}
+      </div>
+      <div className="dr-range-body">
+        <div className="dr-range-axis dr-range-axis--side">
+          {ranks.map((rank) => <small key={rank}>{rank}</small>)}
+        </div>
+        <div className="dr-range-grid">
+          {ranks.flatMap((_, row) => ranks.map((__, column) => (
+            <i
+              key={`${row}-${column}`}
+              style={{ '--dr-range-alpha': intensity(row, column).toFixed(2) }}
+            />
+          )))}
+        </div>
+      </div>
+      <div className="dr-range-legend">
+        <span><i /> Likely</span>
+        <span><i /> Possible</span>
+        <span><i /> Unlikely</span>
+      </div>
+    </div>
+  );
+}
+
+function ActionQueue() {
+  return (
+    <div className="dr-action-queue">
+      <span>
+        <p className="dr-label">Action queue</p>
+        <b>If called <small>{'->'}</small> Bet 65% pot</b>
+        <em>On safe turn cards</em>
+      </span>
+      <button type="button">
+        <b>Take action now</b>
+        <small>Override agent decision</small>
+      </button>
+      <span className="dr-autoplay">
+        <p className="dr-label">Autoplay</p>
+        <i><b /></i>
+        <em>Agent acts in 12s</em>
+      </span>
+    </div>
   );
 }
 
