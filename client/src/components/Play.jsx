@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getTelegramDisplayName, isInTelegram } from '../lib/telegram.js';
+import { getTelegramDisplayName, isInTelegram, getUserId } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-function getUserId() {
-  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
-}
-
-export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = null }) {
+export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentName = null }) {
   const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent' | 'picker'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
@@ -58,17 +54,7 @@ export function Play({ onConnect, onWatch, initialStep = 'pick', agentName = nul
       <CreateAgent
         onBack={() => setStep('pick')}
         agentName={agentName}
-        onDeploy={(agent) => {
-          onConnect({
-            tableId: 'table-' + Math.random().toString(16).slice(2, 8),
-            displayName: getTelegramDisplayName() || 'Anon',
-            buyIn: 1000,
-            smallBlind: 10,
-            bigBlind: 20,
-            wantAI: true,
-            agentStrategy: agent.strategy,
-          });
-        }}
+        onDone={onDone}
       />
     );
   }

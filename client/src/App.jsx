@@ -3,7 +3,7 @@ import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
-import { getTelegramDisplayName } from './lib/telegram.js';
+import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
@@ -47,11 +47,10 @@ export default function App() {
 
   const callAgentFinish = useCallback((agentId) => {
     if (!agentId) return;
-    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
     fetch(`/api/agents/${agentId}/finish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId: getUserId() }),
     }).catch(() => {});
     activeAgentIdRef.current = null;
     setActiveAgentId(null);
@@ -125,6 +124,11 @@ export default function App() {
                   wantOpponentAI: true,
                 });
               }}
+              onDone={() => {
+                setPlayInitialStep('pick');
+                setPlayKey((k) => k + 1);
+                setActiveTab('agents');
+              }}
               initialStep={playInitialStep}
               agentName={editingAgentName}
             />
@@ -138,6 +142,18 @@ export default function App() {
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: true,
+                });
+              }}
+              onVsYou={(payload) => {
+                setActiveAgent(payload.agentId);
+                connect({
+                  tableId: payload.tableId,
+                  displayName: getTelegramDisplayName() || 'Player',
+                  buyIn: 1000,
+                  smallBlind: 10,
+                  bigBlind: 20,
+                  wantAI: true,
+                  agentStrategy: payload.strategy,
                 });
               }}
               onChallenge={(payload) => {

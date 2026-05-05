@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
+import { getUserId } from '../lib/telegram.js';
 
-function getUserId() {
-  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
-}
-
-export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge }) {
+export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent, onChallenge }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = getUserId();
-    fetch(`/api/agents?userId=${userId}`)
+    fetch(`/api/agents?userId=${getUserId()}`)
       .then((r) => r.json())
       .then((data) => { setAgents(data.agents || []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -23,8 +19,17 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge })
       body: JSON.stringify({ userId: getUserId() }),
     });
     if (!res.ok) return;
-    const data = await res.json();
-    onDeploy(data);
+    onDeploy(await res.json());
+  }
+
+  async function vsYou(agent) {
+    const res = await fetch(`/api/agents/${agent.id}/deploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: getUserId() }),
+    });
+    if (!res.ok) return;
+    onVsYou(await res.json());
   }
 
   async function challenge(agent) {
@@ -34,13 +39,11 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge })
       body: JSON.stringify({ userId: getUserId() }),
     });
     if (!res.ok) return;
-    const data = await res.json();
-    onChallenge(data);
+    onChallenge(await res.json());
   }
 
   async function remove(agentId) {
-    const userId = getUserId();
-    await fetch(`/api/agents/${agentId}?userId=${userId}`, { method: 'DELETE' });
+    await fetch(`/api/agents/${agentId}?userId=${getUserId()}`, { method: 'DELETE' });
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
   }
 
@@ -87,6 +90,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge })
             key={agent.id}
             agent={agent}
             onDeploy={() => deploy(agent)}
+            onVsYou={() => vsYou(agent)}
             onChallenge={() => challenge(agent)}
             onChat={() => onChatAgent(agent)}
             onDelete={() => remove(agent.id)}
@@ -97,7 +101,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent, onChallenge })
   );
 }
 
-function AgentCard({ agent, onDeploy, onChallenge, onChat, onDelete }) {
+function AgentCard({ agent, onDeploy, onVsYou, onChallenge, onChat, onDelete }) {
   const isLive = agent.status === 'playing';
   const strategy = agent.strategy || '';
   const preview = strategy.length > 80 ? strategy.slice(0, 80) + '…' : strategy;
@@ -119,11 +123,11 @@ function AgentCard({ agent, onDeploy, onChallenge, onChat, onDelete }) {
       {preview && <div className="agent-card__strategy">{preview}</div>}
       <div className="agent-card__actions">
         <div className="agent-card__primary-row">
-          <button className="agent-card__deploy-btn" onClick={onDeploy} disabled={isLive}>
-            PLAY →
+          <button className="agent-card__deploy-btn" onClick={onDeploy} disabled={isLive} title="Watch your agent vs server AI">
+            VS AI →
           </button>
-          <button className="agent-card__challenge-btn" onClick={onChallenge} disabled={isLive}>
-            CHALLENGE
+          <button className="agent-card__challenge-btn" onClick={onVsYou} disabled={isLive} title="Play against your own agent">
+            VS YOU
           </button>
         </div>
         <div className="agent-card__secondary-row">

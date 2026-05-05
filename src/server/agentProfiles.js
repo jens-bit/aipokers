@@ -57,7 +57,7 @@ Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be dir
 
 After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<invent a UNIQUE dramatic poker persona — e.g. 'Ghost Money', 'The Iron Curtain', 'Razorblade Slim', 'Cold Read', 'The Surgeon' — NEVER use generic names like 'Balanced v1' or 'Aggressive v1'>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<invent a UNIQUE poker agent name. Draw from any domain: science, geography, chess, weather, military, nature, finance. Examples: 'Iron Curtain', 'Sandstorm', 'Ghost Protocol', 'Quiet Storm', 'Patient Zero', 'Cold Shoulder', 'The Algorithm', 'Permafrost', 'Entropy', 'Dead Reckoning'. Rules: NEVER end in v1/v2. NEVER use 'The Pressmaker', 'Balanced v1', or alliterative names. Generate something unexpected each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
 
 const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
 
@@ -69,12 +69,12 @@ function userTurns(chat) {
 
 function inferFallback(text) {
   if (/aggressive|bluff|pressure/i.test(text)) {
-    return { name: 'The Pressmaker', style: 'Aggressive', risk: 'High', strategy: 'You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire relentless bluffs to keep opponents permanently off-balance.' };
+    return { name: 'Sandstorm', style: 'Aggressive', risk: 'High', strategy: 'You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire sustained bluffs to keep opponents permanently off-balance.' };
   }
   if (/tight|safe|conservative/i.test(text)) {
-    return { name: 'Stone Wall', style: 'Tight', risk: 'Low', strategy: 'You are a disciplined, patient player who only commits chips with strong holdings. You wait for premium spots, fold marginal hands without hesitation, and punish opponents who bluff into your nutted ranges.' };
+    return { name: 'Permafrost', style: 'Tight', risk: 'Low', strategy: 'You are a disciplined, patient player who only commits chips with strong holdings. You wait for premium spots, fold marginal hands without hesitation, and extract maximum value when you hold the nuts.' };
   }
-  return { name: 'Cold Read', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who mixes solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range based on how your opponent plays.' };
+  return { name: 'Dead Reckoning', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range dynamically based on opponent tendencies.' };
 }
 
 async function callClaude(messages, systemText, maxTokens) {

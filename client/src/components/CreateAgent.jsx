@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getUserId } from '../lib/telegram.js';
 
 const QUICK_CHIPS = [
   'Play tight and safe',
@@ -7,8 +8,8 @@ const QUICK_CHIPS = [
   'Balanced strategy',
 ];
 
-export function CreateAgent({ onBack, onDeploy, agentName = null }) {
-  const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
+export function CreateAgent({ onBack, onDone, agentName = null }) {
+  const userId = getUserId();
 
   const [chat, setChat] = useState([]);
   const [input, setInput] = useState('');
@@ -118,9 +119,9 @@ export function CreateAgent({ onBack, onDeploy, agentName = null }) {
       <div className="create-agent__footer">
         {createdAgent && (
           <div className="create-agent__deploy-wrap">
-            <div className="create-agent__agent-name">{createdAgent.name}</div>
-            <button type="button" className="create-agent__deploy-btn" onClick={() => onDeploy(createdAgent)}>
-              Deploy
+            <div className="create-agent__agent-name">{createdAgent.name} is ready</div>
+            <button type="button" className="create-agent__deploy-btn" onClick={() => onDone()}>
+              Go to Agents
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
