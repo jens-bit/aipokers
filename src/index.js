@@ -15,7 +15,7 @@ const smallBlind = Number(process.env.SMALL_BLIND ?? 10);
 const bigBlind = Number(process.env.BIG_BLIND ?? 20);
 
 const app = express();
-app.use(express.json({ limit: '64kb' }));
+app.use(express.json());
 installAgentProfileRoutes(app);
 
 if (existsSync(STATIC_DIR)) {

@@ -18,6 +18,7 @@ export class Table {
     // AI seat tracking
     this.aiSeats = [false, false];   // true if that seat is controlled by the AI agent
     this.aiStrategy = [null, null];  // per-seat strategy string (passed to prompt)
+    this.agentStrategy = null;       // player-designed strategy from CreateAgent flow
     this._aiInactivityTimer = null;  // 60s timeout for AI tables
   }
 
@@ -71,10 +72,11 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI() {
+  maybeAutoSeatAI(agentStrategy = null) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     if (!humanSeated || !hasFree) return;
+    if (agentStrategy) this.agentStrategy = agentStrategy;
     this.seatAI();
   }
 
@@ -244,7 +246,7 @@ export class Table {
     if (g.street === Streets.COMPLETE || g.street === Streets.WAITING) return;
 
     const gameState = this._buildAiGameState(aiSeat);
-    const strategy = this.aiStrategy[aiSeat];
+    const strategy = this.agentStrategy || this.aiStrategy[aiSeat];
 
     // Human-like thinking delay (0.8–2.5 s).
     const thinkMs = 800 + Math.random() * 1700;
@@ -253,6 +255,7 @@ export class Table {
     // Re-check: the human might have acted somehow, or hand ended.
     if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
 
+    console.log(`[agent] strategy: "${(this.agentStrategy || 'default').slice(0, 80)}"`);
     const decision = await getAgentAction(gameState, strategy);
 
     // One final guard before mutating game state.

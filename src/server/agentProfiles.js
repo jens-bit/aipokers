@@ -1,74 +1,105 @@
-import { randomUUID } from 'node:crypto';
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import Anthropic from '@anthropic-ai/sdk';
 
-const profiles = new Map();
+const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
+const TIMEOUT_MS = 9000;
 
-function normalizeUserId(value) {
-  const id = String(value || '').trim();
-  return id ? id.slice(0, 120) : 'telegram:dev-user';
+// ── Persistence ──────────────────────────────────────────────────────────────
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'agents.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+let store = {};
+try {
+  store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+} catch {
+  store = {};
 }
 
-function getProfile(userId) {
-  const id = normalizeUserId(userId);
-  if (!profiles.has(id)) {
-    profiles.set(id, {
-      userId: id,
+function saveStore(userId) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+  const agents = store[userId]?.agents ?? [];
+  console.log(`[agents] saved profile for ${userId} — ${agents.length} agent(s)`);
+}
+
+function getOrCreate(userId) {
+  if (!store[userId]) {
+    store[userId] = {
+      userId,
       agents: [],
-      chat: [
-        {
-          role: 'assistant',
-          content: 'Tell me the playing style you want. I will turn it into your first agent draft.',
-        },
-      ],
-    });
+      chat: [{ role: 'assistant', content: OPENING_MSG }],
+    };
   }
-  return profiles.get(id);
+  return store[userId];
 }
 
-function inferAgentDraft(text) {
-  const lower = text.toLowerCase();
-  const aggressive = /\b(aggro|aggressive|pressure|bluff|attack)\b/.test(lower);
-  const cautious = /\b(tight|safe|conservative|careful|low risk)\b/.test(lower);
-  const balanced = !aggressive && !cautious;
-  const name = aggressive ? 'Pressure v1' : cautious ? 'Sentinel v1' : 'Balanced v1';
-  const style = aggressive ? 'Aggressive' : cautious ? 'Tight' : 'Balanced';
-  const risk = aggressive ? 'High' : cautious ? 'Low' : 'Medium';
-  const strategy = aggressive
-    ? 'Apply pressure in position, attack capped ranges, and keep value bets large.'
-    : cautious
-      ? 'Play tight preflop, protect the stack, and value bet clear advantages.'
-      : 'Play a solid tight-aggressive strategy with measured bluffs and clear value betting.';
+// ── In-memory active table tracking ─────────────────────────────────────────
 
-  return { name, style, risk, strategy };
+const activeTables = new Set();
+
+// ── Conversation constants ───────────────────────────────────────────────────
+
+const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
+
+const SYSTEM_CONV = `You are a poker strategy assistant helping a user design their AI poker agent for heads-up No-Limit Texas Hold'em. Be brief and casual — 1-2 sentences max. Ask ONE specific follow-up question to understand their intent better before building the agent.
+
+If the user is vague or uses slang (e.g. 'be retarded', 'go crazy', 'be stupid'), ask what they mean in poker terms — e.g. do they mean random raises? calling everything? never folding?
+
+Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be direct and poker-focused.
+
+After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
+
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<creative agent name e.g. Iron Sentinel v1>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
+
+const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function userTurns(chat) {
+  return chat.filter((m) => m.role === 'user').length;
 }
 
-function shouldCreateAgent(text, messageCount) {
-  return messageCount >= 2 || /\b(build|create|make|deploy|ready|yes|balanced|aggressive|tight|safe|bluff)\b/i.test(text);
+function inferFallback(text) {
+  if (/aggressive|bluff|pressure/i.test(text)) {
+    return { name: 'Pressure v1', style: 'Aggressive', risk: 'High', strategy: 'You are an aggressive poker player who bets and raises frequently. You apply maximum pressure with strong hands and strategic bluffs to force opponents into tough decisions.' };
+  }
+  if (/tight|safe|conservative/i.test(text)) {
+    return { name: 'Sentinel v1', style: 'Tight', risk: 'Low', strategy: 'You are a tight, disciplined poker player who only plays strong hands. You minimize risk, avoid marginal spots, and capitalize when you have a clear advantage.' };
+  }
+  return { name: 'Balanced v1', style: 'Balanced', risk: 'Medium', strategy: 'You are a balanced poker player who mixes aggression with solid fundamentals. You adapt to your opponent, value bet strong hands, and bluff selectively in good spots.' };
 }
 
-function createAgentFromChat(profile, text) {
-  const draft = inferAgentDraft(text);
-  const agent = {
-    id: `agent_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-    name: draft.name,
-    style: draft.style,
-    risk: draft.risk,
-    status: 'ready',
-    bankroll: 0,
-    bankrollStatus: 'unfunded',
-    tablePreference: 'HU NLH / $10-$20',
-    deployStatus: 'needs_funding',
-    hands: 0,
-    winRate: null,
-    strategy: draft.strategy,
-    createdAt: new Date().toISOString(),
-  };
-  profile.agents.push(agent);
-  return agent;
+async function callClaude(messages, systemText, maxTokens) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  const client = new Anthropic({ apiKey });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await client.messages.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
+      messages,
+    }, { signal: controller.signal });
+    return res.content[0]?.text ?? '';
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+// ── Routes ───────────────────────────────────────────────────────────────────
 
 export function installAgentProfileRoutes(app) {
+  // GET /api/agent-profile — full profile (chat + agents)
   app.get('/api/agent-profile', (req, res) => {
-    const profile = getProfile(req.query.userId);
+    const userId = String(req.query.userId || 'anon');
+    const profile = getOrCreate(userId);
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
@@ -77,49 +108,139 @@ export function installAgentProfileRoutes(app) {
     });
   });
 
-  app.delete('/api/agent-profile', (req, res) => {
-    const userId = normalizeUserId(req.query.userId || req.body?.userId);
-    profiles.delete(userId);
-    const profile = getProfile(userId);
+  // GET /api/agents?userId=... — agents array only
+  app.get('/api/agents', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const profile = getOrCreate(userId);
+    res.json({ agents: profile.agents });
+  });
+
+  // DELETE /api/agents/:agentId?userId=...
+  app.delete('/api/agents/:agentId', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const idx = profile.agents.findIndex((a) => a.id === agentId);
+    if (idx === -1) return res.status(404).json({ error: 'Agent not found' });
+    profile.agents.splice(idx, 1);
+    saveStore(userId);
+    res.json({ success: true });
+  });
+
+  // PATCH /api/agents/:agentId — update name and/or strategy
+  app.patch('/api/agents/:agentId', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (req.body.name !== undefined) agent.name = String(req.body.name);
+    if (req.body.strategy !== undefined) agent.strategy = String(req.body.strategy);
+    saveStore(userId);
+    res.json(agent);
+  });
+
+  // POST /api/agents/:agentId/deploy
+  app.post('/api/agents/:agentId/deploy', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const tableId = 'table-' + randomUUID().slice(0, 8);
+    activeTables.add(tableId);
+    agent.activeTableId = tableId;
+    agent.status = 'playing';
+    saveStore(userId);
+    console.log(`[agents] deployed ${agent.name} to table ${tableId}`);
+
     res.json({
-      userId: profile.userId,
-      hasAgents: false,
-      agents: profile.agents,
-      chat: profile.chat,
+      tableId,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
+      displayName: 'Agent',
     });
   });
 
-  app.post('/api/agents/chat', (req, res) => {
-    const profile = getProfile(req.body?.userId);
-    const content = String(req.body?.content || '').trim();
-    if (!content) {
-      res.status(400).json({ error: 'content required' });
-      return;
-    }
+  // POST /api/agents/:agentId/finish
+  app.post('/api/agents/:agentId/finish', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
+    if (agent.activeTableId) activeTables.delete(agent.activeTableId);
+    agent.status = 'idle';
+    agent.activeTableId = null;
+    saveStore(userId);
+    res.json(agent);
+  });
+
+  // POST /api/agents/chat — create agent via conversation
+  app.post('/api/agents/chat', async (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const content = String(req.body?.content || '').trim();
+    if (!content) return res.status(400).json({ error: 'content required' });
+
+    const profile = getOrCreate(userId);
     profile.chat.push({ role: 'user', content });
 
-    let createdAgent = null;
-    const userTurns = profile.chat.filter((m) => m.role === 'user').length;
-    if (profile.agents.length === 0 && shouldCreateAgent(content, userTurns)) {
-      createdAgent = createAgentFromChat(profile, content);
-      profile.chat.push({
-        role: 'assistant',
-        content: `${createdAgent.name} is ready. I tuned it as a ${createdAgent.style.toLowerCase()} heads-up NLH agent with ${createdAgent.risk.toLowerCase()} risk.`,
+    const turns = userTurns(profile.chat);
+    const shouldGenerate = turns >= 3 || TRIGGER_RE.test(content);
+
+    try {
+      if (!shouldGenerate) {
+        const reply = await callClaude(profile.chat, SYSTEM_CONV, 120);
+        const msg = reply || "Great! How aggressive do you like to play, and how often do you bluff?";
+        profile.chat.push({ role: 'assistant', content: msg });
+        saveStore(userId);
+        return res.json({ userId: profile.userId, hasAgents: profile.agents.length > 0, agents: profile.agents, chat: profile.chat });
+      }
+
+      let agent = null;
+      const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
+      if (raw) {
+        try { agent = JSON.parse(raw); } catch {}
+      }
+      if (!agent) {
+        const combined = profile.chat.map((m) => m.content).join(' ');
+        agent = inferFallback(combined);
+      }
+      agent.id = 'agent_' + Date.now().toString(36);
+      agent.status = 'idle';
+      agent.activeTableId = null;
+      console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}) strategy: "${agent.strategy?.slice(0, 80)}"`);
+
+      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
+      profile.chat.push({ role: 'assistant', content: confirmMsg });
+      profile.agents.push(agent);
+      saveStore(userId);
+
+      return res.json({
+        userId: profile.userId,
+        hasAgents: true,
+        agents: profile.agents,
+        chat: profile.chat,
+        createdAgent: agent,
       });
-    } else {
-      profile.chat.push({
-        role: 'assistant',
-        content: 'Got it. Give me the style, risk level, and what you want it to optimize for, then I can create the first version.',
+    } catch (err) {
+      console.error('[agentProfiles] error:', err.message);
+      const combined = profile.chat.map((m) => m.content).join(' ');
+      const agent = { ...inferFallback(combined), id: 'agent_' + Date.now().toString(36), status: 'idle', activeTableId: null };
+      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
+      profile.chat.push({ role: 'assistant', content: confirmMsg });
+      profile.agents.push(agent);
+      saveStore(userId);
+      return res.json({
+        userId: profile.userId,
+        hasAgents: true,
+        agents: profile.agents,
+        chat: profile.chat,
+        createdAgent: agent,
       });
     }
-
-    res.json({
-      userId: profile.userId,
-      hasAgents: profile.agents.length > 0,
-      agents: profile.agents,
-      chat: profile.chat,
-      createdAgent,
-    });
   });
 }

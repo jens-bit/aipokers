@@ -62,7 +62,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             // Auto-seat AI when the server has AI enabled AND the player asked for it.
-            if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) table.maybeAutoSeatAI();
+            if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) table.maybeAutoSeatAI(msg.agentStrategy ?? null);
             table.maybeStartHand();
             return;
           }
