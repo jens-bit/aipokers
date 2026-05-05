@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "smoke": "node scripts/smoke-hand.js",
+    "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"
   },
   "engines": {
