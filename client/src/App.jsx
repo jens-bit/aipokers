@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
+import { HomeTab } from './components/HomeTab.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
@@ -183,6 +184,34 @@ export default function App() {
               existingAgent={editingAgent}
             />
           )}
+          {activeTab === 'home' && (
+            <HomeTab
+              onCreateAgent={() => {
+                setEditingAgent(null);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+              onDeploy={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+              onOpenChat={(agent) => {
+                setEditingAgent(agent);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+            />
+          )}
           {activeTab === 'agents' && (
             <AgentsTab
               onDeploy={(payload) => {
@@ -229,6 +258,12 @@ export default function App() {
           )}
         </div>
         <nav className="tab-bar">
+          <button
+            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => setActiveTab('home')}
+          >
+            HOME
+          </button>
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => {
