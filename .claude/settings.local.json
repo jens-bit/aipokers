@@ -18,7 +18,23 @@
       "Bash(PORT=8766 AI_ENABLED=false timeout 10 node src/index.js)",
       "Read(//tmp/**)",
       "Bash(pkill -f 'node src/index.js')",
-      "Bash(PORT=8767 AI_ENABLED=false node src/index.js)"
+      "Bash(PORT=8767 AI_ENABLED=false node src/index.js)",
+      "Bash(git ls-tree *)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(PORT=8770 AI_ENABLED=false node src/index.js)",
+      "Bash(curl -s http://127.0.0.1:8770/)",
+      "Bash(curl -s http://127.0.0.1:8770/api/agents?userId=anon)",
+      "Bash(cmd //c 'taskkill /F /IM node.exe')",
+      "Bash(curl -s --max-time 1 http://127.0.0.1:8770/ -o /dev/null -w 'HTTP %{http_code}\\\\n')",
+      "Bash(PORT=8771 AI_ENABLED=true ANTHROPIC_API_KEY=sk-ant-test node src/index.js)",
+      "Bash(PORT=8772 node src/index.js)",
+      "Bash(PORT=8773 node src/index.js)",
+      "Bash(grep -n 'className=\"app\"\\\\|return \\(\\\\s*$' client/src/App.jsx)",
+      "Bash(PORT=8774 node src/index.js)"
     ]
   }
 }

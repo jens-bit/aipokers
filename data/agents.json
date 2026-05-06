@@ -210,5 +210,693 @@
         "content": "How aggressive do you like to play, and how often do you bluff?"
       }
     ]
+  },
+  "u_7b84me44mxup": {
+    "userId": "u_7b84me44mxup",
+    "agents": [
+      {
+        "name": "Loose Cannon",
+        "style": "Aggressive",
+        "risk": "High",
+        "strategy": "You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire sustained bluffs to keep opponents permanently off-balance.",
+        "id": "agent_moukoass",
+        "status": "idle",
+        "activeTableId": null,
+        "stats": {
+          "handsPlayed": 400,
+          "handsWon": 200,
+          "totalDecisions": 200,
+          "aggressiveDecisions": 0,
+          "passiveDecisions": 0,
+          "foldDecisions": 200,
+          "winRate": 50,
+          "biggestPot": 30
+        },
+        "recentHands": [
+          {
+            "handNumber": 200,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778104001170,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5d",
+                  "Js"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Ks",
+                  "Qh"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 200,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778104001169,
+            "decisions": [
+              {
+                "seat": 1,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "Ks",
+                  "Qh"
+                ],
+                "community": [],
+                "timestamp": 1778104001165
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5d",
+                  "Js"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Ks",
+                  "Qh"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 199,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103997337,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9c",
+                  "6d"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "7s",
+                  "3d"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 199,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103997336,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "9c",
+                  "6d"
+                ],
+                "community": [],
+                "timestamp": 1778103997332
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9c",
+                  "6d"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "7s",
+                  "3d"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 198,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103993994,
+            "decisions": [
+              {
+                "seat": 1,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "4c",
+                  "Td"
+                ],
+                "community": [],
+                "timestamp": 1778103993990
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "4h",
+                  "Ac"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "4c",
+                  "Td"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 198,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103993993,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "4h",
+                  "Ac"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "4c",
+                  "Td"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 197,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103988989,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "7s",
+                  "Qd"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Ad",
+                  "8s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 197,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103988987,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "7s",
+                  "Qd"
+                ],
+                "community": [],
+                "timestamp": 1778103988983
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "7s",
+                  "Qd"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Ad",
+                  "8s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 196,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103984511,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3s",
+                  "Kh"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7d",
+                  "6h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 196,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103984510,
+            "decisions": [
+              {
+                "seat": 1,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "7d",
+                  "6h"
+                ],
+                "community": [],
+                "timestamp": 1778103984507
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3s",
+                  "Kh"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7d",
+                  "6h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 195,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103980728,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "9s",
+                  "3s"
+                ],
+                "community": [],
+                "timestamp": 1778103980721
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9s",
+                  "3s"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Kd",
+                  "3h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 195,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103980727,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9s",
+                  "3s"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Kd",
+                  "3h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 194,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103975737,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "2h",
+                  "Kd"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5s",
+                  "Qs"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 194,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103975736,
+            "decisions": [
+              {
+                "seat": 1,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "5s",
+                  "Qs"
+                ],
+                "community": [],
+                "timestamp": 1778103975734
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "2h",
+                  "Kd"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5s",
+                  "Qs"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 193,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103972341,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "8h",
+                  "2c"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "7d",
+                  "8s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 193,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103972340,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "8h",
+                  "2c"
+                ],
+                "community": [],
+                "timestamp": 1778103972338
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "8h",
+                  "2c"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "7d",
+                  "8s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 192,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103968654,
+            "decisions": [
+              {
+                "seat": 1,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "7s",
+                  "4h"
+                ],
+                "community": [],
+                "timestamp": 1778103968650
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Ac",
+                  "6h"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7s",
+                  "4h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 192,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103968653,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Ac",
+                  "6h"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7s",
+                  "4h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 191,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1778103965277,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "Qd",
+                  "3c"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Qc",
+                  "Jd"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 191,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1778103965276,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "Qd",
+                  "3c"
+                ],
+                "community": [],
+                "timestamp": 1778103965274
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 1990,
+                "holeCards": [
+                  "Qd",
+                  "3c"
+                ]
+              },
+              {
+                "displayName": "Loose Cannon",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Qc",
+                  "Jd"
+                ]
+              }
+            ]
+          }
+        ],
+        "memory": {
+          "summary": "",
+          "handsObserved": 400,
+          "tendencies": [],
+          "lastUpdated": 1778104001171
+        }
+      }
+    ],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      }
+    ]
   }
 }
