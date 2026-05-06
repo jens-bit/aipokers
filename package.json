@@ -5,8 +5,9 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "npm run build:client && node src/index.js",
     "dev": "node --watch src/index.js",
+    "build:client": "cd client && npm install && npm run build",
     "smoke": "node scripts/smoke-hand.js",
     "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"
