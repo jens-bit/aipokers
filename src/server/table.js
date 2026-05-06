@@ -486,10 +486,9 @@ export class Table {
       console.log(`[table:${this.tableId}] skipping AI chat (${trigger}) — no human at table`);
       return;
     }
-    // 30% baseline; humans typing at us get a slightly higher rate so chat
-    // feels reactive instead of stonewalled.
-    const fireChance = trigger === 'human_chat' ? 0.4 : 0.3;
-    if (Math.random() >= fireChance) return;
+    // Always respond to direct human chat (psychological warfare feature).
+    // Other triggers (big_pot, won_hand, aggressive_action) fire 30% of the time.
+    if (trigger !== 'human_chat' && Math.random() >= 0.3) return;
 
     const strategy = this.agentStrategy || this.aiStrategy[aiSeat] || '';
     const gameContext = {
