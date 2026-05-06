@@ -381,6 +381,31 @@ function CreatedAgentCard({ agent, onOpenAgent, onKeepEditing }) {
   );
 }
 
+function DraftReadyCard({ messages, onCreateDraft, onKeepTuning }) {
+  const inferred = inferFallbackAgent(getLastUserPrompt(messages));
+  return (
+    <section className="dr-draft-ready-card">
+      <div>
+        <span><Icon name="sparkle" size={15} color="#00d4aa" /></span>
+        <div>
+          <p className="dr-label dr-label--accent">Draft ready</p>
+          <h2>{inferred.name}</h2>
+          <small>{inferred.style} style / {inferred.risk} risk</small>
+        </div>
+      </div>
+      <p>I have enough to save this as version one. You can still tune it after creation.</p>
+      <div className="dr-card-actions">
+        <button className="dr-primary-btn" type="button" onClick={() => onCreateDraft(inferred)}>
+          Create this agent
+        </button>
+        <button className="dr-secondary-btn" type="button" onClick={onKeepTuning}>
+          Keep tuning
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function getLastUserPrompt(messages) {
   return [...messages].reverse().find((message) => message.role === 'user')?.content || '';
 }
@@ -414,10 +439,12 @@ function BlueprintCell({ label, value }) {
   );
 }
 
-function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack, onSend, onOpenAgent }) {
+function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack, onSend, onOpenAgent, onCreateDraft }) {
   const [draft, setDraft] = useState('');
   const messages = profile.chat?.length ? profile.chat : INITIAL_CHAT;
   const busy = chatStatus === 'thinking';
+  const userTurns = messages.filter((message) => message.role === 'user').length;
+  const canCreateDraft = !createdAgent && !busy && userTurns >= 2;
   const agentSummary = profile.agents.length === 0
     ? 'No agents yet'
     : `${profile.agents.length} agent${profile.agents.length === 1 ? '' : 's'}`;
@@ -450,8 +477,15 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
         )}
       </div>
       <DraftBlueprint messages={messages} agent={createdAgent} />
+      {canCreateDraft && (
+        <DraftReadyCard
+          messages={messages}
+          onCreateDraft={onCreateDraft}
+          onKeepTuning={() => setDraft('Tune the agent for bankroll discipline and river decisions')}
+        />
+      )}
       <CreatedAgentCard agent={createdAgent} onOpenAgent={onOpenAgent} onKeepEditing={() => setDraft('Tune it for 3-bet pots and river discipline')} />
-      {!createdAgent && (
+      {!createdAgent && !canCreateDraft && (
         <div className="dr-chat-suggestions">
           {QUICK_PROMPTS.map((prompt) => (
             <button key={prompt} type="button" onClick={() => submit(prompt)} disabled={busy}>{prompt}</button>
@@ -1077,6 +1111,26 @@ export default function DesignRefApp() {
     }
   }
 
+  function handleCreateDraft(agentDraft) {
+    const agent = normalizeAgent(agentDraft);
+    const chat = [
+      ...(profile.chat?.length ? profile.chat : INITIAL_CHAT),
+      {
+        role: 'assistant',
+        content: `${agent.name} is saved as version one. Next step: open the agent, add bankroll, and review its first table.`,
+      },
+    ];
+    setProfile({
+      ...profile,
+      hasAgents: true,
+      agents: [agent, ...profile.agents.filter((existing) => existing.id !== agent.id).map(normalizeAgent)],
+      chat,
+    });
+    setCreatedAgent(agent);
+    setChatStatus('idle');
+    setTab('create');
+  }
+
   async function handleReset() {
     try {
       const nextProfile = await resetProfile(identity.id);
@@ -1111,6 +1165,7 @@ export default function DesignRefApp() {
         onBack={() => setTab(activeAgent ? 'agents' : 'home')}
         onSend={handleSend}
         onOpenAgent={() => setTab('agents')}
+        onCreateDraft={handleCreateDraft}
       />
     );
   } else if (tab === 'agents') {
