@@ -687,7 +687,7 @@ function AnalysisPreview({ agent }) {
     : agent.style === 'Tight'
       ? ['Value threshold met', 'Risk stays capped', 'Opponent range is wide', 'Avoids marginal bluff catch']
       : ['Top pair, strong kicker', 'Good pot odds', 'Range advantage is stable'];
-  const tabs = ['Live', 'Range', 'History', 'Notes'];
+  const tabs = ['Live', 'Range', 'History', 'Chat'];
 
   return (
     <section className="dr-analysis">
@@ -695,7 +695,7 @@ function AnalysisPreview({ agent }) {
         {tabs.map((tab) => (
           <button
             type="button"
-            className={activeTab === tab ? 'is-active' : ''}
+            className={`dr-tab-button ${activeTab === tab ? 'is-active' : ''} ${tab === 'Chat' ? 'dr-tab-button--chat' : ''}`}
             key={tab}
             onClick={() => setActiveTab(tab)}
           >
@@ -724,14 +724,45 @@ function AnalysisPreview({ agent }) {
       )}
       {activeTab === 'Range' && <RangeCompare />}
       {activeTab === 'History' && <RecentHands compact />}
-      {activeTab === 'Notes' && (
-        <div className="dr-note-card">
-          <p className="dr-label">Session note</p>
-          <b>Balanced v1 is unfunded.</b>
-          <small>Review preflop ranges before its first seated hand.</small>
-        </div>
-      )}
+      {activeTab === 'Chat' && <AgentLiveChat agent={agent} />}
     </section>
+  );
+}
+
+function AgentLiveChat({ agent }) {
+  const messages = [
+    ['agent', `I would call here. ${agent.name} keeps the pot controlled and realizes equity.`],
+    ['you', 'What changes if the turn is a blank?'],
+    ['agent', 'Bet 65% pot if checked to. If raised, slow down unless blockers improve.'],
+  ];
+
+  return (
+    <div className="dr-agent-chat">
+      <div className="dr-agent-chat__head">
+        <span>
+          <p className="dr-label dr-label--accent">Live agent chat</p>
+          <b>{agent.name}</b>
+        </span>
+        <small><i /> synced to table</small>
+      </div>
+      <div className="dr-agent-chat__log">
+        {messages.map(([role, message]) => (
+          <p className={`dr-agent-chat__bubble dr-agent-chat__bubble--${role}`} key={`${role}-${message}`}>
+            {message}
+          </p>
+        ))}
+      </div>
+      <div className="dr-agent-chat__prompts">
+        <button type="button">Explain this call</button>
+        <button type="button">Tighten up</button>
+        <button type="button">Plan next street</button>
+      </div>
+      <label className="dr-agent-chat__composer">
+        <span>Ask your agent</span>
+        <input type="text" placeholder={`Message ${agent.name}`} />
+        <button type="button" aria-label="Send chat"><Icon name="send" size={17} /></button>
+      </label>
+    </div>
   );
 }
 
