@@ -138,13 +138,6 @@ function parseDecision(text, gs) {
 
 // ── Chat trash-talk ──────────────────────────────────────────────────────────
 
-const TRIGGER_DESCRIPTIONS = {
-  big_pot:           'Big pot just built up',
-  aggressive_action: 'You just made a big bet/raise',
-  won_hand:          'You just won the hand',
-  human_chat:        'Your human opponent just chatted at you',
-};
-
 // Strip surrounding double or single quotes (the model often wraps the line).
 function stripWrappingQuotes(s) {
   if (!s) return s;
@@ -159,30 +152,88 @@ function stripWrappingQuotes(s) {
   return trimmed;
 }
 
-// Generate a short trash-talk / psychological line for a given trigger.
-// Returns null on missing API key or any error — caller must handle null.
-//   gameState: minimally { pot, street }
-//   strategy:  the agent's personality string
-//   trigger:   one of TRIGGER_DESCRIPTIONS keys
-//   humanMessage: optional, only for trigger 'human_chat'
-export async function generateAiChatLine(gameState, strategy, trigger, humanMessage = null) {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  const personality = (strategy && strategy.trim()) || DEFAULT_STRATEGY;
-  const description = TRIGGER_DESCRIPTIONS[trigger] || 'Something noteworthy just happened';
-
-  const systemText = `You are a poker player at a live table. Based on your personality, write ONE short trash-talk or psychological message (1-2 sentences, max 120 chars). Be in character. No hashtags, no emojis unless natural. Personality: ${personality}`;
-  const street = (gameState?.street ?? 'preflop').toString();
-  const pot = Number.isFinite(gameState?.pot) ? gameState.pot : 0;
-  let userText = `Situation: ${description}. Pot: ${pot}. Street: ${street}. Write your message.`;
-  if (trigger === 'human_chat' && humanMessage) {
-    userText += ` The opponent just said: '${String(humanMessage).slice(0, 200)}'. Respond to it or ignore it — your call.`;
+function buildSituationLine(trigger, pot, streetLabel, opponentName) {
+  switch (trigger) {
+    case 'aggressive_action':
+      return `You just fired a big bet/raise into a ${pot}-chip pot on the ${streetLabel}. ` +
+             `Reference the size of the move and apply pressure to ${opponentName}.`;
+    case 'won_hand':
+      return `You just dragged a ${pot}-chip pot away from ${opponentName}. Reference winning — twist the knife.`;
+    case 'big_pot':
+      return `The pot has ballooned to ${pot} chips on the ${streetLabel} between you and ${opponentName}. ` +
+             `Reference the stakes and crank up the pressure.`;
+    case 'human_chat':
+      return `${opponentName} just spoke at you. Respond to what they actually said.`;
+    default:
+      return `Something noteworthy happened on the ${streetLabel} (pot ${pot}) between you and ${opponentName}.`;
   }
+}
+
+// Generate a short, contextual trash-talk / psychological line.
+// Returns null on missing API key or any error — caller must handle null.
+//
+// Options:
+//   trigger          — 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
+//   agentName        — the AI's display name at the table
+//   opponentName     — the most relevant opponent's display name
+//   agentStyle       — the agent's full personality / strategy string
+//   potSize          — current pot in chips
+//   street           — current street string ('preflop' | 'flop' | 'turn' | 'river' | 'showdown')
+//   lastOpponentChat — optional last message from another seat; if present, the
+//                      agent should respond to it directly so AI vs AI tables
+//                      have actual back-and-forth.
+export async function generateAiChatLine({
+  trigger,
+  agentName,
+  opponentName,
+  agentStyle,
+  potSize,
+  street,
+  lastOpponentChat = null,
+} = {}) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+
+  const personality = (agentStyle && String(agentStyle).trim()) || DEFAULT_STRATEGY;
+  const myName = (agentName && String(agentName).trim()) || 'you';
+  const oppName = (opponentName && String(opponentName).trim()) || 'your opponent';
+  const pot = Number.isFinite(potSize) ? potSize : 0;
+  const streetLabel = (street ?? 'preflop').toString().toUpperCase();
+  const situation = buildSituationLine(trigger, pot, streetLabel, oppName);
+
+  const systemText =
+    `You are ${myName}, a poker player at a live table playing against ${oppName}. ` +
+    `Write ONE short, in-character line of trash-talk or psychological pressure (1 sentence, max 120 chars).\n\n` +
+    `Your personality / strategy:\n${personality}\n\n` +
+    `Tone rules — match your personality to one of these registers:\n` +
+    `- AGGRESSIVE personalities: taunt openly. Be cocky, mocking, in-your-face.\n` +
+    `- TIGHT / DISCIPLINED personalities: cold, clipped, dismissive — fewer words, no exclamation.\n` +
+    `- BALANCED / CALCULATED personalities: confident, surgical, knowing — the kind of line that gets in someone's head.\n\n` +
+    `Hard rules:\n` +
+    `- Reference the actual game event in the situation: the bet, the pot, or winning the hand.\n` +
+    `- Use ${oppName}'s name at least sometimes (not every line — varies).\n` +
+    `- ONE sentence MAX. No hashtags. No emojis unless they fit the personality.\n` +
+    `- BANNED generic phrases: "nice hand", "good game", "well played", "you got lucky", "gg", "wp". ` +
+    `If you catch yourself writing one, rewrite the line.\n` +
+    `- Output the line directly — no quotes, no preamble, no "Here's my line:".`;
+
+  let userText =
+    `SITUATION: ${situation}\n` +
+    `STREET: ${streetLabel}\n` +
+    `POT: ${pot}\n` +
+    `OPPONENT: ${oppName}\n` +
+    `YOU: ${myName}`;
+  if (lastOpponentChat) {
+    userText +=
+      `\n\n${oppName} just said: "${String(lastOpponentChat).slice(0, 200)}"\n` +
+      `Respond DIRECTLY to that message — engage with what they said, don't ignore it.`;
+  }
+  userText += `\n\nWrite your line:`;
 
   try {
     const client = new Anthropic({ timeout: 9000 });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 60,
+      max_tokens: 80,
       system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userText }],
     });

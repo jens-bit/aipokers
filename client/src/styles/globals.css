@@ -2332,29 +2332,99 @@ input:focus { border-color: var(--accent); }
   bottom: 0;
   width: 100%;
   max-width: var(--max-w-mobile);
+  height: 48px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 14px 16px calc(14px + var(--safe-bottom, 0px));
-  color: var(--accent);
-  font-family: var(--font-label);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  font-weight: 600;
+  gap: 10px;
+  padding: 0 14px;
+  padding-bottom: var(--safe-bottom, 0px);
   border-top: 1px solid var(--edge);
   background: var(--bg-secondary);
+  color: var(--text-primary);
   z-index: 50;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
 }
 
+.watch-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+
+.watch-banner__dot--live {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.6);
+  animation: watch-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes watch-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.watch-banner__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 212, 170, 0.12);
+  border: 1px solid rgba(0, 212, 170, 0.35);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.watch-banner__avatar svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.watch-banner__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.watch-banner__name {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-banner__sub {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-label);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.watch-banner__tag {
+  color: var(--accent);
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 /* In spectator mode the watch-banner replaces the action-bar at the bottom.
-   The watch-banner is shorter (~52px), so the chat bar should dock right
-   above it instead of leaving a 132px gap. */
+   Banner is 48px tall — chat bar docks directly above it. */
 .app--spectator .chat-bar {
-  bottom: calc(52px + var(--safe-bottom, 0px));
+  bottom: calc(48px + var(--safe-bottom, 0px));
 }
 .app--spectator .table-area {
-  padding-bottom: calc(52px + var(--chat-bar-h) + 20px);
+  padding-bottom: calc(48px + var(--chat-bar-h) + 20px);
 }
 
 .last-hand-panel {
@@ -2366,26 +2436,36 @@ input:focus { border-color: var(--accent); }
 
 .last-hand-panel__toggle {
   width: 100%;
-  min-height: 38px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--edge-soft);
-  background: var(--bg-secondary);
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--edge-strong, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 212, 170, 0.05);
   color: var(--text-secondary);
   font-family: var(--font-label);
   font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   text-align: left;
   cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.last-hand-panel__toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .last-hand-panel__toggle span:last-child {
   color: var(--text-muted);
   text-align: right;
+  text-transform: none;
+  letter-spacing: 0.04em;
 }
 
 .last-hand-panel__body {
@@ -3946,6 +4026,46 @@ input:focus { border-color: var(--accent); }
   color: var(--dr-secondary);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.dr-play-card[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* When there's no active agent table to watch, the Watch card is omitted —
+   let the primary Deploy card span the row so the grid stays balanced
+   (Deploy on top, vs-human and vs-AI underneath). */
+.dr-play-grid:not(.dr-play-grid--with-watch) .dr-play-card.is-accent {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  min-height: 76px;
+}
+
+.dr-play-grid:not(.dr-play-grid--with-watch) .dr-play-card.is-accent b,
+.dr-play-grid:not(.dr-play-grid--with-watch) .dr-play-card.is-accent small {
+  display: block;
+}
+
+.dr-play-grid:not(.dr-play-grid--with-watch) .dr-play-card.is-accent > span {
+  margin-right: 4px;
+}
+
+.dr-play-create-link {
+  display: block;
+  margin: 4px auto 0;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: var(--dr-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.dr-play-create-link:hover {
+  color: var(--dr-accent);
 }
 
 .dr-stable-list {
