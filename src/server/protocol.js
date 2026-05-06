@@ -7,6 +7,7 @@ export const ClientMsg = Object.freeze({
   ACTION: 'action',     // { type, action: { type, amount? } }
   DEAL: 'deal',         // { type } — start the next hand once both players are seated and chipped
   RENAME: 'rename',     // { type, displayName } — change your seat's display name
+  CHAT: 'chat',         // { type, tableId, text } — table chat message from the seated client
   LEAVE: 'leave',       // { type }
   PING: 'ping',
 });
@@ -18,6 +19,7 @@ export const ServerMsg = Object.freeze({
   HAND_START: 'hand_start', // { type, handNumber }
   HAND_RESULT: 'hand_result', // { type, result }
   TABLE_CLOSED: 'table_closed', // { type, reason }
+  CHAT: 'chat',             // { type, seat, displayName, text, isAI }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

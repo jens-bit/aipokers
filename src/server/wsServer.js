@@ -69,6 +69,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
                 agentDisplayName: msg.agentDisplayName ?? null,
                 agentId: msg.agentId ?? null,
                 userId: msg.userId ?? null,
+                memoryContext: msg.memoryContext ?? '',
               });
             }
             table.maybeStartHand();
@@ -83,6 +84,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
               displayName: msg.displayName,
               agentId: msg.agentId ?? null,
               userId: msg.userId ?? null,
+              memoryContext: msg.memoryContext ?? '',
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
@@ -108,6 +110,26 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             const table = tables.get(ws.tableId);
             if (!table) throw new Error('not seated at any table');
             table.maybeStartHand();
+            return;
+          }
+
+          case ClientMsg.CHAT: {
+            const table = tables.get(ws.tableId);
+            if (!table) throw new Error('not at a table');
+            const seat = table.connections.indexOf(ws);
+            // Spectators can also chat — find their effective seat.
+            const specEntry = seat === -1 ? table.spectators.find((s) => s.ws === ws) : null;
+            const effectiveSeat = seat !== -1 ? seat : (specEntry?.spectatorSeat ?? -1);
+            if (effectiveSeat === -1) throw new Error('not seated');
+            if (!msg.text || !String(msg.text).trim()) return;
+            const text = String(msg.text).trim();
+            table.sendChat(effectiveSeat, text, false);
+            // Maybe trigger AI seats to respond to the human chat.
+            for (let i = 0; i < table.aiSeats.length; i++) {
+              if (table.aiSeats[i] && table.pending[i]) {
+                table._maybeGenerateAiChat(i, 'human_chat', text);
+              }
+            }
             return;
           }
 

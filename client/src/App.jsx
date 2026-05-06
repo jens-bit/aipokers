@@ -7,6 +7,7 @@ import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
+import { ChatBar } from './components/ChatBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { Streets } from './lib/protocol.js';
@@ -26,6 +27,7 @@ export default function App() {
     error, dismissError, status,
     reconnectAttempt, maxReconnectAttempts,
     config, connect, watch, disconnect, act, deal, rename,
+    chatMessages, sendChat,
   } = table;
   const displayNames = {
     0: game?.seats?.[0]?.displayName ?? 'Seat A',
@@ -124,6 +126,7 @@ export default function App() {
                   wantOpponentAI: false,
                   agentId: payload.agentId,
                   userId: getUserId(),
+                  memoryContext: payload.memoryContext ?? '',
                 });
               }}
               onDone={() => {
@@ -146,6 +149,7 @@ export default function App() {
                   wantOpponentAI: false,
                   agentId: payload.agentId,
                   userId: getUserId(),
+                  memoryContext: payload.memoryContext ?? '',
                 });
               }}
               onVsYou={(payload) => {
@@ -161,6 +165,7 @@ export default function App() {
                   agentDisplayName: payload.agentName,
                   agentId: payload.agentId,
                   userId: getUserId(),
+                  memoryContext: payload.memoryContext ?? '',
                 });
               }}
               onCreateAgent={() => {
@@ -222,6 +227,7 @@ export default function App() {
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
+      <ChatBar messages={chatMessages} onSend={sendChat} />
       {config?.isSpectator ? (
         <WatchBanner config={config} game={game} mySeat={mySeat} />
       ) : (

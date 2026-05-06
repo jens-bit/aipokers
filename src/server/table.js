@@ -1,6 +1,6 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
-import { getAgentAction } from '../agent/handler.js';
+import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 
 // A Table owns a single Game instance and the WebSocket connections for its
 // 2–4 seats. It serializes incoming actions, broadcasts filtered state, and
@@ -29,12 +29,19 @@ export class Table {
     this.aiStrategy = Array(maxSeats).fill(null);  // per-seat strategy string (passed to prompt)
     this.agentIds = Array(maxSeats).fill(null);    // owning agentId for stats reporting
     this.agentUserIds = Array(maxSeats).fill(null);// owning userId for stats reporting
+    this.agentMemory = Array(maxSeats).fill('');   // cached memoryContext string; refreshed after memory updates
+    this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
+    this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
 
     // Per-hand decision log; reset at the start of each hand. Populated by
     // _maybeRunAiTurn before every AI action and consumed in _handCompleted.
     this.currentHandDecisions = [];                // [{ seat, street, action, reasoning, holeCards, community, timestamp }]
+
+    // Rolling chat history (last 20, newest last). Used only by sendChat —
+    // not replayed to clients on reconnect for simplicity.
+    this.chatHistory = [];                         // [{ seat, displayName, text, isAI, timestamp }]
 
     // Spectators: users who watch their AI play from its seat's POV
     this.spectators = [];                          // [{ ws, spectatorSeat }]
@@ -69,7 +76,7 @@ export class Table {
   }
 
   // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
-  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null } = {}) {
+  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '' } = {}) {
     const free = this.pending.findIndex((p) => p === null);
     if (free === -1) throw new Error('table full — cannot seat AI');
 
@@ -86,18 +93,22 @@ export class Table {
     this.aiStrategy[free] = strategy || process.env.AI_STRATEGY || '';
     this.agentIds[free] = agentId ?? null;
     this.agentUserIds[free] = userId ?? null;
-    console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''})`);
+    this.agentMemory[free] = typeof memoryContext === 'string' ? memoryContext : '';
+    this.aiHandsPlayed[free] = 0;
+    this.aiRecentHands[free] = [];
+    console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''})`);
     return free;
   }
 
   // Seat an AI for a spectating user and register their WS for state broadcasts.
   // Returns the seat index the AI was placed at.
-  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null } = {}) {
+  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '' } = {}) {
     const seat = this.seatAI({
       strategy: agentStrategy || '',
       displayName: displayName || 'Agent',
       agentId,
       userId,
+      memoryContext,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
     return seat;
@@ -105,12 +116,12 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null } = {}) {
+  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '' } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     if (!humanSeated || !hasFree) return;
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI({ displayName: agentDisplayName || undefined, agentId, userId });
+    this.seatAI({ displayName: agentDisplayName || undefined, agentId, userId, memoryContext });
   }
 
   rename(ws, displayName) {
@@ -158,6 +169,9 @@ export class Table {
         this.aiStrategy[i] = null;
         this.agentIds[i] = null;
         this.agentUserIds[i] = null;
+        this.agentMemory[i] = '';
+        this.aiHandsPlayed[i] = 0;
+        this.aiRecentHands[i] = [];
         if (this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE) {
           // Reset the in-progress hand so the table is in a clean state.
           this.game = null;
@@ -203,6 +217,9 @@ export class Table {
           aiStrategy: this.aiStrategy[i],
           agentId: this.agentIds[i],
           userId: this.agentUserIds[i],
+          memory: this.agentMemory[i],
+          handsPlayed: this.aiHandsPlayed[i],
+          recentHands: this.aiRecentHands[i],
         });
       }
     }
@@ -212,6 +229,9 @@ export class Table {
     this.aiStrategy = Array(this.maxSeats).fill(null);
     this.agentIds = Array(this.maxSeats).fill(null);
     this.agentUserIds = Array(this.maxSeats).fill(null);
+    this.agentMemory = Array(this.maxSeats).fill('');
+    this.aiHandsPlayed = Array(this.maxSeats).fill(0);
+    this.aiRecentHands = Array(this.maxSeats).fill(null).map(() => []);
     for (let i = 0; i < filled.length; i++) {
       this.pending[i] = filled[i].pending;
       this.connections[i] = filled[i].ws;
@@ -219,6 +239,9 @@ export class Table {
       this.aiStrategy[i] = filled[i].aiStrategy;
       this.agentIds[i] = filled[i].agentId;
       this.agentUserIds[i] = filled[i].userId;
+      this.agentMemory[i] = filled[i].memory ?? '';
+      this.aiHandsPlayed[i] = filled[i].handsPlayed ?? 0;
+      this.aiRecentHands[i] = filled[i].recentHands ?? [];
     }
   }
 
@@ -267,6 +290,8 @@ export class Table {
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
     this._reportHandResults(this.game.result);
+    // After reporting, evolve any AI's persistent memory every 5 hands.
+    this._maybeTriggerMemoryUpdates();
     if (this.game.seats.some((s) => s.stack <= 0)) {
       this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
       return;
@@ -298,6 +323,18 @@ export class Table {
       if (!agentId) continue;
       const won = winners.some((w) => w.seat === seat);
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+      const handSummary = {
+        handNumber,
+        won,
+        potSize: result.pot,
+        decisions,
+        seats: seatSnapshots,
+        timestamp: Date.now(),
+      };
+      // Mirror the agentProfiles recentHands cap (newest first, last 5 here
+      // since the memory-update prompt only ever asks for 5).
+      this.aiRecentHands[seat] = [handSummary, ...this.aiRecentHands[seat]].slice(0, 5);
+
       const body = {
         userId: this.agentUserIds[seat],
         won,
@@ -312,6 +349,55 @@ export class Table {
         body: JSON.stringify(body),
       }).catch((err) => console.error('[table] result report failed:', err.message));
     }
+  }
+
+  // For each AI seat with an agentId, increment the local hand counter and
+  // fire an /update-memory call every 5 hands. Then refresh the cached
+  // memoryContext so the next decision uses the new self-knowledge.
+  _maybeTriggerMemoryUpdates() {
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.agentIds[seat]) continue;
+      this.aiHandsPlayed[seat] = (this.aiHandsPlayed[seat] ?? 0) + 1;
+      if (this.aiHandsPlayed[seat] > 0 && this.aiHandsPlayed[seat] % 5 === 0) {
+        this._triggerMemoryUpdate(seat);
+      }
+    }
+  }
+
+  _triggerMemoryUpdate(seat) {
+    const agentId = this.agentIds[seat];
+    const userId = this.agentUserIds[seat];
+    if (!agentId) return;
+    const port = process.env.PORT || 8765;
+    const recentHands = this.aiRecentHands[seat] ?? [];
+    console.log(`[table:${this.tableId}] triggering memory update for agent ${agentId} (${recentHands.length} recent hands)`);
+    fetch(`http://localhost:${port}/api/agents/${agentId}/update-memory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, recentHands }),
+    })
+      .then((r) => (r.ok ? this._refreshAgentMemory(seat) : null))
+      .catch((err) => console.error('[table] memory update failed:', err.message));
+  }
+
+  // Re-read the agent's formatted memoryContext so subsequent decisions pick
+  // up the new self-knowledge. Best-effort, short-lived.
+  _refreshAgentMemory(seat) {
+    const agentId = this.agentIds[seat];
+    const userId = this.agentUserIds[seat];
+    if (!agentId) return;
+    const port = process.env.PORT || 8765;
+    fetch(`http://localhost:${port}/api/agents/${agentId}/memory?userId=${encodeURIComponent(userId ?? 'anon')}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        // Re-check the seat is still owned by the same agent — the table may
+        // have been compacted or re-seated while we awaited the fetch.
+        if (this.agentIds[seat] !== agentId) return;
+        this.agentMemory[seat] = data.memoryContext || '';
+        console.log(`[table:${this.tableId}] refreshed memory for seat ${seat} (${this.agentMemory[seat].length} chars)`);
+      })
+      .catch(() => {});
   }
 
   _broadcastState() {
@@ -354,6 +440,72 @@ export class Table {
     for (const s of this.spectators) {
       if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(payload);
     }
+  }
+
+  // ── Table chat ─────────────────────────────────────────────────────────────
+
+  // Push a chat line into history and broadcast it to every WS at the table
+  // (seated players + spectators). Empty / whitespace-only lines are dropped.
+  // Lines are clamped to 280 characters.
+  sendChat(seat, text, isAI = false) {
+    if (typeof text !== 'string') return;
+    const trimmed = text.trim().slice(0, 280);
+    if (!trimmed) return;
+    const displayName = this.pending[seat]?.displayName ?? `Seat ${seat}`;
+    const entry = {
+      seat,
+      displayName,
+      text: trimmed,
+      isAI: !!isAI,
+      timestamp: Date.now(),
+    };
+    this.chatHistory.push(entry);
+    if (this.chatHistory.length > 20) {
+      this.chatHistory = this.chatHistory.slice(-20);
+    }
+    this._broadcast({
+      type: ServerMsg.CHAT,
+      seat,
+      displayName,
+      text: trimmed,
+      isAI: entry.isAI,
+    });
+  }
+
+  // Maybe generate a trash-talk line from the AI at `aiSeat` for a given
+  // trigger. Skips entirely when no human is at the table (fast AI vs AI
+  // with no watcher). Probabilistic — most calls produce nothing.
+  //   trigger: 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
+  //   humanMessage: only meaningful for 'human_chat'.
+  _maybeGenerateAiChat(aiSeat, trigger, humanMessage = null) {
+    if (!this.aiSeats[aiSeat] || !this.pending[aiSeat]) return;
+    const hasHuman =
+      this.connections.some((ws, i) => ws && !this.aiSeats[i]) ||
+      this.spectators.length > 0;
+    if (!hasHuman) {
+      console.log(`[table:${this.tableId}] skipping AI chat (${trigger}) — no human at table`);
+      return;
+    }
+    // 30% baseline; humans typing at us get a slightly higher rate so chat
+    // feels reactive instead of stonewalled.
+    const fireChance = trigger === 'human_chat' ? 0.4 : 0.3;
+    if (Math.random() >= fireChance) return;
+
+    const strategy = this.agentStrategy || this.aiStrategy[aiSeat] || '';
+    const gameContext = {
+      pot: this.game?.pot ?? 0,
+      street: this.game?.street ?? 'preflop',
+    };
+
+    generateAiChatLine(gameContext, strategy, trigger, humanMessage)
+      .then((line) => {
+        if (!line) return;
+        // Re-check the seat is still seated by the same AI; the table state
+        // can change while we awaited the model.
+        if (!this.aiSeats[aiSeat] || !this.pending[aiSeat]) return;
+        this.sendChat(aiSeat, line, true);
+      })
+      .catch((err) => console.error('[table] AI chat error:', err.message));
   }
 
   // Build the gameState object for the agent handler from the current game.
@@ -433,7 +585,8 @@ export class Table {
     if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
 
     console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
-    const { action, reasoning } = await getAgentAction(gameState, strategy);
+    const memoryContext = this.agentMemory[aiSeat] ?? '';
+    const { action, reasoning } = await getAgentAction(gameState, strategy, memoryContext);
 
     // One final guard before mutating game state.
     if (!this.game || this.game.toAct !== aiSeat) return;
@@ -455,7 +608,23 @@ export class Table {
       this.game.act(aiSeat, action);
       this._resetAiInactivityTimer();
       this._broadcastState();
-      if (this.game.street === Streets.COMPLETE) this._handCompleted();
+      const handEnded = this.game.street === Streets.COMPLETE;
+      if (handEnded) this._handCompleted();
+      // Fire-and-forget chat triggers. Each trigger rolls its own dice inside
+      // _maybeGenerateAiChat so most calls produce nothing.
+      if ((action.type === 'bet' || action.type === 'raise')
+          && Number.isFinite(action.amount)
+          && action.amount > this.bigBlind * 3) {
+        this._maybeGenerateAiChat(aiSeat, 'aggressive_action');
+      }
+      if (handEnded && this.game?.result) {
+        const result = this.game.result;
+        const won = (result.winners || []).some((w) => w.seat === aiSeat);
+        if (won) this._maybeGenerateAiChat(aiSeat, 'won_hand');
+        if ((result.pot ?? 0) > this.bigBlind * 20) {
+          this._maybeGenerateAiChat(aiSeat, 'big_pot');
+        }
+      }
     } catch (err) {
       console.error(`[table:${this.tableId}] AI action rejected (${JSON.stringify(action)}):`, err.message);
       // Safe fallback — play whatever is available.

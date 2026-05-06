@@ -5,6 +5,7 @@ export const ClientMsg = Object.freeze({
   ACTION: 'action',
   DEAL: 'deal',
   RENAME: 'rename',
+  CHAT: 'chat',
   LEAVE: 'leave',
   PING: 'ping',
 });
@@ -16,6 +17,7 @@ export const ServerMsg = Object.freeze({
   HAND_START: 'hand_start',
   HAND_RESULT: 'hand_result',
   TABLE_CLOSED: 'table_closed',
+  CHAT: 'chat',
   ERROR: 'error',
   PONG: 'pong',
 });

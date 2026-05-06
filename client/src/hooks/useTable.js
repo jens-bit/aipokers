@@ -45,6 +45,7 @@ export function useTable({ wsUrl }) {
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [config, setConfig] = useState(null);
   const [mySeat, setMySeat] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
 
   const wsRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -89,6 +90,19 @@ export function useTable({ wsUrl }) {
 
       case ServerMsg.HAND_RESULT:
         setHistory((h) => appendEntry(h, { kind: 'result', result: msg.result }));
+        break;
+
+      case ServerMsg.CHAT:
+        setChatMessages((prev) => [
+          ...prev.slice(-49),
+          {
+            seat: msg.seat,
+            displayName: msg.displayName,
+            text: msg.text,
+            isAI: !!msg.isAI,
+            t: Date.now(),
+          },
+        ]);
         break;
 
       case ServerMsg.TABLE_CLOSED:
@@ -160,6 +174,7 @@ export function useTable({ wsUrl }) {
           bigBlind: cfg.bigBlind ?? 20,
           agentId: cfg.agentId ?? null,
           userId: cfg.userId ?? null,
+          memoryContext: cfg.memoryContext ?? '',
         }));
       } else {
         ws.send(JSON.stringify({
@@ -175,6 +190,7 @@ export function useTable({ wsUrl }) {
           agentDisplayName: cfg.agentDisplayName ?? null,
           agentId: cfg.agentId ?? null,
           userId: cfg.userId ?? null,
+          memoryContext: cfg.memoryContext ?? '',
         }));
       }
       reconnectAttemptRef.current = 0;
@@ -228,6 +244,7 @@ export function useTable({ wsUrl }) {
     setGame(null);
     setLegalActions([]);
     setMySeat(null);
+    setChatMessages([]);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -253,6 +270,7 @@ export function useTable({ wsUrl }) {
     setGame(null);
     setLegalActions([]);
     setMySeat(null);
+    setChatMessages([]);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -283,6 +301,7 @@ export function useTable({ wsUrl }) {
     setMySeat(null);
     setHistory([]);
     setLegalActions([]);
+    setChatMessages([]);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
   }, []);
@@ -305,6 +324,10 @@ export function useTable({ wsUrl }) {
 
   const deal = useCallback(() => { send({ type: ClientMsg.DEAL }); }, [send]);
   const rename = useCallback((displayName) => { send({ type: ClientMsg.RENAME, displayName }); }, [send]);
+  const sendChat = useCallback((text) => {
+    if (!text || !String(text).trim()) return;
+    send({ type: ClientMsg.CHAT, text: String(text).trim() });
+  }, [send]);
   const dismissError = useCallback(() => setError(null), []);
 
   // Cleanup on unmount.
@@ -331,6 +354,8 @@ export function useTable({ wsUrl }) {
     act,
     deal,
     rename,
+    chatMessages,
+    sendChat,
   };
 }
 

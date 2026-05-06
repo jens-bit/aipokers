@@ -17,7 +17,8 @@
       "Bash(node *)",
       "Bash(PORT=8766 AI_ENABLED=false timeout 10 node src/index.js)",
       "Read(//tmp/**)",
-      "Bash(pkill -f 'node src/index.js')"
+      "Bash(pkill -f 'node src/index.js')",
+      "Bash(PORT=8767 AI_ENABLED=false node src/index.js)"
     ]
   }
 }

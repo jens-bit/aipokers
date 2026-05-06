@@ -85,6 +85,12 @@ function commitAgent(profile, existingAgentId, agentData) {
     foldDecisions: 0,
   };
   agent.recentHands = [];
+  agent.memory = {
+    summary: '',
+    handsObserved: 0,
+    tendencies: [],
+    lastUpdated: null,
+  };
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
   return agent;
@@ -103,6 +109,44 @@ function ensureStats(agent) {
     };
   }
   if (!Array.isArray(agent.recentHands)) agent.recentHands = [];
+}
+
+// Lazily backfill the memory record for agents created before this feature.
+function ensureMemory(agent) {
+  if (!agent.memory || typeof agent.memory !== 'object') {
+    agent.memory = {
+      summary: '',
+      handsObserved: 0,
+      tendencies: [],
+      lastUpdated: null,
+    };
+  }
+  if (!Array.isArray(agent.memory.tendencies)) agent.memory.tendencies = [];
+  if (typeof agent.memory.summary !== 'string') agent.memory.summary = '';
+  if (!Number.isFinite(agent.memory.handsObserved)) agent.memory.handsObserved = 0;
+}
+
+// Format an agent's persistent memory as a string suitable for injection into
+// the decision-time system prompt. Returns '' when the agent has no memory yet.
+export function getAgentMemoryContext(agent) {
+  if (!agent || !agent.memory || !agent.memory.summary) return '';
+  const tendencies = Array.isArray(agent.memory.tendencies) ? agent.memory.tendencies : [];
+  const tendencyLine = tendencies.length > 0 ? `\nTendencies: ${tendencies.join(', ')}` : '';
+  return `\n\nYour self-knowledge from past sessions:\n${agent.memory.summary}${tendencyLine}`;
+}
+
+// Format a single hand summary into a compact line for the memory-update prompt.
+function formatHandForPrompt(h) {
+  const verdict = h.won ? 'WON' : 'LOST';
+  const decs = (h.decisions ?? [])
+    .map((d) => {
+      const t = d?.action?.type ?? '?';
+      const amt = Number.isFinite(d?.action?.amount) ? ` ${d.action.amount}` : '';
+      const reason = d?.reasoning ? ` (${String(d.reasoning).slice(0, 80)})` : '';
+      return `${d?.street ?? '?'}: ${t}${amt}${reason}`;
+    })
+    .join('; ');
+  return `Hand #${h.handNumber ?? '?'} — ${verdict} pot ${h.potSize ?? 0} — decisions: [${decs}]`;
 }
 
 function inferFallback(text) {
@@ -194,6 +238,7 @@ export function installAgentProfileRoutes(app) {
     activeTables.add(tableId);
     agent.activeTableId = tableId;
     agent.status = 'playing';
+    ensureMemory(agent);
     saveStore(userId);
     console.log(`[agents] deployed ${agent.name} to table ${tableId}`);
 
@@ -203,6 +248,7 @@ export function installAgentProfileRoutes(app) {
       agentName: agent.name,
       strategy: agent.strategy,
       displayName: 'Agent',
+      memoryContext: getAgentMemoryContext(agent),
     });
   });
 
@@ -243,6 +289,7 @@ export function installAgentProfileRoutes(app) {
     activeTables.add(tableId);
     agent.activeTableId = tableId;
     agent.status = 'playing';
+    ensureMemory(agent);
     saveStore(userId);
 
     res.json({
@@ -252,6 +299,7 @@ export function installAgentProfileRoutes(app) {
       agentId: agent.id,
       agentName: agent.name,
       strategy: agent.strategy,
+      memoryContext: getAgentMemoryContext(agent),
     });
   });
 
@@ -309,6 +357,83 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     ensureStats(agent);
     res.json({ recentHands: agent.recentHands, stats: agent.stats });
+  });
+
+  // GET /api/agents/:agentId/memory?userId=...
+  // Returns the agent's memory record alongside the formatted memoryContext
+  // string the table caches and feeds into the decision-time system prompt.
+  app.get('/api/agents/:agentId/memory', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    ensureMemory(agent);
+    res.json({ memory: agent.memory, memoryContext: getAgentMemoryContext(agent) });
+  });
+
+  // POST /api/agents/:agentId/update-memory
+  // Called by the table every N hands to evolve the agent's self-knowledge.
+  // Body: { userId, recentHands? } — when recentHands is omitted, falls back
+  // to agent.recentHands.slice(0, 5).
+  app.post('/api/agents/:agentId/update-memory', async (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const bodyHands = Array.isArray(req.body?.recentHands) ? req.body.recentHands : null;
+
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    ensureMemory(agent);
+    ensureStats(agent);
+
+    const hands = (bodyHands && bodyHands.length > 0)
+      ? bodyHands.slice(0, 5)
+      : (agent.recentHands ?? []).slice(0, 5);
+    if (hands.length === 0) return res.json(agent);
+
+    const handsBlock = hands.map(formatHandForPrompt).join('\n');
+    const systemText = `You are analysing a poker AI agent's recent play to update its self-knowledge. Output ONLY valid JSON — no markdown, no explanation:
+{
+  "summary": "<2-3 sentences in second person: 'You tend to...', describing the agent's style and any patterns observed>",
+  "tendencies": ["<short phrase>", "<short phrase>", "<short phrase>"]
+}
+Keep it poker-specific and actionable. Max 3 tendencies.`;
+    const userText = `Agent strategy: ${agent.strategy || '(none)'}
+Existing memory: ${agent.memory.summary || 'none yet'}
+Recent hands summary:
+${handsBlock}
+Update the agent's self-knowledge based on this new evidence.`;
+
+    try {
+      const raw = await callClaude([{ role: 'user', content: userText }], systemText, 200);
+      if (raw) {
+        const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
+        let parsed;
+        try { parsed = JSON.parse(cleaned); } catch (e) {
+          console.warn('[agentProfiles] update-memory parse failed:', e.message, '| raw:', cleaned.slice(0, 120));
+        }
+        if (parsed) {
+          if (typeof parsed.summary === 'string' && parsed.summary.trim()) {
+            agent.memory.summary = parsed.summary.trim();
+          }
+          if (Array.isArray(parsed.tendencies)) {
+            agent.memory.tendencies = parsed.tendencies
+              .filter((t) => typeof t === 'string' && t.trim())
+              .map((t) => t.trim())
+              .slice(0, 3);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[agentProfiles] update-memory error:', err.message);
+      // fall through and persist the unchanged agent so handsObserved still ticks
+    }
+
+    agent.memory.handsObserved = (agent.memory.handsObserved ?? 0) + hands.length;
+    agent.memory.lastUpdated = Date.now();
+    saveStore(userId);
+    res.json(agent);
   });
 
   // POST /api/agents/:agentId/finish

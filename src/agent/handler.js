@@ -26,10 +26,11 @@ const DEFAULT_STRATEGY =
   'fold weak hands preflop, value-bet strong hands, protect big pots, ' +
   'and bluff occasionally in position on dry boards.';
 
-// Build the system prompt (strategy + output contract). Stays stable per strategy
-// so it benefits from prompt caching across multiple hands.
-function buildSystem(strategy) {
-  return `${strategy || DEFAULT_STRATEGY}
+// Build the system prompt (strategy + memory + output contract). Stays stable
+// per (strategy, memoryContext) so it benefits from prompt caching across
+// multiple hands until the memory next refreshes.
+function buildSystem(strategy, memoryContext = '') {
+  return `${strategy || DEFAULT_STRATEGY}${memoryContext || ''}
 
 You are playing No-Limit Texas Hold'em poker.
 Respond with ONLY a single-line JSON object — no prose outside the JSON, no markdown.
@@ -135,10 +136,71 @@ function parseDecision(text, gs) {
   }
 }
 
+// ── Chat trash-talk ──────────────────────────────────────────────────────────
+
+const TRIGGER_DESCRIPTIONS = {
+  big_pot:           'Big pot just built up',
+  aggressive_action: 'You just made a big bet/raise',
+  won_hand:          'You just won the hand',
+  human_chat:        'Your human opponent just chatted at you',
+};
+
+// Strip surrounding double or single quotes (the model often wraps the line).
+function stripWrappingQuotes(s) {
+  if (!s) return s;
+  const trimmed = s.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === '"' && last === '"') || (first === '\'' && last === '\'')) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
+// Generate a short trash-talk / psychological line for a given trigger.
+// Returns null on missing API key or any error — caller must handle null.
+//   gameState: minimally { pot, street }
+//   strategy:  the agent's personality string
+//   trigger:   one of TRIGGER_DESCRIPTIONS keys
+//   humanMessage: optional, only for trigger 'human_chat'
+export async function generateAiChatLine(gameState, strategy, trigger, humanMessage = null) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const personality = (strategy && strategy.trim()) || DEFAULT_STRATEGY;
+  const description = TRIGGER_DESCRIPTIONS[trigger] || 'Something noteworthy just happened';
+
+  const systemText = `You are a poker player at a live table. Based on your personality, write ONE short trash-talk or psychological message (1-2 sentences, max 120 chars). Be in character. No hashtags, no emojis unless natural. Personality: ${personality}`;
+  const street = (gameState?.street ?? 'preflop').toString();
+  const pot = Number.isFinite(gameState?.pot) ? gameState.pot : 0;
+  let userText = `Situation: ${description}. Pot: ${pot}. Street: ${street}. Write your message.`;
+  if (trigger === 'human_chat' && humanMessage) {
+    userText += ` The opponent just said: '${String(humanMessage).slice(0, 200)}'. Respond to it or ignore it — your call.`;
+  }
+
+  try {
+    const client = new Anthropic({ timeout: 9000 });
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 60,
+      system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userText }],
+    });
+    const raw = msg.content[0]?.text ?? '';
+    const line = stripWrappingQuotes(raw).slice(0, 280);
+    return line || null;
+  } catch (err) {
+    console.error('[agent] chat generation error:', err.message);
+    return null;
+  }
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.
+// memoryContext (optional) is the agent's persistent self-knowledge, formatted
+// by getAgentMemoryContext(). It is concatenated onto the strategy.
 // Returns { action: { type, amount? }, reasoning: string }.
-export async function getAgentAction(gameState, strategy) {
+export async function getAgentAction(gameState, strategy, memoryContext = '') {
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error('[agent] ANTHROPIC_API_KEY not set — using safe fallback');
     return {
@@ -148,10 +210,11 @@ export async function getAgentAction(gameState, strategy) {
   }
 
   const client = new Anthropic({ timeout: 9000 });
-  const system = buildSystem(strategy);
+  const system = buildSystem(strategy, memoryContext);
   const userPrompt = buildUserPrompt(gameState);
 
   console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${MODEL}...`);
+  console.log(`[agent] system prompt (first 200): ${system.slice(0, 200).replace(/\s+/g, ' ')}`);
   try {
     const msg = await client.messages.create({
       model: MODEL,
