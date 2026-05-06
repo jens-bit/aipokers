@@ -160,6 +160,8 @@ export function useTable({ wsUrl }) {
           wantOpponentAI: cfg.wantOpponentAI ?? false,
           smallBlind: cfg.smallBlind ?? 10,
           bigBlind: cfg.bigBlind ?? 20,
+          agentId: cfg.agentId ?? null,
+          userId: cfg.userId ?? null,
         }));
       } else {
         ws.send(JSON.stringify({
@@ -175,6 +177,8 @@ export function useTable({ wsUrl }) {
           userId: cfg.userId ?? null,
           agentStrategy: cfg.agentStrategy ?? null,
           agentDisplayName: cfg.agentDisplayName ?? null,
+          agentId: cfg.agentId ?? null,
+          userId: cfg.userId ?? null,
         }));
       }
       reconnectAttemptRef.current = 0;

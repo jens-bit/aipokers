@@ -12,6 +12,9 @@
 //   CALL  → { type: 'call', amount: <additional chips> }
 //   BET   → { type: 'bet',  min: <total>, max: <total> }
 //   RAISE → { type: 'raise', min: <total>, max: <total> }
+//
+// Public return shape: { action, reasoning } where `reasoning` is a
+// one-sentence explanation produced by the model alongside the decision.
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -28,18 +31,18 @@ const DEFAULT_STRATEGY =
 function buildSystem(strategy) {
   return `${strategy || DEFAULT_STRATEGY}
 
-You are playing heads-up No-Limit Texas Hold'em poker.
-Respond with ONLY a single-line JSON object — no explanation, no markdown, no newlines.
+You are playing No-Limit Texas Hold'em poker.
+Respond with ONLY a single-line JSON object — no prose outside the JSON, no markdown.
 
-Valid responses:
-  {"action":"fold"}
-  {"action":"check"}
-  {"action":"call"}
-  {"action":"bet","amount":<integer>}
-  {"action":"raise","amount":<integer>}
+JSON format (the "amount" key is required for bet/raise, omit otherwise):
+{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>"}
 
 For bet/raise, "amount" is the TOTAL chips you want committed this street
-(your existing contribution plus any additional you're putting in now).`;
+(your existing contribution plus any additional you're putting in now).
+
+The "reasoning" field is required for every decision: a single concise
+sentence explaining why you chose this action (hand strength, position,
+pot odds, read on opponent, etc.).`;
 }
 
 // Build the per-turn user message describing the current game state.
@@ -65,64 +68,83 @@ POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.
+Respond with the JSON object including both "action" and "reasoning".
 Decision:`;
 }
 
-// Parse the model's text output into a validated game action.
-function parseAction(text, gs) {
+// Coerce a parsed action+amount into a validated game action, with safe fallbacks.
+function validateAction(actionType, amount, gs) {
   const safe = gs.canCheck ? { type: 'check' } : { type: 'call' };
+  switch (actionType) {
+    case 'fold':
+      return { type: 'fold' };
+    case 'check':
+      if (!gs.canCheck) {
+        console.warn('[agent] illegal check (there is a bet) → call');
+        return { type: 'call' };
+      }
+      return { type: 'check' };
+    case 'call':
+      if (gs.canCheck) {
+        console.warn('[agent] unnecessary call (nothing to call) → check');
+        return { type: 'check' };
+      }
+      return { type: 'call' };
+    case 'bet':
+      if (gs.canBet && Number.isFinite(amount)) {
+        return { type: 'bet', amount: Math.max(gs.minBet, Math.min(gs.maxBet, Math.round(amount))) };
+      }
+      console.warn('[agent] illegal bet → safe');
+      return safe;
+    case 'raise':
+      if (gs.canRaise && Number.isFinite(amount)) {
+        return { type: 'raise', amount: Math.max(gs.minRaise, Math.min(gs.maxRaise, Math.round(amount))) };
+      }
+      console.warn('[agent] illegal raise → safe');
+      return safe;
+    default:
+      console.warn(`[agent] unknown action "${actionType}" → safe`);
+      return safe;
+  }
+}
+
+// Parse the model's text output into { action, reasoning }.
+function parseDecision(text, gs) {
+  const safeAction = gs.canCheck ? { type: 'check' } : { type: 'call' };
   try {
     const json = text.replace(/```json\n?|```\n?/g, '').trim();
-    const { action, amount } = JSON.parse(json);
+    const parsed = JSON.parse(json);
 
-    switch (action) {
-      case 'fold':
-        return { type: 'fold' };
-
-      case 'check':
-        if (!gs.canCheck) {
-          console.warn('[agent] illegal check (there is a bet) → call');
-          return { type: 'call' };
-        }
-        return { type: 'check' };
-
-      case 'call':
-        if (gs.canCheck) {
-          console.warn('[agent] unnecessary call (nothing to call) → check');
-          return { type: 'check' };
-        }
-        return { type: 'call' };
-
-      case 'bet':
-        if (gs.canBet && Number.isFinite(amount)) {
-          return { type: 'bet', amount: Math.max(gs.minBet, Math.min(gs.maxBet, Math.round(amount))) };
-        }
-        console.warn('[agent] illegal bet → safe');
-        return safe;
-
-      case 'raise':
-        if (gs.canRaise && Number.isFinite(amount)) {
-          return { type: 'raise', amount: Math.max(gs.minRaise, Math.min(gs.maxRaise, Math.round(amount))) };
-        }
-        console.warn('[agent] illegal raise → safe');
-        return safe;
-
-      default:
-        console.warn(`[agent] unknown action "${action}" → safe`);
-        return safe;
+    // Accept the new format { action: { type, amount }, reasoning } as well as
+    // the legacy flat form { action: "type", amount, reasoning }.
+    let actionType;
+    let amount;
+    if (parsed.action && typeof parsed.action === 'object') {
+      actionType = parsed.action.type;
+      amount = parsed.action.amount;
+    } else {
+      actionType = parsed.action;
+      amount = parsed.amount;
     }
+    const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : '';
+
+    return { action: validateAction(actionType, amount, gs), reasoning };
   } catch (err) {
     console.warn('[agent] parse failed:', err.message, '| raw:', text.slice(0, 80));
-    return safe;
+    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action' };
   }
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.
+// Returns { action: { type, amount? }, reasoning: string }.
 export async function getAgentAction(gameState, strategy) {
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error('[agent] ANTHROPIC_API_KEY not set — using safe fallback');
-    return gameState.canCheck ? { type: 'check' } : { type: 'fold' };
+    return {
+      action: gameState.canCheck ? { type: 'check' } : { type: 'fold' },
+      reasoning: 'no API key configured — defaulting to a safe action',
+    };
   }
 
   const client = new Anthropic({ timeout: 9000 });
@@ -133,19 +155,23 @@ export async function getAgentAction(gameState, strategy) {
   try {
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 60,
+      // Reasoning string takes some tokens; keep it tight but not starved.
+      max_tokens: 200,
       // Cache the system prompt (strategy + format contract) across hands.
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }],
     });
 
     const text = msg.content[0]?.text ?? '';
-    const action = parseAction(text, gameState);
+    const { action, reasoning } = parseDecision(text, gameState);
     const { input_tokens: inp, output_tokens: out, cache_read_input_tokens: cached = 0 } = msg.usage;
     console.log(`[agent] → ${JSON.stringify(action)}  (in:${inp} out:${out} cached:${cached})`);
-    return action;
+    return { action, reasoning };
   } catch (err) {
     console.error('[agent] API error:', err.message);
-    return gameState.canCheck ? { type: 'check' } : { type: 'fold' };
+    return {
+      action: gameState.canCheck ? { type: 'check' } : { type: 'fold' },
+      reasoning: `api error fallback (${err.message.slice(0, 60)})`,
+    };
   }
 }

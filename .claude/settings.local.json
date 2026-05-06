@@ -13,7 +13,11 @@
       "PowerShell(cd \"C:\\\\Projects\\\\ai-poker\"; $env:AI_ENABLED=\"true\"; node src/index.js 2>&1)",
       "PowerShell(cd \"C:\\\\Projects\\\\ai-poker\"; $env:AI_ENABLED=\"true\"; node scripts/smoke-ai.js 2>&1)",
       "PowerShell(Get-Process *)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Projects\\\\ai-poker\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\) {\"Directory\"} else {\"File\"}}} | Format-Table -AutoSize)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Projects\\\\ai-poker\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\) {\"Directory\"} else {\"File\"}}} | Format-Table -AutoSize)",
+      "Bash(node *)",
+      "Bash(PORT=8766 AI_ENABLED=false timeout 10 node src/index.js)",
+      "Read(//tmp/**)",
+      "Bash(pkill -f 'node src/index.js')"
     ]
   }
 }

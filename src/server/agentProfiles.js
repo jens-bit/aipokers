@@ -76,9 +76,33 @@ function commitAgent(profile, existingAgentId, agentData) {
   agent.id = 'agent_' + Date.now().toString(36);
   agent.status = 'idle';
   agent.activeTableId = null;
+  agent.stats = {
+    handsPlayed: 0,
+    handsWon: 0,
+    totalDecisions: 0,
+    aggressiveDecisions: 0,
+    passiveDecisions: 0,
+    foldDecisions: 0,
+  };
+  agent.recentHands = [];
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
   return agent;
+}
+
+// Lazily backfill stats fields for agents that pre-date this feature.
+function ensureStats(agent) {
+  if (!agent.stats) {
+    agent.stats = {
+      handsPlayed: 0,
+      handsWon: 0,
+      totalDecisions: 0,
+      aggressiveDecisions: 0,
+      passiveDecisions: 0,
+      foldDecisions: 0,
+    };
+  }
+  if (!Array.isArray(agent.recentHands)) agent.recentHands = [];
 }
 
 function inferFallback(text) {
@@ -229,6 +253,62 @@ export function installAgentProfileRoutes(app) {
       agentName: agent.name,
       strategy: agent.strategy,
     });
+  });
+
+  // POST /api/agents/:agentId/result
+  // Called by the table after every hand completes. Updates aggregate stats
+  // and prepends a hand summary (with decisions + reasoning) to recentHands.
+  app.post('/api/agents/:agentId/result', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const { won, potSize, decisions = [], handNumber, seats = [] } = req.body || {};
+
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    ensureStats(agent);
+    const s = agent.stats;
+    s.handsPlayed = (s.handsPlayed ?? 0) + 1;
+    if (won) s.handsWon = (s.handsWon ?? 0) + 1;
+
+    for (const d of decisions) {
+      s.totalDecisions = (s.totalDecisions ?? 0) + 1;
+      const t = d?.action?.type;
+      if (t === 'bet' || t === 'raise') s.aggressiveDecisions = (s.aggressiveDecisions ?? 0) + 1;
+      if (t === 'call' || t === 'check') s.passiveDecisions = (s.passiveDecisions ?? 0) + 1;
+      if (t === 'fold') s.foldDecisions = (s.foldDecisions ?? 0) + 1;
+    }
+
+    s.winRate = s.handsPlayed > 0
+      ? Number(((s.handsWon / s.handsPlayed) * 100).toFixed(1))
+      : 0;
+    s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
+
+    const handSummary = {
+      handNumber,
+      won: !!won,
+      potSize: Number.isFinite(potSize) ? potSize : 0,
+      timestamp: Date.now(),
+      decisions,
+      seats,
+    };
+    agent.recentHands = [handSummary, ...agent.recentHands].slice(0, 20);
+
+    saveStore(userId);
+    res.json(agent);
+  });
+
+  // GET /api/agents/:agentId/hands?userId=...
+  // Returns the agent's recent-hands log and aggregate stats.
+  app.get('/api/agents/:agentId/hands', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    ensureStats(agent);
+    res.json({ recentHands: agent.recentHands, stats: agent.stats });
   });
 
   // POST /api/agents/:agentId/finish

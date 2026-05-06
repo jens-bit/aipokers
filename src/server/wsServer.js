@@ -18,6 +18,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
         tableId,
         smallBlind: opts.smallBlind ?? defaultBlinds.smallBlind,
         bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
+        maxSeats: opts.maxSeats ?? 2,
         onEmpty: (id) => tables.delete(id),
       });
       tables.set(tableId, table);
@@ -53,7 +54,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
           case ClientMsg.JOIN: {
             if (!msg.tableId || !msg.playerId) throw new Error('tableId and playerId required');
-            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind });
+            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind, maxSeats: msg.maxSeats });
             const seat = table.seatPlayer(ws, {
               playerId: msg.playerId,
               buyIn: msg.buyIn,
@@ -63,7 +64,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             // Auto-seat AI when the server has AI enabled AND the player asked for it.
             if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) {
-              table.maybeAutoSeatAI(msg.agentStrategy ?? null, msg.agentDisplayName ?? null);
+              table.maybeAutoSeatAI({
+                agentStrategy: msg.agentStrategy ?? null,
+                agentDisplayName: msg.agentDisplayName ?? null,
+                agentId: msg.agentId ?? null,
+                userId: msg.userId ?? null,
+              });
             }
             table.maybeStartHand();
             return;
@@ -71,10 +77,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
           case ClientMsg.WATCH: {
             if (!msg.tableId) throw new Error('tableId required');
-            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20 });
+            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20, maxSeats: msg.maxSeats });
             const spectatorSeat = table.addSpectator(ws, {
               agentStrategy: msg.agentStrategy ?? null,
               displayName: msg.displayName,
+              agentId: msg.agentId ?? null,
+              userId: msg.userId ?? null,
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });

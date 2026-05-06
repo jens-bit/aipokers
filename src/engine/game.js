@@ -19,18 +19,19 @@ export const Actions = Object.freeze({
   RAISE: 'raise',
 });
 
-// Heads-up NLHE game. Two seats indexed 0 and 1. The seat that holds the
-// button is the small blind and acts first preflop, last on every other street.
+// NLHE game supporting 2–4 seats. Seat 0..N-1 indexed. The button rotates each
+// hand. Heads-up (N=2) is a special case: the button is also the small blind
+// and acts first preflop, last on every other street.
 export class Game {
   constructor({
     tableId,
-    seats,            // [{ playerId, stack }, { playerId, stack }]
+    seats,
     smallBlind,
     bigBlind,
     dealerSeat = 0,
   }) {
-    if (!Array.isArray(seats) || seats.length !== 2) {
-      throw new Error('heads-up requires exactly 2 seats');
+    if (!Array.isArray(seats) || seats.length < 2 || seats.length > 4) {
+      throw new Error('Game requires 2 to 4 seats');
     }
     if (!Number.isInteger(smallBlind) || smallBlind <= 0) throw new Error('smallBlind must be a positive integer');
     if (!Number.isInteger(bigBlind) || bigBlind <= smallBlind) throw new Error('bigBlind must be > smallBlind');
@@ -38,7 +39,7 @@ export class Game {
     this.tableId = tableId;
     this.smallBlind = smallBlind;
     this.bigBlind = bigBlind;
-    this.dealerSeat = dealerSeat;
+    this.dealerSeat = dealerSeat % seats.length;
     this.handNumber = 0;
     this.street = Streets.WAITING;
     this.community = [];
@@ -67,8 +68,8 @@ export class Game {
     if (this.street !== Streets.WAITING && this.street !== Streets.COMPLETE) {
       throw new Error(`cannot start hand from street=${this.street}`);
     }
-    if (this.seats.some((s) => s.stack <= 0)) {
-      throw new Error('both players need chips to start a hand');
+    if (this.seats.filter((s) => s.stack > 0).length < 2) {
+      throw new Error('at least two seats need chips to start a hand');
     }
 
     this.handNumber += 1;
@@ -88,22 +89,25 @@ export class Game {
       s.actedThisStreet = false;
     }
 
-    const sbSeat = this.dealerSeat;
-    const bbSeat = 1 - this.dealerSeat;
+    const N = this.seats.length;
+    const sbSeat = N === 2 ? this.dealerSeat : (this.dealerSeat + 1) % N;
+    const bbSeat = N === 2 ? (this.dealerSeat + 1) % N : (this.dealerSeat + 2) % N;
     this._postBlind(sbSeat, this.smallBlind);
     this._postBlind(bbSeat, this.bigBlind);
     this.currentBet = Math.max(this.seats[sbSeat].contribThisStreet, this.seats[bbSeat].contribThisStreet);
 
-    // Deal hole cards two at a time, starting from non-button (BB), as in real life.
-    this.seats[bbSeat].holeCards.push(this.dealer.deal(1)[0]);
-    this.seats[sbSeat].holeCards.push(this.dealer.deal(1)[0]);
-    this.seats[bbSeat].holeCards.push(this.dealer.deal(1)[0]);
-    this.seats[sbSeat].holeCards.push(this.dealer.deal(1)[0]);
+    // Deal hole cards starting from the seat left of the dealer, two passes.
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i <= N; i++) {
+        const seat = (this.dealerSeat + i) % N;
+        this.seats[seat].holeCards.push(this.dealer.deal(1)[0]);
+      }
+    }
 
     this.street = Streets.PREFLOP;
     this.toAct = this._firstToAct(Streets.PREFLOP);
 
-    // Edge case: a player went all-in just from posting blinds. Skip directly
+    // Edge case: a seat went all-in just from posting blinds. Skip directly
     // to runout if that exhausts further action.
     if (this._streetComplete()) this._closeStreet();
   }
@@ -190,7 +194,7 @@ export class Game {
     };
   }
 
-  // Hides the opponent's hole cards unless the hand is at showdown.
+  // Hides opponents' hole cards unless the hand is at showdown.
   getPublicState(forSeat) {
     const state = this.getState();
     state.seats = state.seats.map((s, i) => {
@@ -279,9 +283,7 @@ export class Game {
     player.contribTotal += owed;
     this.pot += owed;
     // A short all-in (less than full min-raise) does not reopen action under
-    // strict NLHE rules. For heads-up the distinction is moot since the only
-    // opponent must respond regardless — but we still track lastRaiseSize
-    // correctly so future multi-way support is correct.
+    // strict NLHE rules.
     if (raiseSize >= minRaise) this.lastRaiseSize = raiseSize;
     this.currentBet = totalAmount;
     if (player.stack === 0) player.allIn = true;
@@ -301,9 +303,21 @@ export class Game {
   // ---- internal: progression ----
 
   _firstToAct(street) {
-    // In heads-up, button (dealer/SB) acts first preflop and last on every
-    // subsequent street.
-    return street === Streets.PREFLOP ? this.dealerSeat : 1 - this.dealerSeat;
+    const N = this.seats.length;
+    if (street === Streets.PREFLOP) {
+      // Heads-up: button (dealer/SB) acts first preflop.
+      // Multi-way: action starts left of the BB (UTG).
+      if (N === 2) return this.dealerSeat;
+      const bbSeat = (this.dealerSeat + 2) % N;
+      return (bbSeat + 1) % N;
+    }
+    // Post-flop: first active (not folded, not all-in) seat left of the dealer.
+    for (let i = 1; i <= N; i++) {
+      const idx = (this.dealerSeat + i) % N;
+      const s = this.seats[idx];
+      if (!s.folded && !s.allIn) return idx;
+    }
+    return null;
   }
 
   _streetComplete() {
@@ -331,8 +345,6 @@ export class Game {
   }
 
   _nextActor(seat) {
-    // Skip over folded / all-in players. With only 2 seats this is the other
-    // seat, but written generally so adding seats later is straightforward.
     for (let i = 1; i < this.seats.length; i++) {
       const next = (seat + i) % this.seats.length;
       const s = this.seats[next];
@@ -389,8 +401,7 @@ export class Game {
 
     this.toAct = this._firstToAct(this.street);
 
-    // If both players are all-in (or only one has chips), that street's
-    // betting is also instantly complete.
+    // If everyone left is all-in, that street's betting is also instantly complete.
     if (this._streetComplete()) this._closeStreet();
   }
 
@@ -405,18 +416,22 @@ export class Game {
     }
   }
 
+  // Refund chips bet beyond what any other active player matched. In NLHE you
+  // can only be uncalled by the highest unique bettor, so at most one player
+  // is owed a refund per street.
   _refundUncalled() {
     const active = this.seats.filter((s) => !s.folded);
-    if (active.length !== 2) return;
-    const [a, b] = active;
-    if (a.contribThisStreet === b.contribThisStreet) return;
-    const high = a.contribThisStreet > b.contribThisStreet ? a : b;
-    const low = high === a ? b : a;
-    const excess = high.contribThisStreet - low.contribThisStreet;
+    if (active.length < 2) return;
+    const sorted = [...active].sort((a, b) => b.contribThisStreet - a.contribThisStreet);
+    const high = sorted[0];
+    const second = sorted[1];
+    if (high.contribThisStreet === second.contribThisStreet) return;
+    const excess = high.contribThisStreet - second.contribThisStreet;
     high.stack += excess;
     high.contribThisStreet -= excess;
     high.contribTotal -= excess;
     this.pot -= excess;
+    if (high.stack > 0) high.allIn = false;
   }
 
   _awardUncontested(winner) {
@@ -432,28 +447,105 @@ export class Game {
     this._rotateButton();
   }
 
+  // Build side pots from per-seat contribTotal. Returns an array of
+  // { amount, eligibleSeats: [seat, ...] }. Folded players' chips are still
+  // included in each layer's pot (they contributed before folding) but they
+  // are not eligible to win any pot.
+  _buildSidePots() {
+    const activeContribs = [
+      ...new Set(this.seats.filter((s) => !s.folded).map((s) => s.contribTotal)),
+    ].sort((a, b) => a - b);
+
+    const pots = [];
+    let prev = 0;
+    for (const t of activeContribs) {
+      if (t <= prev) continue;
+      const layer = t - prev;
+      let amount = 0;
+      for (const s of this.seats) {
+        if (s.contribTotal <= prev) continue;
+        amount += Math.min(s.contribTotal - prev, layer);
+      }
+      const eligibleSeats = this.seats
+        .map((s, i) => (!s.folded && s.contribTotal >= t ? i : -1))
+        .filter((i) => i !== -1);
+      if (amount > 0) pots.push({ amount, eligibleSeats });
+      prev = t;
+    }
+
+    // Dead money: contributions above the highest active threshold (only
+    // possible from folded players). Drop into the top pot.
+    let dead = 0;
+    for (const s of this.seats) {
+      if (s.contribTotal > prev) dead += s.contribTotal - prev;
+    }
+    if (dead > 0) {
+      if (pots.length > 0) {
+        pots[pots.length - 1].amount += dead;
+      } else {
+        pots.push({
+          amount: dead,
+          eligibleSeats: this.seats.map((_, i) => i).filter((i) => !this.seats[i].folded),
+        });
+      }
+    }
+
+    return pots;
+  }
+
   _showdown() {
     this.street = Streets.SHOWDOWN;
-    const contestants = this.seats
+
+    const allContestants = this.seats
       .map((s, seat) => ({ seat, playerId: s.playerId, holeCards: s.holeCards, folded: s.folded }))
       .filter((c) => !c.folded)
       .map(({ seat, playerId, holeCards }) => ({ seat, playerId, holeCards }));
 
-    const winners = pickWinners(contestants, this.community);
-    const share = Math.floor(this.pot / winners.length);
-    const remainder = this.pot - share * winners.length;
+    const totalPot = this.pot;
+    const pots = this._buildSidePots();
+    const N = this.seats.length;
 
-    const payouts = winners.map((w, i) => {
-      const amount = share + (i === 0 ? remainder : 0);
-      this.seats[w.seat].stack += amount;
-      return { seat: w.seat, playerId: this.seats[w.seat].playerId, amount, descr: w.descr, name: w.name };
-    });
+    const payoutsBySeat = new Map(); // seat -> { seat, playerId, amount, descr, name }
+
+    for (const pot of pots) {
+      const eligible = allContestants.filter((c) => pot.eligibleSeats.includes(c.seat));
+      if (eligible.length === 0) continue;
+      const winners = pickWinners(eligible, this.community);
+      const share = Math.floor(pot.amount / winners.length);
+      const remainder = pot.amount - share * winners.length;
+
+      // Remainder chips go to the first winner sitting left of the dealer
+      // (the closest seat clockwise after the button).
+      const sortedWinners = [...winners].sort((a, b) => {
+        const da = (a.seat - this.dealerSeat - 1 + N) % N;
+        const db = (b.seat - this.dealerSeat - 1 + N) % N;
+        return da - db;
+      });
+
+      sortedWinners.forEach((w, i) => {
+        const amount = share + (i === 0 ? remainder : 0);
+        if (amount === 0) return;
+        this.seats[w.seat].stack += amount;
+        const existing = payoutsBySeat.get(w.seat);
+        if (existing) {
+          existing.amount += amount;
+        } else {
+          payoutsBySeat.set(w.seat, {
+            seat: w.seat,
+            playerId: this.seats[w.seat].playerId,
+            amount,
+            descr: w.descr,
+            name: w.name,
+          });
+        }
+      });
+    }
 
     this.result = {
       type: 'showdown',
-      pot: this.pot,
-      winners: payouts,
-      showdown: contestants.map((c) => ({ seat: c.seat, holeCards: c.holeCards })),
+      pot: totalPot,
+      winners: [...payoutsBySeat.values()],
+      showdown: allContestants.map((c) => ({ seat: c.seat, holeCards: c.holeCards })),
     };
     this.pot = 0;
     this.toAct = null;
@@ -462,6 +554,6 @@ export class Game {
   }
 
   _rotateButton() {
-    this.dealerSeat = 1 - this.dealerSeat;
+    this.dealerSeat = (this.dealerSeat + 1) % this.seats.length;
   }
 }
