@@ -482,7 +482,8 @@ export class Table {
   // trigger. Skips entirely when no human is at the table (fast AI vs AI
   // with no watcher). Probabilistic — most calls produce nothing.
   //   trigger: 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
-  //   humanMessage: only meaningful for 'human_chat'.
+  //   humanMessage: optional explicit triggering message (used for 'human_chat').
+  //                 Other triggers derive lastOpponentChat from chatHistory.
   _maybeGenerateAiChat(aiSeat, trigger, humanMessage = null) {
     if (!this.aiSeats[aiSeat] || !this.pending[aiSeat]) return;
     const hasHuman =
@@ -496,13 +497,47 @@ export class Table {
     // Other triggers (big_pot, won_hand, aggressive_action) fire 30% of the time.
     if (trigger !== 'human_chat' && Math.random() >= 0.3) return;
 
-    const strategy = this.agentStrategy || this.aiStrategy[aiSeat] || '';
-    const gameContext = {
-      pot: this.game?.pot ?? 0,
-      street: this.game?.street ?? 'preflop',
-    };
+    // Pick the most relevant opponent + last message. Walk chatHistory backwards
+    // for the most recent line from a seat that isn't this AI; that seat is the
+    // opponent we're "in conversation with". Fall back to any other seated
+    // player so the prompt still has a name to taunt.
+    let opponentSeat = null;
+    let lastOpponentChat = null;
+    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
+      const entry = this.chatHistory[i];
+      if (entry.seat !== aiSeat) {
+        opponentSeat = entry.seat;
+        lastOpponentChat = entry.text;
+        break;
+      }
+    }
+    if (opponentSeat === null) {
+      for (let i = 0; i < this.maxSeats; i++) {
+        if (i !== aiSeat && this.pending[i]) { opponentSeat = i; break; }
+      }
+    }
+    // For human_chat, the just-sent message is the explicit trigger; prefer it
+    // over whatever sendChat happened to push onto history (they should match
+    // anyway, but this is the authoritative source for the response).
+    if (trigger === 'human_chat' && humanMessage) {
+      lastOpponentChat = humanMessage;
+    }
 
-    generateAiChatLine(gameContext, strategy, trigger, humanMessage)
+    const agentName = this.pending[aiSeat]?.displayName || `Seat ${aiSeat}`;
+    const opponentName = opponentSeat !== null
+      ? (this.pending[opponentSeat]?.displayName || `Seat ${opponentSeat}`)
+      : 'opponent';
+    const agentStyle = this.agentStrategy || this.aiStrategy[aiSeat] || '';
+
+    generateAiChatLine({
+      trigger,
+      agentName,
+      opponentName,
+      agentStyle,
+      potSize: this.game?.pot ?? 0,
+      street: this.game?.street ?? 'preflop',
+      lastOpponentChat,
+    })
       .then((line) => {
         if (!line) return;
         // Re-check the seat is still seated by the same AI; the table state
