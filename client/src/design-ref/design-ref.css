@@ -1638,6 +1638,17 @@
   box-shadow: inset 0 0 0 8px rgba(0, 0, 0, 0.18), 0 18px 50px rgba(0, 0, 0, 0.35);
 }
 
+.dr-table-card--four {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0, 212, 170, 0.18), transparent 54%),
+    #050808;
+}
+
+.dr-felt--four {
+  min-height: clamp(370px, 58vh, 474px);
+  padding: 24px 12px 22px;
+}
+
 .dr-felt::before {
   content: "";
   position: absolute;
@@ -1659,6 +1670,35 @@
 
 .dr-felt-row > * {
   min-width: 0;
+}
+
+.dr-side-seats {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 42px;
+  margin: 2px 0 -6px;
+}
+
+.dr-side-seat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(0, 212, 170, 0.12);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.dr-side-seat--right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.dr-side-seat--right .dr-player-row {
+  flex-direction: row-reverse;
 }
 
 .dr-thinking-badge {

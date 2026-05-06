@@ -198,6 +198,12 @@ function getHomeStateOverride() {
   return new URLSearchParams(window.location.search).get('dr-home') || '';
 }
 
+function getTableSeatOverride() {
+  if (typeof window === 'undefined') return 2;
+  const value = Number(new URLSearchParams(window.location.search).get('dr-table'));
+  return value === 4 ? 4 : 2;
+}
+
 function applyHomeStateOverride(profile, override) {
   if (!override) return profile;
   if (override === 'empty' || override === 'none' || override === 'zero') {
@@ -890,21 +896,35 @@ function AgentViewScreen({ agent, onBack }) {
 }
 
 function PokerTablePreview({ agent }) {
+  const seatCount = getTableSeatOverride();
+  const multiSeat = seatCount === 4;
   return (
-    <section className="dr-table-card">
+    <section className={`dr-table-card${multiSeat ? ' dr-table-card--four' : ''}`}>
       <div className="dr-table-card__head">
-        <b>Heads-up NLH</b>
+        <b>{multiSeat ? '4-player NLH' : 'Heads-up NLH'}</b>
         <span><small>02:14:38</small><i /></span>
       </div>
-      <div className="dr-felt">
+      <div className={`dr-felt${multiSeat ? ' dr-felt--four' : ''}`}>
         <div className="dr-felt-row">
-          <PlayerRow name="Opponent" stack="$1,820" position="BB" />
+          <PlayerRow name={multiSeat ? 'Cutoff AI' : 'Opponent'} stack="$1,820" position={multiSeat ? 'CO' : 'BB'} />
           <span className="dr-card-pair"><CardBack /><CardBack /></span>
           <ThinkingBadge />
         </div>
+        {multiSeat && (
+          <div className="dr-side-seats">
+            <div className="dr-side-seat dr-side-seat--left">
+              <PlayerRow name="Value Bot" stack="$1,460" position="SB" />
+              <span className="dr-card-pair"><CardBack /><CardBack /></span>
+            </div>
+            <div className="dr-side-seat dr-side-seat--right">
+              <PlayerRow name="Pressure AI" stack="$2,050" position="BB" />
+              <span className="dr-card-pair"><CardBack /><CardBack /></span>
+            </div>
+          </div>
+        )}
         <div className="dr-pot">
           <small>Pot</small>
-          <b>$340</b>
+          <b>{multiSeat ? '$620' : '$340'}</b>
         </div>
         <div className="dr-board-cards">
           <PlayingCard rank="A" suit="s" />
@@ -915,10 +935,10 @@ function PokerTablePreview({ agent }) {
         </div>
         <div className="dr-pot-chip">
           <Icon name="chip" size={15} color="#00d4aa" />
-          <span>$340</span>
+          <span>{multiSeat ? '$620' : '$340'}</span>
         </div>
         <div className="dr-felt-row dr-felt-row--bottom">
-          <PlayerRow name={agent.name} stack="$2,340" position="BTN" />
+          <PlayerRow name={agent.name} stack="$2,340" position={multiSeat ? 'BTN' : 'BTN'} />
           <span className="dr-card-pair"><PlayingCard rank="K" suit="s" mini /><PlayingCard rank="Q" suit="h" mini /></span>
           <div className="dr-equity"><small>Equity</small><b>67.3%</b></div>
         </div>
