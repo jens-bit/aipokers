@@ -19,6 +19,10 @@ function resolveWsUrl() {
 }
 const WS_URL = resolveWsUrl();
 
+function agentHandsApiUrl(agentId) {
+  return `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`;
+}
+
 export default function App() {
   const table = useTable({ wsUrl: WS_URL });
   const {
@@ -39,6 +43,9 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState(null);
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
+  const [lastAgentHand, setLastAgentHand] = useState(null);
+  const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
+  const lastResultKeyRef = useRef(null);
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -56,9 +63,33 @@ export default function App() {
     setActiveAgentId(null);
   }, []);
 
+  const loadLatestAgentHand = useCallback(async (agentId) => {
+    if (!agentId) return;
+    try {
+      const res = await fetch(agentHandsApiUrl(agentId));
+      if (!res.ok) throw new Error('hands request failed');
+      const data = await res.json();
+      const hand = data.recentHands?.[0] || null;
+      if (hand?.decisions?.length) {
+        setLastAgentHand(hand);
+        setLastAgentHandOpen(true);
+      } else {
+        setLastAgentHand(null);
+      }
+    } catch {
+      setLastAgentHand(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeAgentId && status === 'closed') callAgentFinish(activeAgentId);
   }, [status, activeAgentId, callAgentFinish]);
+
+  useEffect(() => {
+    setLastAgentHand(null);
+    setLastAgentHandOpen(false);
+    lastResultKeyRef.current = null;
+  }, [activeAgentId]);
 
   // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
   const TIMER_TOTAL = 15;
@@ -105,6 +136,17 @@ export default function App() {
   }, [config]);
 
   useEffect(() => { if (!config) setHistoryOpen(false); }, [config]);
+
+  useEffect(() => {
+    if (!config?.isSpectator || !activeAgentId) return;
+    const latestResult = findLatestResult(history);
+    if (!latestResult) return;
+
+    const key = `${latestResult.handNumber}:${JSON.stringify(latestResult.result)}`;
+    if (lastResultKeyRef.current === key) return;
+    lastResultKeyRef.current = key;
+    loadLatestAgentHand(activeAgentId);
+  }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
   if (!config) {
     return (
@@ -217,7 +259,14 @@ export default function App() {
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
       {config?.isSpectator ? (
-        <WatchBanner config={config} game={game} mySeat={mySeat} />
+        <>
+          <WatchBanner config={config} game={game} mySeat={mySeat} />
+          <LastAgentHandPanel
+            hand={lastAgentHand}
+            open={lastAgentHandOpen}
+            onToggle={() => setLastAgentHandOpen((value) => !value)}
+          />
+        </>
       ) : (
         <ActionBar
           game={game}
@@ -270,6 +319,60 @@ function WatchBanner({ config, game, mySeat }) {
     text = `Waiting for opponent…`;
   }
   return <div className="watch-banner">👁 {text}</div>;
+}
+
+function LastAgentHandPanel({ hand, open, onToggle }) {
+  const decisions = hand?.decisions || [];
+  if (!decisions.length) return null;
+
+  return (
+    <section className="last-hand-panel">
+      <button className="last-hand-panel__toggle" type="button" onClick={onToggle}>
+        <span>Last hand</span>
+        <span>
+          Hand #{hand.handNumber ?? '--'} -{' '}
+          <b className={hand.won ? 'last-hand-panel__won' : 'last-hand-panel__lost'}>
+            {hand.won ? 'WON' : 'LOST'}
+          </b>
+          {' '} - Pot: {formatAgentAmount(hand.potSize)}
+        </span>
+      </button>
+      {open && (
+        <div className="last-hand-panel__body">
+          {decisions.map((decision, index) => (
+            <div className="history__entry last-hand-panel__decision" key={`${decision.street || 'street'}-${index}`}>
+              <span>[{String(decision.street || 'street').toUpperCase()}]</span>
+              <span>{formatAgentDecisionAction(decision.action)}</span>
+              {decision.reasoning && <span>- "{decision.reasoning}"</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function findLatestResult(history) {
+  for (const hand of history) {
+    const entries = hand.entries || [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry.kind === 'result') {
+        return { handNumber: hand.handNumber, result: entry.result };
+      }
+    }
+  }
+  return null;
+}
+
+function formatAgentDecisionAction(action = {}) {
+  if (!action?.type) return 'unknown';
+  if (action.amount == null) return action.type;
+  return `${action.type} ${action.amount}`;
+}
+
+function formatAgentAmount(amount) {
+  return amount == null ? '--' : amount;
 }
 
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {

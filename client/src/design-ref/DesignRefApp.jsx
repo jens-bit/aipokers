@@ -200,6 +200,9 @@ function getHomeStateOverride() {
 
 function applyHomeStateOverride(profile, override) {
   if (!override) return profile;
+  if (override === 'empty' || override === 'none' || override === 'zero') {
+    return { ...profile, hasAgents: false, agents: [] };
+  }
   const base = profile.agents.length ? profile.agents : [normalizeAgent(inferFallbackAgent('Balanced heads-up player'))];
   const previewBankroll = (agent, patch) => patch.bankroll ?? (Number(agent.bankroll) > 0 ? agent.bankroll : 1200);
   const funded = (agent, patch = {}) => normalizeAgent({
@@ -792,7 +795,7 @@ function PlayHubScreen({ agents, onCreate, onOpenTable, onOpenStable }) {
       <div className="dr-play-grid">
         <PlayActionCard icon="agent" title="Deploy agent" subtitle={readyAgents.length ? `${readyAgents.length} ready in stable` : 'Create or fund an agent first'} onClick={readyAgents.length ? onOpenStable : onCreate} accent />
         <PlayActionCard icon="spade" title="Watch active table" subtitle={playingAgents.length ? `${playingAgents[0].name} is playing now` : 'No agent seated yet'} onClick={playingAgents.length ? onOpenTable : onOpenStable} />
-        <PlayActionCard icon="profile" title="Play vs human" subtitle="Coming soon lobby" />
+        <PlayActionCard icon="profile" title="Play vs human" subtitle="Open the human table" />
         <PlayActionCard icon="sparkle" title="Play vs AI" subtitle="Practice table preview" />
       </div>
       <button className="dr-secondary-wide" type="button" onClick={onCreate}>
@@ -812,7 +815,7 @@ function PlayActionCard({ icon, title, subtitle, onClick, accent = false }) {
   );
 }
 
-function AgentRoster({ agents, onCreate, onOpenAgent }) {
+function AgentRoster({ agents, onCreate, onOpenAgent, onDeleteAgent }) {
   if (!agents.length) {
     return (
       <div className="dr-screen">
@@ -848,6 +851,7 @@ function AgentRoster({ agents, onCreate, onOpenAgent }) {
             <div className="dr-stable-card__actions">
               <button type="button" onClick={onOpenAgent}>{agent.status === 'playing' ? 'View table' : 'Deploy'}</button>
               <button type="button" onClick={onOpenAgent}>Chat</button>
+              <button className="is-danger" type="button" onClick={() => onDeleteAgent(agent.id)}>Delete</button>
             </div>
           </section>
         ))}
@@ -1237,6 +1241,7 @@ export default function DesignRefApp() {
   const [profileStatus, setProfileStatus] = useState('loading');
   const [chatStatus, setChatStatus] = useState('idle');
   const [createdAgent, setCreatedAgent] = useState(null);
+  const [deletedAgentIds, setDeletedAgentIds] = useState([]);
   const [profile, setProfile] = useState({
     userId: identity.id,
     hasAgents: false,
@@ -1246,7 +1251,7 @@ export default function DesignRefApp() {
 
   const homeStateOverride = getHomeStateOverride();
   const displayProfile = applyHomeStateOverride(profile, homeStateOverride);
-  const displayAgents = displayProfile.agents;
+  const displayAgents = displayProfile.agents.filter((agent) => !deletedAgentIds.includes(agent.id));
   const activeAgent = displayAgents[0] || null;
 
   useEffect(() => {
@@ -1337,6 +1342,16 @@ export default function DesignRefApp() {
     setTab('table');
   }
 
+  function deleteAgent(agentId) {
+    setDeletedAgentIds((ids) => ids.includes(agentId) ? ids : [...ids, agentId]);
+    setProfile((current) => ({
+      ...current,
+      hasAgents: current.agents.some((agent) => agent.id !== agentId),
+      agents: current.agents.filter((agent) => agent.id !== agentId),
+    }));
+    if (createdAgent?.id === agentId) setCreatedAgent(null);
+  }
+
   let screen;
   if (profileStatus === 'loading') screen = <LoadingState identity={identity} />;
   else if (tab === 'create') {
@@ -1355,7 +1370,7 @@ export default function DesignRefApp() {
   } else if (tab === 'play') {
     screen = <PlayHubScreen agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} />;
   } else if (tab === 'agents') {
-    screen = <AgentRoster agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} />;
+    screen = <AgentRoster agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} onDeleteAgent={deleteAgent} />;
   } else if (tab === 'table') {
     screen = activeAgent
       ? <AgentViewScreen agent={activeAgent} onBack={() => setTab('home')} />
