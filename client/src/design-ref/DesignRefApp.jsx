@@ -564,10 +564,12 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
 }
 
 function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
-  const agent = agents[0];
+  const playingAgents = agents.filter((candidate) => candidate.status === 'playing' || candidate.deployStatus === 'playing');
+  const agent = playingAgents[0] || agents[0];
   const needsFunding = agent.deployStatus === 'needs_funding';
   const hasIdleStable = agents.some((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing');
-  const playingCount = agents.filter((candidate) => candidate.status === 'playing' || candidate.deployStatus === 'playing').length;
+  const hasPlayingAgent = playingAgents.length > 0;
+  const playingCount = playingAgents.length;
   const statusLabel = playingCount > 1
     ? `${playingCount} agents playing`
     : agent.status === 'playing'
@@ -594,7 +596,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
             <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
           </div>
         </div>
-        <HomeTableSnapshot agent={agent} />
+        {hasPlayingAgent ? <HomeTableSnapshot agent={agent} /> : <HomeDeployRunway agent={agent} />}
         <div className="dr-home-actions">
           <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
             {primaryAction}
@@ -604,7 +606,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
           </button>
         </div>
       </section>
-      {hasIdleStable && agent.status !== 'playing' && <DeployPromptCard agent={agent} onDeploy={onOpenAgent} />}
+      {hasIdleStable && <DeployPromptCard agent={agents.find((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing') || agent} onDeploy={onOpenAgent} compact={hasPlayingAgent} />}
       {agents.length > 1 && <AgentCarousel agents={agents} onOpenAgent={onOpenAgent} />}
       <AgentStats agent={agent} />
       <HomeChatPreview agent={agent} onCreate={onCreate} onOpenAgent={onOpenAgent} />
@@ -613,9 +615,9 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
   );
 }
 
-function DeployPromptCard({ agent, onDeploy }) {
+function DeployPromptCard({ agent, onDeploy, compact = false }) {
   return (
-    <section className="dr-deploy-prompt">
+    <section className={`dr-deploy-prompt${compact ? ' dr-deploy-prompt--compact' : ''}`}>
       <span><Icon name="chip" size={16} color="#00d4aa" /></span>
       <div>
         <p className="dr-label dr-label--accent">Idle stable</p>
@@ -624,6 +626,29 @@ function DeployPromptCard({ agent, onDeploy }) {
       </div>
       <button type="button" onClick={onDeploy}>Deploy</button>
     </section>
+  );
+}
+
+function HomeDeployRunway({ agent }) {
+  return (
+    <div className="dr-deploy-runway">
+      <div className="dr-deploy-runway__lane">
+        <span className="dr-deploy-runway__seat">
+          <AgentAvatar size="md" />
+          <i />
+        </span>
+        <div>
+          <p className="dr-label dr-label--accent">Ready on bench</p>
+          <b>{agent.tablePreference || 'HU NLH / $10-$20'}</b>
+          <small>No table yet. Seat this agent to start watching live hands.</small>
+        </div>
+      </div>
+      <div className="dr-deploy-runway__steps">
+        <span><Icon name="check" size={13} color="#00d4aa" /> Funded</span>
+        <span><Icon name="chip" size={13} color="#cdb380" /> Choose table</span>
+        <span><Icon name="chevron-right" size={13} color="#00d4aa" /> Deploy</span>
+      </div>
+    </div>
   );
 }
 

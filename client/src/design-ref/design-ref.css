@@ -632,6 +632,104 @@
   margin: 12px 0;
 }
 
+.dr-deploy-runway {
+  margin: 4px -2px 12px;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dr-deploy-runway__lane {
+  min-height: 182px;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 212, 170, 0.22);
+  border-radius: 26px;
+  background:
+    linear-gradient(90deg, rgba(0, 212, 170, 0.12), transparent 54%),
+    radial-gradient(circle at 12% 50%, rgba(0, 212, 170, 0.18), transparent 36%),
+    #071110;
+}
+
+.dr-deploy-runway__lane::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  width: 38%;
+  border-top: 1px dashed rgba(0, 212, 170, 0.32);
+}
+
+.dr-deploy-runway__seat {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border: 1px solid rgba(0, 212, 170, 0.22);
+  border-radius: 22px;
+  background: rgba(0, 212, 170, 0.08);
+  box-shadow: 0 0 28px rgba(0, 212, 170, 0.12);
+}
+
+.dr-deploy-runway__seat i {
+  width: 10px;
+  height: 10px;
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  border-radius: 50%;
+  background: var(--dr-accent);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.8);
+}
+
+.dr-deploy-runway__lane b,
+.dr-deploy-runway__lane small {
+  display: block;
+}
+
+.dr-deploy-runway__lane b {
+  margin: 5px 0;
+  color: var(--dr-text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.dr-deploy-runway__lane small {
+  max-width: 180px;
+  color: var(--dr-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.dr-deploy-runway__steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.dr-deploy-runway__steps span {
+  min-width: 0;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--dr-secondary);
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .dr-home-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -777,6 +875,11 @@
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.dr-deploy-prompt--compact {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--dr-panel);
 }
 
 .dr-agent-carousel {
