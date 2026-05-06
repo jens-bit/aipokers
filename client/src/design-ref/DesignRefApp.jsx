@@ -991,8 +991,13 @@ function HumanActionSurface() {
   ];
   return (
     <section className="dr-human-actions dr-human-actions--compact">
-      <div className="dr-human-meta">To call: <b>10</b><i /> Pot: <b>30</b></div>
-      <button className="dr-human-sizing-toggle" type="button">Sizing <Icon name="chevron-up" size={13} /></button>
+      <div className="dr-human-meta">
+        <span>To call: <b>10</b></span>
+        <span>Pot: <b>30</b></span>
+      </div>
+      <button className="dr-human-sizing-toggle" type="button" aria-label="Open bet sizing">
+        <Icon name="chevron-up" size={15} />
+      </button>
       <div className="dr-human-presets">
         {presets.map(([label, value]) => (
           <button type="button" key={label} className={label === 'Pot' ? 'is-selected' : ''}>
