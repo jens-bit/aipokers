@@ -46,6 +46,8 @@ export function useTable({ wsUrl }) {
   const [config, setConfig] = useState(null);
   const [mySeat, setMySeat] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  // Last AI decision — { action, reasoning, seat } — cleared each hand start.
+  const [lastDecision, setLastDecision] = useState(null);
 
   const wsRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -85,7 +87,12 @@ export function useTable({ wsUrl }) {
 
       case ServerMsg.HAND_START:
         lastStreetRef.current = Streets.PREFLOP;
+        setLastDecision(null);
         setHistory((h) => [{ kind: 'handStart', handNumber: msg.handNumber, entries: [] }, ...h]);
+        break;
+
+      case ServerMsg.DECISION:
+        setLastDecision({ action: msg.action, reasoning: msg.reasoning, seat: msg.seat });
         break;
 
       case ServerMsg.HAND_RESULT:
@@ -245,6 +252,7 @@ export function useTable({ wsUrl }) {
     setLegalActions([]);
     setMySeat(null);
     setChatMessages([]);
+    setLastDecision(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -271,6 +279,7 @@ export function useTable({ wsUrl }) {
     setLegalActions([]);
     setMySeat(null);
     setChatMessages([]);
+    setLastDecision(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -302,6 +311,7 @@ export function useTable({ wsUrl }) {
     setHistory([]);
     setLegalActions([]);
     setChatMessages([]);
+    setLastDecision(null);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
   }, []);
@@ -356,6 +366,7 @@ export function useTable({ wsUrl }) {
     rename,
     chatMessages,
     sendChat,
+    lastDecision,
   };
 }
 

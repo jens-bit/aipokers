@@ -106,6 +106,12 @@ input:focus { border-color: var(--accent); }
   gap: 10px;
   min-height: 0;
 }
+/* When the analysis panel is visible, allow vertical scroll so the table
+   stays full-height and the panel is reachable below it. */
+.app__main--analysis {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 .app__sidebar {
   display: none;       /* shown only at >=600px (desktop) */
@@ -5662,4 +5668,12 @@ input:focus { border-color: var(--accent); }
 .dr-hand-row__decision em {
   font-style: italic;
   color: var(--dr-muted);
+}
+
+/* ------------ analysis panel ------------ */
+.analysis-panel {
+  flex-shrink: 0;
+  padding: 16px 0 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 4px;
 }

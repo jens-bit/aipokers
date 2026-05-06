@@ -660,6 +660,7 @@ export class Table {
 
     try {
       this.game.act(aiSeat, action);
+      this._broadcast({ type: ServerMsg.DECISION, seat: aiSeat, action, reasoning });
       this._resetAiInactivityTimer();
       this._broadcastState();
       const handEnded = this.game.street === Streets.COMPLETE;

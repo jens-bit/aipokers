@@ -20,6 +20,7 @@ export const ServerMsg = Object.freeze({
   HAND_RESULT: 'hand_result', // { type, result }
   TABLE_CLOSED: 'table_closed', // { type, reason }
   CHAT: 'chat',             // { type, seat, displayName, text, isAI }
+  DECISION: 'decision',     // { type, seat, action: { type, amount? }, reasoning }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

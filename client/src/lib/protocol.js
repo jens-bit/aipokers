@@ -18,6 +18,7 @@ export const ServerMsg = Object.freeze({
   HAND_RESULT: 'hand_result',
   TABLE_CLOSED: 'table_closed',
   CHAT: 'chat',
+  DECISION: 'decision',
   ERROR: 'error',
   PONG: 'pong',
 });
