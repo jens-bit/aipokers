@@ -23,13 +23,14 @@ function lastUser(chat) {
   return [...chat].reverse().find((m) => m.role === 'user')?.content || '';
 }
 
-export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = null }) {
+export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existingAgent = null }) {
   const userId = getUserId();
 
   const [chat, setChat] = useState([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [deploying, setDeploying] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
   const [localAgent, setLocalAgent] = useState(existingAgent);
   const logRef = useRef(null);
@@ -162,7 +163,21 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
         <DraftBlueprint chat={chat} createdAgent={createdAgent} />
 
         {createdAgent && (
-          <CreatedAgentCard agent={createdAgent} onOpen={onDone} onKeepTuning={keepTuning} />
+          <CreatedAgentCard
+            agent={createdAgent}
+            deploying={deploying}
+            onDeploy={async () => {
+              if (deploying) return;
+              setDeploying(true);
+              try {
+                if (onDeploy) await onDeploy(createdAgent);
+                else if (onDone) onDone();
+              } finally {
+                setDeploying(false);
+              }
+            }}
+            onKeepTuning={keepTuning}
+          />
         )}
 
         {!createdAgent && canCreateDraft && (
@@ -238,7 +253,7 @@ function BlueprintCell({ label, value }) {
   );
 }
 
-function CreatedAgentCard({ agent, onOpen, onKeepTuning }) {
+function CreatedAgentCard({ agent, deploying, onDeploy, onKeepTuning }) {
   return (
     <section className="dr-created-card">
       <div>
@@ -255,8 +270,17 @@ function CreatedAgentCard({ agent, onOpen, onKeepTuning }) {
         <span><CheckIcon color="#00d4aa" /> Table profile selected</span>
       </div>
       <div className="dr-card-actions">
-        <button className="dr-primary-btn" type="button" onClick={onOpen}>Open agent</button>
-        <button className="dr-secondary-btn" type="button" onClick={onKeepTuning}>Keep tuning</button>
+        <button
+          className="dr-primary-btn"
+          type="button"
+          onClick={onDeploy}
+          disabled={deploying}
+        >
+          {deploying ? 'Deploying…' : 'Deploy now'}
+        </button>
+        <button className="dr-secondary-btn" type="button" onClick={onKeepTuning} disabled={deploying}>
+          Keep tuning
+        </button>
       </div>
     </section>
   );

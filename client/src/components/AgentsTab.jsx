@@ -1,25 +1,20 @@
 import { useEffect, useState } from 'react';
 import { getUserId } from '../lib/telegram.js';
 
-// Status chip text mapped from the agent's lifecycle. The backend exposes
-// agent.status === 'playing' | 'idle' (see agentProfiles.js) plus implicit
-// states from agent.stats. We mirror the design's chip vocabulary on top.
-function chipFor(agent) {
-  if (agent.status === 'playing' || agent.activeTableId) return { label: 'Seated', tone: 'live' };
+// Status text for the chip on each stable card. Matches design-ref's
+// PLAYING NOW / READY / DRAFT / LEARNING vocabulary.
+function statusLabel(agent) {
+  if (agent.status === 'playing' || agent.activeTableId) return 'Playing now';
   const handsPlayed = agent?.stats?.handsPlayed ?? 0;
-  if (handsPlayed > 0 && handsPlayed < 25) return { label: 'Learning', tone: 'gold' };
-  if (!agent.strategy || agent.strategy.trim().length < 20) return { label: 'Draft', tone: 'gold' };
-  return { label: 'Ready', tone: 'accent' };
+  if (handsPlayed > 0 && handsPlayed < 25) return 'Learning';
+  if (!agent.strategy || agent.strategy.trim().length < 20) return 'Draft';
+  return 'Ready';
 }
 
-export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
+export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent /* onVsYou intentionally unused — design-ref doesn't expose it from the roster */ }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
-  const [expandedHands, setExpandedHands] = useState({});
-  const [handsCache, setHandsCache] = useState({});
-  const [handsLoading, setHandsLoading] = useState({});
-  const [handsError, setHandsError] = useState({});
 
   useEffect(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -44,48 +39,9 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
     }
   }
 
-  async function vsYou(agent) {
-    if (deployingId) return;
-    setDeployingId(agent.id);
-    try {
-      const res = await fetch(`/api/agents/${agent.id}/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: getUserId() }),
-      });
-      if (!res.ok) return;
-      onVsYou(await res.json());
-    } finally {
-      setDeployingId(null);
-    }
-  }
-
   async function remove(agentId) {
     await fetch(`/api/agents/${agentId}?userId=${getUserId()}`, { method: 'DELETE' });
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
-    setExpandedHands((prev) => clearKey(prev, agentId));
-    setHandsCache((prev) => clearKey(prev, agentId));
-    setHandsLoading((prev) => clearKey(prev, agentId));
-    setHandsError((prev) => clearKey(prev, agentId));
-  }
-
-  async function toggleHands(agentId) {
-    const willOpen = !expandedHands[agentId];
-    setExpandedHands((prev) => ({ ...prev, [agentId]: willOpen }));
-    if (!willOpen || handsCache[agentId] || handsLoading[agentId]) return;
-
-    setHandsLoading((prev) => ({ ...prev, [agentId]: true }));
-    setHandsError((prev) => clearKey(prev, agentId));
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`);
-      if (!res.ok) throw new Error('hands request failed');
-      const data = await res.json();
-      setHandsCache((prev) => ({ ...prev, [agentId]: data }));
-    } catch {
-      setHandsError((prev) => ({ ...prev, [agentId]: 'Could not load recent hands' }));
-    } finally {
-      setHandsLoading((prev) => ({ ...prev, [agentId]: false }));
-    }
   }
 
   if (loading) {
@@ -127,23 +83,36 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
         </section>
 
         <div className="dr-stable-list">
-          {agents.map((agent) => (
-            <StableCard
-              key={agent.id}
-              agent={agent}
-              busy={deployingId === agent.id}
-              chip={chipFor(agent)}
-              onDeploy={() => deploy(agent)}
-              onVsYou={() => vsYou(agent)}
-              onChat={() => onChatAgent(agent)}
-              onDelete={() => remove(agent.id)}
-              handsExpanded={!!expandedHands[agent.id]}
-              handsData={handsCache[agent.id]}
-              handsLoading={!!handsLoading[agent.id]}
-              handsError={handsError[agent.id]}
-              onToggleHands={() => toggleHands(agent.id)}
-            />
-          ))}
+          {agents.map((agent) => {
+            const isPlaying = agent.status === 'playing' || agent.activeTableId;
+            const busy = deployingId === agent.id;
+            const handsPlayed = agent?.stats?.handsPlayed ?? 0;
+            const meta = `${agent.style} / ${agent.risk} risk / ${handsPlayed} hand${handsPlayed === 1 ? '' : 's'}`;
+            return (
+              <section className="dr-stable-card" key={agent.id}>
+                <div className="dr-stable-card__main">
+                  <AgentAvatar size="md" />
+                  <span>
+                    <p className="dr-label dr-label--accent">{statusLabel(agent)}</p>
+                    <h2>{agent.name}</h2>
+                    <small>{meta}</small>
+                  </span>
+                </div>
+                {agent.strategy && <p>{agent.strategy}</p>}
+                <div className="dr-stable-card__actions">
+                  <button
+                    type="button"
+                    onClick={() => deploy(agent)}
+                    disabled={busy}
+                  >
+                    {isPlaying ? 'View table' : busy ? 'Deploying…' : 'Deploy'}
+                  </button>
+                  <button type="button" onClick={() => onChatAgent(agent)}>Chat</button>
+                  <button className="is-danger" type="button" onClick={() => remove(agent.id)}>Delete</button>
+                </div>
+              </section>
+            );
+          })}
         </div>
 
         <button className="dr-secondary-wide" type="button" onClick={onCreateAgent}>
@@ -152,96 +121,6 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
       </div>
     </div>
   );
-}
-
-function StableCard({
-  agent, busy, chip, onDeploy, onVsYou, onChat, onDelete,
-  handsExpanded, handsData, handsLoading, handsError, onToggleHands,
-}) {
-  const isLive = agent.status === 'playing';
-  const stats = agent.stats || {};
-  const hasStats = (stats.handsPlayed ?? 0) > 0;
-  const winRate = Number.isFinite(Number(stats.winRate)) ? Math.round(Number(stats.winRate)) : null;
-
-  return (
-    <section className="dr-stable-card">
-      <div className="dr-stable-card__main">
-        <AgentAvatar size="md" />
-        <span>
-          <p className={`dr-label dr-label--${chip.tone}`}>{chip.label}</p>
-          <h2>{agent.name}</h2>
-          <small>{agent.style} / {agent.risk} risk{hasStats ? ` / ${stats.handsPlayed} hand${stats.handsPlayed === 1 ? '' : 's'}` : ''}</small>
-        </span>
-      </div>
-
-      {agent.strategy && <p>{agent.strategy}</p>}
-
-      {hasStats && (
-        <div className="dr-stable-card__stats">
-          <span><small>Win rate</small><b>{winRate == null ? '--' : `${winRate}%`}</b></span>
-          <span><small>Hands</small><b>{stats.handsPlayed}</b></span>
-          <span><small>Aggression</small><b>{stats.totalDecisions ? Math.round((stats.aggressiveDecisions / stats.totalDecisions) * 100) : 0}%</b></span>
-        </div>
-      )}
-
-      <div className="dr-stable-card__actions">
-        <button type="button" onClick={onDeploy} disabled={isLive || busy} title="Watch your agent vs another agent">
-          {isLive ? 'Seated' : busy ? 'Deploying…' : 'Deploy'}
-        </button>
-        <button type="button" onClick={onVsYou} disabled={isLive || busy} title="Play against your own agent">
-          Vs you
-        </button>
-        <button type="button" onClick={onChat}>Chat</button>
-        <button className="is-danger" type="button" onClick={onDelete}>Delete</button>
-      </div>
-
-      <button className="dr-stable-card__hands-toggle" type="button" onClick={onToggleHands}>
-        <span>Recent hands</span>
-        <span>{handsExpanded ? 'Hide' : 'Show'}</span>
-      </button>
-
-      {handsExpanded && (
-        <div className="dr-stable-card__hands">
-          {handsLoading && <p className="dr-muted-copy">Loading recent hands…</p>}
-          {handsError && <p className="dr-muted-copy" style={{ color: 'var(--dr-error)' }}>{handsError}</p>}
-          {!handsLoading && !handsError && (handsData?.recentHands || []).length === 0 && (
-            <p className="dr-muted-copy">No hands recorded yet.</p>
-          )}
-          {!handsLoading && !handsError && (handsData?.recentHands || []).slice(0, 5).map((hand) => (
-            <HandRow hand={hand} key={`${hand.handNumber}-${hand.timestamp || ''}`} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function HandRow({ hand }) {
-  const wonClass = hand.won ? 'dr-hand-row__won' : 'dr-hand-row__lost';
-  return (
-    <div className="dr-hand-row dr-hand-row--card">
-      <b>Hand #{hand.handNumber ?? '--'}</b>
-      <small className={wonClass}>{hand.won ? 'WON' : 'LOST'} · pot {hand.potSize ?? 0}</small>
-      {(hand.decisions || []).map((decision, i) => (
-        <span key={`${decision.street}-${i}`} className="dr-hand-row__decision">
-          [{String(decision.street || 'street').toUpperCase()}] {formatAction(decision.action)}
-          {decision.reasoning && <em> — "{decision.reasoning}"</em>}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function formatAction(action = {}) {
-  if (!action?.type) return 'unknown';
-  if (action.amount == null) return action.type;
-  return `${action.type} ${action.amount}`;
-}
-
-function clearKey(source, key) {
-  const next = { ...source };
-  delete next[key];
-  return next;
 }
 
 function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {

@@ -16,6 +16,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --action-bar-h: 132px;                /* default; ResizeObserver overwrites at runtime */
+  --chat-bar-h: 120px;                  /* fixed chat-bar height — never grows */
 
   /* Translucent overlays — derive from tokens so they shift with palette. */
   --edge: rgba(0, 212, 170, 0.18);      /* teal hairline (token-derived) */
@@ -101,8 +102,9 @@ input:focus { border-color: var(--accent); }
   flex-direction: column;
   flex: 1;
   /* --action-bar-h is measured by ActionBar at runtime so the bottom seat
-     never hides behind the fixed bar. Desktop overrides this below. */
-  padding: 12px 12px calc(var(--action-bar-h) + 20px);
+     never hides behind the fixed bar. The chat-bar is also fixed-bottom and
+     stacks above the action-bar, so we reserve room for both. */
+  padding: 12px 12px calc(var(--action-bar-h) + var(--chat-bar-h) + 20px);
   gap: 10px;
   min-height: 0;
 }
@@ -2324,17 +2326,35 @@ input:focus { border-color: var(--accent); }
 }
 
 .watch-banner {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: var(--max-w-mobile);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 14px 16px calc(14px + var(--safe-bottom, 0px));
   color: var(--accent);
   font-family: var(--font-label);
   font-size: 13px;
   letter-spacing: 0.08em;
   font-weight: 600;
   border-top: 1px solid var(--edge);
-  flex-shrink: 0;
+  background: var(--bg-secondary);
+  z-index: 50;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* In spectator mode the watch-banner replaces the action-bar at the bottom.
+   The watch-banner is shorter (~52px), so the chat bar should dock right
+   above it instead of leaving a 132px gap. */
+.app--spectator .chat-bar {
+  bottom: calc(52px + var(--safe-bottom, 0px));
+}
+.app--spectator .table-area {
+  padding-bottom: calc(52px + var(--chat-bar-h) + 20px);
 }
 
 .last-hand-panel {
@@ -2388,13 +2408,23 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ────────────── chat bar ────────────── */
+/* Fixed-position dock above the action-bar so it never moves when content
+   grows. Height is fixed (var(--chat-bar-h)); the message list scrolls
+   internally. .table-area reserves matching padding-bottom so the bottom
+   seat doesn't slip behind it. */
 .chat-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--action-bar-h) + var(--safe-bottom, 0px));
+  width: 100%;
+  max-width: var(--max-w-mobile);
+  height: var(--chat-bar-h);
+  z-index: 49;             /* under action-bar (50) but above table content */
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--edge);
   background: var(--bg-secondary, var(--bg-primary));
-  flex-shrink: 0;
-  max-height: 180px;
 }
 
 .chat-bar__list {
@@ -2403,8 +2433,7 @@ input:focus { border-color: var(--accent); }
   padding: 6px 12px;
   font-size: 12px;
   line-height: 1.45;
-  max-height: 132px;        /* ~6 visible lines */
-  min-height: 28px;
+  min-height: 0;
 }
 
 .chat-bar__empty {
@@ -2553,7 +2582,9 @@ input:focus { border-color: var(--accent); }
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 0 0 18px;
+  /* Top breathing room so content never sits flush under the .header. The
+     bottom buffer keeps the last card clear of the in-flow .tab-bar. */
+  padding: 14px 0 28px;
   overflow-x: hidden;
 }
 
@@ -5662,4 +5693,31 @@ input:focus { border-color: var(--accent); }
 .dr-hand-row__decision em {
   font-style: italic;
   color: var(--dr-muted);
+}
+
+/* Practice mode footer row on home — small text-style links so vs AI / vs
+   Human stay reachable without pretending to be a primary action. */
+.dr-practice-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 16px 4px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dr-muted);
+}
+.dr-practice-row button {
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  color: var(--dr-secondary);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.dr-practice-row button:hover {
+  color: var(--dr-accent);
 }

@@ -62,8 +62,10 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
-            // Auto-seat AI when the server has AI enabled AND the player asked for it.
-            if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) {
+            // Auto-seat AI when the player asked for it. AI_ENABLED env var is
+            // honored as a kill switch — set AI_ENABLED=false to disable. Default
+            // is on so the vs-AI flow works out of the box without extra config.
+            if (msg.wantAI === true && process.env.AI_ENABLED !== 'false') {
               table.maybeAutoSeatAI({
                 agentStrategy: msg.agentStrategy ?? null,
                 agentDisplayName: msg.agentDisplayName ?? null,

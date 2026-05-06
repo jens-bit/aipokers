@@ -252,7 +252,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${config?.isSpectator ? ' app--spectator' : ''}`}>
       <Header
         status={status}
         game={game}

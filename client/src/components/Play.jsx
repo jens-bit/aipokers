@@ -61,6 +61,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
         agentName={agentName || existingAgent?.name}
         existingAgent={existingAgent}
         onDone={onDone}
+        onDeploy={deployAgent}
       />
     );
   }
@@ -166,17 +167,6 @@ function EmptyHome({ onCreate, onPlayHuman }) {
             Start in chat <ChevronRight />
           </button>
         </section>
-
-        <HomeChatPreview onCreate={onCreate} hasAgent={false} />
-
-        <section className="dr-panel">
-          <div className="dr-section-head">
-            <p className="dr-label">Or jump in solo</p>
-          </div>
-          <button className="dr-secondary-wide" type="button" onClick={onPlayHuman}>
-            Play yourself <ChevronRight />
-          </button>
-        </section>
       </div>
     </div>
   );
@@ -187,10 +177,16 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
   const ready = agents.filter((a) => a.status !== 'playing' && !a.activeTableId);
   const primary = playing[0] || ready[0] || agents[0];
   const hasPlaying = playing.length > 0;
+  // Only show the idle-stable prompt when it'd target a DIFFERENT agent from
+  // the primary one — otherwise it's a duplicate deploy button for the same
+  // agent, which is what the user flagged.
+  const idleSecondary = ready.find((a) => a.id !== primary.id) || null;
 
   const status = hasPlaying
     ? (playing.length > 1 ? `${playing.length} agents playing` : 'Playing now')
     : ready.length > 1 ? `${ready.length} ready in stable` : 'Ready to deploy';
+
+  const primaryLabel = hasPlaying ? 'Open table' : busyId === primary.id ? 'Deploying…' : 'Deploy agent';
 
   return (
     <div className="dr-app">
@@ -220,10 +216,7 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
               onClick={() => onDeploy(primary)}
               disabled={busyId === primary.id}
             >
-              {hasPlaying
-                ? 'Open table'
-                : busyId === primary.id ? 'Deploying…' : 'Deploy agent'}
-              <ChevronRight />
+              {primaryLabel} <ChevronRight />
             </button>
             <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onCreate}>
               <SendIcon /> Chat to tune
@@ -231,11 +224,11 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
           </div>
         </section>
 
-        {ready.length > 0 && (
+        {idleSecondary && (
           <DeployPromptCard
-            agent={ready[0]}
-            busy={busyId === ready[0].id}
-            onDeploy={() => onDeploy(ready[0])}
+            agent={idleSecondary}
+            busy={busyId === idleSecondary.id}
+            onDeploy={() => onDeploy(idleSecondary)}
             compact={hasPlaying}
           />
         )}
@@ -246,17 +239,13 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
 
         <AgentStats agent={primary} />
 
-        <HomeChatPreview onCreate={onCreate} hasAgent agentName={primary.name} />
-
-        <section className="dr-panel">
-          <div className="dr-section-head">
-            <p className="dr-label">Play yourself</p>
-          </div>
-          <div className="dr-home-actions">
-            <button className="dr-secondary-btn" type="button" onClick={onPlayVsAI}>vs AI</button>
-            <button className="dr-secondary-btn" type="button" onClick={onPlayHuman}>vs Human</button>
-          </div>
-        </section>
+        {/* Practice mode — small footer links so vs-AI / vs-Human stay
+            reachable without competing with the primary deploy CTA. */}
+        <div className="dr-practice-row">
+          <button type="button" onClick={onPlayVsAI}>Practice vs AI</button>
+          <span aria-hidden>·</span>
+          <button type="button" onClick={onPlayHuman}>vs Human</button>
+        </div>
       </div>
     </div>
   );
@@ -377,30 +366,6 @@ function AgentStats({ agent }) {
           <b>{value}</b>
         </span>
       ))}
-    </section>
-  );
-}
-
-function HomeChatPreview({ onCreate, hasAgent, agentName }) {
-  return (
-    <section className="dr-home-chat-card">
-      <div className="dr-home-chat-card__head">
-        <span>
-          <p className="dr-label dr-label--accent">Chat first</p>
-          <b>{hasAgent ? `Tune ${agentName || 'your agent'}` : 'Create by chatting'}</b>
-        </span>
-        <small><i /> live</small>
-      </div>
-      <div className="dr-home-chat-card__bubble">
-        {hasAgent
-          ? 'Update the strategy by describing what you want to change — version stays one until you deploy a fresh build.'
-          : 'Describe the player you want and I will draft version one.'}
-      </div>
-      <div className="dr-home-chat-card__actions">
-        <button type="button" onClick={onCreate}>
-          <SendIcon /> {hasAgent ? 'Open chat' : 'Start chat'}
-        </button>
-      </div>
     </section>
   );
 }
