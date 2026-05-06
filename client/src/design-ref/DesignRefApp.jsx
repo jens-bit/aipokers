@@ -69,6 +69,8 @@ function Icon({ name, size = 20, color = 'currentColor', strokeWidth = 1.7 }) {
       return <svg {...common}><path d="M5 12l5 5 9-11" /></svg>;
     case 'chevron-right':
       return <svg {...common}><path d="M9 6l6 6-6 6" /></svg>;
+    case 'chevron-up':
+      return <svg {...common}><path d="M18 15l-6-6-6 6" /></svg>;
     case 'plus':
       return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
     case 'send':
@@ -916,15 +918,14 @@ function HumanPlayScreen({ agent, onBack }) {
         <button className="dr-plain-button" type="button" onClick={onBack} aria-label="Back">
           <Icon name="arrow-left" size={22} />
         </button>
-        <div>
-          <p className="dr-label dr-label--accent">In hand</p>
-          <h1>Play table</h1>
+        <div className="dr-human-play-title">
+          <h1><Icon name="spade" size={16} color="#00d4aa" /> Agentic Poker</h1>
         </div>
         <button className="dr-square-button" type="button" aria-label="Settings"><Icon name="settings" size={18} /></button>
       </header>
       <section className="dr-human-table-card">
         <div className="dr-human-table-top">
-          <span><Icon name="spade" size={15} color="#00d4aa" /> Agentic Poker</span>
+          <span><i /> In hand</span>
           <small>Seat 1 / Preflop</small>
         </div>
         <div className="dr-human-felt">
@@ -995,9 +996,8 @@ function HumanActionSurface() {
   ];
   return (
     <section className="dr-human-actions dr-human-actions--compact">
-      <div className="dr-human-timer"><i /><span>13s</span></div>
-      <button className="dr-human-sizing-toggle" type="button">Sizing <Icon name="chevron-right" size={13} /></button>
       <div className="dr-human-meta">To call: <b>10</b><i /> Pot: <b>30</b></div>
+      <button className="dr-human-sizing-toggle" type="button">Sizing <Icon name="chevron-up" size={13} /></button>
       <div className="dr-human-presets">
         {presets.map(([label, value]) => (
           <button type="button" key={label} className={label === 'Pot' ? 'is-selected' : ''}>
@@ -1014,6 +1014,7 @@ function HumanActionSurface() {
         <button type="button" className="is-fold">Fold</button>
         <button type="button">Call 10</button>
         <button type="button">Raise 40</button>
+        <div className="dr-human-timer" aria-label="10 seconds remaining"><span>10</span></div>
       </div>
     </section>
   );
