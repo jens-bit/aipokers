@@ -11,7 +11,7 @@ function statusLabel(agent) {
   return 'Ready';
 }
 
-export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent /* onVsYou intentionally unused — design-ref doesn't expose it from the roster */ }) {
+export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou intentionally unused — design-ref doesn't expose it from the roster */ }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
@@ -107,7 +107,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onChatAgent /* onVsYou inte
                   >
                     {isPlaying ? 'View table' : busy ? 'Deploying…' : 'Deploy'}
                   </button>
-                  <button type="button" onClick={() => onChatAgent(agent)}>Chat</button>
+                  <button type="button" onClick={() => onOpenChat(agent)}>Chat</button>
                   <button className="is-danger" type="button" onClick={() => remove(agent.id)}>Delete</button>
                 </div>
               </section>
