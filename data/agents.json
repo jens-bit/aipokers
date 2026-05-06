@@ -1,0 +1,214 @@
+{
+  "telegram:agent-view-pass-3": {
+    "userId": "telegram:agent-view-pass-3",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      }
+    ]
+  },
+  "telegram:fresh-1": {
+    "userId": "telegram:fresh-1",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "aa"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Aggressive pressure agent"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tight, low-risk grinder"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      }
+    ]
+  },
+  "telegram:draft-checkpoint-1": {
+    "userId": "telegram:draft-checkpoint-1",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      },
+      {
+        "role": "user",
+        "content": "It should bluff selectively and protect bankroll on rivers"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Tighten the river plan and avoid hero calls"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      }
+    ]
+  },
+  "u_mg2859tas085": {
+    "userId": "u_mg2859tas085",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      }
+    ]
+  },
+  "u_cutcjkvqtpww": {
+    "userId": "u_cutcjkvqtpww",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      }
+    ]
+  },
+  "telegram:home-variant-preview": {
+    "userId": "telegram:home-variant-preview",
+    "agents": [],
+    "chat": [
+      {
+        "role": "assistant",
+        "content": "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you."
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      },
+      {
+        "role": "user",
+        "content": "Balanced heads-up player"
+      },
+      {
+        "role": "assistant",
+        "content": "How aggressive do you like to play, and how often do you bluff?"
+      }
+    ]
+  }
+}
