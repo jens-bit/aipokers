@@ -275,7 +275,7 @@ export default function App() {
       <ChatBar messages={chatMessages} onSend={sendChat} />
       {config?.isSpectator ? (
         <>
-          <WatchBanner config={config} game={game} mySeat={mySeat} />
+          <WatchBanner config={config} game={game} />
           <LastAgentHandPanel
             hand={lastAgentHand}
             open={lastAgentHandOpen}
@@ -319,23 +319,38 @@ export default function App() {
   );
 }
 
-function WatchBanner({ config, game, mySeat }) {
-  const myName = config?.displayName || 'Agent';
-  const opponents = (game?.seats || []).filter((_, index) => index !== mySeat);
-  const oppName = opponents.length > 1
-    ? `${opponents.length} opponents`
-    : opponents[0]?.displayName;
+function WatchBanner({ config, game }) {
+  const agentName = config?.displayName || 'Agent';
   const handNum = game?.handNumber;
+  const street = (game?.street || Streets.WAITING).toUpperCase();
+  const isLive = game && game.street !== Streets.WAITING && game.street !== Streets.COMPLETE;
 
-  let text;
-  if (oppName && handNum) {
-    text = `${myName} vs ${oppName} — Hand #${handNum}`;
-  } else if (oppName) {
-    text = `${myName} vs ${oppName}`;
-  } else {
-    text = `Waiting for opponent…`;
-  }
-  return <div className="watch-banner">👁 {text}</div>;
+  return (
+    <div className="watch-banner">
+      <span className={`watch-banner__dot${isLive ? ' watch-banner__dot--live' : ''}`} aria-hidden />
+      <WatchAvatar />
+      <div className="watch-banner__meta">
+        <b className="watch-banner__name">{agentName}</b>
+        <small className="watch-banner__sub">
+          {handNum ? `Hand #${handNum}` : 'Waiting'} · {street}
+        </small>
+      </div>
+      <span className="watch-banner__tag">SPECTATING</span>
+    </div>
+  );
+}
+
+function WatchAvatar() {
+  return (
+    <span className="watch-banner__avatar" aria-hidden>
+      <svg viewBox="0 0 40 40">
+        <path d="M20 4c-8 0-13 6-13 14v14c0 4 3 6 7 6h12c4 0 7-2 7-6V18c0-8-5-14-13-14z" fill="currentColor" opacity="0.38" />
+        <ellipse cx="20" cy="22" rx="7" ry="9" fill="#080b0d" />
+        <circle cx="17" cy="20" r="1" fill="#00d4aa" />
+        <circle cx="23" cy="20" r="1" fill="#00d4aa" />
+      </svg>
+    </span>
+  );
 }
 
 function LastAgentHandPanel({ hand, open, onToggle }) {
