@@ -232,17 +232,21 @@ input:focus { border-color: var(--accent); }
 .setup__btn:hover, .setup__btn:focus-visible { background: var(--accent-hover); }
 
 /* ------------ table area ------------ */
+/* Oval green felt: the table-area is a relative container whose ::before
+   paints an oval felt that the seats and center sit on top of. The grid /
+   flex layout positions seats around the oval at top / bottom / left /
+   right; the felt itself is purely visual and does not constrain layout. */
 .table-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  justify-content: space-between;
   gap: 10px;
-  background:
-    radial-gradient(ellipse at center, var(--bg-tertiary) 0%, var(--bg-primary) 70%);
-  border-radius: 14px;
-  border: 1px solid var(--edge);
-  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 18px;
+  border: 1px solid var(--dr-border, rgba(255, 255, 255, 0.06));
+  padding: 18px 18px 20px;
   position: relative;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   min-height: 0;
@@ -250,18 +254,34 @@ input:focus { border-color: var(--accent); }
 .table-area::before {
   content: '';
   position: absolute;
-  top: 6px; right: 6px; bottom: 6px; left: 6px;
-  border: 1px solid var(--edge-soft);
-  border-radius: 11px;
+  top: 60px;
+  right: 14px;
+  bottom: 60px;
+  left: 14px;
+  border-radius: 50% / 38%;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 212, 170, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse at center, #16332e 0%, #0d1f1c 60%, #0a1614 100%);
+  border: 1px solid rgba(0, 212, 170, 0.16);
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.35);
   pointer-events: none;
+  z-index: 0;
+}
+
+/* Everything inside the table sits above the felt layer. */
+.table-area > * {
+  position: relative;
+  z-index: 1;
 }
 
 .table-area--multi {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
-    "top top"
-    "left right"
+    "top    top"
+    "left   right"
     "center center"
     "bottom bottom";
   align-content: stretch;
@@ -270,7 +290,7 @@ input:focus { border-color: var(--accent); }
 
 .table-area--seats-3 {
   grid-template-areas:
-    "left right"
+    "left   right"
     "center center"
     "bottom bottom";
 }
@@ -280,6 +300,12 @@ input:focus { border-color: var(--accent); }
 .seat--left { grid-area: left; }
 .seat--right { grid-area: right; }
 .seat--bottom { grid-area: bottom; }
+
+/* Heads-up: top seat anchored to the top of the felt, bottom seat to the
+   bottom. The center (board + pot) flex-grows to fill the felt mid-section. */
+.table-area--heads-up .seat--top { align-self: stretch; }
+.table-area--heads-up .seat--bottom { align-self: stretch; }
+.table-area--heads-up .center { flex: 1; min-height: 0; }
 
 .table-area--multi .seat {
   min-width: 0;
@@ -316,15 +342,19 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ------------ seat ------------ */
+/* Seats float on top of the oval felt — semi-transparent panel with a
+   subtle teal hint when the seat is acting. */
 .seat {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: var(--bg-secondary);
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--edge);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   width: 100%;
   position: relative;
   transition: border-color 180ms ease, box-shadow 180ms ease;
@@ -419,18 +449,21 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ------------ center (pot + community) ------------ */
+/* The pot/community block is centered on the oval felt — no panel chrome,
+   just typography on the felt itself. */
 .center {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   flex: 1;
-  gap: 8px;
-  padding: 8px 0 4px;
+  gap: 10px;
+  padding: 14px 0;
 }
 .street-tag {
   font-family: var(--font-label);
   font-size: 10px;
-  letter-spacing: 0.4em;
-  color: var(--text-muted);
+  letter-spacing: 0.32em;
+  color: rgba(0, 212, 170, 0.7);
   text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0, 212, 170, 0.3);
 }
 .pot { display: flex; flex-direction: column; align-items: center; }
 .pot__label {
@@ -478,6 +511,87 @@ input:focus { border-color: var(--accent); }
   padding: 0 12px calc(8px + var(--safe-bottom));
   z-index: 50;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ------------ reasoning panel (sits inside .action-bar wrapper, above the
+   buttons). Wrapper's ResizeObserver picks up height changes so the table
+   padding stays in sync — no overlap with seats or felt. */
+.reasoning-panel {
+  margin: 0 -12px; /* full-bleed inside the action-bar's 12px side padding */
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--edge-soft, rgba(255, 255, 255, 0.06));
+  background: rgba(0, 212, 170, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reasoning-panel.is-collapsed {
+  padding-bottom: 6px;
+}
+
+.reasoning-panel__toggle {
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.reasoning-panel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.6);
+  animation: pulse 1.6s infinite;
+  flex-shrink: 0;
+}
+
+.reasoning-panel__name {
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 35%;
+}
+
+.reasoning-panel__hint {
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  flex: 1;
+}
+
+.reasoning-panel__chev {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.reasoning-panel__text {
+  margin: 0;
+  padding: 0 2px 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: italic;
+  max-height: 56px;
+  overflow-y: auto;
 }
 /* ------------ seat timer ring (circular countdown, replaces action bar bar) ------------ */
 .seat__timer-ring {

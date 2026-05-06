@@ -15,8 +15,49 @@ function findLegal(legal, type) {
 export function ActionBar(props) {
   return (
     <ActionBarFrame>
+      <ReasoningPanel game={props.game} mySeat={props.mySeat} />
       <ActionBarContent {...props} />
     </ActionBarFrame>
+  );
+}
+
+// Slim collapsible strip rendered at the top of the .action-bar wrapper. It
+// surfaces the last reasoning string from the acting opponent (when the WS
+// state exposes one) so the player can read what the AI is considering. The
+// wrapper's ResizeObserver picks up the height change and keeps the table
+// padding in sync, so the table never overlaps the action area.
+function ReasoningPanel({ game, mySeat }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const handIsActive = !!game && game.toAct !== null
+    && game.street !== Streets.WAITING && game.street !== Streets.COMPLETE;
+  const actingSeat = handIsActive ? game.toAct : null;
+  const isOpponentTurn = actingSeat != null && actingSeat !== mySeat;
+  if (!isOpponentTurn) return null;
+
+  const actingName = game?.seats?.[actingSeat]?.displayName || 'Opponent';
+  const reasoning = game?.lastReasoning || '';
+
+  return (
+    <div className={`reasoning-panel${collapsed ? ' is-collapsed' : ''}`}>
+      <button
+        type="button"
+        className="reasoning-panel__toggle"
+        onClick={() => setCollapsed((v) => !v)}
+        aria-expanded={!collapsed}
+      >
+        <span className="reasoning-panel__dot" aria-hidden />
+        <span className="reasoning-panel__name">{actingName}</span>
+        <span className="reasoning-panel__hint">
+          {reasoning ? 'last reasoning' : 'thinking…'}
+        </span>
+        <span className="reasoning-panel__chev" aria-hidden>{collapsed ? '▴' : '▾'}</span>
+      </button>
+      {!collapsed && (
+        <p className="reasoning-panel__text">
+          {reasoning || `${actingName} is deciding their next move.`}
+        </p>
+      )}
+    </div>
   );
 }
 
