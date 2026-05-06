@@ -12,6 +12,7 @@ import { ActionBar } from './components/ActionBar.jsx';
 import { ChatBar } from './components/ChatBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
+import { AnalysisPanel } from './components/AnalysisPanel.jsx';
 import { Streets } from './lib/protocol.js';
 
 function resolveWsUrl() {
@@ -34,6 +35,7 @@ export default function App() {
     reconnectAttempt, maxReconnectAttempts,
     config, connect, watch, disconnect, act, deal, rename,
     chatMessages, sendChat,
+    lastDecision,
   } = table;
   const displayNames = useMemo(() => {
     const names = {};
@@ -350,13 +352,14 @@ export default function App() {
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         onLeave={handleLeave}
       />
-      <main className="app__main">
+      <main className={`app__main${lastDecision ? ' app__main--analysis' : ''}`}>
         {error && (
           <div className="error-banner" onClick={dismissError}>
             {error} · tap to dismiss
           </div>
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
+        <AnalysisPanel lastDecision={lastDecision} />
       </main>
       <ChatBar messages={chatMessages} onSend={sendChat} />
       {config?.isSpectator ? (

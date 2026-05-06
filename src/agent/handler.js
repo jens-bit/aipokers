@@ -41,9 +41,8 @@ JSON format (the "amount" key is required for bet/raise, omit otherwise):
 For bet/raise, "amount" is the TOTAL chips you want committed this street
 (your existing contribution plus any additional you're putting in now).
 
-The "reasoning" field is required for every decision: a single concise
-sentence explaining why you chose this action (hand strength, position,
-pot odds, read on opponent, etc.).`;
+The "reasoning" field is required for every decision: one punchy sentence,
+max 12 words, why you made this specific decision right now.`;
 }
 
 // Build the per-turn user message describing the current game state.
