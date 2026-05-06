@@ -254,6 +254,65 @@ input:focus { border-color: var(--accent); }
   pointer-events: none;
 }
 
+.table-area--multi {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "top top"
+    "left right"
+    "center center"
+    "bottom bottom";
+  align-content: stretch;
+  gap: 8px;
+}
+
+.table-area--seats-3 {
+  grid-template-areas:
+    "left right"
+    "center center"
+    "bottom bottom";
+}
+
+.table-area--multi .center { grid-area: center; min-height: 138px; }
+.seat--top { grid-area: top; }
+.seat--left { grid-area: left; }
+.seat--right { grid-area: right; }
+.seat--bottom { grid-area: bottom; }
+
+.table-area--multi .seat {
+  min-width: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+.table-area--multi .seat__cards {
+  transform: scale(0.86);
+  transform-origin: left center;
+  margin-right: -10px;
+}
+
+.table-area--multi .seat__name {
+  font-size: 13px;
+  min-height: 22px;
+}
+
+.table-area--multi .seat__stack {
+  font-size: 14px;
+}
+
+.table-area--multi .seat__pl,
+.table-area--multi .badge {
+  font-size: 8px;
+}
+
+.table-area--multi .seat__bet {
+  top: auto;
+  right: 6px;
+  bottom: -8px;
+  padding: 3px 7px;
+  font-size: 10px;
+}
+
 /* ------------ seat ------------ */
 .seat {
   display: grid;
@@ -980,6 +1039,55 @@ input:focus { border-color: var(--accent); }
   }
   .seat__bet-label { color: var(--bg-primary); opacity: 0.7; }
 
+  .table-area--multi {
+    max-width: 1040px;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.2fr) minmax(220px, 0.9fr);
+    grid-template-areas:
+      ". top ."
+      "left center right"
+      ". bottom .";
+    gap: 16px;
+    align-items: center;
+  }
+
+  .table-area--seats-3 {
+    grid-template-areas:
+      "left center right"
+      ". bottom .";
+  }
+
+  .table-area--multi .center {
+    min-height: 260px;
+    padding: 28px 18px;
+  }
+
+  .table-area--multi .seat {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .table-area--multi .seat__cards {
+    transform: none;
+    margin-right: 0;
+  }
+
+  .table-area--multi .seat__name {
+    font-size: 18px;
+  }
+
+  .table-area--multi .seat__stack {
+    font-size: 20px;
+  }
+
+  .table-area--multi .seat__bet {
+    position: absolute;
+    right: 12px;
+    bottom: -10px;
+    padding: 6px 10px;
+    color: var(--bg-primary);
+  }
+
   /* ── BOARD ZONE ──────────────────────────────────────────── */
   .center { padding: 36px 28px 32px; gap: 16px; }
   .pot__amount {
@@ -1231,6 +1339,10 @@ input:focus { border-color: var(--accent); }
     flex-direction: column;
     flex: 1;
     min-height: 0;
+  }
+  .table-area--multi {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .center { flex: 1; }
 }

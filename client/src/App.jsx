@@ -31,10 +31,13 @@ export default function App() {
     reconnectAttempt, maxReconnectAttempts,
     config, connect, watch, disconnect, act, deal, rename,
   } = table;
-  const displayNames = {
-    0: game?.seats?.[0]?.displayName ?? 'Seat A',
-    1: game?.seats?.[1]?.displayName ?? 'Seat B',
-  };
+  const displayNames = useMemo(() => {
+    const names = {};
+    (game?.seats || []).forEach((seat, index) => {
+      names[index] = seat?.displayName ?? `Seat ${index + 1}`;
+    });
+    return names;
+  }, [game?.seats]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('play');
@@ -161,6 +164,8 @@ export default function App() {
                 setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
@@ -181,6 +186,8 @@ export default function App() {
                 setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
@@ -195,6 +202,8 @@ export default function App() {
                   smallBlind: 10,
                   bigBlind: 20,
                   wantAI: true,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
                   agentStrategy: payload.strategy,
                   agentDisplayName: payload.agentName,
                 });
@@ -306,8 +315,10 @@ export default function App() {
 
 function WatchBanner({ config, game, mySeat }) {
   const myName = config?.displayName || 'Agent';
-  const opponentSeat = mySeat === 0 ? 1 : 0;
-  const oppName = game?.seats?.[opponentSeat]?.displayName;
+  const opponents = (game?.seats || []).filter((_, index) => index !== mySeat);
+  const oppName = opponents.length > 1
+    ? `${opponents.length} opponents`
+    : opponents[0]?.displayName;
   const handNum = game?.handNumber;
 
   let text;
@@ -376,19 +387,22 @@ function formatAgentAmount(amount) {
 }
 
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
-  const opponentSeat = mySeat === 0 ? 1 : 0;
+  const seatCount = Math.max(game?.seats?.length || 2, 2);
+  const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
 
   const seatProps = useMemo(() => {
     if (!game) return null;
-    const sp = (i) => ({
+    const blindSeats = resolveBlindSeats(game);
+    return game.seats.map((data, i) => ({
+      seat: i,
+      position: seatPosition(i, viewSeat, game.seats.length),
       isDealer: game.dealerSeat === i,
-      isSmallBlind: game.dealerSeat === i,
-      isBigBlind: game.dealerSeat !== i,
+      isSmallBlind: blindSeats.smallBlindSeat === i,
+      isBigBlind: blindSeats.bigBlindSeat === i,
       isToAct: game.toAct === i,
-      data: game.seats[i],
-    });
-    return { 0: sp(0), 1: sp(1) };
-  }, [game]);
+      data,
+    }));
+  }, [game, viewSeat]);
 
   const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
 
@@ -397,44 +411,86 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
     folded: false, allIn: false, holeCards: [],
   });
 
-  const oppData = seatProps?.[opponentSeat]?.data ?? emptyData('Waiting…');
-  const meData = seatProps?.[mySeat]?.data ?? emptyData('You');
+  const seats = seatProps || Array.from({ length: seatCount }, (_, seat) => ({
+    seat,
+    position: seatPosition(seat, viewSeat, seatCount),
+    isDealer: false,
+    isSmallBlind: false,
+    isBigBlind: false,
+    isToAct: false,
+    data: emptyData(seat === viewSeat ? 'You' : 'Waiting...'),
+  }));
+  const sortedSeats = [...seats].sort((a, b) => seatRenderOrder(a.position) - seatRenderOrder(b.position));
 
   return (
-    <div className="table-area">
-      <PlayerSeat
-        seat={opponentSeat}
-        position="top"
-        data={oppData}
-        isMine={false}
-        inHand={inHand}
-        isDealer={!!seatProps?.[opponentSeat]?.isDealer}
-        isSmallBlind={!!seatProps?.[opponentSeat]?.isSmallBlind}
-        isBigBlind={!!seatProps?.[opponentSeat]?.isBigBlind}
-        isToAct={!!seatProps?.[opponentSeat]?.isToAct}
-        timeLeft={timerLeft}
-        timerTotal={timerTotal}
-      />
+    <div className={`table-area ${seatCount > 2 ? 'table-area--multi' : 'table-area--heads-up'} table-area--seats-${seatCount}`}>
+      {sortedSeats.map((seat) => seat.position !== 'bottom' && (
+        <PlayerSeat
+          key={seat.seat}
+          seat={seat.seat}
+          position={seat.position}
+          data={seat.data}
+          isMine={seat.seat === viewSeat}
+          inHand={inHand}
+          isDealer={seat.isDealer}
+          isSmallBlind={seat.isSmallBlind}
+          isBigBlind={seat.isBigBlind}
+          isToAct={seat.isToAct}
+          timeLeft={timerLeft}
+          timerTotal={timerTotal}
+        />
+      ))}
       <Board
         pot={game?.pot ?? 0}
         community={game?.community ?? []}
         street={game?.street ?? 'waiting'}
       />
-      <PlayerSeat
-        seat={mySeat ?? 0}
-        position="bottom"
-        data={meData}
-        buyIn={buyIn}
-        isMine
-        inHand={inHand}
-        onRename={onRename}
-        isDealer={!!seatProps?.[mySeat]?.isDealer}
-        isSmallBlind={!!seatProps?.[mySeat]?.isSmallBlind}
-        isBigBlind={!!seatProps?.[mySeat]?.isBigBlind}
-        isToAct={!!seatProps?.[mySeat]?.isToAct}
-        timeLeft={timerLeft}
-        timerTotal={timerTotal}
-      />
+      {sortedSeats.map((seat) => seat.position === 'bottom' && (
+        <PlayerSeat
+          key={seat.seat}
+          seat={seat.seat}
+          position={seat.position}
+          data={seat.data}
+          buyIn={seat.seat === viewSeat ? buyIn : undefined}
+          isMine={seat.seat === viewSeat}
+          inHand={inHand}
+          onRename={seat.seat === viewSeat ? onRename : undefined}
+          isDealer={seat.isDealer}
+          isSmallBlind={seat.isSmallBlind}
+          isBigBlind={seat.isBigBlind}
+          isToAct={seat.isToAct}
+          timeLeft={timerLeft}
+          timerTotal={timerTotal}
+        />
+      ))}
     </div>
   );
+}
+
+function resolveBlindSeats(game) {
+  const count = game?.seats?.length || 0;
+  const dealer = Number.isInteger(game?.dealerSeat) ? game.dealerSeat : 0;
+  const modulo = Math.max(count, 1);
+  return {
+    smallBlindSeat: Number.isInteger(game?.smallBlindSeat)
+      ? game.smallBlindSeat
+      : count === 2 ? dealer : (dealer + 1) % modulo,
+    bigBlindSeat: Number.isInteger(game?.bigBlindSeat)
+      ? game.bigBlindSeat
+      : count === 2 ? (dealer + 1) % 2 : (dealer + 2) % modulo,
+  };
+}
+
+function seatPosition(seat, mySeat, count) {
+  const relative = (seat - mySeat + count) % count;
+  if (relative === 0) return 'bottom';
+  if (count <= 2) return 'top';
+  if (count === 3) return relative === 1 ? 'right' : 'left';
+  if (relative === 1) return 'right';
+  if (relative === 2) return 'top';
+  return 'left';
+}
+
+function seatRenderOrder(position) {
+  return { top: 0, left: 1, right: 2, bottom: 3 }[position] ?? 4;
 }

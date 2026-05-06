@@ -49,7 +49,7 @@ export function Header({ status, game, mySeat, hasConfig, historyCount, reconnec
       <div className="header__status">
         {/* Mobile status elements – hidden at ≥1100px */}
         <StatusDot status={status} />
-        {mySeat != null && <span className="muted header__mobile-seat">SEAT {mySeat === 0 ? 'A' : 'B'}</span>}
+        {mySeat != null && <span className="muted header__mobile-seat">SEAT {mySeat + 1}</span>}
         <span className="muted header__mobile-sep">·</span>
         <span className="muted header__mobile-label">{label}</span>
 

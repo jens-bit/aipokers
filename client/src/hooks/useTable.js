@@ -153,6 +153,8 @@ export function useTable({ wsUrl }) {
         ws.send(JSON.stringify({
           type: ClientMsg.WATCH,
           tableId: cfg.tableId,
+          agentId: cfg.agentId ?? null,
+          userId: cfg.userId ?? null,
           agentStrategy: cfg.agentStrategy ?? null,
           displayName: cfg.displayName,
           wantOpponentAI: cfg.wantOpponentAI ?? false,
@@ -169,6 +171,8 @@ export function useTable({ wsUrl }) {
           smallBlind: cfg.smallBlind,
           bigBlind: cfg.bigBlind,
           wantAI: cfg.wantAI ?? false,
+          agentId: cfg.agentId ?? null,
+          userId: cfg.userId ?? null,
           agentStrategy: cfg.agentStrategy ?? null,
           agentDisplayName: cfg.agentDisplayName ?? null,
         }));
