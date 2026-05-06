@@ -193,6 +193,62 @@ function normalizeProfile(profile) {
   };
 }
 
+function getHomeStateOverride() {
+  if (typeof window === 'undefined') return '';
+  return new URLSearchParams(window.location.search).get('dr-home') || '';
+}
+
+function applyHomeStateOverride(profile, override) {
+  if (!override) return profile;
+  const base = profile.agents.length ? profile.agents : [normalizeAgent(inferFallbackAgent('Balanced heads-up player'))];
+  const previewBankroll = (agent, patch) => patch.bankroll ?? (Number(agent.bankroll) > 0 ? agent.bankroll : 1200);
+  const funded = (agent, patch = {}) => normalizeAgent({
+    ...agent,
+    bankroll: previewBankroll(agent, patch),
+    bankrollStatus: 'funded',
+    deployStatus: patch.deployStatus || 'ready',
+    status: patch.status || 'idle',
+    hands: patch.hands ?? agent.hands ?? 0,
+    winRate: patch.winRate ?? agent.winRate,
+    activeTableId: patch.activeTableId,
+    ...patch,
+  });
+
+  if (override === 'idle') {
+    return { ...profile, agents: base.map((agent) => funded(agent, { status: 'idle', deployStatus: 'ready', activeTableId: null })) };
+  }
+
+  if (override === 'playing') {
+    return { ...profile, agents: [funded(base[0], { status: 'playing', deployStatus: 'playing', activeTableId: 'table-preview-1', hands: 128, winRate: 54 })] };
+  }
+
+  if (override === 'multi') {
+    const [first] = base;
+    const agents = [
+      funded(first, { status: 'playing', deployStatus: 'playing', activeTableId: 'table-preview-1', hands: 128, winRate: 54 }),
+      funded({
+        id: 'agent_preview_sentinel',
+        name: 'Sentinel v1',
+        style: 'Tight',
+        risk: 'Low',
+        strategy: 'Play fewer hands, preserve the stack, and take value-heavy spots.',
+        tablePreference: 'HU NLH / $5-$10',
+      }, { status: 'playing', deployStatus: 'playing', activeTableId: 'table-preview-2', bankroll: 850, hands: 74, winRate: 58 }),
+      funded({
+        id: 'agent_preview_pressure',
+        name: 'Pressure v1',
+        style: 'Aggressive',
+        risk: 'High',
+        strategy: 'Pressure capped ranges, bluff selectively, and value bet larger in position.',
+        tablePreference: 'HU NLH / $25-$50',
+      }, { status: 'idle', deployStatus: 'ready', activeTableId: null, bankroll: 1600, hands: 41, winRate: 49 }),
+    ];
+    return { ...profile, agents };
+  }
+
+  return profile;
+}
+
 function fallbackChat(profile, content) {
   const createdAgent = profile.agents.length === 0 ? inferFallbackAgent(content) : null;
   const chat = [
@@ -507,12 +563,24 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
   );
 }
 
-function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
+function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
+  const agent = agents[0];
   const needsFunding = agent.deployStatus === 'needs_funding';
-  const statusLabel = agent.status === 'playing' ? 'Playing now' : needsFunding ? 'Needs bankroll' : 'Ready to deploy';
+  const hasIdleStable = agents.some((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing');
+  const playingCount = agents.filter((candidate) => candidate.status === 'playing' || candidate.deployStatus === 'playing').length;
+  const statusLabel = playingCount > 1
+    ? `${playingCount} agents playing`
+    : agent.status === 'playing'
+      ? 'Playing now'
+      : needsFunding
+        ? 'Needs bankroll'
+        : hasIdleStable
+          ? 'Ready to deploy'
+          : 'Ready';
+  const primaryAction = needsFunding ? 'Fund agent' : agent.status === 'playing' ? 'Open table' : 'Deploy agent';
   return (
     <div className="dr-screen dr-screen--home">
-      <AppHeader identity={identity} agentCount={1} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} />
       <section className="dr-home-stage">
         <div className="dr-home-stage__top">
           <span><i /> {statusLabel}</span>
@@ -529,17 +597,53 @@ function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
         <HomeTableSnapshot agent={agent} />
         <div className="dr-home-actions">
           <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
-            {needsFunding ? 'Fund agent' : 'Open table'}
+            {primaryAction}
           </button>
           <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onOpenAgent}>
             <Icon name="send" size={15} /> Chat agent
           </button>
         </div>
       </section>
+      {hasIdleStable && agent.status !== 'playing' && <DeployPromptCard agent={agent} onDeploy={onOpenAgent} />}
+      {agents.length > 1 && <AgentCarousel agents={agents} onOpenAgent={onOpenAgent} />}
       <AgentStats agent={agent} />
       <HomeChatPreview agent={agent} onCreate={onCreate} onOpenAgent={onOpenAgent} />
       <RecentActivity agent={agent} />
     </div>
+  );
+}
+
+function DeployPromptCard({ agent, onDeploy }) {
+  return (
+    <section className="dr-deploy-prompt">
+      <span><Icon name="chip" size={16} color="#00d4aa" /></span>
+      <div>
+        <p className="dr-label dr-label--accent">Idle stable</p>
+        <b>{agent.name} is funded and ready.</b>
+        <small>Deploy it to a heads-up table or chat before seating.</small>
+      </div>
+      <button type="button" onClick={onDeploy}>Deploy</button>
+    </section>
+  );
+}
+
+function AgentCarousel({ agents, onOpenAgent }) {
+  return (
+    <section className="dr-agent-carousel" aria-label="Agent stable">
+      <div className="dr-section-head">
+        <p className="dr-label">Stable</p>
+        <span>{agents.length} agents</span>
+      </div>
+      <div className="dr-agent-carousel__track">
+        {agents.map((agent) => (
+          <button type="button" key={agent.id} className="dr-agent-mini-card" onClick={onOpenAgent}>
+            <span><AgentAvatar size="xs" /><i className={agent.status === 'playing' ? 'is-live' : ''} /></span>
+            <b>{agent.name}</b>
+            <small>{agent.status === 'playing' ? 'Playing now' : agent.deployStatus === 'ready' ? 'Ready' : 'Needs funds'}</small>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1175,8 +1279,10 @@ export default function DesignRefApp() {
   } else if (tab === 'history') screen = <HistoryState agent={activeAgent} onCreate={() => openCreate()} />;
   else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={profile.agents.length} onReset={handleReset} />;
   else {
-    screen = activeAgent
-      ? <ExistingHome identity={identity} agent={activeAgent} onCreate={() => openCreate()} onOpenAgent={() => setTab('agents')} />
+    const homeProfile = applyHomeStateOverride(profile, getHomeStateOverride());
+    const homeAgent = homeProfile.agents[0] || null;
+    screen = homeAgent
+      ? <ExistingHome identity={identity} agents={homeProfile.agents} onCreate={() => openCreate()} onOpenAgent={() => setTab('agents')} />
       : <EmptyHome identity={identity} onCreate={openCreate} />;
   }
 
