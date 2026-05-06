@@ -779,8 +779,41 @@ function AgentStats({ agent }) {
   );
 }
 
-function AgentRoster({ agent, onCreate, onOpenAgent }) {
-  if (!agent) {
+function PlayHubScreen({ agents, onCreate, onOpenTable, onOpenStable }) {
+  const playingAgents = agents.filter((agent) => agent.status === 'playing' || agent.deployStatus === 'playing');
+  const readyAgents = agents.filter((agent) => agent.deployStatus === 'ready' && agent.status !== 'playing');
+  return (
+    <div className="dr-screen dr-screen--play">
+      <section className="dr-play-hero">
+        <p className="dr-label dr-label--accent">Play</p>
+        <h1>Choose how to enter the table.</h1>
+        <p>Play yourself, battle an AI, or deploy one of your agents.</p>
+      </section>
+      <div className="dr-play-grid">
+        <PlayActionCard icon="agent" title="Deploy agent" subtitle={readyAgents.length ? `${readyAgents.length} ready in stable` : 'Create or fund an agent first'} onClick={readyAgents.length ? onOpenStable : onCreate} accent />
+        <PlayActionCard icon="spade" title="Watch active table" subtitle={playingAgents.length ? `${playingAgents[0].name} is playing now` : 'No agent seated yet'} onClick={playingAgents.length ? onOpenTable : onOpenStable} />
+        <PlayActionCard icon="profile" title="Play vs human" subtitle="Coming soon lobby" />
+        <PlayActionCard icon="sparkle" title="Play vs AI" subtitle="Practice table preview" />
+      </div>
+      <button className="dr-secondary-wide" type="button" onClick={onCreate}>
+        <Icon name="plus" size={16} /> Create new agent
+      </button>
+    </div>
+  );
+}
+
+function PlayActionCard({ icon, title, subtitle, onClick, accent = false }) {
+  return (
+    <button className={`dr-play-card${accent ? ' is-accent' : ''}`} type="button" onClick={onClick}>
+      <span><Icon name={icon} size={18} color={accent ? '#00d4aa' : '#a1a1a1'} /></span>
+      <b>{title}</b>
+      <small>{subtitle}</small>
+    </button>
+  );
+}
+
+function AgentRoster({ agents, onCreate, onOpenAgent }) {
+  if (!agents.length) {
     return (
       <div className="dr-screen">
         <section className="dr-panel dr-empty-panel dr-full-empty">
@@ -794,16 +827,31 @@ function AgentRoster({ agent, onCreate, onOpenAgent }) {
   }
 
   return (
-    <div className="dr-screen">
-      <section className="dr-panel dr-agent-row" onClick={onOpenAgent}>
-        <AgentAvatar size="md" />
-        <span>
-          <p className="dr-label dr-label--accent">Ready</p>
-          <h2>{agent.name}</h2>
-          <small>{agent.style} / {agent.risk} risk</small>
-        </span>
-        <Icon name="chevron-right" size={16} color="#6b6b6b" />
+    <div className="dr-screen dr-screen--stable">
+      <section className="dr-stable-head">
+        <p className="dr-label dr-label--accent">Stable</p>
+        <h1>Your agents</h1>
+        <small>{agents.length} agent{agents.length === 1 ? '' : 's'} ready to tune, chat, or deploy.</small>
       </section>
+      <div className="dr-stable-list">
+        {agents.map((agent) => (
+          <section className="dr-stable-card" key={agent.id}>
+            <div className="dr-stable-card__main">
+              <AgentAvatar size="md" />
+              <span>
+                <p className="dr-label dr-label--accent">{agent.status === 'playing' ? 'Playing now' : agent.deployStatus === 'ready' ? 'Ready' : 'Draft'}</p>
+                <h2>{agent.name}</h2>
+                <small>{agent.style} / {agent.risk} risk / {agent.hands ?? 0} hands</small>
+              </span>
+            </div>
+            <p>{agent.strategy}</p>
+            <div className="dr-stable-card__actions">
+              <button type="button" onClick={onOpenAgent}>{agent.status === 'playing' ? 'View table' : 'Deploy'}</button>
+              <button type="button" onClick={onOpenAgent}>Chat</button>
+            </div>
+          </section>
+        ))}
+      </div>
       <button className="dr-secondary-wide" type="button" onClick={onCreate}>
         <Icon name="plus" size={16} /> Create another
       </button>
@@ -1164,7 +1212,7 @@ function ProfileState({ identity, agentCount, onReset }) {
 function NavTabBar({ active, onChange, agentCount }) {
   const tabs = [
     ['home', 'home', 'Home'],
-    ['create', 'plus', 'Create'],
+    ['play', 'spade', 'Play'],
     ['agents', 'agent', 'Agents'],
     ['history', 'history', 'History'],
     ['profile', 'profile', 'Profile'],
@@ -1173,7 +1221,7 @@ function NavTabBar({ active, onChange, agentCount }) {
   return (
     <nav className="dr-nav">
       {tabs.map(([id, icon, label]) => (
-        <button key={id} type="button" className={active === id ? 'is-active' : ''} onClick={() => onChange(id)}>
+        <button key={id} type="button" className={active === id || (id === 'play' && active === 'create') ? 'is-active' : ''} onClick={() => onChange(id)}>
           <Icon name={icon} size={20} />
           <span>{label}</span>
           {id === 'agents' && agentCount > 0 && <i />}
@@ -1196,7 +1244,10 @@ export default function DesignRefApp() {
     chat: INITIAL_CHAT,
   });
 
-  const activeAgent = profile.agents[0] || null;
+  const homeStateOverride = getHomeStateOverride();
+  const displayProfile = applyHomeStateOverride(profile, homeStateOverride);
+  const displayAgents = displayProfile.agents;
+  const activeAgent = displayAgents[0] || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1282,6 +1333,10 @@ export default function DesignRefApp() {
     if (typeof seedPrompt === 'string') handleSend(seedPrompt);
   }
 
+  function openTable() {
+    setTab('table');
+  }
+
   let screen;
   if (profileStatus === 'loading') screen = <LoadingState identity={identity} />;
   else if (tab === 'create') {
@@ -1293,21 +1348,23 @@ export default function DesignRefApp() {
         createdAgent={createdAgent}
         onBack={() => setTab(activeAgent ? 'agents' : 'home')}
         onSend={handleSend}
-        onOpenAgent={() => setTab('agents')}
+        onOpenAgent={openTable}
         onCreateDraft={handleCreateDraft}
       />
     );
+  } else if (tab === 'play') {
+    screen = <PlayHubScreen agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} />;
   } else if (tab === 'agents') {
+    screen = <AgentRoster agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} />;
+  } else if (tab === 'table') {
     screen = activeAgent
       ? <AgentViewScreen agent={activeAgent} onBack={() => setTab('home')} />
-      : <AgentRoster onCreate={() => openCreate()} />;
+      : <PlayHubScreen agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} />;
   } else if (tab === 'history') screen = <HistoryState agent={activeAgent} onCreate={() => openCreate()} />;
-  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={profile.agents.length} onReset={handleReset} />;
+  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={displayAgents.length} onReset={handleReset} />;
   else {
-    const homeProfile = applyHomeStateOverride(profile, getHomeStateOverride());
-    const homeAgent = homeProfile.agents[0] || null;
-    screen = homeAgent
-      ? <ExistingHome identity={identity} agents={homeProfile.agents} onCreate={() => openCreate()} onOpenAgent={() => setTab('agents')} />
+    screen = activeAgent
+      ? <ExistingHome identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} />
       : <EmptyHome identity={identity} onCreate={openCreate} />;
   }
 
@@ -1315,7 +1372,7 @@ export default function DesignRefApp() {
     <main className="dr-app" data-design-ref>
       <div className="dr-miniapp">
         <div className="dr-content">{screen}</div>
-        <NavTabBar active={tab} onChange={setTab} agentCount={profile.agents.length} />
+        <NavTabBar active={tab} onChange={setTab} agentCount={displayAgents.length} />
       </div>
     </main>
   );
