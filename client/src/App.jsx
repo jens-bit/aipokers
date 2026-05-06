@@ -43,7 +43,7 @@ export default function App() {
   }, [game?.seats]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('play');
+  const [activeTab, setActiveTab] = useState('home');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
@@ -185,26 +185,28 @@ export default function App() {
   }
 
   if (!config) {
+    const playWatchPayload = (payload) => {
+      setActiveAgent(payload.agentId);
+      watch({
+        tableId: payload.tableId,
+        agentId: payload.agentId,
+        userId: getUserId(),
+        agentStrategy: payload.strategy,
+        displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+        wantOpponentAI: false,
+        memoryContext: payload.memoryContext ?? '',
+      });
+    };
+
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game">
-          {activeTab === 'play' && (
+          {(activeTab === 'home' || activeTab === 'play') && (
             <Play
               key={playKey}
               onConnect={connect}
-              onWatch={(payload) => {
-                setActiveAgent(payload.agentId);
-                watch({
-                  tableId: payload.tableId,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
+              onWatch={playWatchPayload}
               onDone={() => {
                 setPlayInitialStep('pick');
                 setPlayKey((k) => k + 1);
@@ -216,18 +218,7 @@ export default function App() {
           )}
           {activeTab === 'agents' && (
             <AgentsTab
-              onDeploy={(payload) => {
-                setActiveAgent(payload.agentId);
-                watch({
-                  tableId: payload.tableId,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
+              onDeploy={playWatchPayload}
               onVsYou={(payload) => {
                 setActiveAgent(payload.agentId);
                 connect({
@@ -255,24 +246,54 @@ export default function App() {
               }}
             />
           )}
+          {activeTab === 'history' && <HistoryPlaceholder />}
+          {activeTab === 'profile' && <ProfilePlaceholder />}
         </div>
         <nav className="tab-bar">
+          <button
+            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => {
+              setPlayInitialStep('pick');
+              setEditingAgent(null);
+              setPlayKey((k) => k + 1);
+              setActiveTab('home');
+            }}
+          >
+            <HomeIcon />
+            <span>HOME</span>
+          </button>
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => {
               setPlayInitialStep('pick');
               setEditingAgent(null);
-              setPlayKey((k) => k + 1); // force Play remount → clears internal step state
+              setPlayKey((k) => k + 1);
               setActiveTab('play');
             }}
           >
-            PLAY
+            <PlayIcon />
+            <span>PLAY</span>
           </button>
           <button
             className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => setActiveTab('agents')}
           >
-            AGENTS
+            <AgentsIcon />
+            <span>AGENTS</span>
+          </button>
+          <button
+            className={`tab-bar__tab${activeTab === 'history' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <HistoryIcon />
+            <span>HISTORY</span>
+          </button>
+          <button
+            className={`tab-bar__tab${activeTab === 'profile' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => setActiveTab('profile')}
+          >
+            <ProfileIcon />
+            <span>PROFILE</span>
           </button>
         </nav>
       </div>
@@ -513,6 +534,84 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
         />
       ))}
     </div>
+  );
+}
+
+function HistoryPlaceholder() {
+  return (
+    <div className="placeholder-screen dr-app">
+      <div className="placeholder-screen__inner">
+        <svg viewBox="0 0 40 40" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="20" cy="20" r="15" />
+          <path d="M20 10v10l6 6" />
+        </svg>
+        <p className="placeholder-screen__title">Hand History</p>
+        <p className="placeholder-screen__sub">Coming soon</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfilePlaceholder() {
+  const name = getTelegramDisplayName() || 'Player';
+  return (
+    <div className="placeholder-screen dr-app">
+      <div className="placeholder-screen__inner">
+        <svg viewBox="0 0 40 40" width="48" height="48" fill="currentColor">
+          <circle cx="20" cy="13" r="7" />
+          <path d="M4 36c0-8.8 7.2-16 16-16s16 7.2 16 16H4z" />
+        </svg>
+        <p className="placeholder-screen__title">{name}</p>
+        <p className="placeholder-screen__sub">Profile · Coming soon</p>
+      </div>
+    </div>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <path d="M10 2L2 8.5V18h5v-6h6v6h5V8.5L10 2z" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <rect x="2" y="5" width="11" height="13" rx="1.5" opacity="0.45" />
+      <rect x="7" y="2" width="11" height="13" rx="1.5" />
+    </svg>
+  );
+}
+
+function AgentsIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="7" width="12" height="9" rx="2" />
+      <path d="M8 3h4v4H8z" />
+      <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      <path d="M8.5 14.5h3" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 6v4l2.5 2.5" />
+    </svg>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <circle cx="10" cy="6" r="3.5" />
+      <path d="M3 17.5c0-3.9 3.1-7 7-7s7 3.1 7 7H3z" />
+    </svg>
   );
 }
 

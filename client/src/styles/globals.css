@@ -1933,7 +1933,7 @@ input:focus { border-color: var(--accent); }
 }
 
 /* ============================================================
- * TAB BAR — PLAY / AGENTS bottom navigation (pre-game only)
+ * TAB BAR — 5-tab bottom navigation (pre-game only)
  * ============================================================ */
 
 .pre-game {
@@ -1952,15 +1952,27 @@ input:focus { border-color: var(--accent); }
 
 .tab-bar__tab {
   flex: 1;
-  height: 48px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
   background: none;
   border: none;
   color: var(--text-muted);
   font-family: var(--font-label);
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 9px;
+  letter-spacing: 0.08em;
   cursor: pointer;
   transition: color 120ms;
+}
+
+.tab-bar__tab svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .tab-bar__tab--active {
@@ -1969,6 +1981,44 @@ input:focus { border-color: var(--accent); }
 
 .tab-bar__tab:hover:not(.tab-bar__tab--active) {
   color: var(--text-secondary);
+}
+
+/* ============================================================
+ * PLACEHOLDER SCREENS — HISTORY / PROFILE coming soon
+ * ============================================================ */
+
+.placeholder-screen {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+}
+
+.placeholder-screen__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  opacity: 0.55;
+}
+
+.placeholder-screen__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--dr-text);
+  text-transform: none;
+}
+
+.placeholder-screen__sub {
+  margin: 0;
+  font-size: 11px;
+  color: var(--dr-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 /* ============================================================
