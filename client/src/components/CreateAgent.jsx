@@ -7,9 +7,6 @@ const QUICK_PROMPTS = [
   'Aggressive pressure agent',
 ];
 
-// Best-effort heuristics on the user's current draft to colour the blueprint
-// card. The real strategy is generated server-side by Claude on /build, so
-// these are display-only hints that get overwritten once the agent is saved.
 function inferDraft(prompt) {
   const lower = (prompt || '').toLowerCase();
   const aggressive = /\b(aggro|aggressive|pressure|bluff|attack)\b/.test(lower);
@@ -160,8 +157,6 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
           )}
         </div>
 
-        <DraftBlueprint chat={chat} createdAgent={createdAgent} />
-
         {createdAgent && (
           <CreatedAgentCard
             agent={createdAgent}
@@ -220,30 +215,6 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
   );
 }
 
-function DraftBlueprint({ chat, createdAgent }) {
-  const inferred = createdAgent || inferDraft(lastUser(chat));
-  const hasPrompt = chat.some((m) => m.role === 'user');
-  const tuned = hasPrompt || createdAgent;
-  return (
-    <section className="dr-blueprint-card">
-      <div className="dr-section-head">
-        <p className="dr-label">{createdAgent ? 'Created blueprint' : 'Draft blueprint'}</p>
-        <span>{tuned ? 'Tuned' : 'Waiting'}</span>
-      </div>
-      <div className="dr-blueprint-grid">
-        <BlueprintCell label="Style" value={tuned ? inferred.style : 'Unset'} />
-        <BlueprintCell label="Risk" value={tuned ? inferred.risk : 'Unset'} />
-        <BlueprintCell label="Table" value="HU NLH" />
-      </div>
-      <p>
-        {tuned
-          ? (createdAgent?.strategy || 'Strategy ready — review the card below.')
-          : 'Your first prompt becomes the strategy draft for version one.'}
-      </p>
-    </section>
-  );
-}
-
 function BlueprintCell({ label, value }) {
   return (
     <span>
@@ -263,6 +234,11 @@ function CreatedAgentCard({ agent, deploying, onDeploy, onKeepTuning }) {
           <h2>{agent.name}</h2>
           <small>{agent.style} style / {agent.risk} risk</small>
         </span>
+      </div>
+      <div className="dr-blueprint-grid">
+        <BlueprintCell label="Style" value={agent.style || 'Balanced'} />
+        <BlueprintCell label="Risk" value={agent.risk || 'Medium'} />
+        <BlueprintCell label="Table" value="HU NLH" />
       </div>
       {agent.strategy && <p>{agent.strategy}</p>}
       <div className="dr-readiness-list">
