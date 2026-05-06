@@ -32,6 +32,7 @@ export class Table {
     this.agentMemory = Array(maxSeats).fill('');   // cached memoryContext string; refreshed after memory updates
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
+    this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
 
@@ -226,6 +227,7 @@ export class Table {
           memory: this.agentMemory[i],
           handsPlayed: this.aiHandsPlayed[i],
           recentHands: this.aiRecentHands[i],
+          lastChatHand: this.aiLastChatHand[i],
         });
       }
     }
@@ -238,6 +240,7 @@ export class Table {
     this.agentMemory = Array(this.maxSeats).fill('');
     this.aiHandsPlayed = Array(this.maxSeats).fill(0);
     this.aiRecentHands = Array(this.maxSeats).fill(null).map(() => []);
+    this.aiLastChatHand = Array(this.maxSeats).fill(-1);
     for (let i = 0; i < filled.length; i++) {
       this.pending[i] = filled[i].pending;
       this.connections[i] = filled[i].ws;
@@ -248,6 +251,7 @@ export class Table {
       this.agentMemory[i] = filled[i].memory ?? '';
       this.aiHandsPlayed[i] = filled[i].handsPlayed ?? 0;
       this.aiRecentHands[i] = filled[i].recentHands ?? [];
+      this.aiLastChatHand[i] = filled[i].lastChatHand ?? -1;
     }
   }
 
@@ -271,9 +275,9 @@ export class Table {
       return;
     }
 
-    // Reset the per-hand decision log before the new hand so reports only
-    // contain decisions taken during this hand.
+    // Reset per-hand state before the new hand.
     this.currentHandDecisions = [];
+    this.aiLastChatHand = Array(this.maxSeats).fill(-1);
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._resetAiInactivityTimer();
@@ -489,13 +493,23 @@ export class Table {
     const hasHuman =
       this.connections.some((ws, i) => ws && !this.aiSeats[i]) ||
       this.spectators.length > 0;
-    if (!hasHuman) {
-      console.log(`[table:${this.tableId}] skipping AI chat (${trigger}) — no human at table`);
-      return;
+
+    // Enforce one chat per agent per hand — lock in optimistically so concurrent
+    // triggers in the same hand (e.g. won_hand + big_pot) don't both fire.
+    const currentHand = this.game?.handNumber ?? -1;
+    if (trigger !== 'human_chat' && this.aiLastChatHand[aiSeat] === currentHand) return;
+
+    // Frequency gates:
+    //   human_chat  → always respond (100%)
+    //   no human present → 15% chance
+    //   human present   → 25% chance
+    if (trigger !== 'human_chat') {
+      const threshold = hasHuman ? 0.25 : 0.15;
+      if (Math.random() >= threshold) return;
     }
-    // Always respond to direct human chat (psychological warfare feature).
-    // Other triggers (big_pot, won_hand, aggressive_action) fire 30% of the time.
-    if (trigger !== 'human_chat' && Math.random() >= 0.3) return;
+
+    // Lock this hand before the async call so concurrent triggers bail out.
+    if (trigger !== 'human_chat') this.aiLastChatHand[aiSeat] = currentHand;
 
     // Pick the most relevant opponent + last message. Walk chatHistory backwards
     // for the most recent line from a seat that isn't this AI; that seat is the
