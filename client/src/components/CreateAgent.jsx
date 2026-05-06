@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getUserId } from '../lib/telegram.js';
 
 const QUICK_CHIPS = [
   'Play tight and safe',
@@ -7,33 +8,78 @@ const QUICK_CHIPS = [
   'Balanced strategy',
 ];
 
-export function CreateAgent({ onBack, onDeploy }) {
-  const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'anon';
+// Extract 2-3 contextual reply chips from an assistant message.
+function extractChips(text) {
+  if (!text) return ['More aggressive', 'More conservative'];
+  const triple = text.match(/\b([\w][^,?!]{1,22}),\s*([\w][^,?!]{1,22}),?\s+or\s+([\w][^?!.]{1,22})/i);
+  if (triple) {
+    return [triple[1].trim(), triple[2].trim(), triple[3].replace(/[?!.\s]+$/, '').trim()]
+      .filter((s) => s.length >= 2 && s.length <= 30);
+  }
+  const pair = text.match(/\b([\w][^?!,]{1,22})\s+or\s+([\w][^?!.]{1,22})/i);
+  if (pair) {
+    return [pair[1].trim(), pair[2].replace(/[?!.\s]+$/, '').trim()]
+      .filter((s) => s.length >= 2 && s.length <= 30);
+  }
+  return ['More aggressive', 'More conservative'];
+}
+
+export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = null }) {
+  const userId = getUserId();
 
   const [chat, setChat] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
-  const [ready, setReady] = useState(false);
-  const bottomRef = useRef(null);
+  const [chips, setChips] = useState(QUICK_CHIPS);
+  // Track the current agent being edited (updated after Keep Tuning).
+  const [localAgent, setLocalAgent] = useState(existingAgent);
+  const chatRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const hasSentMessage = chat.some((m) => m.role === 'user');
+  const activeAgentId = localAgent?.id ?? null;
+  const displayName = agentName || localAgent?.name || null;
 
   useEffect(() => {
-    fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setChat(data.chat || []);
-        if (data.agents?.length > 0) setCreatedAgent(data.agents[data.agents.length - 1]);
+    // Always reset server-side chat first.
+    fetch('/api/agents/chat/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+      .then(() => {
+        if (existingAgent) {
+          setChat([{
+            role: 'assistant',
+            content: `You're editing ${existingAgent.name}. Currently: ${existingAgent.style}, ${existingAgent.risk} risk. Tell me what you'd like to change.`,
+          }]);
+        } else {
+          return fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
+            .then((r) => r.json())
+            .then((data) => setChat(data.chat || []));
+        }
       })
-      .catch(() => {})
-      .finally(() => setReady(true));
+      .catch(() => {
+        if (existingAgent) {
+          setChat([{ role: 'assistant', content: `You're editing ${existingAgent.name}. What would you like to change?` }]);
+        }
+      });
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
-  async function send(text) {
-    const msg = (text || input).trim();
+  function appendChip(chip) {
+    setInput((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip));
+    inputRef.current?.focus();
+  }
+
+  async function send() {
+    const msg = input.trim();
     if (!msg || loading) return;
     setInput('');
     setLoading(true);
@@ -43,24 +89,60 @@ export function CreateAgent({ onBack, onDeploy }) {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content: msg }),
+        body: JSON.stringify({ userId, content: msg, existingAgentId: activeAgentId }),
       });
       const data = await res.json();
-      setChat(data.chat || []);
-      if (data.createdAgent) setCreatedAgent(data.createdAgent);
+      const serverChat = data.chat || [];
+
+      if (existingAgent || localAgent) {
+        // Edit mode: append only the new AI reply — don't replace the context bubble.
+        const newAiMsg = serverChat.filter((m) => m.role === 'assistant').pop();
+        if (newAiMsg) setChat((prev) => [...prev, newAiMsg]);
+        const lastAi = newAiMsg;
+        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
+      } else {
+        setChat(serverChat);
+        const lastAi = serverChat.filter((m) => m.role === 'assistant').pop();
+        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
+      }
     } catch {
       setChat((prev) => [...prev, { role: 'assistant', content: 'Something went wrong — please try again.' }]);
+      setChips(QUICK_CHIPS);
     } finally {
       setLoading(false);
     }
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    send(input);
+  async function buildAgent() {
+    setBuilding(true);
+    try {
+      const res = await fetch('/api/agents/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, existingAgentId: activeAgentId }),
+      });
+      const data = await res.json();
+      if (data.createdAgent) setCreatedAgent(data.createdAgent);
+    } catch {
+      // silently ignore — user can retry
+    } finally {
+      setBuilding(false);
+    }
   }
 
-  const showChips = ready && !loading && chat.length <= 1;
+  function handleSubmit(e) {
+    e.preventDefault();
+    send();
+  }
+
+  function keepTuning() {
+    setLocalAgent(createdAgent);
+    setCreatedAgent(null);
+    // Add context bubble for the newly updated agent
+    const ctx = `${createdAgent.name} updated. Currently: ${createdAgent.style}, ${createdAgent.risk} risk. Keep going — what else would you change?`;
+    setChat((prev) => [...prev, { role: 'assistant', content: ctx }]);
+    setChips(QUICK_CHIPS);
+  }
 
   return (
     <div className="create-agent">
@@ -71,10 +153,13 @@ export function CreateAgent({ onBack, onDeploy }) {
           </svg>
           Back
         </button>
-        <span className="create-agent__title">Agent Creator</span>
+        <span className="create-agent__title">
+          AGENT CREATOR
+          {displayName && <span className="create-agent__agent-label"> · {displayName}</span>}
+        </span>
       </div>
 
-      <div className="create-agent__chat">
+      <div className="create-agent__chat" ref={chatRef}>
         {chat.map((msg, i) => (
           <div key={i} className={`create-agent__msg create-agent__msg--${msg.role}`}>
             {msg.role === 'assistant' && (
@@ -88,56 +173,65 @@ export function CreateAgent({ onBack, onDeploy }) {
 
         {loading && (
           <div className="create-agent__msg create-agent__msg--assistant">
-            <div className="create-agent__avatar" aria-hidden>
-              <SpadeIcon />
-            </div>
+            <div className="create-agent__avatar" aria-hidden><SpadeIcon /></div>
             <div className="create-agent__bubble create-agent__bubble--loading">
               <span className="create-agent__dots"><span /><span /><span /></span>
             </div>
           </div>
         )}
-
-        {showChips && (
-          <div className="create-agent__chips">
-            {QUICK_CHIPS.map((chip) => (
-              <button key={chip} type="button" className="create-agent__chip" onClick={() => send(chip)}>
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div ref={bottomRef} />
       </div>
 
+      {!createdAgent && chips.length > 0 && !loading && (
+        <div className="create-agent__chips-bar">
+          {chips.map((chip) => (
+            <button key={chip} type="button" className="create-agent__chip" onClick={() => appendChip(chip)}>
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!createdAgent && hasSentMessage && !loading && !building && (
+        <button type="button" className="create-agent__build-btn" onClick={buildAgent}>
+          BUILD AGENT →
+        </button>
+      )}
+
+      {building && (
+        <div className="create-agent__building">Building your agent…</div>
+      )}
+
       <div className="create-agent__footer">
-        {createdAgent && (
-          <div className="create-agent__deploy-wrap">
-            <div className="create-agent__agent-name">{createdAgent.name}</div>
-            <button type="button" className="create-agent__deploy-btn" onClick={() => onDeploy(createdAgent)}>
-              Deploy
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M5 12h14M13 6l6 6-6 6" />
+        {createdAgent ? (
+          <div className="create-agent__result">
+            <div className="create-agent__result-name">{createdAgent.name} is ready</div>
+            <div className="create-agent__result-actions">
+              <button type="button" className="create-agent__deploy-btn" onClick={() => onDone()}>
+                Open Agent
+              </button>
+              <button type="button" className="create-agent__keep-btn" onClick={keepTuning}>
+                Keep Tuning
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form className="create-agent__input-row" onSubmit={handleSubmit}>
+            <input
+              ref={inputRef}
+              className="create-agent__input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Describe your playstyle…"
+              disabled={loading || building}
+            />
+            <button type="submit" className="create-agent__send" disabled={loading || building || !input.trim()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </button>
-          </div>
+          </form>
         )}
-
-        <form className="create-agent__input-row" onSubmit={handleSubmit}>
-          <input
-            className="create-agent__input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe your playstyle…"
-            disabled={loading}
-          />
-          <button type="submit" className="create-agent__send" disabled={loading || !input.trim()}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </form>
       </div>
     </div>
   );

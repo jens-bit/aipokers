@@ -13,6 +13,7 @@ const STATUS_LABEL = {
   idle: 'IDLE',
   connecting: 'CONNECTING',
   waiting: 'WAITING',
+  watching: 'WATCHING',
   playing: 'IN HAND',
   reconnecting: 'RECONNECTING',
   closed: 'DISCONNECTED',
@@ -71,7 +72,7 @@ export function Header({ status, game, mySeat, hasConfig, historyCount, reconnec
               LOG
             </button>
             <button type="button" className="icon-btn" onClick={onLeave} aria-label="Leave table">
-              EXIT
+              LEAVE
             </button>
           </>
         )}

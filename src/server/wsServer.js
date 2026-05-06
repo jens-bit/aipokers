@@ -62,7 +62,22 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             // Auto-seat AI when the server has AI enabled AND the player asked for it.
-            if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) table.maybeAutoSeatAI(msg.agentStrategy ?? null);
+            if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) {
+              table.maybeAutoSeatAI(msg.agentStrategy ?? null, msg.agentDisplayName ?? null);
+            }
+            table.maybeStartHand();
+            return;
+          }
+
+          case ClientMsg.WATCH: {
+            if (!msg.tableId) throw new Error('tableId required');
+            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20 });
+            const spectatorSeat = table.addSpectator(ws, {
+              agentStrategy: msg.agentStrategy ?? null,
+              displayName: msg.displayName,
+            });
+            ws.tableId = msg.tableId;
+            send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
             table.maybeStartHand();
             return;
           }

@@ -20,6 +20,9 @@ export class Table {
     this.aiStrategy = [null, null];  // per-seat strategy string (passed to prompt)
     this.agentStrategy = null;       // player-designed strategy from CreateAgent flow
     this._aiInactivityTimer = null;  // 60s timeout for AI tables
+
+    // Spectators: users who watch their AI play from its seat's POV
+    this.spectators = [];            // [{ ws, spectatorSeat }]
   }
 
   // Returns the seat the player got, or throws.
@@ -70,14 +73,25 @@ export class Table {
     return free;
   }
 
+  // Seat an AI for a spectating user and register their WS for state broadcasts.
+  // Returns the seat index the AI was placed at.
+  addSpectator(ws, { agentStrategy, displayName } = {}) {
+    const seat = this.seatAI({
+      strategy: agentStrategy || '',
+      displayName: displayName || 'Agent',
+    });
+    this.spectators.push({ ws, spectatorSeat: seat });
+    return seat;
+  }
+
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI(agentStrategy = null) {
+  maybeAutoSeatAI(agentStrategy = null, agentDisplayName = null) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     if (!humanSeated || !hasFree) return;
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI();
+    this.seatAI({ displayName: agentDisplayName || undefined });
   }
 
   rename(ws, displayName) {
@@ -102,6 +116,17 @@ export class Table {
   }
 
   removeConnection(ws) {
+    // Spectator disconnect: remove from spectator list but keep the AI playing.
+    const specIdx = this.spectators.findIndex((s) => s.ws === ws);
+    if (specIdx !== -1) {
+      this.spectators.splice(specIdx, 1);
+      if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
+        if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
+        this.onEmpty?.(this.tableId);
+      }
+      return;
+    }
+
     for (let i = 0; i < this.connections.length; i++) {
       if (this.connections[i] === ws) {
         this.connections[i] = null;
@@ -118,7 +143,7 @@ export class Table {
         }
       }
     }
-    if (this.connections.every((c) => c === null)) {
+    if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
       if (this._aiInactivityTimer) {
         clearTimeout(this._aiInactivityTimer);
         this._aiInactivityTimer = null;
@@ -167,8 +192,12 @@ export class Table {
     this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
     if (this.game.seats.some((s) => s.stack <= 0)) {
       this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
+      return;
     }
-    // The next hand waits for an explicit DEAL message from a seated player.
+    // Auto-deal when all seats are AI (spectator mode — no human to click DEAL).
+    if (this.aiSeats.every(Boolean)) {
+      setTimeout(() => this.maybeStartHand(), 2500);
+    }
   }
 
   _broadcastState() {
@@ -178,6 +207,12 @@ export class Table {
       const state = this._augmentState(this.game.getPublicState(seat));
       const legal = this.game.legalActions(seat);
       ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
+    }
+    // Send read-only state to spectators (no legal actions).
+    for (const s of this.spectators) {
+      if (!s.ws || s.ws.readyState !== s.ws.OPEN) continue;
+      const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
+      s.ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: [], yourSeat: s.spectatorSeat }));
     }
     // Schedule AI turn if applicable — async, fire-and-forget.
     this._maybeRunAiTurn().catch((err) =>
@@ -198,6 +233,9 @@ export class Table {
     const payload = JSON.stringify(msg);
     for (const ws of this.connections) {
       if (ws && ws.readyState === ws.OPEN) ws.send(payload);
+    }
+    for (const s of this.spectators) {
+      if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(payload);
     }
   }
 
@@ -255,7 +293,7 @@ export class Table {
     // Re-check: the human might have acted somehow, or hand ended.
     if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
 
-    console.log(`[agent] strategy: "${(this.agentStrategy || 'default').slice(0, 80)}"`);
+    console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
     const decision = await getAgentAction(gameState, strategy);
 
     // One final guard before mutating game state.
@@ -263,6 +301,7 @@ export class Table {
 
     try {
       this.game.act(aiSeat, decision);
+      this._resetAiInactivityTimer();
       this._broadcastState();
       if (this.game.street === Streets.COMPLETE) this._handCompleted();
     } catch (err) {
@@ -272,6 +311,7 @@ export class Table {
       const fallback = legal.find((a) => a.type === 'check') ?? legal.find((a) => a.type === 'call') ?? { type: 'fold' };
       try {
         this.game.act(aiSeat, { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) });
+        this._resetAiInactivityTimer();
         this._broadcastState();
         if (this.game.street === Streets.COMPLETE) this._handCompleted();
       } catch (e2) {

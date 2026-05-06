@@ -41,6 +41,10 @@ function getOrCreate(userId) {
 
 const activeTables = new Set();
 
+// ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
+// { tableId, expiresAt }
+let matchmakingSlot = null;
+
 // ── Conversation constants ───────────────────────────────────────────────────
 
 const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
@@ -53,24 +57,38 @@ Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be dir
 
 After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<creative agent name e.g. Iron Sentinel v1>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
-
-const TRIGGER_RE = /create|build|make|deploy|yes|ready|generate|balanced|aggressive|tight|bluff/i;
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function userTurns(chat) {
-  return chat.filter((m) => m.role === 'user').length;
+// Update an agent in-place if existingAgentId is set, otherwise push a new one.
+function commitAgent(profile, existingAgentId, agentData) {
+  let agent = { ...agentData };
+  if (existingAgentId) {
+    const existing = profile.agents.find((a) => a.id === existingAgentId);
+    if (existing) {
+      Object.assign(existing, { name: agent.name, style: agent.style, risk: agent.risk, strategy: agent.strategy });
+      agent = existing;
+      console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk})`);
+      return agent;
+    }
+  }
+  agent.id = 'agent_' + Date.now().toString(36);
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  profile.agents.push(agent);
+  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
+  return agent;
 }
 
 function inferFallback(text) {
   if (/aggressive|bluff|pressure/i.test(text)) {
-    return { name: 'Pressure v1', style: 'Aggressive', risk: 'High', strategy: 'You are an aggressive poker player who bets and raises frequently. You apply maximum pressure with strong hands and strategic bluffs to force opponents into tough decisions.' };
+    return { name: 'Loose Cannon', style: 'Aggressive', risk: 'High', strategy: 'You are a relentless aggressor who bets and raises at every opportunity. You build massive pots with strong hands and fire sustained bluffs to keep opponents permanently off-balance.' };
   }
   if (/tight|safe|conservative/i.test(text)) {
-    return { name: 'Sentinel v1', style: 'Tight', risk: 'Low', strategy: 'You are a tight, disciplined poker player who only plays strong hands. You minimize risk, avoid marginal spots, and capitalize when you have a clear advantage.' };
+    return { name: 'Rock Solid', style: 'Tight', risk: 'Low', strategy: 'You are a disciplined, patient player who only commits chips with premium holdings. You wait for the best spots, fold marginal hands without hesitation, and extract maximum value when you hold the nuts.' };
   }
-  return { name: 'Balanced v1', style: 'Balanced', risk: 'Medium', strategy: 'You are a balanced poker player who mixes aggression with solid fundamentals. You adapt to your opponent, value bet strong hands, and bluff selectively in good spots.' };
+  return { name: 'The Grinder', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range based on how your opponent plays.' };
 }
 
 async function callClaude(messages, systemText, maxTokens) {
@@ -164,6 +182,55 @@ export function installAgentProfileRoutes(app) {
     });
   });
 
+  // POST /api/agents/:agentId/queue — PvP matchmaking
+  // Pairs two agents on the same table without manual ID sharing.
+  app.post('/api/agents/:agentId/queue', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    // Clear expired slot (5-min TTL).
+    if (matchmakingSlot && Date.now() > matchmakingSlot.expiresAt) {
+      matchmakingSlot = null;
+    }
+
+    let tableId;
+    let matched;
+
+    let opponentName = null;
+
+    if (matchmakingSlot) {
+      // Match found — join the waiting table.
+      tableId = matchmakingSlot.tableId;
+      opponentName = matchmakingSlot.agentName;
+      matchmakingSlot = null;
+      matched = true;
+      console.log(`[agents] matched ${agent.name} vs ${opponentName} on table ${tableId} (PvP)`);
+    } else {
+      // No one waiting — create a table and queue it.
+      tableId = 'table-' + randomUUID().slice(0, 8);
+      matchmakingSlot = { tableId, agentName: agent.name, expiresAt: Date.now() + 5 * 60_000 };
+      matched = false;
+      console.log(`[agents] ${agent.name} queued on table ${tableId}, waiting for opponent`);
+    }
+
+    activeTables.add(tableId);
+    agent.activeTableId = tableId;
+    agent.status = 'playing';
+    saveStore(userId);
+
+    res.json({
+      tableId,
+      matched,
+      opponentName,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
+    });
+  });
+
   // POST /api/agents/:agentId/finish
   app.post('/api/agents/:agentId/finish', (req, res) => {
     const userId = String(req.body?.userId || 'anon');
@@ -179,29 +246,67 @@ export function installAgentProfileRoutes(app) {
     res.json(agent);
   });
 
-  // POST /api/agents/chat — create agent via conversation
+  // POST /api/agents/chat/reset — clear chat history to opening message
+  app.post('/api/agents/chat/reset', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const profile = getOrCreate(userId);
+    profile.chat = [{ role: 'assistant', content: OPENING_MSG }];
+    saveStore(userId);
+    res.json({ ok: true });
+  });
+
+  // POST /api/agents/chat — pure conversational reply, never generates an agent
   app.post('/api/agents/chat', async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
+    const existingAgentId = req.body?.existingAgentId ?? null;
     if (!content) return res.status(400).json({ error: 'content required' });
 
     const profile = getOrCreate(userId);
     profile.chat.push({ role: 'user', content });
 
-    const turns = userTurns(profile.chat);
-    const shouldGenerate = turns >= 3 || TRIGGER_RE.test(content);
+    // Include existing agent context so the AI knows what's being changed.
+    const existingAgentForCtx = existingAgentId
+      ? profile.agents.find((a) => a.id === existingAgentId)
+      : null;
+    const existingCtx = existingAgentForCtx
+      ? `\n\nThe user is editing an existing agent: "${existingAgentForCtx.name}" — ${existingAgentForCtx.style} style, ${existingAgentForCtx.risk} risk. Current strategy: "${existingAgentForCtx.strategy}". When they suggest changes, acknowledge what's shifting and why it matters tactically.`
+      : '';
+    const systemText = SYSTEM_CONV + existingCtx;
 
     try {
-      if (!shouldGenerate) {
-        const reply = await callClaude(profile.chat, SYSTEM_CONV, 120);
-        const msg = reply || "Great! How aggressive do you like to play, and how often do you bluff?";
-        profile.chat.push({ role: 'assistant', content: msg });
-        saveStore(userId);
-        return res.json({ userId: profile.userId, hasAgents: profile.agents.length > 0, agents: profile.agents, chat: profile.chat });
-      }
+      const reply = await callClaude(profile.chat, systemText, 150);
+      const msg = reply || "How aggressive do you like to play, and how often do you bluff?";
+      profile.chat.push({ role: 'assistant', content: msg });
+      saveStore(userId);
+      return res.json({ chat: profile.chat });
+    } catch (err) {
+      console.error('[agentProfiles] chat error:', err.message);
+      const fallback = "Could you tell me more about your preferred style?";
+      profile.chat.push({ role: 'assistant', content: fallback });
+      saveStore(userId);
+      return res.json({ chat: profile.chat });
+    }
+  });
 
+  // POST /api/agents/build — generate agent from current chat, commit it
+  app.post('/api/agents/build', async (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const existingAgentId = req.body?.existingAgentId ?? null;
+
+    const profile = getOrCreate(userId);
+
+    const existingAgentForCtx = existingAgentId
+      ? profile.agents.find((a) => a.id === existingAgentId)
+      : null;
+    const editNote = existingAgentForCtx
+      ? `\n\nNote: you are updating the existing agent "${existingAgentForCtx.name}" (${existingAgentForCtx.style}/${existingAgentForCtx.risk}). Output the complete updated agent profile.`
+      : '';
+    const genSystem = SYSTEM_GEN + editNote;
+
+    try {
       let agent = null;
-      const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
+      const raw = await callClaude(profile.chat, genSystem, 200);
       if (raw) {
         try { agent = JSON.parse(raw); } catch {}
       }
@@ -209,38 +314,15 @@ export function installAgentProfileRoutes(app) {
         const combined = profile.chat.map((m) => m.content).join(' ');
         agent = inferFallback(combined);
       }
-      agent.id = 'agent_' + Date.now().toString(36);
-      agent.status = 'idle';
-      agent.activeTableId = null;
-      console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}) strategy: "${agent.strategy?.slice(0, 80)}"`);
-
-      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
-      profile.chat.push({ role: 'assistant', content: confirmMsg });
-      profile.agents.push(agent);
+      agent = commitAgent(profile, existingAgentId, agent);
       saveStore(userId);
-
-      return res.json({
-        userId: profile.userId,
-        hasAgents: true,
-        agents: profile.agents,
-        chat: profile.chat,
-        createdAgent: agent,
-      });
+      return res.json({ createdAgent: agent });
     } catch (err) {
-      console.error('[agentProfiles] error:', err.message);
+      console.error('[agentProfiles] build error:', err.message);
       const combined = profile.chat.map((m) => m.content).join(' ');
-      const agent = { ...inferFallback(combined), id: 'agent_' + Date.now().toString(36), status: 'idle', activeTableId: null };
-      const confirmMsg = `${agent.name} is ready — a ${agent.style} agent with ${agent.risk.toLowerCase()} risk. Hit Deploy to put it in a game.`;
-      profile.chat.push({ role: 'assistant', content: confirmMsg });
-      profile.agents.push(agent);
+      const agent = commitAgent(profile, existingAgentId, inferFallback(combined));
       saveStore(userId);
-      return res.json({
-        userId: profile.userId,
-        hasAgents: true,
-        agents: profile.agents,
-        chat: profile.chat,
-        createdAgent: agent,
-      });
+      return res.json({ createdAgent: agent });
     }
   });
 }

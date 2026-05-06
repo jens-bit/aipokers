@@ -35,3 +35,17 @@ export function getTelegramDisplayName() {
 export function isInTelegram() {
   return getWebApp() != null;
 }
+
+// Stable per-device user ID. Uses Telegram user ID when inside the Mini App,
+// otherwise falls back to a localStorage-persisted random ID so every browser
+// tab gets its own isolated agent store.
+export function getUserId() {
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString();
+  if (tgId) return tgId;
+  let id = localStorage.getItem('agentic_uid');
+  if (!id) {
+    id = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    localStorage.setItem('agentic_uid', id);
+  }
+  return id;
+}

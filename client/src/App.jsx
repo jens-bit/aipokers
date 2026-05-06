@@ -3,7 +3,7 @@ import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
-import { getTelegramDisplayName } from './lib/telegram.js';
+import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
@@ -25,7 +25,7 @@ export default function App() {
     game, mySeat, legalActions, history,
     error, dismissError, status,
     reconnectAttempt, maxReconnectAttempts,
-    config, connect, disconnect, act, deal, rename,
+    config, connect, watch, disconnect, act, deal, rename,
   } = table;
   const displayNames = {
     0: game?.seats?.[0]?.displayName ?? 'Seat A',
@@ -36,6 +36,29 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('play');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
+  const [activeAgentId, setActiveAgentId] = useState(null);
+  const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
+  const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
+
+  function setActiveAgent(id) {
+    activeAgentIdRef.current = id;
+    setActiveAgentId(id);
+  }
+
+  const callAgentFinish = useCallback((agentId) => {
+    if (!agentId) return;
+    fetch(`/api/agents/${agentId}/finish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: getUserId() }),
+    }).catch(() => {});
+    activeAgentIdRef.current = null;
+    setActiveAgentId(null);
+  }, []);
+
+  useEffect(() => {
+    if (activeAgentId && status === 'closed') callAgentFinish(activeAgentId);
+  }, [status, activeAgentId, callAgentFinish]);
 
   // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
   const TIMER_TOTAL = 15;
@@ -71,19 +94,9 @@ export default function App() {
   }, [timerLeft, isMyTurn]);
 
   const handleLeave = useCallback(() => {
-    const gameInProgress = game &&
-      game.street !== Streets.WAITING &&
-      game.street !== Streets.COMPLETE;
-    const tg = window.Telegram?.WebApp;
-    if (gameInProgress && tg?.showConfirm) {
-      tg.showConfirm('Your game is still running. Leave anyway?', (confirmed) => {
-        if (confirmed) { disconnect(); tg.close?.(); }
-      });
-    } else {
-      disconnect();
-      tg?.close?.();
-    }
-  }, [game, disconnect]);
+    callAgentFinish(activeAgentIdRef.current); // use ref — never stale
+    disconnect();
+  }, [disconnect, callAgentFinish]);
 
   const buyInRef = useRef(null);
   useEffect(() => {
@@ -102,21 +115,56 @@ export default function App() {
             <Play
               key={playKey}
               onConnect={connect}
+              onWatch={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                });
+              }}
+              onDone={() => {
+                setPlayInitialStep('pick');
+                setPlayKey((k) => k + 1);
+                setActiveTab('agents');
+              }}
               initialStep={playInitialStep}
+              existingAgent={editingAgent}
             />
           )}
           {activeTab === 'agents' && (
             <AgentsTab
-              onDeploy={(payload) => connect({
-                tableId: payload.tableId,
-                displayName: getTelegramDisplayName() || payload.agentName || 'Anon',
-                buyIn: 1000,
-                smallBlind: 10,
-                bigBlind: 20,
-                wantAI: true,
-                agentStrategy: payload.strategy,
-              })}
+              onDeploy={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                });
+              }}
+              onVsYou={(payload) => {
+                setActiveAgent(payload.agentId);
+                connect({
+                  tableId: payload.tableId,
+                  displayName: getTelegramDisplayName() || 'Player',
+                  buyIn: 1000,
+                  smallBlind: 10,
+                  bigBlind: 20,
+                  wantAI: true,
+                  agentStrategy: payload.strategy,
+                  agentDisplayName: payload.agentName,
+                });
+              }}
               onCreateAgent={() => {
+                setEditingAgent(null);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+              onChatAgent={(agent) => {
+                setEditingAgent(agent);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
@@ -127,7 +175,12 @@ export default function App() {
         <nav className="tab-bar">
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('play')}
+            onClick={() => {
+              setPlayInitialStep('pick');
+              setEditingAgent(null);
+              setPlayKey((k) => k + 1); // force Play remount → clears internal step state
+              setActiveTab('play');
+            }}
           >
             PLAY
           </button>
@@ -163,16 +216,20 @@ export default function App() {
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
       </main>
-      <ActionBar
-        game={game}
-        mySeat={mySeat}
-        legalActions={legalActions}
-        status={status}
-        reconnectAttempt={reconnectAttempt}
-        maxReconnectAttempts={maxReconnectAttempts}
-        onAct={act}
-        onDeal={deal}
-      />
+      {config?.isSpectator ? (
+        <WatchBanner config={config} game={game} mySeat={mySeat} />
+      ) : (
+        <ActionBar
+          game={game}
+          mySeat={mySeat}
+          legalActions={legalActions}
+          status={status}
+          reconnectAttempt={reconnectAttempt}
+          maxReconnectAttempts={maxReconnectAttempts}
+          onAct={act}
+          onDeal={deal}
+        />
+      )}
       {/* Desktop: sticky history panel. Mobile: hidden by CSS. */}
       <aside className="app__sidebar">
         <div className="panel-header">
@@ -196,6 +253,23 @@ export default function App() {
       />
     </div>
   );
+}
+
+function WatchBanner({ config, game, mySeat }) {
+  const myName = config?.displayName || 'Agent';
+  const opponentSeat = mySeat === 0 ? 1 : 0;
+  const oppName = game?.seats?.[opponentSeat]?.displayName;
+  const handNum = game?.handNumber;
+
+  let text;
+  if (oppName && handNum) {
+    text = `${myName} vs ${oppName} — Hand #${handNum}`;
+  } else if (oppName) {
+    text = `${myName} vs ${oppName}`;
+  } else {
+    text = `Waiting for opponent…`;
+  }
+  return <div className="watch-banner">👁 {text}</div>;
 }
 
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
