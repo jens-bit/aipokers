@@ -957,14 +957,6 @@ function HumanPlayScreen({ agent, onBack }) {
         </div>
       </section>
       <HumanActionSurface />
-      <section className="dr-human-chat-strip">
-        <span>
-          <p className="dr-label dr-label--accent">Table chat</p>
-          <b>{agent.name}</b>
-          <small>Ask the table coach why raise 40 is selected.</small>
-        </span>
-        <button type="button"><Icon name="send" size={16} /> Chat</button>
-      </section>
     </div>
   );
 }
@@ -981,7 +973,10 @@ function HumanSeat({ name, stack, delta, badges, cards, bet, top = false, hero =
           <i>{badges.map((badge) => <small key={badge} className={badge === 'You' ? 'is-you' : ''}>{badge}</small>)}</i>
         </span>
       </div>
-      <div className="dr-human-bet"><small>Bet</small><b>{bet}</b></div>
+      <div className="dr-human-seat__side">
+        <div className="dr-human-bet"><small>Bet</small><b>{bet}</b></div>
+        {hero && <div className="dr-human-timer" aria-label="10 seconds remaining"><span>10</span></div>}
+      </div>
     </div>
   );
 }
@@ -1014,7 +1009,7 @@ function HumanActionSurface() {
         <button type="button" className="is-fold">Fold</button>
         <button type="button">Call 10</button>
         <button type="button">Raise 40</button>
-        <div className="dr-human-timer" aria-label="10 seconds remaining"><span>10</span></div>
+        <button type="button" className="is-chat" aria-label="Table chat"><Icon name="send" size={16} /></button>
       </div>
     </section>
   );
