@@ -293,34 +293,27 @@ function LoadingState({ identity }) {
 
 function EmptyHome({ identity, onCreate }) {
   return (
-    <div className="dr-screen">
+    <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={0} onCreate={onCreate} />
-      <section className="dr-hero">
-        <p className="dr-label dr-label--accent">New agent</p>
-        <h1>Build your first poker agent.</h1>
-        <p>You have no agents yet. Start with a playing style and chat will shape version one.</p>
+      <section className="dr-home-stage dr-home-stage--empty">
+        <div className="dr-home-stage__top">
+          <span><i /> No agent</span>
+          <small>Telegram preview</small>
+        </div>
+        <div className="dr-home-stage__main">
+          <AgentAvatar size="lg" />
+          <div>
+            <p className="dr-label dr-label--accent">Chat first</p>
+            <h1>Build your first poker agent.</h1>
+            <p>Tell it how to play. Chat turns that into a saved strategy profile.</p>
+          </div>
+        </div>
         <button className="dr-primary-btn" type="button" onClick={onCreate}>
           Start in chat
           <Icon name="chevron-right" size={15} />
         </button>
       </section>
-      <section className="dr-panel dr-empty-panel">
-        <div className="dr-empty-orbit">
-          <AgentAvatar size="lg" />
-        </div>
-        <h2>Start with a style</h2>
-        <p>Describe how the agent should play, then review the draft before funding its first table.</p>
-        <div className="dr-state-list">
-          <span><Icon name="check" size={14} color="#00d4aa" /> Choose a playing style</span>
-          <span><Icon name="check" size={14} color="#00d4aa" /> Review the strategy draft</span>
-          <span><Icon name="check" size={14} color="#00d4aa" /> Fund and deploy when ready</span>
-        </div>
-      </section>
-      <section className="dr-setup-strip">
-        <SetupStep number="1" label="Create" value="Agent style" active />
-        <SetupStep number="2" label="Fund" value="Bankroll" />
-        <SetupStep number="3" label="Deploy" value="First table" />
-      </section>
+      <HomeChatPreview agent={null} onCreate={onCreate} />
       <QuickPromptPanel onPick={onCreate} />
     </div>
   );
@@ -484,28 +477,89 @@ function ExistingHome({ identity, agent, onCreate, onOpenAgent }) {
   const needsFunding = agent.deployStatus === 'needs_funding';
   const statusLabel = agent.status === 'playing' ? 'Playing now' : needsFunding ? 'Needs bankroll' : 'Ready to deploy';
   return (
-    <div className="dr-screen">
+    <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={1} onCreate={onCreate} />
-      <section className="dr-active-agent-card">
-        <div className="dr-active-agent-card__top">
+      <section className="dr-home-stage">
+        <div className="dr-home-stage__top">
           <span><i /> {statusLabel}</span>
           <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
         </div>
-        <div className="dr-active-agent-card__main">
+        <div className="dr-home-stage__main">
           <AgentAvatar size="lg" />
           <div>
-            <p className="dr-label dr-label--accent">My first agent</p>
+            <p className="dr-label dr-label--accent">Primary agent</p>
             <h1>{agent.name}</h1>
             <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
           </div>
         </div>
-        <p>{agent.strategy}</p>
-        <button className="dr-primary-btn" type="button">{needsFunding ? 'Fund agent' : 'Deploy to table'}</button>
+        <HomeTableSnapshot agent={agent} />
+        <div className="dr-home-actions">
+          <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
+            {needsFunding ? 'Fund agent' : 'Open table'}
+          </button>
+          <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onOpenAgent}>
+            <Icon name="send" size={15} /> Chat agent
+          </button>
+        </div>
       </section>
       <AgentStats agent={agent} />
-      <FirstSessionSetup agent={agent} />
+      <HomeChatPreview agent={agent} onCreate={onCreate} onOpenAgent={onOpenAgent} />
       <RecentActivity agent={agent} />
     </div>
+  );
+}
+
+function HomeTableSnapshot({ agent }) {
+  return (
+    <div className="dr-home-table">
+      <div className="dr-home-table__felt">
+        <span className="dr-home-table__seat dr-home-table__seat--top">
+          <AgentAvatar size="xs" />
+          <b>Opponent</b>
+        </span>
+        <div className="dr-home-table__pot">
+          <small>Next table</small>
+          <b>HU NLH</b>
+        </div>
+        <div className="dr-home-table__cards">
+          <PlayingCard rank="A" suit="s" mini />
+          <PlayingCard rank="K" suit="h" mini />
+          <PlayingCard rank="Q" suit="c" mini />
+        </div>
+        <span className="dr-home-table__seat dr-home-table__seat--bottom">
+          <AgentAvatar size="xs" />
+          <b>{agent.name}</b>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HomeChatPreview({ agent, onCreate, onOpenAgent }) {
+  const hasAgent = Boolean(agent);
+  return (
+    <section className="dr-home-chat-card">
+      <div className="dr-home-chat-card__head">
+        <span>
+          <p className="dr-label dr-label--accent">Chat first</p>
+          <b>{hasAgent ? `Talk to ${agent.name}` : 'Create by chatting'}</b>
+        </span>
+        <small><i /> live</small>
+      </div>
+      <div className="dr-home-chat-card__bubble">
+        {hasAgent
+          ? 'Ask your agent why it wants to call, tighten up, or plan the next street.'
+          : 'Describe the player you want and I will draft version one.'}
+      </div>
+      <div className="dr-home-chat-card__actions">
+        <button type="button" onClick={hasAgent ? onOpenAgent : onCreate}>
+          <Icon name="send" size={14} /> {hasAgent ? 'Open chat' : 'Start chat'}
+        </button>
+        <button type="button" onClick={hasAgent ? onOpenAgent : () => onCreate('Balanced heads-up player')}>
+          {hasAgent ? 'Explain table' : 'Balanced agent'}
+        </button>
+      </div>
+    </section>
   );
 }
 
