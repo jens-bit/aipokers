@@ -4,6 +4,10 @@ import { getUserId } from '../lib/telegram.js';
 export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedHands, setExpandedHands] = useState({});
+  const [handsCache, setHandsCache] = useState({});
+  const [handsLoading, setHandsLoading] = useState({});
+  const [handsError, setHandsError] = useState({});
 
   useEffect(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -37,6 +41,31 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
   async function remove(agentId) {
     await fetch(`/api/agents/${agentId}?userId=${getUserId()}`, { method: 'DELETE' });
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
+    setExpandedHands((prev) => clearAgentKey(prev, agentId));
+    setHandsCache((prev) => clearAgentKey(prev, agentId));
+    setHandsLoading((prev) => clearAgentKey(prev, agentId));
+    setHandsError((prev) => clearAgentKey(prev, agentId));
+  }
+
+  async function toggleHands(agentId) {
+    const willOpen = !expandedHands[agentId];
+    setExpandedHands((prev) => ({ ...prev, [agentId]: willOpen }));
+
+    if (!willOpen || handsCache[agentId] || handsLoading[agentId]) return;
+
+    setHandsLoading((prev) => ({ ...prev, [agentId]: true }));
+    setHandsError((prev) => clearAgentKey(prev, agentId));
+
+    try {
+      const res = await fetch(agentHandsUrl(agentId));
+      if (!res.ok) throw new Error('hands request failed');
+      const data = await res.json();
+      setHandsCache((prev) => ({ ...prev, [agentId]: data }));
+    } catch {
+      setHandsError((prev) => ({ ...prev, [agentId]: 'Could not load recent hands' }));
+    } finally {
+      setHandsLoading((prev) => ({ ...prev, [agentId]: false }));
+    }
   }
 
   if (loading) {
@@ -85,6 +114,11 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
             onVsYou={() => vsYou(agent)}
             onChat={() => onChatAgent(agent)}
             onDelete={() => remove(agent.id)}
+            handsExpanded={!!expandedHands[agent.id]}
+            handsData={handsCache[agent.id]}
+            handsLoading={!!handsLoading[agent.id]}
+            handsError={handsError[agent.id]}
+            onToggleHands={() => toggleHands(agent.id)}
           />
         ))}
       </div>
@@ -92,7 +126,7 @@ export function AgentsTab({ onDeploy, onVsYou, onCreateAgent, onChatAgent }) {
   );
 }
 
-function AgentCard({ agent, onDeploy, onVsYou, onChat, onDelete }) {
+function AgentCard({ agent, onDeploy, onVsYou, onChat, onDelete, handsExpanded, handsData, handsLoading, handsError, onToggleHands }) {
   const isLive = agent.status === 'playing';
   const strategy = agent.strategy || '';
   const preview = strategy.length > 80 ? strategy.slice(0, 80) + '…' : strategy;
@@ -111,6 +145,7 @@ function AgentCard({ agent, onDeploy, onVsYou, onChat, onDelete }) {
           {agent.risk && <span className="agent-card__tag">{agent.risk} Risk</span>}
         </div>
       )}
+      <AgentStats stats={agent.stats} />
       {preview && <div className="agent-card__strategy">{preview}</div>}
       <div className="agent-card__actions">
         <div className="agent-card__primary-row">
@@ -130,6 +165,96 @@ function AgentCard({ agent, onDeploy, onVsYou, onChat, onDelete }) {
           </button>
         </div>
       </div>
+      <RecentHandsSection
+        expanded={handsExpanded}
+        data={handsData}
+        loading={handsLoading}
+        error={handsError}
+        onToggle={onToggleHands}
+      />
     </div>
   );
+}
+
+function AgentStats({ stats }) {
+  if (!stats || Number(stats.handsPlayed) <= 0) return null;
+
+  const totalDecisions = Number(stats.totalDecisions) || 0;
+  const aggressiveDecisions = Number(stats.aggressiveDecisions) || 0;
+  const aggressiveRate = totalDecisions ? Math.round((aggressiveDecisions / totalDecisions) * 100) : 0;
+  const winRate = Number.isFinite(Number(stats.winRate)) ? Math.round(Number(stats.winRate)) : 0;
+
+  return (
+    <div className="agent-card__strategy agent-card__stats-row">
+      <span>Win rate: {winRate}%</span>
+      <span>Hands: {stats.handsPlayed}</span>
+      <span>Agg: {aggressiveRate}%</span>
+    </div>
+  );
+}
+
+function RecentHandsSection({ expanded, data, loading, error, onToggle }) {
+  const recentHands = (data?.recentHands || []).slice(0, 5);
+
+  return (
+    <div className="agent-card__hands">
+      <button className="agent-card__hands-toggle" type="button" onClick={onToggle}>
+        <span>Recent Hands</span>
+        <span>{expanded ? 'Hide' : 'Show'}</span>
+      </button>
+      {expanded && (
+        <div className="agent-card__recent-hands">
+          {loading && <div className="history__entry">Loading recent hands...</div>}
+          {error && <div className="history__entry agent-card__hands-error">{error}</div>}
+          {!loading && !error && recentHands.length === 0 && (
+            <div className="history__entry">No hands recorded yet.</div>
+          )}
+          {!loading && !error && recentHands.map((hand) => (
+            <HandEntry hand={hand} key={`${hand.handNumber}-${hand.timestamp || ''}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandEntry({ hand }) {
+  return (
+    <div className="agent-card__hand">
+      <div className="history__entry result agent-card__hand-result">
+        <span>Hand #{hand.handNumber ?? '--'} - </span>
+        <span className={hand.won ? 'agent-card__hand-won' : 'agent-card__hand-lost'}>
+          {hand.won ? 'WON' : 'LOST'}
+        </span>
+        <span> - Pot: {formatAmount(hand.potSize)}</span>
+      </div>
+      {(hand.decisions || []).map((decision, index) => (
+        <div className="history__entry agent-card__decision" key={`${decision.street || 'street'}-${index}`}>
+          <span>[{String(decision.street || 'street').toUpperCase()}]</span>
+          <span>{formatDecisionAction(decision.action)}</span>
+          {decision.reasoning && <span>- "{decision.reasoning}"</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatDecisionAction(action = {}) {
+  if (!action?.type) return 'unknown';
+  if (action.amount == null) return action.type;
+  return `${action.type} ${action.amount}`;
+}
+
+function formatAmount(amount) {
+  return amount == null ? '--' : amount;
+}
+
+function agentHandsUrl(agentId) {
+  return `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`;
+}
+
+function clearAgentKey(source, agentId) {
+  const next = { ...source };
+  delete next[agentId];
+  return next;
 }

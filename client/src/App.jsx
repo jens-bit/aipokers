@@ -20,6 +20,10 @@ function resolveWsUrl() {
 }
 const WS_URL = resolveWsUrl();
 
+function agentHandsApiUrl(agentId) {
+  return `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`;
+}
+
 export default function App() {
   const table = useTable({ wsUrl: WS_URL });
   const {
@@ -29,10 +33,13 @@ export default function App() {
     config, connect, watch, disconnect, act, deal, rename,
     chatMessages, sendChat,
   } = table;
-  const displayNames = {
-    0: game?.seats?.[0]?.displayName ?? 'Seat A',
-    1: game?.seats?.[1]?.displayName ?? 'Seat B',
-  };
+  const displayNames = useMemo(() => {
+    const names = {};
+    (game?.seats || []).forEach((seat, index) => {
+      names[index] = seat?.displayName ?? `Seat ${index + 1}`;
+    });
+    return names;
+  }, [game?.seats]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('play');
@@ -41,6 +48,9 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState(null);
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
+  const [lastAgentHand, setLastAgentHand] = useState(null);
+  const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
+  const lastResultKeyRef = useRef(null);
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -58,9 +68,33 @@ export default function App() {
     setActiveAgentId(null);
   }, []);
 
+  const loadLatestAgentHand = useCallback(async (agentId) => {
+    if (!agentId) return;
+    try {
+      const res = await fetch(agentHandsApiUrl(agentId));
+      if (!res.ok) throw new Error('hands request failed');
+      const data = await res.json();
+      const hand = data.recentHands?.[0] || null;
+      if (hand?.decisions?.length) {
+        setLastAgentHand(hand);
+        setLastAgentHandOpen(true);
+      } else {
+        setLastAgentHand(null);
+      }
+    } catch {
+      setLastAgentHand(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeAgentId && status === 'closed') callAgentFinish(activeAgentId);
   }, [status, activeAgentId, callAgentFinish]);
+
+  useEffect(() => {
+    setLastAgentHand(null);
+    setLastAgentHandOpen(false);
+    lastResultKeyRef.current = null;
+  }, [activeAgentId]);
 
   // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
   const TIMER_TOTAL = 15;
@@ -108,6 +142,17 @@ export default function App() {
 
   useEffect(() => { if (!config) setHistoryOpen(false); }, [config]);
 
+  useEffect(() => {
+    if (!config?.isSpectator || !activeAgentId) return;
+    const latestResult = findLatestResult(history);
+    if (!latestResult) return;
+
+    const key = `${latestResult.handNumber}:${JSON.stringify(latestResult.result)}`;
+    if (lastResultKeyRef.current === key) return;
+    lastResultKeyRef.current = key;
+    loadLatestAgentHand(activeAgentId);
+  }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
+
   if (!config) {
     return (
       <div className="app">
@@ -121,11 +166,11 @@ export default function App() {
                 setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
                   memoryContext: payload.memoryContext ?? '',
                 });
               }}
@@ -144,11 +189,11 @@ export default function App() {
                 setActiveAgent(payload.agentId);
                 watch({
                   tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
                   memoryContext: payload.memoryContext ?? '',
                 });
               }}
@@ -161,10 +206,10 @@ export default function App() {
                   smallBlind: 10,
                   bigBlind: 20,
                   wantAI: true,
-                  agentStrategy: payload.strategy,
-                  agentDisplayName: payload.agentName,
                   agentId: payload.agentId,
                   userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  agentDisplayName: payload.agentName,
                   memoryContext: payload.memoryContext ?? '',
                 });
               }}
@@ -229,7 +274,14 @@ export default function App() {
       </main>
       <ChatBar messages={chatMessages} onSend={sendChat} />
       {config?.isSpectator ? (
-        <WatchBanner config={config} game={game} mySeat={mySeat} />
+        <>
+          <WatchBanner config={config} game={game} mySeat={mySeat} />
+          <LastAgentHandPanel
+            hand={lastAgentHand}
+            open={lastAgentHandOpen}
+            onToggle={() => setLastAgentHandOpen((value) => !value)}
+          />
+        </>
       ) : (
         <ActionBar
           game={game}
@@ -269,8 +321,10 @@ export default function App() {
 
 function WatchBanner({ config, game, mySeat }) {
   const myName = config?.displayName || 'Agent';
-  const opponentSeat = mySeat === 0 ? 1 : 0;
-  const oppName = game?.seats?.[opponentSeat]?.displayName;
+  const opponents = (game?.seats || []).filter((_, index) => index !== mySeat);
+  const oppName = opponents.length > 1
+    ? `${opponents.length} opponents`
+    : opponents[0]?.displayName;
   const handNum = game?.handNumber;
 
   let text;
@@ -284,20 +338,77 @@ function WatchBanner({ config, game, mySeat }) {
   return <div className="watch-banner">👁 {text}</div>;
 }
 
+function LastAgentHandPanel({ hand, open, onToggle }) {
+  const decisions = hand?.decisions || [];
+  if (!decisions.length) return null;
+
+  return (
+    <section className="last-hand-panel">
+      <button className="last-hand-panel__toggle" type="button" onClick={onToggle}>
+        <span>Last hand</span>
+        <span>
+          Hand #{hand.handNumber ?? '--'} -{' '}
+          <b className={hand.won ? 'last-hand-panel__won' : 'last-hand-panel__lost'}>
+            {hand.won ? 'WON' : 'LOST'}
+          </b>
+          {' '} - Pot: {formatAgentAmount(hand.potSize)}
+        </span>
+      </button>
+      {open && (
+        <div className="last-hand-panel__body">
+          {decisions.map((decision, index) => (
+            <div className="history__entry last-hand-panel__decision" key={`${decision.street || 'street'}-${index}`}>
+              <span>[{String(decision.street || 'street').toUpperCase()}]</span>
+              <span>{formatAgentDecisionAction(decision.action)}</span>
+              {decision.reasoning && <span>- "{decision.reasoning}"</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function findLatestResult(history) {
+  for (const hand of history) {
+    const entries = hand.entries || [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry.kind === 'result') {
+        return { handNumber: hand.handNumber, result: entry.result };
+      }
+    }
+  }
+  return null;
+}
+
+function formatAgentDecisionAction(action = {}) {
+  if (!action?.type) return 'unknown';
+  if (action.amount == null) return action.type;
+  return `${action.type} ${action.amount}`;
+}
+
+function formatAgentAmount(amount) {
+  return amount == null ? '--' : amount;
+}
+
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
-  const opponentSeat = mySeat === 0 ? 1 : 0;
+  const seatCount = Math.max(game?.seats?.length || 2, 2);
+  const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
 
   const seatProps = useMemo(() => {
     if (!game) return null;
-    const sp = (i) => ({
+    const blindSeats = resolveBlindSeats(game);
+    return game.seats.map((data, i) => ({
+      seat: i,
+      position: seatPosition(i, viewSeat, game.seats.length),
       isDealer: game.dealerSeat === i,
-      isSmallBlind: game.dealerSeat === i,
-      isBigBlind: game.dealerSeat !== i,
+      isSmallBlind: blindSeats.smallBlindSeat === i,
+      isBigBlind: blindSeats.bigBlindSeat === i,
       isToAct: game.toAct === i,
-      data: game.seats[i],
-    });
-    return { 0: sp(0), 1: sp(1) };
-  }, [game]);
+      data,
+    }));
+  }, [game, viewSeat]);
 
   const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
 
@@ -306,44 +417,86 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
     folded: false, allIn: false, holeCards: [],
   });
 
-  const oppData = seatProps?.[opponentSeat]?.data ?? emptyData('Waiting…');
-  const meData = seatProps?.[mySeat]?.data ?? emptyData('You');
+  const seats = seatProps || Array.from({ length: seatCount }, (_, seat) => ({
+    seat,
+    position: seatPosition(seat, viewSeat, seatCount),
+    isDealer: false,
+    isSmallBlind: false,
+    isBigBlind: false,
+    isToAct: false,
+    data: emptyData(seat === viewSeat ? 'You' : 'Waiting...'),
+  }));
+  const sortedSeats = [...seats].sort((a, b) => seatRenderOrder(a.position) - seatRenderOrder(b.position));
 
   return (
-    <div className="table-area">
-      <PlayerSeat
-        seat={opponentSeat}
-        position="top"
-        data={oppData}
-        isMine={false}
-        inHand={inHand}
-        isDealer={!!seatProps?.[opponentSeat]?.isDealer}
-        isSmallBlind={!!seatProps?.[opponentSeat]?.isSmallBlind}
-        isBigBlind={!!seatProps?.[opponentSeat]?.isBigBlind}
-        isToAct={!!seatProps?.[opponentSeat]?.isToAct}
-        timeLeft={timerLeft}
-        timerTotal={timerTotal}
-      />
+    <div className={`table-area ${seatCount > 2 ? 'table-area--multi' : 'table-area--heads-up'} table-area--seats-${seatCount}`}>
+      {sortedSeats.map((seat) => seat.position !== 'bottom' && (
+        <PlayerSeat
+          key={seat.seat}
+          seat={seat.seat}
+          position={seat.position}
+          data={seat.data}
+          isMine={seat.seat === viewSeat}
+          inHand={inHand}
+          isDealer={seat.isDealer}
+          isSmallBlind={seat.isSmallBlind}
+          isBigBlind={seat.isBigBlind}
+          isToAct={seat.isToAct}
+          timeLeft={timerLeft}
+          timerTotal={timerTotal}
+        />
+      ))}
       <Board
         pot={game?.pot ?? 0}
         community={game?.community ?? []}
         street={game?.street ?? 'waiting'}
       />
-      <PlayerSeat
-        seat={mySeat ?? 0}
-        position="bottom"
-        data={meData}
-        buyIn={buyIn}
-        isMine
-        inHand={inHand}
-        onRename={onRename}
-        isDealer={!!seatProps?.[mySeat]?.isDealer}
-        isSmallBlind={!!seatProps?.[mySeat]?.isSmallBlind}
-        isBigBlind={!!seatProps?.[mySeat]?.isBigBlind}
-        isToAct={!!seatProps?.[mySeat]?.isToAct}
-        timeLeft={timerLeft}
-        timerTotal={timerTotal}
-      />
+      {sortedSeats.map((seat) => seat.position === 'bottom' && (
+        <PlayerSeat
+          key={seat.seat}
+          seat={seat.seat}
+          position={seat.position}
+          data={seat.data}
+          buyIn={seat.seat === viewSeat ? buyIn : undefined}
+          isMine={seat.seat === viewSeat}
+          inHand={inHand}
+          onRename={seat.seat === viewSeat ? onRename : undefined}
+          isDealer={seat.isDealer}
+          isSmallBlind={seat.isSmallBlind}
+          isBigBlind={seat.isBigBlind}
+          isToAct={seat.isToAct}
+          timeLeft={timerLeft}
+          timerTotal={timerTotal}
+        />
+      ))}
     </div>
   );
+}
+
+function resolveBlindSeats(game) {
+  const count = game?.seats?.length || 0;
+  const dealer = Number.isInteger(game?.dealerSeat) ? game.dealerSeat : 0;
+  const modulo = Math.max(count, 1);
+  return {
+    smallBlindSeat: Number.isInteger(game?.smallBlindSeat)
+      ? game.smallBlindSeat
+      : count === 2 ? dealer : (dealer + 1) % modulo,
+    bigBlindSeat: Number.isInteger(game?.bigBlindSeat)
+      ? game.bigBlindSeat
+      : count === 2 ? (dealer + 1) % 2 : (dealer + 2) % modulo,
+  };
+}
+
+function seatPosition(seat, mySeat, count) {
+  const relative = (seat - mySeat + count) % count;
+  if (relative === 0) return 'bottom';
+  if (count <= 2) return 'top';
+  if (count === 3) return relative === 1 ? 'right' : 'left';
+  if (relative === 1) return 'right';
+  if (relative === 2) return 'top';
+  return 'left';
+}
+
+function seatRenderOrder(position) {
+  return { top: 0, left: 1, right: 2, bottom: 3 }[position] ?? 4;
 }
