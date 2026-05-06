@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, isInTelegram, getUserId } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
-// Play screen acts as both the home/command-center (when on the play tab
-// with no active config) and the chat-first agent creator. It also retains
-// a tiny human-vs-human form for table-id entry. The visual port follows
-// design-ref: EmptyHome / ExistingHome variants for the landing view.
+// Play screen: command-center home by default (ExistingHome / EmptyHome).
+// "Play yourself" footer link in ExistingHome enters the 2×2 mode-picker grid
+// (step='play-mode') — Deploy / Watch / vs Human / vs AI.
 export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentName = null, existingAgent = null }) {
-  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent'
+  const [step, setStep] = useState(initialStep);    // 'pick' | 'play-mode' | 'form' | 'create-agent'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
+  const [watching, setWatching] = useState(false);
   const inTelegram = isInTelegram();
 
   useEffect(() => {
@@ -52,6 +52,24 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
     } finally {
       setDeployingId(null);
     }
+  }
+
+  async function watchAgent(agent) {
+    if (watching || !agent?.activeTableId) return;
+    setWatching(true);
+    let memoryContext = '';
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+      if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+    } catch { /* fall through with empty context */ }
+    onWatch({
+      tableId: agent.activeTableId,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
+      memoryContext,
+    });
+    setWatching(false);
   }
 
   if (step === 'create-agent') {
@@ -113,6 +131,77 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
     );
   }
 
+  if (step === 'play-mode') {
+    const activeAgent = agents.find((a) => a.activeTableId);
+    const deployTarget = agents.find((a) => !a.activeTableId) || agents[0] || null;
+
+    return (
+      <div className="dr-app">
+        <div className="dr-screen dr-screen--play">
+          <header className="dr-chat-header">
+            <button className="dr-plain-button" type="button" onClick={() => setStep('pick')} aria-label="Back">
+              <ArrowLeft />
+            </button>
+            <div>
+              <p className="dr-label dr-label--accent">Play</p>
+              <h1>Pick a mode</h1>
+              <small>Deploy an agent, watch a live table, or sit down yourself.</small>
+            </div>
+          </header>
+
+          <div className={`dr-play-grid${activeAgent ? ' dr-play-grid--with-watch' : ''}`}>
+            <button
+              className="dr-play-card is-accent"
+              type="button"
+              onClick={() => {
+                if (!deployTarget) setStep('create-agent');
+                else deployAgent(deployTarget);
+              }}
+              disabled={loading || deployingId != null}
+            >
+              <span><RocketIcon /></span>
+              <b>{deployingId ? 'Deploying…' : deployTarget ? 'Deploy agent' : 'Create agent'}</b>
+              <small>
+                {deployTarget
+                  ? `Send ${deployTarget.name} to a heads-up table.`
+                  : 'Build your first agent in chat.'}
+              </small>
+            </button>
+
+            {activeAgent && (
+              <button
+                className="dr-play-card"
+                type="button"
+                onClick={() => watchAgent(activeAgent)}
+                disabled={watching}
+              >
+                <span><EyeIcon /></span>
+                <b>{watching ? 'Connecting…' : 'Watch active table'}</b>
+                <small>{activeAgent.name} is playing now.</small>
+              </button>
+            )}
+
+            <button className="dr-play-card" type="button" onClick={() => pickHumanMode('human')}>
+              <span><UsersIcon /></span>
+              <b>Play vs human</b>
+              <small>Heads-up against a friend.</small>
+            </button>
+
+            <button className="dr-play-card" type="button" onClick={() => pickHumanMode('ai')}>
+              <span><BotIcon /></span>
+              <b>Play vs AI</b>
+              <small>Sit down with a built-in opponent.</small>
+            </button>
+          </div>
+
+          <div className="dr-practice-row">
+            <button type="button" onClick={() => setStep('create-agent')}>+ Create new agent</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // step === 'pick' — Home / command center.
   if (loading) {
     return (
@@ -129,7 +218,12 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
   }
 
   if (agents.length === 0) {
-    return <EmptyHome onCreate={() => setStep('create-agent')} onPlayHuman={() => pickHumanMode('human')} />;
+    return (
+      <EmptyHome
+        onCreate={() => setStep('create-agent')}
+        onPlayMode={() => setStep('play-mode')}
+      />
+    );
   }
 
   return (
@@ -138,15 +232,14 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
       busyId={deployingId}
       onCreate={() => setStep('create-agent')}
       onDeploy={deployAgent}
-      onPlayVsAI={() => pickHumanMode('ai')}
-      onPlayHuman={() => pickHumanMode('human')}
+      onPlayMode={() => setStep('play-mode')}
     />
   );
 }
 
 // ── Home variants ──────────────────────────────────────────────────────────
 
-function EmptyHome({ onCreate, onPlayHuman }) {
+function EmptyHome({ onCreate, onPlayMode }) {
   return (
     <div className="dr-app">
       <div className="dr-screen dr-screen--home">
@@ -167,12 +260,16 @@ function EmptyHome({ onCreate, onPlayHuman }) {
             Start in chat <ChevronRight />
           </button>
         </section>
+
+        <div className="dr-practice-row">
+          <button type="button" onClick={onPlayMode}>Play yourself</button>
+        </div>
       </div>
     </div>
   );
 }
 
-function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHuman }) {
+function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayMode }) {
   const playing = agents.filter((a) => a.status === 'playing' || a.activeTableId);
   const ready = agents.filter((a) => a.status !== 'playing' && !a.activeTableId);
   const primary = playing[0] || ready[0] || agents[0];
@@ -235,12 +332,8 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
 
         <AgentStats agent={primary} />
 
-        {/* Practice mode — small footer links so vs-AI / vs-Human stay
-            reachable without competing with the primary deploy CTA. */}
         <div className="dr-practice-row">
-          <button type="button" onClick={onPlayVsAI}>Practice vs AI</button>
-          <span aria-hidden>·</span>
-          <button type="button" onClick={onPlayHuman}>vs Human</button>
+          <button type="button" onClick={onPlayMode}>Play yourself</button>
         </div>
       </div>
     </div>
@@ -432,6 +525,49 @@ function SendIcon() {
     <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M22 2 11 13" />
       <path d="m22 2-7 20-4-9-9-4 20-7z" />
+    </svg>
+  );
+}
+
+function RocketIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 6c4 0 6 2 6 6 0 .5 0 1-.1 1.4L14 19l-2-2-3 3-2-2 3-3-2-2L13.6 6.1A8 8 0 0 1 14 6z" />
+      <path d="M9 15l-3 3" />
+      <circle cx="15" cy="9" r="1.4" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function BotIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="8" width="16" height="12" rx="3" />
+      <path d="M12 8V4" />
+      <circle cx="12" cy="3" r="1" />
+      <circle cx="9" cy="13" r="1" fill="currentColor" />
+      <circle cx="15" cy="13" r="1" fill="currentColor" />
+      <path d="M9 17h6" />
     </svg>
   );
 }
