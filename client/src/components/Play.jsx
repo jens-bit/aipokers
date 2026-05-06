@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, isInTelegram, getUserId } from '../lib/telegram.js';
 import { CreateAgent } from './CreateAgent.jsx';
 
+// Play screen acts as both the home/command-center (when on the play tab
+// with no active config) and the chat-first agent creator. It also retains
+// a tiny human-vs-human form for table-id entry. The visual port follows
+// design-ref: EmptyHome / ExistingHome variants for the landing view.
 export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentName = null, existingAgent = null }) {
-  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent' | 'picker'
+  const [step, setStep] = useState(initialStep);    // 'pick' | 'form' | 'create-agent'
   const [mode, setMode] = useState(null);           // 'ai' | 'human'
   const [displayName, setDisplayName] = useState(() => getTelegramDisplayName());
   const [tableId, setTableId] = useState(() => 'table-' + Math.random().toString(16).slice(2, 8));
   const [agents, setAgents] = useState([]);
-  const [agentsLoading, setAgentsLoading] = useState(true);
-  const [deploying, setDeploying] = useState(null); // agentId being deployed
+  const [loading, setLoading] = useState(true);
+  const [deployingId, setDeployingId] = useState(null);
   const inTelegram = isInTelegram();
 
   useEffect(() => {
@@ -17,12 +21,12 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
       .then((r) => r.json())
       .then((data) => setAgents(data.agents || []))
       .catch(() => {})
-      .finally(() => setAgentsLoading(false));
+      .finally(() => setLoading(false));
   }, []);
 
-  function pickMode(m) { setMode(m); setStep('form'); }
+  function pickHumanMode(m) { setMode(m); setStep('form'); }
 
-  function submit(e) {
+  function submitHumanForm(e) {
     e.preventDefault();
     onConnect({
       tableId: (tableId || '').trim() || 'table-' + Math.random().toString(16).slice(2, 8),
@@ -35,17 +39,18 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
   }
 
   async function deployAgent(agent) {
-    setDeploying(agent.id);
+    if (deployingId) return;
+    setDeployingId(agent.id);
     try {
       const res = await fetch(`/api/agents/${agent.id}/queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: getUserId() }),
       });
-      const data = await res.json();
-      onWatch(data);
+      if (!res.ok) return;
+      onWatch(await res.json());
     } finally {
-      setDeploying(null);
+      setDeployingId(null);
     }
   }
 
@@ -60,150 +65,418 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'pick', agentNa
     );
   }
 
-  if (step === 'picker') {
+  if (step === 'form') {
+    const hint = mode === 'ai'
+      ? 'Your AI opponent joins automatically.'
+      : inTelegram
+        ? 'Share the bot link with a friend to fill the second seat.'
+        : 'Open this page in two browser tabs to play heads-up.';
+
     return (
-      <div className="play">
-        <button type="button" className="play__back" onClick={() => setStep('pick')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M19 12H5M11 6l-6 6 6 6" />
-          </svg>
-          Back
-        </button>
-        <p className="play__mode-label">Choose an agent to deploy</p>
-        <div className="play__picker-list">
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              type="button"
-              className="play__picker-card"
-              disabled={!!deploying || agent.status === 'playing'}
-              onClick={() => deployAgent(agent)}
-            >
-              <span className="play__picker-name">{agent.name}</span>
-              <span className="play__picker-meta">{agent.style} · {agent.risk} risk</span>
-              {deploying === agent.id && <span className="play__picker-loading">…</span>}
+      <div className="dr-app">
+        <div className="dr-screen dr-screen--form">
+          <header className="dr-chat-header">
+            <button className="dr-plain-button" type="button" onClick={() => setStep('pick')} aria-label="Back">
+              <ArrowLeft />
             </button>
-          ))}
-        </div>
-        <button type="button" className="play__human-btn" style={{ marginTop: '8px', width: '100%' }} onClick={() => setStep('create-agent')}>
-          + Create new agent
-        </button>
-      </div>
-    );
-  }
-
-  if (step === 'pick') {
-    const hasAgents = agents.length > 0;
-    return (
-      <div className="play">
-        {/* ── Deploy Agent hero card ── */}
-        <div className="play__ai-card">
-          {hasAgents ? (
-            <>
-              <div className="play__ai-eyebrow">Deploy Agent</div>
-              <div className="play__ai-title">Send in your agent.</div>
-              <p className="play__ai-sub">Pick an agent · watch it play · sit back</p>
-              <button type="button" className="play__ai-btn" disabled={agentsLoading} onClick={() => setStep('picker')}>
-                DEPLOY AGENT
-                <ArrowRight />
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="play__ai-eyebrow">Build Agent</div>
-              <div className="play__ai-title">Create your agent.</div>
-              <p className="play__ai-sub">Design an AI that plays for you</p>
-              <button type="button" className="play__ai-btn" disabled={agentsLoading} onClick={() => setStep('create-agent')}>
-                {agentsLoading ? '…' : 'CREATE AGENT'}
-                {!agentsLoading && <ArrowRight />}
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* ── Play Yourself card ── */}
-        <div className="play__human-card">
-          <div className="play__human-header">
-            <div className="play__human-icon" aria-hidden>
-              <PersonIcon />
-            </div>
             <div>
-              <div className="play__human-title">Play Yourself</div>
-              <div className="play__human-sub">Jump in and play a hand.</div>
+              <p className="dr-label dr-label--accent">{mode === 'ai' ? 'Vs AI' : 'Vs human'}</p>
+              <h1>Take a seat</h1>
+              <small>{hint}</small>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="play__human-btn" style={{ flex: 1 }} onClick={() => pickMode('ai')}>
-              vs AI
-              <ArrowRight />
-            </button>
-            <button type="button" className="play__human-btn" style={{ flex: 1 }} onClick={() => pickMode('human')}>
-              vs Human
-              <ArrowRight />
-            </button>
-          </div>
+          </header>
+
+          <form className="dr-blueprint-card" onSubmit={submitHumanForm}>
+            <div className="dr-section-head">
+              <p className="dr-label">Session</p>
+            </div>
+            <label className="dr-form-field">
+              <span>Your name</span>
+              <input
+                autoFocus={!inTelegram}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Name"
+              />
+            </label>
+            <label className="dr-form-field">
+              <span>Table id</span>
+              <input value={tableId} onChange={(e) => setTableId(e.target.value)} />
+            </label>
+            <div className="dr-card-actions">
+              <button className="dr-primary-btn" type="submit">Take seat</button>
+            </div>
+          </form>
         </div>
       </div>
     );
   }
 
-  const hintText = mode === 'ai'
-    ? 'Your AI opponent joins automatically.'
-    : inTelegram
-      ? 'Share the bot link with a friend to fill the second seat.'
-      : 'Open this page in two browser tabs to play heads-up.';
+  // step === 'pick' — Home / command center.
+  if (loading) {
+    return (
+      <div className="dr-app">
+        <div className="dr-screen">
+          <section className="dr-hero dr-hero--loading">
+            <p className="dr-label dr-label--accent">Loading profile</p>
+            <h1>Looking for your agents</h1>
+            <div className="dr-skeleton-grid"><i /><i /><i /></div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (agents.length === 0) {
+    return <EmptyHome onCreate={() => setStep('create-agent')} onPlayHuman={() => pickHumanMode('human')} />;
+  }
 
   return (
-    <div className="play__form-wrap">
-      <button type="button" className="play__back" onClick={() => setStep('pick')}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M19 12H5M11 6l-6 6 6 6" />
-        </svg>
-        Back
-      </button>
+    <ExistingHome
+      agents={agents}
+      busyId={deployingId}
+      onCreate={() => setStep('create-agent')}
+      onDeploy={deployAgent}
+      onPlayVsAI={() => pickHumanMode('ai')}
+      onPlayHuman={() => pickHumanMode('human')}
+    />
+  );
+}
 
-      <p className="play__mode-label">
-        {mode === 'ai' ? 'Playing vs AI' : 'Playing vs Human'}
-      </p>
+// ── Home variants ──────────────────────────────────────────────────────────
 
-      <form className="play__form-card" onSubmit={submit}>
-        <div className="play__field">
-          <span className="label">Your name</span>
-          <input
-            autoFocus={!inTelegram}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Name"
-          />
-        </div>
-        <div className="play__field">
-          <span className="label">Table</span>
-          <input
-            value={tableId}
-            onChange={(e) => setTableId(e.target.value)}
-          />
-        </div>
-        <button className="play__submit" type="submit">Take Seat</button>
-      </form>
+function EmptyHome({ onCreate, onPlayHuman }) {
+  return (
+    <div className="dr-app">
+      <div className="dr-screen dr-screen--home">
+        <section className="dr-home-stage dr-home-stage--empty">
+          <div className="dr-home-stage__top">
+            <span><i /> No agent</span>
+            <small>First run</small>
+          </div>
+          <div className="dr-home-stage__main">
+            <AgentAvatar size="lg" />
+            <div>
+              <p className="dr-label dr-label--accent">Chat first</p>
+              <h1>Build your first poker agent.</h1>
+              <p>Tell it how to play. Chat turns that into a saved strategy profile.</p>
+            </div>
+          </div>
+          <button className="dr-primary-btn" type="button" onClick={onCreate}>
+            Start in chat <ChevronRight />
+          </button>
+        </section>
 
-      <p className="play__hint">{hintText}</p>
+        <HomeChatPreview onCreate={onCreate} hasAgent={false} />
+
+        <section className="dr-panel">
+          <div className="dr-section-head">
+            <p className="dr-label">Or jump in solo</p>
+          </div>
+          <button className="dr-secondary-wide" type="button" onClick={onPlayHuman}>
+            Play yourself <ChevronRight />
+          </button>
+        </section>
+      </div>
     </div>
   );
 }
 
-function ArrowRight() {
+function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHuman }) {
+  const playing = agents.filter((a) => a.status === 'playing' || a.activeTableId);
+  const ready = agents.filter((a) => a.status !== 'playing' && !a.activeTableId);
+  const primary = playing[0] || ready[0] || agents[0];
+  const hasPlaying = playing.length > 0;
+
+  const status = hasPlaying
+    ? (playing.length > 1 ? `${playing.length} agents playing` : 'Playing now')
+    : ready.length > 1 ? `${ready.length} ready in stable` : 'Ready to deploy';
+
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 12h14M13 6l6 6-6 6" />
+    <div className="dr-app">
+      <div className="dr-screen dr-screen--home">
+        <section className="dr-home-stage">
+          <div className="dr-home-stage__top">
+            <span><i className={hasPlaying ? 'is-live' : ''} /> {status}</span>
+          </div>
+          <div className="dr-home-stage__main">
+            <AgentAvatar size="lg" />
+            <div>
+              <p className="dr-label dr-label--accent">Primary agent</p>
+              <h1>{primary.name}</h1>
+              <small>
+                {primary.style} style / {primary.risk} risk
+                {primary.stats?.handsPlayed ? ` / ${primary.stats.handsPlayed} hand${primary.stats.handsPlayed === 1 ? '' : 's'}` : ''}
+              </small>
+            </div>
+          </div>
+
+          {hasPlaying ? <HomeTableSnapshot agent={primary} /> : <HomeDeployRunway agent={primary} />}
+
+          <div className="dr-home-actions">
+            <button
+              className="dr-primary-btn"
+              type="button"
+              onClick={() => onDeploy(primary)}
+              disabled={busyId === primary.id}
+            >
+              {hasPlaying
+                ? 'Open table'
+                : busyId === primary.id ? 'Deploying…' : 'Deploy agent'}
+              <ChevronRight />
+            </button>
+            <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onCreate}>
+              <SendIcon /> Chat to tune
+            </button>
+          </div>
+        </section>
+
+        {ready.length > 0 && (
+          <DeployPromptCard
+            agent={ready[0]}
+            busy={busyId === ready[0].id}
+            onDeploy={() => onDeploy(ready[0])}
+            compact={hasPlaying}
+          />
+        )}
+
+        {agents.length > 1 && (
+          <AgentCarousel agents={agents} busyId={busyId} onDeploy={onDeploy} />
+        )}
+
+        <AgentStats agent={primary} />
+
+        <HomeChatPreview onCreate={onCreate} hasAgent agentName={primary.name} />
+
+        <section className="dr-panel">
+          <div className="dr-section-head">
+            <p className="dr-label">Play yourself</p>
+          </div>
+          <div className="dr-home-actions">
+            <button className="dr-secondary-btn" type="button" onClick={onPlayVsAI}>vs AI</button>
+            <button className="dr-secondary-btn" type="button" onClick={onPlayHuman}>vs Human</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function HomeTableSnapshot({ agent }) {
+  return (
+    <div className="dr-home-table">
+      <div className="dr-home-table__felt">
+        <span className="dr-home-table__seat dr-home-table__seat--top">
+          <AgentAvatar size="xs" />
+          <b>Opponent</b>
+        </span>
+        <div className="dr-home-table__pot">
+          <small>Live now</small>
+          <b>HU NLH</b>
+        </div>
+        <div className="dr-home-table__cards">
+          <Pip rank="A" suit="s" />
+          <Pip rank="K" suit="h" />
+          <Pip rank="Q" suit="c" />
+        </div>
+        <span className="dr-home-table__seat dr-home-table__seat--bottom">
+          <AgentAvatar size="xs" />
+          <b>{agent.name}</b>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HomeDeployRunway({ agent }) {
+  return (
+    <div className="dr-deploy-runway">
+      <div className="dr-deploy-runway__lane">
+        <span className="dr-deploy-runway__seat">
+          <AgentAvatar size="md" />
+          <i />
+        </span>
+        <div>
+          <p className="dr-label dr-label--accent">Ready on bench</p>
+          <b>{agent.tablePreference || 'HU NLH / $10-$20'}</b>
+          <small>No table yet. Deploy this agent to start watching live hands.</small>
+        </div>
+      </div>
+      <div className="dr-deploy-runway__steps">
+        <span><CheckIcon color="#00d4aa" /> Strategy saved</span>
+        <span><ChipIcon color="#cdb380" /> Choose table</span>
+        <span><ChevronRight color="#00d4aa" /> Deploy</span>
+      </div>
+    </div>
+  );
+}
+
+function DeployPromptCard({ agent, busy, onDeploy, compact }) {
+  return (
+    <section className={`dr-deploy-prompt${compact ? ' dr-deploy-prompt--compact' : ''}`}>
+      <span><ChipIcon color="#00d4aa" /></span>
+      <div>
+        <p className="dr-label dr-label--accent">Idle stable</p>
+        <b>{agent.name} is ready.</b>
+        <small>Deploy it to a heads-up table or chat to tune before seating.</small>
+      </div>
+      <button type="button" onClick={onDeploy} disabled={busy}>{busy ? 'Deploying…' : 'Deploy'}</button>
+    </section>
+  );
+}
+
+function AgentCarousel({ agents, busyId, onDeploy }) {
+  return (
+    <section className="dr-agent-carousel" aria-label="Agent stable">
+      <div className="dr-section-head">
+        <p className="dr-label">Stable</p>
+        <span>{agents.length} agents</span>
+      </div>
+      <div className="dr-agent-carousel__track">
+        {agents.map((agent) => {
+          const isPlaying = agent.status === 'playing' || agent.activeTableId;
+          const busy = busyId === agent.id;
+          return (
+            <button
+              type="button"
+              key={agent.id}
+              className="dr-agent-mini-card"
+              onClick={() => onDeploy(agent)}
+              disabled={isPlaying || busy}
+            >
+              <span><AgentAvatar size="xs" /><i className={isPlaying ? 'is-live' : ''} /></span>
+              <b>{agent.name}</b>
+              <small>{isPlaying ? 'Playing now' : busy ? 'Deploying…' : `${agent.style} / ${agent.risk}`}</small>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AgentStats({ agent }) {
+  const stats = agent.stats || {};
+  const handsPlayed = stats.handsPlayed ?? 0;
+  const winRate = Number.isFinite(Number(stats.winRate)) ? `${Math.round(Number(stats.winRate))}%` : '--';
+  const status = agent.status === 'playing' ? 'Playing' : 'Ready';
+  const aggression = stats.totalDecisions
+    ? `${Math.round((stats.aggressiveDecisions / stats.totalDecisions) * 100)}%`
+    : '--';
+  const cells = [
+    ['Status', status],
+    ['Hands', String(handsPlayed)],
+    ['Win rate', winRate],
+    ['Aggression', aggression],
+  ];
+  return (
+    <section className="dr-stats">
+      {cells.map(([label, value]) => (
+        <span key={label}>
+          <small>{label}</small>
+          <b>{value}</b>
+        </span>
+      ))}
+    </section>
+  );
+}
+
+function HomeChatPreview({ onCreate, hasAgent, agentName }) {
+  return (
+    <section className="dr-home-chat-card">
+      <div className="dr-home-chat-card__head">
+        <span>
+          <p className="dr-label dr-label--accent">Chat first</p>
+          <b>{hasAgent ? `Tune ${agentName || 'your agent'}` : 'Create by chatting'}</b>
+        </span>
+        <small><i /> live</small>
+      </div>
+      <div className="dr-home-chat-card__bubble">
+        {hasAgent
+          ? 'Update the strategy by describing what you want to change — version stays one until you deploy a fresh build.'
+          : 'Describe the player you want and I will draft version one.'}
+      </div>
+      <div className="dr-home-chat-card__actions">
+        <button type="button" onClick={onCreate}>
+          <SendIcon /> {hasAgent ? 'Open chat' : 'Start chat'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ── Mini icons (no separate import to keep this file standalone) ────────────
+
+function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {
+  return (
+    <span className={`dr-agent-avatar dr-agent-avatar--${size}`} style={{ '--dr-avatar-accent': accent }}>
+      <svg viewBox="0 0 40 40" aria-hidden>
+        <path d="M20 4c-8 0-13 6-13 14v14c0 4 3 6 7 6h12c4 0 7-2 7-6V18c0-8-5-14-13-14z" fill="currentColor" opacity="0.38" />
+        <ellipse cx="20" cy="22" rx="7" ry="9" fill="#080b0d" />
+        <circle cx="17" cy="20" r="1" fill={accent} />
+        <circle cx="23" cy="20" r="1" fill={accent} />
+      </svg>
+      <i />
+    </span>
+  );
+}
+
+function Pip({ rank, suit }) {
+  const red = suit === 'h' || suit === 'd';
+  const color = red ? '#e84545' : '#1a1a1a';
+  const paths = {
+    s: <path d="M12 2s-8 7-8 12c0 3 2 5 5 5 1.5 0 2.5-.7 3-1.7.5 1 1.5 1.7 3 1.7 3 0 5-2 5-5 0-5-8-12-8-12zM11 18l-1.5 4h5L13 18z" fill={color} />,
+    h: <path d="M12 21s-9-6.5-9-12.5c0-3 2-5 4.5-5 2 0 3.5 1.2 4.5 2.8 1-1.6 2.5-2.8 4.5-2.8 2.5 0 4.5 2 4.5 5C21 14.5 12 21 12 21z" fill={color} />,
+    d: <path d="M12 2l9 10-9 10L3 12 12 2z" fill={color} />,
+    c: <path d="M12 2a4 4 0 0 0-3.7 5.5A5 5 0 1 0 8.8 12c-.4 1.3-.8 2.5-1.8 5h4l.5-3c.2-1-.1-1.5-.5-2 .3.3.6.5 1 .5s.7-.2 1-.5c-.4.5-.7 1-.5 2l.5 3h4c-1-2.5-1.4-3.7-1.8-5A5 5 0 1 0 15.7 7.5 4 4 0 0 0 12 2z" fill={color} />,
+  };
+  return (
+    <span className="dr-playing-card dr-playing-card--mini">
+      <b>{rank}</b>
+      <svg width="10" height="10" viewBox="0 0 24 24" className="dr-card-suit" aria-hidden>{paths[suit]}</svg>
+    </span>
+  );
+}
+
+function ArrowLeft() {
+  return (
+    <svg className="dr-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M15 18l-6-6 6-6" />
     </svg>
   );
 }
 
-function PersonIcon() {
+function ChevronRight({ color = 'currentColor' }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+    <svg className="dr-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function CheckIcon({ color = 'currentColor' }) {
+  return (
+    <svg className="dr-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5 9-11" />
+    </svg>
+  );
+}
+
+function ChipIcon({ color = 'currentColor' }) {
+  return (
+    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 2 11 13" />
+      <path d="m22 2-7 20-4-9-9-4 20-7z" />
     </svg>
   );
 }

@@ -1,49 +1,47 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getUserId } from '../lib/telegram.js';
 
-const QUICK_CHIPS = [
-  'Play tight and safe',
-  'Bluff a lot',
-  'Exploit weak players',
-  'Balanced strategy',
+const QUICK_PROMPTS = [
+  'Balanced heads-up player',
+  'Tight, low-risk grinder',
+  'Aggressive pressure agent',
 ];
 
-// Extract 2-3 contextual reply chips from an assistant message.
-function extractChips(text) {
-  if (!text) return ['More aggressive', 'More conservative'];
-  const triple = text.match(/\b([\w][^,?!]{1,22}),\s*([\w][^,?!]{1,22}),?\s+or\s+([\w][^?!.]{1,22})/i);
-  if (triple) {
-    return [triple[1].trim(), triple[2].trim(), triple[3].replace(/[?!.\s]+$/, '').trim()]
-      .filter((s) => s.length >= 2 && s.length <= 30);
-  }
-  const pair = text.match(/\b([\w][^?!,]{1,22})\s+or\s+([\w][^?!.]{1,22})/i);
-  if (pair) {
-    return [pair[1].trim(), pair[2].replace(/[?!.\s]+$/, '').trim()]
-      .filter((s) => s.length >= 2 && s.length <= 30);
-  }
-  return ['More aggressive', 'More conservative'];
+// Best-effort heuristics on the user's current draft to colour the blueprint
+// card. The real strategy is generated server-side by Claude on /build, so
+// these are display-only hints that get overwritten once the agent is saved.
+function inferDraft(prompt) {
+  const lower = (prompt || '').toLowerCase();
+  const aggressive = /\b(aggro|aggressive|pressure|bluff|attack)\b/.test(lower);
+  const tight = /\b(tight|safe|conservative|careful|low risk|low-risk)\b/.test(lower);
+  if (aggressive) return { name: 'Pressure v1', style: 'Aggressive', risk: 'High' };
+  if (tight)      return { name: 'Sentinel v1', style: 'Tight',      risk: 'Low' };
+  return                  { name: 'Balanced v1', style: 'Balanced',   risk: 'Medium' };
+}
+
+function lastUser(chat) {
+  return [...chat].reverse().find((m) => m.role === 'user')?.content || '';
 }
 
 export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = null }) {
   const userId = getUserId();
 
   const [chat, setChat] = useState([]);
-  const [input, setInput] = useState('');
+  const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [createdAgent, setCreatedAgent] = useState(null);
-  const [chips, setChips] = useState(QUICK_CHIPS);
-  // Track the current agent being edited (updated after Keep Tuning).
   const [localAgent, setLocalAgent] = useState(existingAgent);
-  const chatRef = useRef(null);
-  const inputRef = useRef(null);
+  const logRef = useRef(null);
 
-  const hasSentMessage = chat.some((m) => m.role === 'user');
+  const userTurns = chat.filter((m) => m.role === 'user').length;
+  const canCreateDraft = !createdAgent && !loading && !building && userTurns >= 2;
   const activeAgentId = localAgent?.id ?? null;
-  const displayName = agentName || localAgent?.name || null;
+  const subtitle = agentName || localAgent?.name || createdAgent?.name || 'Build agent v1';
 
+  // Reset server chat history on mount so we don't pick up stale turns from a
+  // previous session, then either prime an edit context or load the live chat.
   useEffect(() => {
-    // Always reset server-side chat first.
     fetch('/api/agents/chat/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -55,65 +53,56 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
             role: 'assistant',
             content: `You're editing ${existingAgent.name}. Currently: ${existingAgent.style}, ${existingAgent.risk} risk. Tell me what you'd like to change.`,
           }]);
-        } else {
-          return fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
-            .then((r) => r.json())
-            .then((data) => setChat(data.chat || []));
+          return null;
         }
+        return fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
+          .then((r) => r.json())
+          .then((data) => setChat(data.chat || []));
       })
       .catch(() => {
         if (existingAgent) {
           setChat([{ role: 'assistant', content: `You're editing ${existingAgent.name}. What would you like to change?` }]);
         }
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const el = chatRef.current;
+    const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [chat, loading]);
+  }, [chat, loading, createdAgent]);
 
-  function appendChip(chip) {
-    setInput((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip));
-    inputRef.current?.focus();
-  }
-
-  async function send() {
-    const msg = input.trim();
-    if (!msg || loading) return;
-    setInput('');
+  async function send(content = draft) {
+    const text = content.trim();
+    if (!text || loading || building) return;
+    setDraft('');
     setLoading(true);
-    setChat((prev) => [...prev, { role: 'user', content: msg }]);
-
+    setChat((prev) => [...prev, { role: 'user', content: text }]);
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content: msg, existingAgentId: activeAgentId }),
+        body: JSON.stringify({ userId, content: text, existingAgentId: activeAgentId }),
       });
       const data = await res.json();
       const serverChat = data.chat || [];
-
+      // In edit mode the user wants the original "you're editing X" bubble
+      // preserved at the top, so only append the latest assistant reply.
       if (existingAgent || localAgent) {
-        // Edit mode: append only the new AI reply — don't replace the context bubble.
-        const newAiMsg = serverChat.filter((m) => m.role === 'assistant').pop();
-        if (newAiMsg) setChat((prev) => [...prev, newAiMsg]);
-        const lastAi = newAiMsg;
-        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
+        const newAi = serverChat.filter((m) => m.role === 'assistant').pop();
+        if (newAi) setChat((prev) => [...prev, newAi]);
       } else {
         setChat(serverChat);
-        const lastAi = serverChat.filter((m) => m.role === 'assistant').pop();
-        setChips(lastAi ? extractChips(lastAi.content) : QUICK_CHIPS);
       }
     } catch {
       setChat((prev) => [...prev, { role: 'assistant', content: 'Something went wrong — please try again.' }]);
-      setChips(QUICK_CHIPS);
     } finally {
       setLoading(false);
     }
   }
 
-  async function buildAgent() {
+  async function build() {
+    if (building || loading) return;
     setBuilding(true);
     try {
       const res = await fetch('/api/agents/build', {
@@ -124,111 +113,90 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
       const data = await res.json();
       if (data.createdAgent) setCreatedAgent(data.createdAgent);
     } catch {
-      // silently ignore — user can retry
+      // user can retry
     } finally {
       setBuilding(false);
     }
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    send();
-  }
-
   function keepTuning() {
+    if (!createdAgent) return;
     setLocalAgent(createdAgent);
+    setChat((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: `${createdAgent.name} updated. Currently: ${createdAgent.style}, ${createdAgent.risk} risk. Keep going — what else would you change?`,
+      },
+    ]);
     setCreatedAgent(null);
-    // Add context bubble for the newly updated agent
-    const ctx = `${createdAgent.name} updated. Currently: ${createdAgent.style}, ${createdAgent.risk} risk. Keep going — what else would you change?`;
-    setChat((prev) => [...prev, { role: 'assistant', content: ctx }]);
-    setChips(QUICK_CHIPS);
   }
 
   return (
-    <div className="create-agent">
-      <div className="create-agent__header">
-        <button type="button" className="play__back" onClick={onBack}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M19 12H5M11 6l-6 6 6 6" />
-          </svg>
-          Back
-        </button>
-        <span className="create-agent__title">
-          AGENT CREATOR
-          {displayName && <span className="create-agent__agent-label"> · {displayName}</span>}
-        </span>
-      </div>
-
-      <div className="create-agent__chat" ref={chatRef}>
-        {chat.map((msg, i) => (
-          <div key={i} className={`create-agent__msg create-agent__msg--${msg.role}`}>
-            {msg.role === 'assistant' && (
-              <div className="create-agent__avatar" aria-hidden>
-                <SpadeIcon />
-              </div>
-            )}
-            <div className="create-agent__bubble">{msg.content}</div>
+    <div className="dr-app">
+      <div className="dr-screen dr-screen--chat">
+        <header className="dr-chat-header">
+          <button className="dr-plain-button" type="button" onClick={onBack} aria-label="Back">
+            <ArrowLeft />
+          </button>
+          <div>
+            <p className="dr-label dr-label--accent">Create agent</p>
+            <h1>{subtitle}</h1>
+            <small>Chat to shape the strategy. We save it as version one once you're happy.</small>
           </div>
-        ))}
+        </header>
 
-        {loading && (
-          <div className="create-agent__msg create-agent__msg--assistant">
-            <div className="create-agent__avatar" aria-hidden><SpadeIcon /></div>
-            <div className="create-agent__bubble create-agent__bubble--loading">
-              <span className="create-agent__dots"><span /><span /><span /></span>
+        <div className="dr-chat-log" ref={logRef}>
+          {chat.map((msg, i) => (
+            <div key={`${msg.role}-${i}`} className={`dr-chat-message dr-chat-message--${msg.role}`}>
+              <span>{msg.content}</span>
             </div>
+          ))}
+          {loading && (
+            <div className="dr-chat-message dr-chat-message--assistant">
+              <span className="dr-typing"><i /><i /><i /></span>
+            </div>
+          )}
+        </div>
+
+        <DraftBlueprint chat={chat} createdAgent={createdAgent} />
+
+        {createdAgent && (
+          <CreatedAgentCard agent={createdAgent} onOpen={onDone} onKeepTuning={keepTuning} />
+        )}
+
+        {!createdAgent && canCreateDraft && (
+          <DraftReadyCard
+            inferred={inferDraft(lastUser(chat))}
+            onCreate={build}
+            onKeepTuning={() => setDraft('Tune the agent for bankroll discipline and river decisions')}
+            building={building}
+          />
+        )}
+
+        {!createdAgent && !canCreateDraft && !loading && (
+          <div className="dr-chat-suggestions">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button key={prompt} type="button" onClick={() => send(prompt)} disabled={loading || building}>
+                {prompt}
+              </button>
+            ))}
           </div>
         )}
-      </div>
 
-      {!createdAgent && chips.length > 0 && !loading && (
-        <div className="create-agent__chips-bar">
-          {chips.map((chip) => (
-            <button key={chip} type="button" className="create-agent__chip" onClick={() => appendChip(chip)}>
-              {chip}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!createdAgent && hasSentMessage && !loading && !building && (
-        <button type="button" className="create-agent__build-btn" onClick={buildAgent}>
-          BUILD AGENT →
-        </button>
-      )}
-
-      {building && (
-        <div className="create-agent__building">Building your agent…</div>
-      )}
-
-      <div className="create-agent__footer">
-        {createdAgent ? (
-          <div className="create-agent__result">
-            <div className="create-agent__result-name">{createdAgent.name} is ready</div>
-            <div className="create-agent__result-actions">
-              <button type="button" className="create-agent__deploy-btn" onClick={() => onDone()}>
-                Open Agent
-              </button>
-              <button type="button" className="create-agent__keep-btn" onClick={keepTuning}>
-                Keep Tuning
-              </button>
-            </div>
-          </div>
-        ) : (
-          <form className="create-agent__input-row" onSubmit={handleSubmit}>
+        {!createdAgent && (
+          <form
+            className="dr-chat-input"
+            onSubmit={(e) => { e.preventDefault(); send(); }}
+          >
             <input
-              ref={inputRef}
-              className="create-agent__input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe your playstyle…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Describe the agent you want"
               disabled={loading || building}
             />
-            <button type="submit" className="create-agent__send" disabled={loading || building || !input.trim()}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
+            <button type="submit" disabled={!draft.trim() || loading || building} aria-label="Send">
+              <SendIcon />
             </button>
           </form>
         )}
@@ -237,10 +205,130 @@ export function CreateAgent({ onBack, onDone, agentName = null, existingAgent = 
   );
 }
 
-function SpadeIcon() {
+function DraftBlueprint({ chat, createdAgent }) {
+  const inferred = createdAgent || inferDraft(lastUser(chat));
+  const hasPrompt = chat.some((m) => m.role === 'user');
+  const tuned = hasPrompt || createdAgent;
   return (
-    <svg width="14" height="14" viewBox="0 0 100 100" fill="var(--accent)" stroke="none" aria-hidden>
-      <path d="M50 5 C50 5, 10 38, 10 58 C10 72 20 80 35 78 C32 85 27 90 20 93 L80 93 C73 90 68 85 65 78 C80 80 90 72 90 58 C90 38 50 5 50 5Z" />
+    <section className="dr-blueprint-card">
+      <div className="dr-section-head">
+        <p className="dr-label">{createdAgent ? 'Created blueprint' : 'Draft blueprint'}</p>
+        <span>{tuned ? 'Tuned' : 'Waiting'}</span>
+      </div>
+      <div className="dr-blueprint-grid">
+        <BlueprintCell label="Style" value={tuned ? inferred.style : 'Unset'} />
+        <BlueprintCell label="Risk" value={tuned ? inferred.risk : 'Unset'} />
+        <BlueprintCell label="Table" value="HU NLH" />
+      </div>
+      <p>
+        {tuned
+          ? (createdAgent?.strategy || 'Strategy ready — review the card below.')
+          : 'Your first prompt becomes the strategy draft for version one.'}
+      </p>
+    </section>
+  );
+}
+
+function BlueprintCell({ label, value }) {
+  return (
+    <span>
+      <small>{label}</small>
+      <b>{value}</b>
+    </span>
+  );
+}
+
+function CreatedAgentCard({ agent, onOpen, onKeepTuning }) {
+  return (
+    <section className="dr-created-card">
+      <div>
+        <AgentAvatar size="md" />
+        <span>
+          <p className="dr-label dr-label--accent">Agent created</p>
+          <h2>{agent.name}</h2>
+          <small>{agent.style} style / {agent.risk} risk</small>
+        </span>
+      </div>
+      {agent.strategy && <p>{agent.strategy}</p>}
+      <div className="dr-readiness-list">
+        <span><CheckIcon color="#00d4aa" /> Strategy saved</span>
+        <span><CheckIcon color="#00d4aa" /> Table profile selected</span>
+      </div>
+      <div className="dr-card-actions">
+        <button className="dr-primary-btn" type="button" onClick={onOpen}>Open agent</button>
+        <button className="dr-secondary-btn" type="button" onClick={onKeepTuning}>Keep tuning</button>
+      </div>
+    </section>
+  );
+}
+
+function DraftReadyCard({ inferred, onCreate, onKeepTuning, building }) {
+  return (
+    <section className="dr-draft-ready-card">
+      <div>
+        <span><SparkleIcon /></span>
+        <div>
+          <p className="dr-label dr-label--accent">Draft ready</p>
+          <h2>{inferred.name}</h2>
+          <small>{inferred.style} style / {inferred.risk} risk</small>
+        </div>
+      </div>
+      <p>I have enough to save this as version one. You can still tune it after creation.</p>
+      <div className="dr-card-actions">
+        <button className="dr-primary-btn" type="button" onClick={onCreate} disabled={building}>
+          {building ? 'Saving…' : 'Create this agent'}
+        </button>
+        <button className="dr-secondary-btn" type="button" onClick={onKeepTuning} disabled={building}>
+          Keep tuning
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {
+  return (
+    <span className={`dr-agent-avatar dr-agent-avatar--${size}`} style={{ '--dr-avatar-accent': accent }}>
+      <svg viewBox="0 0 40 40" aria-hidden>
+        <path d="M20 4c-8 0-13 6-13 14v14c0 4 3 6 7 6h12c4 0 7-2 7-6V18c0-8-5-14-13-14z" fill="currentColor" opacity="0.38" />
+        <ellipse cx="20" cy="22" rx="7" ry="9" fill="#080b0d" />
+        <circle cx="17" cy="20" r="1" fill={accent} />
+        <circle cx="23" cy="20" r="1" fill={accent} />
+      </svg>
+      <i />
+    </span>
+  );
+}
+
+function ArrowLeft() {
+  return (
+    <svg className="dr-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg className="dr-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 2 11 13" />
+      <path d="m22 2-7 20-4-9-9-4 20-7z" />
+    </svg>
+  );
+}
+
+function CheckIcon({ color = 'currentColor' }) {
+  return (
+    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5 9-11" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg className="dr-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
     </svg>
   );
 }
