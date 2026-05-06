@@ -110,7 +110,12 @@ export class Table {
     const hasFree = this.pending.some((p) => p === null);
     if (!humanSeated || !hasFree) return;
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI({ displayName: agentDisplayName || undefined, agentId, userId });
+    this.seatAI({
+      displayName: agentDisplayName || undefined,
+      strategy: agentStrategy || '',
+      agentId,
+      userId,
+    });
   }
 
   rename(ws, displayName) {

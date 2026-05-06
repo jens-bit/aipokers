@@ -169,8 +169,6 @@ export default function App() {
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
                 });
               }}
               onDone={() => {
@@ -193,8 +191,6 @@ export default function App() {
                   agentStrategy: payload.strategy,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
                 });
               }}
               onVsYou={(payload) => {
@@ -210,8 +206,6 @@ export default function App() {
                   userId: getUserId(),
                   agentStrategy: payload.strategy,
                   agentDisplayName: payload.agentName,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
                 });
               }}
               onCreateAgent={() => {
