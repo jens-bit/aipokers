@@ -44,7 +44,7 @@ export default function App() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('play');
-  const [playInitialStep, setPlayInitialStep] = useState('pick');
+  const [playInitialStep, setPlayInitialStep] = useState('play-mode');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
@@ -176,7 +176,7 @@ export default function App() {
                 });
               }}
               onDone={() => {
-                setPlayInitialStep('pick');
+                setPlayInitialStep('play-mode');
                 setPlayKey((k) => k + 1);
                 setActiveTab('agents');
               }}
@@ -186,12 +186,6 @@ export default function App() {
           )}
           {activeTab === 'home' && (
             <HomeTab
-              onCreateAgent={() => {
-                setEditingAgent(null);
-                setPlayInitialStep('create-agent');
-                setPlayKey((k) => k + 1);
-                setActiveTab('play');
-              }}
               onDeploy={(payload) => {
                 setActiveAgent(payload.agentId);
                 watch({
@@ -204,12 +198,31 @@ export default function App() {
                   memoryContext: payload.memoryContext ?? '',
                 });
               }}
+              onWatch={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+              onCreateAgent={() => {
+                setEditingAgent(null);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
               onOpenChat={(agent) => {
                 setEditingAgent(agent);
                 setPlayInitialStep('create-agent');
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
               }}
+              onGoPlay={() => setActiveTab('play')}
             />
           )}
           {activeTab === 'agents' && (
@@ -267,7 +280,7 @@ export default function App() {
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => {
-              setPlayInitialStep('pick');
+              setPlayInitialStep('play-mode');
               setEditingAgent(null);
               setPlayKey((k) => k + 1); // force Play remount → clears internal step state
               setActiveTab('play');
