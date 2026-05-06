@@ -204,6 +204,18 @@ function getTableSeatOverride() {
   return value === 4 ? 4 : 2;
 }
 
+function getPlayModeOverride() {
+  if (typeof window === 'undefined') return '';
+  return new URLSearchParams(window.location.search).get('dr-play') || '';
+}
+
+function getInitialDesignTab() {
+  if (typeof window === 'undefined') return 'home';
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('dr-play') === 'human' || params.get('dr-screen') === 'table') return 'table';
+  return 'home';
+}
+
 function applyHomeStateOverride(profile, override) {
   if (!override) return profile;
   if (override === 'empty' || override === 'none' || override === 'zero') {
@@ -871,6 +883,8 @@ function AgentRoster({ agents, onCreate, onOpenAgent, onDeleteAgent }) {
 
 function AgentViewScreen({ agent, onBack }) {
   if (!agent) return null;
+  const playMode = getPlayModeOverride();
+  if (playMode === 'human') return <HumanPlayScreen agent={agent} onBack={onBack} />;
   return (
     <div className="dr-screen dr-screen--agent">
       <header className="dr-agent-header">
@@ -892,6 +906,116 @@ function AgentViewScreen({ agent, onBack }) {
       <AnalysisPreview agent={agent} />
       <RecentHands />
     </div>
+  );
+}
+
+function HumanPlayScreen({ agent, onBack }) {
+  return (
+    <div className="dr-screen dr-screen--human-play">
+      <header className="dr-human-play-header">
+        <button className="dr-plain-button" type="button" onClick={onBack} aria-label="Back">
+          <Icon name="arrow-left" size={22} />
+        </button>
+        <div>
+          <p className="dr-label dr-label--accent">In hand</p>
+          <h1>Play table</h1>
+        </div>
+        <button className="dr-square-button" type="button" aria-label="Settings"><Icon name="settings" size={18} /></button>
+      </header>
+      <section className="dr-human-table-card">
+        <div className="dr-human-table-top">
+          <span><Icon name="spade" size={15} color="#00d4aa" /> Agentic Poker</span>
+          <small>Seat 1 / Preflop</small>
+        </div>
+        <div className="dr-human-felt">
+          <HumanSeat
+            name="Agentic v1"
+            stack="980"
+            badges={['BB']}
+            cards={<><CardBack /><CardBack /></>}
+            bet="20"
+            top
+          />
+          <div className="dr-human-board">
+            <span className="dr-street-pill">Preflop</span>
+            <small>Pot</small>
+            <b>30</b>
+            <div className="dr-human-board__cards">
+              {Array.from({ length: 5 }).map((_, index) => <i key={index} />)}
+            </div>
+          </div>
+          <HumanSeat
+            name="Anon"
+            stack="990"
+            delta="-10"
+            badges={['You', 'D', 'SB']}
+            cards={<><PlayingCard rank="8" suit="h" /><PlayingCard rank="J" suit="d" /></>}
+            bet="10"
+            hero
+          />
+        </div>
+      </section>
+      <HumanActionSurface />
+      <section className="dr-human-chat-strip">
+        <span>
+          <p className="dr-label dr-label--accent">Table chat</p>
+          <b>{agent.name}</b>
+          <small>Ask the table coach why raise 40 is selected.</small>
+        </span>
+        <button type="button"><Icon name="send" size={16} /> Chat</button>
+      </section>
+    </div>
+  );
+}
+
+function HumanSeat({ name, stack, delta, badges, cards, bet, top = false, hero = false }) {
+  return (
+    <div className={`dr-human-seat${top ? ' dr-human-seat--top' : ''}${hero ? ' dr-human-seat--hero' : ''}`}>
+      <div className="dr-human-seat__cards">{cards}</div>
+      <div className="dr-human-seat__identity">
+        <AgentAvatar size="xs" />
+        <span>
+          <b>{name}</b>
+          <small><strong>{stack}</strong>{delta && <em>{delta}</em>}</small>
+          <i>{badges.map((badge) => <small key={badge} className={badge === 'You' ? 'is-you' : ''}>{badge}</small>)}</i>
+        </span>
+      </div>
+      <div className="dr-human-bet"><small>Bet</small><b>{bet}</b></div>
+    </div>
+  );
+}
+
+function HumanActionSurface() {
+  const presets = [
+    ['1/3', '10'],
+    ['1/2', '15'],
+    ['2/3', '20'],
+    ['Pot', '30'],
+    ['Max', '990'],
+  ];
+  return (
+    <section className="dr-human-actions dr-human-actions--compact">
+      <div className="dr-human-timer"><i /><span>13s</span></div>
+      <button className="dr-human-sizing-toggle" type="button">Sizing <Icon name="chevron-right" size={13} /></button>
+      <div className="dr-human-meta">To call: <b>10</b><i /> Pot: <b>30</b></div>
+      <div className="dr-human-presets">
+        {presets.map(([label, value]) => (
+          <button type="button" key={label} className={label === 'Pot' ? 'is-selected' : ''}>
+            <span>{label}</span>
+            <b>{value}</b>
+          </button>
+        ))}
+      </div>
+      <label className="dr-human-amount">
+        <span>Raise amount</span>
+        <input value="40" readOnly />
+      </label>
+      <div className="dr-human-action-row">
+        <button type="button" className="is-fold">Fold</button>
+        <button type="button">Call 10</button>
+        <button type="button">Raise 40</button>
+      </div>
+    </section>
   );
 }
 
@@ -1257,7 +1381,7 @@ function NavTabBar({ active, onChange, agentCount }) {
 
 export default function DesignRefApp() {
   const identity = useMemo(() => telegramIdentity(getTelegramUser()), []);
-  const [tab, setTab] = useState('home');
+  const [tab, setTab] = useState(getInitialDesignTab);
   const [profileStatus, setProfileStatus] = useState('loading');
   const [chatStatus, setChatStatus] = useState('idle');
   const [createdAgent, setCreatedAgent] = useState(null);
