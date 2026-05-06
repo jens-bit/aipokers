@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
+import { HomeTab } from './components/HomeTab.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
 import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
@@ -202,18 +203,59 @@ export default function App() {
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game">
-          {(activeTab === 'home' || activeTab === 'play') && (
+          {activeTab === 'play' && (
             <Play
               key={playKey}
               onConnect={connect}
               onWatch={playWatchPayload}
               onDone={() => {
-                setPlayInitialStep('pick');
+                setPlayInitialStep('play-mode');
                 setPlayKey((k) => k + 1);
                 setActiveTab('agents');
               }}
               initialStep={playInitialStep}
               existingAgent={editingAgent}
+            />
+          )}
+          {activeTab === 'home' && (
+            <HomeTab
+              onDeploy={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+              onWatch={(payload) => {
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+              onCreateAgent={() => {
+                setEditingAgent(null);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+              onOpenChat={(agent) => {
+                setEditingAgent(agent);
+                setPlayInitialStep('create-agent');
+                setPlayKey((k) => k + 1);
+                setActiveTab('play');
+              }}
+              onGoPlay={() => setActiveTab('play')}
             />
           )}
           {activeTab === 'agents' && (
@@ -252,12 +294,7 @@ export default function App() {
         <nav className="tab-bar">
           <button
             className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => {
-              setPlayInitialStep('pick');
-              setEditingAgent(null);
-              setPlayKey((k) => k + 1);
-              setActiveTab('home');
-            }}
+            onClick={() => setActiveTab('home')}
           >
             <HomeIcon />
             <span>HOME</span>
@@ -265,7 +302,7 @@ export default function App() {
           <button
             className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => {
-              setPlayInitialStep('pick');
+              setPlayInitialStep('play-mode');
               setEditingAgent(null);
               setPlayKey((k) => k + 1);
               setActiveTab('play');
