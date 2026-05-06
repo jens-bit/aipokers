@@ -3,6 +3,7 @@ import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
+import { AgentChat } from './components/AgentChat.jsx';
 import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { Board } from './components/Board.jsx';
@@ -48,6 +49,7 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState(null);
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
+  const [agentChatTarget, setAgentChatTarget] = useState(null);
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
@@ -153,6 +155,35 @@ export default function App() {
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
+  if (!config && agentChatTarget) {
+    return (
+      <AgentChat
+        agent={agentChatTarget}
+        onBack={() => setAgentChatTarget(null)}
+        onDeploy={async (agent) => {
+          setAgentChatTarget(null);
+          const res = await fetch(`/api/agents/${agent.id}/queue`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: getUserId() }),
+          });
+          if (!res.ok) return;
+          const payload = await res.json();
+          setActiveAgent(payload.agentId);
+          watch({
+            tableId: payload.tableId,
+            agentId: payload.agentId,
+            userId: getUserId(),
+            agentStrategy: payload.strategy,
+            displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+            wantOpponentAI: false,
+            memoryContext: payload.memoryContext ?? '',
+          });
+        }}
+      />
+    );
+  }
+
   if (!config) {
     return (
       <div className="app">
@@ -219,11 +250,8 @@ export default function App() {
                 setPlayKey((k) => k + 1);
                 setActiveTab('play');
               }}
-              onChatAgent={(agent) => {
-                setEditingAgent(agent);
-                setPlayInitialStep('create-agent');
-                setPlayKey((k) => k + 1);
-                setActiveTab('play');
+              onOpenChat={(agent) => {
+                setAgentChatTarget(agent);
               }}
             />
           )}
