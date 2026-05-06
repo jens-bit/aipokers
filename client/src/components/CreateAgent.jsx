@@ -235,11 +235,6 @@ function DraftBlueprint({ chat, createdAgent }) {
         <BlueprintCell label="Risk" value={tuned ? inferred.risk : 'Unset'} />
         <BlueprintCell label="Table" value="HU NLH" />
       </div>
-      <p>
-        {tuned
-          ? (createdAgent?.strategy || 'Strategy ready — review the card below.')
-          : 'Your first prompt becomes the strategy draft for version one.'}
-      </p>
     </section>
   );
 }
@@ -265,10 +260,6 @@ function CreatedAgentCard({ agent, deploying, onDeploy, onKeepTuning }) {
         </span>
       </div>
       {agent.strategy && <p>{agent.strategy}</p>}
-      <div className="dr-readiness-list">
-        <span><CheckIcon color="#00d4aa" /> Strategy saved</span>
-        <span><CheckIcon color="#00d4aa" /> Table profile selected</span>
-      </div>
       <div className="dr-card-actions">
         <button
           className="dr-primary-btn"
@@ -297,10 +288,9 @@ function DraftReadyCard({ inferred, onCreate, onKeepTuning, building }) {
           <small>{inferred.style} style / {inferred.risk} risk</small>
         </div>
       </div>
-      <p>I have enough to save this as version one. You can still tune it after creation.</p>
       <div className="dr-card-actions">
         <button className="dr-primary-btn" type="button" onClick={onCreate} disabled={building}>
-          {building ? 'Saving…' : 'Create this agent'}
+          {building ? 'Saving…' : 'Deploy now'}
         </button>
         <button className="dr-secondary-btn" type="button" onClick={onKeepTuning} disabled={building}>
           Keep tuning
@@ -337,14 +327,6 @@ function SendIcon() {
     <svg className="dr-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M22 2 11 13" />
       <path d="m22 2-7 20-4-9-9-4 20-7z" />
-    </svg>
-  );
-}
-
-function CheckIcon({ color = 'currentColor' }) {
-  return (
-    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 12l5 5 9-11" />
     </svg>
   );
 }

@@ -177,10 +177,6 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
   const ready = agents.filter((a) => a.status !== 'playing' && !a.activeTableId);
   const primary = playing[0] || ready[0] || agents[0];
   const hasPlaying = playing.length > 0;
-  // Only show the idle-stable prompt when it'd target a DIFFERENT agent from
-  // the primary one — otherwise it's a duplicate deploy button for the same
-  // agent, which is what the user flagged.
-  const idleSecondary = ready.find((a) => a.id !== primary.id) || null;
 
   const status = hasPlaying
     ? (playing.length > 1 ? `${playing.length} agents playing` : 'Playing now')
@@ -224,14 +220,14 @@ function ExistingHome({ agents, busyId, onCreate, onDeploy, onPlayVsAI, onPlayHu
           </div>
         </section>
 
-        {idleSecondary && (
-          <DeployPromptCard
-            agent={idleSecondary}
-            busy={busyId === idleSecondary.id}
-            onDeploy={() => onDeploy(idleSecondary)}
-            compact={hasPlaying}
-          />
-        )}
+        <section className="dr-deploy-prompt dr-deploy-prompt--compact">
+          <span><PlusIcon color="#00d4aa" /></span>
+          <div>
+            <p className="dr-label">Stable</p>
+            <small>Add another agent to your roster.</small>
+          </div>
+          <button type="button" onClick={onCreate}>+ Create new</button>
+        </section>
 
         {agents.length > 1 && (
           <AgentCarousel agents={agents} busyId={busyId} onDeploy={onDeploy} />
@@ -297,20 +293,6 @@ function HomeDeployRunway({ agent }) {
         <span><ChevronRight color="#00d4aa" /> Deploy</span>
       </div>
     </div>
-  );
-}
-
-function DeployPromptCard({ agent, busy, onDeploy, compact }) {
-  return (
-    <section className={`dr-deploy-prompt${compact ? ' dr-deploy-prompt--compact' : ''}`}>
-      <span><ChipIcon color="#00d4aa" /></span>
-      <div>
-        <p className="dr-label dr-label--accent">Idle stable</p>
-        <b>{agent.name} is ready.</b>
-        <small>Deploy it to a heads-up table or chat to tune before seating.</small>
-      </div>
-      <button type="button" onClick={onDeploy} disabled={busy}>{busy ? 'Deploying…' : 'Deploy'}</button>
-    </section>
   );
 }
 
@@ -423,6 +405,14 @@ function CheckIcon({ color = 'currentColor' }) {
   return (
     <svg className="dr-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12l5 5 9-11" />
+    </svg>
+  );
+}
+
+function PlusIcon({ color = 'currentColor' }) {
+  return (
+    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
