@@ -202,6 +202,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Describe the agent you want"
               disabled={loading || building}
             />
