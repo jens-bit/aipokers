@@ -502,7 +502,7 @@
   outline: 0;
   background: transparent;
   color: var(--dr-text);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .dr-agent-chat__composer input::placeholder {
