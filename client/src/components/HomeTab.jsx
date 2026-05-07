@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { getUserId } from '../lib/telegram.js';
+import '../styles/home.css';
+
+const AGENT_ACCENTS = ['#00D4AA', '#9B7BFF', '#CDB380', '#FF7A8E'];
 
 export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
-  const [watching, setWatching] = useState(false);
 
   useEffect(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -32,8 +34,7 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
   }
 
   async function watchAgent(agent) {
-    if (watching || !agent?.activeTableId) return;
-    setWatching(true);
+    if (!agent?.activeTableId) return;
     let memoryContext = '';
     try {
       const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
@@ -46,7 +47,6 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
       strategy: agent.strategy,
       memoryContext,
     });
-    setWatching(false);
   }
 
   if (loading) {
@@ -63,239 +63,346 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
     );
   }
 
-  if (agents.length === 0) {
-    return <EmptyHome onCreate={onCreateAgent} onGoPlay={onGoPlay} />;
-  }
-
-  return (
-    <ExistingHome
-      agents={agents}
-      busyId={deployingId}
-      onCreate={onCreateAgent}
-      onOpenChat={onOpenChat}
-      onDeploy={deployAgent}
-      onWatch={watchAgent}
-      onGoPlay={onGoPlay}
-    />
-  );
-}
-
-// ── Home variants ──────────────────────────────────────────────────────────
-
-function EmptyHome({ onCreate, onGoPlay }) {
-  return (
-    <div className="dr-app">
-      <div className="dr-screen dr-screen--home">
-        <section className="dr-home-stage dr-home-stage--empty">
-          <div className="dr-home-stage__top">
-            <span><i /> No agent</span>
-            <small>First run</small>
-          </div>
-          <div className="dr-home-stage__main">
-            <AgentAvatar size="lg" />
-            <div>
-              <p className="dr-label dr-label--accent">Chat first</p>
-              <h1>Build your first poker agent.</h1>
-              <p>Tell it how to play. Chat turns that into a saved strategy profile.</p>
-            </div>
-          </div>
-          <button className="dr-primary-btn" type="button" onClick={onCreate}>
-            Start in chat <ChevronRight />
-          </button>
-        </section>
-
-        <div className="dr-practice-row">
-          <button type="button" onClick={onGoPlay}>Play yourself</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExistingHome({ agents, busyId, onCreate, onOpenChat, onDeploy, onWatch, onGoPlay }) {
   const playing = agents.filter((a) => a.status === 'playing' || a.activeTableId);
   const ready = agents.filter((a) => a.status !== 'playing' && !a.activeTableId);
-  const primary = playing[0] || ready[0] || agents[0];
-  const hasPlaying = playing.length > 0;
+  const activeSession = playing[0] || null;
+  const primaryReady = ready[0] || null;
 
-  const status = hasPlaying
-    ? (playing.length > 1 ? `${playing.length} agents playing` : 'Playing now')
-    : ready.length > 1 ? `${ready.length} ready in stable` : 'Ready to deploy';
-
-  const primaryLabel = hasPlaying
-    ? 'Open table'
-    : busyId === primary.id ? 'Deploying…' : 'Deploy agent';
-
-  function handlePrimaryAction() {
-    if (hasPlaying) onWatch(primary);
-    else onDeploy(primary);
+  function handleRun() {
+    if (primaryReady) deployAgent(primaryReady);
+    else if (activeSession) watchAgent(activeSession);
+    else onCreateAgent();
   }
 
   return (
     <div className="dr-app">
-      <div className="dr-screen dr-screen--home">
-        <section className="dr-home-stage">
-          <div className="dr-home-stage__top">
-            <span><i className={hasPlaying ? 'is-live' : ''} /> {status}</span>
-          </div>
-          <div className="dr-home-stage__main">
-            <AgentAvatar size="lg" />
-            <div>
-              <p className="dr-label dr-label--accent">Primary agent</p>
-              <h1>{primary.name}</h1>
-              <small>
-                {primary.style} style / {primary.risk} risk
-                {primary.stats?.handsPlayed ? ` / ${primary.stats.handsPlayed} hand${primary.stats.handsPlayed === 1 ? '' : 's'}` : ''}
-              </small>
-            </div>
-          </div>
-
-          {hasPlaying ? <HomeTableSnapshot agent={primary} /> : <HomeDeployRunway agent={primary} />}
-
-          <div className="dr-home-actions">
-            <button
-              className="dr-primary-btn"
-              type="button"
-              onClick={handlePrimaryAction}
-              disabled={busyId === primary.id}
-            >
-              {primaryLabel} <ChevronRight />
-            </button>
-            <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={() => onOpenChat(primary)}>
-              <SendIcon /> Chat to tune
-            </button>
-          </div>
-        </section>
-
-        <section className="dr-deploy-prompt dr-deploy-prompt--compact">
-          <span><PlusIcon color="#00d4aa" /></span>
-          <div>
-            <p className="dr-label">Stable</p>
-            <small>Add another agent to your roster.</small>
-          </div>
-          <button type="button" onClick={onCreate}>+ Create new</button>
-        </section>
-
-        {agents.length > 1 && (
-          <AgentCarousel agents={agents} busyId={busyId} onDeploy={onDeploy} />
+      <div className="dr-screen dr-screen--home no-scrollbar">
+        <HomeTopBar />
+        {playing.length > 0 && <HomeAgentsPill count={playing.length} />}
+        <HomeHero
+          onRun={handleRun}
+          isBusy={!!deployingId}
+          playingCount={playing.length}
+        />
+        <HomePlayRow onGoPlay={onGoPlay} />
+        {activeSession && (
+          <HomeSession agent={activeSession} onWatch={() => watchAgent(activeSession)} />
         )}
+        {agents.length > 0 && (
+          <HomeMyAgents
+            agents={agents}
+            busyId={deployingId}
+            onDeploy={deployAgent}
+            onWatch={watchAgent}
+            // TODO: App.jsx prop change — add onGoAgents prop to navigate to the
+            // Agents tab; for now "View all" falls back to onCreateAgent
+            onViewAll={onCreateAgent}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
-        <AgentStats agent={primary} />
+// ── TopBar ────────────────────────────────────────────────────────────────
 
-        <div className="dr-practice-row">
-          <button type="button" onClick={onGoPlay}>Play yourself</button>
+function HomeTopBar() {
+  return (
+    <div className="dr-home-topbar">
+      <HomeLogo />
+      <div className="dr-home-topbar__right">
+        <div className="dr-home-balance-pill">
+          {/* TODO: App.jsx prop change — pass chipBalance prop to HomeTab */}
+          <ChipSvg />
+          <span className="dr-home-balance-pill__value">1,000.00</span>
+          <button className="dr-home-balance-pill__add" type="button" aria-label="Add chips">
+            +
+          </button>
+        </div>
+        <button className="dr-home-bell-btn" type="button" aria-label="Notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+            <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 3h16l-2-3z" />
+            <path d="M10 21a2 2 0 0 0 4 0" />
+          </svg>
+          <span className="dr-home-bell-btn__dot" aria-hidden />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HomeLogo() {
+  return (
+    <div className="dr-home-logo">
+      <svg width="22" height="26" viewBox="0 0 22 26" aria-hidden>
+        <path
+          d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
+          fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
+        />
+        <path
+          d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
+          stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
+        />
+      </svg>
+      <span className="dr-home-logo__text">AI POKER</span>
+    </div>
+  );
+}
+
+// ── Active-agents pill ────────────────────────────────────────────────────
+
+function HomeAgentsPill({ count }) {
+  return (
+    <div className="dr-home-pill-row">
+      <div className="dr-home-agents-pill">
+        <span className="dr-home-agents-pill__dot" aria-hidden />
+        <span className="dr-home-agents-pill__label">
+          {count} agent{count !== 1 ? 's' : ''} active now
+        </span>
+        <ChevronRightSvg size={11} color="#00D4AA" />
+      </div>
+    </div>
+  );
+}
+
+// ── Hero ──────────────────────────────────────────────────────────────────
+
+function HomeHero({ onRun, isBusy, playingCount }) {
+  return (
+    <div className="dr-home-hero">
+      <div className="dr-home-hero__glow" aria-hidden />
+      <div className="dr-home-hero__silhouette" aria-hidden>
+        <svg width="170" height="200" viewBox="0 0 170 200">
+          <defs>
+            <linearGradient id="dr-heroHood" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor="#1a3a3a" stopOpacity="0.9" />
+              <stop offset="1" stopColor="#0a1518" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d="M85 10 C50 10 30 35 30 70 L30 200 L140 200 L140 70 C140 35 120 10 85 10 Z" fill="url(#dr-heroHood)" />
+          <ellipse cx="85" cy="80" rx="28" ry="36" fill="#0a0a0a" />
+          <circle cx="75" cy="74" r="3" fill="#00D4AA" opacity="0.8" />
+          <circle cx="95" cy="74" r="3" fill="#00D4AA" opacity="0.8" />
+        </svg>
+      </div>
+
+      <div className="dr-home-hero__content">
+        <div className="dr-home-hero__eyebrow">READY TO RUN</div>
+        <div className="dr-home-hero__headline">
+          Deploy your agent.<br />
+          <span className="dr-home-hero__headline--accent">Sit back and watch.</span>
+        </div>
+        <div className="dr-home-hero__sub">Your AI plays for you, 24/7.</div>
+        <button
+          className="dr-home-hero__run-btn"
+          type="button"
+          onClick={onRun}
+          disabled={isBusy}
+        >
+          {isBusy ? 'DEPLOYING…' : 'RUN AGENT'}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="dr-home-hero__ticker">
+        <div className="dr-home-hero__ticker-left">
+          <SparkleSvg />
+          <span>
+            <span className="dr-home-hero__ticker-bold">
+              {playingCount} agent{playingCount !== 1 ? 's' : ''}
+            </span>{' '}
+            playing now
+          </span>
+        </div>
+        <div className="dr-home-hero__ticker-right">
+          {/* TODO: App.jsx prop change — pass todayProfit prop to HomeTab */}
+          <span>Today's profit</span>
+          <span className="dr-home-hero__ticker-profit">+$0</span>
         </div>
       </div>
     </div>
   );
 }
 
-function HomeTableSnapshot({ agent }) {
+// ── Play yourself row ─────────────────────────────────────────────────────
+
+function HomePlayRow({ onGoPlay }) {
   return (
-    <div className="dr-home-table">
-      <div className="dr-home-table__felt">
-        <span className="dr-home-table__seat dr-home-table__seat--top">
-          <AgentAvatar size="xs" />
-          <b>Opponent</b>
-        </span>
-        <div className="dr-home-table__pot">
-          <small>Live now</small>
-          <b>HU NLH</b>
+    <button className="dr-home-play-row" type="button" onClick={onGoPlay}>
+      <div className="dr-home-play-row__icon">
+        <ProfileSvg />
+      </div>
+      <div className="dr-home-play-row__body">
+        <div className="dr-home-play-row__title">Play yourself</div>
+        <div className="dr-home-play-row__sub">
+          <span className="dr-home-play-row__sub--accent">12 tables</span> active · join in seconds
         </div>
-        <div className="dr-home-table__cards">
-          <Pip rank="A" suit="s" />
-          <Pip rank="K" suit="h" />
-          <Pip rank="Q" suit="c" />
+      </div>
+      <ChevronRightSvg size={16} color="#6B6B6B" />
+    </button>
+  );
+}
+
+// ── Live session card ─────────────────────────────────────────────────────
+
+function HomeSession({ agent, onWatch }) {
+  const gameType = agent.tablePreference || 'HU NLH';
+  const tableId = agent.activeTableId || '—';
+  return (
+    <div
+      className="dr-home-session"
+      role="button"
+      tabIndex={0}
+      onClick={onWatch}
+      onKeyDown={(e) => e.key === 'Enter' && onWatch()}
+    >
+      <div className="dr-home-session__header">
+        <div className="dr-home-session__live">
+          <span className="dr-home-session__dot" aria-hidden />
+          <span className="dr-label dr-label--accent">LIVE SESSION</span>
         </div>
-        <span className="dr-home-table__seat dr-home-table__seat--bottom">
-          <AgentAvatar size="xs" />
-          <b>{agent.name}</b>
-        </span>
+        <ChevronRightSvg size={14} color="#6B6B6B" />
+      </div>
+      <div className="dr-home-session__body">
+        <AgentAvatar size="md" />
+        <div className="dr-home-session__info">
+          <div className="dr-home-session__name">
+            <span className="dr-home-session__agent-name">{agent.name}</span>
+            <span className="dr-home-session__badge">{gameType}</span>
+          </div>
+          <div className="dr-home-session__table">Table #{tableId} · Blinds $10/$20</div>
+        </div>
+        <div className="dr-home-session__cards">
+          {/* TODO: replace with real hole cards if API exposes them per session */}
+          <HoleCard rank="A" suit="s" />
+          <HoleCard rank="K" suit="h" />
+        </div>
+        <button
+          className="dr-home-session__watch-btn"
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onWatch(); }}
+        >
+          WATCH
+        </button>
       </div>
     </div>
   );
 }
 
-function HomeDeployRunway({ agent }) {
-  return (
-    <div className="dr-deploy-runway">
-      <div className="dr-deploy-runway__lane">
-        <span className="dr-deploy-runway__seat">
-          <AgentAvatar size="md" />
-          <i />
-        </span>
-        <div>
-          <p className="dr-label dr-label--accent">Ready on bench</p>
-          <b>{agent.tablePreference || 'HU NLH / $10-$20'}</b>
-          <small>No table yet. Deploy this agent to start watching live hands.</small>
-        </div>
-      </div>
-      <div className="dr-deploy-runway__steps">
-        <span><CheckIcon color="#00d4aa" /> Strategy saved</span>
-        <span><ChipIcon color="#cdb380" /> Choose table</span>
-        <span><ChevronRight color="#00d4aa" /> Deploy</span>
-      </div>
-    </div>
-  );
-}
+// ── My agents ─────────────────────────────────────────────────────────────
 
-function AgentCarousel({ agents, busyId, onDeploy }) {
+function HomeMyAgents({ agents, busyId, onDeploy, onWatch, onViewAll }) {
   return (
-    <section className="dr-agent-carousel" aria-label="Agent stable">
-      <div className="dr-section-head">
-        <p className="dr-label">Stable</p>
-        <span>{agents.length} agents</span>
+    <div className="dr-home-my-agents">
+      <div className="dr-home-my-agents__header">
+        <span className="dr-label">MY AGENTS</span>
+        <button className="dr-home-my-agents__view-all" type="button" onClick={onViewAll}>
+          View all <ChevronRightSvg size={11} color="#00D4AA" />
+        </button>
       </div>
-      <div className="dr-agent-carousel__track">
-        {agents.map((agent) => {
-          const isPlaying = agent.status === 'playing' || agent.activeTableId;
-          const busy = busyId === agent.id;
+      <div className="dr-home-my-agents__track no-scrollbar">
+        {agents.map((agent, i) => {
+          const isPlaying = agent.status === 'playing' || !!agent.activeTableId;
+          const accent = AGENT_ACCENTS[i % AGENT_ACCENTS.length];
+          const stats = agent.stats || {};
+          const winRate = Number.isFinite(Number(stats.winRate))
+            ? `${Number(stats.winRate).toFixed(1)}%`
+            : '--';
+          const hands = stats.handsPlayed
+            ? Number(stats.handsPlayed).toLocaleString()
+            : '0';
           return (
-            <button
-              type="button"
+            <HomeAgentCard
               key={agent.id}
-              className="dr-agent-mini-card"
-              onClick={() => onDeploy(agent)}
-              disabled={isPlaying || busy}
-            >
-              <span><AgentAvatar size="xs" /><i className={isPlaying ? 'is-live' : ''} /></span>
-              <b>{agent.name}</b>
-              <small>{isPlaying ? 'Playing now' : busy ? 'Deploying…' : `${agent.style} / ${agent.risk}`}</small>
-            </button>
+              rank={i + 1}
+              name={agent.name}
+              winRate={winRate}
+              hands={hands}
+              accent={accent}
+              isPlaying={isPlaying}
+              isBusy={busyId === agent.id}
+              onClick={() => (isPlaying ? onWatch(agent) : onDeploy(agent))}
+            />
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }
 
-function AgentStats({ agent }) {
-  const stats = agent.stats || {};
-  const handsPlayed = stats.handsPlayed ?? 0;
-  const winRate = Number.isFinite(Number(stats.winRate)) ? `${Math.round(Number(stats.winRate))}%` : '--';
-  const status = agent.status === 'playing' ? 'Playing' : 'Ready';
-  const aggression = stats.totalDecisions
-    ? `${Math.round((stats.aggressiveDecisions / stats.totalDecisions) * 100)}%`
-    : '--';
-  const cells = [
-    ['Status', status],
-    ['Hands', String(handsPlayed)],
-    ['Win rate', winRate],
-    ['Aggression', aggression],
-  ];
+function HomeAgentCard({ rank, name, winRate, hands, accent, isPlaying, isBusy, onClick }) {
   return (
-    <section className="dr-stats">
-      {cells.map(([label, value]) => (
-        <span key={label}>
-          <small>{label}</small>
-          <b>{value}</b>
+    <button
+      className="dr-home-agent-card"
+      type="button"
+      onClick={onClick}
+      disabled={isBusy}
+    >
+      <div className="dr-home-agent-card__top">
+        <span
+          className="dr-home-agent-card__rank"
+          style={{ background: `${accent}26`, color: accent }}
+        >
+          #{rank}
         </span>
-      ))}
-    </section>
+        {isPlaying && <span className="dr-home-agent-card__live-dot" aria-label="Playing now" />}
+      </div>
+      {/* dynamic portrait gradient uses accent — stays inline */}
+      <div
+        className="dr-home-agent-card__portrait"
+        style={{ background: `radial-gradient(ellipse at center bottom, ${accent}22, transparent 70%), #0e1418` }}
+      >
+        <svg width="60" height="62" viewBox="0 0 60 62" aria-hidden>
+          <defs>
+            <linearGradient id={`dr-hood-${rank}`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor={accent} stopOpacity="0.5" />
+              <stop offset="1" stopColor={accent} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d="M30 4 C16 4 8 14 8 28 L8 62 L52 62 L52 28 C52 14 44 4 30 4 Z" fill={`url(#dr-hood-${rank})`} />
+          <ellipse cx="30" cy="32" rx="11" ry="14" fill="#0a0a0a" />
+          <circle cx="26" cy="29" r="1.4" fill={accent} />
+          <circle cx="34" cy="29" r="1.4" fill={accent} />
+        </svg>
+      </div>
+      <div className="dr-home-agent-card__name">{name}</div>
+      <div className="dr-home-agent-card__stats">
+        <div>
+          <div className="dr-home-agent-card__winrate-label">WIN RATE</div>
+          {/* dynamic accent color stays inline */}
+          <div className="dr-home-agent-card__winrate-value" style={{ color: accent }}>{winRate}</div>
+        </div>
+        <div className="dr-home-agent-card__hands">
+          <BarChartSvg />
+          {hands}
+        </div>
+      </div>
+    </button>
   );
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────
+// ── Hole card (placeholder cards in live session) ─────────────────────────
+
+function HoleCard({ rank, suit }) {
+  const isRed = suit === 'h' || suit === 'd';
+  const suitColor = isRed ? '#e84545' : '#1a1a1a';
+  const suitPaths = {
+    s: <path d="M12 2s-8 7-8 12c0 3 2 5 5 5 1.5 0 2.5-.7 3-1.7.5 1 1.5 1.7 3 1.7 3 0 5-2 5-5 0-5-8-12-8-12zM11 18l-1.5 4h5L13 18z" fill={suitColor} />,
+    h: <path d="M12 21s-9-6.5-9-12.5c0-3 2-5 4.5-5 2 0 3.5 1.2 4.5 2.8 1-1.6 2.5-2.8 4.5-2.8 2.5 0 4.5 2 4.5 5C21 14.5 12 21 12 21z" fill={suitColor} />,
+    d: <path d="M12 2l9 10-9 10L3 12 12 2z" fill={suitColor} />,
+    c: <path d="M12 2a4 4 0 0 0-3.7 5.5A5 5 0 1 0 8.8 12c-.4 1.3-.8 2.5-1.8 5h4l.5-3c.2-1-.1-1.5-.5-2 .3.3.6.5 1 .5s.7-.2 1-.5c-.4.5-.7 1-.5 2l.5 3h4c-1-2.5-1.4-3.7-1.8-5A5 5 0 1 0 15.7 7.5 4 4 0 0 0 12 2z" fill={suitColor} />,
+  };
+  return (
+    <span className="dr-home-hole-card">
+      <span className="dr-home-hole-card__rank" style={{ color: suitColor }}>{rank}</span>
+      <svg width="8" height="8" viewBox="0 0 24 24" aria-hidden>{suitPaths[suit]}</svg>
+    </span>
+  );
+}
+
+// ── AgentAvatar (retained from previous version) ──────────────────────────
 
 function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {
   return (
@@ -311,50 +418,11 @@ function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {
   );
 }
 
-function Pip({ rank, suit }) {
-  const red = suit === 'h' || suit === 'd';
-  const color = red ? '#e84545' : '#1a1a1a';
-  const paths = {
-    s: <path d="M12 2s-8 7-8 12c0 3 2 5 5 5 1.5 0 2.5-.7 3-1.7.5 1 1.5 1.7 3 1.7 3 0 5-2 5-5 0-5-8-12-8-12zM11 18l-1.5 4h5L13 18z" fill={color} />,
-    h: <path d="M12 21s-9-6.5-9-12.5c0-3 2-5 4.5-5 2 0 3.5 1.2 4.5 2.8 1-1.6 2.5-2.8 4.5-2.8 2.5 0 4.5 2 4.5 5C21 14.5 12 21 12 21z" fill={color} />,
-    d: <path d="M12 2l9 10-9 10L3 12 12 2z" fill={color} />,
-    c: <path d="M12 2a4 4 0 0 0-3.7 5.5A5 5 0 1 0 8.8 12c-.4 1.3-.8 2.5-1.8 5h4l.5-3c.2-1-.1-1.5-.5-2 .3.3.6.5 1 .5s.7-.2 1-.5c-.4.5-.7 1-.5 2l.5 3h4c-1-2.5-1.4-3.7-1.8-5A5 5 0 1 0 15.7 7.5 4 4 0 0 0 12 2z" fill={color} />,
-  };
-  return (
-    <span className="dr-playing-card dr-playing-card--mini">
-      <b>{rank}</b>
-      <svg width="10" height="10" viewBox="0 0 24 24" className="dr-card-suit" aria-hidden>{paths[suit]}</svg>
-    </span>
-  );
-}
+// ── SVG icon helpers ──────────────────────────────────────────────────────
 
-function ChevronRight({ color = 'currentColor' }) {
+function ChipSvg() {
   return (
-    <svg className="dr-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function CheckIcon({ color = 'currentColor' }) {
-  return (
-    <svg className="dr-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 12l5 5 9-11" />
-    </svg>
-  );
-}
-
-function PlusIcon({ color = 'currentColor' }) {
-  return (
-    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChipIcon({ color = 'currentColor' }) {
-  return (
-    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="5" />
       <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
@@ -362,11 +430,35 @@ function ChipIcon({ color = 'currentColor' }) {
   );
 }
 
-function SendIcon() {
+function ChevronRightSvg({ size = 16, color = 'currentColor' }) {
   return (
-    <svg className="dr-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M22 2 11 13" />
-      <path d="m22 2-7 20-4-9-9-4 20-7z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function ProfileSvg() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EDEDED" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+    </svg>
+  );
+}
+
+function SparkleSvg() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#CDB380" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    </svg>
+  );
+}
+
+function BarChartSvg() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6B6B6B" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <path d="M18 20V10M12 20V4M6 20v-6" />
     </svg>
   );
 }

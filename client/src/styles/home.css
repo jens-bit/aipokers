@@ -481,4 +481,610 @@
 .dr-agent-mini-card small {
   color: var(--dr-secondary);
   font-size: 11px;
+
+/* --- below ported from feature/home-redesign (lean home) --- */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   home.css — HomeTab lean Codex layout
+   All classes prefixed .dr-home-* (or .no-scrollbar utility)
+   ───────────────────────────────────────────────────────────────────────── */
+
+@keyframes dr-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* Scrollbar hide — also used by horizontal agent track */
+.no-scrollbar               { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── TopBar ─────────────────────────────────────────────────────────────── */
+
+.dr-home-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 12px;
+}
+
+.dr-home-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dr-home-logo__text {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  color: #ededed;
+  text-transform: uppercase;
+}
+
+.dr-home-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dr-home-balance-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px 0 10px;
+  border-radius: 999px;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dr-home-balance-pill__value {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ededed;
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-home-balance-pill__add {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 212, 170, 0.15);
+  border: 1px solid rgba(0, 212, 170, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00d4aa;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 0 1px;
+  cursor: pointer;
+  text-transform: none;
+  flex-shrink: 0;
+}
+
+.dr-home-bell-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ededed;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  text-transform: none;
+  flex-shrink: 0;
+}
+
+.dr-home-bell-btn__dot {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00d4aa;
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.7);
+}
+
+/* ── Active-agents pill ─────────────────────────────────────────────────── */
+
+.dr-home-pill-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 12px;
+}
+
+.dr-home-agents-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  cursor: pointer;
+}
+
+.dr-home-agents-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00d4aa;
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.7);
+  flex-shrink: 0;
+  animation: dr-pulse 2s infinite;
+}
+
+.dr-home-agents-pill__label {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #00d4aa;
+  text-transform: none;
+}
+
+/* ── Hero card ──────────────────────────────────────────────────────────── */
+
+.dr-home-hero {
+  margin: 0 16px 16px;
+  background: linear-gradient(160deg, #112523 0%, #0d1815 50%, #0e1212 100%);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dr-home-hero__glow {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.dr-home-hero__silhouette {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.dr-home-hero__content {
+  position: relative;
+  z-index: 2;
+  max-width: 70%;
+}
+
+.dr-home-hero__eyebrow {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #00d4aa;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.dr-home-hero__headline {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #ededed;
+  margin-bottom: 6px;
+  text-transform: none;
+}
+
+.dr-home-hero__headline--accent {
+  color: #00d4aa;
+}
+
+.dr-home-hero__sub {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 12px;
+  color: #a1a1a1;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  text-transform: none;
+}
+
+.dr-home-hero__run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  background: #00d4aa;
+  border: none;
+  border-radius: 10px;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #0a0a0a;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.35);
+  text-transform: none;
+}
+
+.dr-home-hero__run-btn:hover:not(:disabled) {
+  background: #00e6b8;
+}
+
+.dr-home-hero__run-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dr-home-hero__ticker {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dr-home-hero__ticker-left,
+.dr-home-hero__ticker-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  color: #a1a1a1;
+  text-transform: none;
+}
+
+.dr-home-hero__ticker-bold {
+  color: #ededed;
+  font-weight: 600;
+}
+
+.dr-home-hero__ticker-profit {
+  color: #00d4aa;
+  font-weight: 700;
+}
+
+/* ── Play yourself row ──────────────────────────────────────────────────── */
+
+.dr-home-play-row {
+  margin: 0 16px 16px;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  width: calc(100% - 32px);
+  text-align: left;
+  text-transform: none;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+}
+
+.dr-home-play-row__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dr-home-play-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dr-home-play-row__title {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ededed;
+  margin-bottom: 2px;
+  text-transform: none;
+}
+
+.dr-home-play-row__sub {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  color: #a1a1a1;
+  text-transform: none;
+}
+
+.dr-home-play-row__sub--accent {
+  color: #00d4aa;
+}
+
+/* ── Live session card ──────────────────────────────────────────────────── */
+
+.dr-home-session {
+  margin: 0 16px 18px;
+  background: #141414;
+  border: 1px solid rgba(0, 212, 170, 0.18);
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.dr-home-session__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dr-home-session__live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dr-home-session__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d4aa;
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.7);
+  animation: dr-pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+.dr-home-session__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dr-home-session__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dr-home-session__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.dr-home-session__agent-name {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ededed;
+}
+
+.dr-home-session__badge {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  color: #a1a1a1;
+  text-transform: none;
+  flex-shrink: 0;
+}
+
+.dr-home-session__table {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  color: #a1a1a1;
+  text-transform: none;
+}
+
+.dr-home-session__cards {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.dr-home-session__watch-btn {
+  height: 32px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid #00d4aa;
+  border-radius: 8px;
+  color: #00d4aa;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  text-transform: none;
+  flex-shrink: 0;
+}
+
+.dr-home-session__watch-btn:hover {
+  background: rgba(0, 212, 170, 0.08);
+}
+
+/* ── Hole cards (placeholder A♠ K♥ in live session) ─────────────────────── */
+
+.dr-home-hole-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 36px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.dr-home-hole-card__rank {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ── My agents ──────────────────────────────────────────────────────────── */
+
+.dr-home-my-agents {
+  margin-bottom: 16px;
+}
+
+.dr-home-my-agents__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  margin-bottom: 10px;
+}
+
+.dr-home-my-agents__view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #00d4aa;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.dr-home-my-agents__track {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px;
+  overflow-x: auto;
+}
+
+/* ── Agent card ─────────────────────────────────────────────────────────── */
+
+.dr-home-agent-card {
+  width: 130px;
+  flex-shrink: 0;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 12px;
+  cursor: pointer;
+  text-align: left;
+  display: block;
+  text-transform: none;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+}
+
+.dr-home-agent-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dr-home-agent-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dr-home-agent-card__rank {
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  text-transform: none;
+}
+
+.dr-home-agent-card__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d4aa;
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.7);
+  animation: dr-pulse 2s infinite;
+}
+
+.dr-home-agent-card__portrait {
+  height: 70px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dr-home-agent-card__name {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ededed;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.dr-home-agent-card__stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.dr-home-agent-card__winrate-label {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #6b6b6b;
+  text-transform: uppercase;
+}
+
+.dr-home-agent-card__winrate-value {
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.dr-home-agent-card__hands {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: Inter, 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  color: #a1a1a1;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
 }
