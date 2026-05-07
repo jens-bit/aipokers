@@ -144,10 +144,11 @@
 
 .dr-logo span {
   color: var(--dr-text);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .dr-topbar__right {
@@ -603,10 +604,14 @@
 .dr-home-table {
   flex: 1;
   min-height: 0;
+  display: block;
+  width: calc(100% + 4px);
   margin: 4px -2px 12px;
   padding: 8px;
+  border: 0;
   border-radius: 18px;
   background: rgba(0, 0, 0, 0.2);
+  text-align: left;
 }
 
 .dr-home-table__felt {
