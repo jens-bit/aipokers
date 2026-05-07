@@ -361,7 +361,13 @@ export default function App() {
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} />
         {config?.isSpectator && lastDecision && (
-          <AnalysisPanel lastDecision={lastDecision} />
+          <AnalysisPanel
+            chatMessages={chatMessages}
+            onSendChat={sendChat}
+            mySeat={mySeat}
+            displayNames={displayNames}
+            lastDecision={lastDecision}
+          />
         )}
       </main>
       {!config?.isSpectator && <ChatBar messages={chatMessages} onSend={sendChat} />}
