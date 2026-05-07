@@ -3,6 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 16px;
   color: var(--accent);
   font-family: var(--font-label);
@@ -11,4 +12,36 @@
   font-weight: 600;
   border-top: 1px solid var(--edge);
   flex-shrink: 0;
+}
+
+.watch-banner__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.watch-banner__name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-banner__sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.watch-banner__tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.16em;
 }

@@ -1,11 +1,41 @@
 /* ─────────────────── chat bar ─────────────────── */
 .chat-bar {
+  position: fixed;
+  bottom: var(--action-bar-h, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--max-w-mobile);
+  height: 180px;
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--edge);
   background: var(--bg-secondary, var(--bg-primary));
-  flex-shrink: 0;
-  max-height: 180px;
+  z-index: 45;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Reserve room for the fixed chat bar so table content isn't hidden beneath it.
+   At ≥600px the action bar is inline and the chat bar resets to static (see below). */
+@media (max-width: 599px) {
+  .app__main {
+    padding-bottom: calc(var(--action-bar-h, 0px) + 180px + 8px);
+  }
+}
+
+/* Desktop: revert to in-flow so it fits the sidebar grid. */
+@media (min-width: 600px) {
+  .chat-bar {
+    position: static;
+    height: auto;
+    max-height: 180px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    max-width: none;
+    z-index: auto;
+    padding-bottom: 0;
+  }
 }
 
 .chat-bar__list {
