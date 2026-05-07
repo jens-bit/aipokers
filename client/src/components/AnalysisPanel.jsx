@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 // Ported from design-refs/analysis.jsx.
 // Receives the last AI decision ({ action, reasoning, seat }) and renders the
 // analysis section: tabs, decision card, reasoning card, range matrix, action row.
@@ -55,26 +57,35 @@ function reasoningBullets(reasoning) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function TabBar({ active = 0 }) {
-  const tabs = ['LIVE ANALYSIS', 'RANGE', 'HISTORY', 'NOTES'];
+function TabBar({ active, onSelect, hasChatBadge }) {
+  const tabs = ['LIVE ANALYSIS', 'RANGE', 'HISTORY', 'CHAT'];
   return (
     <div style={{
       display: 'flex', gap: 18, padding: '0 4px 12px',
       borderBottom: '1px solid rgba(255,255,255,0.06)',
       marginBottom: 14,
     }}>
-      {tabs.map((t, i) => (
-        <div key={t} style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-          color: i === active ? 'var(--accent)' : 'var(--text-muted)',
-          position: 'relative',
-          paddingBottom: 12,
-          marginBottom: -13,
-          borderBottom: i === active ? '2px solid var(--accent)' : '2px solid transparent',
-          cursor: i === active ? 'default' : 'pointer',
-          userSelect: 'none',
-        }}>{t}</div>
-      ))}
+      {tabs.map((t, i) => {
+        const isActive = i === active;
+        const showDot = t === 'CHAT' && hasChatBadge && !isActive;
+        return (
+          <div
+            key={t}
+            className={showDot ? 'dr-tab-button--chat' : undefined}
+            style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+              color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+              position: 'relative',
+              paddingBottom: 12,
+              marginBottom: -13,
+              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+              cursor: isActive ? 'default' : 'pointer',
+              userSelect: 'none',
+            }}
+            onClick={() => !isActive && onSelect(i)}
+          >{t}</div>
+        );
+      })}
     </div>
   );
 }
@@ -267,20 +278,103 @@ function ActionRow() {
   );
 }
 
+// ── Chat tab ──────────────────────────────────────────────────────────────────
+
+function ChatTabContent({ messages, onSend, mySeat, displayNames }) {
+  const [text, setText] = useState('');
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [messages.length]);
+
+  function submit(e) {
+    e?.preventDefault();
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSend(trimmed);
+    setText('');
+  }
+
+  return (
+    <div className="dr-chat-tab">
+      <div ref={listRef} className="dr-chat-tab__list">
+        {messages.length === 0 ? (
+          <div className="dr-chat-tab__empty">No messages yet…</div>
+        ) : (
+          messages.map((m, i) => {
+            const isSelf = mySeat !== null && m.seat === mySeat;
+            return (
+              <div
+                key={`${m.t ?? i}-${i}`}
+                className={`dr-chat-tab__row${isSelf ? ' dr-chat-tab__row--self' : ''}`}
+              >
+                <span className="dr-chat-tab__name">
+                  {displayNames[m.seat] || m.displayName || `Seat ${m.seat}`}
+                  {m.isAI && <span className="dr-chat-tab__ai-pill">AI</span>}
+                </span>
+                <span className="dr-chat-tab__bubble">{m.text}</span>
+              </div>
+            );
+          })
+        )}
+      </div>
+      <form className="dr-chat-tab__form" onSubmit={submit}>
+        <input
+          className="dr-chat-tab__input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Say something…"
+          maxLength={280}
+          aria-label="Chat message"
+        />
+        <button className="dr-chat-tab__send" type="submit" disabled={!text.trim()}>
+          SEND
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
-export function AnalysisPanel({ lastDecision }) {
+export function AnalysisPanel({
+  lastDecision,
+  chatMessages = [],
+  onSendChat = () => {},
+  mySeat = null,
+  displayNames = {},
+}) {
+  const [activeTab, setActiveTab] = useState(0);
+
   if (!lastDecision) return null;
   const { action, reasoning } = lastDecision;
+
   return (
     <div className="analysis-panel">
-      <TabBar active={0} />
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-        <DecisionCard action={action} />
-        <ReasoningCard reasoning={reasoning} />
-        <RangeMatrix />
-      </div>
-      <ActionRow />
+      <TabBar
+        active={activeTab}
+        onSelect={setActiveTab}
+        hasChatBadge={chatMessages.length > 0}
+      />
+      {activeTab === 0 && (
+        <>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+            <DecisionCard action={action} />
+            <ReasoningCard reasoning={reasoning} />
+            <RangeMatrix />
+          </div>
+          <ActionRow />
+        </>
+      )}
+      {activeTab === 3 && (
+        <ChatTabContent
+          messages={chatMessages}
+          onSend={onSendChat}
+          mySeat={mySeat}
+          displayNames={displayNames}
+        />
+      )}
     </div>
   );
 }
