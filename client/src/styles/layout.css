@@ -28,6 +28,15 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* On mobile the table should not steal all flex space — let the panel show below it. */
+.app__main--analysis .table-area {
+  flex: none;
+  min-height: 280px;
+}
+/* Error banner spans both columns when in analysis grid mode. */
+.app__main--analysis .error-banner {
+  grid-column: 1 / -1;
+}
 
 .app__sidebar {
   display: none;       /* shown only at >=600px (desktop) */
@@ -549,6 +558,24 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 3px;
+  }
+
+  /* ── ANALYSIS PANEL — side-by-side with table at ≥1100px ─────────────── */
+  .app__main--analysis {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+    overflow-y: visible;
+    align-items: start;
+  }
+  .app__main--analysis .table-area {
+    flex: none;
+    min-height: 0;
+  }
+  .app__main--analysis .analysis-panel {
+    overflow-y: auto;
+    border-top: none;
+    padding-top: 0;
   }
 }
 
