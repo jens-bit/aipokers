@@ -364,7 +364,7 @@ export default function App() {
           <AnalysisPanel lastDecision={lastDecision} />
         )}
       </main>
-      <ChatBar messages={chatMessages} onSend={sendChat} />
+      {!config?.isSpectator && <ChatBar messages={chatMessages} onSend={sendChat} />}
       {config?.isSpectator ? (
         <>
           <WatchBanner config={config} game={game} />
