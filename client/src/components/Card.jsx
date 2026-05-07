@@ -4,8 +4,9 @@
 //   size: 'sm' (44×62) | 'md' (56×80, default)
 
 const SIZES = {
-  sm: { w: 44, h: 62 },
-  md: { w: 56, h: 80 },
+  felt: { w: 36, h: 50 },
+  sm:   { w: 44, h: 62 },
+  md:   { w: 56, h: 80 },
 };
 
 // Exact SVG paths from design-refs/cards.jsx — do not modify.

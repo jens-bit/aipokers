@@ -483,6 +483,44 @@
   font-size: 21px;
 }
 
+/* Oval-felt table: new classes for the redesigned TableView */
+.dr-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00D4AA;
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.6);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+.dr-board-cards {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  position: relative;
+  z-index: 2;
+  margin-top: 10px;
+}
+
+.dr-thinking {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.dr-thinking-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #00D4AA;
+  opacity: 0.6;
+  animation: pulse 1.4s infinite;
+}
+
 /* ============================================================
  * DESKTOP LAYOUT (>=600px) — table overrides
  * ============================================================ */

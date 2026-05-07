@@ -7,7 +7,8 @@ import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
 import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
-import { Board } from './components/Board.jsx';
+import { TableSeat } from './components/TableSeat.jsx';
+import { Card } from './components/Card.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { ChatBar } from './components/ChatBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
@@ -499,84 +500,92 @@ function formatAgentAmount(amount) {
 }
 
 function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator }) {
-  const seatCount = Math.max(game?.seats?.length || 2, 2);
   const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
-
-  const seatProps = useMemo(() => {
-    if (!game) return null;
-    const blindSeats = resolveBlindSeats(game);
-    return game.seats.map((data, i) => ({
-      seat: i,
-      position: seatPosition(i, viewSeat, game.seats.length),
-      isDealer: game.dealerSeat === i,
-      isSmallBlind: blindSeats.smallBlindSeat === i,
-      isBigBlind: blindSeats.bigBlindSeat === i,
-      isToAct: game.toAct === i,
-      data,
-    }));
-  }, [game, viewSeat]);
+  const seatCount = Math.max(game?.seats?.length || 2, 2);
+  const opponentSeatIndex = (viewSeat + 1) % seatCount;
 
   const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
+  const blindSeats = game ? resolveBlindSeats(game) : { smallBlindSeat: -1, bigBlindSeat: -1 };
+  const dealerSeat = game?.dealerSeat ?? -1;
+  const handNum = game?.handNumber;
+  const pot = game?.pot ?? 0;
+  const community = game?.community ?? [];
 
   const emptyData = (label) => ({
-    displayName: label, stack: 0, contribTotal: 0, contribThisStreet: 0,
-    folded: false, allIn: false, holeCards: [],
+    displayName: label, stack: 0, holeCards: [], folded: false,
+    allIn: false, contribThisStreet: 0, contribTotal: 0,
   });
 
-  const seats = seatProps || Array.from({ length: seatCount }, (_, seat) => ({
-    seat,
-    position: seatPosition(seat, viewSeat, seatCount),
-    isDealer: false,
-    isSmallBlind: false,
-    isBigBlind: false,
-    isToAct: false,
-    data: emptyData(seat === viewSeat ? 'You' : 'Waiting...'),
-  }));
-  const sortedSeats = [...seats].sort((a, b) => seatRenderOrder(a.position) - seatRenderOrder(b.position));
+  const heroData = game?.seats?.[viewSeat] ?? emptyData('You');
+  const oppData = game?.seats?.[opponentSeatIndex] ?? emptyData('Waiting...');
+
+  function posLabel(seat) {
+    if (blindSeats.bigBlindSeat === seat) return 'BB';
+    if (blindSeats.smallBlindSeat === seat) return 'SB';
+    if (dealerSeat === seat) return 'BTN';
+    return '';
+  }
+
+  const commSlots = [...community];
+  while (commSlots.length < 5) commSlots.push('placeholder');
 
   return (
-    <div className={`table-area ${seatCount > 2 ? 'table-area--multi' : 'table-area--heads-up'} table-area--seats-${seatCount}`}>
-      {sortedSeats.map((seat) => seat.position !== 'bottom' && (
-        <PlayerSeat
-          key={seat.seat}
-          seat={seat.seat}
-          position={seat.position}
-          data={seat.data}
-          isMine={seat.seat === viewSeat}
-          isSpectator={isSpectator}
+    <div className="dr-table-card dr-app">
+      <div className="dr-table-card__head">
+        <b>HEADS-UP NLH</b>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <small style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {handNum ? `Hand #${handNum}` : 'Waiting'}
+          </small>
+          <span className="dr-live-dot" aria-hidden />
+        </span>
+      </div>
+
+      <div className="dr-felt">
+        <TableSeat
+          name={oppData.displayName}
+          stack={oppData.stack}
+          position={posLabel(opponentSeatIndex)}
+          holeCards={oppData.holeCards}
+          isToAct={game?.toAct === opponentSeatIndex}
+          isSelf={false}
+          isCompact={false}
           inHand={inHand}
-          isDealer={seat.isDealer}
-          isSmallBlind={seat.isSmallBlind}
-          isBigBlind={seat.isBigBlind}
-          isToAct={seat.isToAct}
-          timeLeft={timerLeft}
-          timerTotal={timerTotal}
+          folded={oppData.folded}
         />
-      ))}
-      <Board
-        pot={game?.pot ?? 0}
-        community={game?.community ?? []}
-        street={game?.street ?? 'waiting'}
-      />
-      {sortedSeats.map((seat) => seat.position === 'bottom' && (
-        <PlayerSeat
-          key={seat.seat}
-          seat={seat.seat}
-          position={seat.position}
-          data={seat.data}
-          buyIn={seat.seat === viewSeat ? buyIn : undefined}
-          isMine={seat.seat === viewSeat}
-          isSpectator={isSpectator}
+
+        <div className="dr-pot" style={{ marginTop: 14 }}>
+          <small>POT</small>
+          <b>{pot.toLocaleString()}</b>
+        </div>
+
+        <div className="dr-board-cards">
+          {commSlots.map((c, i) => <Card key={i} card={c} size="felt" />)}
+        </div>
+
+        {pot > 0 && (
+          <div className="dr-pot-chip">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="12" cy="12" r="10" stroke="#00D4AA" strokeWidth="2.5" />
+              <circle cx="12" cy="12" r="5" fill="#00D4AA" opacity="0.4" />
+            </svg>
+            <span>{pot.toLocaleString()}</span>
+          </div>
+        )}
+
+        <TableSeat
+          name={heroData.displayName}
+          stack={heroData.stack}
+          position={posLabel(viewSeat)}
+          holeCards={heroData.holeCards}
+          isToAct={game?.toAct === viewSeat}
+          isSelf={true}
+          isCompact={true}
           inHand={inHand}
-          onRename={seat.seat === viewSeat && !isSpectator ? onRename : undefined}
-          isDealer={seat.isDealer}
-          isSmallBlind={seat.isSmallBlind}
-          isBigBlind={seat.isBigBlind}
-          isToAct={seat.isToAct}
-          timeLeft={timerLeft}
-          timerTotal={timerTotal}
+          folded={heroData.folded}
+          isSpectator={isSpectator}
         />
-      ))}
+      </div>
     </div>
   );
 }
