@@ -333,7 +333,7 @@ function Logo() {
   );
 }
 
-function AppHeader({ identity, agentCount, onCreate }) {
+function AppHeader({ identity, agentCount, onCreate, onProfile }) {
   const agentLabel = agentCount === 0
     ? 'No agents'
     : `${agentCount} agent${agentCount === 1 ? '' : 's'}`;
@@ -342,12 +342,12 @@ function AppHeader({ identity, agentCount, onCreate }) {
     <header className="dr-topbar">
       <Logo />
       <div className="dr-topbar__right">
-        <span className="dr-user-pill">
+        <button className="dr-user-pill" type="button" onClick={onProfile || (() => {})} aria-label="Open profile">
           <b>{identity.name.slice(0, 1).toUpperCase()}</b>
           <small>{agentLabel}</small>
-        </span>
-        <button className="dr-icon-button" type="button" onClick={onCreate} aria-label="Create agent">
-          <Icon name="plus" size={18} />
+        </button>
+        <button className="dr-icon-button" type="button" onClick={onProfile || onCreate} aria-label="Profile and settings">
+          <Icon name="profile" size={18} />
         </button>
       </div>
     </header>
@@ -370,10 +370,10 @@ function LoadingState({ identity }) {
   );
 }
 
-function EmptyHome({ identity, onCreate }) {
+function EmptyHome({ identity, onCreate, onProfile }) {
   return (
     <div className="dr-screen dr-screen--home">
-      <AppHeader identity={identity} agentCount={0} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={0} onCreate={onCreate} onProfile={onProfile} />
       <section className="dr-home-stage dr-home-stage--empty">
         <div className="dr-home-stage__top">
           <span><i /> No agent</span>
@@ -518,7 +518,7 @@ function BlueprintCell({ label, value }) {
   );
 }
 
-function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack, onSend, onOpenAgent, onCreateDraft }) {
+function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack, onSend, onOpenAgent, onCreateDraft, onProfile }) {
   const [draft, setDraft] = useState('');
   const messages = profile.chat?.length ? profile.chat : INITIAL_CHAT;
   const busy = chatStatus === 'thinking';
@@ -546,6 +546,9 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
           <h1>Build agent v1</h1>
           <small>{identity.handle} / {agentSummary}</small>
         </div>
+        <button className="dr-square-button" type="button" onClick={onProfile} aria-label="Profile and settings">
+          <Icon name="profile" size={18} />
+        </button>
       </header>
       <div className="dr-chat-log">
         {messages.map((message, index) => <ChatMessage key={`${message.role}-${index}`} message={message} />)}
@@ -586,7 +589,7 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
   );
 }
 
-function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
+function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
   const playingAgents = agents.filter((candidate) => candidate.status === 'playing' || candidate.deployStatus === 'playing');
   const agent = playingAgents[0] || agents[0];
   const hasIdleStable = agents.some((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing');
@@ -594,7 +597,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
   const stageAgents = hasPlayingAgent ? playingAgents : [agent];
   return (
     <div className="dr-screen dr-screen--home">
-      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
       <section className={`dr-home-stage${stageAgents.length > 1 ? ' dr-home-stage--swipe' : ''}`}>
         <div className="dr-home-stage__track">
           {stageAgents.map((stageAgent) => (
@@ -814,12 +817,12 @@ function AgentStats({ agent }) {
   );
 }
 
-function PlayHubScreen({ identity, agents, onCreate, onOpenTable, onOpenStable }) {
+function PlayHubScreen({ identity, agents, onCreate, onOpenTable, onOpenStable, onProfile }) {
   const playingAgents = agents.filter((agent) => agent.status === 'playing' || agent.deployStatus === 'playing');
   const readyAgents = agents.filter((agent) => agent.deployStatus === 'ready' && agent.status !== 'playing');
   return (
     <div className="dr-screen dr-screen--play">
-      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
       <section className="dr-play-hero">
         <p className="dr-label dr-label--accent">Play</p>
         <h1>Choose how to enter the table.</h1>
@@ -848,11 +851,11 @@ function PlayActionCard({ icon, title, subtitle, onClick, accent = false }) {
   );
 }
 
-function AgentRoster({ identity, agents, onCreate, onOpenAgent, onDeleteAgent }) {
+function AgentRoster({ identity, agents, onCreate, onOpenAgent, onDeleteAgent, onProfile }) {
   if (!agents.length) {
     return (
       <div className="dr-screen">
-        <AppHeader identity={identity} agentCount={0} onCreate={onCreate} />
+        <AppHeader identity={identity} agentCount={0} onCreate={onCreate} onProfile={onProfile} />
         <section className="dr-panel dr-empty-panel dr-full-empty">
           <AgentAvatar size="lg" />
           <h2>No agents yet</h2>
@@ -865,7 +868,7 @@ function AgentRoster({ identity, agents, onCreate, onOpenAgent, onDeleteAgent })
 
   return (
     <div className="dr-screen dr-screen--stable">
-      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
       <section className="dr-stable-head">
         <p className="dr-label dr-label--accent">Stable</p>
         <h1>Your agents</h1>
@@ -1339,10 +1342,10 @@ function RecentHands({ compact = false }) {
   );
 }
 
-function HistoryState({ identity, agent, agentCount, onCreate }) {
+function HistoryState({ identity, agent, agentCount, onCreate, onProfile }) {
   return (
     <div className="dr-screen">
-      <AppHeader identity={identity} agentCount={agentCount} onCreate={onCreate} />
+      <AppHeader identity={identity} agentCount={agentCount} onCreate={onCreate} onProfile={onProfile} />
       <section className="dr-panel dr-empty-panel dr-full-empty">
         <Icon name="history" size={32} color={agent ? '#00d4aa' : '#6b6b6b'} />
         <h2>No replays yet</h2>
@@ -1353,10 +1356,10 @@ function HistoryState({ identity, agent, agentCount, onCreate }) {
   );
 }
 
-function ProfileState({ identity, agentCount, onReset }) {
+function ProfileState({ identity, agentCount, onReset, onProfile }) {
   return (
     <div className="dr-screen">
-      <AppHeader identity={identity} agentCount={agentCount} onCreate={() => {}} />
+      <AppHeader identity={identity} agentCount={agentCount} onCreate={() => {}} onProfile={onProfile} />
       <section className="dr-panel dr-profile-card">
         <span className="dr-profile-avatar">{identity.name.slice(0, 1).toUpperCase()}</span>
         <p className="dr-label dr-label--accent">Telegram account</p>
@@ -1379,15 +1382,15 @@ function NavTabBar({ active, onChange, agentCount }) {
   const tabs = [
     ['home', 'home', 'Home'],
     ['play', 'spade', 'Play'],
+    ['create', 'send', 'Chat'],
     ['agents', 'agent', 'Agents'],
     ['history', 'history', 'Replays'],
-    ['profile', 'profile', 'Profile'],
   ];
 
   return (
     <nav className="dr-nav">
       {tabs.map(([id, icon, label]) => (
-        <button key={id} type="button" className={active === id || (id === 'play' && active === 'create') ? 'is-active' : ''} onClick={() => onChange(id)}>
+        <button key={id} type="button" className={`${active === id ? 'is-active' : ''}${id === 'create' ? ' is-center' : ''}`} onClick={() => onChange(id)}>
           <Icon name={icon} size={20} />
           <span>{label}</span>
           {id === 'agents' && agentCount > 0 && <i />}
@@ -1504,6 +1507,10 @@ export default function DesignRefApp() {
     setTab('table');
   }
 
+  function openProfile() {
+    setTab('profile');
+  }
+
   function deleteAgent(agentId) {
     setDeletedAgentIds((ids) => ids.includes(agentId) ? ids : [...ids, agentId]);
     setProfile((current) => ({
@@ -1527,22 +1534,23 @@ export default function DesignRefApp() {
         onSend={handleSend}
         onOpenAgent={openTable}
         onCreateDraft={handleCreateDraft}
+        onProfile={openProfile}
       />
     );
   } else if (tab === 'play') {
-    screen = <PlayHubScreen identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} />;
+    screen = <PlayHubScreen identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} onProfile={openProfile} />;
   } else if (tab === 'agents') {
-    screen = <AgentRoster identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} onDeleteAgent={deleteAgent} />;
+    screen = <AgentRoster identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} onDeleteAgent={deleteAgent} onProfile={openProfile} />;
   } else if (tab === 'table') {
     screen = activeAgent
       ? <AgentViewScreen agent={activeAgent} onBack={() => setTab('home')} />
-      : <PlayHubScreen identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} />;
-  } else if (tab === 'history') screen = <HistoryState identity={identity} agent={activeAgent} agentCount={displayAgents.length} onCreate={() => openCreate()} />;
-  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={displayAgents.length} onReset={handleReset} />;
+      : <PlayHubScreen identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenTable={openTable} onOpenStable={() => setTab('agents')} onProfile={openProfile} />;
+  } else if (tab === 'history') screen = <HistoryState identity={identity} agent={activeAgent} agentCount={displayAgents.length} onCreate={() => openCreate()} onProfile={openProfile} />;
+  else if (tab === 'profile') screen = <ProfileState identity={identity} agentCount={displayAgents.length} onReset={handleReset} onProfile={openProfile} />;
   else {
     screen = activeAgent
-      ? <ExistingHome identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} />
-      : <EmptyHome identity={identity} onCreate={openCreate} />;
+      ? <ExistingHome identity={identity} agents={displayAgents} onCreate={() => openCreate()} onOpenAgent={openTable} onProfile={openProfile} />
+      : <EmptyHome identity={identity} onCreate={openCreate} onProfile={openProfile} />;
   }
 
   return (
