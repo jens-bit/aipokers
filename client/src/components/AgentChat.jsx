@@ -7,6 +7,11 @@ export function AgentChat({ agent, onBack, onDeploy }) {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const logRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
@@ -118,8 +123,10 @@ export function AgentChat({ agent, onBack, onDeploy }) {
           onSubmit={(e) => { e.preventDefault(); send(); }}
         >
           <input
+            ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder="Message your agent"
             disabled={loading}
           />
