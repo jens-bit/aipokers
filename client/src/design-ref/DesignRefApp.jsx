@@ -629,11 +629,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
           </button>
         </div>
       </section>
-      {hasIdleStable && <DeployPromptCard agent={agents.find((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing') || agent} onDeploy={onOpenAgent} compact={hasPlayingAgent} />}
-      {agents.length > 1 && <AgentCarousel agents={agents} onOpenAgent={onOpenAgent} />}
-      <AgentStats agent={agent} />
-      <HomeChatPreview agent={agent} onCreate={onCreate} onOpenAgent={onOpenAgent} />
-      <RecentActivity agent={agent} />
+      {playingAgents.length > 1 && <AgentCarousel agents={playingAgents} onOpenAgent={onOpenAgent} />}
     </div>
   );
 }
@@ -677,10 +673,10 @@ function HomeDeployRunway({ agent }) {
 
 function AgentCarousel({ agents, onOpenAgent }) {
   return (
-    <section className="dr-agent-carousel" aria-label="Agent stable">
+    <section className="dr-agent-carousel" aria-label="Live agent tables">
       <div className="dr-section-head">
-        <p className="dr-label">Stable</p>
-        <span>{agents.length} agents</span>
+        <p className="dr-label">Live tables</p>
+        <span>Swipe</span>
       </div>
       <div className="dr-agent-carousel__track">
         {agents.map((agent) => (
