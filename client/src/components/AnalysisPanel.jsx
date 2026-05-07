@@ -57,6 +57,24 @@ function reasoningBullets(reasoning) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+function EmptyState({ text }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: '24px 0',
+      color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', lineHeight: 1.5,
+    }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" aria-hidden
+        style={{ marginBottom: 8, opacity: 0.4 }}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8v4M12 16h.01" />
+      </svg>
+      {text}
+    </div>
+  );
+}
+
 function TabBar({ active, onSelect, hasChatBadge }) {
   const tabs = ['LIVE ANALYSIS', 'RANGE', 'HISTORY', 'CHAT'];
   return (
@@ -347,8 +365,7 @@ export function AnalysisPanel({
 }) {
   const [activeTab, setActiveTab] = useState(0);
 
-  if (!lastDecision) return null;
-  const { action, reasoning } = lastDecision;
+  const { action, reasoning } = lastDecision || {};
 
   return (
     <div className="analysis-panel">
@@ -358,14 +375,27 @@ export function AnalysisPanel({
         hasChatBadge={chatMessages.length > 0}
       />
       {activeTab === 0 && (
+        lastDecision ? (
+          <>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+              <DecisionCard action={action} />
+              <ReasoningCard reasoning={reasoning} />
+              <RangeMatrix />
+            </div>
+            <ActionRow />
+          </>
+        ) : (
+          <EmptyState text="Waiting for first action…" />
+        )
+      )}
+      {activeTab === 1 && (
         <>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-            <DecisionCard action={action} />
-            <ReasoningCard reasoning={reasoning} />
-            <RangeMatrix />
-          </div>
-          <ActionRow />
+          <RangeMatrix />
+          <EmptyState text="No reads yet — build a few hands of history first." />
         </>
+      )}
+      {activeTab === 2 && (
+        <EmptyState text="No hands played yet." />
       )}
       {activeTab === 3 && (
         <ChatTabContent
