@@ -407,6 +407,38 @@ export default function App() {
         history={history}
         displayNames={displayNames}
       />
+      <nav className="tab-bar">
+        <button
+          className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); setActiveTab('home'); }}
+        >
+          <HomeIcon /><span>HOME</span>
+        </button>
+        <button
+          className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); setActiveTab('play'); }}
+        >
+          <PlayIcon /><span>PLAY</span>
+        </button>
+        <button
+          className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); setActiveTab('agents'); }}
+        >
+          <AgentsIcon /><span>AGENTS</span>
+        </button>
+        <button
+          className={`tab-bar__tab${activeTab === 'history' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); setActiveTab('history'); }}
+        >
+          <HistoryIcon /><span>HISTORY</span>
+        </button>
+        <button
+          className={`tab-bar__tab${activeTab === 'profile' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); setActiveTab('profile'); }}
+        >
+          <ProfileIcon /><span>PROFILE</span>
+        </button>
+      </nav>
     </div>
   );
 }
