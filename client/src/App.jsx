@@ -352,14 +352,16 @@ export default function App() {
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         onLeave={handleLeave}
       />
-      <main className={`app__main${lastDecision ? ' app__main--analysis' : ''}`}>
+      <main className={`app__main${config?.isSpectator && lastDecision ? ' app__main--analysis' : ''}`}>
         {error && (
           <div className="error-banner" onClick={dismissError}>
             {error} · tap to dismiss
           </div>
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
-        <AnalysisPanel lastDecision={lastDecision} />
+        {config?.isSpectator && lastDecision && (
+          <AnalysisPanel lastDecision={lastDecision} />
+        )}
       </main>
       <ChatBar messages={chatMessages} onSend={sendChat} />
       {config?.isSpectator ? (
