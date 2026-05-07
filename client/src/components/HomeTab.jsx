@@ -77,7 +77,6 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
   return (
     <div className="dr-app">
       <div className="dr-screen dr-screen--home no-scrollbar">
-        <HomeTopBar />
         {playing.length > 0 && <HomeAgentsPill count={playing.length} />}
         <HomeHero
           onRun={handleRun}
@@ -100,51 +99,6 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
           />
         )}
       </div>
-    </div>
-  );
-}
-
-// ── TopBar ────────────────────────────────────────────────────────────────
-
-function HomeTopBar() {
-  return (
-    <div className="dr-home-topbar">
-      <HomeLogo />
-      <div className="dr-home-topbar__right">
-        <div className="dr-home-balance-pill">
-          {/* TODO: App.jsx prop change — pass chipBalance prop to HomeTab */}
-          <ChipSvg />
-          <span className="dr-home-balance-pill__value">1,000.00</span>
-          <button className="dr-home-balance-pill__add" type="button" aria-label="Add chips">
-            +
-          </button>
-        </div>
-        <button className="dr-home-bell-btn" type="button" aria-label="Notifications">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
-            <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 3h16l-2-3z" />
-            <path d="M10 21a2 2 0 0 0 4 0" />
-          </svg>
-          <span className="dr-home-bell-btn__dot" aria-hidden />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function HomeLogo() {
-  return (
-    <div className="dr-home-logo">
-      <svg width="22" height="26" viewBox="0 0 22 26" aria-hidden>
-        <path
-          d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
-          fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
-        />
-        <path
-          d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
-          stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
-        />
-      </svg>
-      <span className="dr-home-logo__text">AI POKER</span>
     </div>
   );
 }
@@ -419,16 +373,6 @@ function AgentAvatar({ size = 'md', accent = '#00d4aa' }) {
 }
 
 // ── SVG icon helpers ──────────────────────────────────────────────────────
-
-function ChipSvg() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
-    </svg>
-  );
-}
 
 function ChevronRightSvg({ size = 16, color = 'currentColor' }) {
   return (
