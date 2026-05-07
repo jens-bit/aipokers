@@ -12,7 +12,7 @@ function statusLabel(agent) {
   return 'Ready';
 }
 
-export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou intentionally unused — design-ref doesn't expose it from the roster */ }) {
+export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat, onVsYou }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
@@ -108,6 +108,15 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou inten
                   >
                     {isPlaying ? 'View table' : busy ? 'Deploying…' : 'Deploy'}
                   </button>
+                  {onVsYou && (
+                    <button
+                      className="dr-btn-chat"
+                      type="button"
+                      onClick={() => onVsYou({ agentId: agent.id, agentName: agent.name, strategy: agent.strategy, memoryContext: '' })}
+                    >
+                      vs You
+                    </button>
+                  )}
                   <button className="dr-btn-chat" type="button" onClick={() => onOpenChat(agent)}>Chat</button>
                   <button className="dr-btn-delete" type="button" onClick={() => remove(agent.id)}>Delete</button>
                 </div>

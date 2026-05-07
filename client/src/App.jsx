@@ -266,7 +266,7 @@ export default function App() {
               onVsYou={(payload) => {
                 setActiveAgent(payload.agentId);
                 connect({
-                  tableId: payload.tableId,
+                  tableId: 'vsyou-' + Date.now().toString(36),
                   displayName: getTelegramDisplayName() || 'Player',
                   buyIn: 1000,
                   smallBlind: 10,
