@@ -589,47 +589,63 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
 function ExistingHome({ identity, agents, onCreate, onOpenAgent }) {
   const playingAgents = agents.filter((candidate) => candidate.status === 'playing' || candidate.deployStatus === 'playing');
   const agent = playingAgents[0] || agents[0];
-  const needsFunding = agent.deployStatus === 'needs_funding';
   const hasIdleStable = agents.some((candidate) => candidate.deployStatus === 'ready' && candidate.status !== 'playing');
   const hasPlayingAgent = playingAgents.length > 0;
-  const playingCount = playingAgents.length;
-  const statusLabel = playingCount > 1
-    ? `${playingCount} agents playing`
-    : agent.status === 'playing'
-      ? 'Playing now'
-      : needsFunding
-        ? 'Needs bankroll'
-        : hasIdleStable
-          ? 'Ready to deploy'
-          : 'Ready';
-  const primaryAction = needsFunding ? 'Fund agent' : agent.status === 'playing' ? 'Open table' : 'Deploy agent';
+  const stageAgents = hasPlayingAgent ? playingAgents : [agent];
   return (
     <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} />
-      <section className="dr-home-stage">
-        <div className="dr-home-stage__top">
-          <span><i /> {statusLabel}</span>
-          <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
+      <section className={`dr-home-stage${stageAgents.length > 1 ? ' dr-home-stage--swipe' : ''}`}>
+        <div className="dr-home-stage__track">
+          {stageAgents.map((stageAgent) => (
+            <HomeAgentStage
+              key={stageAgent.id}
+              agent={stageAgent}
+              hasIdleStable={hasIdleStable}
+              hasPlayingAgent={hasPlayingAgent}
+              onOpenAgent={onOpenAgent}
+            />
+          ))}
         </div>
-        <div className="dr-home-stage__main">
-          <AgentAvatar size="lg" />
-          <div>
-            <p className="dr-label dr-label--accent">Primary agent</p>
-            <h1>{agent.name}</h1>
-            <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
-          </div>
-        </div>
-        {hasPlayingAgent ? <HomeTableSnapshot agent={agent} /> : <HomeDeployRunway agent={agent} />}
-        <div className="dr-home-actions">
-          <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
-            {primaryAction}
-          </button>
-          <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onOpenAgent}>
-            <Icon name="send" size={15} /> Chat agent
-          </button>
-        </div>
+        {stageAgents.length > 1 && <div className="dr-home-stage__hint">Swipe tables</div>}
       </section>
-      {playingAgents.length > 1 && <AgentCarousel agents={playingAgents} onOpenAgent={onOpenAgent} />}
+    </div>
+  );
+}
+
+function HomeAgentStage({ agent, hasIdleStable, hasPlayingAgent, onOpenAgent }) {
+  const needsFunding = agent.deployStatus === 'needs_funding';
+  const statusLabel = agent.status === 'playing'
+    ? 'Playing now'
+    : needsFunding
+      ? 'Needs bankroll'
+      : hasIdleStable
+        ? 'Ready to deploy'
+        : 'Ready';
+  const primaryAction = needsFunding ? 'Fund agent' : agent.status === 'playing' ? 'Open table' : 'Deploy agent';
+  return (
+    <div className="dr-home-stage__slide">
+      <div className="dr-home-stage__top">
+        <span><i /> {statusLabel}</span>
+        <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
+      </div>
+      <div className="dr-home-stage__main">
+        <AgentAvatar size="lg" />
+        <div>
+          <p className="dr-label dr-label--accent">{hasPlayingAgent ? 'Live agent' : 'Primary agent'}</p>
+          <h1>{agent.name}</h1>
+          <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
+        </div>
+      </div>
+      {hasPlayingAgent ? <HomeTableSnapshot agent={agent} /> : <HomeDeployRunway agent={agent} />}
+      <div className="dr-home-actions">
+        <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
+          {primaryAction}
+        </button>
+        <button className="dr-secondary-btn dr-home-chat-btn" type="button" onClick={onOpenAgent}>
+          <Icon name="send" size={15} /> Chat agent
+        </button>
+      </div>
     </div>
   );
 }
