@@ -358,7 +358,7 @@ export default function App() {
             {error} · tap to dismiss
           </div>
         )}
-        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} />
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} />
         {config?.isSpectator && lastDecision && (
           <AnalysisPanel lastDecision={lastDecision} />
         )}
@@ -498,7 +498,7 @@ function formatAgentAmount(amount) {
   return amount == null ? '--' : amount;
 }
 
-function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
+function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator }) {
   const seatCount = Math.max(game?.seats?.length || 2, 2);
   const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
 
@@ -543,6 +543,7 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
           position={seat.position}
           data={seat.data}
           isMine={seat.seat === viewSeat}
+          isSpectator={isSpectator}
           inHand={inHand}
           isDealer={seat.isDealer}
           isSmallBlind={seat.isSmallBlind}
@@ -565,8 +566,9 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal }) {
           data={seat.data}
           buyIn={seat.seat === viewSeat ? buyIn : undefined}
           isMine={seat.seat === viewSeat}
+          isSpectator={isSpectator}
           inHand={inHand}
-          onRename={seat.seat === viewSeat ? onRename : undefined}
+          onRename={seat.seat === viewSeat && !isSpectator ? onRename : undefined}
           isDealer={seat.isDealer}
           isSmallBlind={seat.isSmallBlind}
           isBigBlind={seat.isBigBlind}

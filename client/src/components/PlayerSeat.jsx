@@ -41,6 +41,7 @@ export function PlayerSeat({
   isBigBlind,
   isToAct,
   isMine,
+  isSpectator,
   inHand,             // are we mid-hand (cards are dealt or hidden)?
   onRename,
   timeLeft,           // seconds remaining on the acting player's timer (optional)
@@ -73,7 +74,7 @@ export function PlayerSeat({
       </div>
 
       <div className="seat__info">
-        {isMine ? (
+        {isMine && !isSpectator ? (
           <input
             className="seat__name"
             value={editingName}
@@ -93,7 +94,7 @@ export function PlayerSeat({
           )}
         </div>
         <div className="badges">
-          {isMine && <span className="badge badge--you">YOU</span>}
+          {isMine && !isSpectator && <span className="badge badge--you">YOU</span>}
           {isDealer && <span className="badge badge--dealer">D</span>}
           {isSmallBlind && <span className="badge badge--sb">SB</span>}
           {isBigBlind && <span className="badge badge--bb">BB</span>}
