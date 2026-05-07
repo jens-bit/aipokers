@@ -101,6 +101,10 @@ export class Table {
     return free;
   }
 
+  hasHumanPlayer() {
+    return this.connections.some((c, i) => c !== null && !this.aiSeats[i]);
+  }
+
   // Seat an AI for a spectating user and register their WS for state broadcasts.
   // Returns the seat index the AI was placed at.
   addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '' } = {}) {
@@ -120,7 +124,8 @@ export class Table {
   maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '' } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
-    if (!humanSeated || !hasFree) return;
+    if (!hasFree) return;
+    if (!humanSeated && this.spectators.length === 0) return;
     if (agentStrategy) this.agentStrategy = agentStrategy;
     this.seatAI({
       displayName: agentDisplayName || undefined,
@@ -164,8 +169,12 @@ export class Table {
       return;
     }
 
+    let disconnectedWasHuman = false;
+    let hadActiveGame = false;
     for (let i = 0; i < this.connections.length; i++) {
       if (this.connections[i] === ws) {
+        disconnectedWasHuman = !this.aiSeats[i];
+        hadActiveGame = !!(this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE);
         this.connections[i] = null;
         // For Phase 1 dev simplicity, always release the seat on disconnect so
         // a fresh tab can take it. This means abandoning a tab mid-hand opens
@@ -179,8 +188,7 @@ export class Table {
         this.agentMemory[i] = '';
         this.aiHandsPlayed[i] = 0;
         this.aiRecentHands[i] = [];
-        if (this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE) {
-          // Reset the in-progress hand so the table is in a clean state.
+        if (hadActiveGame) {
           this.game = null;
         }
       }
@@ -190,6 +198,11 @@ export class Table {
     // compacting when a middle disconnect creates a gap. HU (maxSeats=2)
     // keeps its existing seat-index-stable behaviour.
     if (this.maxSeats > 2) this._compactSeatsIfGapped();
+
+    if (disconnectedWasHuman && hadActiveGame && !this.hasHumanPlayer()) {
+      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'Session ended — opponent left' });
+      this.game = null;
+    }
 
     if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
       if (this._aiInactivityTimer) {
