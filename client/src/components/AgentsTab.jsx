@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getUserId } from '../lib/telegram.js';
+import '../styles/agents.css';
 
 // Status text for the chip on each stable card. Matches design-ref's
 // PLAYING NOW / READY / DRAFT / LEARNING vocabulary.
@@ -77,7 +78,6 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou inten
     <div className="dr-app">
       <div className="dr-screen dr-screen--stable">
         <section className="dr-stable-head">
-          <p className="dr-label dr-label--accent">Stable</p>
           <h1>Your agents</h1>
           <small>{agents.length} agent{agents.length === 1 ? '' : 's'} ready to tune, chat, or deploy.</small>
         </section>
@@ -87,7 +87,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou inten
             const isPlaying = agent.status === 'playing' || agent.activeTableId;
             const busy = deployingId === agent.id;
             const handsPlayed = agent?.stats?.handsPlayed ?? 0;
-            const meta = `${agent.style} / ${agent.risk} risk / ${handsPlayed} hand${handsPlayed === 1 ? '' : 's'}`;
+            const meta = `${agent.style} · ${agent.risk} risk · ${handsPlayed} hand${handsPlayed === 1 ? '' : 's'}`;
             return (
               <section className="dr-stable-card" key={agent.id}>
                 <div className="dr-stable-card__main">
@@ -101,21 +101,22 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat /* onVsYou inten
                 {agent.strategy && <p>{agent.strategy}</p>}
                 <div className="dr-stable-card__actions">
                   <button
+                    className="dr-btn-deploy"
                     type="button"
                     onClick={() => deploy(agent)}
                     disabled={busy}
                   >
                     {isPlaying ? 'View table' : busy ? 'Deploying…' : 'Deploy'}
                   </button>
-                  <button type="button" onClick={() => onOpenChat(agent)}>Chat</button>
-                  <button className="is-danger" type="button" onClick={() => remove(agent.id)}>Delete</button>
+                  <button className="dr-btn-chat" type="button" onClick={() => onOpenChat(agent)}>Chat</button>
+                  <button className="dr-btn-delete" type="button" onClick={() => remove(agent.id)}>Delete</button>
                 </div>
               </section>
             );
           })}
         </div>
 
-        <button className="dr-secondary-wide" type="button" onClick={onCreateAgent}>
+        <button className="dr-stable-create" type="button" onClick={onCreateAgent}>
           <PlusIcon /> Create another
         </button>
       </div>

@@ -521,4 +521,97 @@
 .dr-hand-row__decision em {
   font-style: italic;
   color: var(--dr-muted);
+
+/* --- below ported from feature/agents-tab (typography polish) --- */
+
+/* Agents / Stable tab — typography, spacing, and button hierarchy.
+ * Layered on top of dr-* globals. Only stable-specific overrides live here. */
+
+/* ---- Section heading ---- */
+.dr-stable-head h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ---- Card shell: 14px matches design-ref home.jsx (globals default is 16px) ---- */
+.dr-stable-card {
+  border-radius: 14px;
+}
+
+/* ---- Agent name: Playfair Display per design-ref ---- */
+.dr-stable-card h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 2px 0 4px;
+}
+
+/* ---- Metadata line (Oswald label already inherits via .dr-label) ---- */
+.dr-stable-card small {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+/* ---- Button hierarchy ---- */
+
+/* Primary: Deploy — solid teal fill */
+.dr-stable-card__actions .dr-btn-deploy {
+  background: var(--dr-accent);
+  border-color: var(--dr-accent);
+  color: var(--dr-bg);
+  font-weight: 900;
+}
+.dr-stable-card__actions .dr-btn-deploy:hover:not(:disabled) {
+  background: var(--dr-accent-hover);
+  border-color: var(--dr-accent-hover);
+}
+
+/* Secondary: Chat — teal outline, transparent fill */
+.dr-stable-card__actions .dr-btn-chat {
+  background: transparent;
+  border-color: rgba(0, 212, 170, 0.4);
+  color: var(--dr-accent);
+}
+.dr-stable-card__actions .dr-btn-chat:hover {
+  background: rgba(0, 212, 170, 0.06);
+}
+
+/* Destructive: Delete — red text, invisible border at rest */
+.dr-stable-card__actions .dr-btn-delete {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dr-error);
+}
+.dr-stable-card__actions .dr-btn-delete:hover {
+  border-color: rgba(255, 77, 79, 0.30);
+  background: rgba(255, 77, 79, 0.06);
+}
+
+/* ---- "Create another" — dashed ghost card ---- */
+.dr-stable-create {
+  width: calc(100% - 16px);
+  margin: 0 8px 10px;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1.5px dashed rgba(0, 212, 170, 0.22);
+  border-radius: 14px;
+  color: var(--dr-accent);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.dr-stable-create:hover {
+  border-color: rgba(0, 212, 170, 0.40);
+  background: rgba(0, 212, 170, 0.04);
 }
