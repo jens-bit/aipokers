@@ -1,0 +1,262 @@
+/* ------------ action bar (fixed bottom on mobile) ------------ */
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--max-w-mobile);
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--edge);
+  /* Zero top-padding so the drawer-rule line sits right at the top edge of the bar */
+  padding: 0 12px calc(8px + var(--safe-bottom));
+  z-index: 50;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ------------ collapsible bet-sizing drawer ------------ */
+/* The divider row: a full-width hairline with the chevron sitting on top of it.
+   Zero top-margin keeps it flush with the action-bar's border-top. */
+.action-bar__drawer-rule {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  margin-bottom: 2px;
+  margin-top: -1px; /* overlap the action-bar border-top by 1px so lines merge */
+}
+.action-bar__drawer-rule::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 1px;
+  background: var(--edge-soft);
+}
+.action-bar__drawer-chevron {
+  position: relative;  /* sits on top of the pseudo ::before line */
+  z-index: 1;
+  width: 80px;
+  height: 26px;
+  min-height: 0;
+  background: rgba(0, 212, 170, 0.12);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--glow-soft);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+.action-bar__drawer-chevron:hover { color: var(--accent-hover); }
+.action-bar__bet-drawer {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 200ms ease;
+}
+.action-bar__bet-drawer--open {
+  max-height: 200px; /* enough for presets + input */
+}
+
+.action-bar__hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  /* Match the height of the primary controls row so the bar doesn't jump in size */
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-bar__row {
+  display: flex; gap: 8px; align-items: center; justify-content: center;
+  flex-wrap: wrap;
+}
+.action-bar__row--primary { padding: 6px 0; }
+.action-bar__row--primary > .btn { flex: 1 1 0; min-width: 0; min-height: 36px; }
+.action-bar__sizing {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%;
+}
+
+.preset {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  padding: 0 12px;
+  min-height: var(--tap);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--edge);
+  color: var(--text-primary);
+  flex: 0 0 auto;
+}
+.preset:hover, .preset:active, .preset:focus-visible {
+  background: var(--bg-secondary);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Buttons:
+ *   - primary positive actions (CALL, BET, RAISE, DEAL): teal fill, dark label
+ *   - passive (CHECK): outlined teal
+ *   - destructive (FOLD): error red
+ *   - All take --on-accent (= --bg-primary, near-black) for label contrast,
+ *     not --text-primary; pure light text on teal fails WCAG. */
+.btn {
+  padding: 0 14px;
+  min-height: var(--tap);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  border: 1px solid transparent;
+  transition: filter 120ms ease, transform 80ms ease, background 120ms ease;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled), .btn:focus-visible:not(:disabled) { filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { background: var(--accent-dim); color: var(--on-accent); }
+
+.btn--fold {
+  background: var(--error);
+  color: var(--text-primary);
+}
+.btn--check {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.btn--call,
+.btn--bet,
+.btn--raise {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn--allin {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 16px var(--glow-strong);
+}
+.btn--deal {
+  width: 100%;
+  min-height: 56px;
+  font-size: 16px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  box-shadow: 0 8px 30px var(--glow-strong);
+}
+.btn--deal:hover:not(:disabled) { background: var(--accent-hover); }
+
+.amount-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--accent);
+  text-align: center;
+  padding: 10px 12px;
+}
+
+/* ============================================================
+ * DESKTOP LAYOUT (>=600px) — action bar overrides
+ * ============================================================ */
+@media (min-width: 600px) {
+  .action-bar {
+    grid-area: actions;
+    position: relative;
+    transform: none;
+    width: auto;
+    max-width: none;
+    margin: 12px 16px 16px;
+    border: 1px solid var(--edge);
+    border-top: 1px solid var(--edge);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ============================================================
+ * DESKTOP LAYOUT (≥1100px) — action bar overrides
+ * ============================================================ */
+@media (min-width: 1100px) {
+
+  /* DEAL spans the full primary row when it's the only button */
+  .btn--deal { grid-column: 1 / -1; }
+
+  /* ── ACTION BAR (inline card) ──────────────────────────────────────────── */
+  .action-bar {
+    grid-area: actions;
+    max-width: 920px;
+    margin: 16px auto 0;
+    width: 100%;
+    padding: 20px 24px;
+    gap: 16px;
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: none;
+  }
+  .action-bar__sizing { flex-wrap: nowrap; }
+  .preset { min-height: 40px; padding: 10px 0; text-align: center; }
+  .amount-input {
+    font-size: 28px;
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 14px;
+  }
+  .amount-input:focus { border-color: var(--accent); }
+  /* Primary action row: proportional 3-column grid */
+  .action-bar__row--primary {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1.4fr;
+    gap: 8px;
+  }
+  .action-bar__row--primary > .btn { flex: none; min-height: 52px; font-size: 13px; }
+  /* Desktop button styles */
+  .btn--fold {
+    background: rgba(255, 77, 79, 0.08);
+    color: var(--error);
+    border: 1px solid rgba(255, 77, 79, 0.2);
+  }
+  .btn--fold:hover:not(:disabled) {
+    filter: none;
+    background: rgba(255, 77, 79, 0.16);
+    border-color: var(--error);
+  }
+  .btn--check {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .btn--call {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .btn--bet,
+  .btn--raise {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: none;
+    box-shadow: 0 0 24px var(--glow-soft);
+  }
+  .btn--bet:hover:not(:disabled),
+  .btn--raise:hover:not(:disabled) {
+    filter: none;
+    background: var(--accent-hover);
+    box-shadow: 0 0 32px var(--glow-strong);
+  }
+}

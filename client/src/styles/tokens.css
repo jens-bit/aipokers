@@ -66,4 +66,27 @@
   --marketing-gold-shadow: #A89260;
   --marketing-text: #F5EBDD;
   --marketing-text-secondary: #D6C6AA;
+
+  /* Layout-only tokens kept here (not color). */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-label: 'Oswald', 'Helvetica Neue', sans-serif;
+
+  --tap: 44px;                          /* minimum tap target */
+  --max-w-mobile: 420px;                /* mini-app viewport cap */
+  --max-w-desktop: 800px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --action-bar-h: 132px;                /* default; ResizeObserver overwrites at runtime */
+
+  /* Translucent overlays — derive from tokens so they shift with palette. */
+  --edge: rgba(0, 212, 170, 0.18);      /* teal hairline (token-derived) */
+  --edge-soft: rgba(0, 212, 170, 0.10);
+  --on-accent: var(--bg-primary);       /* text on teal fills (high-contrast black) */
 }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

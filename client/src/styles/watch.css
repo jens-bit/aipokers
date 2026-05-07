@@ -1,0 +1,14 @@
+/* ── Watch banner (spectator mode) ── */
+.watch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--accent);
+  font-family: var(--font-label);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  border-top: 1px solid var(--edge);
+  flex-shrink: 0;
+}
