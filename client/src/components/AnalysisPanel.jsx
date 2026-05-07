@@ -1,8 +1,8 @@
 // Ported from design-refs/analysis.jsx.
-// Receives the last AI decision ({ action, reasoning, seat }) and renders the
-// analysis section: tabs, decision card, reasoning card, range matrix, action row.
-// Colors use the project's CSS tokens (var(--accent) etc.) in place of the
-// design-ref's raw hex values.
+// Receives the last AI decision ({ action, reasoning, seat }) plus chat props
+// and renders tabs: LIVE ANALYSIS, RANGE, HISTORY, CHAT.
+
+import { useEffect, useRef, useState } from 'react';
 
 const CARD_STYLE = {
   background: 'var(--bg-secondary)',
@@ -55,26 +55,19 @@ function reasoningBullets(reasoning) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function TabBar({ active = 0 }) {
-  const tabs = ['LIVE ANALYSIS', 'RANGE', 'HISTORY', 'NOTES'];
+function EmptyState({ message }) {
   return (
     <div style={{
-      display: 'flex', gap: 18, padding: '0 4px 12px',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
-      marginBottom: 14,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', gap: 10, padding: '28px 16px',
+      color: 'var(--text-muted)', textAlign: 'center',
     }}>
-      {tabs.map((t, i) => (
-        <div key={t} style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-          color: i === active ? 'var(--accent)' : 'var(--text-muted)',
-          position: 'relative',
-          paddingBottom: 12,
-          marginBottom: -13,
-          borderBottom: i === active ? '2px solid var(--accent)' : '2px solid transparent',
-          cursor: i === active ? 'default' : 'pointer',
-          userSelect: 'none',
-        }}>{t}</div>
-      ))}
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 3" />
+      </svg>
+      <span style={{ fontSize: 12, letterSpacing: '0.04em', lineHeight: 1.4 }}>{message}</span>
     </div>
   );
 }
@@ -208,7 +201,6 @@ function RangeMatrix() {
 function ActionRow() {
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-      {/* Action queue */}
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 10, flex: 1.2, minWidth: 0 }}>
         <div style={{ ...LABEL_STYLE, marginBottom: 8 }}>ACTION QUEUE</div>
         <div style={{ fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.5 }}>
@@ -227,60 +219,168 @@ function ActionRow() {
           ))}
         </div>
       </div>
-
-      {/* Take action */}
       <div style={{
         background: 'transparent',
         border: '1.5px solid var(--accent)',
-        borderRadius: 12,
-        padding: '10px 12px',
+        borderRadius: 12, padding: '10px 12px',
         flex: 1.4, minWidth: 0,
         boxShadow: '0 0 16px rgba(0, 212, 170, 0.18), inset 0 0 0 1px rgba(0,212,170,0.1)',
         textAlign: 'center',
         display: 'flex', flexDirection: 'column', justifyContent: 'center',
       }}>
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent)' }}>
-          TAKE ACTION NOW
-        </div>
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>
-          Override agent decision
-        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent)' }}>TAKE ACTION NOW</div>
+        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>Override agent decision</div>
       </div>
-
-      {/* Autoplay */}
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 10, flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={LABEL_STYLE}>AUTOPLAY</div>
           <div style={{ width: 30, height: 18, borderRadius: 999, background: 'var(--accent)', position: 'relative' }}>
-            <div style={{
-              position: 'absolute', top: 2, right: 2,
-              width: 14, height: 14, borderRadius: '50%',
-              background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            }} />
+            <div style={{ position: 'absolute', top: 2, right: 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
           </div>
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-          Agent will act
-        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.3 }}>Agent will act</div>
       </div>
     </div>
   );
 }
 
+const TAB_LABELS = ['LIVE ANALYSIS', 'RANGE', 'HISTORY', 'CHAT'];
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
-export function AnalysisPanel({ lastDecision }) {
-  if (!lastDecision) return null;
-  const { action, reasoning } = lastDecision;
+export function AnalysisPanel({ lastDecision, chatMessages = [], onSendChat, mySeat, displayNames = {} }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [chatDraft, setChatDraft] = useState('');
+  const chatListRef = useRef(null);
+
+  useEffect(() => {
+    const el = chatListRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length]);
+
+  const { action, reasoning } = lastDecision || {};
+
+  function submitChat(e) {
+    e?.preventDefault();
+    const text = chatDraft.trim();
+    if (!text) return;
+    onSendChat?.(text);
+    setChatDraft('');
+  }
+
   return (
-    <div className="analysis-panel">
-      <TabBar active={0} />
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-        <DecisionCard action={action} />
-        <ReasoningCard reasoning={reasoning} />
-        <RangeMatrix />
+    <div className="analysis-panel dr-app">
+      <div className="dr-tabs">
+        {TAB_LABELS.map((label, i) => (
+          <button
+            key={label}
+            type="button"
+            className={[
+              i === activeTab ? 'is-active' : '',
+              i === 3 ? 'dr-tab-button--chat' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => setActiveTab(i)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <ActionRow />
+
+      {/* LIVE ANALYSIS */}
+      {activeTab === 0 && (
+        lastDecision ? (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <DecisionCard action={action} />
+              <ReasoningCard reasoning={reasoning} />
+            </div>
+            <ActionRow />
+          </>
+        ) : (
+          <EmptyState message="Waiting for first action…" />
+        )
+      )}
+
+      {/* RANGE */}
+      {activeTab === 1 && (
+        <div style={{ marginTop: 10 }}>
+          <RangeMatrix />
+        </div>
+      )}
+
+      {/* HISTORY */}
+      {activeTab === 2 && <EmptyState message="No hands played yet." />}
+
+      {/* CHAT */}
+      {activeTab === 3 && (
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+          <div
+            ref={chatListRef}
+            style={{
+              maxHeight: 200, overflowY: 'auto',
+              display: 'flex', flexDirection: 'column', gap: 8,
+              paddingBottom: 8,
+            }}
+          >
+            {chatMessages.length === 0 ? (
+              <EmptyState message="No messages yet. Say something to your opponent." />
+            ) : (
+              chatMessages.map((m, i) => {
+                const isMine = m.seat === mySeat;
+                return (
+                  <div key={`${m.t ?? i}-${i}`} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                    <div style={{
+                      maxWidth: '80%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.4,
+                      background: isMine ? 'var(--accent)' : 'var(--bg-secondary)',
+                      color: isMine ? 'var(--bg-primary)' : 'var(--text-primary)',
+                      border: isMine ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                      borderBottomRightRadius: isMine ? 3 : 12,
+                      borderBottomLeftRadius: isMine ? 12 : 3,
+                    }}>
+                      {!isMine && (
+                        <div style={{ fontSize: 10, color: isMine ? 'var(--bg-primary)' : 'var(--text-muted)', marginBottom: 3, fontWeight: 600 }}>
+                          {displayNames[m.seat] ?? m.displayName ?? `Seat ${m.seat}`}
+                        </div>
+                      )}
+                      {m.text}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <form
+            onSubmit={submitChat}
+            style={{
+              display: 'flex', gap: 8, paddingTop: 8,
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <input
+              value={chatDraft}
+              onChange={(e) => setChatDraft(e.target.value)}
+              placeholder="Message opponent…"
+              style={{
+                flex: 1, height: 36, padding: '0 10px', fontSize: 16,
+                borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!chatDraft.trim()}
+              style={{
+                height: 36, padding: '0 12px', borderRadius: 8,
+                border: '1px solid var(--accent)', background: 'transparent',
+                color: 'var(--accent)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                cursor: 'pointer', opacity: chatDraft.trim() ? 1 : 0.45,
+              }}
+            >
+              SEND
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
