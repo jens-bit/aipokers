@@ -31,6 +31,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
   const [createdAgent, setCreatedAgent] = useState(null);
   const [localAgent, setLocalAgent] = useState(existingAgent);
   const logRef = useRef(null);
+  const lastAutoBuiltAtRef = useRef(0);
 
   const userTurns = chat.filter((m) => m.role === 'user').length;
   const canCreateDraft = !createdAgent && !loading && !building && userTurns >= 2;
@@ -69,6 +70,14 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chat, loading, createdAgent]);
+
+  useEffect(() => {
+    if (canCreateDraft && userTurns > lastAutoBuiltAtRef.current) {
+      lastAutoBuiltAtRef.current = userTurns;
+      build();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canCreateDraft, userTurns]);
 
   async function send(content = draft) {
     const text = content.trim();
@@ -172,15 +181,6 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
               }
             }}
             onKeepTuning={keepTuning}
-          />
-        )}
-
-        {!createdAgent && canCreateDraft && (
-          <DraftReadyCard
-            inferred={inferDraft(lastUser(chat))}
-            onCreate={build}
-            onKeepTuning={() => setDraft('Tune the agent for bankroll discipline and river decisions')}
-            building={building}
           />
         )}
 
