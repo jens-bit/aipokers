@@ -521,6 +521,7 @@
 .dr-hand-row__decision em {
   font-style: italic;
   color: var(--dr-muted);
+}
 
 /* --- below ported from feature/agents-tab (typography polish) --- */
 
