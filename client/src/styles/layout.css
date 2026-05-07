@@ -16,9 +16,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  /* --action-bar-h is measured by ActionBar at runtime so the bottom seat
-     never hides behind the fixed bar. Desktop overrides this below. */
-  padding: 12px 12px calc(var(--action-bar-h) + 20px);
+  /* --action-bar-h and --nav-h reserve space for fixed bars at the bottom. */
+  padding: 12px 12px calc(var(--action-bar-h) + var(--nav-h) + 20px);
   gap: 10px;
   min-height: 0;
 }
@@ -29,7 +28,8 @@
   -webkit-overflow-scrolling: touch;
 }
 /* On mobile the table should not steal all flex space — let the panel show below it. */
-.app__main--analysis .table-area {
+.app__main--analysis .table-area,
+.app__main--analysis .dr-table-card {
   flex: none;
   min-height: 280px;
 }
@@ -600,6 +600,14 @@
 /* ============================================================
  * TAB BAR — PLAY / AGENTS bottom navigation (pre-game only)
  * ============================================================ */
+
+/* Game view: shift fixed bars up to clear the bottom nav */
+.app .action-bar {
+  bottom: var(--nav-h, 0px);
+}
+.app .chat-bar {
+  bottom: calc(var(--action-bar-h, 0px) + var(--nav-h, 0px));
+}
 
 .pre-game {
   flex: 1;
