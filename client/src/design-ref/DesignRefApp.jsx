@@ -15,6 +15,21 @@ const INITIAL_CHAT = [
   },
 ];
 
+const COMMAND_CHAT = [
+  {
+    role: 'assistant',
+    content: 'Good morning. I can help create, tune, deploy, replay, or explain what your agents are doing.',
+  },
+];
+
+const COMMAND_ACTIONS = [
+  ['Create', 'Build a balanced heads-up agent'],
+  ['Tune', 'Tighten Balanced v1 for river discipline'],
+  ['Deploy', 'Deploy my best ready agent'],
+  ['Replay', 'Show hands flagged for review'],
+  ['Analyze', 'Summarize the last session'],
+];
+
 function Icon({ name, size = 20, color = 'currentColor', strokeWidth = 1.7 }) {
   const common = {
     width: size,
@@ -520,10 +535,12 @@ function BlueprintCell({ label, value }) {
 
 function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack, onSend, onOpenAgent, onCreateDraft, onProfile }) {
   const [draft, setDraft] = useState('');
-  const messages = profile.chat?.length ? profile.chat : INITIAL_CHAT;
+  const storedMessages = profile.chat?.length ? profile.chat : COMMAND_CHAT;
+  const messages = storedMessages.length === 1 && storedMessages[0].content === INITIAL_CHAT[0].content ? COMMAND_CHAT : storedMessages;
   const busy = chatStatus === 'thinking';
   const userTurns = messages.filter((message) => message.role === 'user').length;
-  const canCreateDraft = !createdAgent && !busy && userTurns >= 2;
+  const hasCreateIntent = messages.some((message) => message.role === 'user' && /agent|build|create|draft/i.test(message.content));
+  const canCreateDraft = !createdAgent && !busy && userTurns >= 2 && hasCreateIntent;
   const agentSummary = profile.agents.length === 0
     ? 'No agents yet'
     : `${profile.agents.length} agent${profile.agents.length === 1 ? '' : 's'}`;
@@ -542,8 +559,8 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
           <Icon name="arrow-left" size={22} />
         </button>
         <div>
-          <p className="dr-label dr-label--accent">Create agent</p>
-          <h1>Build agent v1</h1>
+          <p className="dr-label dr-label--accent">Command chat</p>
+          <h1>Ask Agentic Poker</h1>
           <small>{identity.handle} / {agentSummary}</small>
         </div>
         <button className="dr-square-button" type="button" onClick={onProfile} aria-label="Profile and settings">
@@ -558,7 +575,15 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
           </div>
         )}
       </div>
-      <DraftBlueprint messages={messages} agent={createdAgent} />
+      <div className="dr-command-actions">
+        {COMMAND_ACTIONS.map(([label, prompt]) => (
+          <button key={label} type="button" onClick={() => submit(prompt)} disabled={busy}>
+            <b>{label}</b>
+            <span>{prompt}</span>
+          </button>
+        ))}
+      </div>
+      {createdAgent && <DraftBlueprint messages={messages} agent={createdAgent} />}
       {canCreateDraft && (
         <DraftReadyCard
           messages={messages}
@@ -578,7 +603,7 @@ function CreateAgentScreen({ identity, profile, chatStatus, createdAgent, onBack
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Describe the agent you want"
+          placeholder="Ask, create, tune, deploy, or replay"
           disabled={busy}
         />
         <button type="submit" disabled={!draft.trim() || busy} aria-label="Send">
@@ -598,6 +623,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
   return (
     <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
+      <DailyStandupCard agents={agents} />
       <section className={`dr-home-stage${stageAgents.length > 1 ? ' dr-home-stage--swipe' : ''}`}>
         <div className="dr-home-stage__track">
           {stageAgents.map((stageAgent) => (
@@ -612,6 +638,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
         </div>
         {stageAgents.length > 1 && <div className="dr-home-stage__hint">Swipe tables</div>}
       </section>
+      <HomeCommandBar onCreate={onCreate} />
     </div>
   );
 }
@@ -628,19 +655,25 @@ function HomeAgentStage({ agent, hasIdleStable, hasPlayingAgent, onOpenAgent }) 
   const primaryAction = needsFunding ? 'Fund agent' : agent.status === 'playing' ? 'Open table' : 'Deploy agent';
   return (
     <div className="dr-home-stage__slide">
-      <div className="dr-home-stage__top">
-        <span><i /> {statusLabel}</span>
-        <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
-      </div>
-      <div className="dr-home-stage__main">
-        <AgentAvatar size="lg" />
-        <div>
-          <p className="dr-label dr-label--accent">{hasPlayingAgent ? 'Live agent' : 'Primary agent'}</p>
-          <h1>{agent.name}</h1>
-          <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
-        </div>
-      </div>
-      {hasPlayingAgent ? <HomeTableSnapshot agent={agent} onOpenAgent={onOpenAgent} /> : <HomeDeployRunway agent={agent} />}
+      {hasPlayingAgent ? (
+        <HomeTableSnapshot agent={agent} statusLabel={statusLabel} onOpenAgent={onOpenAgent} />
+      ) : (
+        <>
+          <div className="dr-home-stage__top">
+            <span><i /> {statusLabel}</span>
+            <button type="button" onClick={onOpenAgent}>View <Icon name="chevron-right" size={12} /></button>
+          </div>
+          <div className="dr-home-stage__main">
+            <AgentAvatar size="lg" />
+            <div>
+              <p className="dr-label dr-label--accent">Primary agent</p>
+              <h1>{agent.name}</h1>
+              <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
+            </div>
+          </div>
+          <HomeDeployRunway agent={agent} />
+        </>
+      )}
       <div className="dr-home-actions">
         <button className="dr-primary-btn" type="button" onClick={needsFunding ? undefined : onOpenAgent}>
           {primaryAction}
@@ -650,6 +683,41 @@ function HomeAgentStage({ agent, hasIdleStable, hasPlayingAgent, onOpenAgent }) 
         </button>
       </div>
     </div>
+  );
+}
+
+function DailyStandupCard({ agents }) {
+  const playing = agents.filter((agent) => agent.status === 'playing' || agent.deployStatus === 'playing').length;
+  const hands = agents.reduce((total, agent) => total + Number(agent.hands || 0), 0);
+  const averageWinRate = agents.length
+    ? Math.round(agents.reduce((total, agent) => total + Number(agent.winRate || 0), 0) / agents.length)
+    : 0;
+  return (
+    <section className="dr-standup-card">
+      <div>
+        <p className="dr-label dr-label--accent">Daily standup</p>
+        <b>Quiet session. {playing} live, {Math.max(agents.length - playing, 0)} resting.</b>
+      </div>
+      <span><small>Net</small><b>+$340</b></span>
+      <span><small>Hands</small><b>{hands || 184}</b></span>
+      <span><small>Win</small><b>{averageWinRate || 58}%</b></span>
+    </section>
+  );
+}
+
+function HomeCommandBar({ onCreate }) {
+  return (
+    <section className="dr-home-command">
+      <div className="dr-home-command__chips">
+        <button type="button" onClick={() => onCreate('Deploy my best ready agent')}>/deploy</button>
+        <button type="button" onClick={() => onCreate('Build a new balanced heads-up agent')}>/build</button>
+        <button type="button" onClick={() => onCreate('Replay hands flagged for review')}>/replay</button>
+      </div>
+      <button className="dr-home-command__composer" type="button" onClick={() => onCreate('Summarize today and suggest the next move')}>
+        <span>Ask Agentic Poker what to do next</span>
+        <Icon name="send" size={16} />
+      </button>
+    </section>
   );
 }
 
@@ -710,9 +778,21 @@ function AgentCarousel({ agents, onOpenAgent }) {
   );
 }
 
-function HomeTableSnapshot({ agent, onOpenAgent }) {
+function HomeTableSnapshot({ agent, statusLabel, onOpenAgent }) {
   return (
     <button className="dr-home-table" type="button" onClick={onOpenAgent} aria-label={`Open ${agent.name} table`}>
+      <div className="dr-home-table__head">
+        <span><i /> {statusLabel}</span>
+        <small>View <Icon name="chevron-right" size={11} /></small>
+      </div>
+      <div className="dr-home-table__agent">
+        <AgentAvatar size="md" />
+        <div>
+          <p className="dr-label dr-label--accent">Live agent</p>
+          <h1>{agent.name}</h1>
+          <small>{agent.style} style / {agent.risk} risk / {agent.hands} hands</small>
+        </div>
+      </div>
       <div className="dr-home-table__felt">
         <span className="dr-home-table__seat dr-home-table__seat--top">
           <AgentAvatar size="xs" />
