@@ -126,6 +126,28 @@ function ensureMemory(agent) {
   if (!Number.isFinite(agent.memory.handsObserved)) agent.memory.handsObserved = 0;
 }
 
+// Aggregate stats across the entire store for the GET /api/stats endpoint.
+// O(agents × recentHands) — cheap in practice (≤ 20 hands per agent cap).
+export function getProfileStats() {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+  let totalAgents = 0;
+  let handsPlayedToday = 0;
+  for (const profile of Object.values(store)) {
+    for (const agent of (profile.agents || [])) {
+      totalAgents++;
+      for (const hand of (agent.recentHands || [])) {
+        // TODO: timestamp absent on hands recorded before this field was added — skip those
+        if (typeof hand.timestamp === 'number' && hand.timestamp >= todayMs) {
+          handsPlayedToday++;
+        }
+      }
+    }
+  }
+  return { totalAgents, handsPlayedToday };
+}
+
 // Format an agent's persistent memory as a string suitable for injection into
 // the decision-time system prompt. Returns '' when the agent has no memory yet.
 export function getAgentMemoryContext(agent) {
