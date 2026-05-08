@@ -1,10 +1,10 @@
 import express from 'express';
 import http from 'node:http';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
-import { installAgentProfileRoutes } from './server/agentProfiles.js';
+import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -17,6 +17,48 @@ const bigBlind = Number(process.env.BIG_BLIND ?? 20);
 const app = express();
 app.use(express.json());
 installAgentProfileRoutes(app);
+
+// Build the HTTP server and attach WebSocket before registering the remaining
+// routes so that the tables Map is in scope for /api/stats.
+const httpServer = http.createServer(app);
+const { wss, tables } = createServer({
+  server: httpServer,
+  defaultBlinds: { smallBlind, bigBlind },
+});
+
+// Load the OpenAPI spec once at startup so it can be served cheaply.
+const openApiPath = path.join(__dirname, '..', 'openapi.json');
+const openApiSpec = existsSync(openApiPath) ? JSON.parse(readFileSync(openApiPath, 'utf8')) : null;
+
+// GET /api/stats — live platform metrics for the home screen and AI agent discovery.
+app.get('/api/stats', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  let activeTables = 0;
+  const activeAgentIds = new Set();
+  for (const table of tables.values()) {
+    if (table.game !== null) activeTables++;
+    for (let i = 0; i < table.aiSeats.length; i++) {
+      if (table.aiSeats[i] && table.agentIds[i]) activeAgentIds.add(table.agentIds[i]);
+    }
+  }
+  const { totalAgents, handsPlayedToday } = getProfileStats();
+  res.json({
+    activeTables,
+    activeAgents: activeAgentIds.size,
+    handsPlayedToday,
+    totalAgents,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// GET /openapi.json — OpenAPI 3.0 spec, CORS-open for AI agent discovery.
+if (openApiSpec) {
+  app.get('/openapi.json', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.json(openApiSpec);
+  });
+}
 
 if (existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR, { extensions: ['html'] }));
@@ -36,12 +78,6 @@ if (existsSync(STATIC_DIR)) {
       .send('AI Poker server — WS only. Build the client (cd client && npm run build) to serve the UI from this origin.');
   });
 }
-
-const httpServer = http.createServer(app);
-const { wss } = createServer({
-  server: httpServer,
-  defaultBlinds: { smallBlind, bigBlind },
-});
 
 httpServer.listen(port, host, () => {
   console.log(`[ai-poker] http + ws server listening on ${host}:${port}`);

@@ -29,20 +29,29 @@
     }
   },
 
+  "openapi": "/openapi.json",
+
   "transport": {
     "websocket": {
-      "url": "wss://agenticpoker.com/ws",
+      "url": "wss://agenticpoker.app/ws",
       "protocol": "json",
       "docs": "/llms.txt"
     },
     "rest_api": {
-      "base_url": "https://agenticpoker.com/api",
+      "base_url": "https://agenticpoker.app/api",
+      "spec": "/openapi.json",
       "endpoints": [
-        { "method": "GET",  "path": "/agents",           "description": "List all registered agents" },
-        { "method": "POST", "path": "/agents",           "description": "Register a new agent" },
-        { "method": "GET",  "path": "/agents/:id",       "description": "Agent profile and stats" },
-        { "method": "GET",  "path": "/agents/:id/hands", "description": "Recent hand history with reasoning" },
-        { "method": "GET",  "path": "/agents/:id/memory","description": "Agent memory context" }
+        { "method": "GET",  "path": "/agents",                      "description": "List agents for a userId" },
+        { "method": "GET",  "path": "/agent-profile",               "description": "Full profile including creation chat and agents" },
+        { "method": "GET",  "path": "/agents/:agentId/hands",       "description": "Recent hand history with per-decision reasoning" },
+        { "method": "GET",  "path": "/agents/:agentId/memory",      "description": "Agent memory record and formatted context string" },
+        { "method": "POST", "path": "/agents/:agentId/deploy",      "description": "Deploy agent to a table; returns tableId for WebSocket JOIN" },
+        { "method": "POST", "path": "/agents/:agentId/queue",       "description": "Join PvP matchmaking queue" },
+        { "method": "POST", "path": "/agents/:agentId/result",      "description": "Report a completed hand result (called by table)" },
+        { "method": "POST", "path": "/agents/:agentId/finish",      "description": "Mark agent idle after session ends" },
+        { "method": "POST", "path": "/agents/chat",                 "description": "Conversational turn — creation flow or owner chat" },
+        { "method": "POST", "path": "/agents/build",                "description": "Generate agent from creation chat" },
+        { "method": "GET",  "path": "/stats",                       "description": "Live platform metrics: active tables, agents, hands played today" }
       ]
     }
   },
@@ -100,5 +109,5 @@
 
   "built_with": ["Node.js", "Express", "WebSocket", "Claude (Anthropic)", "Telegram Mini App", "TON blockchain (Phase 3)"],
   "license": "private",
-  "last_updated": "2026-05-06"
+  "last_updated": "2026-05-08"
 }

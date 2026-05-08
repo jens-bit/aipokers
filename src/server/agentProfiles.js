@@ -126,6 +126,28 @@ function ensureMemory(agent) {
   if (!Number.isFinite(agent.memory.handsObserved)) agent.memory.handsObserved = 0;
 }
 
+// Aggregate stats across the entire store for the GET /api/stats endpoint.
+// O(agents × recentHands) — cheap in practice (≤ 20 hands per agent cap).
+export function getProfileStats() {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+  let totalAgents = 0;
+  let handsPlayedToday = 0;
+  for (const profile of Object.values(store)) {
+    for (const agent of (profile.agents || [])) {
+      totalAgents++;
+      for (const hand of (agent.recentHands || [])) {
+        // TODO: timestamp absent on hands recorded before this field was added — skip those
+        if (typeof hand.timestamp === 'number' && hand.timestamp >= todayMs) {
+          handsPlayedToday++;
+        }
+      }
+    }
+  }
+  return { totalAgents, handsPlayedToday };
+}
+
 // Format an agent's persistent memory as a string suitable for injection into
 // the decision-time system prompt. Returns '' when the agent has no memory yet.
 export function getAgentMemoryContext(agent) {
@@ -147,6 +169,26 @@ function formatHandForPrompt(h) {
     })
     .join('; ');
   return `Hand #${h.handNumber ?? '?'} — ${verdict} pot ${h.potSize ?? 0} — decisions: [${decs}]`;
+}
+
+// Build the system prompt for an existing agent's owner-chat path.
+// The agent speaks as itself, references real stats, and never asks creation questions.
+function buildAgentChatSystem(agent) {
+  ensureStats(agent);
+  const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
+  const recentHands = (agent.recentHands || []).slice(0, 3);
+  const recentBrief = recentHands.length > 0
+    ? recentHands.map((h) => `${h.won ? 'won' : 'lost'} ${h.potSize ?? 0}-chip pot`).join(', ')
+    : 'no hands yet';
+  const statsLine = handsPlayed > 0
+    ? `${handsPlayed} hands played, ${winRate}% win rate`
+    : 'no hands played yet';
+
+  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.
+
+You are talking to your owner. Your role is to discuss your play — specific hands, decision rationale, strategy tweaks they want to make. You are NOT being created or redesigned right now. Do NOT ask the user what kind of poker player they want to build. If they ask what to talk about, suggest: reviewing specific hands, looking at decision patterns, or adjusting one of your parameters (aggression, bluff frequency, tightness).
+
+Keep responses short — 1 to 3 sentences. Reference your actual stats and recent hands when relevant. If the user asks for a strategy change, acknowledge what they want and confirm — but stay in character as the agent (not as a configuration assistant).`;
 }
 
 function inferFallback(text) {
@@ -468,19 +510,33 @@ Update the agent's self-knowledge based on this new evidence.`;
     if (!content) return res.status(400).json({ error: 'content required' });
 
     const profile = getOrCreate(userId);
-    profile.chat.push({ role: 'user', content });
 
-    // Include existing agent context so the AI knows what's being changed.
-    const existingAgentForCtx = existingAgentId
+    // ── Existing-agent owner chat ────────────────────────────────────────────
+    // When the request comes from AgentChat (an already-built agent), use a
+    // stateless turn with an agent-specific system prompt. This avoids mixing
+    // creation-flow history into the conversation and prevents the model from
+    // asking creation questions to the owner of an existing agent.
+    const existingAgent = existingAgentId
       ? profile.agents.find((a) => a.id === existingAgentId)
       : null;
-    const existingCtx = existingAgentForCtx
-      ? `\n\nThe user is editing an existing agent: "${existingAgentForCtx.name}" — ${existingAgentForCtx.style} style, ${existingAgentForCtx.risk} risk. Current strategy: "${existingAgentForCtx.strategy}". When they suggest changes, acknowledge what's shifting and why it matters tactically.`
-      : '';
-    const systemText = SYSTEM_CONV + existingCtx;
+
+    if (existingAgent) {
+      const systemText = buildAgentChatSystem(existingAgent);
+      try {
+        const reply = await callClaude([{ role: 'user', content }], systemText, 150);
+        const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
+        return res.json({ chat: [{ role: 'assistant', content: msg }] });
+      } catch (err) {
+        console.error('[agentProfiles] agent-chat error:', err.message);
+        return res.json({ chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] });
+      }
+    }
+
+    // ── Creation-flow chat (unchanged) ───────────────────────────────────────
+    profile.chat.push({ role: 'user', content });
 
     try {
-      const reply = await callClaude(profile.chat, systemText, 150);
+      const reply = await callClaude(profile.chat, SYSTEM_CONV, 150);
       const msg = reply || "How aggressive do you like to play, and how often do you bluff?";
       profile.chat.push({ role: 'assistant', content: msg });
       saveStore(userId);
