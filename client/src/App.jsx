@@ -63,6 +63,11 @@ export default function App() {
     setActiveAgentId(id);
   }
 
+  function navigateTo(tab) {
+    setActiveTab(tab);
+    setAgentChatTarget(null);
+  }
+
   const callAgentFinish = useCallback((agentId) => {
     if (!agentId) return;
     fetch(`/api/agents/${agentId}/finish`, {
@@ -299,7 +304,7 @@ export default function App() {
         <nav className="tab-bar">
           <button
             className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('home')}
+            onClick={() => navigateTo('home')}
           >
             <HomeIcon />
             <span>HOME</span>
@@ -310,7 +315,7 @@ export default function App() {
               setPlayInitialStep('play-mode');
               setEditingAgent(null);
               setPlayKey((k) => k + 1);
-              setActiveTab('play');
+              navigateTo('play');
             }}
           >
             <PlayIcon />
@@ -318,21 +323,21 @@ export default function App() {
           </button>
           <button
             className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('agents')}
+            onClick={() => navigateTo('agents')}
           >
             <AgentsIcon />
             <span>AGENTS</span>
           </button>
           <button
             className={`tab-bar__tab${activeTab === 'history' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('history')}
+            onClick={() => navigateTo('history')}
           >
             <HistoryIcon />
             <span>HISTORY</span>
           </button>
           <button
             className={`tab-bar__tab${activeTab === 'profile' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => navigateTo('profile')}
           >
             <ProfileIcon />
             <span>PROFILE</span>
