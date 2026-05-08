@@ -1438,3 +1438,79 @@
   flex-shrink: 0;
 }
 .dr-game-header__action:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.14); }
+
+/* ── Default app header (non-game screens) — per design-refs/home.jsx TopBar ── */
+.dr-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 12px;
+  flex-shrink: 0;
+}
+
+.dr-app-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dr-app-header__wordmark {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+}
+
+.dr-app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dr-app-header__agents-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 212, 170, 0.08); /* teal tint — no global token for opacity variants */
+  border: 1px solid rgba(0, 212, 170, 0.25);
+}
+
+.dr-app-header__agents-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.7);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+.dr-app-header__agents-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-app-header__profile-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #141414; /* dr-panel — not exposed as a global CSS token */
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.dr-app-header__profile-btn:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}

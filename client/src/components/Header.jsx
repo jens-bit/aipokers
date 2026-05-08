@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Streets } from '../lib/protocol.js';
 
 function StatusDot({ status }) {
@@ -65,6 +66,41 @@ function SettingsIcon() {
   );
 }
 
+function AgentsCountPill() {
+  const [count, setCount] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    function load() {
+      fetch('/api/stats')
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data) => { if (!cancelled) setCount(data.totalAgents ?? null); })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  return (
+    <div className="dr-app-header__agents-pill">
+      <span className="dr-app-header__agents-dot" aria-hidden />
+      <span className="dr-app-header__agents-label">
+        {count == null ? '—' : `${count} agents`}
+      </span>
+    </div>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8H4z" />
+    </svg>
+  );
+}
+
 export function Header({
   status, game, mySeat, hasConfig,
   historyCount, reconnectAttempt, maxReconnectAttempts,
@@ -114,52 +150,31 @@ export function Header({
     );
   }
 
-  let label = STATUS_LABEL[status] || status;
-  if (status === 'reconnecting' && reconnectAttempt > 0) {
-    label = `RECONNECTING ${reconnectAttempt}/${maxReconnectAttempts}`;
-  }
-
-  const inPlay = game && game.handNumber && game.street && STREET_LABEL[game.street];
-  const pillText = inPlay
-    ? `Hand ${game.handNumber} · ${STREET_LABEL[game.street]}`
-    : label;
-
   return (
-    <header className="header">
-      <div className="header__brand">
-        <span>AGENTIC <span className="dot">•</span> POKER</span>
-        {!hasConfig && <span className="header__tagline">Build the better player.</span>}
+    <header className="dr-app-header">
+      <div className="dr-app-header__left">
+        <svg width="22" height="26" viewBox="0 0 22 26" style={{ display: 'block' }} aria-hidden>
+          <path
+            d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
+            fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
+          />
+          <path
+            d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
+            stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
+          />
+        </svg>
+        <span className="dr-app-header__wordmark">AGENTIC POKER</span>
       </div>
-      <div className="header__status">
-        {/* Mobile status elements – hidden at ≥1100px */}
-        <StatusDot status={status} />
-        {mySeat != null && <span className="muted header__mobile-seat">SEAT {mySeat + 1}</span>}
-        <span className="muted header__mobile-sep">·</span>
-        <span className="muted header__mobile-label">{label}</span>
-
-        {/* Desktop status pill – hidden below 1100px */}
-        {hasConfig && (
-          <div className="header__pill">
-            <span className="live-dot" />
-            {pillText}
-          </div>
-        )}
-
-        {hasConfig && (
-          <>
-            <button
-              type="button"
-              className={`icon-btn icon-btn--log ${historyCount > 0 ? 'icon-btn--badge' : ''}`}
-              onClick={onToggleHistory}
-              aria-label="Open hand history"
-            >
-              LOG
-            </button>
-            <button type="button" className="icon-btn" onClick={onLeave} aria-label="Leave table">
-              LEAVE
-            </button>
-          </>
-        )}
+      <div className="dr-app-header__right">
+        <AgentsCountPill />
+        {/* TODO: open profile drawer/sheet */}
+        <button
+          type="button"
+          className="dr-app-header__profile-btn"
+          aria-label="Profile"
+        >
+          <PersonIcon />
+        </button>
       </div>
     </header>
   );
