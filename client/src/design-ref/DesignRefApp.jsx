@@ -623,7 +623,6 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
   return (
     <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
-      <DailyStandupCard agents={agents} />
       <section className={`dr-home-stage${stageAgents.length > 1 ? ' dr-home-stage--swipe' : ''}`}>
         <div className="dr-home-stage__track">
           {stageAgents.map((stageAgent) => (
@@ -638,7 +637,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
         </div>
         {stageAgents.length > 1 && <div className="dr-home-stage__hint">Swipe tables</div>}
       </section>
-      <HomeCommandBar onCreate={onCreate} />
+      <DailyStandupCard agents={agents} />
     </div>
   );
 }
@@ -701,22 +700,6 @@ function DailyStandupCard({ agents }) {
       <span><small>Net</small><b>+$340</b></span>
       <span><small>Hands</small><b>{hands || 184}</b></span>
       <span><small>Win</small><b>{averageWinRate || 58}%</b></span>
-    </section>
-  );
-}
-
-function HomeCommandBar({ onCreate }) {
-  return (
-    <section className="dr-home-command">
-      <div className="dr-home-command__chips">
-        <button type="button" onClick={() => onCreate('Deploy my best ready agent')}>/deploy</button>
-        <button type="button" onClick={() => onCreate('Build a new balanced heads-up agent')}>/build</button>
-        <button type="button" onClick={() => onCreate('Replay hands flagged for review')}>/replay</button>
-      </div>
-      <button className="dr-home-command__composer" type="button" onClick={() => onCreate('Summarize today and suggest the next move')}>
-        <span>Ask Agentic Poker what to do next</span>
-        <Icon name="send" size={16} />
-      </button>
     </section>
   );
 }
@@ -1462,7 +1445,6 @@ function NavTabBar({ active, onChange, agentCount }) {
   const tabs = [
     ['home', 'home', 'Home'],
     ['play', 'spade', 'Play'],
-    ['create', 'send', 'Chat'],
     ['agents', 'agent', 'Agents'],
     ['history', 'history', 'Replays'],
   ];
@@ -1470,7 +1452,7 @@ function NavTabBar({ active, onChange, agentCount }) {
   return (
     <nav className="dr-nav">
       {tabs.map(([id, icon, label]) => (
-        <button key={id} type="button" className={`${active === id ? 'is-active' : ''}${id === 'create' ? ' is-center' : ''}`} onClick={() => onChange(id)}>
+        <button key={id} type="button" className={active === id ? 'is-active' : ''} onClick={() => onChange(id)}>
           <Icon name={icon} size={20} />
           <span>{label}</span>
           {id === 'agents' && agentCount > 0 && <i />}
