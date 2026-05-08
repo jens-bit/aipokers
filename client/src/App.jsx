@@ -159,35 +159,6 @@ export default function App() {
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
-  if (!config && agentChatTarget) {
-    return (
-      <AgentChat
-        agent={agentChatTarget}
-        onBack={() => setAgentChatTarget(null)}
-        onDeploy={async (agent) => {
-          setAgentChatTarget(null);
-          const res = await fetch(`/api/agents/${agent.id}/queue`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: getUserId() }),
-          });
-          if (!res.ok) return;
-          const payload = await res.json();
-          setActiveAgent(payload.agentId);
-          watch({
-            tableId: payload.tableId,
-            agentId: payload.agentId,
-            userId: getUserId(),
-            agentStrategy: payload.strategy,
-            displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-            wantOpponentAI: false,
-            memoryContext: payload.memoryContext ?? '',
-          });
-        }}
-      />
-    );
-  }
-
   if (!config) {
     const playWatchPayload = (payload) => {
       setActiveAgent(payload.agentId);
@@ -206,93 +177,124 @@ export default function App() {
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game">
-          {activeTab === 'play' && (
-            <Play
-              key={playKey}
-              onConnect={connect}
-              onWatch={playWatchPayload}
-              onDone={() => {
-                setPlayInitialStep('play-mode');
-                setPlayKey((k) => k + 1);
-                setActiveTab('agents');
-              }}
-              initialStep={playInitialStep}
-              existingAgent={editingAgent}
-            />
+          {agentChatTarget ? (
+            <div className="pre-game__chat-wrap">
+              <AgentChat
+                agent={agentChatTarget}
+                onBack={() => setAgentChatTarget(null)}
+                onDeploy={async (agent) => {
+                  setAgentChatTarget(null);
+                  const res = await fetch(`/api/agents/${agent.id}/queue`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: getUserId() }),
+                  });
+                  if (!res.ok) return;
+                  const payload = await res.json();
+                  setActiveAgent(payload.agentId);
+                  watch({
+                    tableId: payload.tableId,
+                    agentId: payload.agentId,
+                    userId: getUserId(),
+                    agentStrategy: payload.strategy,
+                    displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                    wantOpponentAI: false,
+                    memoryContext: payload.memoryContext ?? '',
+                  });
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              {activeTab === 'play' && (
+                <Play
+                  key={playKey}
+                  onConnect={connect}
+                  onWatch={playWatchPayload}
+                  onDone={() => {
+                    setPlayInitialStep('play-mode');
+                    setPlayKey((k) => k + 1);
+                    setActiveTab('agents');
+                  }}
+                  initialStep={playInitialStep}
+                  existingAgent={editingAgent}
+                />
+              )}
+              {activeTab === 'home' && (
+                <HomeTab
+                  onDeploy={(payload) => {
+                    setActiveAgent(payload.agentId);
+                    watch({
+                      tableId: payload.tableId,
+                      agentId: payload.agentId,
+                      userId: getUserId(),
+                      agentStrategy: payload.strategy,
+                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                      wantOpponentAI: false,
+                      memoryContext: payload.memoryContext ?? '',
+                    });
+                  }}
+                  onWatch={(payload) => {
+                    setActiveAgent(payload.agentId);
+                    watch({
+                      tableId: payload.tableId,
+                      agentId: payload.agentId,
+                      userId: getUserId(),
+                      agentStrategy: payload.strategy,
+                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                      wantOpponentAI: false,
+                      memoryContext: payload.memoryContext ?? '',
+                    });
+                  }}
+                  onCreateAgent={() => {
+                    setEditingAgent(null);
+                    setPlayInitialStep('create-agent');
+                    setPlayKey((k) => k + 1);
+                    setActiveTab('play');
+                  }}
+                  onOpenChat={(agent) => {
+                    setEditingAgent(agent);
+                    setPlayInitialStep('create-agent');
+                    setPlayKey((k) => k + 1);
+                    setActiveTab('play');
+                  }}
+                  onGoPlay={() => setActiveTab('play')}
+                />
+              )}
+              {activeTab === 'agents' && (
+                <AgentsTab
+                  onDeploy={playWatchPayload}
+                  onVsYou={(payload) => {
+                    setActiveAgent(payload.agentId);
+                    connect({
+                      tableId: 'vsyou-' + Date.now().toString(36),
+                      displayName: getTelegramDisplayName() || 'Player',
+                      buyIn: 1000,
+                      smallBlind: 10,
+                      bigBlind: 20,
+                      wantAI: true,
+                      agentId: payload.agentId,
+                      userId: getUserId(),
+                      agentStrategy: payload.strategy,
+                      agentDisplayName: payload.agentName,
+                      memoryContext: payload.memoryContext ?? '',
+                    });
+                  }}
+                  onCreateAgent={() => {
+                    setEditingAgent(null);
+                    setPlayInitialStep('create-agent');
+                    setPlayKey((k) => k + 1);
+                    setActiveTab('play');
+                  }}
+                  onOpenChat={(agent) => {
+                    setAgentChatTarget(agent);
+                  }}
+                />
+              )}
+              {activeTab === 'history' && <HistoryPlaceholder />}
+              {activeTab === 'profile' && <ProfilePlaceholder />}
+            </>
           )}
-          {activeTab === 'home' && (
-            <HomeTab
-              onDeploy={(payload) => {
-                setActiveAgent(payload.agentId);
-                watch({
-                  tableId: payload.tableId,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
-              onWatch={(payload) => {
-                setActiveAgent(payload.agentId);
-                watch({
-                  tableId: payload.tableId,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
-              onCreateAgent={() => {
-                setEditingAgent(null);
-                setPlayInitialStep('create-agent');
-                setPlayKey((k) => k + 1);
-                setActiveTab('play');
-              }}
-              onOpenChat={(agent) => {
-                setEditingAgent(agent);
-                setPlayInitialStep('create-agent');
-                setPlayKey((k) => k + 1);
-                setActiveTab('play');
-              }}
-              onGoPlay={() => setActiveTab('play')}
-            />
-          )}
-          {activeTab === 'agents' && (
-            <AgentsTab
-              onDeploy={playWatchPayload}
-              onVsYou={(payload) => {
-                setActiveAgent(payload.agentId);
-                connect({
-                  tableId: 'vsyou-' + Date.now().toString(36),
-                  displayName: getTelegramDisplayName() || 'Player',
-                  buyIn: 1000,
-                  smallBlind: 10,
-                  bigBlind: 20,
-                  wantAI: true,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  agentDisplayName: payload.agentName,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
-              onCreateAgent={() => {
-                setEditingAgent(null);
-                setPlayInitialStep('create-agent');
-                setPlayKey((k) => k + 1);
-                setActiveTab('play');
-              }}
-              onOpenChat={(agent) => {
-                setAgentChatTarget(agent);
-              }}
-            />
-          )}
-          {activeTab === 'history' && <HistoryPlaceholder />}
-          {activeTab === 'profile' && <ProfilePlaceholder />}
         </div>
         <nav className="tab-bar">
           <button
@@ -347,20 +349,22 @@ export default function App() {
         game={game}
         mySeat={mySeat}
         hasConfig
+        agentName={config?.displayName}
+        isSpectator={!!config?.isSpectator}
         historyCount={history.length}
         reconnectAttempt={reconnectAttempt}
         maxReconnectAttempts={maxReconnectAttempts}
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         onLeave={handleLeave}
       />
-      <main className={`app__main${config?.isSpectator && lastDecision ? ' app__main--analysis' : ''}`}>
+      <main className={`app__main${config?.isSpectator ? ' app__main--analysis' : ''}`}>
         {error && (
           <div className="error-banner" onClick={dismissError}>
             {error} · tap to dismiss
           </div>
         )}
         <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} />
-        {config?.isSpectator && lastDecision && (
+        {config?.isSpectator && (
           <AnalysisPanel
             chatMessages={chatMessages}
             onSendChat={sendChat}
@@ -373,7 +377,6 @@ export default function App() {
       {!config?.isSpectator && <ChatBar messages={chatMessages} onSend={sendChat} />}
       {config?.isSpectator ? (
         <>
-          <WatchBanner config={config} game={game} />
           <LastAgentHandPanel
             hand={lastAgentHand}
             open={lastAgentHandOpen}
@@ -449,39 +452,6 @@ export default function App() {
   );
 }
 
-function WatchBanner({ config, game }) {
-  const agentName = config?.displayName || 'Agent';
-  const handNum = game?.handNumber;
-  const street = (game?.street || Streets.WAITING).toUpperCase();
-  const isLive = game && game.street !== Streets.WAITING && game.street !== Streets.COMPLETE;
-
-  return (
-    <div className="watch-banner">
-      <span className={`watch-banner__dot${isLive ? ' watch-banner__dot--live' : ''}`} aria-hidden />
-      <WatchAvatar />
-      <div className="watch-banner__meta">
-        <b className="watch-banner__name">{agentName}</b>
-        <small className="watch-banner__sub">
-          {handNum ? `Hand #${handNum}` : 'Waiting'} · {street}
-        </small>
-      </div>
-      <span className="watch-banner__tag">SPECTATING</span>
-    </div>
-  );
-}
-
-function WatchAvatar() {
-  return (
-    <span className="watch-banner__avatar" aria-hidden>
-      <svg viewBox="0 0 40 40">
-        <path d="M20 4c-8 0-13 6-13 14v14c0 4 3 6 7 6h12c4 0 7-2 7-6V18c0-8-5-14-13-14z" fill="currentColor" opacity="0.38" />
-        <ellipse cx="20" cy="22" rx="7" ry="9" fill="#080b0d" />
-        <circle cx="17" cy="20" r="1" fill="#00d4aa" />
-        <circle cx="23" cy="20" r="1" fill="#00d4aa" />
-      </svg>
-    </span>
-  );
-}
 
 function LastAgentHandPanel({ hand, open, onToggle }) {
   const decisions = hand?.decisions || [];
