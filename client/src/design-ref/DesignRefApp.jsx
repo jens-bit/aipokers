@@ -623,6 +623,7 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
   return (
     <div className="dr-screen dr-screen--home">
       <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
+      <DailyStandupCard agents={agents} />
       <section className={`dr-home-stage${stageAgents.length > 1 ? ' dr-home-stage--swipe' : ''}`}>
         <div className="dr-home-stage__track">
           {stageAgents.map((stageAgent) => (
@@ -637,7 +638,6 @@ function ExistingHome({ identity, agents, onCreate, onOpenAgent, onProfile }) {
         </div>
         {stageAgents.length > 1 && <div className="dr-home-stage__hint">Swipe tables</div>}
       </section>
-      <DailyStandupCard agents={agents} />
     </div>
   );
 }
@@ -886,21 +886,51 @@ function PlayHubScreen({ identity, agents, onCreate, onOpenTable, onOpenStable, 
   return (
     <div className="dr-screen dr-screen--play">
       <AppHeader identity={identity} agentCount={agents.length} onCreate={onCreate} onProfile={onProfile} />
-      <section className="dr-play-hero">
-        <p className="dr-label dr-label--accent">Play</p>
-        <h1>Choose how to enter the table.</h1>
-        <p>Play yourself, battle an AI, or deploy one of your agents.</p>
-      </section>
+      <PlayTableTeaser onOpenTable={onOpenTable} />
       <div className="dr-play-grid">
-        <PlayActionCard icon="agent" title="Deploy agent" subtitle={readyAgents.length ? `${readyAgents.length} ready in stable` : 'Create or fund an agent first'} onClick={readyAgents.length ? onOpenStable : onCreate} accent />
-        <PlayActionCard icon="spade" title="Watch active table" subtitle={playingAgents.length ? `${playingAgents[0].name} is playing now` : 'No agent seated yet'} onClick={playingAgents.length ? onOpenTable : onOpenStable} />
-        <PlayActionCard icon="profile" title="Play vs human" subtitle="Open the human table" />
-        <PlayActionCard icon="sparkle" title="Play vs AI" subtitle="Practice table preview" />
+        <PlayActionCard icon="profile" title="Play vs human" subtitle="Sit at a live table yourself" onClick={onOpenTable} accent />
+        <PlayActionCard icon="sparkle" title="Play vs AI" subtitle="Practice against a bot table" onClick={onOpenTable} />
+        <PlayActionCard icon="agent" title="Deploy agent" subtitle={readyAgents.length ? `${readyAgents.length} ready in stable` : 'Create or fund an agent first'} onClick={readyAgents.length ? onOpenStable : onCreate} />
+        <PlayActionCard icon="spade" title="Watch table" subtitle={playingAgents.length ? `${playingAgents[0].name} is playing now` : 'No agent seated yet'} onClick={playingAgents.length ? onOpenTable : onOpenStable} />
       </div>
       <button className="dr-secondary-wide" type="button" onClick={onCreate}>
         <Icon name="plus" size={16} /> Create new agent
       </button>
     </div>
+  );
+}
+
+function PlayTableTeaser({ onOpenTable }) {
+  return (
+    <button className="dr-play-table-teaser" type="button" onClick={onOpenTable}>
+      <div className="dr-play-table-teaser__top">
+        <span><i /> Human table</span>
+        <small>Seat open / NLH</small>
+      </div>
+      <div className="dr-play-table-teaser__felt">
+        <div className="dr-play-table-teaser__seat">
+          <span className="dr-card-pair"><CardBack /><CardBack /></span>
+          <b>Agentic v1</b>
+          <em>Bet 20</em>
+        </div>
+        <div className="dr-play-table-teaser__pot">
+          <small>Preflop / Pot</small>
+          <b>30</b>
+          <div>{Array.from({ length: 5 }).map((_, index) => <i key={index} />)}</div>
+        </div>
+        <div className="dr-play-table-teaser__hero">
+          <span className="dr-card-pair"><PlayingCard rank="8" suit="h" /><PlayingCard rank="J" suit="d" /></span>
+          <b>You</b>
+          <em>Call 10</em>
+          <strong>10</strong>
+        </div>
+      </div>
+      <div className="dr-play-table-teaser__actions">
+        <span>Fold</span>
+        <span>Call 10</span>
+        <span>Raise 40</span>
+      </div>
+    </button>
   );
 }
 
