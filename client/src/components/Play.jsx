@@ -23,7 +23,23 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
       .finally(() => setLoading(false));
   }, []);
 
-  function pickHumanMode(m) { setMode(m); setStep('form'); }
+  function connectVsAI() {
+    onConnect({
+      tableId: 'vsai-' + Date.now().toString(36),
+      displayName: getTelegramDisplayName() || 'You',
+      buyIn: 1000,
+      smallBlind: 10,
+      bigBlind: 20,
+      wantAI: true,
+      agentDisplayName: 'House',
+    });
+  }
+
+  function pickHumanMode() {
+    setTableId('table-' + Math.random().toString(16).slice(2, 8));
+    setMode('human');
+    setStep('form');
+  }
 
   function submitHumanForm(e) {
     e.preventDefault();
@@ -33,7 +49,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
       buyIn: 1000,
       smallBlind: 10,
       bigBlind: 20,
-      wantAI: mode === 'ai',
+      wantAI: false,
     });
   }
 
@@ -84,11 +100,9 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
   }
 
   if (step === 'form') {
-    const hint = mode === 'ai'
-      ? 'Your AI opponent joins automatically.'
-      : inTelegram
-        ? 'Share the bot link with a friend to fill the second seat.'
-        : 'Open this page in two browser tabs to play heads-up.';
+    const hint = inTelegram
+      ? 'Share the bot link with a friend to fill the second seat.'
+      : 'Open this page in two browser tabs to play heads-up.';
 
     return (
       <div className="dr-app">
@@ -98,7 +112,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
               <ArrowLeft />
             </button>
             <div>
-              <p className="dr-label dr-label--accent">{mode === 'ai' ? 'Vs AI' : 'Vs human'}</p>
+              <p className="dr-label dr-label--accent">Vs human</p>
               <h1>Take a seat</h1>
               <small>{hint}</small>
             </div>
@@ -175,13 +189,13 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
             </button>
           )}
 
-          <button className="dr-play-card" type="button" onClick={() => pickHumanMode('human')}>
+          <button className="dr-play-card" type="button" onClick={pickHumanMode}>
             <span><UsersIcon /></span>
             <b>Play vs human</b>
             <small>Heads-up against a friend.</small>
           </button>
 
-          <button className="dr-play-card" type="button" onClick={() => pickHumanMode('ai')}>
+          <button className="dr-play-card" type="button" onClick={connectVsAI}>
             <span><BotIcon /></span>
             <b>Play vs AI</b>
             <small>Sit down with a built-in opponent.</small>
