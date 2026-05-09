@@ -2,6 +2,9 @@ import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 
+const HOUSE_FALLBACK_MS = 5000;
+const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
+
 // A Table owns a single Game instance and the WebSocket connections for its
 // 2ÔÇô4 seats. It serializes incoming actions, broadcasts filtered state, and
 // auto-starts the next hand once enough seated players still have chips.
@@ -35,6 +38,7 @@ export class Table {
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
+    this._houseFallbackTimer = null;               // 5s delay before auto-seating House
 
     // Per-hand decision log; reset at the start of each hand. Populated by
     // _maybeRunAiTurn before every AI action and consumed in _handCompleted.
@@ -50,6 +54,12 @@ export class Table {
 
   // Returns the seat the player got, or throws.
   seatPlayer(ws, { playerId, buyIn, displayName }) {
+    // A second player arriving cancels any pending House fallback.
+    if (this._houseFallbackTimer && this.pending.some((p) => p !== null)) {
+      clearTimeout(this._houseFallbackTimer);
+      this._houseFallbackTimer = null;
+    }
+
     const existingSeat = this.pending.findIndex((p) => p?.playerId === playerId);
     if (existingSeat !== -1) {
       // Reconnect: replace the WebSocket on that seat.
@@ -74,6 +84,25 @@ export class Table {
     };
     this.connections[free] = ws;
     return free;
+  }
+
+  // Schedule House as opponent if no real opponent joins within HOUSE_FALLBACK_MS.
+  // No-op if already scheduled or if 2+ seats are already filled.
+  scheduleHouseFallback() {
+    if (this._houseFallbackTimer) return;
+    if (this.pending.filter((p) => p !== null).length >= 2) return;
+    this._houseFallbackTimer = setTimeout(() => {
+      this._houseFallbackTimer = null;
+      if (this.pending.filter((p) => p !== null).length !== 1) return;
+      this.maybeAutoSeatAI({
+        agentDisplayName: 'House',
+        agentStrategy: HOUSE_STRATEGY,
+        agentId: null,
+        userId: null,
+        memoryContext: '',
+      });
+      this.maybeStartHand();
+    }, HOUSE_FALLBACK_MS);
   }
 
   // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
@@ -108,6 +137,12 @@ export class Table {
   // Seat an AI for a spectating user and register their WS for state broadcasts.
   // Returns the seat index the AI was placed at.
   addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '' } = {}) {
+    // A second spectator (new agent joining) cancels any pending House fallback.
+    if (this._houseFallbackTimer && this.pending.some((p) => p !== null)) {
+      clearTimeout(this._houseFallbackTimer);
+      this._houseFallbackTimer = null;
+    }
+
     const seat = this.seatAI({
       strategy: agentStrategy || '',
       displayName: displayName || 'Agent',
@@ -116,6 +151,8 @@ export class Table {
       memoryContext,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
+    // Schedule House as fallback opponent after HOUSE_FALLBACK_MS if still alone.
+    this.scheduleHouseFallback();
     return seat;
   }
 
@@ -165,6 +202,7 @@ export class Table {
       this.spectators.splice(specIdx, 1);
       if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
         if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
+        if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
         this.onEmpty?.(this.tableId);
       }
       return;
@@ -209,6 +247,10 @@ export class Table {
       if (this._aiInactivityTimer) {
         clearTimeout(this._aiInactivityTimer);
         this._aiInactivityTimer = null;
+      }
+      if (this._houseFallbackTimer) {
+        clearTimeout(this._houseFallbackTimer);
+        this._houseFallbackTimer = null;
       }
       this.onEmpty?.(this.tableId);
     }

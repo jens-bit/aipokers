@@ -72,6 +72,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
                 userId: msg.userId ?? null,
                 memoryContext: msg.memoryContext ?? '',
               });
+            } else {
+              table.scheduleHouseFallback();
             }
             table.maybeStartHand();
             return;
@@ -89,17 +91,6 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
-            const seatedAiCount = table.aiSeats.filter(Boolean).length;
-            const seatedHumanCount = table.connections.filter((c) => c !== null).length;
-            if (seatedAiCount === 1 && seatedHumanCount === 0) {
-              table.maybeAutoSeatAI({
-                agentDisplayName: 'House',
-                agentStrategy: 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.',
-                agentId: null,
-                userId: null,
-                memoryContext: '',
-              });
-            }
             table.maybeStartHand();
             return;
           }
