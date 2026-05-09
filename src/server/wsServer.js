@@ -63,6 +63,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             // Auto-seat AI when the server has AI enabled AND the player asked for it.
+            console.log(`[JOIN] AI_ENABLED=${process.env.AI_ENABLED}, wantAI=${msg.wantAI} (type: ${typeof msg.wantAI}), agentDisplayName=${msg.agentDisplayName ?? 'n/a'}`);
             if (process.env.AI_ENABLED === 'true' && msg.wantAI === true) {
               table.maybeAutoSeatAI({
                 agentStrategy: msg.agentStrategy ?? null,
@@ -71,6 +72,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
                 userId: msg.userId ?? null,
                 memoryContext: msg.memoryContext ?? '',
               });
+            } else {
+              table.scheduleHouseFallback();
             }
             table.maybeStartHand();
             return;
@@ -88,17 +91,6 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
-            const seatedAiCount = table.aiSeats.filter(Boolean).length;
-            const seatedHumanCount = table.connections.filter((c) => c !== null).length;
-            if (seatedAiCount === 1 && seatedHumanCount === 0) {
-              table.maybeAutoSeatAI({
-                agentDisplayName: 'House',
-                agentStrategy: 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.',
-                agentId: null,
-                userId: null,
-                memoryContext: '',
-              });
-            }
             table.maybeStartHand();
             return;
           }
