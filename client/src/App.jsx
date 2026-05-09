@@ -356,6 +356,7 @@ export default function App() {
         hasConfig
         agentName={config?.displayName}
         isSpectator={!!config?.isSpectator}
+        mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'}
         historyCount={history.length}
         reconnectAttempt={reconnectAttempt}
         maxReconnectAttempts={maxReconnectAttempts}

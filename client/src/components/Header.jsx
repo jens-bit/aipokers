@@ -49,6 +49,17 @@ function AgentAvatarInline() {
   );
 }
 
+function PersonAvatarInline() {
+  return (
+    <div className="dr-game-header__avatar dr-game-header__avatar--person">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ display: 'block' }}>
+        <circle cx="12" cy="8" r="4" fill="rgba(255,255,255,0.55)" />
+        <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" fill="none" />
+      </svg>
+    </div>
+  );
+}
+
 function BackArrow() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -106,44 +117,66 @@ export function Header({
   historyCount, reconnectAttempt, maxReconnectAttempts,
   onToggleHistory, onLeave,
   agentName, isSpectator,
+  mode,  // 'spectator' | 'vs-ai' | 'vs-human'; falls back to isSpectator when absent
 }) {
   const inGame = hasConfig && (mySeat != null || isSpectator);
+  const gameMode = mode || (isSpectator ? 'spectator' : 'vs-ai');
 
   if (inGame) {
-    const eyebrow = isSpectator ? 'WATCHING' : 'AGENT VIEW';
-    const name = agentName || 'Agent';
     const isLive = game && game.street && game.street !== Streets.WAITING && game.street !== Streets.COMPLETE;
     const statusText = isLive
       ? `Hand ${game.handNumber} · ${STREET_LABEL[game.street] ?? game.street}`
       : (STATUS_LABEL[status] ?? status);
 
+    if (gameMode === 'spectator') {
+      return (
+        <header className="dr-game-header">
+          <button type="button" className="dr-game-header__back" onClick={onLeave} aria-label="Leave">
+            <BackArrow />
+          </button>
+          <AgentAvatarInline />
+          <div className="dr-game-header__info">
+            <div className="dr-game-header__eyebrow">WATCHING</div>
+            <div className="dr-game-header__name-row">
+              <span className="dr-game-header__name">{agentName || 'Agent'}</span>
+              <span className="dr-game-header__ai-pill">AI</span>
+            </div>
+            <div className="dr-game-header__sub">
+              <span className={isLive ? 'dr-game-header__status--live' : ''}>{statusText}</span>
+            </div>
+          </div>
+          <button type="button" className="dr-game-header__action" onClick={onLeave} aria-label="Leave table">
+            <SettingsIcon />
+          </button>
+        </header>
+      );
+    }
+
+    // vs-ai or vs-human: person silhouette, no AI pill
+    const eyebrow = gameMode === 'vs-ai' ? 'VS AI' : 'VS HUMAN';
+    const userName = agentName || 'You';
+    const opponentSeat = typeof mySeat === 'number' ? (mySeat + 1) % 2 : 1;
+    const opponentName = game?.seats?.[opponentSeat]?.displayName
+      || (gameMode === 'vs-ai' ? 'House' : 'Waiting for opponent');
+
     return (
       <header className="dr-game-header">
-        <button
-          type="button"
-          className="dr-game-header__back"
-          onClick={onLeave}
-          aria-label="Leave"
-        >
+        <button type="button" className="dr-game-header__back" onClick={onLeave} aria-label="Leave">
           <BackArrow />
         </button>
-        <AgentAvatarInline />
+        <PersonAvatarInline />
         <div className="dr-game-header__info">
           <div className="dr-game-header__eyebrow">{eyebrow}</div>
           <div className="dr-game-header__name-row">
-            <span className="dr-game-header__name">{name}</span>
-            <span className="dr-game-header__ai-pill">AI</span>
+            <span className="dr-game-header__name">{userName}</span>
           </div>
           <div className="dr-game-header__sub">
+            <span>vs {opponentName}</span>
+            <span className="dr-game-header__sep">·</span>
             <span className={isLive ? 'dr-game-header__status--live' : ''}>{statusText}</span>
           </div>
         </div>
-        <button
-          type="button"
-          className="dr-game-header__action"
-          onClick={onLeave}
-          aria-label="Leave table"
-        >
+        <button type="button" className="dr-game-header__action" onClick={onLeave} aria-label="Leave table">
           <SettingsIcon />
         </button>
       </header>
