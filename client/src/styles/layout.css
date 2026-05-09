@@ -620,12 +620,13 @@
  * TAB BAR — PLAY / AGENTS bottom navigation (pre-game only)
  * ============================================================ */
 
-/* Game view: shift fixed bars up to clear the bottom nav */
-.app .action-bar {
+/* Game view: chat sits just above nav; action-bar sits above chat.
+   Desktop (≥600px) both revert to static/grid-area so these only fire on mobile. */
+.app .chat-bar {
   bottom: var(--nav-h, 0px);
 }
-.app .chat-bar {
-  bottom: calc(var(--action-bar-h, 0px) + var(--nav-h, 0px));
+.app .action-bar {
+  bottom: calc(160px + var(--nav-h, 0px));
 }
 
 .pre-game {

@@ -1,4 +1,6 @@
 /* ─────────────────── chat bar ─────────────────── */
+/* Mobile: fixed between action-bar (above) and nav (below).
+   Desktop (≥600px): static, flows in-column. */
 .chat-bar {
   position: fixed;
   bottom: var(--action-bar-h, 0px);
@@ -6,20 +8,18 @@
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--max-w-mobile);
-  height: 180px;
+  height: 160px;
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--edge);
   background: var(--bg-secondary, var(--bg-primary));
   z-index: 45;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Reserve room for the fixed chat bar so table content isn't hidden beneath it.
-   At ≥600px the action bar is inline and the chat bar resets to static (see below). */
+/* Reserve room: nav + chat-bar (160px) + action-bar */
 @media (max-width: 599px) {
   .app__main {
-    padding-bottom: calc(var(--action-bar-h, 0px) + 180px + 8px);
+    padding-bottom: calc(var(--action-bar-h, 0px) + 160px + var(--nav-h, 56px) + 16px);
   }
 }
 
@@ -41,11 +41,11 @@
 .chat-bar__list {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 6px 12px;
+  padding: 5px 12px;
   font-size: 12px;
-  line-height: 1.45;
-  max-height: 132px;        /* ~6 visible lines */
-  min-height: 28px;
+  line-height: 1.4;
+  max-height: 112px;        /* ~5 visible lines */
+  min-height: 20px;
 }
 
 .chat-bar__empty {
@@ -110,14 +110,16 @@
 
 .chat-bar__send {
   height: 32px;
-  padding: 0 12px;
+  width: 36px;
+  padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
-  font-family: var(--font-label);
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   cursor: pointer;
 }
 

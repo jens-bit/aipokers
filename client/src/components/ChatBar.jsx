@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-// Compact in-game chat. Renders a scrollable message list and a single-line
-// input. Used by both seated players and spectators.
 export function ChatBar({ messages = [], onSend }) {
   const [text, setText] = useState('');
   const listRef = useRef(null);
 
-  // Auto-scroll to the newest message whenever the list grows.
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -24,7 +21,7 @@ export function ChatBar({ messages = [], onSend }) {
     <div className="chat-bar">
       <div ref={listRef} className="chat-bar__list">
         {messages.length === 0 ? (
-          <div className="chat-bar__empty">Say something to your opponent…</div>
+          <div className="chat-bar__empty">No messages yet…</div>
         ) : (
           messages.map((m, i) => (
             <div
@@ -46,10 +43,19 @@ export function ChatBar({ messages = [], onSend }) {
           maxLength={280}
           aria-label="Chat message"
         />
-        <button className="chat-bar__send" type="submit" disabled={!text.trim()}>
-          SEND
+        <button className="chat-bar__send" type="submit" disabled={!text.trim()} aria-label="Send">
+          <SendIcon />
         </button>
       </form>
     </div>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 2 11 13" />
+      <path d="m22 2-7 20-4-9-9-4 20-7z" />
+    </svg>
   );
 }
