@@ -1,6 +1,22 @@
 /* ============================================================
  * CREATE AGENT — chat UI for building a custom agent
  * ============================================================ */
+
+/* agent-chat.css defines .dr-chat-log with large bottom-padding for AgentChat's
+   fixed input. In CreateAgent, the form is naturally in-flow at the bottom, so
+   we override to remove that reserved space and let chips stack immediately. */
+.create-agent__log {
+  padding-bottom: 8px !important;
+}
+
+/* Suggestion chips rendered inside the log div, immediately after messages */
+.create-agent__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 2px;
+  margin-top: 4px;
+}
 .create-agent {
   display: flex;
   flex-direction: column;

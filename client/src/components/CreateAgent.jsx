@@ -153,7 +153,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
           </div>
         </header>
 
-        <div className="dr-chat-log" ref={logRef}>
+        <div className="dr-chat-log create-agent__log" ref={logRef}>
           {chat.map((msg, i) => (
             <div key={`${msg.role}-${i}`} className={`dr-chat-message dr-chat-message--${msg.role}`}>
               <span>{msg.content}</span>
@@ -162,6 +162,15 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
           {loading && (
             <div className="dr-chat-message dr-chat-message--assistant">
               <span className="dr-typing"><i /><i /><i /></span>
+            </div>
+          )}
+          {!createdAgent && !canCreateDraft && !loading && (
+            <div className="dr-chat-suggestions create-agent__chips">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button key={prompt} type="button" onClick={() => send(prompt)} disabled={loading || building}>
+                  {prompt}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -182,16 +191,6 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
             }}
             onKeepTuning={keepTuning}
           />
-        )}
-
-        {!createdAgent && !canCreateDraft && !loading && (
-          <div className="dr-chat-suggestions">
-            {QUICK_PROMPTS.map((prompt) => (
-              <button key={prompt} type="button" onClick={() => send(prompt)} disabled={loading || building}>
-                {prompt}
-              </button>
-            ))}
-          </div>
         )}
 
         {!createdAgent && (
