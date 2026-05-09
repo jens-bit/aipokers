@@ -4,7 +4,7 @@ import '../styles/home.css';
 
 const AGENT_ACCENTS = ['#00D4AA', '#9B7BFF', '#CDB380', '#FF7A8E'];
 
-export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay }) {
+export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay, onGoAgents }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deployingId, setDeployingId] = useState(null);
@@ -93,9 +93,7 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
             busyId={deployingId}
             onDeploy={deployAgent}
             onWatch={watchAgent}
-            // TODO: App.jsx prop change — add onGoAgents prop to navigate to the
-            // Agents tab; for now "View all" falls back to onCreateAgent
-            onViewAll={onCreateAgent}
+            onGoAgents={onGoAgents}
           />
         )}
       </div>
@@ -247,12 +245,12 @@ function HomeSession({ agent, onWatch }) {
 
 // ── My agents ─────────────────────────────────────────────────────────────
 
-function HomeMyAgents({ agents, busyId, onDeploy, onWatch, onViewAll }) {
+function HomeMyAgents({ agents, busyId, onDeploy, onWatch, onGoAgents }) {
   return (
     <div className="dr-home-my-agents">
       <div className="dr-home-my-agents__header">
         <span className="dr-label">MY AGENTS</span>
-        <button className="dr-home-my-agents__view-all" type="button" onClick={onViewAll}>
+        <button className="dr-home-my-agents__view-all" type="button" onClick={onGoAgents}>
           View all <ChevronRightSvg size={11} color="#00D4AA" />
         </button>
       </div>
@@ -277,7 +275,7 @@ function HomeMyAgents({ agents, busyId, onDeploy, onWatch, onViewAll }) {
               accent={accent}
               isPlaying={isPlaying}
               isBusy={busyId === agent.id}
-              onClick={() => (isPlaying ? onWatch(agent) : onDeploy(agent))}
+              onClick={onGoAgents}
             />
           );
         })}

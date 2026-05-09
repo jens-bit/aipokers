@@ -264,6 +264,7 @@ export default function App() {
                     setActiveTab('play');
                   }}
                   onGoPlay={() => setActiveTab('play')}
+                  onGoAgents={() => setActiveTab('agents')}
                 />
               )}
               {activeTab === 'agents' && (
