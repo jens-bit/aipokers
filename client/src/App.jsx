@@ -12,6 +12,7 @@ import { Card } from './components/Card.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { ChatBar } from './components/ChatBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
+import { HistoryTab } from './components/HistoryTab.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { AnalysisPanel } from './components/AnalysisPanel.jsx';
 import { Streets } from './lib/protocol.js';
@@ -297,7 +298,7 @@ export default function App() {
                   }}
                 />
               )}
-              {activeTab === 'history' && <HistoryPlaceholder />}
+              {activeTab === 'history' && <HistoryTab />}
               {activeTab === 'profile' && <ProfilePlaceholder />}
             </>
           )}

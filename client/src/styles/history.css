@@ -1,0 +1,234 @@
+/* ============================================================
+ * HISTORY TAB — agent hand history screen
+ * ============================================================ */
+
+.hist-screen {
+  padding-bottom: 92px;
+}
+
+.hist-header {
+  margin: 0 8px 16px;
+}
+
+.hist-header h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+.hist-header small {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+/* Empty / loading state */
+.hist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 10px;
+  text-align: center;
+  padding: 16px;
+  color: var(--text-muted);
+}
+
+.hist-empty__title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.hist-empty__sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Agent sections list */
+.hist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 8px;
+}
+
+/* Agent section card */
+.hist-agent {
+  background: var(--bg-secondary);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+
+.hist-agent__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.hist-agent__name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.hist-agent__count {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.hist-agent__loading,
+.hist-agent__empty,
+.hist-agent__error {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0 2px;
+}
+
+.hist-agent__error {
+  color: var(--error);
+}
+
+.hist-agent__hands {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Individual hand row */
+.hist-hand {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hist-hand:first-child {
+  border-top: 0;
+}
+
+.hist-hand__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  min-height: var(--tap);
+  /* Override global button text-transform */
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.hist-hand__toggle:hover {
+  color: var(--text-primary);
+}
+
+.hist-hand__num {
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.hist-hand__result {
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.hist-hand__result--won {
+  background: rgba(0, 212, 170, 0.15);
+  color: var(--accent);
+}
+
+.hist-hand__result--lost {
+  background: rgba(255, 77, 79, 0.12);
+  color: var(--error);
+}
+
+.hist-hand__pot {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.hist-hand__date {
+  font-size: 11px;
+  color: var(--text-faded);
+  flex-shrink: 0;
+}
+
+.hist-hand__chevron {
+  font-size: 8px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Expanded decisions */
+.hist-hand__decisions {
+  padding: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hist-hand__decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: baseline;
+}
+
+.hist-hand__street {
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.hist-hand__action {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hist-hand__reasoning {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.hist-hand__no-decisions {
+  font-size: 12px;
+  color: var(--text-faded);
+  padding: 4px 0 6px;
+}
