@@ -1,6 +1,7 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
+import { appendHand } from './handHistory.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -43,6 +44,7 @@ export class Table {
     // Per-hand decision log; reset at the start of each hand. Populated by
     // _maybeRunAiTurn before every AI action and consumed in _handCompleted.
     this.currentHandDecisions = [];                // [{ seat, street, action, reasoning, holeCards, community, timestamp }]
+    this.currentHandStartStacks = [];              // stack snapshot taken just before each startHand() call
 
     // Rolling chat history (last 20, newest last). Used only by sendChat ÔÇö
     // not replayed to clients on reconnect for simplicity.
@@ -334,6 +336,7 @@ export class Table {
     // Reset per-hand state before the new hand.
     this.currentHandDecisions = [];
     this.aiLastChatHand = Array(this.maxSeats).fill(-1);
+    this.currentHandStartStacks = this.game.seats.map((s) => s.stack);
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._resetAiInactivityTimer();
@@ -356,6 +359,7 @@ export class Table {
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
     this._reportHandResults(this.game.result);
+    this._persistHand();
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     if (this.game.seats.some((s) => s.stack <= 0)) {
@@ -414,6 +418,56 @@ export class Table {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }).catch((err) => console.error('[table] result report failed:', err.message));
+    }
+  }
+
+  // Append a completed-hand record to data/hands-{userId}.json for every
+  // human player at the table (AI seats are skipped). Silently no-ops when
+  // there are no human seats or when the game result is unavailable.
+  _persistHand() {
+    const g = this.game;
+    if (!g || !g.result) return;
+
+    const result = g.result;
+    const winner = result.winners?.[0]?.seat ?? null;
+    const reason = result.type === 'showdown' ? 'showdown' : 'fold';
+
+    const holeCards = {};
+    g.seats.forEach((s, i) => {
+      if (s.holeCards && s.holeCards.length > 0) {
+        holeCards[String(i)] = [...s.holeCards];
+      }
+    });
+
+    const players = g.seats.map((s, i) => ({
+      seat: i,
+      playerId: this.pending[i]?.playerId ?? s.playerId,
+      displayName: this.pending[i]?.displayName ?? s.playerId,
+      isAI: this.aiSeats[i] || false,
+      startStack: this.currentHandStartStacks[i] ?? 0,
+      endStack: s.stack,
+    }));
+
+    const hand = {
+      id: `hand_${Date.now()}_${this.tableId}`,
+      tableId: this.tableId,
+      handNumber: g.handNumber,
+      completedAt: new Date().toISOString(),
+      players,
+      result: { winner, pot: result.pot, reason },
+      decisions: [...this.currentHandDecisions],
+      communityCards: [...(g.community ?? [])],
+      holeCards,
+    };
+
+    for (let i = 0; i < this.maxSeats; i++) {
+      if (!this.pending[i] || this.aiSeats[i]) continue;
+      const userId = this.pending[i].playerId;
+      try {
+        appendHand(userId, hand);
+      } catch (err) {
+        console.error(`[table] hand persist failed for ${userId}:`, err.message);
+      }
     }
   }
 

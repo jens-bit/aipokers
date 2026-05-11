@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
 import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
+import { readHands } from './server/handHistory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -49,6 +50,12 @@ app.get('/api/stats', (_req, res) => {
     totalAgents,
     timestamp: new Date().toISOString(),
   });
+});
+
+// GET /api/history/:userId — last 20 completed hands for a user, newest first.
+app.get('/api/history/:userId', (req, res) => {
+  const hands = readHands(req.params.userId, 20);
+  res.json(hands);
 });
 
 // GET /openapi.json — OpenAPI 3.0 spec, CORS-open for AI agent discovery.
