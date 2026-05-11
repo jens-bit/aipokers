@@ -4,18 +4,19 @@
 
 /* agent-chat.css defines .dr-chat-log with large bottom-padding for AgentChat's
    fixed input. In CreateAgent, the form is naturally in-flow at the bottom, so
-   we override to remove that reserved space and let chips stack immediately. */
+   we override to remove that reserved space. */
 .create-agent__log {
   padding-bottom: 8px !important;
 }
 
-/* Suggestion chips rendered inside the log div, immediately after messages */
+/* Suggestion chips: margin: auto vertically centers them in the remaining flex
+   space of the log column (between greeting message and log bottom). */
 .create-agent__chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding: 4px 0 2px;
-  margin-top: 4px;
+  margin: auto 0;
 }
 .create-agent {
   display: flex;
@@ -144,13 +145,6 @@
   gap: 6px;
   padding: 8px 16px 4px;
   border-top: 1px solid var(--edge-soft);
-}
-
-.create-agent__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 0;
 }
 
 .create-agent__chip {
