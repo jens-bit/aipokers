@@ -68,6 +68,21 @@ function BackArrow() {
   );
 }
 
+function BrandSpade() {
+  return (
+    <svg width="13" height="16" viewBox="0 0 22 26" aria-label="Agentic Poker" style={{ display: 'block', flexShrink: 0 }}>
+      <path
+        d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
+        fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
+      />
+      <path
+        d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
+        stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -134,6 +149,7 @@ export function Header({
           <button type="button" className="dr-game-header__back" onClick={onLeave} aria-label="Leave">
             <BackArrow />
           </button>
+          <BrandSpade />
           <AgentAvatarInline />
           <div className="dr-game-header__info">
             <div className="dr-game-header__eyebrow">WATCHING</div>
@@ -164,6 +180,7 @@ export function Header({
         <button type="button" className="dr-game-header__back" onClick={onLeave} aria-label="Leave">
           <BackArrow />
         </button>
+        <BrandSpade />
         <PersonAvatarInline />
         <div className="dr-game-header__info">
           <div className="dr-game-header__eyebrow">{eyebrow}</div>
