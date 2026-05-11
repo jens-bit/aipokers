@@ -371,7 +371,7 @@ export default function App() {
             {error} · tap to dismiss
           </div>
         )}
-        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} />
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'} lastDecision={lastDecision} />
         {config?.isSpectator && (
           <AnalysisPanel
             chatMessages={chatMessages}
@@ -515,10 +515,26 @@ function formatAgentAmount(amount) {
   return amount == null ? '--' : amount;
 }
 
-function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator }) {
+function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator, mode, lastDecision }) {
   const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
   const seatCount = Math.max(game?.seats?.length || 2, 2);
   const opponentSeatIndex = (viewSeat + 1) % seatCount;
+
+  const coachTextRef = useRef(null);
+  const [coachVisible, setCoachVisible] = useState(false);
+  const coachTimerRef = useRef(null);
+
+  const showCoach = mode === 'vs-ai' || mode === 'spectator';
+
+  useEffect(() => {
+    if (!showCoach) return;
+    if (!lastDecision?.reasoning || lastDecision.seat !== opponentSeatIndex) return;
+    coachTextRef.current = lastDecision.reasoning;
+    setCoachVisible(true);
+    clearTimeout(coachTimerRef.current);
+    coachTimerRef.current = setTimeout(() => setCoachVisible(false), 4000);
+    return () => clearTimeout(coachTimerRef.current);
+  }, [lastDecision, showCoach, opponentSeatIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inHand = !!game && [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN].includes(game.street);
   const blindSeats = game ? resolveBlindSeats(game) : { smallBlindSeat: -1, bigBlindSeat: -1 };
@@ -569,6 +585,13 @@ function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpe
           inHand={inHand}
           folded={oppData.folded}
         />
+
+        {coachVisible && coachTextRef.current && (
+          <div className="dr-coach-bubble" role="status" aria-live="polite">
+            <span className="dr-coach-bubble__tag">REASONING</span>
+            <span className="dr-coach-bubble__text">{coachTextRef.current}</span>
+          </div>
+        )}
 
         <div className="dr-pot" style={{ marginTop: 14 }}>
           <small>POT</small>
