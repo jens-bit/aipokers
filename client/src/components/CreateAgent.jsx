@@ -153,7 +153,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
           </div>
         </header>
 
-        <div className="dr-chat-log create-agent__log" ref={logRef}>
+        <div className={`dr-chat-log create-agent__log${!createdAgent && !canCreateDraft && !loading ? ' create-agent__log--with-chips' : ''}`} ref={logRef}>
           {chat.map((msg, i) => (
             <div key={`${msg.role}-${i}`} className={`dr-chat-message dr-chat-message--${msg.role}`}>
               <span>{msg.content}</span>
@@ -164,16 +164,17 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
               <span className="dr-typing"><i /><i /><i /></span>
             </div>
           )}
-          {!createdAgent && !canCreateDraft && !loading && (
-            <div className="dr-chat-suggestions create-agent__chips">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button key={prompt} type="button" onClick={() => send(prompt)} disabled={loading || building}>
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
+
+        {!createdAgent && !canCreateDraft && !loading && (
+          <div className="create-agent__chips-center">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button key={prompt} className="create-agent__chip" type="button" onClick={() => send(prompt)} disabled={loading || building}>
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
 
         {createdAgent && (
           <CreatedAgentCard
