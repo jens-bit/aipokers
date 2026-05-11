@@ -2,6 +2,13 @@
  * CREATE AGENT — chat UI for building a custom agent
  * ============================================================ */
 
+/* Give dr-screen--chat a viewport-relative min-height so the flex column
+   has a definite height; this makes flex: 1 on log/chips-center work. */
+.dr-screen--chat {
+  min-height: calc(100vh - var(--nav-h, 56px) - 56px);
+  min-height: calc(100dvh - var(--nav-h, 56px) - 56px);
+}
+
 /* agent-chat.css defines .dr-chat-log with large bottom-padding for AgentChat's
    fixed input. In CreateAgent the input is in-flow, so we clear that space. */
 .create-agent__log {
