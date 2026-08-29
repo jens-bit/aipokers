@@ -599,6 +599,7 @@ export class Table {
           decisions,
           handNumber,
           seats: seatSnapshots,
+          bb: this.bigBlind,
         });
       } catch (err) {
         console.error('[table] result report failed:', err.message);

@@ -13,6 +13,7 @@ import {
   applyPepTalk as applyMoodPepTalk,
   isSoothable as isMoodSoothable,
 } from '../agent/mood.js';
+import { formatMoment } from '../agent/moment.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -293,12 +294,13 @@ export function getAgentMemoryContext(agent) {
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
 
 // Record a hand result for an agent in-process.
-export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [] } = {}) {
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20 } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
 
   ensureStats(agent);
+  ensureMood(agent);
   const s = agent.stats;
   s.handsPlayed = (s.handsPlayed ?? 0) + 1;
   if (won) s.handsWon = (s.handsWon ?? 0) + 1;
@@ -320,6 +322,17 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
     { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats },
     ...agent.recentHands,
   ].slice(0, 20);
+
+  // Write a fresh moment line for the floor UI. Uses the mood at the time
+  // the hand was recorded — an event-driven mood update may fire right
+  // after this via table._updateAgentMoods and refresh the state.
+  agent.lastMoment = formatMoment({
+    won: !!won,
+    potChips: Number.isFinite(potSize) ? potSize : 0,
+    bb,
+    decisions,
+    moodState: agent.mood?.state ?? 'neutral',
+  });
 
   saveStore(userId ?? 'anon');
   return agent;
@@ -480,6 +493,26 @@ export function setAgentMood(agentId, userId, newMood) {
   return agent.mood;
 }
 
+// Compute the fields the floor UI needs — mood, lastMoment, unseenRecap,
+// presence — on top of the persisted agent record. Backfills defaults for
+// legacy agents so a first-load call after upgrade still returns a
+// well-shaped object.
+export function presentAgent(agent) {
+  if (!agent) return agent;
+  ensureMood(agent);
+  ensureStats(agent);
+  ensureProfile(agent);
+  const presence = (agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting';
+  return {
+    ...agent,
+    mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
+    lastMoment: agent.lastMoment ?? null,
+    unseenRecap: !!agent.unseenRecap,
+    proposal: agent.proposal ?? null,
+    presence,
+  };
+}
+
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
 // Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
 // Persists on soothed=true.
@@ -591,16 +624,17 @@ export function installAgentProfileRoutes(app) {
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
-      agents: profile.agents,
+      agents: profile.agents.map(presentAgent),
       chat: profile.chat,
     });
   });
 
-  // GET /api/agents?userId=... — agents array only
+  // GET /api/agents?userId=... — agents array with the floor-UI fields
+  // (mood, lastMoment, unseenRecap, proposal, presence) folded in.
   app.get('/api/agents', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
-    res.json({ agents: profile.agents });
+    res.json({ agents: profile.agents.map(presentAgent) });
   });
 
   // DELETE /api/agents/:agentId?userId=...
@@ -741,8 +775,23 @@ export function installAgentProfileRoutes(app) {
     if (agent.activeTableId) activeTables.delete(agent.activeTableId);
     agent.status = 'idle';
     agent.activeTableId = null;
+    agent.unseenRecap = true;
     saveStore(userId);
-    res.json(agent);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
+  // owner has viewed the session recap. Mutating → auth-gated like the
+  // other write endpoints (see SEC-2).
+  app.post('/api/agents/:agentId/seen', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    agent.unseenRecap = false;
+    saveStore(userId);
+    res.json(presentAgent(agent));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message
