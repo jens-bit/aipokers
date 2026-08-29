@@ -20,7 +20,7 @@ function lastUser(chat) {
   return [...chat].reverse().find((m) => m.role === 'user')?.content || '';
 }
 
-export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existingAgent = null }) {
+export function CreateAgent({ onBack, onDone, onDeploy, onCreated, agentName = null, existingAgent = null }) {
   const userId = getUserId();
 
   const [chat, setChat] = useState([]);
@@ -35,6 +35,12 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
 
   const userTurns = chat.filter((m) => m.role === 'user').length;
   const canCreateDraft = !createdAgent && !loading && !building && userTurns >= 2;
+
+  // Lets a host surface (the desktop takeover) hand off once the agent exists.
+  // Unset on mobile, where CreatedAgentCard below handles the same moment.
+  useEffect(() => {
+    if (createdAgent) onCreated?.(createdAgent);
+  }, [createdAgent, onCreated]);
   const activeAgentId = localAgent?.id ?? null;
   const subtitle = agentName || localAgent?.name || createdAgent?.name || 'Build agent v1';
 
