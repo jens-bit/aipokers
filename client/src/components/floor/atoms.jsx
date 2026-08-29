@@ -3,6 +3,7 @@
 // are verbatim; only React plumbing (useId, class names) is adapted.
 
 import { useId } from 'react';
+import { pctX, pctY } from './layouts.js';
 
 export const M_TEAL = '#00D4AA';
 export const M_GOLD = '#CDB380';
@@ -145,9 +146,10 @@ export function GhostChip({ name, accent = M_TEAL, state = 'resting' }) {
 }
 
 // Identical anatomy at both scales — only the type steps down.
-export function PotTicker({ amount, mini }) {
+// x/y are floor coordinates; see layouts.js for the coordinate space.
+export function PotTicker({ x, y, amount, mini }) {
   return (
-    <div className={`floor-pot${mini ? ' is-mini' : ''}`}>
+    <div className={`floor-pot${mini ? ' is-mini' : ''}`} style={{ left: pctX(x), top: pctY(y) }}>
       <span className="floor-pot__label">Pot</span>
       <span className="floor-pot__amount">{amount}</span>
     </div>
@@ -193,7 +195,7 @@ export function StateTag({ state = 'resting', compact }) {
 
 // A ghost with its chip, drink and floor shadow — the unit placed in a zone.
 export function Occupant({
-  name, accent = M_TEAL, mood = 'neutral', state = 'resting',
+  x, y, name, accent = M_TEAL, mood = 'neutral', state = 'resting',
   size = 56, speed = 5, drink = false, dim = false, onClick,
 }) {
   const m = MOODS[safeMood(mood)];
@@ -202,6 +204,7 @@ export function Occupant({
     <button
       type="button"
       className={`floor-occupant${dim ? ' is-dim' : ''}`}
+      style={{ left: pctX(x), top: pctY(y) }}
       onClick={onClick}
       aria-label={`${name} — ${m.label.toLowerCase()}`}
     >
