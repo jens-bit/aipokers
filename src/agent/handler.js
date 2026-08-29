@@ -45,6 +45,16 @@ The "reasoning" field is required for every decision: one punchy sentence,
 max 12 words, why you made this specific decision right now.`;
 }
 
+// Coarse VPIP → label bucket. Used only in the OPPONENT READ briefing line.
+function vpipLabel(vpip) {
+  if (!Number.isFinite(vpip)) return 'unknown';
+  if (vpip < 15) return 'very tight';
+  if (vpip < 25) return 'tight';
+  if (vpip < 45) return 'normal';
+  if (vpip < 70) return 'loose';
+  return 'very loose';
+}
+
 // Build the per-turn user message describing the current game state.
 function buildUserPrompt(gs) {
   const board = gs.community.length > 0 ? gs.community.join(' ') : 'none (preflop)';
@@ -98,12 +108,31 @@ function buildUserPrompt(gs) {
   }
   const policyBlock = policyLines.length > 0 ? `\n${policyLines.join('\n')}` : '';
 
+  // Opponent reads (deterministic, from the last-N-hands ring in
+  // opponentStats). Advisory: gives the model the ammunition to actually
+  // exploit weak players instead of guessing based on hand strength alone.
+  const readLines = [];
+  if (Array.isArray(gs.opponentReads)) {
+    for (const r of gs.opponentReads) {
+      if (!r || !Number.isFinite(r.handsObserved) || r.handsObserved < 10) continue;
+      const label = vpipLabel(r.vpip);
+      const afText = Number.isFinite(r.af) ? r.af.toFixed(1) : (r.af === Infinity ? 'inf (never calls)' : '0');
+      const foldToRaise = Number.isFinite(r.foldToRaise) ? `folds to raises ${r.foldToRaise.toFixed(0)}%` : 'no fold-to-raise data yet';
+      const wtsd = Number.isFinite(r.wentToShowdown) ? `goes to showdown ${r.wentToShowdown.toFixed(0)}%` : '';
+      readLines.push(
+        `OPPONENT READ (${r.displayName || r.playerId}, ${r.handsObserved} hands): ` +
+        `VPIP ${r.vpip.toFixed(0)}% (${label}), PFR ${r.pfr.toFixed(0)}%, AF ${afText}, ${foldToRaise}, ${wtsd}.`,
+      );
+    }
+  }
+  const readsBlock = readLines.length > 0 ? `\n${readLines.join('\n')}` : '';
+
   return `STREET: ${gs.street.toUpperCase()}
 HOLE CARDS: ${gs.holeCards.join(' ')}
 BOARD: ${board}
 POT: ${gs.pot}  MY STACK: ${gs.myStack}  OPP STACK: ${gs.oppStack}
 MY CONTRIB THIS STREET: ${gs.myContrib}
-POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}
+POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${readsBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
 The math and policy lines above are ADVISORY server hints, not commands.

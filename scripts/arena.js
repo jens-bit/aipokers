@@ -22,11 +22,21 @@ import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
 import { getAgentAction } from '../src/agent/handler.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
+import {
+  recordHand as recordHandForOpponentStats,
+  getRead as getOpponentRead,
+  reset as resetOpponentStats,
+  setPersistEnabled as setOpponentStatsPersist,
+} from '../src/server/opponentStats.js';
+
+// Arena never pollutes production opponent state.
+setOpponentStatsPersist(false);
+resetOpponentStats();
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000 };
+  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000, reads: true };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--pairs')     out.pairs    = parseInt(argv[++i], 10);
@@ -35,8 +45,9 @@ function parseArgs(argv) {
     else if (a === '--sb')   out.sb       = parseInt(argv[++i], 10);
     else if (a === '--bb')   out.bb       = parseInt(argv[++i], 10);
     else if (a === '--buy-in') out.buyIn  = parseInt(argv[++i], 10);
+    else if (a === '--no-reads') out.reads = false;
     else if (a === '--help' || a === '-h') {
-      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"]');
+      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads]');
       process.exit(0);
     }
   }
@@ -92,8 +103,10 @@ function collectDecisionMetrics(stats, decisions) {
 
 // ── Core: play one hand between two agent bundles on a fixed deck ────────────
 // A bundle is { strategy: string, profile: {tightness,aggression,bluffFreq,discipline} }.
+// nameBySeat is [nameForSeat0, nameForSeat1] — used as the opponentStats
+// playerId so reads follow the archetype across mirrored deck swaps.
 
-async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -107,10 +120,10 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
   game.startHand(deck);
 
   const decisionsBySeat = [[], []];
+  const actionLog = [];  // { seat, street, actionType } in game order
   const bundles = [seat0Bundle, seat1Bundle];
 
-  // Per-street raise counter (bets + raises) — matches table.js behavior so
-  // the anti-min-raise-war briefing line fires the same way.
+  // Per-street raise counter — same shape/semantics as table.js.
   const raiseCounts = {};
   const streetKey = () => `${game.handNumber}:${game.street}`;
   const bumpIfAggressive = (a) => {
@@ -152,6 +165,14 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
       position,
     });
 
+    // Fetch a read on the OTHER seat, if enabled and enough data.
+    const opponentReads = [];
+    if (readsEnabled) {
+      const oppName = nameBySeat[(seat + 1) % 2];
+      const read = getOpponentRead(oppName);
+      if (read && read.handsObserved >= 10) opponentReads.push(read);
+    }
+
     const gameState = {
       holeCards: me.holeCards,
       community: game.community,
@@ -176,13 +197,12 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
       spr:     game.pot > 0 ? me.stack / game.pot : null,
       policy,
       raisesThisStreet: raiseCounts[streetKey()] ?? 0,
+      opponentReads,
       opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
     };
 
     const { action, reasoning } = await getAgentAction(gameState, bundles[seat].strategy, '');
     const streetAtDecision = game.street;
-    // "fallback" here covers BOTH handler-level fallbacks (no API key / API
-    // error / parse failure) and engine rejections handled below.
     let fallback = /fallback|no API key|parse failure/i.test(reasoning || '');
 
     let appliedAction = action;
@@ -196,10 +216,11 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
                ?? { type: Actions.FOLD };
       appliedAction = { type: alt.type, ...(alt.amount ? { amount: alt.amount } : {}) };
       try { game.act(seat, appliedAction); } catch {
-        // If even the safe fallback fails, break to avoid an infinite loop.
         break;
       }
     }
+
+    actionLog.push({ seat, street: streetAtDecision, actionType: appliedAction.type });
 
     decisionsBySeat[seat].push({
       street: streetAtDecision,
@@ -213,12 +234,17 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
 
   const finalStack0 = game.seats[0].stack;
   const finalStack1 = game.seats[1].stack;
+  const showdownSeats = Array.isArray(game.result?.showdown)
+    ? game.result.showdown.map((s) => s.seat).filter((n) => Number.isInteger(n))
+    : [];
 
   return {
     seat0Net: finalStack0 - buyIn,
     seat1Net: finalStack1 - buyIn,
     seat0Decisions: decisionsBySeat[0],
     seat1Decisions: decisionsBySeat[1],
+    actionLog,
+    showdownSeats,
     handNumber: game.handNumber,
     result: game.result,
   };
@@ -226,17 +252,43 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
 
 // ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
 
-async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn }) {
+async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled }) {
   const statsA = newStats();
   const statsB = newStats();
+
+  // Clean slate between matchups so reads about C never leak into A vs B.
+  resetOpponentStats();
 
   for (let p = 0; p < pairs; p++) {
     const deck = freshShuffledDeck();
 
     // Hand 1: A in seat 0, B in seat 1
-    const h1 = await playHand({ deck, seat0Bundle: bundleA, seat1Bundle: bundleB, sb, bb, buyIn });
+    const h1 = await playHand({
+      deck, seat0Bundle: bundleA, seat1Bundle: bundleB,
+      nameBySeat: [nameA, nameB],
+      sb, bb, buyIn, readsEnabled,
+    });
+    // Feed opponent-stats before the mirrored hand so hand 2's reads can
+    // already benefit from hand 1's evidence.
+    recordHandForOpponentStats({
+      playerIdsBySeat: [nameA, nameB],
+      displayNamesBySeat: [nameA, nameB],
+      actionLog: h1.actionLog,
+      showdownSeats: h1.showdownSeats,
+    });
+
     // Hand 2: B in seat 0, A in seat 1 (mirrored)
-    const h2 = await playHand({ deck, seat0Bundle: bundleB, seat1Bundle: bundleA, sb, bb, buyIn });
+    const h2 = await playHand({
+      deck, seat0Bundle: bundleB, seat1Bundle: bundleA,
+      nameBySeat: [nameB, nameA],
+      sb, bb, buyIn, readsEnabled,
+    });
+    recordHandForOpponentStats({
+      playerIdsBySeat: [nameB, nameA],
+      displayNamesBySeat: [nameB, nameA],
+      actionLog: h2.actionLog,
+      showdownSeats: h2.showdownSeats,
+    });
 
     // Per-agent totals across both halves
     const aNet = h1.seat0Net + h2.seat1Net;
@@ -361,6 +413,7 @@ async function main() {
   }
   console.log(`[arena] matchups: ${matchups.length}, pairs each: ${args.pairs} (${args.pairs * 2} hands per matchup)`);
   console.log(`[arena] blinds: ${args.sb}/${args.bb}, buy-in: ${args.buyIn}`);
+  console.log(`[arena] opponent reads: ${args.reads ? 'ENABLED' : 'DISABLED (--no-reads)'}`);
   console.log(`[arena] ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'set' : 'NOT SET (all decisions will fallback)'}\n`);
 
   // Aggregate stats per profile name across all matchups it participates in.
@@ -375,6 +428,7 @@ async function main() {
       nameB: b, bundleB: bundles[b],
       pairs: args.pairs,
       sb: args.sb, bb: args.bb, buyIn: args.buyIn,
+      readsEnabled: args.reads,
     });
     matchupSummaries.push({
       a, b,

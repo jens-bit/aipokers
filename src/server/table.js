@@ -2,9 +2,10 @@ import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
-import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
+import { recordHandResult, runMemoryUpdate, getMemoryContext, updateComputedMemory } from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
+import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -55,6 +56,10 @@ export class Table {
     // _maybeRunAiTurn before every AI action and consumed in _handCompleted.
     this.currentHandDecisions = [];                // [{ seat, street, action, reasoning, holeCards, community, timestamp }]
     this.currentHandStartStacks = [];              // stack snapshot taken just before each startHand() call
+
+    // Full per-hand action log across ALL seats (human + AI). Feeds
+    // opponentStats after each hand so reads reflect every actor.
+    this.currentHandActionLog = [];                // [{ seat, street, actionType }]
 
     // Rolling chat history (last 20, newest last). Used only by sendChat ÔÇö
     // not replayed to clients on reconnect for simplicity.
@@ -353,9 +358,11 @@ export class Table {
 
     // Reset per-hand state before the new hand.
     this.currentHandDecisions = [];
+    this.currentHandActionLog = [];
     this.aiLastChatHand = Array(this.maxSeats).fill(-1);
     this.currentHandStartStacks = this.game.seats.map((s) => s.stack);
     this._raiseCounts = {};
+    this._streetAtActionCapture = null;
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._resetAiInactivityTimer();
@@ -367,14 +374,16 @@ export class Table {
     if (!this.game) throw new Error('hand not in progress');
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
+    const streetBefore = this.game.street;
     this.game.act(seat, action);
     this._incrementRaiseCountIfAggressive(action);
+    this._logAction(seat, streetBefore, action);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
   }
 
-  // ── Per-street raise counter (used by the policy briefing) ──────────────
+  // ── Per-street raise counter + per-hand action log ──────────────────────
   _streetKey() {
     return this.game ? `${this.game.handNumber}:${this.game.street}` : null;
   }
@@ -389,6 +398,12 @@ export class Table {
     const k = this._streetKey();
     return k ? (this._raiseCounts[k] ?? 0) : 0;
   }
+  // Capture actionType against the street it was DECIDED on (not the street
+  // Game may have advanced to). Feeds opponentStats in _handCompleted.
+  _logAction(seat, street, action) {
+    if (!action?.type) return;
+    this.currentHandActionLog.push({ seat, street, actionType: action.type });
+  }
 
   _handCompleted() {
     this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
@@ -396,6 +411,7 @@ export class Table {
     // because subsequent hands will reset the game's seat state.
     this._reportHandResults(this.game.result);
     this._persistHand();
+    this._recordOpponentStats(this.game.result);
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     if (this.game.seats.some((s) => s.stack <= 0)) {
@@ -407,6 +423,27 @@ export class Table {
       this.pending.every((p, i) => p === null || this.aiSeats[i]);
     if (allFilledAreAi) {
       setTimeout(() => this.maybeStartHand(), 2500);
+    }
+  }
+
+  // Feed the just-completed hand to the opponent-stats ring buffer so
+  // reads are available to future decisions at this or any other table.
+  _recordOpponentStats(result) {
+    if (!this.game) return;
+    const playerIdsBySeat = this.pending.map((p) => p?.playerId ?? null);
+    const displayNamesBySeat = this.pending.map((p) => p?.displayName ?? p?.playerId ?? null);
+    const showdownSeats = Array.isArray(result?.showdown)
+      ? result.showdown.map((s) => s.seat).filter((n) => Number.isInteger(n))
+      : [];
+    try {
+      recordHandForOpponentStats({
+        playerIdsBySeat,
+        displayNamesBySeat,
+        actionLog: this.currentHandActionLog,
+        showdownSeats,
+      });
+    } catch (err) {
+      console.error('[table] opponent stats record failed:', err.message);
     }
   }
 
@@ -503,14 +540,23 @@ export class Table {
     }
   }
 
-  // For each AI seat with an agentId, increment the local hand counter and
-  // fire an /update-memory call every 5 hands. Then refresh the cached
-  // memoryContext so the next decision uses the new self-knowledge.
+  // For each AI seat with an agentId: every hand refresh the computed
+  // (deterministic) memory + cached memoryContext. Every 20 hands, also
+  // trigger the LLM narrative refresh (fed the computed stats).
   _maybeTriggerMemoryUpdates() {
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.agentIds[seat]) continue;
       this.aiHandsPlayed[seat] = (this.aiHandsPlayed[seat] ?? 0) + 1;
-      if (this.aiHandsPlayed[seat] > 0 && this.aiHandsPlayed[seat] % 5 === 0) {
+      try {
+        updateComputedMemory(this.agentIds[seat], this.agentUserIds[seat]);
+      } catch (err) {
+        console.error('[table] computed memory update failed:', err.message);
+      }
+      // Refresh the cached memoryContext string (so the next decision picks
+      // up the latest computed stats even without a narrative update).
+      this._refreshAgentMemory(seat);
+
+      if (this.aiHandsPlayed[seat] > 0 && this.aiHandsPlayed[seat] % 20 === 0) {
         this._triggerMemoryUpdate(seat);
       }
     }
@@ -774,6 +820,18 @@ export class Table {
     });
     const raisesThisStreet = this._getRaiseCountThisStreet();
 
+    // Read summaries for every OTHER seat with ≥10 observed hands. Handed
+    // to the briefing so the LLM can adapt sizing/fold decisions to how
+    // this specific opponent has been playing.
+    const opponentReads = [];
+    for (let i = 0; i < this.pending.length; i++) {
+      if (i === aiSeat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      const read = getOpponentRead(pid);
+      if (read && read.handsObserved >= 10) opponentReads.push(read);
+    }
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -798,6 +856,7 @@ export class Table {
       spr,
       policy,
       raisesThisStreet,
+      opponentReads,
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
@@ -846,9 +905,11 @@ export class Table {
       timestamp: Date.now(),
     });
 
+    const streetBefore = this.game.street;
     try {
       this.game.act(aiSeat, action);
       this._incrementRaiseCountIfAggressive(action);
+      this._logAction(aiSeat, streetBefore, action);
       this._broadcastDecision({
         seat: aiSeat,
         action,
@@ -883,6 +944,7 @@ export class Table {
       const fallbackAction = { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) };
       try {
         this.game.act(aiSeat, fallbackAction);
+        this._logAction(aiSeat, streetBefore, fallbackAction);
         // Replace the recorded decision with the action that actually played
         // out so stats reflect the engine's view.
         const lastIdx = this.currentHandDecisions.length - 1;

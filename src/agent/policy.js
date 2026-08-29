@@ -202,7 +202,14 @@ export function sizingDirectives(profile) {
     : p.aggression >= 30
       ? 'value bet strong hands for two streets; give up on the river without a plan'
       : 'pot control with medium strength; only get chips in with the goods';
-  const text = `open ~${openBB.toFixed(1)}bb; c-bet ~${Math.round(cbetFraction * 100)}% pot; ${valueGuidance}`;
+  // Anti-pathology sanity nudge for maniac-grade aggression (≥ 90): the
+  // baseline "always bet" wording drove AF toward infinity (never-calls
+  // pathology). Explicit permission to call keeps the archetype loose
+  // without collapsing to raise-only.
+  const maniacGuard = p.aggression >= 90
+    ? '; calling is a legitimate action when the price is right — do not raise-or-fold every spot'
+    : '';
+  const text = `open ~${openBB.toFixed(1)}bb; c-bet ~${Math.round(cbetFraction * 100)}% pot; ${valueGuidance}${maniacGuard}`;
   return {
     openBB,
     cbetFraction,
