@@ -15,6 +15,8 @@ import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HistoryTab } from './components/HistoryTab.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { AnalysisPanel } from './components/AnalysisPanel.jsx';
+import { DesktopShell } from './components/desktop/DesktopShell.jsx';
+import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 
 function resolveWsUrl() {
@@ -58,6 +60,8 @@ export default function App() {
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
+  const isDesktop = useIsDesktop();
+  const [desktopFocusTable, setDesktopFocusTable] = useState(false);
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -143,6 +147,7 @@ export default function App() {
 
   const handleLeave = useCallback(() => {
     callAgentFinish(activeAgentIdRef.current); // use ref — never stale
+    setDesktopFocusTable(false);
     disconnect();
   }, [disconnect, callAgentFinish]);
 
@@ -164,6 +169,10 @@ export default function App() {
     lastResultKeyRef.current = key;
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
+
+  if (isDesktop && !desktopFocusTable) {
+    return <DesktopShell />;
+  }
 
   if (!config) {
     const playWatchPayload = (payload) => {
