@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
 import { Table } from './table.js';
+import { getAgentProfile } from './agentProfiles.js';
 
 // Either pass `server` (an existing http.Server, e.g. shared with Express) to
 // attach the WebSocket upgrade handler to it, or pass `port`/`host` to create
@@ -66,12 +67,14 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // or schedule House as a fallback opponent if no one else joins.
             console.log(`[JOIN] AI_ENABLED=${process.env.AI_ENABLED}, wantAI=${msg.wantAI} (type: ${typeof msg.wantAI}), agentDisplayName=${msg.agentDisplayName ?? 'n/a'}`);
             if (msg.wantAI === true) {
+              const agentProfile = msg.agentId ? getAgentProfile(msg.agentId, msg.userId) : null;
               table.maybeAutoSeatAI({
                 agentStrategy: msg.agentStrategy ?? null,
                 agentDisplayName: msg.agentDisplayName ?? null,
                 agentId: msg.agentId ?? null,
                 userId: msg.userId ?? null,
                 memoryContext: msg.memoryContext ?? '',
+                agentProfile,
               });
             } else {
               table.scheduleHouseFallback();
@@ -83,12 +86,14 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
           case ClientMsg.WATCH: {
             if (!msg.tableId) throw new Error('tableId required');
             const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20, maxSeats: msg.maxSeats });
+            const agentProfile = msg.agentId ? getAgentProfile(msg.agentId, msg.userId) : null;
             const spectatorSeat = table.addSpectator(ws, {
               agentStrategy: msg.agentStrategy ?? null,
               displayName: msg.displayName,
               agentId: msg.agentId ?? null,
               userId: msg.userId ?? null,
               memoryContext: msg.memoryContext ?? '',
+              agentProfile,
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });

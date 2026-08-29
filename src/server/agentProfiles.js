@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware } from './auth.js';
 import { rateLimiter } from './rateLimit.js';
+import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -59,25 +60,59 @@ Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be dir
 
 After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>"}`;
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
+Calibration hints — pick numbers that MATCH the style and the strategy text you just wrote:
+- A tight nit ≈ tightness 85-95, aggression 40-60, bluffFreq 3-10, discipline 80-95.
+- A calling station ≈ tightness 10-20, aggression 5-15, bluffFreq 0-5, discipline 30-50.
+- A tight-aggressive (TAG) ≈ tightness 65-80, aggression 65-80, bluffFreq 20-35, discipline 70-85.
+- A loose-aggressive maniac ≈ tightness 5-20, aggression 90-100, bluffFreq 50-70, discipline 15-30.`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Extract a numeric profile from a build/PATCH payload. Falls back to
+// inferProfileFromStyleRisk when any of the four sliders are missing so old
+// LLM outputs that don't emit the sliders still yield a coherent profile.
+function extractProfile(agentData) {
+  const raw = {
+    tightness:  agentData?.tightness,
+    aggression: agentData?.aggression,
+    bluffFreq:  agentData?.bluffFreq,
+    discipline: agentData?.discipline,
+  };
+  const hasAll = ['tightness','aggression','bluffFreq','discipline'].every((k) => Number.isFinite(Number(raw[k])));
+  if (hasAll) return normalizeProfile(raw);
+  const inferred = inferProfileFromStyleRisk(agentData?.style, agentData?.risk);
+  return normalizeProfile({
+    tightness:  Number.isFinite(Number(raw.tightness))  ? raw.tightness  : inferred.tightness,
+    aggression: Number.isFinite(Number(raw.aggression)) ? raw.aggression : inferred.aggression,
+    bluffFreq:  Number.isFinite(Number(raw.bluffFreq))  ? raw.bluffFreq  : inferred.bluffFreq,
+    discipline: Number.isFinite(Number(raw.discipline)) ? raw.discipline : inferred.discipline,
+  });
+}
 
 // Update an agent in-place if existingAgentId is set, otherwise push a new one.
 function commitAgent(profile, existingAgentId, agentData) {
   let agent = { ...agentData };
+  const numericProfile = extractProfile(agentData);
   if (existingAgentId) {
     const existing = profile.agents.find((a) => a.id === existingAgentId);
     if (existing) {
-      Object.assign(existing, { name: agent.name, style: agent.style, risk: agent.risk, strategy: agent.strategy });
+      Object.assign(existing, {
+        name: agent.name,
+        style: agent.style,
+        risk: agent.risk,
+        strategy: agent.strategy,
+        profile: numericProfile,
+      });
       agent = existing;
-      console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk})`);
+      console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
       return agent;
     }
   }
   agent.id = 'agent_' + Date.now().toString(36);
   agent.status = 'idle';
   agent.activeTableId = null;
+  agent.profile = numericProfile;
   agent.stats = {
     handsPlayed: 0,
     handsWon: 0,
@@ -94,8 +129,15 @@ function commitAgent(profile, existingAgentId, agentData) {
     lastUpdated: null,
   };
   profile.agents.push(agent);
-  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk})`);
+  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
   return agent;
+}
+
+// Backfill the numeric profile on agents built before this feature. Mirrors
+// ensureStats/ensureMemory. Idempotent.
+export function ensureProfile(agent) {
+  if (agent.profile && Number.isFinite(agent.profile.tightness)) return;
+  agent.profile = inferProfileFromStyleRisk(agent.style, agent.risk);
 }
 
 // Lazily backfill stats fields for agents that pre-date this feature.
@@ -257,6 +299,16 @@ export function getMemoryContext(agentId, userId) {
   if (!agent) return '';
   ensureMemory(agent);
   return getAgentMemoryContext(agent);
+}
+
+// Return an agent's numeric policy profile (backfilled from style/risk if
+// the agent pre-dates the profile feature). Null if the agent doesn't exist.
+export function getAgentProfile(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureProfile(agent);
+  return agent.profile;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

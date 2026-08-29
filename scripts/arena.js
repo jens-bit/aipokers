@@ -21,6 +21,7 @@ import { Game, Streets, Actions } from '../src/engine/game.js';
 import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
 import { getAgentAction } from '../src/agent/handler.js';
+import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
@@ -89,9 +90,10 @@ function collectDecisionMetrics(stats, decisions) {
   }
 }
 
-// ── Core: play one hand between two strategies on a fixed deck ────────────────
+// ── Core: play one hand between two agent bundles on a fixed deck ────────────
+// A bundle is { strategy: string, profile: {tightness,aggression,bluffFreq,discipline} }.
 
-async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, sb, bb, buyIn }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -105,7 +107,18 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
   game.startHand(deck);
 
   const decisionsBySeat = [[], []];
-  const strategies = [seat0Strategy, seat1Strategy];
+  const bundles = [seat0Bundle, seat1Bundle];
+
+  // Per-street raise counter (bets + raises) — matches table.js behavior so
+  // the anti-min-raise-war briefing line fires the same way.
+  const raiseCounts = {};
+  const streetKey = () => `${game.handNumber}:${game.street}`;
+  const bumpIfAggressive = (a) => {
+    if (a?.type === Actions.RAISE || a?.type === Actions.BET) {
+      const k = streetKey();
+      raiseCounts[k] = (raiseCounts[k] ?? 0) + 1;
+    }
+  };
 
   let safety = 400;
   while (
@@ -133,6 +146,12 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
       }).equity;
     } catch { /* leave null */ }
 
+    const position = game.dealerSeat === seat ? 'BTN/SB' : 'BB';
+    const policy = compilePolicy(bundles[seat].profile, {
+      holeCards: me.holeCards,
+      position,
+    });
+
     const gameState = {
       holeCards: me.holeCards,
       community: game.community,
@@ -141,7 +160,7 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
       myStack: me.stack,
       oppStack: opp.stack,
       myContrib: me.contribThisStreet,
-      position: game.dealerSeat === seat ? 'BTN/SB' : 'BB',
+      position,
       sb: game.smallBlind,
       bb: game.bigBlind,
       canCheck: legal.some((a) => a.type === Actions.CHECK),
@@ -155,10 +174,12 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
       equity,
       potOdds: toCall > 0 ? toCall / (game.pot + toCall) : null,
       spr:     game.pot > 0 ? me.stack / game.pot : null,
+      policy,
+      raisesThisStreet: raiseCounts[streetKey()] ?? 0,
       opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
     };
 
-    const { action, reasoning } = await getAgentAction(gameState, strategies[seat], '');
+    const { action, reasoning } = await getAgentAction(gameState, bundles[seat].strategy, '');
     const streetAtDecision = game.street;
     // "fallback" here covers BOTH handler-level fallbacks (no API key / API
     // error / parse failure) and engine rejections handled below.
@@ -167,6 +188,7 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
     let appliedAction = action;
     try {
       game.act(seat, action);
+      bumpIfAggressive(appliedAction);
     } catch {
       fallback = true;
       const alt = legal.find((a) => a.type === Actions.CHECK)
@@ -189,7 +211,6 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
     });
   }
 
-  // Force resolution if we hit the safety cap without terminating (should not happen).
   const finalStack0 = game.seats[0].stack;
   const finalStack1 = game.seats[1].stack;
 
@@ -205,7 +226,7 @@ async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
 
 // ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
 
-async function runMatchup({ nameA, stratA, nameB, stratB, pairs, sb, bb, buyIn }) {
+async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn }) {
   const statsA = newStats();
   const statsB = newStats();
 
@@ -213,9 +234,9 @@ async function runMatchup({ nameA, stratA, nameB, stratB, pairs, sb, bb, buyIn }
     const deck = freshShuffledDeck();
 
     // Hand 1: A in seat 0, B in seat 1
-    const h1 = await playHand({ deck, seat0Strategy: stratA, seat1Strategy: stratB, sb, bb, buyIn });
+    const h1 = await playHand({ deck, seat0Bundle: bundleA, seat1Bundle: bundleB, sb, bb, buyIn });
     // Hand 2: B in seat 0, A in seat 1 (mirrored)
-    const h2 = await playHand({ deck, seat0Strategy: stratB, seat1Strategy: stratA, sb, bb, buyIn });
+    const h2 = await playHand({ deck, seat0Bundle: bundleB, seat1Bundle: bundleA, sb, bb, buyIn });
 
     // Per-agent totals across both halves
     const aNet = h1.seat0Net + h2.seat1Net;
@@ -237,6 +258,21 @@ async function runMatchup({ nameA, stratA, nameB, stratB, pairs, sb, bb, buyIn }
   }
 
   return { nameA, nameB, statsA, statsB };
+}
+
+// Normalize an entry from arena-profiles.json into a { strategy, profile } bundle.
+// Accepts either the new object shape or the legacy string form (which
+// infers a neutral policy profile so the arena still runs).
+function normalizeBundle(name, raw) {
+  if (typeof raw === 'string') {
+    return { strategy: raw, profile: inferProfileFromStyleRisk('Balanced', 'Medium') };
+  }
+  if (raw && typeof raw === 'object') {
+    const strategy = String(raw.strategy ?? '');
+    const profile = raw.profile ?? inferProfileFromStyleRisk(raw.style, raw.risk);
+    return { strategy, profile };
+  }
+  throw new Error(`profile "${name}" is neither a string nor an object`);
 }
 
 // ── Summarization ────────────────────────────────────────────────────────────
@@ -290,8 +326,12 @@ async function main() {
     console.error(`profiles file not found: ${args.profiles}`);
     process.exit(1);
   }
-  const profiles = JSON.parse(fs.readFileSync(args.profiles, 'utf8'));
-  const names = Object.keys(profiles);
+  const rawProfiles = JSON.parse(fs.readFileSync(args.profiles, 'utf8'));
+  const bundles = {};
+  for (const [name, raw] of Object.entries(rawProfiles)) {
+    bundles[name] = normalizeBundle(name, raw);
+  }
+  const names = Object.keys(bundles);
   if (names.length < 2) {
     console.error('need at least 2 profiles');
     process.exit(1);
@@ -307,7 +347,7 @@ async function main() {
     }
   } else {
     const parts = args.matchups.split(',').map((s) => s.trim());
-    if (parts.length !== 2 || !profiles[parts[0]] || !profiles[parts[1]]) {
+    if (parts.length !== 2 || !bundles[parts[0]] || !bundles[parts[1]]) {
       console.error(`--matchups must be "A,B" naming two profiles (or "*")`);
       process.exit(1);
     }
@@ -315,6 +355,10 @@ async function main() {
   }
 
   console.log(`[arena] profiles: ${names.join(', ')}`);
+  for (const n of names) {
+    const p = bundles[n].profile;
+    console.log(`  ${n.padEnd(16)} T=${p.tightness} A=${p.aggression} Bf=${p.bluffFreq} D=${p.discipline}`);
+  }
   console.log(`[arena] matchups: ${matchups.length}, pairs each: ${args.pairs} (${args.pairs * 2} hands per matchup)`);
   console.log(`[arena] blinds: ${args.sb}/${args.bb}, buy-in: ${args.buyIn}`);
   console.log(`[arena] ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'set' : 'NOT SET (all decisions will fallback)'}\n`);
@@ -327,8 +371,8 @@ async function main() {
   for (const [a, b] of matchups) {
     console.log(`— ${a} vs ${b} —`);
     const { statsA, statsB } = await runMatchup({
-      nameA: a, stratA: profiles[a],
-      nameB: b, stratB: profiles[b],
+      nameA: a, bundleA: bundles[a],
+      nameB: b, bundleB: bundles[b],
       pairs: args.pairs,
       sb: args.sb, bb: args.bb, buyIn: args.buyIn,
     });
@@ -362,7 +406,7 @@ async function main() {
   const record = {
     timestamp: new Date().toISOString(),
     args,
-    profiles,
+    profiles: bundles,
     matchups: matchupSummaries,
     perAgent: perAgentSummary,
     elapsedSec: Number(elapsedSec),
