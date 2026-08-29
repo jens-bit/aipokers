@@ -18,6 +18,18 @@ Last updated: 2026-05-09 after the post-AJ-review reconciliation
 **What:** Sub-task 5 of feature/play-cleanup (commit 4c4dbdf) moved the suggestion chips immediately below the greeting message to eliminate dead whitespace. Over-corrected — they now sit pinned to the top, which feels glued. User wants them to sit naturally in the middle of the chat flow with the greeting above and input below.
 **Fix:** Restructure the message-list flex so the chips sit centered within available vertical space, not anchored under the greeting. Greeting at top, chips centered, input at bottom.
 
+### BUG-12 — DECISION broadcast leaks AI reasoning + equity to live opponents
+**Severity:** High (game integrity)
+**Where:** src/server/table.js `_maybeRunAiTurn` — `this._broadcast({ type: ServerMsg.DECISION, ... })`
+**What:** The DECISION message (action, reasoning, and — since AGE-16 — equity and potOdds) is broadcast to every connection at the table, including a human playing AGAINST the AI. Reasoning can describe hand strength, and equity ~85% preflop effectively reveals AA/KK. Observed 2026-08-29 in vs-AI play: you see House's thoughts.
+**Fix:** Route DECISION only to spectators whose agent it is (and into the stored hand review); never to opposing seats mid-hand. Fold into Tree 4 (UI surfacing) or fix standalone earlier.
+
+### BUG-13 — Min-raise wars: 20–30 raise ping-pong before all-in
+**Severity:** Medium (gameplay quality; also inflates LLM cost + arena runtimes)
+**Where:** Agent decision behavior (src/agent/handler.js prompt) — engine is rule-correct; the models each min-raise, reopening action indefinitely.
+**What:** AI vs AI / vs House escalate via repeated minimum raises, taking 20–30 turns to reach all-in. Classic LLM poker pathology. Observed 2026-08-29.
+**Fix:** Tree 2 policy compiler adds sizing directives (commit big or don't reraise; no min-raise chains) + add a `RAISES THIS STREET: n` line to the decision briefing so the model can see the loop. Optionally a soft cap on raises per street as backstop.
+
 ---
 
 ## RESOLVED — kept here for traceability
