@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { Play } from './components/Play.jsx';
-import { HomeTab } from './components/HomeTab.jsx';
+import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
 import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
@@ -284,45 +284,32 @@ export default function App() {
                 />
               )}
               {activeTab === 'home' && (
-                <HomeTab
-                  onDeploy={(payload) => {
-                    setActiveAgent(payload.agentId);
-                    watch({
-                      tableId: payload.tableId,
-                      agentId: payload.agentId,
-                      userId: getUserId(),
-                      agentStrategy: payload.strategy,
-                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                      wantOpponentAI: false,
-                      memoryContext: payload.memoryContext ?? '',
-                    });
-                  }}
-                  onWatch={(payload) => {
-                    setActiveAgent(payload.agentId);
-                    watch({
-                      tableId: payload.tableId,
-                      agentId: payload.agentId,
-                      userId: getUserId(),
-                      agentStrategy: payload.strategy,
-                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                      wantOpponentAI: false,
-                      memoryContext: payload.memoryContext ?? '',
-                    });
-                  }}
+                <CasinoFloor
                   onCreateAgent={() => {
                     setEditingAgent(null);
                     setPlayInitialStep('create-agent');
                     setPlayKey((k) => k + 1);
                     setActiveTab('play');
                   }}
-                  onOpenChat={(agent) => {
-                    setEditingAgent(agent);
-                    setPlayInitialStep('create-agent');
-                    setPlayKey((k) => k + 1);
-                    setActiveTab('play');
+                  onChat={(agent) => setAgentChatTarget(agent)}
+                  onWatch={async (agent) => {
+                    if (!agent?.activeTableId) return;
+                    let memoryContext = '';
+                    try {
+                      const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+                      if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+                    } catch { /* watch with empty context */ }
+                    setActiveAgent(agent.id);
+                    watch({
+                      tableId: agent.activeTableId,
+                      agentId: agent.id,
+                      userId: getUserId(),
+                      agentStrategy: agent.strategy,
+                      displayName: agent.name || getTelegramDisplayName() || 'Agent',
+                      wantOpponentAI: false,
+                      memoryContext,
+                    });
                   }}
-                  onGoPlay={() => setActiveTab('play')}
-                  onGoAgents={() => setActiveTab('agents')}
                 />
               )}
               {activeTab === 'agents' && (
