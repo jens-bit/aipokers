@@ -20,6 +20,7 @@ export function DesktopShell({
   const [activeTab, setActiveTab] = useState('home');
   const [chatTarget, setChatTarget] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [createdNotice, setCreatedNotice] = useState(null);
   const chatSendRef = useRef(null);
 
   const loadAgents = useCallback(() => {
@@ -47,9 +48,17 @@ export function DesktopShell({
 
   const handleChatReady = useCallback((send) => { chatSendRef.current = send; }, []);
 
+  // Creation done: leave the takeover and report it back in Command Center.
+  const handleCreated = useCallback((agent) => {
+    setCreating(false);
+    setCreatedNotice(agent);
+    loadAgents();
+  }, [loadAgents]);
+
   function startCreate() {
     setChatTarget(null);
     setActiveTab('home');
+    setCreatedNotice(null);
     setCreating(true);
   }
 
@@ -94,6 +103,32 @@ export function DesktopShell({
         />
 
         <div className="dsk-content">
+          {creating ? (
+            <div className="dsk-takeover">
+              <div className="dsk-takeover__head">
+                <button
+                  type="button"
+                  className="dsk-takeover__back"
+                  onClick={() => setCreating(false)}
+                  aria-label="Back to Command Center"
+                >
+                  <NavIcon name="arrow-left" size={18} />
+                </button>
+                <div>
+                  <span className="dsk-label dsk-label--sm dsk-label--teal">DRAFT</span>
+                  <h1 className="dsk-takeover__title">Draft agent</h1>
+                </div>
+              </div>
+              <div className="dsk-takeover__body">
+                <CreateAgent
+                  onBack={() => setCreating(false)}
+                  onDone={() => { setCreating(false); loadAgents(); }}
+                  onCreated={handleCreated}
+                />
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="dsk-conv-header">
             <div className="dsk-conv-header__mark">
               <LogoMark width={18} height={22} />
@@ -101,9 +136,9 @@ export function DesktopShell({
             <div className="dsk-conv-header__text">
               <div className="dsk-conv-header__title-row">
                 <span className="dsk-conv-header__title">
-                  {creating ? 'Draft agent' : chatTarget ? chatTarget.name : 'Command Center'}
+                  {chatTarget ? chatTarget.name : 'Command Center'}
                 </span>
-                <span className="dsk-chip">{chatTarget || creating ? 'AGENT' : 'SYSTEM'}</span>
+                <span className="dsk-chip">{chatTarget ? 'AGENT' : 'SYSTEM'}</span>
               </div>
               <div className="dsk-conv-header__sub">
                 {livePlaying.length > 0 && <span className="dsk-dot" aria-hidden />}
@@ -131,15 +166,7 @@ export function DesktopShell({
                 <i /><span>{today}</span><i />
               </div>
 
-              {creating ? (
-                <div className="dsk-embed">
-                  <CreateAgent
-                    onBack={() => setCreating(false)}
-                    onDone={() => { setCreating(false); loadAgents(); }}
-                    onDeploy={(agent) => { setCreating(false); onDeployAgent(agent); }}
-                  />
-                </div>
-              ) : chatTarget ? (
+              {chatTarget ? (
                 <div className="dsk-embed">
                   <AgentChat
                     key={chatTarget.id}
@@ -151,6 +178,24 @@ export function DesktopShell({
                 </div>
               ) : (
                 <>
+                {createdNotice && (
+                  <ConvMessage source="BUILD">
+                    <div className="dsk-block">
+                      <div className="dsk-block__text dsk-block__text--row">
+                        <span>
+                          Agent <b>{createdNotice.name}</b> created — deploy when ready.
+                        </span>
+                        <button
+                          type="button"
+                          className="dsk-inline-deploy"
+                          onClick={() => { setCreatedNotice(null); onDeployAgent(createdNotice); }}
+                        >
+                          DEPLOY
+                        </button>
+                      </div>
+                    </div>
+                  </ConvMessage>
+                )}
                 {isWatching && (
                   <ConvMessage source="LIVE">
                     <div className="dsk-block dsk-block--teal">
@@ -200,6 +245,8 @@ export function DesktopShell({
             chatTargetName={chatTarget?.name}
             onFreeText={chatTarget ? ((text) => chatSendRef.current?.(text)) : null}
           />
+          </>
+          )}
         </div>
       </div>
     </div>

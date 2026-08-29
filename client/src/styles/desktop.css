@@ -755,6 +755,84 @@
 .dsk-embed .dr-app,
 .dsk-embed .app { max-width: none; height: auto; }
 
+/* ── Creation takeover ────────────────────────────────────────────────── */
+/* Agent creation owns the whole content column: its own header and its own
+   composer (CreateAgent brings one), with the Command Center composer gone,
+   so there is never a second composer on screen. */
+
+.dsk-takeover {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsk-bg);
+}
+
+.dsk-takeover__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--dsk-border);
+  background: var(--dsk-panel);
+}
+.dsk-takeover__back {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid var(--dsk-border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsk-dim);
+  cursor: pointer;
+}
+.dsk-takeover__back:hover { border-color: var(--dsk-teal); color: var(--dsk-teal); }
+.dsk-takeover__title {
+  margin: 2px 0 0;
+  color: var(--dsk-text);
+  font-family: var(--dsk-serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.dsk-takeover__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.dsk-takeover__body::-webkit-scrollbar { display: none; }
+.dsk-takeover__body .dr-app { max-width: 720px; height: auto; }
+/* CreateAgent ships its own mobile header; the takeover header replaces it. */
+.dsk-takeover__body .dr-chat-header { display: none; }
+
+.dsk-inline-deploy {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 5px;
+  background: var(--dsk-teal);
+  color: #0a0a0a;
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.dsk-inline-deploy:hover { background: #00e6b8; }
+
+.dsk-block__text--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* ── Composer ─────────────────────────────────────────────────────────── */
 
 .dsk-composer {
