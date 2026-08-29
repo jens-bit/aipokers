@@ -5,14 +5,16 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
 import { Occupant, PotTicker, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
+import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, pctX, pctY } from './layouts.js';
 import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
 
 const POLL_MS = 10_000;
 
-export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
+export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [zoomedId, setZoomedId] = useState(null);
 
   const load = useCallback(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -27,6 +29,10 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  // Resolve against the latest poll so a zoomed agent stays current (and
+  // closes cleanly if it disappears from the roster).
+  const zoomed = agents.find((a) => a.id === zoomedId) || null;
 
   const { playing, resting, lounge } = splitFloor(agents);
   const layout = layoutFor(playing.length);
@@ -47,7 +53,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
   const barSlots = spreadAlongBar(barAgents, L.bar);
 
   return (
-    <div className={`floor${zoomedId ? ' is-zoomed' : ''}`}>
+    <div className={`floor${zoomed ? ' is-zoomed' : ''}`}>
       <div className="floor__room-wrap">
         <RoomLayer layout={layout} ftu={ftu} />
       </div>
@@ -78,7 +84,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
               state="live"
               size={ghostSize}
               speed={speedFor(agent, i)}
-              onClick={() => onOpenZoom(agent)}
+              onClick={() => setZoomedId(agent.id)}
             />
             {pot && <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={pot} mini={mini} />}
           </Fragment>
@@ -98,7 +104,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
           size={mini ? 44 : 48}
           speed={speedFor(agent, i)}
           drink
-          onClick={() => onOpenZoom(agent)}
+          onClick={() => setZoomedId(agent.id)}
         />
       ))}
 
@@ -115,7 +121,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
           size={50}
           speed={speedFor(agent, 3)}
           dim
-          onClick={() => onOpenZoom(agent)}
+          onClick={() => setZoomedId(agent.id)}
         />
       ))}
 
@@ -124,6 +130,17 @@ export function CasinoFloor({ liveGame, onCreateAgent, onOpenZoom, zoomedId }) {
           onClick={onCreateAgent}
           x={LAYOUTS.quiet.bar.x1 + 100}
           y={LAYOUTS.quiet.bar.y - 102}
+        />
+      )}
+
+      {zoomed && (
+        <FloorZoom
+          agent={zoomed}
+          index={agents.indexOf(zoomed)}
+          livePot={liveGame?.agentId === zoomed.id ? liveGame?.pot : null}
+          onBack={() => setZoomedId(null)}
+          onChat={() => onChat(zoomed)}
+          onWatch={() => onWatch(zoomed)}
         />
       )}
     </div>
