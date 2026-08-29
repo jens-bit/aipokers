@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
 import { AgentChat } from '../AgentChat.jsx';
 import { CreateAgent } from '../CreateAgent.jsx';
 import { HistoryTab } from '../HistoryTab.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { DesktopRail } from './DesktopRail.jsx';
+import { DesktopComposer } from './DesktopComposer.jsx';
 import { GameTile } from './GameTile.jsx';
 import { LogoMark, NavIcon } from './primitives.jsx';
 
@@ -20,6 +21,7 @@ export function DesktopShell({
   const [activeTab, setActiveTab] = useState('home');
   const [chatTarget, setChatTarget] = useState(null);
   const [creating, setCreating] = useState(false);
+  const chatSendRef = useRef(null);
 
   const loadAgents = useCallback(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -44,6 +46,8 @@ export function DesktopShell({
 
   const livePlaying = agents.filter((a) => a.activeTableId);
 
+  const handleChatReady = useCallback((send) => { chatSendRef.current = send; }, []);
+
   function startCreate() {
     setChatTarget(null);
     setActiveTab('home');
@@ -59,6 +63,18 @@ export function DesktopShell({
     } else {
       setChatTarget(agent);
     }
+  }
+
+  // Returns false when no agent matches, so the composer can surface the error.
+  function deployByName(name) {
+    const needle = name.trim().toLowerCase();
+    const match = agents.find((a) => a.name?.toLowerCase() === needle)
+      || agents.find((a) => a.name?.toLowerCase().includes(needle));
+    if (!match) return false;
+    setChatTarget(null);
+    setCreating(false);
+    onDeployAgent(match);
+    return true;
   }
 
   const today = new Date().toLocaleDateString('en-US', DAY_FMT).toUpperCase();
@@ -131,6 +147,7 @@ export function DesktopShell({
                     agent={chatTarget}
                     onBack={() => setChatTarget(null)}
                     onDeploy={(agent) => { setChatTarget(null); onDeployAgent(agent); }}
+                    onReady={handleChatReady}
                   />
                 </div>
               ) : activeTab === 'history' ? (
@@ -179,6 +196,13 @@ export function DesktopShell({
               )}
             </div>
           </div>
+
+          <DesktopComposer
+            onDeploy={deployByName}
+            onBuild={startCreate}
+            chatTargetName={chatTarget?.name}
+            onFreeText={chatTarget ? ((text) => chatSendRef.current?.(text)) : null}
+          />
         </div>
       </div>
     </div>

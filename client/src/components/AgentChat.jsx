@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
-export function AgentChat({ agent, onBack, onDeploy }) {
+export function AgentChat({ agent, onBack, onDeploy, onReady }) {
   const userId = getUserId();
   const [chat, setChat] = useState([]);
   const [draft, setDraft] = useState('');
@@ -68,6 +68,14 @@ export function AgentChat({ agent, onBack, onDeploy }) {
       setLoading(false);
     }
   }
+
+  // Lets a host surface (the desktop composer) send into this conversation.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    onReady?.((text) => sendRef.current(text));
+    return () => onReady?.(null);
+  }, [onReady]);
 
   const hasSessionRecap = chat.length === 1 && chat[0].role === 'assistant' &&
     chat[0].content.startsWith('Hey — I just finished');
