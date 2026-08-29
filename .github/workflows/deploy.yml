@@ -25,7 +25,7 @@ jobs:
             git pull
 
             echo "=== pm2 restart ==="
-            pm2 restart all --update-env
+            pm2 restart all   # NO --update-env here: non-interactive SSH lacks .bashrc env; --update-env would wipe API keys
 
             echo "=== health check: /api/stats must return 200 ==="
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8765/api/stats)

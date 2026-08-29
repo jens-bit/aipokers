@@ -249,3 +249,190 @@ Any negative state failing one of these reads as a bug, not a character.
 - **Backpack / provisioning:** load consumables before an unattended overnight run (expedition-prep loop). Fits deploy-and-walk-away.
 - **Energy systems: RESIST.** Energy must never gate whether an agent can play — played hands are the content, the arena sample, and the fun. If energy ever exists it gates bonuses (XP, drops) only.
 - **Tokenization: parked, door kept open.** No tokens/NFTs now (re-imports the regulatory + speculation problems parked with TON; play-to-earn economies that arrive before fun attract extractors). Requirement TODAY that costs nothing: inventory is server-authoritative with unique item IDs, so tokenizing later is a bolt-on decision, not a rearchitecture.
+
+---
+
+## Megaprompt — Tree 0 (API lockdown; paste into backend terminal on branch fix/api-lockdown)
+
+```
+TASK GROUP — API lockdown. 3 sub-tasks. Each gets its own commit.
+
+READ FIRST, in full:
+1. CORE_GAME_PLAN.md (root) — section "Tree 0 — API lockdown"
+2. src/index.js
+3. src/server/agentProfiles.js
+4. src/server/table.js (focus: _reportHandResults, _triggerMemoryUpdate, _refreshAgentMemory)
+5. client/src/lib/telegram.js
+6. read-me-claude/HOW_WE_WORK.md
+
+SUB-TASK 1 — Kill the HTTP loopback
+table.js currently reports hand results and triggers memory updates by fetch()ing
+its own public HTTP API on localhost. Refactor: export the underlying logic from
+agentProfiles.js as directly callable functions (e.g. recordHandResult(agentId,
+userId, body), runMemoryUpdate(agentId, userId, recentHands), getMemoryContext(
+agentId, userId)) and call them directly from table.js — same process, no HTTP.
+Then REMOVE the public POST /api/agents/:id/result and POST /api/agents/:id/update-memory
+routes entirely. Keep GET /api/agents/:id/memory (read-only, harmless).
+Verify npm run smoke and node src/engine/game.test.js still pass.
+Commit: `refactor: direct function calls replace HTTP loopback; remove public result/update-memory routes (SEC-1)`
+
+SUB-TASK 2 — Gate the LLM-spending endpoints
+POST /api/agents/chat and POST /api/agents/build trigger paid Anthropic calls and
+must no longer be open. Create src/server/auth.js with middleware:
+- If env TELEGRAM_BOT_TOKEN is set: require a valid Telegram Mini App initData
+  string (sent by the client as header `x-telegram-init-data`) and verify its
+  HMAC per Telegram's documented algorithm (HMAC-SHA256, secret = HMAC of bot
+  token with key "WebAppData"). Reject invalid/missing with 401.
+- Else if env DEV_API_SECRET is set: require header `x-api-secret` to match.
+- Else (neither set — local dev): allow, but log a loud startup warning that the
+  API is UNPROTECTED.
+Apply the middleware to /api/agents/chat and /api/agents/build (and PATCH/DELETE
+/api/agents/:id). Client side: add a small helper in client/src/lib/telegram.js
+that returns window.Telegram?.WebApp?.initData ?? '', and attach it as the
+x-telegram-init-data header on the fetch calls to chat/build/patch/delete
+(CreateAgent.jsx, AgentChat.jsx, AgentsTab.jsx — wherever those fetches live).
+No visual changes to any component.
+Commit: `feat: Telegram initData auth on LLM-spending and mutating endpoints (SEC-2)`
+
+SUB-TASK 3 — Rate limiting
+Add a tiny in-memory rate limiter (no new npm dependency — a ~30 line middleware
+keyed by IP, sliding window) applied to all /api routes: generous defaults
+(60 req/min per IP; 10 req/min for /api/agents/chat and /api/agents/build).
+Return 429 with a JSON error. Limits configurable via env.
+Commit: `feat: per-IP rate limiting on API routes (SEC-3)`
+
+CONSTRAINTS:
+- Do NOT touch src/engine/*, wsServer.js protocol behavior, or any CSS.
+- Do NOT change the WebSocket JOIN/WATCH flow — play stays open (play money).
+- No new npm dependencies.
+
+WHEN ALL DONE:
+- npm run build:client must pass, npm run smoke must pass.
+- Do NOT push.
+
+REPORT BACK with: one line per sub-task — what changed, commit SHA.
+```
+
+Deploy note for Tree 0: VPS needs `TELEGRAM_BOT_TOKEN` set (BotFather token for
+@agenticpoker_bot) in /root/.bashrc, loaded via `pm2 restart all --update-env`.
+Without it the server runs in the unprotected dev mode and logs a warning.
+
+---
+
+## Desktop Command Center (Codex design synced 2026-08-29 — design-refs/desktop-command.jsx et al.)
+
+**The design's thesis: "The chat IS the command center."** Every product event — live games, daily standup, flagged hands, promotions — is a rich message in a SYSTEM conversation feed. This is the UI language for the personality layer's outputs (standup = mood-driven recap; composer strategy-patch = the self-change loop; suggested chips = proposals). Full desktop suite now in design-refs/: desktop-command, desktop-home v1–v3, desktop-empty/filled, desktop-spectate, plus agent-chat/agent-live/agent-preview/create-agent/profile/replays and compiled HTML previews.
+
+### Features the design assumes that are NOT yet specced/built
+1. **Persistent bankroll (load-bearing):** top bar shows BANKROLL + P&L 24H. Today chips are conjured per table. A play-money ledger (persistent balance, buy-ins deducted, winnings credited) is what makes results accumulate into meaning. Owner: Fredrik, after SQLite (natural schema addition). Prereq for standup P&L, leaderboards, and any economy.
+2. **Progression:** agent tiers + XP ("Bluff Master promoted to TIER 2, +150 XP" at 1,000 hands positive ROI; user tiers). Cheap milestone counters over existing stats; pure game-identity. Design the milestone table when mood economy work starts.
+3. **Flagged-hand EV classifier:** "Folded TT to 3-bet, −$80 EV". Buildable post-Tree-1 (per-decision equity now stored). Small: flag hands where chosen action's EV loss vs. alternative exceeds threshold. Feeds standup + replay cards.
+
+### Port sequencing
+- NOT before Tree 2 lands (frontend effort competes with the skill engine).
+- First slice when it starts: shell (top bar, conversations rail, feed, composer) as the ≥1100px layout of the EXISTING client + GameTile fed from existing broadcasts (state, reasoning, equity all available today) + flagged-hands-lite.
+- With Trees 3–3.5: standup with mood voice, self-change proposals, suggested chips.
+- Group session = same feed, multiple agent authors (team standup, agents riffing). No new architecture; prototype after 3.5.
+
+### Divergent design files — reconcile before next frontend tree touches them
+Zip/design-refs versions of home.jsx, cards.jsx, analysis.jsx differ from previously committed copies (neither side uniformly newer). Diff before porting so Codex's latest isn't lost. Original full export kept by Jens (Agentic Poker.zip upload, 2026-08-29).
+
+---
+
+## Baseline results (run-2026-08-29T14-36-34-647Z, 50 pairs/matchup, pre-policy)
+
+| Agent | bb/100 | ±CI95 | VPIP | PFR | AF | Fold% | Fallback% |
+|---|---|---|---|---|---|---|---|
+| Nit | +12.5 | 131 | 3.8 | 3.4 | 3.1 | 83.4 | 0 |
+| Loose Cannon | −212.7 | 340 | 100 | 100 | 25.7 | 0.2 | 0 |
+| TAG | +173.0 | 256 | 23 | 22.2 | 5.8 | 36.3 | 0.2 |
+| Calling Station | +27.2 | 228 | 99.5 | 4.2 | 0.15 | 5.5 | 0 |
+
+Reads:
+- **Behavioral separation: PASSED, violently** (VPIP 3.8→100). Equity briefing alone makes Haiku follow personality text faithfully — but as caricatures (Nit is a statue, Cannon never folds). Policy compiler must CALIBRATE, not create, differentiation.
+- **Health: PASSED** — fallback rate ~0 (was chronic "illegal raise → safe" spam on prod before equity lines).
+- **Skill separation: NOT YET.** Ordering sensible (TAG top, Cannon bottom) but CIs include zero at 50 pairs. Only significant cell: Station beats Nit −66.5±26.4 (correct: 83% folding bleeds blinds). TAG vs Station +6±74 = coin flip — TAG fails to extract vs a player who can't fold; check-downs dominate. This is exactly Tree 2's target: thin relentless value vs stations, calibrated ranges, sizing directives.
+- Acceptance run later needs 200+ pairs (variance from jam-heavy matchups: ±700 CIs).
+- cached:0 on all calls — prompts below Haiku's cacheable minimum; irrelevant at this size.
+- Cost: ~2,200 decisions / 42 min / ~$1.
+
+Tree 2 megaprompt (AGE-19..23, includes BUG-12 + BUG-13 fixes) issued 2026-08-29 in session; if lost, re-derive from this section + Tree 2 spec above.
+
+---
+
+## Megaprompt — Tree 3 (opponent model + grounded memory; paste into backend terminal AFTER Tree 2 merges, on branch feature/opponent-model)
+
+```
+TASK GROUP — Opponent model + grounded memory. 5 sub-tasks. Each gets its own commit.
+
+READ FIRST, in full:
+1. CORE_GAME_PLAN.md — Tree 3 section + baseline results + Tree 2 outcomes
+2. src/server/table.js
+3. src/agent/policy.js and src/agent/handler.js
+4. src/server/agentProfiles.js (memory section: runMemoryUpdate, getAgentMemoryContext, formatHandForPrompt)
+5. read-me-claude/HOW_WE_WORK.md
+
+SUB-TASK 1 — Opponent counters
+Create src/server/opponentStats.js: rolling per-opponent stats keyed by playerId
+(and displayName as alias): hands observed, VPIP, PFR, aggression factor,
+fold-to-raise rate, went-to-showdown rate — over the last 50 hands (ring buffer).
+Update from the table's action flow (hook where actions are applied; count once
+per hand per stat definition, not per action where inappropriate — VPIP/PFR are
+per-hand flags). Persist to data/opponents.json (throttled writes, best-effort).
+Unit test with a scripted action sequence.
+Commit: `feat: rolling per-opponent stat counters (AGE-24)`
+
+SUB-TASK 2 — OPPONENT READ in the briefing
+Inject into _buildAiGameState/buildUserPrompt when an opponent has ≥10 observed
+hands: `OPPONENT READ (<name>, N hands): VPIP x% (label), PFR x%, folds to
+raises x%, goes to showdown x%.` Label buckets: very tight/tight/normal/loose/
+very loose. Keep ADVISORY framing. No read line under 10 hands.
+Commit: `feat: opponent read injected into decision briefing (AGE-25)`
+
+SUB-TASK 3 — Grounded memory
+Rework the memory system: primary memory = computed self-stats + top leak lines
+derived from stored decisions (e.g. "folded as equity favorite N times",
+"bluff die taken but abandoned river X times") — deterministic, no LLM.
+Narrative summary via Haiku drops to every 20 hands, is fed the computed stats,
+and FIX the truncation bug: raise max_tokens for the memory call and make the
+parser tolerant (extract JSON with a bracket-matching scan; on failure keep the
+previous memory instead of erroring). getAgentMemoryContext output format stays
+compatible.
+Commit: `feat: grounded memory — computed stats primary, tolerant narrative (AGE-26)`
+
+SUB-TASK 4 — Arena adaptation support
+scripts/arena.js: accumulate opponent stats across a matchup (agents build reads
+on each other as pairs progress) using the same opponentStats module, so late
+pairs test adaptation. Add a --no-reads flag to disable for A/B. Report reads-on
+vs reads-off is NOT required in this tree — just wire it cleanly.
+Commit: `feat: arena accumulates opponent reads across pairs (AGE-27)`
+
+SUB-TASK 5 — Arena comparison run
+Requires ANTHROPIC_API_KEY — if absent, stop and report. Run 50 pairs, all
+pairings. Compare vs the AGE-23 run: does TAG's edge vs Calling Station grow
+further with reads? Do archetypes stay behaviorally separated? Fallback <2%?
+Commit: `chore: post-opponent-model arena results (AGE-28)`
+
+CONSTRAINTS:
+- Backend only (src/, scripts/). No client changes, no new dependencies,
+  no WS protocol changes. All existing tests plus new ones must pass.
+- Do NOT push.
+
+REPORT BACK: one line per sub-task with SHA + the comparison table.
+```
+
+---
+
+## Post-policy arena results (run-2026-08-29T15-48-21-796Z, 50 pairs/matchup) — POLICY ENGINE VALIDATED
+
+| Agent | bb/100 (base → post) | VPIP | AF | Fallback |
+|---|---|---|---|---|
+| TAG | +173 → **+295.8 ±235 (CI excludes zero)** | 23 → 22.8 | 5.8 → 8.4 | 0 |
+| Calling Station | +27 → +149.2 | 99.5 → 100 | 0.15 → 0.2 | 0 |
+| Nit | +12.5 → −28.1 | 3.8 → 9.1 | 3.1 → 2.3 | 0 |
+| Loose Cannon | −212.7 → −416.9 | 100 → 100 | 25.7 → **171.7** | 0 |
+
+- **TAG vs Station: +6 → +222.9 bb/100** — thin-value exploitation working (TAG AF 6.9→28.3 in that matchup). TAG aggregate significant. TAG beats all three archetypes; ordering textbook.
+- Two significant matchups (TAG>Cannon −660±626; Station>Cannon). Behavioral spread intact (VPIP 9–100). Fallbacks 0.0%.
+- OPEN TUNING (fold into Tree 3 as riders): (1) low-end tightness mapping — Nit reached 9.1 VPIP (target 12–15); root cause is archetype STRATEGY TEXT overriding the range briefing ("AA KK QQ JJ AK only" read as authoritative) → soften archetype texts / lower Nit discipline; Nit now loses (−28) because it plays a wider range it wasn't taught to play — same prompt-side fix. (2) Maniac AF 171.7 — never calls, only raises; add an aggression sanity bound or accept as caricature. (3) Acceptance run at 200+ pairs before the 50-humans gate.
+- Merged to main 2026-08-29 evening along with chore/platform-1 (data untracked, CI deploy, audit notes) and feature/desktop-shell (DSK-1..8). deploy.yml corrected post-merge: `pm2 restart all` WITHOUT --update-env (non-interactive SSH never sources .bashrc → --update-env would wipe API keys from the process env).

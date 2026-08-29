@@ -5,6 +5,21 @@ Dates are UTC. Format: `[version] — date — summary`.
 
 ---
 
+## [0.8.0] — 2026-08-29 — The audit session: identity, skill engine, lockdown
+
+- IDENTITY: product reframed game-first — "a Tamagotchi that plays poker" (master spec v9). Play money first; TON/real-money deferred pending legal counsel.
+- SECURITY: API lockdown shipped to prod — Telegram initData auth on LLM-spending/mutating endpoints, per-IP rate limiting, internal HTTP loopback replaced with direct calls (public /result and /update-memory routes removed).
+- SKILL ENGINE Tree 1: Monte Carlo equity engine (src/engine/equity.js); equity/pot odds/SPR injected into every decision briefing; DECISION payloads carry equity.
+- ARENA: headless duplicate-deck mirrored match harness (scripts/arena.js) with bb/100 ±CI, behavior stats, fallback rate. Baseline run recorded (AGE-18): behavioral separation massive (VPIP 3.8–100), fallback ~0, skill separation pending policy layer (TAG vs Station +6±74).
+- SKILL ENGINE Tree 2: policy compiler (src/agent/policy.js — Chen-scored 169-hand ranges, server-rolled bluff/deviation dice, sizing directives), advisory briefing lines incl. RAISES THIS STREET (BUG-13), profiles carry numeric sliders, DECISION reasoning/equity routed to spectators only (BUG-12). Comparison run pending (AGE-23).
+- UI: PLAY tab FTU polish (balanced 2x2 grid, dedup create link, platform pill label). Desktop shell port started (feature/desktop-shell).
+- DESIGN: full Codex desktop suite synced to design-refs/ (command center, desktop home v1–v3, spectate, agent screens). Claude Design owns the mobile mood/chat-first wave; iterations 1–4 in progress (mood atoms, standup masthead, sticky live bar, 3-tab messenger nav).
+- TEAM: Fredrik joined (platform: data-out-of-git, CI deploy, SQLite, server-authoritative correctness — read-me-claude/PLATFORM_BRIEF.md). CLAUDE.md added (agent onboarding + ownership). PR flow on main.
+- OPS: first prod deploy since May 9 (git pull had silently failed on tracked data/agents.json for months); VPS deploy gotchas documented. Worktree graveyard cleared (14→5), 17 merged branches deleted.
+- DOCS: CORE_GAME_PLAN.md created (living build plan: skill engine, personality layer Tree 3.5, mood economy, desktop notes, baseline analysis, megaprompts). Master spec v9. BUGS: 12, 13 filed; 09 resolved-verified; 10/11 pending visual re-check.
+
+---
+
 ## [0.7.0] — 2026-05-06 — UI overhaul, 5-tab nav, agent creation polish
 
 - 5-tab bottom navigation: HOME / PLAY / AGENTS / HISTORY / PROFILE
