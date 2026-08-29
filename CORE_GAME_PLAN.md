@@ -442,3 +442,11 @@ REPORT BACK: one line per sub-task with SHA + the comparison table.
 ## Design pivot: the Casino Floor (2026-08-29, late evening — Jens's call, exploration in Claude Design)
 
 Mobile HOME becomes a diegetic casino floor: one stylized room where the agents visibly exist — playing = seated at a felt, idle = at the bar, sulking/tilted = alone in the lounge corner. Mood is body language (posture, eye glow, aura); ghosts FLOAT (no walk cycles — the hooded-ghost avatar choice makes this cheap). Tap an agent → camera zoom → it speaks its latest moment in its voice (mood-colored speech bubble) → CHAT (thread) / WATCH (full table). Replaces the feed concept (too spammy at low agent counts) AND deletes the TEAM tab. Mobile tabs: CASINO / CHATS / YOU. Chats list doubles as the efficient roster; profile stays behind the thread header (Telegram info-page pattern). MECHANICS ARE DEVICE-INVARIANT (Jens): same metaphor and interactions everywhere — once the floor settles on mobile, it becomes desktop's home view too (bigger room, more detail), with the console elements (tiles, composer, stats) as side panels around it. The current desktop shell is an interim console, not a separate paradigm. Scope guardrails: one room, three zones, CSS drift only, no pathfinding/minigames/day-night. Rationale: eight iterations of "boring/not engaging" traced to the same root — the creatures were never visible existing; this is the Tamagotchi-game feeling made literal.
+
+---
+
+## Playtest notes (2026-08-29 evening, post-0.8.0 local test with live agents)
+- Policy engine visibly working in prod-grade play: sized opens, junk folded with stated reasoning, no min-raise wars.
+- **Watchability gap: tight-vs-tight fold-fests.** 7 straight uncontested preflop hands (Rock Solid vs TAG-shaped House). Fix: complementary House matchmaking — deploy-time lookup picks the House archetype that creates action vs the agent's profile (Station vs tight agents, TAG vs loose). Small backend change (scheduleHouseFallback/maybeAutoSeatAI); queue for Tree 3.5 or a quick fix after Tree 3 merges.
+- **Equity "—" in mobile watch view**: DECISION payload carries equity to spectators but AnalysisPanel/seat slot doesn't render it. Next frontend tree.
+- BUG-10 verified resolved (spade present in watch header). BUG-11 still pending visual check in the mobile create flow.

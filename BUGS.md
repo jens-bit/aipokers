@@ -6,7 +6,7 @@ Last updated: 2026-05-09 after the post-AJ-review reconciliation
 ## OPEN
 
 
-### BUG-10 — In-game header drops platform branding
+### BUG-10 — In-game header drops platform branding — RESOLVED (verified visually 2026-08-29: spade + branding present in watch header; fix commit c7be663 from May)
 **Severity:** Medium (visual)
 **Where:** client/src/components/Header.jsx — in-game variant (rich game-view header)
 **What:** During play (vs-AI / vs-Human / Watch), only the rich in-game header shows (back arrow + avatar + name + status + settings gear). The "AGENTIC POKER" wordmark + spade logo + agents pill at the top of the app disappears. User notes this loses the platform identity during the most-shared moments.
