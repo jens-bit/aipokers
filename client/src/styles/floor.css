@@ -1,0 +1,442 @@
+/* ============================================================
+ * THE CASINO FLOOR — mobile HOME (<1100px).
+ * Ported from design-refs/mood-casino.jsx + mood-atoms.jsx.
+ * The desktop shell (>=1100px) never mounts the floor.
+ * ============================================================ */
+
+.floor {
+  --flr-bg: #0A0A0A;
+  --flr-text: #EDEDED;
+  --flr-dim: #A1A1A1;
+  --flr-muted: #6B6B6B;
+  --flr-faint: #3A3A3F;
+  --flr-teal: #00D4AA;
+  --flr-gold: #CDB380;
+  --flr-border: rgba(255, 255, 255, 0.06);
+  --flr-oswald: 'Oswald', 'Inter', sans-serif;
+  --flr-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  /* Ground treatment. The room SVG keeps its aspect ratio and is centred, so
+     this paints the band left over above/below it — the floor continues
+     rather than showing letterbox bars. */
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 34%, rgba(0, 212, 170, 0.05), transparent 70%),
+    linear-gradient(180deg, #070908 0%, var(--flr-bg) 42%, #060707 100%);
+}
+
+/* Aspect-preserving: the browser centres the room with xMidYMid meet, and
+   projectRoom() reproduces that same scale + offset for the HTML occupants. */
+.floor__room {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes floor-bob {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -6px; }
+}
+@keyframes floor-shimmer {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.08; }
+}
+
+.floor-ghost {
+  position: relative;
+  animation-name: floor-bob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.floor-ghost__shimmer {
+  animation: floor-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floor-ghost,
+  .floor-ghost__shimmer,
+  .floor-dot { animation: none; }
+}
+
+/* ── Occupant ─────────────────────────────────────────────────────────── */
+
+.floor-occupant {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: pointer;
+  min-height: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.floor-occupant.is-dim { opacity: 0.5; }
+.floor-occupant:focus-visible { outline: 1px solid var(--flr-teal); outline-offset: 4px; border-radius: 12px; }
+
+.floor-occupant__body {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.floor-occupant__drink { display: block; margin-bottom: 6px; }
+.floor-occupant__shadow {
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+}
+
+/* ── Chip ─────────────────────────────────────────────────────────────── */
+
+.floor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 19px;
+  padding: 0 8px;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  border-radius: 10px;
+  background: rgba(6, 8, 9, 0.82);
+  white-space: nowrap;
+}
+.floor-chip__name {
+  color: var(--flr-text);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.floor-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--flr-teal);
+  box-shadow: 0 0 6px var(--flr-teal);
+  animation: pulse 2s infinite;
+}
+
+/* ── Pot ticker ───────────────────────────────────────────────────────── */
+
+.floor-pot {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  border-radius: 11px;
+  background: rgba(6, 8, 9, 0.82);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.13);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.floor-pot.is-mini { height: 18px; gap: 5px; padding: 0 8px; }
+.floor-pot__label {
+  color: var(--flr-muted);
+  font-family: var(--flr-oswald);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.floor-pot.is-mini .floor-pot__label { font-size: 7.5px; }
+.floor-pot__amount {
+  color: var(--flr-teal);
+  font-family: var(--flr-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.floor-pot.is-mini .floor-pot__amount { font-size: 10.5px; }
+
+/* ── Mood + state chips ───────────────────────────────────────────────── */
+
+.floor-mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-family: var(--flr-oswald);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.floor-mood-chip.is-small { height: 18px; padding: 0 6px; font-size: 9px; }
+.floor-mood-chip__dot { width: 4px; height: 4px; border-radius: 50%; }
+
+.floor-state-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 3px;
+  font-family: var(--flr-oswald);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+.floor-state-tag.is-compact { height: 16px; padding: 0 5px; font-size: 8.5px; }
+.floor-state-tag__dot {
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  background: var(--flr-muted);
+}
+
+/* ── Standup strip ────────────────────────────────────────────────────── */
+
+.floor-standup {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--flr-border);
+  border-radius: 10px;
+  background: rgba(8, 10, 11, 0.86);
+}
+.floor-standup__label {
+  color: var(--flr-muted);
+  font-family: var(--flr-oswald);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.floor-standup__line {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--flr-dim);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── FTU barstool ─────────────────────────────────────────────────────── */
+
+.floor-ftu {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: pointer;
+  min-height: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.floor-ftu__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 19px;
+  padding: 0 9px;
+  border: 1px dashed rgba(0, 212, 170, 0.4);
+  border-radius: 10px;
+  background: rgba(6, 8, 9, 0.82);
+  color: var(--flr-teal);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.floor-ftu__shadow {
+  width: 54px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 212, 170, 0.18), transparent 70%);
+}
+
+/* ── Zoom ─────────────────────────────────────────────────────────────── */
+
+/* The camera pushes in by narrowing the room SVG's viewBox (see zoomViewBox),
+   not by a CSS transform — the ref avoids transforms here so nothing
+   contributes to a scrollable overflow region. Only the dim is animated. */
+.floor__room-wrap {
+  position: absolute;
+  inset: 0;
+  transition: opacity 300ms ease;
+}
+.floor__room-wrap.is-zoomed { opacity: 0.5; }
+@media (prefers-reduced-motion: reduce) {
+  .floor__room-wrap { transition: none; }
+}
+
+.floor-zoom {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 300ms ease;
+}
+.floor-zoom__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 42%,
+    rgba(10, 10, 10, 0) 0%,
+    rgba(10, 10, 10, 0.72) 62%,
+    rgba(10, 10, 10, 0.94) 100%);
+  pointer-events: none;
+}
+
+.floor-zoom__back {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--flr-border);
+  border-radius: 10px;
+  background: rgba(8, 10, 11, 0.86);
+  color: var(--flr-text);
+  cursor: pointer;
+  min-height: 0;
+}
+
+.floor-zoom__pot {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+}
+/* Placed by its host rather than by room coordinates. */
+.floor-pot.is-plain {
+  position: static;
+  transform: none;
+}
+
+.floor-zoom__bubble-wrap {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  z-index: 5;
+}
+.floor-zoom__bubble {
+  position: relative;
+  padding: 14px 16px;
+  border: 1px solid;
+  border-radius: 14px;
+  background: rgba(12, 14, 16, 0.92);
+  color: var(--flr-text);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.5;
+}
+.floor-zoom__bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -7px;
+  background: rgba(12, 14, 16, 0.92);
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+  border-color: inherit;
+  transform: rotate(45deg);
+}
+
+.floor-zoom__ghost {
+  position: absolute;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+}
+.floor-zoom__ghost-shadow {
+  position: absolute;
+  left: 50%;
+  z-index: 3;
+  width: 190px;
+  height: 26px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.floor-zoom__panel {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 18px;
+  z-index: 6;
+}
+.floor-zoom__tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.floor-zoom__cause {
+  margin-bottom: 13px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.floor-zoom__actions { display: flex; gap: 9px; }
+.floor-zoom__actions > * { min-width: 0; }
+
+.floor-btn {
+  height: 44px;
+  width: 100%;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-family: var(--flr-oswald);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 0;
+}
+.floor-btn--primary {
+  border: none;
+  background: var(--flr-teal);
+  color: #0A0A0A;
+  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+}
+.floor-btn--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: transparent;
+  color: var(--flr-dim);
+}
+.floor-btn:disabled { opacity: 0.5; cursor: not-allowed; }
