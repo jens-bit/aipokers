@@ -493,6 +493,78 @@ export function setAgentMood(agentId, userId, newMood) {
   return agent.mood;
 }
 
+// Build a self-change proposal from the agent's computed leaks. Idempotent
+// — silently no-ops when a proposal is already pending (one active max) or
+// when no leak breaches the threshold. Templates are in the agent's voice
+// and include a concrete strategy-text amendment + a small slider delta.
+// Called from /finish so the owner sees the proposal at session end.
+export function maybeCreateProposal(agent) {
+  if (!agent) return null;
+  if (agent.proposal) return agent.proposal;
+  const computed = agent.memory?.computed;
+  const leaks = computed?.leaks || {};
+
+  let built = null;
+  if ((leaks.foldedAsEquityFavorite ?? 0) >= 3) {
+    built = {
+      text: `I keep folding when I'm actually ahead — ${leaks.foldedAsEquityFavorite} times this session. Can I loosen up a touch?`,
+      suggestedPatch: {
+        strategyAmendment: 'When the EQUITY line shows >55% and the pot odds are fine, do not fold — you have the best hand.',
+        profileDelta: { tightness: -8 },
+      },
+      basedOn: 'foldedAsEquityFavorite',
+      createdAt: Date.now(),
+    };
+  } else if ((leaks.calledOnPoorOdds ?? 0) >= 3) {
+    built = {
+      text: `I made ${leaks.calledOnPoorOdds} bad calls this session — worse equity than the pot required. Tighten me up?`,
+      suggestedPatch: {
+        strategyAmendment: 'Before calling, compare EQUITY to POT ODDS — if equity is lower, fold.',
+        profileDelta: { tightness: 5, discipline: 5 },
+      },
+      basedOn: 'calledOnPoorOdds',
+      createdAt: Date.now(),
+    };
+  } else if ((leaks.aggThenFolded ?? 0) >= 3) {
+    built = {
+      text: `I fired bets and then folded to pressure ${leaks.aggThenFolded} times this session. Cut my bluff frequency?`,
+      suggestedPatch: {
+        strategyAmendment: 'Only start a bluff line you are willing to fire on the next street.',
+        profileDelta: { bluffFreq: -10 },
+      },
+      basedOn: 'aggThenFolded',
+      createdAt: Date.now(),
+    };
+  }
+
+  if (built) {
+    agent.proposal = built;
+    return built;
+  }
+  return null;
+}
+
+// Apply an accepted proposal's patch to the agent: append the strategy
+// amendment and add each profile delta with clamping. Clears the proposal
+// on completion. Returns the mutated agent (not persisted — caller saves).
+function applyProposalPatch(agent, patch) {
+  if (!patch) return agent;
+  if (typeof patch.strategyAmendment === 'string' && patch.strategyAmendment.trim()) {
+    agent.strategy = `${(agent.strategy || '').trim()}\n\n${patch.strategyAmendment.trim()}`.trim();
+  }
+  if (patch.profileDelta && typeof patch.profileDelta === 'object') {
+    ensureProfile(agent);
+    const d = patch.profileDelta;
+    agent.profile = normalizeProfile({
+      tightness:  (agent.profile.tightness  ?? 50) + (Number(d.tightness)  || 0),
+      aggression: (agent.profile.aggression ?? 50) + (Number(d.aggression) || 0),
+      bluffFreq:  (agent.profile.bluffFreq  ?? 25) + (Number(d.bluffFreq)  || 0),
+      discipline: (agent.profile.discipline ?? 60) + (Number(d.discipline) || 0),
+    });
+  }
+  return agent;
+}
+
 // Compute the fields the floor UI needs — mood, lastMoment, unseenRecap,
 // presence — on top of the persisted agent record. Backfills defaults for
 // legacy agents so a first-load call after upgrade still returns a
@@ -569,8 +641,12 @@ function buildAgentChatSystem(agent, { pepTalk = null } = {}) {
   if (pepTalk?.soothed) {
     pepLine = `\nThe owner just talked you down. Your mood eased to ${pepTalk.mood.state}. Acknowledge the pep talk briefly, in character — don't over-thank them.`;
   }
+  let proposalLine = '';
+  if (agent.proposal?.text) {
+    proposalLine = `\nYou have a pending self-change proposal for your owner: "${agent.proposal.text}". If the opening of the conversation lets you bring it up naturally, do — do NOT force it into every reply.`;
+  }
 
-  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.${moodLine}${pepLine}
+  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.${moodLine}${pepLine}${proposalLine}
 
 You are talking to your owner. Your role is to discuss your play — specific hands, decision rationale, strategy tweaks they want to make. You are NOT being created or redesigned right now. Do NOT ask the user what kind of poker player they want to build. If they ask what to talk about, suggest: reviewing specific hands, looking at decision patterns, or adjusting one of your parameters (aggression, bluff frequency, tightness).
 
@@ -776,6 +852,37 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'idle';
     agent.activeTableId = null;
     agent.unseenRecap = true;
+    // Session ended — build a self-change proposal from the leaks the
+    // grounded-memory computed stats detected. One proposal max; already
+    // pending proposals are preserved so the owner can still act on them.
+    try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+    saveStore(userId);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
+  // suggestedPatch (strategy amendment + slider deltas) and clear it.
+  app.post('/api/agents/:agentId/proposal/accept', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.proposal) return res.status(400).json({ error: 'no active proposal' });
+    applyProposalPatch(agent, agent.proposal.suggestedPatch);
+    agent.proposal = null;
+    saveStore(userId);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
+  app.post('/api/agents/:agentId/proposal/reject', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    agent.proposal = null;
     saveStore(userId);
     res.json(presentAgent(agent));
   });
