@@ -6,3 +6,5 @@ node_modules/
 .tmp_docx/
 dist/
 coverage/
+data/*
+!data/arena/
