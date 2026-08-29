@@ -41,6 +41,17 @@ const LAYOUTS = {
     bar: { x1: 18, x2: 180, y: 452 },
     corner: { cx: 300, cy: 556, rx: 84, ry: 68 },
   },
+  // three playing, one resting — the diamond with one felt dark
+  three: {
+    felts: [
+      { cx: 195, cy: 128, rx: 72, ry: 32, lit: true, seat: 0 },
+      { cx: 92,  cy: 296, rx: 72, ry: 32, lit: true, seat: 1 },
+      { cx: 298, cy: 296, rx: 72, ry: 32, lit: true, seat: 2 },
+      { cx: 195, cy: 464, rx: 72, ry: 32, lit: false },
+    ],
+    bar: { x1: 18, x2: 372, y: 606, sliver: true },
+    corner: null,
+  },
   full: {
     // a compact diamond — never more than four felts
     felts: [
@@ -395,7 +406,19 @@ const FloorTwoScreenM = () => (
     ghostSize={50}/>
 );
 
-// ═══ 4 · FULL HOUSE — the stress test ═══
+// ═══ 4 · THREE PLAYING, ONE RESTING — the diamond with one felt dark ═══
+const FloorThreeScreenM = () => (
+  <FloorScreen layout="three" mini ghostSize={40}
+    standup={{ net: '+$740', flagged: '5 flagged' }}
+    seats={{
+      0: { ...CAST.balanced, pot: '480' },
+      1: { ...CAST.aggressive, pot: '120' },
+      2: { ...CAST.bluff, pot: '260' },
+    }}
+    bar={[{ ...CAST.value, x: 195, state: 'resting', size: 44 }]}/>
+);
+
+// ═══ 5 · FULL HOUSE — the stress test ═══
 const FloorFullScreenM = () => (
   <FloorScreen layout="full" mini ghostSize={40}
     standup={{ net: '+$980', flagged: '6 flagged' }}
@@ -574,7 +597,7 @@ const PostureSheetScreenM = () => (
 );
 
 Object.assign(window, {
-  FloorQuietScreenM, FloorOneScreenM, FloorTwoScreenM, FloorFullScreenM,
+  FloorQuietScreenM, FloorOneScreenM, FloorTwoScreenM, FloorThreeScreenM, FloorFullScreenM,
   ZoomTiltedScreenM, ZoomPlayingScreenM, CasinoFTUScreenM, PostureSheetScreenM,
   FloorGhost, Occupant, RoomLayer, POSTURE, LAYOUTS, CAST,
 });

@@ -92,10 +92,11 @@ const AgentRow = ({ name, accent, mood, state, msg, pnl, time, unread }) => (
     </div>
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: PLAYFAIR, fontSize: CANON.name, fontWeight: 600, color: M_TEXT, whiteSpace: 'nowrap', marginBottom: 3 }}>{name}</div>
-      {/* the voice, mood-tinted */}
+      {/* the voice, tinted off the body grey — full M_TEAL / M_RED stay
+          reserved for money, so the tint can never read as gain or loss */}
       <div style={{
         fontSize: CANON.sub, lineHeight: 1.35, fontStyle: 'italic',
-        color: MOODS[mood].color, opacity: 0.82,
+        color: `color-mix(in oklab, ${MOODS[mood].color} 32%, ${M_DIM})`,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{msg}</div>
     </div>

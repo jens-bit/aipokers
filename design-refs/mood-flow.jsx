@@ -6,17 +6,17 @@ const FLOW_W = 1180, FLOW_H = 824;
 const NW = 176, NH = 84;
 
 const NODES = {
-  ftu:      { x: 40,  y: 60,  n: '04', t: 'Floor · first run', s: 'one dashed barstool', kind: 'tab' },
-  chats:    { x: 40,  y: 250, n: '01', t: 'Casino floor', s: 'tables · bar · lounge', kind: 'tab' },
-  idle:     { x: 320, y: 250, n: '02/03', t: 'Agent zoom', s: 'bubble · mood · actions', kind: 'full' },
-  live:     { x: 600, y: 250, n: '\u2014', t: 'Thread', s: 'ONE screen, five states', kind: 'thread' },
-  table:    { x: 880, y: 250, n: '05', t: 'Full table', s: 'full · half · strip', kind: 'full' },
-  returned: { x: 320, y: 430, n: '06', t: 'Chats', s: 'thread list', kind: 'tab' },
-  review:   { x: 600, y: 430, n: '11', t: 'Hand review', s: 'street-by-street sheet', kind: 'sheet' },
-  team:     { x: 40,  y: 610, n: '08', t: 'You', s: 'balance · replays', kind: 'tab' },
-  sheet:    { x: 320, y: 610, n: '07', t: 'Agent profile', s: 'career · mood timeline', kind: 'sheet' },
-  you:      { x: 600, y: 610, n: '05', t: 'Mood postures', s: 'body-language spec', kind: 'ref' },
-  moods:    { x: 880, y: 610, n: '09', t: 'Mood sheet', s: 'reference artifact', kind: 'ref' },
+  ftu:      { x: 40,  y: 60,  n: '08', t: 'Floor · first run', s: 'one dashed barstool', kind: 'tab' },
+  chats:    { x: 40,  y: 250, n: '01–05', t: 'Casino floor', s: 'five density states', kind: 'tab' },
+  idle:     { x: 320, y: 250, n: '06/07', t: 'Agent zoom', s: 'bubble · mood · actions', kind: 'full' },
+  live:     { x: 600, y: 250, n: '14', t: 'Thread', s: 'ONE screen, five states', kind: 'thread' },
+  table:    { x: 880, y: 250, n: '15', t: 'Full table', s: 'full · half · strip', kind: 'full' },
+  returned: { x: 320, y: 430, n: '10', t: 'Chats', s: 'thread list', kind: 'tab' },
+  review:   { x: 600, y: 430, n: '16', t: 'Hand review', s: 'street-by-street sheet', kind: 'sheet' },
+  team:     { x: 40,  y: 610, n: '12', t: 'You', s: 'balance · replays', kind: 'tab' },
+  sheet:    { x: 320, y: 610, n: '11', t: 'Agent profile', s: 'career · mood timeline', kind: 'sheet' },
+  you:      { x: 600, y: 610, n: '09', t: 'Mood postures', s: 'body-language spec', kind: 'ref' },
+  moods:    { x: 880, y: 610, n: '13', t: 'Mood sheet', s: 'reference artifact', kind: 'ref' },
 };
 
 const anchor = (b, side) => {
