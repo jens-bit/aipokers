@@ -5,6 +5,14 @@ import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware } from './auth.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
+import {
+  initialMood,
+  ensureMood,
+  applyEvent as applyMoodEvent,
+  tickDecay as tickMoodDecay,
+  applyPepTalk as applyMoodPepTalk,
+  isSoothable as isMoodSoothable,
+} from '../agent/mood.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -128,6 +136,7 @@ function commitAgent(profile, existingAgentId, agentData) {
     tendencies: [],
     lastUpdated: null,
   };
+  agent.mood = initialMood();
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
   return agent;
@@ -450,6 +459,45 @@ export function getAgentProfile(agentId, userId) {
   return agent.profile;
 }
 
+// Return the agent's mood record (backfilled). Never null when the agent
+// exists — the initial state is a neutral mood.
+export function getAgentMood(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureMood(agent);
+  return agent.mood;
+}
+
+// Set the agent's mood record wholesale (used by table.js after applying
+// events / decay). Persists.
+export function setAgentMood(agentId, userId, newMood) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  agent.mood = { ...newMood };
+  saveStore(userId ?? 'anon');
+  return agent.mood;
+}
+
+// Applies a pep talk if the agent is soothable AND the cooldown allows.
+// Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
+// Persists on soothed=true.
+export function tryApplyPepTalk(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { soothed: false, mood: null, reason: 'agent not found' };
+  ensureMood(agent);
+  ensureStats(agent);
+  const handsPlayed = agent.stats?.handsPlayed ?? 0;
+  const result = applyMoodPepTalk(agent.mood, handsPlayed);
+  if (result.soothed) {
+    agent.mood = result.mood;
+    saveStore(userId ?? 'anon');
+  }
+  return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Format a single hand summary into a compact line for the memory-update prompt.
@@ -468,8 +516,9 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-function buildAgentChatSystem(agent) {
+function buildAgentChatSystem(agent, { pepTalk = null } = {}) {
   ensureStats(agent);
+  ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
   const recentHands = (agent.recentHands || []).slice(0, 3);
   const recentBrief = recentHands.length > 0
@@ -479,7 +528,16 @@ function buildAgentChatSystem(agent) {
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
 
-  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.
+  let moodLine = '';
+  if (agent.mood && agent.mood.state && agent.mood.state !== 'neutral') {
+    moodLine = `\nYour current mood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''}. Let it colour your voice — a tilted agent sounds tilted, a confident one sounds confident.`;
+  }
+  let pepLine = '';
+  if (pepTalk?.soothed) {
+    pepLine = `\nThe owner just talked you down. Your mood eased to ${pepTalk.mood.state}. Acknowledge the pep talk briefly, in character — don't over-thank them.`;
+  }
+
+  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.${moodLine}${pepLine}
 
 You are talking to your owner. Your role is to discuss your play — specific hands, decision rationale, strategy tweaks they want to make. You are NOT being created or redesigned right now. Do NOT ask the user what kind of poker player they want to build. If they ask what to talk about, suggest: reviewing specific hands, looking at decision patterns, or adjusting one of your parameters (aggression, bluff frequency, tightness).
 
@@ -715,11 +773,23 @@ export function installAgentProfileRoutes(app) {
       : null;
 
     if (existingAgent) {
-      const systemText = buildAgentChatSystem(existingAgent);
+      ensureMood(existingAgent);
+      // Pep talk: if the agent is in a negative mood and the cooldown allows,
+      // any incoming owner message soothes it one step. The chat reply is
+      // then generated with the pep-talk context so the agent acknowledges
+      // it in character.
+      let pepResult = { soothed: false, mood: existingAgent.mood, reason: 'not attempted' };
+      if (isMoodSoothable(existingAgent.mood)) {
+        pepResult = tryApplyPepTalk(existingAgent.id, userId);
+      }
+      const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult });
       try {
         const reply = await callClaude([{ role: 'user', content }], systemText, 150);
         const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
-        return res.json({ chat: [{ role: 'assistant', content: msg }] });
+        return res.json({
+          chat: [{ role: 'assistant', content: msg }],
+          pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+        });
       } catch (err) {
         console.error('[agentProfiles] agent-chat error:', err.message);
         return res.json({ chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] });

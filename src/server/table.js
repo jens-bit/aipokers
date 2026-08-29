@@ -2,10 +2,22 @@ import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
-import { recordHandResult, runMemoryUpdate, getMemoryContext, updateComputedMemory } from './agentProfiles.js';
+import {
+  recordHandResult,
+  runMemoryUpdate,
+  getMemoryContext,
+  updateComputedMemory,
+  getAgentMood,
+  setAgentMood,
+} from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
+import {
+  applyEvent as applyMoodEvent,
+  tickDecay as tickMoodDecay,
+  decisionEffects as moodDecisionEffects,
+} from '../agent/mood.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -412,6 +424,7 @@ export class Table {
     this._reportHandResults(this.game.result);
     this._persistHand();
     this._recordOpponentStats(this.game.result);
+    this._updateAgentMoods(this.game.result);
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     if (this.game.seats.some((s) => s.stack <= 0)) {
@@ -444,6 +457,109 @@ export class Table {
       });
     } catch (err) {
       console.error('[table] opponent stats record failed:', err.message);
+    }
+  }
+
+  // Detect mood-relevant events from the just-completed hand and update
+  // each AI seat's persisted mood. Detects:
+  //   wonBigPot            — won a pot > 20BB
+  //   lostBigPot           — lost a pot > 20BB
+  //   lostAsEquityFavorite — lost the hand while any decision this hand had equity > 0.55
+  //   cardDead             — 6th consecutive preflop-fold hand
+  //   sessionWinStreak     — 3 wins in a row (fires once per crossing)
+  //   sessionLossStreak    — 3 losses in a row (fires once per crossing)
+  // When no event fires this hand the decay tick runs instead (drift toward neutral).
+  _updateAgentMoods(result) {
+    if (!result || !this.game) return;
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+    const bbSize = this.bigBlind;
+    const bigPotThreshold = bbSize * 20;
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      const currentMood = getAgentMood(agentId, this.agentUserIds[seat]);
+      if (!currentMood) continue;
+      const profile = this.agentProfiles[seat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+
+      const won = winners.some((w) => w.seat === seat);
+      const pot = result.pot ?? 0;
+      const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+
+      // Collect fired events for THIS hand. `wonBigPot` and `lostBigPot` are
+      // mutually exclusive with each other and with fold-only outcomes.
+      const events = [];
+      if (won && pot > bigPotThreshold) {
+        events.push({ type: 'wonBigPot', ctx: { potChips: pot } });
+      }
+      if (!won && pot > bigPotThreshold) {
+        events.push({ type: 'lostBigPot', ctx: { potChips: pot } });
+      }
+      if (!won) {
+        const maxEquity = myDecisions.reduce((m, d) => Number.isFinite(d.equity) && d.equity > m ? d.equity : m, 0);
+        if (maxEquity > 0.55) {
+          events.push({ type: 'lostAsEquityFavorite', ctx: { equityPct: Math.round(maxEquity * 100) } });
+        }
+      }
+
+      // Card-dead streak: any hand where the agent's only decision was a
+      // preflop fold. Increment counter; on hitting 6, fire and reset.
+      const onlyFoldedPreflop =
+        myDecisions.length > 0 &&
+        myDecisions.every((d) => d.street === 'preflop' && d.action?.type === 'fold');
+      let next = { ...currentMood };
+      if (onlyFoldedPreflop) {
+        next.cardDeadCount = (next.cardDeadCount ?? 0) + 1;
+        if (next.cardDeadCount >= 6) {
+          events.push({ type: 'cardDead', ctx: { foldsInARow: next.cardDeadCount } });
+          next.cardDeadCount = 0;
+        }
+      } else if (myDecisions.length > 0) {
+        next.cardDeadCount = 0;
+      }
+
+      // Session streaks: extend the current run, fire a streak event exactly
+      // on the crossing to 3, and then reset that streak counter so it
+      // doesn't spam every subsequent hand.
+      if (won) {
+        next.winStreak = (next.winStreak ?? 0) + 1;
+        next.lossStreak = 0;
+        if (next.winStreak === 3) {
+          events.push({ type: 'sessionWinStreak', ctx: { streak: 3 } });
+          next.winStreak = 0;
+        }
+      } else {
+        next.lossStreak = (next.lossStreak ?? 0) + 1;
+        next.winStreak = 0;
+        if (next.lossStreak === 3) {
+          events.push({ type: 'sessionLossStreak', ctx: { streak: 3 } });
+          next.lossStreak = 0;
+        }
+      }
+
+      // Apply each event via the mood machine. Multiple events in one hand
+      // apply sequentially; each roll is independent.
+      let mood = { ...next };
+      for (const ev of events) {
+        mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx });
+      }
+      if (events.length === 0) {
+        mood = tickMoodDecay(mood);
+      } else {
+        // Any event resets the decay clock.
+        mood.uneventfulHands = 0;
+      }
+      // Preserve streak counters we mutated on `next` (applyEvent copied the
+      // record; the counters ride along in the spread).
+      mood.winStreak = next.winStreak;
+      mood.lossStreak = next.lossStreak;
+      mood.cardDeadCount = next.cardDeadCount;
+
+      try {
+        setAgentMood(agentId, this.agentUserIds[seat], mood);
+      } catch (err) {
+        console.error('[table] mood update failed:', err.message);
+      }
     }
   }
 
@@ -818,6 +934,20 @@ export class Table {
       holeCards: me.holeCards,
       position,
     });
+
+    // Mood-derived bounded effects: nudge the deviation die probability and
+    // (via the briefing) sizing. The range verdict itself never changes —
+    // per Mood Design Law rule 2, mood shifts flavor, never quality.
+    const mood = this.agentIds[aiSeat]
+      ? getAgentMood(this.agentIds[aiSeat], this.agentUserIds[aiSeat])
+      : null;
+    if (mood && mood.state !== 'neutral') {
+      const eff = moodDecisionEffects(mood);
+      const baseDeviation = (100 - seatProfile.discipline) / 100;
+      const boosted = Math.max(0, Math.min(1, baseDeviation + eff.deviationBoost));
+      policy.dice.deviationDie = Math.random() < boosted;
+    }
+
     const raisesThisStreet = this._getRaiseCountThisStreet();
 
     // Read summaries for every OTHER seat with ≥10 observed hands. Handed
@@ -857,6 +987,7 @@ export class Table {
       policy,
       raisesThisStreet,
       opponentReads,
+      mood,
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
