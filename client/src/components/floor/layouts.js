@@ -79,6 +79,18 @@ export function projectRoom(w, h) {
   return { k, ox: (w - FLOOR_W * k) / 2, oy: (h - FLOOR_H * k) / 2 };
 }
 
+// The camera push-in. The ref zooms by narrowing the SVG viewBox rather than
+// applying a CSS transform, explicitly so nothing contributes to a scrollable
+// overflow region. Crop is the ref's 186x310 window, centred on the subject
+// and clamped inside the room.
+const ZOOM_W = 186;
+const ZOOM_H = 310;
+export function zoomViewBox(x, y) {
+  const cx = Math.min(Math.max(x, ZOOM_W / 2), FLOOR_W - ZOOM_W / 2);
+  const cy = Math.min(Math.max(y, ZOOM_H / 2), FLOOR_H - ZOOM_H / 2);
+  return `${cx - ZOOM_W / 2} ${cy - ZOOM_H / 2} ${ZOOM_W} ${ZOOM_H}`;
+}
+
 // Places an element anchored at room coordinate (x, y), scaled into the room.
 export function roomStyle(room, x, y) {
   const { k, ox, oy } = room;

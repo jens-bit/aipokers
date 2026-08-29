@@ -281,17 +281,15 @@
 
 /* ── Zoom ─────────────────────────────────────────────────────────────── */
 
-/* The room scales behind the zoomed agent — the camera pushing in. */
+/* The camera pushes in by narrowing the room SVG's viewBox (see zoomViewBox),
+   not by a CSS transform — the ref avoids transforms here so nothing
+   contributes to a scrollable overflow region. Only the dim is animated. */
 .floor__room-wrap {
   position: absolute;
   inset: 0;
-  transform-origin: 50% 42%;
-  transition: transform 300ms ease, opacity 300ms ease;
+  transition: opacity 300ms ease;
 }
-.floor.is-zoomed .floor__room-wrap {
-  transform: scale(1.6);
-  opacity: 0.5;
-}
+.floor__room-wrap.is-zoomed { opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) {
   .floor__room-wrap { transition: none; }
 }
@@ -336,6 +334,12 @@
   top: 14px;
   left: 50%;
   z-index: 3;
+  transform: translateX(-50%);
+}
+/* Placed by its host rather than by room coordinates. */
+.floor-pot.is-plain {
+  position: static;
+  transform: none;
 }
 
 .floor-zoom__bubble-wrap {

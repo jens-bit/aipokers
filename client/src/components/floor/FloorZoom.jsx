@@ -26,7 +26,7 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch }
 
       {pot && (
         <div className="floor-zoom__pot">
-          <PotTicker x={195} y={0} amount={pot} />
+          <PotTicker amount={pot} plain />
         </div>
       )}
 

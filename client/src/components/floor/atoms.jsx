@@ -149,9 +149,14 @@ export function GhostChip({ name, accent = M_TEAL, state = 'resting' }) {
 
 // Identical anatomy at both scales — only the type steps down.
 // x/y are room coordinates; see layouts.js for the coordinate space.
-export function PotTicker({ x, y, amount, mini, room = IDENTITY_ROOM }) {
+// `plain` drops the room positioning for hosts that place it themselves
+// (the zoom), which otherwise nests two absolute coordinate systems.
+export function PotTicker({ x, y, amount, mini, plain = false, room = IDENTITY_ROOM }) {
   return (
-    <div className={`floor-pot${mini ? ' is-mini' : ''}`} style={roomStyle(room, x, y)}>
+    <div
+      className={`floor-pot${mini ? ' is-mini' : ''}${plain ? ' is-plain' : ''}`}
+      style={plain ? undefined : roomStyle(room, x, y)}
+    >
       <span className="floor-pot__label">Pot</span>
       <span className="floor-pot__amount">{amount}</span>
     </div>

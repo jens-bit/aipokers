@@ -6,7 +6,7 @@ import { getUserId } from '../../lib/telegram.js';
 import { Occupant, PotTicker, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
-import { LAYOUTS, layoutFor, projectRoom, roomStyle } from './layouts.js';
+import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
 import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
 
 const POLL_MS = 10_000;
@@ -70,89 +70,88 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const barAgents = L.corner ? [...resting, ...lounge.slice(1)] : [...resting, ...lounge];
   const barSlots = spreadAlongBar(barAgents, L.bar);
 
+  // Every occupant's anchor is resolved once, so the zoom can aim its camera
+  // at the right spot in the room and the felt/bar/lounge layers stay in sync.
+  const placements = [
+    ...playing.slice(0, litFelts.length).map((agent, i) => {
+      const f = litFelts[i];
+      return {
+        agent, felt: f, x: f.cx, y: f.cy - ghostBlock + 8,
+        state: 'live', size: ghostSize, speed: speedFor(agent, i), accentIndex: i,
+      };
+    }),
+    ...barSlots.map(({ agent, x }, i) => ({
+      agent, x, y: L.bar.y - 102, state: stateOf(agent),
+      size: mini ? 44 : 48, speed: speedFor(agent, i), accentIndex: i, drink: true,
+    })),
+    ...(L.corner ? lounge.slice(0, 1).map((agent) => ({
+      agent, x: L.corner.cx, y: L.corner.cy - 62, state: stateOf(agent),
+      size: 50, speed: speedFor(agent, 3), accentIndex: 0, dim: true,
+    })) : []),
+  ];
+
+  const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
+
   return (
     <div className={`floor${zoomed ? ' is-zoomed' : ''}`} ref={rootRef}>
-      <div className="floor__room-wrap">
-        <RoomLayer layout={layout} ftu={ftu} />
+      <div className={`floor__room-wrap${zoomed ? ' is-zoomed' : ''}`}>
+        <RoomLayer
+          layout={layout}
+          ftu={ftu}
+          viewBox={zoomedPlacement ? zoomViewBox(zoomedPlacement.x, zoomedPlacement.y) : undefined}
+        />
       </div>
 
-      <div className="floor-standup">
-        <span className="floor-standup__label">Standup</span>
-        <span className="floor-standup__line">
-          {loading
-            ? 'Reading the room…'
-            : standupLine({ playing, resting, lounge, total: agents.length })}
-        </span>
-      </div>
+      {/* The whole occupant layer is unmounted while zoomed — otherwise the
+          agent's small floor ghost stays on screen behind its zoomed self. */}
+      {!zoomed && (
+        <>
+          <div className="floor-standup">
+            <span className="floor-standup__label">Standup</span>
+            <span className="floor-standup__line">
+              {loading
+                ? 'Reading the room…'
+                : standupLine({ playing, resting, lounge, total: agents.length })}
+            </span>
+          </div>
 
-      {/* seated agents, one per lit felt */}
-      {playing.slice(0, litFelts.length).map((agent, i) => {
-        const f = litFelts[i];
-        const pot = liveGame?.agentId === agent.id && Number.isFinite(liveGame?.pot)
-          ? liveGame.pot.toLocaleString()
-          : null;
-        return (
-          <Fragment key={agent.id}>
-            <Occupant
-              x={f.cx}
-              y={f.cy - ghostBlock + 8}
-              name={agent.name}
-              accent={accentFor(agent, i)}
-              mood={moodOf(agent)}
-              state="live"
-              size={ghostSize}
-              speed={speedFor(agent, i)}
+          {placements.map((p) => (
+            <Fragment key={p.agent.id}>
+              <Occupant
+                x={p.x}
+                y={p.y}
+                name={p.agent.name}
+                accent={accentFor(p.agent, p.accentIndex)}
+                mood={moodOf(p.agent)}
+                state={p.state}
+                size={p.size}
+                speed={p.speed}
+                drink={p.drink}
+                dim={p.dim}
+                room={room}
+                onClick={() => setZoomedId(p.agent.id)}
+              />
+              {p.felt && potFor(p.agent, liveGame) && (
+                <PotTicker
+                  x={p.felt.cx}
+                  y={p.felt.cy + p.felt.ry + 8}
+                  amount={potFor(p.agent, liveGame)}
+                  mini={mini}
+                  room={room}
+                />
+              )}
+            </Fragment>
+          ))}
+
+          {ftu && (
+            <FtuStool
+              onClick={onCreateAgent}
+              x={LAYOUTS.quiet.bar.x1 + 100}
+              y={LAYOUTS.quiet.bar.y - 102}
               room={room}
-              onClick={() => setZoomedId(agent.id)}
             />
-            {pot && <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={pot} mini={mini} room={room} />}
-          </Fragment>
-        );
-      })}
-
-      {/* the bar — resting agents spread along the counter */}
-      {barSlots.map(({ agent, x }, i) => (
-        <Occupant
-          key={agent.id}
-          x={x}
-          y={L.bar.y - 102}
-          name={agent.name}
-          accent={accentFor(agent, i)}
-          mood={moodOf(agent)}
-          state={stateOf(agent)}
-          size={mini ? 44 : 48}
-          speed={speedFor(agent, i)}
-          drink
-          room={room}
-          onClick={() => setZoomedId(agent.id)}
-        />
-      ))}
-
-      {/* the lounge corner — one sulking or tilted agent sits apart */}
-      {L.corner && lounge.slice(0, 1).map((agent) => (
-        <Occupant
-          key={agent.id}
-          x={L.corner.cx}
-          y={L.corner.cy - 62}
-          name={agent.name}
-          accent={accentFor(agent, 0)}
-          mood={moodOf(agent)}
-          state={stateOf(agent)}
-          size={50}
-          speed={speedFor(agent, 3)}
-          dim
-          room={room}
-          onClick={() => setZoomedId(agent.id)}
-        />
-      ))}
-
-      {ftu && (
-        <FtuStool
-          onClick={onCreateAgent}
-          x={LAYOUTS.quiet.bar.x1 + 100}
-          y={LAYOUTS.quiet.bar.y - 102}
-          room={room}
-        />
+          )}
+        </>
       )}
 
       {zoomed && (
@@ -167,6 +166,11 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
       )}
     </div>
   );
+}
+
+function potFor(agent, liveGame) {
+  if (liveGame?.agentId !== agent.id) return null;
+  return Number.isFinite(liveGame?.pot) ? liveGame.pot.toLocaleString() : null;
 }
 
 // Evenly spaces agents along the bar counter, capped at what physically fits
