@@ -3,6 +3,7 @@ import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
 import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
+import { estimateEquity } from '../engine/equity.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -687,6 +688,27 @@ export class Table {
       position = offset === 0 ? 'UTG' : `UTG+${offset}`;
     }
 
+    const toCall = callAction?.amount ?? 0;
+    const activeOpponents = g.seats.filter((s, i) => i !== aiSeat && !s.folded).length;
+
+    // Monte Carlo equity vs the live opponents. 800 iterations keeps the
+    // per-decision cost around 30ÔÇô80 ms while staying under ±2% standard error.
+    let equity = null;
+    try {
+      const est = estimateEquity({
+        holeCards: me.holeCards,
+        community: g.community,
+        nOpponents: Math.max(1, activeOpponents),
+        iterations: 800,
+      });
+      equity = est.equity;
+    } catch (err) {
+      console.warn(`[table:${this.tableId}] equity estimation failed:`, err.message);
+    }
+
+    const potOdds = toCall > 0 ? toCall / (g.pot + toCall) : null;
+    const spr = g.pot > 0 ? me.stack / g.pot : null;
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -701,11 +723,14 @@ export class Table {
       canCheck:   legal.some((a) => a.type === 'check'),
       canBet:     !!betAction,
       canRaise:   !!raiseAction,
-      toCall:     callAction?.amount ?? 0,
+      toCall,
       minBet:     betAction?.min ?? 0,
       maxBet:     betAction?.max ?? 0,
       minRaise:   raiseAction?.min ?? 0,
       maxRaise:   raiseAction?.max ?? 0,
+      equity,
+      potOdds,
+      spr,
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
@@ -749,12 +774,21 @@ export class Table {
       reasoning,
       holeCards: [...this.game.seats[aiSeat].holeCards],
       community: [...this.game.community],
+      equity: gameState.equity,
+      potOdds: gameState.potOdds,
       timestamp: Date.now(),
     });
 
     try {
       this.game.act(aiSeat, action);
-      this._broadcast({ type: ServerMsg.DECISION, seat: aiSeat, action, reasoning });
+      this._broadcast({
+        type: ServerMsg.DECISION,
+        seat: aiSeat,
+        action,
+        reasoning,
+        equity: gameState.equity,
+        potOdds: gameState.potOdds,
+      });
       this._resetAiInactivityTimer();
       this._broadcastState();
       const handEnded = this.game.street === Streets.COMPLETE;

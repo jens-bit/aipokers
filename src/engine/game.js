@@ -64,7 +64,9 @@ export class Game {
 
   // ---- public API ----
 
-  startHand() {
+  // Optional `deck` arg: pass a full 52-card array to inject a fixed deal
+  // order (used by the arena harness for duplicate-deck mirrored matches).
+  startHand(deck) {
     if (this.street !== Streets.WAITING && this.street !== Streets.COMPLETE) {
       throw new Error(`cannot start hand from street=${this.street}`);
     }
@@ -73,7 +75,7 @@ export class Game {
     }
 
     this.handNumber += 1;
-    this.dealer = new Dealer();
+    this.dealer = deck ? new Dealer(deck.slice()) : new Dealer();
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;

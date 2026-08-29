@@ -59,12 +59,24 @@ function buildUserPrompt(gs) {
   }
   actions.unshift('fold');
 
+  const mathLines = [];
+  if (Number.isFinite(gs.equity)) {
+    mathLines.push(`EQUITY: ~${(gs.equity * 100).toFixed(1)}% vs random hand`);
+  }
+  if (Number.isFinite(gs.potOdds)) {
+    mathLines.push(`POT ODDS: need ${(gs.potOdds * 100).toFixed(1)}% to call`);
+  }
+  if (Number.isFinite(gs.spr)) {
+    mathLines.push(`SPR: ${gs.spr.toFixed(1)}`);
+  }
+  const mathBlock = mathLines.length > 0 ? `\n${mathLines.join('\n')}` : '';
+
   return `STREET: ${gs.street.toUpperCase()}
 HOLE CARDS: ${gs.holeCards.join(' ')}
 BOARD: ${board}
 POT: ${gs.pot}  MY STACK: ${gs.myStack}  OPP STACK: ${gs.oppStack}
 MY CONTRIB THIS STREET: ${gs.myContrib}
-POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}
+POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.

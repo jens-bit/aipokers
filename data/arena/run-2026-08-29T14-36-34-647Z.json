@@ -1,0 +1,240 @@
+{
+  "timestamp": "2026-08-29T14:36:34.656Z",
+  "args": {
+    "pairs": 50,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "*",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000
+  },
+  "profiles": {
+    "Nit": "You are an extremely tight, risk-averse poker player. Only enter pots with premium hands (AA, KK, QQ, JJ, AK). Fold everything else preflop. Postflop, only continue with strong made hands or the nuts. Never bluff. Value bet thinly.",
+    "Loose Cannon": "You are an ultra-aggressive maniac. Raise or 3-bet preflop with almost any playable hand. Bet and raise relentlessly postflop regardless of your holding. Bluff frequently. Rarely fold once you have chips in the pot. You want maximum variance.",
+    "TAG": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+    "Calling Station": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop."
+  },
+  "matchups": [
+    {
+      "a": "Nit",
+      "b": "Loose Cannon",
+      "Nit": {
+        "hands": 100,
+        "netChips": 2470,
+        "bb100": 123.5,
+        "ci95": 277.37,
+        "vpip": 3,
+        "pfr": 2,
+        "af": 1.75,
+        "foldRate": 89.9,
+        "fallbackRate": 0,
+        "decisions": 109
+      },
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": -2470,
+        "bb100": -123.5,
+        "ci95": 277.37,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 59,
+        "foldRate": 0,
+        "fallbackRate": 0,
+        "decisions": 59
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "TAG",
+      "Nit": {
+        "hands": 100,
+        "netChips": -390,
+        "bb100": -19.5,
+        "ci95": 279.44,
+        "vpip": 6.1,
+        "pfr": 6.1,
+        "af": 3.25,
+        "foldRate": 75.6,
+        "fallbackRate": 0,
+        "decisions": 82
+      },
+      "TAG": {
+        "hands": 100,
+        "netChips": 390,
+        "bb100": 19.5,
+        "ci95": 279.44,
+        "vpip": 32.1,
+        "pfr": 30.2,
+        "af": 13.5,
+        "foldRate": 53.7,
+        "fallbackRate": 0,
+        "decisions": 67
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "Calling Station",
+      "Nit": {
+        "hands": 100,
+        "netChips": -1330,
+        "bb100": -66.5,
+        "ci95": 26.4,
+        "vpip": 3,
+        "pfr": 3,
+        "af": 5,
+        "foldRate": 82.8,
+        "fallbackRate": 0,
+        "decisions": 116
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": 1330,
+        "bb100": 66.5,
+        "ci95": 26.4,
+        "vpip": 100,
+        "pfr": 0,
+        "af": 0.02,
+        "foldRate": 0,
+        "fallbackRate": 0,
+        "decisions": 68
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "TAG",
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": -9870,
+        "bb100": -493.5,
+        "ci95": 707.82,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 11.9,
+        "foldRate": 0,
+        "fallbackRate": 0,
+        "decisions": 129
+      },
+      "TAG": {
+        "hands": 100,
+        "netChips": 9870,
+        "bb100": 493.5,
+        "ci95": 707.82,
+        "vpip": 23,
+        "pfr": 22,
+        "af": 4.24,
+        "foldRate": 47.4,
+        "fallbackRate": 0,
+        "decisions": 171
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "Calling Station",
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": -420,
+        "bb100": -21,
+        "ci95": 684.26,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 32.33,
+        "foldRate": 0.2,
+        "fallbackRate": 0,
+        "decisions": 402
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": 420,
+        "bb100": 21,
+        "ci95": 684.26,
+        "vpip": 100,
+        "pfr": 5,
+        "af": 0.16,
+        "foldRate": 6.7,
+        "fallbackRate": 0,
+        "decisions": 567
+      }
+    },
+    {
+      "a": "TAG",
+      "b": "Calling Station",
+      "TAG": {
+        "hands": 100,
+        "netChips": 120,
+        "bb100": 6,
+        "ci95": 74.21,
+        "vpip": 18.2,
+        "pfr": 18.2,
+        "af": 6.89,
+        "foldRate": 23.8,
+        "fallbackRate": 0.4,
+        "decisions": 244
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": -120,
+        "bb100": -6,
+        "ci95": 74.21,
+        "vpip": 98.4,
+        "pfr": 6.5,
+        "af": 0.19,
+        "foldRate": 4.1,
+        "fallbackRate": 0,
+        "decisions": 220
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 300,
+      "netChips": 750,
+      "bb100": 12.5,
+      "ci95": 131.29,
+      "vpip": 3.8,
+      "pfr": 3.4,
+      "af": 3.13,
+      "foldRate": 83.4,
+      "fallbackRate": 0,
+      "decisions": 307
+    },
+    "Loose Cannon": {
+      "hands": 300,
+      "netChips": -12760,
+      "bb100": -212.67,
+      "ci95": 340.21,
+      "vpip": 100,
+      "pfr": 100,
+      "af": 25.73,
+      "foldRate": 0.2,
+      "fallbackRate": 0,
+      "decisions": 590
+    },
+    "TAG": {
+      "hands": 300,
+      "netChips": 10380,
+      "bb100": 173,
+      "ci95": 255.75,
+      "vpip": 23,
+      "pfr": 22.2,
+      "af": 5.75,
+      "foldRate": 36.3,
+      "fallbackRate": 0.2,
+      "decisions": 482
+    },
+    "Calling Station": {
+      "hands": 300,
+      "netChips": 1630,
+      "bb100": 27.17,
+      "ci95": 228.1,
+      "vpip": 99.5,
+      "pfr": 4.2,
+      "af": 0.15,
+      "foldRate": 5.5,
+      "fallbackRate": 0,
+      "decisions": 855
+    }
+  },
+  "elapsedSec": 2548.6,
+  "apiKeyPresent": true,
+  "model": "claude-haiku-4-5"
+}
