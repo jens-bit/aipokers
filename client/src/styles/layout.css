@@ -312,6 +312,41 @@
 }
 
 /* ============================================================
+ * PHONE CLAMP (720px–1099px)
+ *
+ * Override the 600px grid: on a desktop browser, show the app
+ * as a centred 430px column with darker background either side.
+ * Interim shell until DesktopShell ports cover every width —
+ * do NOT add desktop-specific UI here.
+ * ============================================================ */
+@media (min-width: 720px) and (max-width: 1099px) {
+  body {
+    background: #040404;
+    background-image: none;
+  }
+  .app {
+    max-width: 430px;
+    background: var(--bg-primary);
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    /* Un-grid back to mobile flex column */
+    display: flex !important;
+    flex-direction: column;
+    grid-template-columns: unset;
+    grid-template-rows: unset;
+    grid-template-areas: unset;
+    padding: 0;
+    gap: 0;
+  }
+  .app__main {
+    grid-area: unset;
+    padding: 12px 12px calc(var(--action-bar-h) + var(--nav-h) + 20px);
+    gap: 10px;
+  }
+  .app__sidebar { display: none !important; }
+}
+
+/* ============================================================
  * DESKTOP LAYOUT (≥1100px)
  *
  * Full two-column grid: play area (left) | sticky history panel (right).

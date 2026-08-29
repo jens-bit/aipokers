@@ -52,7 +52,8 @@ export function CreateAgent({ onBack, onDone, onDeploy, onCreated, agentName = n
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     })
-      .then(() => {
+      .then((r) => {
+        if (!r.ok) return;  // no Telegram auth — fail silently, no bubble
         if (existingAgent) {
           setChat([{
             role: 'assistant',
@@ -61,8 +62,10 @@ export function CreateAgent({ onBack, onDone, onDeploy, onCreated, agentName = n
           return null;
         }
         return fetch(`/api/agent-profile?userId=${encodeURIComponent(userId)}`)
-          .then((r) => r.json())
-          .then((data) => setChat(data.chat || []));
+          .then((r) => {
+            if (!r.ok) return;  // fail silently
+            return r.json().then((data) => setChat(data.chat || []));
+          });
       })
       .catch(() => {
         if (existingAgent) {
@@ -97,6 +100,11 @@ export function CreateAgent({ onBack, onDone, onDeploy, onCreated, agentName = n
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, content: text, existingAgentId: activeAgentId }),
       });
+      if (!res.ok) {
+        setDraft(text);
+        setChat((prev) => [...prev, { role: 'assistant', content: "I can only chat when you open this through the Telegram bot — this browser isn't signed in." }]);
+        return;
+      }
       const data = await res.json();
       const serverChat = data.chat || [];
       // In edit mode the user wants the original "you're editing X" bubble
@@ -123,6 +131,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, onCreated, agentName = n
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, existingAgentId: activeAgentId }),
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data.createdAgent) setCreatedAgent(data.createdAgent);
     } catch {
