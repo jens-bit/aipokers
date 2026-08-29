@@ -5,11 +5,15 @@ import { CreateAgent } from '../CreateAgent.jsx';
 import { HistoryTab } from '../HistoryTab.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { DesktopRail } from './DesktopRail.jsx';
+import { GameTile } from './GameTile.jsx';
 import { LogoMark, NavIcon } from './primitives.jsx';
 
 const DAY_FMT = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
 
-export function DesktopShell({ watchingAgent, onWatchAgent, onDeployAgent }) {
+export function DesktopShell({
+  game, lastDecision, watchingAgent, isWatching,
+  onWatchAgent, onDeployAgent, onFocusTable,
+}) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [platformAgents, setPlatformAgents] = useState(null);
@@ -132,6 +136,29 @@ export function DesktopShell({ watchingAgent, onWatchAgent, onDeployAgent }) {
               ) : activeTab === 'history' ? (
                 <div className="dsk-embed"><HistoryTab /></div>
               ) : (
+                <>
+                {isWatching && (
+                  <ConvMessage source="LIVE">
+                    <div className="dsk-block dsk-block--teal">
+                      <div className="dsk-block__head">
+                        <div className="dsk-block__head-left">
+                          <span className="dsk-dot" aria-hidden />
+                          <span className="dsk-label dsk-label--teal">
+                            {watchingAgent?.name || 'Agent'} · LIVE
+                          </span>
+                        </div>
+                      </div>
+                      <div className="dsk-block__body">
+                        <GameTile
+                          game={game}
+                          agentName={watchingAgent?.name}
+                          lastDecision={lastDecision}
+                          onWatch={onFocusTable}
+                        />
+                      </div>
+                    </div>
+                  </ConvMessage>
+                )}
                 <ConvMessage source="ROSTER">
                   <div className="dsk-block">
                     <div className="dsk-block__text">
@@ -148,6 +175,7 @@ export function DesktopShell({ watchingAgent, onWatchAgent, onDeployAgent }) {
                     </div>
                   </div>
                 </ConvMessage>
+                </>
               )}
             </div>
           </div>

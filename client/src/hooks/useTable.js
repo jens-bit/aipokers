@@ -92,7 +92,13 @@ export function useTable({ wsUrl }) {
         break;
 
       case ServerMsg.DECISION:
-        setLastDecision({ action: msg.action, reasoning: msg.reasoning, seat: msg.seat });
+        setLastDecision({
+          action: msg.action,
+          reasoning: msg.reasoning,
+          seat: msg.seat,
+          equity: msg.equity,
+          potOdds: msg.potOdds,
+        });
         break;
 
       case ServerMsg.HAND_RESULT:
