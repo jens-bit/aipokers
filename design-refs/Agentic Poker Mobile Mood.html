@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Mobile — coherence rebuild</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:11px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:17px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.dim{color:#8A8A92;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
+.fa{margin-top:12px;max-width:406px;font-size:12px;line-height:1.5;color:#8A8A92}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11px;color:#00D4AA}
+.panel{width:400px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:22px 22px 24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:12.5px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .rule{display:flex;gap:9px;font-size:12px;line-height:1.5;color:#A1A1A1;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.panel .rule span:first-child{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6B6B6B;flex-shrink:0;padding-top:1px}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:18px 0 8px}
+.swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.sw{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:#8A8A92;border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:4px 7px}
+.sw i{width:9px;height:9px;border-radius:2px;display:block}
+.rec{margin-top:10px;padding:11px 13px;border-radius:9px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.28)}
+.rec .h{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
+.rec p{margin:0;font-size:12px;color:#A1A1A1;line-height:1.55}
+.detail{width:406px;background:#0A0A0A;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 0}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
+.groupsub{font-size:12px;color:#8A8A92;line-height:1.5;margin-bottom:18px;max-width:900px}
+.lawrow{display:flex;gap:12px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;width:86px;flex-shrink:0;padding-top:2px}
+.lawrow .v{font-size:12px;line-height:1.5;color:#A1A1A1}
+</style>
+</head>
+<body>
+
+<!-- LAWS panel -->
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Iteration 7 · coherence</div>
+    <h1>Two laws, then<br/>everything else.</h1>
+
+    <div class="lbl">Law 1 · the header never changes</div>
+    <p style="margin-bottom:6px">Spade logo left, chip balance and bell right — on <b>every</b> screen. Sub-screens slot a back arrow beside the logo and swap the wordmark for the screen title. <b>The right side is byte-identical everywhere</b>, so entering a thread can never feel like entering a different app.</p>
+    <div class="lawrow"><span class="k">Top level</span><span class="v">logo + wordmark · chips · bell</span></div>
+    <div class="lawrow"><span class="k">Sub-screen</span><span class="v">back + logo + title · chips · bell</span></div>
+    <div class="lawrow"><span class="k">Full table</span><span class="v">identical again — the felt goes immersive <i>beneath</i> it</span></div>
+
+    <div class="lbl">Law 2 · status never lies</div>
+    <p style="margin-bottom:6px">One status system in home rows, thread bands and team cards. An idle agent shows no live marker anywhere.</p>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Live</span><span class="v">playing now — pulse dot, and a sticky bar in the thread</span></div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">Recap</span><span class="v">finished since you last looked — gold tick</span></div>
+    <div class="lawrow"><span class="k" style="color:#6B6B6B">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
+
+    <div class="lbl">Law 3 · screen #5 is the language</div>
+    <p style="margin-bottom:6px">The live thread defines the tokens every other screen derives from. They live in one object, so "matches #5" is checkable rather than remembered.</p>
+    <div class="lawrow"><span class="k">Insets</span><span class="v">14px side padding, everywhere</span></div>
+    <div class="lawrow"><span class="k">Cards</span><span class="v">12px radius, 1px rgba(255,255,255,.06)</span></div>
+    <div class="lawrow"><span class="k">Type</span><span class="v">name 15 Playfair · body 13.5 · sub 12 · meta 9.5 mono</span></div>
+
+    <div class="lbl">State colours</div>
+    <div class="swatches">
+      <span class="sw"><i style="background:#00D4AA"></i>Confident</span>
+      <span class="sw"><i style="background:#888888"></i>Neutral</span>
+      <span class="sw"><i style="background:#CDB380"></i>Frustrated</span>
+      <span class="sw"><i style="background:#FF4D4F"></i>Tilted</span>
+      <span class="sw"><i style="background:#6B6B6B"></i>Sulking</span>
+    </div>
+
+    <div class="rec">
+      <div class="h">No guilt mechanics</div>
+      <p>Moods come from poker — beats, streaks, being shown a bluff, card-dead stretches. Never from your absence.</p>
+    </div>
+  </div>
+</div>
+
+<!-- collapsed masthead detail -->
+<div class="frame" style="left:60px;top:1000px">
+  <div class="fh"><span class="fn">01b</span><span class="ft">Masthead · collapsed</span></div>
+  <div class="detail" id="d1"></div>
+  <div class="fa">Once read, the standup folds to one slim line — net, hands, flagged count.</div>
+</div>
+
+<!-- ROW 1 · FLOOR DENSITY STATES -->
+<div class="frame" style="left:520px;top:80px">
+  <div class="grouphdr">The floor breathes — four density states of one room</div>
+  <div class="groupsub">The camera never moves and the floor never scrolls. What changes is the <b style="color:#C9C9CE">room&rsquo;s own dressing</b>: which felts are lit, how large they are, where they sit, and how much space the bar is allowed. Zone geometry is a layout table with four entries; ghost, name-chip and pot-ticker anatomy is byte-identical in every state. Moods stay with the agent — mood belongs to the agent, occupancy belongs to the moment. The only chrome permitted on the floor is the global header and the standup line.</div>
+  <div class="fh"><span class="fn">01</span><span class="ft">Quiet night</span><span class="fb dim">0 playing</span></div>
+  <div id="f0"></div>
+  <div class="fa"><b>Lights at 62%, both felts unlit and empty.</b> The whole cast is off the felts: three along a widened bar, Aggressive still tilted in the lounge. The standup drops its numbers for one line — <i>&ldquo;Everyone&rsquo;s resting.&rdquo;</i> The felts stay drawn, so the room reads as between hands rather than closed.</div>
+</div>
+
+<div class="frame" style="left:980px;top:80px">
+  <div class="fh" style="margin-top:120px"><span class="fn">02</span><span class="ft">One game</span><span class="fb teal">1 playing</span></div>
+  <div id="f1"></div>
+  <div class="fa"><b>The hero felt.</b> One table at full size with its own light pool, board glowing, Balanced seated at the far side and the pot ticker on the near rail. The back felt stays dark. Bar keeps two, lounge keeps one.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:80px">
+  <div class="fh" style="margin-top:120px"><span class="fn">03</span><span class="ft">Two games</span><span class="fb teal">2 playing</span></div>
+  <div id="f1b"></div>
+  <div class="fa"><b>Both felts lit, each with its own pool.</b> The main felt shrinks slightly and slides down to make room; the back felt grows and gains a seat. The bar contracts to a third of the wall and loses a stool. Aggressive is tilted <i>and</i> playing — the red shimmer is visible from across the room.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:80px">
+  <div class="fh" style="margin-top:120px"><span class="fn">04</span><span class="ft">Full house</span><span class="fb">4 playing · stress test</span></div>
+  <div id="f1c"></div>
+  <div class="fa"><b>The room rearranges into a diamond.</b> Four felts at 72×32, ghosts down to 40px, three board cards instead of four, tickers at mini scale — and the bar squeezed to a 16px sliver along the bottom edge with the lounge dropped entirely, since nobody is resting. <b>Never more than four felts.</b> Each seat still carries name chip, live pulse, mood posture and its own pot.</div>
+</div>
+
+<!-- ROW 1b · zoom, first run, postures -->
+<div class="frame" style="left:520px;top:1180px">
+  <div class="grouphdr">Zoom, first run, and the posture spec</div>
+  <div class="groupsub">Tapping any ghost on any density state zooms to it. The zoom is taken from the two-games room, which is why Aggressive is tilted and mid-hand.</div>
+  <div class="fh"><span class="fn">05</span><span class="ft">Zoom · tilted</span><span class="fb dim">no tabs</span></div>
+  <div id="f2"></div>
+  <div class="fa"><b>The camera pushes in and the ghost turns to face you.</b> The room stays behind, cropped through a zoomed viewBox under a scrim, so this reads as a camera move rather than a screen change. <b>CHAT leads</b> because a steaming agent needs talking to; WATCH stays available because the hand is still running.</div>
+</div>
+
+<div class="frame" style="left:980px;top:1180px">
+  <div class="fh" style="margin-top:82px"><span class="fn">06</span><span class="ft">Zoom · playing</span><span class="fb dim">no tabs</span></div>
+  <div id="f3"></div>
+  <div class="fa"><b>Identical anatomy, inverted priority.</b> Same bubble, same mood block, same two actions — but WATCH becomes primary, because there is a live hand to see.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:1180px">
+  <div class="fh" style="margin-top:82px"><span class="fn">07</span><span class="ft">Floor · first run</span><span class="fb teal">tabs</span></div>
+  <div id="f4"></div>
+  <div class="fa"><b>The room is waiting, not broken.</b> Lights at 40%, felts still drawn, one dashed ghost outline on a barstool. The sentiment lives in the standup line — &ldquo;The room is open · 847 agents in seats&rdquo; — never as copy on the floor.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:1180px">
+  <div class="fh" style="margin-top:82px"><span class="fn">08</span><span class="ft">Mood postures</span><span class="fb">vocabulary</span></div>
+  <div id="f5"></div>
+  <div class="fa"><b>The body-language spec.</b> Five moods × three contexts. Posture is invariant — confident floats 7px taller, sulking sits 8px lower at −7° and 0.93 scale — while context only sets the accent colour.</div>
+</div>
+
+<!-- supporting: the chats tab keeps the thread list; the stories row is retired -->
+<div class="frame" style="left:520px;top:2280px">
+  <div class="grouphdr">Supporting — the other two tabs</div>
+  <div class="groupsub">CASINO replaces both the old feed and the TEAM tab. CHATS is where the voices live; YOU is unchanged.</div>
+  <div class="fh"><span class="fn">09</span><span class="ft">Chats</span><span class="fb teal">tabs</span></div>
+  <div id="s1"></div>
+  <div class="fa"><b>Voice, not furniture.</b> Two sections — AT THE TABLES above RESTING — and every preview is the agent&rsquo;s own last line, tinted by its mood: teal-shifted when confident, red-shifted when tilted, cool grey when sulking. State tags are gone; the unread badge and the gold recap tick carry all of it.</div>
+</div>
+
+<div class="frame" style="left:980px;top:2280px">
+  <div class="fh" style="margin-top:82px"><span class="fn">10</span><span class="ft">Agent profile</span><span class="fb">from zoom</span></div>
+  <div id="s7b"></div>
+  <div class="fa"><b>Reached from the zoom's second action.</b> Career, mood timeline, activity, edit-strategy.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:2280px">
+  <div class="fh" style="margin-top:82px"><span class="fn">11</span><span class="ft">You</span><span class="fb teal">tabs</span></div>
+  <div id="s8"></div>
+  <div class="fa"><b>Balance, lifetime, replays, settings</b> — same header and insets as everything else.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:2280px">
+  <div class="fh" style="margin-top:82px"><span class="fn">12</span><span class="ft">Mood sheet</span><span class="fb">reference</span></div>
+  <div id="s9"></div>
+  <div class="fa"><b>The five states at badge and large scale</b> — the atoms the floor renders from.</div>
+</div>
+
+<!-- ROW 2 · THREAD LIFECYCLE -->
+<div class="frame" style="left:520px;top:3380px">
+  <div class="grouphdr">03 · One screen, photographed five times</div>
+  <div class="groupsub">These five frames are the <b style="color:#C9C9CE">same React component</b> rendered with different props — <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00D4AA">ThreadScreen({state, bar, children})</code>. Header, mood band, feed and composer are structurally identical because there is only one of each. The only things that vary are the sticky bar and the newest messages; divergence anywhere else would be a code change, not a design choice.</div>
+  <div class="fh"><span class="fn">a</span><span class="ft">Resting</span><span class="fb dim">no bar</span></div>
+  <div id="s3a"></div>
+  <div class="fa">Last session's recap and a pending self-change proposal. <b>RESTING</b> tag, no sticky bar, DEPLOY in the band.</div>
+</div>
+
+<div class="frame" style="left:980px;top:3380px">
+  <div class="fh" style="margin-top:120px"><span class="fn">b</span><span class="ft">Deploying</span><span class="fb teal">bar half-docked</span></div>
+  <div id="s3b"></div>
+  <div class="fa">Proposal accepted, version bumped, "Taking seat at #48291" just posted — and the bar caught <b>mid-slide</b>, clipped at 36px of its 62.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:3380px">
+  <div class="fh" style="margin-top:120px"><span class="fn">c</span><span class="ft">Live</span><span class="fb teal">canon</span></div>
+  <div id="s3c"></div>
+  <div class="fa">Canon, untouched. Bar holds the hand, feed holds events only; the pep talk eases tilt one step.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:3380px">
+  <div class="fh" style="margin-top:120px"><span class="fn">d</span><span class="ft">Just ended</span><span class="fb">bar gone</span></div>
+  <div id="s3d"></div>
+  <div class="fa">Bar gone the moment play stops. <b>RECAP</b> tag, and the recap posts into this same thread — never a review centre.</div>
+</div>
+
+<div class="frame" style="left:2360px;top:3380px">
+  <div class="fh" style="margin-top:120px"><span class="fn">e</span><span class="ft">Returned later</span><span class="fb">retention</span></div>
+  <div id="s3e"></div>
+  <div class="fa">Same thread, hours later. Mood cause line updated, night compressed to one arc, "run it back?" offered.</div>
+</div>
+
+<!-- ROW 3 · FULL TABLE -->
+<div class="frame" style="left:520px;top:4480px">
+  <div class="grouphdr">05 · Full table — canon header, three collapse states</div>
+  <div class="groupsub">Full-bleed rectangular felt with the global header intact above it. Board, pot and equity survive every collapse; seats and hero cards drop in order of how little they're needed to follow the hand.</div>
+  <div class="fh"><span class="fn">05a</span><span class="ft">Full</span><span class="fb">table owns the screen</span></div>
+  <div id="s5a"></div>
+  <div class="fa">Seat chips top corners, board and pot centred, hero and equity at the bottom, slim chat handle carrying the agent's line.</div>
+</div>
+
+<div class="frame" style="left:980px;top:4480px">
+  <div class="fh" style="margin-top:120px"><span class="fn">05b</span><span class="ft">Half</span><span class="fb">chat open</span></div>
+  <div id="s5b"></div>
+  <div class="fa">Felt to 336px, cards 42→34px. Everything needed to follow the hand survives; chat and composer take the rest.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:4480px">
+  <div class="fh" style="margin-top:120px"><span class="fn">05c</span><span class="ft">Strip</span><span class="fb">keyboard up</span></div>
+  <div id="s5c"></div>
+  <div class="fa">96px band — board, pot, equity, action, timer. Seats and hero cards drop; the input sits above the real keyboard.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:4480px">
+  <div class="fh" style="margin-top:120px"><span class="fn">11</span><span class="ft">Hand review</span><span class="fb">sheet · re-derived</span></div>
+  <div id="s11"></div>
+  <div class="fa"><b>Re-derived from screen #5.</b> Global header, a verdict band with the mood band's exact anatomy, and #5's composer quoting the hand. Equity is teal where the action matched the math, red where it defied it — the river jam at 38% is the one red row.</div>
+</div>
+
+<!-- FLOW MAP -->
+<div class="frame" style="left:520px;top:5580px">
+  <div class="fh"><span class="fn">10</span><span class="ft">Flow map</span><span class="fb teal">navigation</span></div>
+  <div id="s10"></div>
+  <div class="fa" style="max-width:1180px;margin-top:16px">
+    <b>Navigation law.</b>
+    <b style="color:#00D4AA">Tabs</b> — Chats · Team · You, top-level only.
+    <b style="color:#00D4AA">Threads</b> — back arrow in the global header, no tab bar.
+    <b style="color:#00D4AA">Live game</b> — never a scrolling message; it docks as the sticky bar.
+    <b style="color:#00D4AA">Team</b> — a LIVE agent goes to the table, a resting one to its profile.
+    <b style="color:#00D4AA">Hand review</b> — a sheet, reachable from flagged chips, the masthead and profiles.
+  </div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-screens-e.jsx"></script>
+<script type="text/babel" src="mood-screens-f.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-flow.jsx"></script>
+
+<script type="text/babel">
+const mounts = [
+  ['d1', StandupCollapsed],
+  ['f0', FloorQuietScreenM],
+  ['f1', FloorOneScreenM],
+  ['f1b', FloorTwoScreenM],
+  ['f1c', FloorFullScreenM],
+  ['f2', ZoomTiltedScreenM],
+  ['f3', ZoomPlayingScreenM],
+  ['f4', CasinoFTUScreenM],
+  ['f5', PostureSheetScreenM],
+  ['s1', HomeScreenM],
+  ['s7b', AgentProfileScreenM],
+  ['s3a', ThreadRestingScreenM],
+  ['s3b', ThreadDeployScreenM],
+  ['s3c', ThreadLiveScreenM],
+  ['s3d', ThreadEndedScreenM],
+  ['s3e', ThreadAwayScreenM],
+  ['s5a', TableFullScreenM],
+  ['s5b', TableHalfScreenM],
+  ['s5c', TableStripScreenM],
+  ['s11', HandReviewScreenM],
+  ['s8', YouScreenM],
+  ['s9', MoodSheetScreenM],
+  ['s10', FlowMap],
+];
+mounts.forEach(([id, Comp]) => {
+  ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);
+});
+</script>
+</body>
+</html>

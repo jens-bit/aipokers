@@ -36,6 +36,12 @@ Last updated: 2026-05-09 after the post-AJ-review reconciliation
 **What:** Once deployed (e.g. vs House), an agent plays until someone busts — no STOP/sit-out control exists. Observed 2026-08-29 on localhost.
 **Fix:** Add a STOP button (watch view + thread/rail). Behavior: finish the current hand, then close the table gracefully (TABLE_CLOSED "sat out by owner"), call /api/agents/:id/finish so the agent goes idle. Server largely supports this via spectator-leave/onEmpty; needs an explicit SIT_OUT WS message so it is deliberate, not a side effect of closing the tab. Fold into Tree 3.5 or a small standalone fix.
 
+### BUG-15 — Spectators see ALL seats’ reasoning, including the opponent’s
+**Severity:** Medium now (immersion), High later (cheating in PvP spectating)
+**Where:** src/server/table.js `_broadcastDecision` (BUG-12 fix routed by connection type only)
+**What:** Spectators receive full DECISION payloads (reasoning/equity) for every seat — watching your agent vs House shows the HOUSE’s thinking too. Observed 2026-08-29 evening on localhost.
+**Fix:** In _broadcastDecision, spectators get the full payload only when the deciding seat === their spectatorSeat (their own agent); bare {seat, action} otherwise. Rider on Tree 3.5.
+
 ---
 
 ## RESOLVED — kept here for traceability
