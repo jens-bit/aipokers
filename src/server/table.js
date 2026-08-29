@@ -5,7 +5,7 @@ import { appendHand } from './handHistory.js';
 import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
-import { recordHand as recordHandForOpponentStats } from './opponentStats.js';
+import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -811,6 +811,18 @@ export class Table {
     });
     const raisesThisStreet = this._getRaiseCountThisStreet();
 
+    // Read summaries for every OTHER seat with ≥10 observed hands. Handed
+    // to the briefing so the LLM can adapt sizing/fold decisions to how
+    // this specific opponent has been playing.
+    const opponentReads = [];
+    for (let i = 0; i < this.pending.length; i++) {
+      if (i === aiSeat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      const read = getOpponentRead(pid);
+      if (read && read.handsObserved >= 10) opponentReads.push(read);
+    }
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -835,6 +847,7 @@ export class Table {
       spr,
       policy,
       raisesThisStreet,
+      opponentReads,
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
