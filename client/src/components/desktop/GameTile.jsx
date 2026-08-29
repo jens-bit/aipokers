@@ -52,8 +52,8 @@ export function GameTile({ game, agentName, lastDecision, onWatch }) {
         <div className="dsk-tile__opp">
           <div className="dsk-tile__opp-avatar">{oppName.slice(0, 2).toUpperCase()}</div>
           <div className="dsk-tile__cards">
-            <MiniCard card={null} />
-            <MiniCard card={null} />
+            <MiniCard card={null} size="mini" />
+            <MiniCard card={null} size="mini" />
           </div>
           <div className="dsk-tile__opp-name">
             {oppName} · {(opp?.stack ?? 0).toLocaleString()}
@@ -72,8 +72,8 @@ export function GameTile({ game, agentName, lastDecision, onWatch }) {
 
         <div className="dsk-tile__hero">
           <div className="dsk-tile__cards">
-            <MiniCard card={hero?.holeCards?.[0]} hero />
-            <MiniCard card={hero?.holeCards?.[1]} hero />
+            <MiniCard card={hero?.holeCards?.[0]} size="hero" />
+            <MiniCard card={hero?.holeCards?.[1]} size="hero" />
           </div>
           <div className="dsk-tile__hero-badge">
             <Hood size={18} />

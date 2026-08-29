@@ -32,16 +32,18 @@ export function LogoMark({ width = 17, height = 20, stroke = TEAL }) {
 
 const SUIT_GLYPH = { s: '♠', h: '♥', d: '♦', c: '♣' };
 
-// Renders a protocol card string ("Ah", "Td") as a mini card face.
-export function MiniCard({ card, hero = false }) {
+// Renders a protocol card string ("Ah", "Td") as a card face.
+// size: 'board' (community), 'hero' (hole cards), 'mini' (opponent backs).
+export function MiniCard({ card, size = 'board' }) {
+  const sizeClass = size === 'board' ? '' : ` dsk-card--${size}`;
   if (!card || card === 'placeholder') {
-    return <div className={`dsk-card dsk-card--back${hero ? ' dsk-card--hero' : ''}`} aria-hidden />;
+    return <div className={`dsk-card dsk-card--back${sizeClass}`} aria-hidden />;
   }
   const rank = card.slice(0, -1);
   const suit = card.slice(-1).toLowerCase();
   const red = suit === 'h' || suit === 'd';
   return (
-    <div className={`dsk-card${red ? ' dsk-card--red' : ''}${hero ? ' dsk-card--hero' : ''}`}>
+    <div className={`dsk-card${red ? ' dsk-card--red' : ''}${sizeClass}`}>
       <span>{rank}</span>
       <span className="dsk-card__suit">{SUIT_GLYPH[suit] || ''}</span>
     </div>

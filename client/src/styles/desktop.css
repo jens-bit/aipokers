@@ -503,16 +503,19 @@
 .dsk-block__text {
   padding: 14px 16px;
   color: var(--dsk-dim);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.6;
 }
 .dsk-block__text b { color: var(--dsk-text); font-weight: 600; }
 
 /* ── Game tile ────────────────────────────────────────────────────────── */
 
+/* Ref lays out two tiles across an 880px column, ~413px each. Cap at that so a
+   single live tile keeps the ref's proportions instead of stretching wide. */
 .dsk-tile {
-  flex: 1;
-  min-width: 320px;
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -558,15 +561,24 @@
   letter-spacing: 0.1em;
 }
 
+/* The design ref positions the three zones absolutely inside a fixed-height
+   mockup, where their boxes overlap. Same visual structure here, but laid out
+   in flow (opponent / board / hero) so they cannot collide at any height. */
 .dsk-tile__felt {
   flex: 1;
   position: relative;
-  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 228px;
+  padding: 8px 10px 6px;
   background: radial-gradient(ellipse at center, #122520 0%, #0a1612 70%, #07100c 100%);
 }
 .dsk-tile__oval {
   position: absolute;
   inset: 14% 12%;
+  z-index: 0;
   border: 1.5px solid #0a0604;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, #1a3530 0%, #0e1a17 70%, #0a1612 100%);
@@ -581,19 +593,16 @@
 }
 
 .dsk-tile__opp {
-  position: absolute;
-  top: 8px;
-  left: 50%;
+  position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  transform: translateX(-50%);
 }
 .dsk-tile__opp-avatar {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -615,15 +624,15 @@
 }
 
 .dsk-tile__center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: relative;
   z-index: 1;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  transform: translate(-50%, -50%);
+  padding: 4px 0;
 }
 .dsk-tile__pot {
   display: flex;
@@ -641,15 +650,12 @@
 .dsk-tile__cards { display: flex; gap: 2px; }
 
 .dsk-tile__hero {
-  position: absolute;
-  bottom: 6px;
-  left: 50%;
+  position: relative;
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  transform: translateX(-50%);
 }
 .dsk-tile__hero-badge {
   display: flex;
@@ -711,15 +717,16 @@
 .dsk-tile__watch:hover { border-color: var(--dsk-teal); color: var(--dsk-teal); }
 
 /* Mini playing cards inside the tile */
+/* Board cards; hero hole cards and opponent backs scale off these. */
 .dsk-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 36px;
+  width: 28px;
+  height: 38px;
   flex-shrink: 0;
-  border: 1px solid var(--dsk-card-border, #d8d8d8);
+  border: 1px solid #d8d8d8;
   border-radius: 3px;
   background: #fff;
   color: #111;
@@ -734,7 +741,8 @@
   border: 1px solid rgba(0, 212, 170, 0.25);
   background: linear-gradient(140deg, #0d1a17, #071010);
 }
-.dsk-card--hero { width: 28px; height: 40px; }
+.dsk-card--hero { width: 30px; height: 42px; font-size: 13px; }
+.dsk-card--mini { width: 13px; height: 18px; border-radius: 2px; }
 
 /* ── Chat host (embedded existing components) ─────────────────────────── */
 
