@@ -1,6 +1,7 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
+import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
@@ -370,12 +371,10 @@ export class Table {
     }
   }
 
-  // POST a per-agent summary of the just-completed hand to the HTTP API so
-  // stats and recent-hands history can be persisted. Best-effort ÔÇö failures
-  // are logged but do not affect the table.
+  // Persist a per-agent hand summary and update aggregate stats. Best-effort —
+  // failures are logged but do not affect the table.
   _reportHandResults(result) {
     if (!result || !this.game) return;
-    const port = process.env.PORT || 8765;
     const handNumber = this.game.handNumber;
     const seatSnapshots = this.game.seats.map((s, i) => ({
       displayName: this.pending[i]?.displayName ?? s.playerId,
@@ -401,19 +400,17 @@ export class Table {
       // since the memory-update prompt only ever asks for 5).
       this.aiRecentHands[seat] = [handSummary, ...this.aiRecentHands[seat]].slice(0, 5);
 
-      const body = {
-        userId: this.agentUserIds[seat],
-        won,
-        potSize: result.pot,
-        decisions,
-        handNumber,
-        seats: seatSnapshots,
-      };
-      fetch(`http://localhost:${port}/api/agents/${agentId}/result`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }).catch((err) => console.error('[table] result report failed:', err.message));
+      try {
+        recordHandResult(agentId, this.agentUserIds[seat], {
+          won,
+          potSize: result.pot,
+          decisions,
+          handNumber,
+          seats: seatSnapshots,
+        });
+      } catch (err) {
+        console.error('[table] result report failed:', err.message);
+      }
     }
   }
 
@@ -434,36 +431,23 @@ export class Table {
     const agentId = this.agentIds[seat];
     const userId = this.agentUserIds[seat];
     if (!agentId) return;
-    const port = process.env.PORT || 8765;
     const recentHands = this.aiRecentHands[seat] ?? [];
     console.log(`[table:${this.tableId}] triggering memory update for agent ${agentId} (${recentHands.length} recent hands)`);
-    fetch(`http://localhost:${port}/api/agents/${agentId}/update-memory`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, recentHands }),
-    })
-      .then((r) => (r.ok ? this._refreshAgentMemory(seat) : null))
+    runMemoryUpdate(agentId, userId, recentHands)
+      .then((updated) => { if (updated) this._refreshAgentMemory(seat); })
       .catch((err) => console.error('[table] memory update failed:', err.message));
   }
 
   // Re-read the agent's formatted memoryContext so subsequent decisions pick
-  // up the new self-knowledge. Best-effort, short-lived.
+  // up the new self-knowledge.
   _refreshAgentMemory(seat) {
     const agentId = this.agentIds[seat];
-    const userId = this.agentUserIds[seat];
     if (!agentId) return;
-    const port = process.env.PORT || 8765;
-    fetch(`http://localhost:${port}/api/agents/${agentId}/memory?userId=${encodeURIComponent(userId ?? 'anon')}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        // Re-check the seat is still owned by the same agent ÔÇö the table may
-        // have been compacted or re-seated while we awaited the fetch.
-        if (this.agentIds[seat] !== agentId) return;
-        this.agentMemory[seat] = data.memoryContext || '';
-        console.log(`[table:${this.tableId}] refreshed memory for seat ${seat} (${this.agentMemory[seat].length} chars)`);
-      })
-      .catch(() => {});
+    // Re-check seat still belongs to the same agent — table may have been
+    // compacted or re-seated while the async memory update ran.
+    if (this.agentIds[seat] !== agentId) return;
+    this.agentMemory[seat] = getMemoryContext(agentId, this.agentUserIds[seat]);
+    console.log(`[table:${this.tableId}] refreshed memory for seat ${seat} (${this.agentMemory[seat].length} chars)`);
   }
 
   _broadcastState() {
