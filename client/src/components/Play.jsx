@@ -204,9 +204,11 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
           </button>
         </div>
 
-        <div className="dr-practice-row">
-          <button type="button" onClick={() => setStep('create-agent')}>+ Create new agent</button>
-        </div>
+        {agents.length > 0 && (
+          <div className="dr-practice-row">
+            <button type="button" onClick={() => setStep('create-agent')}>+ Create new agent</button>
+          </div>
+        )}
       </div>
     </div>
   );
