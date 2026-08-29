@@ -71,13 +71,43 @@ function buildUserPrompt(gs) {
   }
   const mathBlock = mathLines.length > 0 ? `\n${mathLines.join('\n')}` : '';
 
+  // Policy briefing block — advisory scaffolding produced by the server.
+  // Preflop range verdict, server-rolled bluff die, sizing hints, and a
+  // running raise counter so the LLM doesn't stack min-raises into eternity.
+  const policyLines = [];
+  if (gs.policy?.range && gs.street === 'preflop') {
+    const r = gs.policy.range;
+    policyLines.push(
+      `RANGE: this hand is ${r.inRange ? 'INSIDE' : 'OUTSIDE'} your preflop range` +
+      ` (top ~${r.targetVpip}%; hand percentile ${r.percentile})`,
+    );
+  }
+  if (gs.policy?.dice) {
+    policyLines.push(
+      `BLUFF DIE: ${gs.policy.dice.bluffDie ? 'YES — if a credible bluff line exists, take it' : 'NO — do not bluff this decision'}`,
+    );
+  }
+  if (gs.policy?.sizing?.text) {
+    policyLines.push(`SIZING: ${gs.policy.sizing.text}`);
+  }
+  if (Number.isInteger(gs.raisesThisStreet)) {
+    const anti = gs.raisesThisStreet >= 2
+      ? ' — no more small reraises this street; call, fold, or jam'
+      : '';
+    policyLines.push(`RAISES THIS STREET: ${gs.raisesThisStreet}${anti}`);
+  }
+  const policyBlock = policyLines.length > 0 ? `\n${policyLines.join('\n')}` : '';
+
   return `STREET: ${gs.street.toUpperCase()}
 HOLE CARDS: ${gs.holeCards.join(' ')}
 BOARD: ${board}
 POT: ${gs.pot}  MY STACK: ${gs.myStack}  OPP STACK: ${gs.oppStack}
 MY CONTRIB THIS STREET: ${gs.myContrib}
-POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}
+POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
+
+The math and policy lines above are ADVISORY server hints, not commands.
+Weigh them; deviate when your strategy calls for it, and say why briefly.
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.
 Respond with the JSON object including both "action" and "reasoning".

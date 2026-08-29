@@ -4,9 +4,11 @@ import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
 import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
+import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
+const HOUSE_PROFILE = { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 75 };
 
 // A Table owns a single Game instance and the WebSocket connections for its
 // 2ÔÇô4 seats. It serializes incoming actions, broadcasts filtered state, and
@@ -36,10 +38,16 @@ export class Table {
     this.agentIds = Array(maxSeats).fill(null);    // owning agentId for stats reporting
     this.agentUserIds = Array(maxSeats).fill(null);// owning userId for stats reporting
     this.agentMemory = Array(maxSeats).fill('');   // cached memoryContext string; refreshed after memory updates
+    this.agentProfiles = Array(maxSeats).fill(null); // { tightness, aggression, bluffFreq, discipline } for policy compiler
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
+
+    // Per-street raise counter, keyed by `${handNumber}:${street}`. Reset at
+    // maybeStartHand and mutated in _incrementRaiseCountIfAggressive after
+    // every applied bet/raise. Consumed by _buildAiGameState.
+    this._raiseCounts = {};
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
     this._houseFallbackTimer = null;               // 5s delay before auto-seating House
 
@@ -104,13 +112,14 @@ export class Table {
         agentId: null,
         userId: null,
         memoryContext: '',
+        agentProfile: HOUSE_PROFILE,
       });
       this.maybeStartHand();
     }, HOUSE_FALLBACK_MS);
   }
 
   // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
-  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '' } = {}) {
+  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
     const free = this.pending.findIndex((p) => p === null);
     if (free === -1) throw new Error('table full ÔÇö cannot seat AI');
 
@@ -128,9 +137,10 @@ export class Table {
     this.agentIds[free] = agentId ?? null;
     this.agentUserIds[free] = userId ?? null;
     this.agentMemory[free] = typeof memoryContext === 'string' ? memoryContext : '';
+    this.agentProfiles[free] = agentProfile ? normalizeProfile(agentProfile) : null;
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
-    console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''})`);
+    console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
 
@@ -140,7 +150,7 @@ export class Table {
 
   // Seat an AI for a spectating user and register their WS for state broadcasts.
   // Returns the seat index the AI was placed at.
-  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '' } = {}) {
+  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
     // A second spectator (new agent joining) cancels any pending House fallback.
     if (this._houseFallbackTimer && this.pending.some((p) => p !== null)) {
       clearTimeout(this._houseFallbackTimer);
@@ -153,6 +163,7 @@ export class Table {
       agentId,
       userId,
       memoryContext,
+      agentProfile,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
     // Schedule House as fallback opponent after HOUSE_FALLBACK_MS if still alone.
@@ -162,7 +173,7 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '' } = {}) {
+  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
@@ -175,6 +186,7 @@ export class Table {
       agentId,
       userId,
       memoryContext,
+      agentProfile,
     });
   }
 
@@ -229,6 +241,7 @@ export class Table {
         this.agentIds[i] = null;
         this.agentUserIds[i] = null;
         this.agentMemory[i] = '';
+        this.agentProfiles[i] = null;
         this.aiHandsPlayed[i] = 0;
         this.aiRecentHands[i] = [];
         if (hadActiveGame) {
@@ -285,6 +298,7 @@ export class Table {
           agentId: this.agentIds[i],
           userId: this.agentUserIds[i],
           memory: this.agentMemory[i],
+          profile: this.agentProfiles[i],
           handsPlayed: this.aiHandsPlayed[i],
           recentHands: this.aiRecentHands[i],
           lastChatHand: this.aiLastChatHand[i],
@@ -298,6 +312,7 @@ export class Table {
     this.agentIds = Array(this.maxSeats).fill(null);
     this.agentUserIds = Array(this.maxSeats).fill(null);
     this.agentMemory = Array(this.maxSeats).fill('');
+    this.agentProfiles = Array(this.maxSeats).fill(null);
     this.aiHandsPlayed = Array(this.maxSeats).fill(0);
     this.aiRecentHands = Array(this.maxSeats).fill(null).map(() => []);
     this.aiLastChatHand = Array(this.maxSeats).fill(-1);
@@ -309,6 +324,7 @@ export class Table {
       this.agentIds[i] = filled[i].agentId;
       this.agentUserIds[i] = filled[i].userId;
       this.agentMemory[i] = filled[i].memory ?? '';
+      this.agentProfiles[i] = filled[i].profile ?? null;
       this.aiHandsPlayed[i] = filled[i].handsPlayed ?? 0;
       this.aiRecentHands[i] = filled[i].recentHands ?? [];
       this.aiLastChatHand[i] = filled[i].lastChatHand ?? -1;
@@ -339,6 +355,7 @@ export class Table {
     this.currentHandDecisions = [];
     this.aiLastChatHand = Array(this.maxSeats).fill(-1);
     this.currentHandStartStacks = this.game.seats.map((s) => s.stack);
+    this._raiseCounts = {};
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._resetAiInactivityTimer();
@@ -351,9 +368,26 @@ export class Table {
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
     this.game.act(seat, action);
+    this._incrementRaiseCountIfAggressive(action);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
+  }
+
+  // ── Per-street raise counter (used by the policy briefing) ──────────────
+  _streetKey() {
+    return this.game ? `${this.game.handNumber}:${this.game.street}` : null;
+  }
+  _incrementRaiseCountIfAggressive(action) {
+    const k = this._streetKey();
+    if (!k) return;
+    if (action?.type === 'raise' || action?.type === 'bet') {
+      this._raiseCounts[k] = (this._raiseCounts[k] ?? 0) + 1;
+    }
+  }
+  _getRaiseCountThisStreet() {
+    const k = this._streetKey();
+    return k ? (this._raiseCounts[k] ?? 0) : 0;
   }
 
   _handCompleted() {
@@ -709,6 +743,17 @@ export class Table {
     const potOdds = toCall > 0 ? toCall / (g.pot + toCall) : null;
     const spr = g.pot > 0 ? me.stack / g.pot : null;
 
+    // Compile the per-decision policy directives from the agent's numeric
+    // profile. Agents without a stored profile fall back to a neutral default
+    // (the seat may have been created before this feature); an inferred one
+    // is passed in via seatAI when available.
+    const seatProfile = this.agentProfiles[aiSeat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+    const policy = compilePolicy(seatProfile, {
+      holeCards: me.holeCards,
+      position,
+    });
+    const raisesThisStreet = this._getRaiseCountThisStreet();
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -731,6 +776,8 @@ export class Table {
       equity,
       potOdds,
       spr,
+      policy,
+      raisesThisStreet,
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
@@ -781,6 +828,7 @@ export class Table {
 
     try {
       this.game.act(aiSeat, action);
+      this._incrementRaiseCountIfAggressive(action);
       this._broadcast({
         type: ServerMsg.DECISION,
         seat: aiSeat,
