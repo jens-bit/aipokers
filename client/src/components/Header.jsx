@@ -112,7 +112,7 @@ function AgentsCountPill() {
     <div className="dr-app-header__agents-pill">
       <span className="dr-app-header__agents-dot" aria-hidden />
       <span className="dr-app-header__agents-label">
-        {count == null ? '—' : `${count} agents`}
+        {count == null ? '—' : `${count} agents live`}
       </span>
     </div>
   );
