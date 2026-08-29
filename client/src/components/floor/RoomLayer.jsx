@@ -6,7 +6,7 @@ import { FLOOR_W, FLOOR_H, LAYOUTS } from './layouts.js';
 const M_TEAL = '#00D4AA';
 const M_GOLD = '#CDB380';
 
-export function RoomLayer({ layout, ftu }) {
+export function RoomLayer({ layout, ftu, viewBox }) {
   const L = LAYOUTS[layout] || LAYOUTS.one;
   const o = ftu ? 0.4 : (L.dimRoom ? 0.62 : 1);
   const b = L.bar;
@@ -17,8 +17,8 @@ export function RoomLayer({ layout, ftu }) {
   return (
     <svg
       className="floor__room"
-      viewBox={`0 0 ${FLOOR_W} ${FLOOR_H}`}
-      preserveAspectRatio="none"
+      viewBox={viewBox || `0 0 ${FLOOR_W} ${FLOOR_H}`}
+      preserveAspectRatio={viewBox ? 'xMidYMid slice' : 'xMidYMid meet'}
       aria-hidden
     >
       <defs>

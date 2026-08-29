@@ -21,11 +21,16 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--flr-bg);
+  /* Ground treatment. The room SVG keeps its aspect ratio and is centred, so
+     this paints the band left over above/below it — the floor continues
+     rather than showing letterbox bars. */
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 34%, rgba(0, 212, 170, 0.05), transparent 70%),
+    linear-gradient(180deg, #070908 0%, var(--flr-bg) 42%, #060707 100%);
 }
 
-/* The room stretches to the viewport the way the ref's RoomLayer does
-   (preserveAspectRatio="none"), so occupant percentages stay in register. */
+/* Aspect-preserving: the browser centres the room with xMidYMid meet, and
+   projectRoom() reproduces that same scale + offset for the HTML occupants. */
 .floor__room {
   position: absolute;
   inset: 0;

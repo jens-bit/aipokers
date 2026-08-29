@@ -3,7 +3,9 @@
 // are verbatim; only React plumbing (useId, class names) is adapted.
 
 import { useId } from 'react';
-import { pctX, pctY } from './layouts.js';
+import { roomStyle } from './layouts.js';
+
+const IDENTITY_ROOM = { k: 1, ox: 0, oy: 0 };
 
 export const M_TEAL = '#00D4AA';
 export const M_GOLD = '#CDB380';
@@ -146,10 +148,10 @@ export function GhostChip({ name, accent = M_TEAL, state = 'resting' }) {
 }
 
 // Identical anatomy at both scales — only the type steps down.
-// x/y are floor coordinates; see layouts.js for the coordinate space.
-export function PotTicker({ x, y, amount, mini }) {
+// x/y are room coordinates; see layouts.js for the coordinate space.
+export function PotTicker({ x, y, amount, mini, room = IDENTITY_ROOM }) {
   return (
-    <div className={`floor-pot${mini ? ' is-mini' : ''}`} style={{ left: pctX(x), top: pctY(y) }}>
+    <div className={`floor-pot${mini ? ' is-mini' : ''}`} style={roomStyle(room, x, y)}>
       <span className="floor-pot__label">Pot</span>
       <span className="floor-pot__amount">{amount}</span>
     </div>
@@ -196,7 +198,7 @@ export function StateTag({ state = 'resting', compact }) {
 // A ghost with its chip, drink and floor shadow — the unit placed in a zone.
 export function Occupant({
   x, y, name, accent = M_TEAL, mood = 'neutral', state = 'resting',
-  size = 56, speed = 5, drink = false, dim = false, onClick,
+  size = 56, speed = 5, drink = false, dim = false, onClick, room = IDENTITY_ROOM,
 }) {
   const m = MOODS[safeMood(mood)];
   const shadowAlpha = state === 'resting' ? '1A' : '2E';
@@ -204,7 +206,7 @@ export function Occupant({
     <button
       type="button"
       className={`floor-occupant${dim ? ' is-dim' : ''}`}
-      style={{ left: pctX(x), top: pctY(y) }}
+      style={roomStyle(room, x, y)}
       onClick={onClick}
       aria-label={`${name} — ${m.label.toLowerCase()}`}
     >

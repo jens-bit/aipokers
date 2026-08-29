@@ -65,5 +65,27 @@ export function layoutFor(playingCount) {
   return 'full';
 }
 
-export const pctX = (x) => `${(x / FLOOR_W) * 100}%`;
-export const pctY = (y) => `${(y / FLOOR_H) * 100}%`;
+// The room keeps its aspect ratio (xMidYMid meet) and is centred in the
+// viewport; the leftover band is painted with the floor's own ground
+// treatment so it reads as more room, not as a letterbox.
+//
+// Occupants are HTML, not SVG, so they need the same mapping the browser
+// applies to the SVG: scale by k, offset by the centring gap. Scaling the
+// ghosts by k too is what keeps ghost-to-felt proportions constant at every
+// viewport size.
+export function projectRoom(w, h) {
+  if (!w || !h) return { k: 1, ox: 0, oy: 0 };
+  const k = Math.min(w / FLOOR_W, h / FLOOR_H);
+  return { k, ox: (w - FLOOR_W * k) / 2, oy: (h - FLOOR_H * k) / 2 };
+}
+
+// Places an element anchored at room coordinate (x, y), scaled into the room.
+export function roomStyle(room, x, y) {
+  const { k, ox, oy } = room;
+  return {
+    left: ox + x * k,
+    top: oy + y * k,
+    transform: `translateX(-50%) scale(${k})`,
+    transformOrigin: 'top center',
+  };
+}

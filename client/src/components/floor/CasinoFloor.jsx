@@ -1,12 +1,12 @@
 // THE CASINO FLOOR — the camera never moves. The room redresses itself by
 // how many agents are playing. Ported from design-refs/mood-casino.jsx.
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
 import { Occupant, PotTicker, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
-import { LAYOUTS, layoutFor, pctX, pctY } from './layouts.js';
+import { LAYOUTS, layoutFor, projectRoom, roomStyle } from './layouts.js';
 import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
 
 const POLL_MS = 10_000;
@@ -15,6 +15,24 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [zoomedId, setZoomedId] = useState(null);
+  const [room, setRoom] = useState({ k: 1, ox: 0, oy: 0 });
+  const rootRef = useRef(null);
+
+  // Occupants live in the room's coordinate space, so they need the same
+  // scale + centring offset the browser applies to the room SVG.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const measure = () => setRoom(projectRoom(el.clientWidth, el.clientHeight));
+    measure();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const load = useCallback(() => {
     fetch(`/api/agents?userId=${getUserId()}`)
@@ -53,7 +71,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const barSlots = spreadAlongBar(barAgents, L.bar);
 
   return (
-    <div className={`floor${zoomed ? ' is-zoomed' : ''}`}>
+    <div className={`floor${zoomed ? ' is-zoomed' : ''}`} ref={rootRef}>
       <div className="floor__room-wrap">
         <RoomLayer layout={layout} ftu={ftu} />
       </div>
@@ -84,9 +102,10 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
               state="live"
               size={ghostSize}
               speed={speedFor(agent, i)}
+              room={room}
               onClick={() => setZoomedId(agent.id)}
             />
-            {pot && <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={pot} mini={mini} />}
+            {pot && <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={pot} mini={mini} room={room} />}
           </Fragment>
         );
       })}
@@ -104,6 +123,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
           size={mini ? 44 : 48}
           speed={speedFor(agent, i)}
           drink
+          room={room}
           onClick={() => setZoomedId(agent.id)}
         />
       ))}
@@ -121,6 +141,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
           size={50}
           speed={speedFor(agent, 3)}
           dim
+          room={room}
           onClick={() => setZoomedId(agent.id)}
         />
       ))}
@@ -130,6 +151,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
           onClick={onCreateAgent}
           x={LAYOUTS.quiet.bar.x1 + 100}
           y={LAYOUTS.quiet.bar.y - 102}
+          room={room}
         />
       )}
 
@@ -159,12 +181,12 @@ function spreadAlongBar(agents, bar) {
   return shown.map((agent, i) => ({ agent, x: bar.x1 + step * (i + 1) }));
 }
 
-function FtuStool({ x, y, onClick }) {
+function FtuStool({ x, y, onClick, room }) {
   return (
     <button
       type="button"
       className="floor-ftu"
-      style={{ left: pctX(x), top: pctY(y) }}
+      style={roomStyle(room, x, y)}
       onClick={onClick}
     >
       <span className="floor-ftu__chip">
