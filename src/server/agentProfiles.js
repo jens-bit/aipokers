@@ -462,6 +462,23 @@ export function getMemoryContext(agentId, userId) {
   return getAgentMemoryContext(agent);
 }
 
+// Programmatic version of the /finish endpoint — used by table.js when a
+// table closes (natural end, sit-out, disconnect). Marks the agent idle,
+// sets unseenRecap, and builds a self-change proposal from leaks. No HTTP
+// round-trip; same in-process pattern as recordHandResult.
+export function finishAgentSession(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  if (agent.activeTableId) activeTables.delete(agent.activeTableId);
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  agent.unseenRecap = true;
+  try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  saveStore(userId ?? 'anon');
+  return agent;
+}
+
 // Return an agent's numeric policy profile (backfilled from style/risk if
 // the agent pre-dates the profile feature). Null if the agent doesn't exist.
 export function getAgentProfile(agentId, userId) {

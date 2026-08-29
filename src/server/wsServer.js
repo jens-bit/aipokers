@@ -142,6 +142,15 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             return;
           }
 
+          case ClientMsg.SIT_OUT: {
+            const table = tables.get(ws.tableId);
+            if (!table) throw new Error('not at a table');
+            // Finishes the current hand (if any) then broadcasts TABLE_CLOSED
+            // + runs the agent finish path. Owner-initiated STOP (BUG-14).
+            table.sitOut(ws);
+            return;
+          }
+
           case ClientMsg.LEAVE: {
             const table = tables.get(ws.tableId);
             if (table) table.removeConnection(ws);

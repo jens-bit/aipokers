@@ -8,6 +8,10 @@ export const ClientMsg = Object.freeze({
   DEAL: 'deal',         // { type } — start the next hand once both players are seated and chipped
   RENAME: 'rename',     // { type, displayName } — change your seat's display name
   CHAT: 'chat',         // { type, tableId, text } — table chat message from the seated client
+  SIT_OUT: 'sit_out',   // { type } — deliberate STOP (owner or spectator). Finish the
+                        // current hand, then broadcast TABLE_CLOSED and run the agent
+                        // finish path (idle + unseenRecap). If no hand is in progress
+                        // the table closes immediately. See BUG-14.
   LEAVE: 'leave',       // { type }
   PING: 'ping',
 });

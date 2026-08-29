@@ -9,6 +9,7 @@ import {
   updateComputedMemory,
   getAgentMood,
   setAgentMood,
+  finishAgentSession,
 } from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
@@ -20,8 +21,33 @@ import {
 } from '../agent/mood.js';
 
 const HOUSE_FALLBACK_MS = 5000;
-const HOUSE_STRATEGY = 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.';
-const HOUSE_PROFILE = { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 75 };
+
+// Complementary House archetypes. Playtest 2026-08-29 showed tight-vs-tight
+// tables produce fold-fests (seven straight uncontested preflop hands). Fix:
+// pick the House that creates action against the specific agent's shape.
+const HOUSE_TAG = {
+  strategy: 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.',
+  profile:  { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 75 },
+  displayName: 'House',
+};
+const HOUSE_STATION = {
+  strategy: 'You are a loose call-heavy heads-up player. Call a wide range preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any piece of the board. Rarely raise unless you have a strong made hand.',
+  profile:  { tightness: 22, aggression: 30, bluffFreq: 10, discipline: 55 },
+  displayName: 'House',
+};
+// Backwards-compat export for anything importing HOUSE_STRATEGY (none in
+// the tree currently, but kept as the canonical text of the TAG House).
+const HOUSE_STRATEGY = HOUSE_TAG.strategy;
+const HOUSE_PROFILE = HOUSE_TAG.profile;
+
+// Pick which House archetype to seat, given the profile of the already-seated
+// agent (if any). Tight agent → loose Station House; loose agent → TAG House.
+// Default is TAG (the historical baseline) when no counterpart profile exists.
+function pickComplementaryHouse(opposingProfile) {
+  if (!opposingProfile || !Number.isFinite(opposingProfile.tightness)) return HOUSE_TAG;
+  if (opposingProfile.tightness > 60) return HOUSE_STATION;
+  return HOUSE_TAG;
+}
 
 // A Table owns a single Game instance and the WebSocket connections for its
 // 2ÔÇô4 seats. It serializes incoming actions, broadcasts filtered state, and
@@ -79,6 +105,48 @@ export class Table {
 
     // Spectators: users who watch their AI play from its seat's POV
     this.spectators = [];                          // [{ ws, spectatorSeat }]
+
+    // BUG-14: SIT_OUT — when set, the table finishes the CURRENT hand and
+    // then closes gracefully in _handCompleted.
+    this._pendingSitOut = false;
+  }
+
+  // BUG-14: initiated by ClientMsg.SIT_OUT from either a seated player or a
+  // spectator (agent owner watching). If a hand is in progress we finish it
+  // first; otherwise close now. Either path ends in `_closeSitOut()`.
+  sitOut(ws) {
+    const isSeated = this.connections.some((c) => c === ws);
+    const isSpectator = this.spectators.some((s) => s.ws === ws);
+    if (!isSeated && !isSpectator) throw new Error('not at this table');
+    const inHand = !!this.game &&
+      this.game.street !== Streets.COMPLETE &&
+      this.game.street !== Streets.WAITING;
+    if (inHand) {
+      this._pendingSitOut = true;
+      return { pending: true };
+    }
+    this._closeSitOut();
+    return { pending: false };
+  }
+
+  // Close the table cleanly following a sit-out. Broadcasts TABLE_CLOSED,
+  // runs the agent's finish path for every AI seat with an owning agentId,
+  // then destroys the game + drops the table via onEmpty.
+  _closeSitOut() {
+    this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'sat out by owner' });
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      try {
+        finishAgentSession(agentId, this.agentUserIds[seat]);
+      } catch (err) {
+        console.error('[table] finishAgentSession failed:', err.message);
+      }
+    }
+    this.game = null;
+    if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
+    if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
+    this.onEmpty?.(this.tableId);
   }
 
   // Returns the seat the player got, or throws.
@@ -123,13 +191,19 @@ export class Table {
     this._houseFallbackTimer = setTimeout(() => {
       this._houseFallbackTimer = null;
       if (this.pending.filter((p) => p !== null).length !== 1) return;
+      // If the sole seated participant is a spectated AI agent, look at its
+      // profile and pick a complementary House shape so the table produces
+      // action instead of a fold-fest.
+      const opposingProfile = this.agentProfiles.find((p) => p) ?? null;
+      const house = pickComplementaryHouse(opposingProfile);
+      console.log(`[table:${this.tableId}] scheduling House archetype=${house === HOUSE_STATION ? 'Station' : 'TAG'} vs opponent T=${opposingProfile?.tightness ?? '?'}`);
       this.maybeAutoSeatAI({
-        agentDisplayName: 'House',
-        agentStrategy: HOUSE_STRATEGY,
+        agentDisplayName: house.displayName,
+        agentStrategy: house.strategy,
         agentId: null,
         userId: null,
         memoryContext: '',
-        agentProfile: HOUSE_PROFILE,
+        agentProfile: house.profile,
       });
       this.maybeStartHand();
     }, HOUSE_FALLBACK_MS);
@@ -427,6 +501,11 @@ export class Table {
     this._updateAgentMoods(this.game.result);
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
+    if (this._pendingSitOut) {
+      this._pendingSitOut = false;
+      this._closeSitOut();
+      return;
+    }
     if (this.game.seats.some((s) => s.stack <= 0)) {
       this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
       return;
@@ -744,11 +823,12 @@ export class Table {
     }
   }
 
-  // BUG-12: an AI seat's reasoning/equity are secret from opposing seated
-  // players — leaking them tells the opponent our exact hand strength read.
-  // Spectators (agent owners watching from the AI's POV) still get the full
-  // payload, and it is fully preserved in currentHandDecisions for stored
-  // hand records / replays.
+  // BUG-12 / BUG-15: an AI seat's reasoning/equity are secret from every
+  // seat except its own owner. Seated players get the bare {seat, action}
+  // payload. Spectators get the FULL payload only for the seat they are
+  // watching (their spectatorSeat); other seats' decisions arrive
+  // sanitized. Full record is still kept in currentHandDecisions for
+  // replay/analysis by the seat's owner.
   _broadcastDecision({ seat, action, reasoning, equity, potOdds }) {
     const fullPayload = JSON.stringify({
       type: ServerMsg.DECISION, seat, action, reasoning, equity, potOdds,
@@ -760,7 +840,8 @@ export class Table {
       if (ws && ws.readyState === ws.OPEN) ws.send(sanitizedPayload);
     }
     for (const s of this.spectators) {
-      if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(fullPayload);
+      if (!s.ws || s.ws.readyState !== s.ws.OPEN) continue;
+      s.ws.send(s.spectatorSeat === seat ? fullPayload : sanitizedPayload);
     }
   }
 
