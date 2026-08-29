@@ -3,6 +3,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware } from './auth.js';
+import { rateLimiter } from './rateLimit.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -327,6 +328,13 @@ async function callClaude(messages, systemText, maxTokens) {
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export function installAgentProfileRoutes(app) {
+  // Tighter rate limit for LLM-spending endpoints (chat + build).
+  const chatLimiter = rateLimiter({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
+    max: Number(process.env.RATE_LIMIT_CHAT_MAX ?? 10),
+    message: 'Too many requests — slow down',
+  });
+
   // GET /api/agent-profile — full profile (chat + agents)
   app.get('/api/agent-profile', (req, res) => {
     const userId = String(req.query.userId || 'anon');
@@ -498,7 +506,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // POST /api/agents/chat — pure conversational reply, never generates an agent
-  app.post('/api/agents/chat', telegramAuthMiddleware, async (req, res) => {
+  app.post('/api/agents/chat', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
     const existingAgentId = req.body?.existingAgentId ?? null;
@@ -546,7 +554,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it
-  app.post('/api/agents/build', telegramAuthMiddleware, async (req, res) => {
+  app.post('/api/agents/build', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const existingAgentId = req.body?.existingAgentId ?? null;
 
