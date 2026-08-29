@@ -62,8 +62,8 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const mini = layout === 'three' || layout === 'full';
   const ghostSize = mini ? 40 : layout === 'two' ? 50 : 56;
 
-  // Ghost block height, so an occupant hangs above its felt like the ref.
-  const ghostBlock = (ghostSize * 1.2) + 19 + 3;
+  // Card fan height added above the ghost body in the seated posture.
+  const SEATED_CARD_H = 44;
 
   // Everyone resting stands at the bar. With no lounge corner in the compact
   // diamonds, the lounge crowd joins them rather than disappearing.
@@ -75,9 +75,12 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const placements = [
     ...playing.slice(0, litFelts.length).map((agent, i) => {
       const f = litFelts[i];
+      // Seat the ghost at the near rail: card fan top is the anchor, ghost body
+      // top lands ~10px inside the felt bottom so it overlaps the rim naturally.
       return {
-        agent, felt: f, x: f.cx, y: f.cy - ghostBlock + 8,
+        agent, felt: f, x: f.cx, y: f.cy + f.ry - 10 - 3 - SEATED_CARD_H,
         state: 'live', size: ghostSize, speed: speedFor(agent, i), accentIndex: i,
+        seated: true,
       };
     }),
     ...barSlots.map(({ agent, x }, i) => ({
@@ -128,13 +131,14 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
                 speed={p.speed}
                 drink={p.drink}
                 dim={p.dim}
+                seated={p.seated}
                 room={room}
                 onClick={() => setZoomedId(p.agent.id)}
               />
               {p.felt && potFor(p.agent, liveGame) && (
                 <PotTicker
                   x={p.felt.cx}
-                  y={p.felt.cy + p.felt.ry + 8}
+                  y={p.felt.cy - p.felt.ry - 12}
                   amount={potFor(p.agent, liveGame)}
                   mini={mini}
                   room={room}

@@ -3,6 +3,7 @@
 // are verbatim; only React plumbing (useId, class names) is adapted.
 
 import { useId } from 'react';
+import { Card } from '../Card.jsx';
 import { roomStyle } from './layouts.js';
 
 const IDENTITY_ROOM = { k: 1, ox: 0, oy: 0 };
@@ -200,13 +201,40 @@ export function StateTag({ state = 'resting', compact }) {
   );
 }
 
+// Two face-down card backs fanned on the felt in front of a seated ghost.
+function SeatedCardFan() {
+  return (
+    <div
+      style={{ position: 'relative', width: 52, height: 44, flexShrink: 0, pointerEvents: 'none' }}
+      aria-hidden
+    >
+      <div style={{ position: 'absolute', left: 2, top: 0, transformOrigin: 'bottom center', transform: 'rotate(-9deg)' }}>
+        <Card card={null} size="felt" />
+      </div>
+      <div style={{ position: 'absolute', right: 2, top: 0, transformOrigin: 'bottom center', transform: 'rotate(9deg)' }}>
+        <Card card={null} size="felt" />
+      </div>
+    </div>
+  );
+}
+
 // A ghost with its chip, drink and floor shadow — the unit placed in a zone.
+// `seated` flips to the near-rail posture: cards → ghost → shadow → chip.
 export function Occupant({
   x, y, name, accent = M_TEAL, mood = 'neutral', state = 'resting',
-  size = 56, speed = 5, drink = false, dim = false, onClick, room = IDENTITY_ROOM,
+  size = 56, speed = 5, drink = false, dim = false, seated = false, onClick, room = IDENTITY_ROOM,
 }) {
   const m = MOODS[safeMood(mood)];
   const shadowAlpha = state === 'resting' ? '1A' : '2E';
+  const shadow = (
+    <span
+      className="floor-occupant__shadow"
+      style={{
+        width: size * 1.1,
+        background: `radial-gradient(ellipse, ${m.color}${shadowAlpha}, transparent 70%)`,
+      }}
+    />
+  );
   return (
     <button
       type="button"
@@ -215,24 +243,31 @@ export function Occupant({
       onClick={onClick}
       aria-label={`${name} — ${m.label.toLowerCase()}`}
     >
-      <GhostChip name={name} accent={accent} state={state} />
-      <span className="floor-occupant__body">
-        <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
-        {drink && (
-          <svg width="13" height="20" viewBox="0 0 13 20" className="floor-occupant__drink" aria-hidden>
-            <path d="M2 3 L11 3 L8.4 11 L4.6 11 Z" fill={`${M_GOLD}44`} stroke={`${M_GOLD}88`} strokeWidth="0.8" />
-            <path d="M6.5 11 L6.5 17" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
-            <path d="M3.4 17.6 L9.6 17.6" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
-          </svg>
-        )}
-      </span>
-      <span
-        className="floor-occupant__shadow"
-        style={{
-          width: size * 1.1,
-          background: `radial-gradient(ellipse, ${m.color}${shadowAlpha}, transparent 70%)`,
-        }}
-      />
+      {seated ? (
+        <>
+          <SeatedCardFan />
+          <span className="floor-occupant__body">
+            <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+          </span>
+          {shadow}
+          <GhostChip name={name} accent={accent} state={state} />
+        </>
+      ) : (
+        <>
+          <GhostChip name={name} accent={accent} state={state} />
+          <span className="floor-occupant__body">
+            <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+            {drink && (
+              <svg width="13" height="20" viewBox="0 0 13 20" className="floor-occupant__drink" aria-hidden>
+                <path d="M2 3 L11 3 L8.4 11 L4.6 11 Z" fill={`${M_GOLD}44`} stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+                <path d="M6.5 11 L6.5 17" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+                <path d="M3.4 17.6 L9.6 17.6" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+              </svg>
+            )}
+          </span>
+          {shadow}
+        </>
+      )}
     </button>
   );
 }
