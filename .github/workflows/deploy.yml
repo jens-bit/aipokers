@@ -1,0 +1,49 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy & health-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@f077be959571d7e338f5c5e67af2c6f72fc36e3c  # v1.2.2
+        with:
+          host: 46.62.169.246
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/aipokers
+
+            echo "=== git pull ==="
+            git pull
+
+            echo "=== pm2 restart ==="
+            pm2 restart all --update-env
+
+            echo "=== health check: /api/stats must return 200 ==="
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8765/api/stats)
+            if [ "$STATUS" != "200" ]; then
+              echo "FAIL: /api/stats returned $STATUS (expected 200)"
+              exit 1
+            fi
+            echo "OK: /api/stats returned 200"
+
+            echo "=== health check: /api/agents/chat must return 401 (auth live) ==="
+            AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:8765/api/agents/chat \
+              -H "Content-Type: application/json" \
+              -d '{}')
+            if [ "$AUTH_STATUS" != "401" ]; then
+              echo "FAIL: /api/agents/chat returned $AUTH_STATUS (expected 401 — 400 means auth regressed)"
+              exit 1
+            fi
+            echo "OK: /api/agents/chat returned 401"
+
+            echo "=== deploy complete ==="
