@@ -1,0 +1,272 @@
+{
+  "timestamp": "2026-08-29T15:48:21.797Z",
+  "args": {
+    "pairs": 50,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "*",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000
+  },
+  "profiles": {
+    "Nit": {
+      "strategy": "You are an extremely tight, risk-averse poker player. Only enter pots with premium hands (AA, KK, QQ, JJ, AK). Fold everything else preflop. Postflop, only continue with strong made hands or the nuts. Never bluff. Value bet thinly.",
+      "profile": {
+        "tightness": 90,
+        "aggression": 45,
+        "bluffFreq": 5,
+        "discipline": 90
+      }
+    },
+    "Loose Cannon": {
+      "strategy": "You are an ultra-aggressive maniac. Raise or 3-bet preflop with almost any playable hand. Bet and raise relentlessly postflop regardless of your holding. Bluff frequently. Rarely fold once you have chips in the pot. You want maximum variance.",
+      "profile": {
+        "tightness": 10,
+        "aggression": 95,
+        "bluffFreq": 60,
+        "discipline": 20
+      }
+    },
+    "TAG": {
+      "strategy": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+      "profile": {
+        "tightness": 70,
+        "aggression": 70,
+        "bluffFreq": 30,
+        "discipline": 80
+      }
+    },
+    "Calling Station": {
+      "strategy": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop.",
+      "profile": {
+        "tightness": 15,
+        "aggression": 5,
+        "bluffFreq": 3,
+        "discipline": 40
+      }
+    }
+  },
+  "matchups": [
+    {
+      "a": "Nit",
+      "b": "Loose Cannon",
+      "Nit": {
+        "hands": 100,
+        "netChips": -925,
+        "bb100": -46.25,
+        "ci95": 303.89,
+        "vpip": 8,
+        "pfr": 6,
+        "af": 0.91,
+        "foldRate": 78.9,
+        "fallbackRate": 0,
+        "decisions": 123
+      },
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": 925,
+        "bb100": 46.25,
+        "ci95": 303.89,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 68,
+        "foldRate": 0,
+        "fallbackRate": 0,
+        "decisions": 68
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "TAG",
+      "Nit": {
+        "hands": 100,
+        "netChips": -80,
+        "bb100": -4,
+        "ci95": 82.43,
+        "vpip": 15.6,
+        "pfr": 15.6,
+        "af": 3.75,
+        "foldRate": 71.8,
+        "fallbackRate": 0,
+        "decisions": 78
+      },
+      "TAG": {
+        "hands": 100,
+        "netChips": 80,
+        "bb100": 4,
+        "ci95": 82.43,
+        "vpip": 28.8,
+        "pfr": 28.8,
+        "af": 25,
+        "foldRate": 60.9,
+        "fallbackRate": 0,
+        "decisions": 69
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "Calling Station",
+      "Nit": {
+        "hands": 100,
+        "netChips": -679,
+        "bb100": -33.95,
+        "ci95": 81.45,
+        "vpip": 6,
+        "pfr": 6,
+        "af": 9,
+        "foldRate": 81.9,
+        "fallbackRate": 0,
+        "decisions": 116
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": 679,
+        "bb100": 33.95,
+        "ci95": 81.45,
+        "vpip": 100,
+        "pfr": 5.5,
+        "af": 0.11,
+        "foldRate": 1.3,
+        "fallbackRate": 0,
+        "decisions": 76
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "TAG",
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": -13210,
+        "bb100": -660.5,
+        "ci95": 626.37,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 105,
+        "foldRate": 3.7,
+        "fallbackRate": 0,
+        "decisions": 109
+      },
+      "TAG": {
+        "hands": 100,
+        "netChips": 13210,
+        "bb100": 660.5,
+        "ci95": 626.37,
+        "vpip": 20,
+        "pfr": 19,
+        "af": 2.95,
+        "foldRate": 52.5,
+        "fallbackRate": 0,
+        "decisions": 158
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "Calling Station",
+      "Loose Cannon": {
+        "hands": 100,
+        "netChips": -12727,
+        "bb100": -636.35,
+        "ci95": 630.14,
+        "vpip": 100,
+        "pfr": 100,
+        "af": 114,
+        "foldRate": 0.8,
+        "fallbackRate": 0,
+        "decisions": 358
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": 12727,
+        "bb100": 636.35,
+        "ci95": 630.14,
+        "vpip": 100,
+        "pfr": 5,
+        "af": 0.12,
+        "foldRate": 9.6,
+        "fallbackRate": 0,
+        "decisions": 520
+      }
+    },
+    {
+      "a": "TAG",
+      "b": "Calling Station",
+      "TAG": {
+        "hands": 100,
+        "netChips": 4457,
+        "bb100": 222.85,
+        "ci95": 295.35,
+        "vpip": 22,
+        "pfr": 22,
+        "af": 28.25,
+        "foldRate": 32.1,
+        "fallbackRate": 0,
+        "decisions": 215
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": -4457,
+        "bb100": -222.85,
+        "ci95": 295.35,
+        "vpip": 100,
+        "pfr": 11.1,
+        "af": 0.47,
+        "foldRate": 5.6,
+        "fallbackRate": 0,
+        "decisions": 216
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 300,
+      "netChips": -1684,
+      "bb100": -28.07,
+      "ci95": 107.72,
+      "vpip": 9.1,
+      "pfr": 8.3,
+      "af": 2.27,
+      "foldRate": 78.2,
+      "fallbackRate": 0,
+      "decisions": 317
+    },
+    "Loose Cannon": {
+      "hands": 300,
+      "netChips": -25012,
+      "bb100": -416.87,
+      "ci95": 315.32,
+      "vpip": 100,
+      "pfr": 100,
+      "af": 171.67,
+      "foldRate": 1.3,
+      "fallbackRate": 0,
+      "decisions": 535
+    },
+    "TAG": {
+      "hands": 300,
+      "netChips": 17747,
+      "bb100": 295.78,
+      "ci95": 235.02,
+      "vpip": 22.8,
+      "pfr": 22.4,
+      "af": 8.43,
+      "foldRate": 43.9,
+      "fallbackRate": 0,
+      "decisions": 442
+    },
+    "Calling Station": {
+      "hands": 300,
+      "netChips": 8949,
+      "bb100": 149.15,
+      "ci95": 239.08,
+      "vpip": 100,
+      "pfr": 6.9,
+      "af": 0.2,
+      "foldRate": 7.8,
+      "fallbackRate": 0,
+      "decisions": 812
+    }
+  },
+  "elapsedSec": 2414.6,
+  "apiKeyPresent": true,
+  "model": "claude-haiku-4-5"
+}
