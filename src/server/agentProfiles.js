@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import { telegramAuthMiddleware } from './auth.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -346,7 +347,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // DELETE /api/agents/:agentId?userId=...
-  app.delete('/api/agents/:agentId', (req, res) => {
+  app.delete('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
@@ -358,7 +359,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // PATCH /api/agents/:agentId — update name and/or strategy
-  app.patch('/api/agents/:agentId', (req, res) => {
+  app.patch('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
@@ -497,7 +498,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // POST /api/agents/chat — pure conversational reply, never generates an agent
-  app.post('/api/agents/chat', async (req, res) => {
+  app.post('/api/agents/chat', telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
     const existingAgentId = req.body?.existingAgentId ?? null;
@@ -545,7 +546,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it
-  app.post('/api/agents/build', async (req, res) => {
+  app.post('/api/agents/build', telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const existingAgentId = req.body?.existingAgentId ?? null;
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 const QUICK_PROMPTS = [
   'Balanced heads-up player',
@@ -88,7 +88,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, content: text, existingAgentId: activeAgentId }),
       });
       const data = await res.json();
@@ -114,7 +114,7 @@ export function CreateAgent({ onBack, onDone, onDeploy, agentName = null, existi
     try {
       const res = await fetch('/api/agents/build', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, existingAgentId: activeAgentId }),
       });
       const data = await res.json();

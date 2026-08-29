@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 export function AgentChat({ agent, onBack, onDeploy }) {
   const userId = getUserId();
@@ -55,7 +55,7 @@ export function AgentChat({ agent, onBack, onDeploy }) {
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, content: text, existingAgentId: agent.id }),
       });
       const data = await res.json();

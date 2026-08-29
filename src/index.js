@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
 import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
+import { logAuthWarningIfNeeded } from './server/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -83,6 +84,7 @@ httpServer.listen(port, host, () => {
   console.log(`[ai-poker] http + ws server listening on ${host}:${port}`);
   console.log(`[ai-poker] default blinds: SB=${smallBlind} BB=${bigBlind}`);
   if (existsSync(STATIC_DIR)) console.log(`[ai-poker] serving client from ${STATIC_DIR}`);
+  logAuthWarningIfNeeded();
 });
 
 const shutdown = (signal) => {
