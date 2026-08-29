@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavIcon } from './primitives.jsx';
+import { Hood, NavIcon } from './primitives.jsx';
 
 // Only commands backed by a real endpoint are enabled. The rest render as
 // disabled chips so the surface reads complete without faking behavior.
@@ -11,27 +11,45 @@ const COMMANDS = [
   { cmd: '/sit-out', desc: 'pause an agent', enabled: false },
 ];
 
-export function DesktopComposer({ onDeploy, onBuild, onFreeText, chatTargetName }) {
+const DEPLOY = '/deploy';
+
+export function DesktopComposer({
+  idleAgents = [], onDeployAgent, onBuild, onFreeText, chatTargetName,
+}) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState(null);
+
+  const trimmed = draft.trimStart();
+  const isDeploying = trimmed.toLowerCase().startsWith(DEPLOY);
+  const query = isDeploying ? trimmed.slice(DEPLOY.length).trim().toLowerCase() : '';
+  const matches = isDeploying
+    ? idleAgents.filter((a) => !query || a.name?.toLowerCase().includes(query))
+    : [];
+
+  function deploy(agent) {
+    setDraft('');
+    setError(null);
+    onDeployAgent(agent);
+  }
 
   function submit() {
     const text = draft.trim();
     if (!text) return;
     setError(null);
 
-    if (text.startsWith('/build')) {
+    if (text.toLowerCase().startsWith('/build')) {
       setDraft('');
       onBuild();
       return;
     }
 
-    if (text.startsWith('/deploy')) {
-      const name = text.slice('/deploy'.length).trim();
-      if (!name) { setError('Usage: /deploy <agent name>'); return; }
-      const result = onDeploy(name);
-      if (result === false) { setError(`No idle agent named "${name}".`); return; }
-      setDraft('');
+    // Enter deploys only when the picker has narrowed to a single agent;
+    // otherwise the picker stays open and the user clicks.
+    if (isDeploying) {
+      if (matches.length === 1) { deploy(matches[0]); return; }
+      if (matches.length === 0) {
+        setError(idleAgents.length === 0 ? 'No idle agents to deploy.' : 'No idle agent matches that name.');
+      }
       return;
     }
 
@@ -57,11 +75,33 @@ export function DesktopComposer({ onDeploy, onBuild, onFreeText, chatTargetName 
 
   const placeholder = chatTargetName
     ? `Message ${chatTargetName}, or type /deploy or /build…`
-    : 'Type /deploy <agent name> or /build…';
+    : 'Type / for commands, or /build to draft an agent…';
 
   return (
     <div className="dsk-composer">
       <div className="dsk-composer__inner">
+        {isDeploying && (
+          <div className="dsk-picker">
+            <div className="dsk-picker__head">
+              <span className="dsk-label dsk-label--sm">
+                {matches.length > 0 ? 'PICK AN AGENT TO DEPLOY' : 'NO IDLE AGENTS'}
+              </span>
+            </div>
+            {matches.map((agent) => (
+              <button
+                key={agent.id}
+                type="button"
+                className="dsk-picker__row"
+                onClick={() => deploy(agent)}
+              >
+                <Hood size={22} dim />
+                <span className="dsk-picker__name">{agent.name}</span>
+                <span className="dsk-picker__go">DEPLOY</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="dsk-composer__chips">
           {COMMANDS.map((c) => (
             <button
@@ -69,7 +109,7 @@ export function DesktopComposer({ onDeploy, onBuild, onFreeText, chatTargetName 
               type="button"
               className="dsk-chip-cmd"
               disabled={!c.enabled}
-              onClick={() => setDraft(`${c.cmd} `)}
+              onClick={() => { setDraft(`${c.cmd} `); setError(null); }}
             >
               <b>{c.cmd}</b>
               <span>{c.desc}</span>

@@ -1943,46 +1943,105 @@
         "status": "playing",
         "activeTableId": "table-9306c94a",
         "stats": {
-          "handsPlayed": 2447,
-          "handsWon": 1220,
-          "totalDecisions": 1230,
+          "handsPlayed": 2592,
+          "handsWon": 1292,
+          "totalDecisions": 1303,
           "aggressiveDecisions": 0,
           "passiveDecisions": 3,
-          "foldDecisions": 1227,
-          "winRate": 49.9,
+          "foldDecisions": 1300,
+          "winRate": 49.8,
           "biggestPot": 60
         },
         "recentHands": [
           {
-            "handNumber": 20,
-            "won": true,
+            "handNumber": 73,
+            "won": false,
             "potSize": 30,
-            "timestamp": 1788018678834,
-            "decisions": [],
+            "timestamp": 1788018784251,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "9c",
+                  "2h"
+                ],
+                "community": [],
+                "equity": 0.38875,
+                "potOdds": 0.25,
+                "timestamp": 1788018784251
+              }
+            ],
             "seats": [
               {
                 "displayName": "Rock Solid",
-                "finalStack": 2000,
+                "finalStack": 1990,
                 "holeCards": [
-                  "7h",
+                  "9c",
+                  "2h"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Ah",
+                  "2c"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 61,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018784156,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "9d",
+                  "7c"
+                ],
+                "community": [],
+                "equity": 0.46125,
+                "potOdds": 0.25,
+                "timestamp": 1788018784156
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9d",
+                  "7c"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Ts",
                   "8h"
                 ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Jh",
-                  "3h"
-                ]
               }
             ]
           },
           {
-            "handNumber": 35,
+            "handNumber": 31,
             "won": false,
             "potSize": 30,
-            "timestamp": 1788018678680,
+            "timestamp": 1788018783829,
             "decisions": [
               {
                 "seat": 0,
@@ -1992,13 +2051,13 @@
                 },
                 "reasoning": "no API key configured — defaulting to a safe action",
                 "holeCards": [
-                  "3h",
-                  "5d"
+                  "9s",
+                  "Td"
                 ],
                 "community": [],
-                "equity": 0.351875,
+                "equity": 0.475,
                 "potOdds": 0.25,
-                "timestamp": 1788018678680
+                "timestamp": 1788018783828
               }
             ],
             "seats": [
@@ -2006,594 +2065,16 @@
                 "displayName": "Rock Solid",
                 "finalStack": 1990,
                 "holeCards": [
-                  "3h",
-                  "5d"
+                  "9s",
+                  "Td"
                 ]
               },
               {
                 "displayName": "House",
                 "finalStack": 2010,
-                "holeCards": [
-                  "7d",
-                  "9d"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 148,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018677185,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Ks",
-                  "Qc"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Qh",
-                  "Jd"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 47,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018675658,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "5d",
-                  "Qc"
-                ],
-                "community": [],
-                "equity": 0.52875,
-                "potOdds": 0.25,
-                "timestamp": 1788018675658
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "5d",
-                  "Qc"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "7h",
-                  "2s"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 5,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018675454,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "5c",
-                  "Kd"
-                ],
-                "community": [],
-                "equity": 0.565625,
-                "potOdds": 0.25,
-                "timestamp": 1788018675453
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "5c",
-                  "Kd"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "Jc",
-                  "6h"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 34,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018674864,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "2d",
-                  "5d"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "8h",
-                  "Ts"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 19,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018674333,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "6d",
-                  "Kc"
-                ],
-                "community": [],
-                "equity": 0.529375,
-                "potOdds": 0.25,
-                "timestamp": 1788018674333
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "6d",
-                  "Kc"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "4c",
-                  "Jd"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 147,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018672700,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "Qs",
-                  "Jd"
-                ],
-                "community": [],
-                "equity": 0.5825,
-                "potOdds": 0.25,
-                "timestamp": 1788018672700
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "Qs",
-                  "Jd"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "4s",
-                  "7h"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 46,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018671999,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "8s",
-                  "9s"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Kh",
-                  "8c"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 33,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018671396,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "6h",
-                  "2h"
-                ],
-                "community": [],
-                "equity": 0.38375,
-                "potOdds": 0.25,
-                "timestamp": 1788018671396
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "6h",
-                  "2h"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "Ks",
-                  "Qc"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 4,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018670839,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "6s",
-                  "Jc"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "8c",
-                  "2d"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 18,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018670384,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "3d",
-                  "3c"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Jc",
-                  "8s"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 45,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018667901,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "7h",
-                  "7d"
-                ],
-                "community": [],
-                "equity": 0.684375,
-                "potOdds": 0.25,
-                "timestamp": 1788018667901
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "7h",
-                  "7d"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "7c",
-                  "Kh"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 146,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018667763,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "7c",
-                  "Kh"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Ts",
-                  "Kc"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 32,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018666678,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
                 "holeCards": [
                   "Jd",
-                  "6c"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "6d",
-                  "6s"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 3,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018666568,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "Ah",
-                  "Jd"
-                ],
-                "community": [],
-                "equity": 0.614375,
-                "potOdds": 0.25,
-                "timestamp": 1788018666568
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "Ah",
-                  "Jd"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "Ac",
-                  "Jc"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 17,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018665931,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "Ts",
-                  "Ks"
-                ],
-                "community": [],
-                "equity": 0.608125,
-                "potOdds": 0.25,
-                "timestamp": 1788018665931
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "Ts",
-                  "Ks"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "7d",
-                  "8s"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 44,
-            "won": true,
-            "potSize": 30,
-            "timestamp": 1788018663574,
-            "decisions": [],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 2000,
-                "holeCards": [
-                  "Jd",
-                  "8d"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2000,
-                "holeCards": [
-                  "7c",
-                  "7d"
-                ]
-              }
-            ]
-          },
-          {
-            "handNumber": 145,
-            "won": false,
-            "potSize": 30,
-            "timestamp": 1788018663201,
-            "decisions": [
-              {
-                "seat": 0,
-                "street": "preflop",
-                "action": {
-                  "type": "fold"
-                },
-                "reasoning": "no API key configured — defaulting to a safe action",
-                "holeCards": [
-                  "Qc",
-                  "2c"
-                ],
-                "community": [],
-                "equity": 0.480625,
-                "potOdds": 0.25,
-                "timestamp": 1788018663201
-              }
-            ],
-            "seats": [
-              {
-                "displayName": "Rock Solid",
-                "finalStack": 1990,
-                "holeCards": [
-                  "Qc",
-                  "2c"
-                ]
-              },
-              {
-                "displayName": "House",
-                "finalStack": 2010,
-                "holeCards": [
-                  "8h",
-                  "7d"
+                  "5h"
                 ]
               }
             ]
@@ -2602,7 +2083,7 @@
             "handNumber": 2,
             "won": true,
             "potSize": 30,
-            "timestamp": 1788018663123,
+            "timestamp": 1788018782940,
             "decisions": [],
             "seats": [
               {
@@ -2610,15 +2091,551 @@
                 "finalStack": 2000,
                 "holeCards": [
                   "6h",
-                  "3s"
+                  "Tc"
                 ]
               },
               {
                 "displayName": "House",
                 "finalStack": 2000,
                 "holeCards": [
-                  "Kc",
+                  "Js",
+                  "Td"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 16,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018781927,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7s",
+                  "Td"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Ah",
+                  "Kd"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 172,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018781586,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3s",
+                  "2s"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "9d",
+                  "Th"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 45,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018781164,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "2d",
+                  "2s"
+                ],
+                "community": [],
+                "equity": 0.514375,
+                "potOdds": 0.25,
+                "timestamp": 1788018781164
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "2d",
+                  "2s"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "5c",
+                  "7s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 60,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018780509,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "2c",
+                  "Ks"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Js",
+                  "3c"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 72,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018780431,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "8c",
+                  "7c"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "7d",
+                  "3h"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 30,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018779921,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5d",
+                  "Tc"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3c",
+                  "Qc"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 1,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018778547,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "6s",
+                  "Ac"
+                ],
+                "community": [],
+                "equity": 0.59375,
+                "potOdds": 0.25,
+                "timestamp": 1788018778547
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "6s",
+                  "Ac"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "8d",
+                  "4s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 171,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018777363,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "Ad",
+                  "2d"
+                ],
+                "community": [],
+                "equity": 0.58125,
+                "potOdds": 0.25,
+                "timestamp": 1788018777363
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "Ad",
+                  "2d"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "2s",
+                  "Kh"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 44,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018777287,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Jd",
+                  "Ad"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3s",
+                  "6s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 15,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018776993,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "2d",
+                  "5s"
+                ],
+                "community": [],
+                "equity": 0.33625,
+                "potOdds": 0.25,
+                "timestamp": 1788018776993
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "2d",
+                  "5s"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "4h",
+                  "Js"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 71,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018776458,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "9c",
+                  "3c"
+                ],
+                "community": [],
+                "equity": 0.414375,
+                "potOdds": 0.25,
+                "timestamp": 1788018776458
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "9c",
+                  "3c"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "2c",
+                  "Tc"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 59,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018776291,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "2h",
+                  "6h"
+                ],
+                "community": [],
+                "equity": 0.34375,
+                "potOdds": 0.25,
+                "timestamp": 1788018776291
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "2h",
+                  "6h"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "4s",
+                  "6s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 29,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018775795,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "Ts",
                   "8d"
+                ],
+                "community": [],
+                "equity": 0.50625,
+                "potOdds": 0.25,
+                "timestamp": 1788018775795
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "Ts",
+                  "8d"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "7s",
+                  "5s"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 43,
+            "won": false,
+            "potSize": 30,
+            "timestamp": 1788018773910,
+            "decisions": [
+              {
+                "seat": 0,
+                "street": "preflop",
+                "action": {
+                  "type": "fold"
+                },
+                "reasoning": "no API key configured — defaulting to a safe action",
+                "holeCards": [
+                  "Kh",
+                  "9d"
+                ],
+                "community": [],
+                "equity": 0.575,
+                "potOdds": 0.25,
+                "timestamp": 1788018773910
+              }
+            ],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 1990,
+                "holeCards": [
+                  "Kh",
+                  "9d"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2010,
+                "holeCards": [
+                  "Td",
+                  "7c"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 170,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018773348,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3c",
+                  "Th"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "5h",
+                  "5d"
+                ]
+              }
+            ]
+          },
+          {
+            "handNumber": 14,
+            "won": true,
+            "potSize": 30,
+            "timestamp": 1788018773302,
+            "decisions": [],
+            "seats": [
+              {
+                "displayName": "Rock Solid",
+                "finalStack": 2000,
+                "holeCards": [
+                  "3c",
+                  "2h"
+                ]
+              },
+              {
+                "displayName": "House",
+                "finalStack": 2000,
+                "holeCards": [
+                  "Qh",
+                  "Qd"
                 ]
               }
             ]
@@ -2626,9 +2643,9 @@
         ],
         "memory": {
           "summary": "",
-          "handsObserved": 2430,
+          "handsObserved": 2570,
           "tendencies": [],
-          "lastUpdated": 1788018678836
+          "lastUpdated": 1788018781166
         }
       }
     ],

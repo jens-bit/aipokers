@@ -45,6 +45,7 @@ export function DesktopShell({
   }, []);
 
   const livePlaying = agents.filter((a) => a.activeTableId);
+  const idleAgents = agents.filter((a) => !a.activeTableId);
 
   const handleChatReady = useCallback((send) => { chatSendRef.current = send; }, []);
 
@@ -73,16 +74,11 @@ export function DesktopShell({
     }
   }
 
-  // Returns false when no agent matches, so the composer can surface the error.
-  function deployByName(name) {
-    const needle = name.trim().toLowerCase();
-    const match = agents.find((a) => a.name?.toLowerCase() === needle)
-      || agents.find((a) => a.name?.toLowerCase().includes(needle));
-    if (!match) return false;
+  function deploy(agent) {
     setChatTarget(null);
     setCreating(false);
-    onDeployAgent(match);
-    return true;
+    setCreatedNotice(null);
+    onDeployAgent(agent);
   }
 
   const today = new Date().toLocaleDateString('en-US', DAY_FMT).toUpperCase();
@@ -99,6 +95,7 @@ export function DesktopShell({
           activeAgentId={chatTarget?.id || watchingAgent?.id || null}
           onNavigate={(tab) => { setActiveTab(tab); setChatTarget(null); setCreating(false); }}
           onSelectAgent={selectAgent}
+          onDeployAgent={deploy}
           onDraftAgent={startCreate}
         />
 
@@ -172,7 +169,7 @@ export function DesktopShell({
                     key={chatTarget.id}
                     agent={chatTarget}
                     onBack={() => setChatTarget(null)}
-                    onDeploy={(agent) => { setChatTarget(null); onDeployAgent(agent); }}
+                    onDeploy={deploy}
                     onReady={handleChatReady}
                   />
                 </div>
@@ -188,7 +185,7 @@ export function DesktopShell({
                         <button
                           type="button"
                           className="dsk-inline-deploy"
-                          onClick={() => { setCreatedNotice(null); onDeployAgent(createdNotice); }}
+                          onClick={() => deploy(createdNotice)}
                         >
                           DEPLOY
                         </button>
@@ -240,7 +237,8 @@ export function DesktopShell({
           </div>
 
           <DesktopComposer
-            onDeploy={deployByName}
+            idleAgents={idleAgents}
+            onDeployAgent={deploy}
             onBuild={startCreate}
             chatTargetName={chatTarget?.name}
             onFreeText={chatTarget ? ((text) => chatSendRef.current?.(text)) : null}

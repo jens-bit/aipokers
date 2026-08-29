@@ -29,7 +29,7 @@ function winRateOf(agent) {
 
 export function DesktopRail({
   agents, loading, activeTab, activeAgentId,
-  onNavigate, onSelectAgent, onDraftAgent,
+  onNavigate, onSelectAgent, onDeployAgent, onDraftAgent,
 }) {
   const liveCount = agents.filter(isPlaying).length;
 
@@ -84,27 +84,41 @@ export function DesktopRail({
           const playing = isPlaying(agent);
           const winRate = winRateOf(agent);
           return (
-            <button
+            <div
               key={agent.id}
-              type="button"
               className={`dsk-thread${activeAgentId === agent.id ? ' is-active' : ''}`}
-              onClick={() => onSelectAgent(agent)}
             >
-              <div className="dsk-thread__avatar">
-                <Hood size={34} dim={!playing} />
-                {playing && <span className="dsk-thread__live-dot" aria-hidden />}
-              </div>
-              <div className="dsk-thread__body">
-                <div className="dsk-thread__top">
-                  <span className="dsk-thread__name">{agent.name}</span>
-                  <span className="dsk-thread__time">{playing ? 'live' : 'idle'}</span>
+              <button
+                type="button"
+                className="dsk-thread__main"
+                onClick={() => onSelectAgent(agent)}
+              >
+                <div className="dsk-thread__avatar">
+                  <Hood size={34} dim={!playing} />
+                  {playing && <span className="dsk-thread__live-dot" aria-hidden />}
                 </div>
-                <div className="dsk-thread__bottom">
-                  <span className="dsk-thread__preview">{statusLine(agent)}</span>
-                  {winRate && <span className="dsk-thread__stat">{winRate}</span>}
+                <div className="dsk-thread__body">
+                  <div className="dsk-thread__top">
+                    <span className="dsk-thread__name">{agent.name}</span>
+                    <span className="dsk-thread__time">{playing ? 'live' : 'idle'}</span>
+                  </div>
+                  <div className="dsk-thread__bottom">
+                    <span className="dsk-thread__preview">{statusLine(agent)}</span>
+                    {winRate && <span className="dsk-thread__stat">{winRate}</span>}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+              {!playing && (
+                <button
+                  type="button"
+                  className="dsk-thread__deploy"
+                  onClick={() => onDeployAgent(agent)}
+                  title={`Deploy ${agent.name}`}
+                >
+                  DEPLOY
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

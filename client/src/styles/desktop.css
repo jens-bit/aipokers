@@ -232,22 +232,59 @@
 }
 
 .dsk-thread {
+  position: relative;
   display: flex;
-  gap: 10px;
+  align-items: center;
   width: 100%;
-  padding: 10px 12px;
-  border: none;
   border-left: 2px solid transparent;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
 }
 .dsk-thread:hover { background: rgba(255, 255, 255, 0.025); }
 .dsk-thread.is-active {
   border-left-color: var(--dsk-teal);
   background: rgba(0, 212, 170, 0.06);
-  padding-left: 10px;
 }
+
+.dsk-thread__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Idle agents deploy in one click; revealed on hover/focus so the resting
+   rail stays as quiet as the design ref. */
+.dsk-thread__deploy {
+  position: absolute;
+  right: 10px;
+  opacity: 0;
+  pointer-events: none;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid rgba(0, 212, 170, 0.45);
+  border-radius: 4px;
+  background: rgba(0, 212, 170, 0.12);
+  color: var(--dsk-teal);
+  font-family: var(--dsk-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.dsk-thread:hover .dsk-thread__deploy,
+.dsk-thread:focus-within .dsk-thread__deploy {
+  opacity: 1;
+  pointer-events: auto;
+}
+.dsk-thread__deploy:hover { background: var(--dsk-teal); color: #0a0a0a; }
+/* Keep the status line clear of the button while it is showing. */
+.dsk-thread:hover .dsk-thread__stat,
+.dsk-thread:focus-within .dsk-thread__stat { opacity: 0; }
 
 .dsk-thread__avatar { position: relative; flex-shrink: 0; }
 .dsk-thread__live-dot {
@@ -842,6 +879,61 @@
   background: var(--dsk-panel);
 }
 .dsk-composer__inner { max-width: 880px; margin: 0 auto; }
+
+/* /deploy autocomplete: typing a name is never required. */
+.dsk-picker {
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  border-radius: 8px;
+  background: var(--dsk-surface);
+}
+.dsk-picker__head {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--dsk-border);
+  background: rgba(0, 212, 170, 0.04);
+}
+.dsk-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.dsk-picker__row:hover { background: rgba(0, 212, 170, 0.07); }
+.dsk-picker__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsk-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsk-picker__go {
+  flex-shrink: 0;
+  color: var(--dsk-muted);
+  font-family: var(--dsk-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.dsk-picker__row:hover .dsk-picker__go { color: var(--dsk-teal); }
+
+/* AgentChat ships a Deploy button in its header; match the shell's chips. */
+.dsk-embed .dr-agent-header .dr-primary-btn {
+  border-radius: 5px;
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 
 .dsk-composer__chips {
   display: flex;
