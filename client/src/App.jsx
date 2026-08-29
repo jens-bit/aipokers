@@ -146,8 +146,18 @@ export default function App() {
     }
   }, [timerLeft, isMyTurn]);
 
+  // Closing the spectator view means "stop watching", not "recall the agent".
+  // POSTing /finish here reset status to idle and cleared activeTableId while
+  // the table was still running, so the casino floor showed a deployed agent
+  // resting at the bar. The agent is retired by the table-closed effect above
+  // instead, which is the genuine end of its session.
+  const isSpectatorRef = useRef(false);
+  useEffect(() => { isSpectatorRef.current = !!config?.isSpectator; }, [config]);
+
   const handleLeave = useCallback(() => {
-    callAgentFinish(activeAgentIdRef.current); // use ref — never stale
+    if (!isSpectatorRef.current) {
+      callAgentFinish(activeAgentIdRef.current); // use ref — never stale
+    }
     setDesktopFocusTable(false);
     setDesktopWatchAgent(null);
     disconnect();
