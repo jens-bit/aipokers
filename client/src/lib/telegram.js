@@ -36,6 +36,12 @@ export function isInTelegram() {
   return getWebApp() != null;
 }
 
+// Returns the raw initData string used to authenticate Telegram Mini App
+// requests. Empty string outside Telegram (local dev).
+export function getTelegramInitData() {
+  return window.Telegram?.WebApp?.initData ?? '';
+}
+
 // Stable per-device user ID. Uses Telegram user ID when inside the Mini App,
 // otherwise falls back to a localStorage-persisted random ID so every browser
 // tab gets its own isolated agent store.

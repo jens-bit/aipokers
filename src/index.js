@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
 import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
 import { readHands } from './server/handHistory.js';
+import { logAuthWarningIfNeeded } from './server/auth.js';
+import { rateLimiter } from './server/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -17,6 +19,11 @@ const bigBlind = Number(process.env.BIG_BLIND ?? 20);
 
 const app = express();
 app.use(express.json());
+
+// General rate limit on all API routes. Configurable via env.
+const rlWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE_LIMIT_MAX ?? 60) }));
+
 installAgentProfileRoutes(app);
 
 // Build the HTTP server and attach WebSocket before registering the remaining
@@ -90,6 +97,7 @@ httpServer.listen(port, host, () => {
   console.log(`[ai-poker] http + ws server listening on ${host}:${port}`);
   console.log(`[ai-poker] default blinds: SB=${smallBlind} BB=${bigBlind}`);
   if (existsSync(STATIC_DIR)) console.log(`[ai-poker] serving client from ${STATIC_DIR}`);
+  logAuthWarningIfNeeded();
 });
 
 const shutdown = (signal) => {

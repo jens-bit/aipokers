@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import { telegramAuthMiddleware } from './auth.js';
+import { rateLimiter } from './rateLimit.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -157,6 +159,108 @@ export function getAgentMemoryContext(agent) {
   return `\n\nYour self-knowledge from past sessions:\n${agent.memory.summary}${tendencyLine}`;
 }
 
+// ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
+
+// Record a hand result for an agent in-process.
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [] } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+
+  ensureStats(agent);
+  const s = agent.stats;
+  s.handsPlayed = (s.handsPlayed ?? 0) + 1;
+  if (won) s.handsWon = (s.handsWon ?? 0) + 1;
+
+  for (const d of decisions) {
+    s.totalDecisions = (s.totalDecisions ?? 0) + 1;
+    const t = d?.action?.type;
+    if (t === 'bet' || t === 'raise') s.aggressiveDecisions = (s.aggressiveDecisions ?? 0) + 1;
+    if (t === 'call' || t === 'check') s.passiveDecisions = (s.passiveDecisions ?? 0) + 1;
+    if (t === 'fold') s.foldDecisions = (s.foldDecisions ?? 0) + 1;
+  }
+
+  s.winRate = s.handsPlayed > 0
+    ? Number(((s.handsWon / s.handsPlayed) * 100).toFixed(1))
+    : 0;
+  s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
+
+  agent.recentHands = [
+    { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats },
+    ...agent.recentHands,
+  ].slice(0, 20);
+
+  saveStore(userId ?? 'anon');
+  return agent;
+}
+
+// Run a memory update for an agent in-process. Returns the updated agent or null.
+export async function runMemoryUpdate(agentId, userId, recentHands) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureMemory(agent);
+  ensureStats(agent);
+
+  const hands = (Array.isArray(recentHands) && recentHands.length > 0)
+    ? recentHands.slice(0, 5)
+    : (agent.recentHands ?? []).slice(0, 5);
+  if (hands.length === 0) return agent;
+
+  const handsBlock = hands.map(formatHandForPrompt).join('\n');
+  const systemText = `You are analysing a poker AI agent's recent play to update its self-knowledge. Output ONLY valid JSON — no markdown, no explanation:
+{
+  "summary": "<2-3 sentences in second person: 'You tend to...', describing the agent's style and any patterns observed>",
+  "tendencies": ["<short phrase>", "<short phrase>", "<short phrase>"]
+}
+Keep it poker-specific and actionable. Max 3 tendencies.`;
+  const userText = `Agent strategy: ${agent.strategy || '(none)'}
+Existing memory: ${agent.memory.summary || 'none yet'}
+Recent hands summary:
+${handsBlock}
+Update the agent's self-knowledge based on this new evidence.`;
+
+  try {
+    const raw = await callClaude([{ role: 'user', content: userText }], systemText, 200);
+    if (raw) {
+      const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
+      let parsed;
+      try { parsed = JSON.parse(cleaned); } catch (e) {
+        console.warn('[agentProfiles] update-memory parse failed:', e.message, '| raw:', cleaned.slice(0, 120));
+      }
+      if (parsed) {
+        if (typeof parsed.summary === 'string' && parsed.summary.trim()) {
+          agent.memory.summary = parsed.summary.trim();
+        }
+        if (Array.isArray(parsed.tendencies)) {
+          agent.memory.tendencies = parsed.tendencies
+            .filter((t) => typeof t === 'string' && t.trim())
+            .map((t) => t.trim())
+            .slice(0, 3);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[agentProfiles] update-memory error:', err.message);
+  }
+
+  agent.memory.handsObserved = (agent.memory.handsObserved ?? 0) + hands.length;
+  agent.memory.lastUpdated = Date.now();
+  saveStore(userId ?? 'anon');
+  return agent;
+}
+
+// Return an agent's formatted memoryContext string in-process.
+export function getMemoryContext(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return '';
+  ensureMemory(agent);
+  return getAgentMemoryContext(agent);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Format a single hand summary into a compact line for the memory-update prompt.
 function formatHandForPrompt(h) {
   const verdict = h.won ? 'WON' : 'LOST';
@@ -224,6 +328,13 @@ async function callClaude(messages, systemText, maxTokens) {
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export function installAgentProfileRoutes(app) {
+  // Tighter rate limit for LLM-spending endpoints (chat + build).
+  const chatLimiter = rateLimiter({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
+    max: Number(process.env.RATE_LIMIT_CHAT_MAX ?? 10),
+    message: 'Too many requests — slow down',
+  });
+
   // GET /api/agent-profile — full profile (chat + agents)
   app.get('/api/agent-profile', (req, res) => {
     const userId = String(req.query.userId || 'anon');
@@ -244,7 +355,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // DELETE /api/agents/:agentId?userId=...
-  app.delete('/api/agents/:agentId', (req, res) => {
+  app.delete('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
@@ -256,7 +367,7 @@ export function installAgentProfileRoutes(app) {
   });
 
   // PATCH /api/agents/:agentId — update name and/or strategy
-  app.patch('/api/agents/:agentId', (req, res) => {
+  app.patch('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
@@ -345,50 +456,6 @@ export function installAgentProfileRoutes(app) {
     });
   });
 
-  // POST /api/agents/:agentId/result
-  // Called by the table after every hand completes. Updates aggregate stats
-  // and prepends a hand summary (with decisions + reasoning) to recentHands.
-  app.post('/api/agents/:agentId/result', (req, res) => {
-    const userId = String(req.body?.userId || 'anon');
-    const { agentId } = req.params;
-    const { won, potSize, decisions = [], handNumber, seats = [] } = req.body || {};
-
-    const profile = getOrCreate(userId);
-    const agent = profile.agents.find((a) => a.id === agentId);
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
-
-    ensureStats(agent);
-    const s = agent.stats;
-    s.handsPlayed = (s.handsPlayed ?? 0) + 1;
-    if (won) s.handsWon = (s.handsWon ?? 0) + 1;
-
-    for (const d of decisions) {
-      s.totalDecisions = (s.totalDecisions ?? 0) + 1;
-      const t = d?.action?.type;
-      if (t === 'bet' || t === 'raise') s.aggressiveDecisions = (s.aggressiveDecisions ?? 0) + 1;
-      if (t === 'call' || t === 'check') s.passiveDecisions = (s.passiveDecisions ?? 0) + 1;
-      if (t === 'fold') s.foldDecisions = (s.foldDecisions ?? 0) + 1;
-    }
-
-    s.winRate = s.handsPlayed > 0
-      ? Number(((s.handsWon / s.handsPlayed) * 100).toFixed(1))
-      : 0;
-    s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
-
-    const handSummary = {
-      handNumber,
-      won: !!won,
-      potSize: Number.isFinite(potSize) ? potSize : 0,
-      timestamp: Date.now(),
-      decisions,
-      seats,
-    };
-    agent.recentHands = [handSummary, ...agent.recentHands].slice(0, 20);
-
-    saveStore(userId);
-    res.json(agent);
-  });
-
   // GET /api/agents/:agentId/hands?userId=...
   // Returns the agent's recent-hands log and aggregate stats.
   app.get('/api/agents/:agentId/hands', (req, res) => {
@@ -412,70 +479,6 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     ensureMemory(agent);
     res.json({ memory: agent.memory, memoryContext: getAgentMemoryContext(agent) });
-  });
-
-  // POST /api/agents/:agentId/update-memory
-  // Called by the table every N hands to evolve the agent's self-knowledge.
-  // Body: { userId, recentHands? } — when recentHands is omitted, falls back
-  // to agent.recentHands.slice(0, 5).
-  app.post('/api/agents/:agentId/update-memory', async (req, res) => {
-    const userId = String(req.body?.userId || 'anon');
-    const { agentId } = req.params;
-    const bodyHands = Array.isArray(req.body?.recentHands) ? req.body.recentHands : null;
-
-    const profile = getOrCreate(userId);
-    const agent = profile.agents.find((a) => a.id === agentId);
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    ensureMemory(agent);
-    ensureStats(agent);
-
-    const hands = (bodyHands && bodyHands.length > 0)
-      ? bodyHands.slice(0, 5)
-      : (agent.recentHands ?? []).slice(0, 5);
-    if (hands.length === 0) return res.json(agent);
-
-    const handsBlock = hands.map(formatHandForPrompt).join('\n');
-    const systemText = `You are analysing a poker AI agent's recent play to update its self-knowledge. Output ONLY valid JSON — no markdown, no explanation:
-{
-  "summary": "<2-3 sentences in second person: 'You tend to...', describing the agent's style and any patterns observed>",
-  "tendencies": ["<short phrase>", "<short phrase>", "<short phrase>"]
-}
-Keep it poker-specific and actionable. Max 3 tendencies.`;
-    const userText = `Agent strategy: ${agent.strategy || '(none)'}
-Existing memory: ${agent.memory.summary || 'none yet'}
-Recent hands summary:
-${handsBlock}
-Update the agent's self-knowledge based on this new evidence.`;
-
-    try {
-      const raw = await callClaude([{ role: 'user', content: userText }], systemText, 200);
-      if (raw) {
-        const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
-        let parsed;
-        try { parsed = JSON.parse(cleaned); } catch (e) {
-          console.warn('[agentProfiles] update-memory parse failed:', e.message, '| raw:', cleaned.slice(0, 120));
-        }
-        if (parsed) {
-          if (typeof parsed.summary === 'string' && parsed.summary.trim()) {
-            agent.memory.summary = parsed.summary.trim();
-          }
-          if (Array.isArray(parsed.tendencies)) {
-            agent.memory.tendencies = parsed.tendencies
-              .filter((t) => typeof t === 'string' && t.trim())
-              .map((t) => t.trim())
-              .slice(0, 3);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[agentProfiles] update-memory error:', err.message);
-      // fall through and persist the unchanged agent so handsObserved still ticks
-    }
-
-    agent.memory.handsObserved = (agent.memory.handsObserved ?? 0) + hands.length;
-    agent.memory.lastUpdated = Date.now();
-    saveStore(userId);
-    res.json(agent);
   });
 
   // POST /api/agents/:agentId/finish
@@ -503,7 +506,7 @@ Update the agent's self-knowledge based on this new evidence.`;
   });
 
   // POST /api/agents/chat — pure conversational reply, never generates an agent
-  app.post('/api/agents/chat', async (req, res) => {
+  app.post('/api/agents/chat', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
     const existingAgentId = req.body?.existingAgentId ?? null;
@@ -551,7 +554,7 @@ Update the agent's self-knowledge based on this new evidence.`;
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it
-  app.post('/api/agents/build', async (req, res) => {
+  app.post('/api/agents/build', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const existingAgentId = req.body?.existingAgentId ?? null;
 

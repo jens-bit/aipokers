@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import '../styles/agents.css';
 
 // Status text for the chip on each stable card. Matches design-ref's
@@ -41,7 +41,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat, onVsYou }) {
   }
 
   async function remove(agentId) {
-    await fetch(`/api/agents/${agentId}?userId=${getUserId()}`, { method: 'DELETE' });
+    await fetch(`/api/agents/${agentId}?userId=${getUserId()}`, { method: 'DELETE', headers: { 'x-telegram-init-data': getTelegramInitData() } });
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
   }
 
