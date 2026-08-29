@@ -45,6 +45,18 @@ The "reasoning" field is required for every decision: one punchy sentence,
 max 12 words, why you made this specific decision right now.`;
 }
 
+// Short in-prompt hint tied to a mood state. Kept bounded per Mood Design
+// Law — flavor/voice cue for the model, not a rule change.
+function moodPromptHint(state) {
+  switch (state) {
+    case 'confident':  return ' You are running well — stay assertive.';
+    case 'frustrated': return ' You may play a touch looser and defend more aggressively — do NOT abandon your range.';
+    case 'tilted':     return ' You are steaming — size a hair larger and be quicker to deviate, but keep your range intact.';
+    case 'sulking':    return ' You have shut down a little — tighten sizings and stick close to the script.';
+    default:           return '';
+  }
+}
+
 // Coarse VPIP → label bucket. Used only in the OPPONENT READ briefing line.
 function vpipLabel(vpip) {
   if (!Number.isFinite(vpip)) return 'unknown';
@@ -108,6 +120,15 @@ function buildUserPrompt(gs) {
   }
   const policyBlock = policyLines.length > 0 ? `\n${policyLines.join('\n')}` : '';
 
+  // Mood state — only shown when non-neutral. Bounded: cannot change the
+  // range verdict; may shift the deviation die + a small sizing hint.
+  let moodLine = '';
+  if (gs.mood && gs.mood.state && gs.mood.state !== 'neutral') {
+    const cause = gs.mood.cause ? ` — ${gs.mood.cause}` : '';
+    const hint = moodPromptHint(gs.mood.state);
+    moodLine = `\nSTATE: ${gs.mood.state}${cause}.${hint}`;
+  }
+
   // Opponent reads (deterministic, from the last-N-hands ring in
   // opponentStats). Advisory: gives the model the ammunition to actually
   // exploit weak players instead of guessing based on hand strength alone.
@@ -132,7 +153,7 @@ HOLE CARDS: ${gs.holeCards.join(' ')}
 BOARD: ${board}
 POT: ${gs.pot}  MY STACK: ${gs.myStack}  OPP STACK: ${gs.oppStack}
 MY CONTRIB THIS STREET: ${gs.myContrib}
-POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${readsBlock}
+POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${moodLine}${readsBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
 The math and policy lines above are ADVISORY server hints, not commands.

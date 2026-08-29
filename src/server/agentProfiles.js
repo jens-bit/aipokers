@@ -5,6 +5,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware } from './auth.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
+import {
+  initialMood,
+  ensureMood,
+  applyEvent as applyMoodEvent,
+  tickDecay as tickMoodDecay,
+  applyPepTalk as applyMoodPepTalk,
+  isSoothable as isMoodSoothable,
+} from '../agent/mood.js';
+import { formatMoment } from '../agent/moment.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -128,6 +137,7 @@ function commitAgent(profile, existingAgentId, agentData) {
     tendencies: [],
     lastUpdated: null,
   };
+  agent.mood = initialMood();
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
   return agent;
@@ -284,12 +294,13 @@ export function getAgentMemoryContext(agent) {
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
 
 // Record a hand result for an agent in-process.
-export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [] } = {}) {
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20 } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
 
   ensureStats(agent);
+  ensureMood(agent);
   const s = agent.stats;
   s.handsPlayed = (s.handsPlayed ?? 0) + 1;
   if (won) s.handsWon = (s.handsWon ?? 0) + 1;
@@ -311,6 +322,17 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
     { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats },
     ...agent.recentHands,
   ].slice(0, 20);
+
+  // Write a fresh moment line for the floor UI. Uses the mood at the time
+  // the hand was recorded — an event-driven mood update may fire right
+  // after this via table._updateAgentMoods and refresh the state.
+  agent.lastMoment = formatMoment({
+    won: !!won,
+    potChips: Number.isFinite(potSize) ? potSize : 0,
+    bb,
+    decisions,
+    moodState: agent.mood?.state ?? 'neutral',
+  });
 
   saveStore(userId ?? 'anon');
   return agent;
@@ -440,6 +462,23 @@ export function getMemoryContext(agentId, userId) {
   return getAgentMemoryContext(agent);
 }
 
+// Programmatic version of the /finish endpoint — used by table.js when a
+// table closes (natural end, sit-out, disconnect). Marks the agent idle,
+// sets unseenRecap, and builds a self-change proposal from leaks. No HTTP
+// round-trip; same in-process pattern as recordHandResult.
+export function finishAgentSession(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  if (agent.activeTableId) activeTables.delete(agent.activeTableId);
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  agent.unseenRecap = true;
+  try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  saveStore(userId ?? 'anon');
+  return agent;
+}
+
 // Return an agent's numeric policy profile (backfilled from style/risk if
 // the agent pre-dates the profile feature). Null if the agent doesn't exist.
 export function getAgentProfile(agentId, userId) {
@@ -448,6 +487,137 @@ export function getAgentProfile(agentId, userId) {
   if (!agent) return null;
   ensureProfile(agent);
   return agent.profile;
+}
+
+// Return the agent's mood record (backfilled). Never null when the agent
+// exists — the initial state is a neutral mood.
+export function getAgentMood(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureMood(agent);
+  return agent.mood;
+}
+
+// Set the agent's mood record wholesale (used by table.js after applying
+// events / decay). Persists.
+export function setAgentMood(agentId, userId, newMood) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  agent.mood = { ...newMood };
+  saveStore(userId ?? 'anon');
+  return agent.mood;
+}
+
+// Build a self-change proposal from the agent's computed leaks. Idempotent
+// — silently no-ops when a proposal is already pending (one active max) or
+// when no leak breaches the threshold. Templates are in the agent's voice
+// and include a concrete strategy-text amendment + a small slider delta.
+// Called from /finish so the owner sees the proposal at session end.
+export function maybeCreateProposal(agent) {
+  if (!agent) return null;
+  if (agent.proposal) return agent.proposal;
+  const computed = agent.memory?.computed;
+  const leaks = computed?.leaks || {};
+
+  let built = null;
+  if ((leaks.foldedAsEquityFavorite ?? 0) >= 3) {
+    built = {
+      text: `I keep folding when I'm actually ahead — ${leaks.foldedAsEquityFavorite} times this session. Can I loosen up a touch?`,
+      suggestedPatch: {
+        strategyAmendment: 'When the EQUITY line shows >55% and the pot odds are fine, do not fold — you have the best hand.',
+        profileDelta: { tightness: -8 },
+      },
+      basedOn: 'foldedAsEquityFavorite',
+      createdAt: Date.now(),
+    };
+  } else if ((leaks.calledOnPoorOdds ?? 0) >= 3) {
+    built = {
+      text: `I made ${leaks.calledOnPoorOdds} bad calls this session — worse equity than the pot required. Tighten me up?`,
+      suggestedPatch: {
+        strategyAmendment: 'Before calling, compare EQUITY to POT ODDS — if equity is lower, fold.',
+        profileDelta: { tightness: 5, discipline: 5 },
+      },
+      basedOn: 'calledOnPoorOdds',
+      createdAt: Date.now(),
+    };
+  } else if ((leaks.aggThenFolded ?? 0) >= 3) {
+    built = {
+      text: `I fired bets and then folded to pressure ${leaks.aggThenFolded} times this session. Cut my bluff frequency?`,
+      suggestedPatch: {
+        strategyAmendment: 'Only start a bluff line you are willing to fire on the next street.',
+        profileDelta: { bluffFreq: -10 },
+      },
+      basedOn: 'aggThenFolded',
+      createdAt: Date.now(),
+    };
+  }
+
+  if (built) {
+    agent.proposal = built;
+    return built;
+  }
+  return null;
+}
+
+// Apply an accepted proposal's patch to the agent: append the strategy
+// amendment and add each profile delta with clamping. Clears the proposal
+// on completion. Returns the mutated agent (not persisted — caller saves).
+function applyProposalPatch(agent, patch) {
+  if (!patch) return agent;
+  if (typeof patch.strategyAmendment === 'string' && patch.strategyAmendment.trim()) {
+    agent.strategy = `${(agent.strategy || '').trim()}\n\n${patch.strategyAmendment.trim()}`.trim();
+  }
+  if (patch.profileDelta && typeof patch.profileDelta === 'object') {
+    ensureProfile(agent);
+    const d = patch.profileDelta;
+    agent.profile = normalizeProfile({
+      tightness:  (agent.profile.tightness  ?? 50) + (Number(d.tightness)  || 0),
+      aggression: (agent.profile.aggression ?? 50) + (Number(d.aggression) || 0),
+      bluffFreq:  (agent.profile.bluffFreq  ?? 25) + (Number(d.bluffFreq)  || 0),
+      discipline: (agent.profile.discipline ?? 60) + (Number(d.discipline) || 0),
+    });
+  }
+  return agent;
+}
+
+// Compute the fields the floor UI needs — mood, lastMoment, unseenRecap,
+// presence — on top of the persisted agent record. Backfills defaults for
+// legacy agents so a first-load call after upgrade still returns a
+// well-shaped object.
+export function presentAgent(agent) {
+  if (!agent) return agent;
+  ensureMood(agent);
+  ensureStats(agent);
+  ensureProfile(agent);
+  const presence = (agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting';
+  return {
+    ...agent,
+    mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
+    lastMoment: agent.lastMoment ?? null,
+    unseenRecap: !!agent.unseenRecap,
+    proposal: agent.proposal ?? null,
+    presence,
+  };
+}
+
+// Applies a pep talk if the agent is soothable AND the cooldown allows.
+// Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
+// Persists on soothed=true.
+export function tryApplyPepTalk(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { soothed: false, mood: null, reason: 'agent not found' };
+  ensureMood(agent);
+  ensureStats(agent);
+  const handsPlayed = agent.stats?.handsPlayed ?? 0;
+  const result = applyMoodPepTalk(agent.mood, handsPlayed);
+  if (result.soothed) {
+    agent.mood = result.mood;
+    saveStore(userId ?? 'anon');
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -468,8 +638,9 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-function buildAgentChatSystem(agent) {
+function buildAgentChatSystem(agent, { pepTalk = null } = {}) {
   ensureStats(agent);
+  ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
   const recentHands = (agent.recentHands || []).slice(0, 3);
   const recentBrief = recentHands.length > 0
@@ -479,7 +650,20 @@ function buildAgentChatSystem(agent) {
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
 
-  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.
+  let moodLine = '';
+  if (agent.mood && agent.mood.state && agent.mood.state !== 'neutral') {
+    moodLine = `\nYour current mood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''}. Let it colour your voice — a tilted agent sounds tilted, a confident one sounds confident.`;
+  }
+  let pepLine = '';
+  if (pepTalk?.soothed) {
+    pepLine = `\nThe owner just talked you down. Your mood eased to ${pepTalk.mood.state}. Acknowledge the pep talk briefly, in character — don't over-thank them.`;
+  }
+  let proposalLine = '';
+  if (agent.proposal?.text) {
+    proposalLine = `\nYou have a pending self-change proposal for your owner: "${agent.proposal.text}". If the opening of the conversation lets you bring it up naturally, do — do NOT force it into every reply.`;
+  }
+
+  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.${moodLine}${pepLine}${proposalLine}
 
 You are talking to your owner. Your role is to discuss your play — specific hands, decision rationale, strategy tweaks they want to make. You are NOT being created or redesigned right now. Do NOT ask the user what kind of poker player they want to build. If they ask what to talk about, suggest: reviewing specific hands, looking at decision patterns, or adjusting one of your parameters (aggression, bluff frequency, tightness).
 
@@ -533,16 +717,17 @@ export function installAgentProfileRoutes(app) {
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
-      agents: profile.agents,
+      agents: profile.agents.map(presentAgent),
       chat: profile.chat,
     });
   });
 
-  // GET /api/agents?userId=... — agents array only
+  // GET /api/agents?userId=... — agents array with the floor-UI fields
+  // (mood, lastMoment, unseenRecap, proposal, presence) folded in.
   app.get('/api/agents', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
-    res.json({ agents: profile.agents });
+    res.json({ agents: profile.agents.map(presentAgent) });
   });
 
   // DELETE /api/agents/:agentId?userId=...
@@ -683,8 +868,54 @@ export function installAgentProfileRoutes(app) {
     if (agent.activeTableId) activeTables.delete(agent.activeTableId);
     agent.status = 'idle';
     agent.activeTableId = null;
+    agent.unseenRecap = true;
+    // Session ended — build a self-change proposal from the leaks the
+    // grounded-memory computed stats detected. One proposal max; already
+    // pending proposals are preserved so the owner can still act on them.
+    try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
     saveStore(userId);
-    res.json(agent);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
+  // suggestedPatch (strategy amendment + slider deltas) and clear it.
+  app.post('/api/agents/:agentId/proposal/accept', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.proposal) return res.status(400).json({ error: 'no active proposal' });
+    applyProposalPatch(agent, agent.proposal.suggestedPatch);
+    agent.proposal = null;
+    saveStore(userId);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
+  app.post('/api/agents/:agentId/proposal/reject', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    agent.proposal = null;
+    saveStore(userId);
+    res.json(presentAgent(agent));
+  });
+
+  // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
+  // owner has viewed the session recap. Mutating → auth-gated like the
+  // other write endpoints (see SEC-2).
+  app.post('/api/agents/:agentId/seen', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    agent.unseenRecap = false;
+    saveStore(userId);
+    res.json(presentAgent(agent));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message
@@ -715,11 +946,23 @@ export function installAgentProfileRoutes(app) {
       : null;
 
     if (existingAgent) {
-      const systemText = buildAgentChatSystem(existingAgent);
+      ensureMood(existingAgent);
+      // Pep talk: if the agent is in a negative mood and the cooldown allows,
+      // any incoming owner message soothes it one step. The chat reply is
+      // then generated with the pep-talk context so the agent acknowledges
+      // it in character.
+      let pepResult = { soothed: false, mood: existingAgent.mood, reason: 'not attempted' };
+      if (isMoodSoothable(existingAgent.mood)) {
+        pepResult = tryApplyPepTalk(existingAgent.id, userId);
+      }
+      const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult });
       try {
         const reply = await callClaude([{ role: 'user', content }], systemText, 150);
         const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
-        return res.json({ chat: [{ role: 'assistant', content: msg }] });
+        return res.json({
+          chat: [{ role: 'assistant', content: msg }],
+          pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+        });
       } catch (err) {
         console.error('[agentProfiles] agent-chat error:', err.message);
         return res.json({ chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] });

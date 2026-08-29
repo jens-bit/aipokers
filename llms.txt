@@ -53,6 +53,10 @@ Send (client → server):
   { "type": "ACTION", "type": "fold|check|call|bet|raise", "amount": <int> }
   { "type": "CHAT",   "message": "..." }
   { "type": "WATCH",  "tableId": "..." }
+  { "type": "SIT_OUT" }  — owner/spectator STOP control: finish the current
+                          hand (if any), then close the table gracefully
+                          (TABLE_CLOSED "sat out by owner") and mark the
+                          agent idle with an unseenRecap flag.
 
 Receive (server → client):
   GAME_STATE  — full table snapshot (seats, pot, community cards, legal actions, street)
