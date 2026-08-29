@@ -1,0 +1,395 @@
+// Headless arena runner for benchmarking agent strategies.
+//
+// Usage:
+//   node scripts/arena.js --pairs 100 --profiles scripts/arena-profiles.json
+//   node scripts/arena.js --pairs 50 --profiles scripts/arena-profiles.json \
+//     --matchups "Nit,TAG"                # single pairwise matchup
+//   node scripts/arena.js --pairs 50 --profiles scripts/arena-profiles.json \
+//     --matchups "*"                      # all pairwise matchups
+//
+// A "pair" is a duplicate-deck mirrored match: one deck is drawn, played
+// once (agent A in seat 0, agent B in seat 1), then replayed with strategies
+// swapped. This cancels much of the dealing variance so bb/100 estimates
+// converge with far fewer hands than independent play.
+//
+// Output: bb/100 with 95% CI plus VPIP, PFR, aggression factor, fold rate,
+// and fallback rate per agent. Full JSON dump written to data/arena/.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { Game, Streets, Actions } from '../src/engine/game.js';
+import { freshShuffledDeck } from '../src/engine/deck.js';
+import { estimateEquity } from '../src/engine/equity.js';
+import { getAgentAction } from '../src/agent/handler.js';
+
+// ── CLI ──────────────────────────────────────────────────────────────────────
+
+function parseArgs(argv) {
+  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000 };
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--pairs')     out.pairs    = parseInt(argv[++i], 10);
+    else if (a === '--profiles') out.profiles = argv[++i];
+    else if (a === '--matchups') out.matchups = argv[++i];
+    else if (a === '--sb')   out.sb       = parseInt(argv[++i], 10);
+    else if (a === '--bb')   out.bb       = parseInt(argv[++i], 10);
+    else if (a === '--buy-in') out.buyIn  = parseInt(argv[++i], 10);
+    else if (a === '--help' || a === '-h') {
+      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"]');
+      process.exit(0);
+    }
+  }
+  return out;
+}
+
+// ── Stat trackers ────────────────────────────────────────────────────────────
+
+function newStats() {
+  return {
+    handsSeatedAsHero: 0,          // hands played (across all pairs, both sides)
+    netChips: 0,                   // total net chips won/lost (post-hand stack delta)
+    pairSumsByMatchup: [],         // for CI: per-pair chip deltas summed across mirrored halves
+    decisions: 0,
+    preflopVoluntary: 0,           // for VPIP: preflop calls/raises (excluding forced blind)
+    preflopRaised: 0,              // for PFR
+    handsSawPreflop: 0,            // denominator for VPIP/PFR (per-hand, per-hero)
+    calls: 0,
+    bets: 0,
+    raises: 0,
+    folds: 0,
+    checks: 0,
+    fallbacks: 0,
+  };
+}
+
+function collectDecisionMetrics(stats, decisions) {
+  // Aggregate per-hand: was there a voluntary preflop action? was there a raise?
+  let sawPreflop = false;
+  let voluntaryPreflop = false;
+  let raisedPreflop = false;
+  for (const d of decisions) {
+    stats.decisions++;
+    const t = d.action?.type;
+    if (t === 'call')  stats.calls++;
+    if (t === 'bet')   stats.bets++;
+    if (t === 'raise') stats.raises++;
+    if (t === 'fold')  stats.folds++;
+    if (t === 'check') stats.checks++;
+    if (d.fallback)    stats.fallbacks++;
+    if (d.street === Streets.PREFLOP) {
+      sawPreflop = true;
+      if (t === 'call' || t === 'raise') voluntaryPreflop = true;
+      if (t === 'raise') raisedPreflop = true;
+    }
+  }
+  if (sawPreflop) {
+    stats.handsSawPreflop++;
+    if (voluntaryPreflop) stats.preflopVoluntary++;
+    if (raisedPreflop)    stats.preflopRaised++;
+  }
+}
+
+// ── Core: play one hand between two strategies on a fixed deck ────────────────
+
+async function playHand({ deck, seat0Strategy, seat1Strategy, sb, bb, buyIn }) {
+  const game = new Game({
+    tableId: 'arena',
+    seats: [
+      { playerId: 'seat0', stack: buyIn },
+      { playerId: 'seat1', stack: buyIn },
+    ],
+    smallBlind: sb,
+    bigBlind: bb,
+    dealerSeat: 0,
+  });
+  game.startHand(deck);
+
+  const decisionsBySeat = [[], []];
+  const strategies = [seat0Strategy, seat1Strategy];
+
+  let safety = 400;
+  while (
+    game.street !== Streets.COMPLETE &&
+    game.street !== Streets.SHOWDOWN &&
+    safety-- > 0
+  ) {
+    const seat = game.toAct;
+    if (seat === null || seat === undefined) break;
+    const me = game.seats[seat];
+    const opp = game.seats[(seat + 1) % 2];
+    const legal = game.legalActions(seat);
+    const callAction  = legal.find((a) => a.type === Actions.CALL)  ?? null;
+    const betAction   = legal.find((a) => a.type === Actions.BET)   ?? null;
+    const raiseAction = legal.find((a) => a.type === Actions.RAISE) ?? null;
+    const toCall = callAction?.amount ?? 0;
+
+    let equity = null;
+    try {
+      equity = estimateEquity({
+        holeCards: me.holeCards,
+        community: game.community,
+        nOpponents: 1,
+        iterations: 500,
+      }).equity;
+    } catch { /* leave null */ }
+
+    const gameState = {
+      holeCards: me.holeCards,
+      community: game.community,
+      pot: game.pot,
+      street: game.street,
+      myStack: me.stack,
+      oppStack: opp.stack,
+      myContrib: me.contribThisStreet,
+      position: game.dealerSeat === seat ? 'BTN/SB' : 'BB',
+      sb: game.smallBlind,
+      bb: game.bigBlind,
+      canCheck: legal.some((a) => a.type === Actions.CHECK),
+      canBet:   !!betAction,
+      canRaise: !!raiseAction,
+      toCall,
+      minBet:   betAction?.min ?? 0,
+      maxBet:   betAction?.max ?? 0,
+      minRaise: raiseAction?.min ?? 0,
+      maxRaise: raiseAction?.max ?? 0,
+      equity,
+      potOdds: toCall > 0 ? toCall / (game.pot + toCall) : null,
+      spr:     game.pot > 0 ? me.stack / game.pot : null,
+      opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
+    };
+
+    const { action, reasoning } = await getAgentAction(gameState, strategies[seat], '');
+    const streetAtDecision = game.street;
+    // "fallback" here covers BOTH handler-level fallbacks (no API key / API
+    // error / parse failure) and engine rejections handled below.
+    let fallback = /fallback|no API key|parse failure/i.test(reasoning || '');
+
+    let appliedAction = action;
+    try {
+      game.act(seat, action);
+    } catch {
+      fallback = true;
+      const alt = legal.find((a) => a.type === Actions.CHECK)
+               ?? legal.find((a) => a.type === Actions.CALL)
+               ?? { type: Actions.FOLD };
+      appliedAction = { type: alt.type, ...(alt.amount ? { amount: alt.amount } : {}) };
+      try { game.act(seat, appliedAction); } catch {
+        // If even the safe fallback fails, break to avoid an infinite loop.
+        break;
+      }
+    }
+
+    decisionsBySeat[seat].push({
+      street: streetAtDecision,
+      action: appliedAction,
+      reasoning,
+      fallback,
+      equity,
+      potOdds: gameState.potOdds,
+    });
+  }
+
+  // Force resolution if we hit the safety cap without terminating (should not happen).
+  const finalStack0 = game.seats[0].stack;
+  const finalStack1 = game.seats[1].stack;
+
+  return {
+    seat0Net: finalStack0 - buyIn,
+    seat1Net: finalStack1 - buyIn,
+    seat0Decisions: decisionsBySeat[0],
+    seat1Decisions: decisionsBySeat[1],
+    handNumber: game.handNumber,
+    result: game.result,
+  };
+}
+
+// ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
+
+async function runMatchup({ nameA, stratA, nameB, stratB, pairs, sb, bb, buyIn }) {
+  const statsA = newStats();
+  const statsB = newStats();
+
+  for (let p = 0; p < pairs; p++) {
+    const deck = freshShuffledDeck();
+
+    // Hand 1: A in seat 0, B in seat 1
+    const h1 = await playHand({ deck, seat0Strategy: stratA, seat1Strategy: stratB, sb, bb, buyIn });
+    // Hand 2: B in seat 0, A in seat 1 (mirrored)
+    const h2 = await playHand({ deck, seat0Strategy: stratB, seat1Strategy: stratA, sb, bb, buyIn });
+
+    // Per-agent totals across both halves
+    const aNet = h1.seat0Net + h2.seat1Net;
+    const bNet = h1.seat1Net + h2.seat0Net;
+    statsA.netChips += aNet;
+    statsB.netChips += bNet;
+    statsA.pairSumsByMatchup.push(aNet);
+    statsB.pairSumsByMatchup.push(bNet);
+    statsA.handsSeatedAsHero += 2;
+    statsB.handsSeatedAsHero += 2;
+    collectDecisionMetrics(statsA, h1.seat0Decisions);
+    collectDecisionMetrics(statsA, h2.seat1Decisions);
+    collectDecisionMetrics(statsB, h1.seat1Decisions);
+    collectDecisionMetrics(statsB, h2.seat0Decisions);
+
+    if ((p + 1) % 10 === 0 || p === pairs - 1) {
+      process.stdout.write(`  [${nameA} vs ${nameB}] pair ${p + 1}/${pairs}  A net=${aNet}  B net=${bNet}\n`);
+    }
+  }
+
+  return { nameA, nameB, statsA, statsB };
+}
+
+// ── Summarization ────────────────────────────────────────────────────────────
+
+function bbPer100(netChips, hands, bb) {
+  if (hands === 0) return 0;
+  return (netChips / bb) / (hands / 100);
+}
+
+// 95% CI half-width on bb/100 computed from the per-pair chip sums (mirrored
+// pair = the independent unit). Uses z ≈ 1.96 and sample stddev.
+function ciHalfWidth95(pairSums, pairs, bb) {
+  const n = pairSums.length;
+  if (n < 2) return 0;
+  const mean = pairSums.reduce((s, x) => s + x, 0) / n;
+  const variance = pairSums.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1);
+  const seMean = Math.sqrt(variance / n);
+  // Convert SE of chip-sum-per-pair (which is 2 hands) into SE of bb/100.
+  // bb/100 = mean_pair / bb / 2 * 100 = mean_pair * 50 / bb, so SE scales linearly.
+  return 1.96 * seMean * 50 / bb;
+}
+
+function summarizeAgent(agentStats, bb) {
+  const totalHands = agentStats.handsSeatedAsHero;
+  const meanBB100 = bbPer100(agentStats.netChips, totalHands, bb);
+  const ci95 = ciHalfWidth95(agentStats.pairSumsByMatchup, agentStats.pairSumsByMatchup.length, bb);
+  const vpip = agentStats.handsSawPreflop > 0 ? agentStats.preflopVoluntary / agentStats.handsSawPreflop : 0;
+  const pfr  = agentStats.handsSawPreflop > 0 ? agentStats.preflopRaised    / agentStats.handsSawPreflop : 0;
+  const af   = agentStats.calls > 0 ? (agentStats.bets + agentStats.raises) / agentStats.calls : (agentStats.bets + agentStats.raises);
+  const foldRate = agentStats.decisions > 0 ? agentStats.folds / agentStats.decisions : 0;
+  const fallbackRate = agentStats.decisions > 0 ? agentStats.fallbacks / agentStats.decisions : 0;
+  return {
+    hands: totalHands,
+    netChips: agentStats.netChips,
+    bb100: Number(meanBB100.toFixed(2)),
+    ci95: Number(ci95.toFixed(2)),
+    vpip: Number((vpip * 100).toFixed(1)),
+    pfr: Number((pfr * 100).toFixed(1)),
+    af: Number(af.toFixed(2)),
+    foldRate: Number((foldRate * 100).toFixed(1)),
+    fallbackRate: Number((fallbackRate * 100).toFixed(1)),
+    decisions: agentStats.decisions,
+  };
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const args = parseArgs(process.argv);
+  if (!fs.existsSync(args.profiles)) {
+    console.error(`profiles file not found: ${args.profiles}`);
+    process.exit(1);
+  }
+  const profiles = JSON.parse(fs.readFileSync(args.profiles, 'utf8'));
+  const names = Object.keys(profiles);
+  if (names.length < 2) {
+    console.error('need at least 2 profiles');
+    process.exit(1);
+  }
+
+  let matchups;
+  if (args.matchups === '*' || !args.matchups) {
+    matchups = [];
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        matchups.push([names[i], names[j]]);
+      }
+    }
+  } else {
+    const parts = args.matchups.split(',').map((s) => s.trim());
+    if (parts.length !== 2 || !profiles[parts[0]] || !profiles[parts[1]]) {
+      console.error(`--matchups must be "A,B" naming two profiles (or "*")`);
+      process.exit(1);
+    }
+    matchups = [parts];
+  }
+
+  console.log(`[arena] profiles: ${names.join(', ')}`);
+  console.log(`[arena] matchups: ${matchups.length}, pairs each: ${args.pairs} (${args.pairs * 2} hands per matchup)`);
+  console.log(`[arena] blinds: ${args.sb}/${args.bb}, buy-in: ${args.buyIn}`);
+  console.log(`[arena] ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'set' : 'NOT SET (all decisions will fallback)'}\n`);
+
+  // Aggregate stats per profile name across all matchups it participates in.
+  const perAgent = Object.fromEntries(names.map((n) => [n, newStats()]));
+  const matchupSummaries = [];
+
+  const started = Date.now();
+  for (const [a, b] of matchups) {
+    console.log(`— ${a} vs ${b} —`);
+    const { statsA, statsB } = await runMatchup({
+      nameA: a, stratA: profiles[a],
+      nameB: b, stratB: profiles[b],
+      pairs: args.pairs,
+      sb: args.sb, bb: args.bb, buyIn: args.buyIn,
+    });
+    matchupSummaries.push({
+      a, b,
+      [a]: summarizeAgent(statsA, args.bb),
+      [b]: summarizeAgent(statsB, args.bb),
+    });
+    // Fold matchup stats into the per-agent aggregate.
+    mergeStats(perAgent[a], statsA);
+    mergeStats(perAgent[b], statsB);
+  }
+  const elapsedSec = ((Date.now() - started) / 1000).toFixed(1);
+
+  const perAgentSummary = Object.fromEntries(names.map((n) => [n, summarizeAgent(perAgent[n], args.bb)]));
+
+  console.log('\n═══ SUMMARY ═══');
+  console.log('\nPer-agent aggregate (all matchups):');
+  console.table(perAgentSummary);
+  console.log('\nPer-matchup detail:');
+  for (const m of matchupSummaries) {
+    console.log(`  ${m.a} vs ${m.b}: ${m.a} bb/100=${m[m.a].bb100}±${m[m.a].ci95}  ${m.b} bb/100=${m[m.b].bb100}±${m[m.b].ci95}`);
+  }
+  console.log(`\ntotal time: ${elapsedSec}s`);
+
+  // Persist
+  const outDir = path.join('data', 'arena');
+  fs.mkdirSync(outDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const outPath = path.join(outDir, `run-${stamp}.json`);
+  const record = {
+    timestamp: new Date().toISOString(),
+    args,
+    profiles,
+    matchups: matchupSummaries,
+    perAgent: perAgentSummary,
+    elapsedSec: Number(elapsedSec),
+    apiKeyPresent: !!process.env.ANTHROPIC_API_KEY,
+    model: process.env.AI_MODEL || 'claude-haiku-4-5',
+  };
+  fs.writeFileSync(outPath, JSON.stringify(record, null, 2), 'utf8');
+  console.log(`\n[arena] wrote ${outPath}`);
+}
+
+function mergeStats(agg, part) {
+  agg.handsSeatedAsHero += part.handsSeatedAsHero;
+  agg.netChips          += part.netChips;
+  agg.decisions         += part.decisions;
+  agg.preflopVoluntary  += part.preflopVoluntary;
+  agg.preflopRaised     += part.preflopRaised;
+  agg.handsSawPreflop   += part.handsSawPreflop;
+  agg.calls             += part.calls;
+  agg.bets              += part.bets;
+  agg.raises            += part.raises;
+  agg.folds             += part.folds;
+  agg.checks            += part.checks;
+  agg.fallbacks         += part.fallbacks;
+  agg.pairSumsByMatchup.push(...part.pairSumsByMatchup);
+}
+
+main().catch((err) => {
+  console.error('[arena] fatal:', err);
+  process.exit(1);
+});
