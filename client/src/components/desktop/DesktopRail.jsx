@@ -1,7 +1,9 @@
 import { Hood, NavIcon } from './primitives.jsx';
 
+// Command Center is the only section with a desktop implementation. The rest
+// render disabled rather than as dead buttons that look clickable.
 const NAV_ITEMS = [
-  { key: 'home', icon: 'home', label: 'Command Center' },
+  { key: 'home', icon: 'home', label: 'Command Center', ready: true },
   { key: 'agents', icon: 'agent', label: 'Agents' },
   { key: 'play', icon: 'spade', label: 'Tables' },
   { key: 'history', icon: 'history', label: 'Replays' },
@@ -40,14 +42,18 @@ export function DesktopRail({
             <button
               key={item.key}
               type="button"
-              className={`dsk-nav${activeTab === item.key ? ' is-active' : ''}`}
-              onClick={() => onNavigate(item.key)}
+              disabled={!item.ready}
+              aria-disabled={!item.ready}
+              className={`dsk-nav${activeTab === item.key && item.ready ? ' is-active' : ''}${item.ready ? '' : ' is-soon'}`}
+              onClick={item.ready ? () => onNavigate(item.key) : undefined}
             >
               <NavIcon name={item.icon} />
               <span className="dsk-nav__label">{item.label}</span>
-              {item.key === 'agents' && agents.length > 0 && (
-                <span className="dsk-nav__badge">{agents.length}</span>
-              )}
+              {item.ready
+                ? item.key === 'agents' && agents.length > 0 && (
+                    <span className="dsk-nav__badge">{agents.length}</span>
+                  )
+                : <span className="dsk-nav__soon">SOON</span>}
             </button>
           ))}
         </div>

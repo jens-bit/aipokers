@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
 import { AgentChat } from '../AgentChat.jsx';
 import { CreateAgent } from '../CreateAgent.jsx';
-import { HistoryTab } from '../HistoryTab.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { DesktopRail } from './DesktopRail.jsx';
 import { DesktopComposer } from './DesktopComposer.jsx';
@@ -150,8 +149,6 @@ export function DesktopShell({
                     onReady={handleChatReady}
                   />
                 </div>
-              ) : activeTab === 'history' ? (
-                <div className="dsk-embed"><HistoryTab /></div>
               ) : (
                 <>
                 {isWatching && (
