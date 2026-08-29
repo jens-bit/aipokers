@@ -1,76 +1,60 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-05-06 after v0.7.0 merge
+Last updated: 2026-05-09 after the post-AJ-review reconciliation
 
 ---
 
-## BUG-01 — Nav bar icons missing
-**Severity:** High (visual, all tabs affected)
-**Where:** client/src/App.jsx
-**What:** HomeIcon, PlayIcon, AgentsIcon, HistoryIcon, ProfileIcon are used in JSX (lines ~301-334) but never defined in the file. They were supposed to be added by the feature/nav-bar branch but got lost in the merge. Tabs currently show labels only.
-**Fix:** Add the 5 SVG icon components to the bottom of App.jsx. Use icons from design-refs/icons.jsx (Codex already designed these).
+## OPEN
+
+
+### BUG-10 — In-game header drops platform branding
+**Severity:** Medium (visual)
+**Where:** client/src/components/Header.jsx — in-game variant (rich game-view header)
+**What:** During play (vs-AI / vs-Human / Watch), only the rich in-game header shows (back arrow + avatar + name + status + settings gear). The "AGENTIC POKER" wordmark + spade logo + agents pill at the top of the app disappears. User notes this loses the platform identity during the most-shared moments.
+**Fix:** Either add a thin top strip with logo + AGENTIC POKER above the rich header, or fold the spade logo into the rich header on the far left next to/replacing the back arrow.
+
+### BUG-11 — CreateAgent suggestion chips too tightly stacked under greeting
+**Severity:** Low (UX polish)
+**Where:** client/src/components/CreateAgent.jsx + client/src/styles/create-agent.css
+**What:** Sub-task 5 of feature/play-cleanup (commit 4c4dbdf) moved the suggestion chips immediately below the greeting message to eliminate dead whitespace. Over-corrected — they now sit pinned to the top, which feels glued. User wants them to sit naturally in the middle of the chat flow with the greeting above and input below.
+**Fix:** Restructure the message-list flex so the chips sit centered within available vertical space, not anchored under the greeting. Greeting at top, chips centered, input at bottom.
 
 ---
 
-## BUG-02 — Chat input causes iOS zoom
-**Severity:** Medium (UX, mobile only)
-**Where:** client/src/styles/globals.css — .dr-chat-input input (or ChatBar input)
-**What:** On iOS/mobile, any input with font-size < 16px triggers automatic zoom when tapped. The chat input is likely at 14px.
-**Fix:** Add `font-size: 16px` to all input and textarea elements in the chat bar and create agent screen. Can revert visual size with `transform: scale()` on the wrapper if needed.
+## RESOLVED — kept here for traceability
 
----
+### BUG-09 — vs-You: agent does not seat as opponent — RESOLVED
+Fixed in commit 87d14d2. Root cause: `wsServer.js` JOIN handler gated `maybeAutoSeatAI` behind `process.env.AI_ENABLED === 'true'`. When this env var was not set on the VPS, the user's agent fell through to `scheduleHouseFallback()` instead of taking the opponent seat. Fix: removed the `AI_ENABLED` gate; `wantAI === true` is sufficient — `getAgentAction` already handles the no-API-key case gracefully. Needs `git pull && pm2 restart all` on VPS to take effect.
 
-## BUG-03 — Agent creation double-confirm
-**Severity:** Medium (UX)
-**Where:** client/src/components/CreateAgent.jsx
-**What:** Two separate confirmation steps: first a "Draft Ready" panel appears asking to confirm, then after creating there is an "Agent Created" card with Deploy/Keep tuning. Users have to confirm twice.
-**Fix:** Remove the intermediate "Draft Ready" step. Go straight from chat to "Agent Created" once the backend returns a created agent. The Draft Ready panel was meant to be a preview, not a gate.
+### BUG-01 — Nav bar icons missing — RESOLVED
+Discovered already fixed when checking the live code. HomeIcon, PlayIcon, AgentsIcon, HistoryIcon, ProfileIcon are all defined in App.jsx (~lines 611-656).
 
----
+### BUG-02 — Chat input causes iOS zoom — RESOLVED
+Fixed in commit 012882f (feature/cleanup, polish tree). All input/textarea elements bumped to font-size 16px across chat.css, agent-chat.css, analysis.css.
 
-## BUG-04 — Game continues vs dead AI after player leaves
-**Severity:** High (game logic)
-**Where:** src/server/table.js or wsServer.js
-**What:** When a human player clicks LEAVE during a hand, the server keeps the table alive and the AI continues playing against an empty seat. The table should pause or close when the human disconnects.
-**Fix:** In wsServer.js, when a LEAVE message arrives or a socket disconnects, check if any non-AI human seats are now empty. If so, end the current hand and close the table (or put it in a waiting state).
+### BUG-03 — Agent creation double-confirm — RESOLVED
+Fixed in commit 3570f69 (fix/watch-opponent). Draft Ready intermediate step removed; flow goes directly from chat completion to Agent Created card.
 
----
+### BUG-04 — Game continues vs dead AI after player leaves — RESOLVED
+Fixed in commit ebc40ae (fix/watch-opponent). Table.js gained hasHumanPlayer() helper; removeConnection now broadcasts TABLE_CLOSED and clears game state when the last seated human leaves a vs-AI game.
 
-## BUG-05 — WatchBanner text has no spacing
-**Severity:** Low (visual)
-**Where:** client/src/App.jsx — WatchBanner component
-**What:** The banner renders "Loose CannonHand #3 · COMPLETESPECTATING" — no spaces between agent name, hand info, and SPECTATING tag. Looks broken.
-**Fix:** The WatchBanner component already has separate elements (.watch-banner__name, .watch-banner__sub, .watch-banner__tag). This is likely a CSS gap/flex issue. Add `gap: 8px` to .watch-banner or check that the elements are not collapsing into each other.
+### BUG-05 — WatchBanner text has no spacing — RESOLVED + COMPONENT REMOVED
+Initially fixed via gap:8px in commit 709540a (fix/analysis-panel). The WatchBanner component itself was later removed entirely in commit bcd9354 (feature/post-merge-frontend) because it duplicated information now shown in the rich game-view header.
 
----
+### BUG-06 — Table layout breaks during human player's turn — RESOLVED
+Found to be a symptom of BUG-A (AnalysisPanel ungated). Fixed in commit ec84840 (fix/analysis-panel) by gating AnalysisPanel + the .app__main--analysis className on config?.isSpectator. Once the panel only renders in spectator mode, the layout no longer shifts on the hero's turn.
 
-## BUG-06 — Table layout breaks during human player's turn
-**Severity:** High (game-breaking)
-**Where:** client/src/App.jsx — TableView component, or client/src/components/PlayerSeat.jsx
-**What:** When it is the human player's turn to act, the table layout shifts or overlaps — seats misaligned, action bar overlapping board. Spectator view (when agent plays) seems fine.
-**Fix:** Read TableView in App.jsx carefully. The layout likely has a conditional CSS class that is applied when mySeat === game.toAct and that class is breaking the flex/grid layout. Check .table-area and .seat classes for conflicting positioning when the active seat is the bottom/hero seat.
+### BUG-07 — Both seats show same agent name — RESOLVED
+Fixed in commit 9c27bb7 (fix/agent-name-propagation). AgentsTab now passes agentName via the onVsYou payload; App.jsx correctly forwards agentDisplayName to the server.
 
----
-
-## BUG-07 — Both seats show same agent name
-**Severity:** Medium (confusing UX)
-**Where:** TableView / PlayerSeat — displayNames logic
-**What:** In a vs-AI game, both the hero seat and opponent seat show "Loose Cannon". The opponent seat should show a distinct name (the AI opponent's display name or "Opponent").
-**Fix:** Check displayNames construction in App.jsx. The AI opponent seat should get the agentDisplayName from the game config, not fall back to the same value as the hero seat.
-
----
-
-## BUG-08 — HistoryPlaceholder and ProfilePlaceholder undefined
-**Severity:** Medium (crash on those tabs)
-**Where:** client/src/App.jsx
-**What:** App.jsx references HistoryPlaceholder and ProfilePlaceholder in the tab render section, but these functions were defined in the feature/nav-bar branch's App.jsx and may not have survived the merge cleanly. Clicking HISTORY or PROFILE tab may throw a React error.
-**Fix:** Add simple placeholder components to App.jsx:
-  function HistoryPlaceholder() { return <div className="placeholder-screen"><h2>History</h2><p>Coming soon</p></div>; }
-  function ProfilePlaceholder() { return <div className="placeholder-screen"><h2>Profile</h2><p>Coming soon</p></div>; }
-Or better: build the real screens (see Roadmap).
+### BUG-08 — HistoryPlaceholder and ProfilePlaceholder undefined — RESOLVED
+Discovered already fixed when checking the live code. Both placeholder components are defined in App.jsx (~lines 580-609).
 
 ---
 
 ## Notes for next session
-- All design work (icons, oval table, cards, home screen) should be PORTED from design-refs/ folder, not redesigned from scratch. Codex already built the designs. Claude's job is to port them to production React.
-- When merging branches, NEVER use PowerShell `>` redirect for git show output — it creates UTF-16 files. Use: `git show branch:file | python -c "import sys; open('file','w',encoding='utf-8',newline='\n').write(sys.stdin.read())"`
-- Merge conflicts in globals.css happen every session. Consider splitting globals.css into logical chunks (tokens.css, components.css, layout.css) so branches touch different files.
+- AGENT auth: check that ANTHROPIC_API_KEY is set to the actual key (not the placeholder string `sk-ant-PUT-YOUR-KEY-HERE`) before running locally. The local server falls back to fold-every-hand on 401, which manifests as agents that "play but never raise".
+- All design work (icons, oval table, cards, home screen) should be PORTED from design-refs/ folder, not redesigned from scratch. Codex already built the designs.
+- For merge conflicts, prefer Cowork chat resolving them via the Edit tool directly on the conflict markers rather than running Python `re.sub` scripts — those scripts have repeatedly truncated rules at conflict boundaries, leaving unclosed CSS blocks that break the build.
+- Branch cycling within a worktree: use `git fetch origin && git checkout -B feature/next main`. The naive `git checkout main && git pull && git checkout -b feature/next` fails because git only allows one worktree per branch, and main is already checked out in C:\Projects\ai-poker.
+- Real-money TON play is on the product roadmap. Board has accepted the legal risk at sub-1K-user scale. A CLO agent (hired via Paperclip) tracks regulatory exposure and flags inflection points where real legal counsel is needed. Do not treat TON real-money as out of scope.
+
