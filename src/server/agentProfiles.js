@@ -192,13 +192,93 @@ export function getProfileStats() {
   return { totalAgents, handsPlayedToday };
 }
 
+// Compute deterministic self-stats over the agent's rolling recent-hands log.
+// Cheap: O(hands * decisionsPerHand). Consumed by the memory system and by
+// getAgentMemoryContext so the LLM narrative is anchored to real numbers.
+function computeSelfStats(agent) {
+  const hands = Array.isArray(agent.recentHands) ? agent.recentHands : [];
+  if (hands.length === 0) return null;
+
+  let vpipHands = 0, pfrHands = 0, didNotFoldHands = 0;
+  let calls = 0, betsRaises = 0, folds = 0, totalDec = 0;
+  let foldedAsEquityFavorite = 0, calledOnPoorOdds = 0, aggThenFolded = 0;
+
+  for (const h of hands) {
+    const decs = Array.isArray(h.decisions) ? h.decisions : [];
+    if (decs.length === 0) continue;
+    let hadVpip = false, hadPfr = false, hadFold = false, hadAgg = false;
+    let aggBeforeFold = false;
+    for (const d of decs) {
+      totalDec++;
+      const t = d.action?.type;
+      if (t === 'call') calls++;
+      if (t === 'bet' || t === 'raise') { betsRaises++; hadAgg = true; }
+      if (t === 'fold') { folds++; hadFold = true; if (hadAgg) aggBeforeFold = true; }
+      if (d.street === 'preflop' && (t === 'call' || t === 'raise')) hadVpip = true;
+      if (d.street === 'preflop' && t === 'raise') hadPfr = true;
+      // Leak: folded even though the equity call was in our favor.
+      if (t === 'fold' && Number.isFinite(d.equity) && d.equity > 0.55) foldedAsEquityFavorite++;
+      // Leak: called with worse equity than the pot odds required.
+      if (t === 'call' && Number.isFinite(d.equity) && Number.isFinite(d.potOdds) && d.equity < d.potOdds - 0.02) calledOnPoorOdds++;
+    }
+    if (hadVpip) vpipHands++;
+    if (hadPfr) pfrHands++;
+    if (!hadFold) didNotFoldHands++;
+    if (aggBeforeFold) aggThenFolded++;
+  }
+
+  return {
+    handsAnalyzed: hands.length,
+    vpip: Number(((vpipHands / hands.length) * 100).toFixed(1)),
+    pfr:  Number(((pfrHands  / hands.length) * 100).toFixed(1)),
+    af:   calls > 0 ? Number((betsRaises / calls).toFixed(2)) : (betsRaises > 0 ? Infinity : 0),
+    foldRate: totalDec > 0 ? Number(((folds / totalDec) * 100).toFixed(1)) : 0,
+    didNotFold: Number(((didNotFoldHands / hands.length) * 100).toFixed(1)),
+    leaks: {
+      foldedAsEquityFavorite,
+      calledOnPoorOdds,
+      aggThenFolded,
+    },
+  };
+}
+
+// Format one leak count for the briefing. Returns null when zero (so we
+// don't clutter the prompt with "0 times" noise).
+function formatLeakLine(computed) {
+  const parts = [];
+  const l = computed?.leaks || {};
+  if (l.foldedAsEquityFavorite > 0) parts.push(`folded as equity favorite ${l.foldedAsEquityFavorite}×`);
+  if (l.calledOnPoorOdds > 0)       parts.push(`called on poor pot odds ${l.calledOnPoorOdds}×`);
+  if (l.aggThenFolded > 0)          parts.push(`bet/raised then folded later same hand ${l.aggThenFolded}×`);
+  return parts.length > 0 ? parts.join('; ') : null;
+}
+
 // Format an agent's persistent memory as a string suitable for injection into
 // the decision-time system prompt. Returns '' when the agent has no memory yet.
+// Output preserves the original leading "\n\nYour self-knowledge..." shape so
+// upstream string concatenation stays identical.
 export function getAgentMemoryContext(agent) {
-  if (!agent || !agent.memory || !agent.memory.summary) return '';
+  if (!agent || !agent.memory) return '';
+  const summary = typeof agent.memory.summary === 'string' ? agent.memory.summary : '';
   const tendencies = Array.isArray(agent.memory.tendencies) ? agent.memory.tendencies : [];
+  const computed = agent.memory.computed || null;
+  if (!summary && !computed) return '';
+
+  const summaryLine = summary ? `${summary}` : '';
   const tendencyLine = tendencies.length > 0 ? `\nTendencies: ${tendencies.join(', ')}` : '';
-  return `\n\nYour self-knowledge from past sessions:\n${agent.memory.summary}${tendencyLine}`;
+  let computedBlock = '';
+  if (computed) {
+    const afText = Number.isFinite(computed.af)
+      ? computed.af.toFixed(2)
+      : (computed.af === Infinity ? '∞' : '0');
+    const leakLine = formatLeakLine(computed);
+    computedBlock =
+      `\n\nYour measured tendencies (last ${computed.handsAnalyzed} hands): ` +
+      `VPIP ${computed.vpip}%, PFR ${computed.pfr}%, AF ${afText}, fold rate ${computed.foldRate}%, non-fold hands ${computed.didNotFold}%.` +
+      (leakLine ? ` Noted leaks: ${leakLine}.` : '');
+  }
+
+  return `\n\nYour self-knowledge from past sessions:\n${summaryLine}${tendencyLine}${computedBlock}`;
 }
 
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
@@ -236,7 +316,48 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   return agent;
 }
 
-// Run a memory update for an agent in-process. Returns the updated agent or null.
+// Bracket-matching JSON extractor. Tolerant of trailing garbage and prose
+// wrappers. Returns the substring of the first complete top-level object, or
+// null when the text is truncated / missing an object.
+function extractJsonObject(text) {
+  if (typeof text !== 'string') return null;
+  const stripped = text.replace(/```json\n?|```\n?/g, '');
+  const start = stripped.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, inString = false, escape = false;
+  for (let i = start; i < stripped.length; i++) {
+    const c = stripped[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return stripped.slice(start, i + 1); }
+  }
+  return null;
+}
+
+// Update the deterministic side of memory (computed self-stats). Sync — no
+// LLM. Callers may run this after every hand cheaply.
+export function updateComputedMemory(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureMemory(agent);
+  ensureStats(agent);
+  const computed = computeSelfStats(agent);
+  if (computed) {
+    agent.memory.computed = computed;
+    agent.memory.lastComputedAt = Date.now();
+    saveStore(userId ?? 'anon');
+  }
+  return computed;
+}
+
+// Refresh the LLM narrative (summary + tendencies), grounded in the freshly
+// computed self-stats. Every 20 hands is the intended cadence. On parse
+// failure the previous narrative is kept — this fixes the truncation bug
+// where a chopped-off summary would silently overwrite a good one.
 export async function runMemoryUpdate(agentId, userId, recentHands) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
@@ -249,26 +370,44 @@ export async function runMemoryUpdate(agentId, userId, recentHands) {
     : (agent.recentHands ?? []).slice(0, 5);
   if (hands.length === 0) return agent;
 
+  // Always refresh computed stats first so the narrative prompt has current
+  // numbers and downstream getAgentMemoryContext returns the latest even if
+  // the LLM call fails.
+  const computed = computeSelfStats(agent) || agent.memory.computed || null;
+  if (computed) agent.memory.computed = computed;
+
   const handsBlock = hands.map(formatHandForPrompt).join('\n');
+  const computedLine = computed
+    ? `Computed stats (last ${computed.handsAnalyzed} hands): VPIP ${computed.vpip}%, PFR ${computed.pfr}%, AF ${Number.isFinite(computed.af) ? computed.af.toFixed(2) : '∞'}, foldRate ${computed.foldRate}%, non-fold ${computed.didNotFold}%; leaks: foldedAsFavorite=${computed.leaks.foldedAsEquityFavorite}, calledOnPoorOdds=${computed.leaks.calledOnPoorOdds}, aggThenFolded=${computed.leaks.aggThenFolded}.`
+    : 'Computed stats: none yet.';
+
   const systemText = `You are analysing a poker AI agent's recent play to update its self-knowledge. Output ONLY valid JSON — no markdown, no explanation:
 {
-  "summary": "<2-3 sentences in second person: 'You tend to...', describing the agent's style and any patterns observed>",
+  "summary": "<2-3 sentences in second person: 'You tend to...', anchored to the COMPUTED STATS provided (do not invent numbers)>",
   "tendencies": ["<short phrase>", "<short phrase>", "<short phrase>"]
 }
-Keep it poker-specific and actionable. Max 3 tendencies.`;
+Keep it poker-specific and actionable. Max 3 tendencies. Prefer facts from the computed stats over impressions from the individual hands.`;
   const userText = `Agent strategy: ${agent.strategy || '(none)'}
-Existing memory: ${agent.memory.summary || 'none yet'}
+Existing memory summary: ${agent.memory.summary || 'none yet'}
+${computedLine}
 Recent hands summary:
 ${handsBlock}
-Update the agent's self-knowledge based on this new evidence.`;
+Update the agent's self-knowledge based on this evidence.`;
 
   try {
-    const raw = await callClaude([{ role: 'user', content: userText }], systemText, 200);
+    // 500 tokens: the previous 200 truncated summaries mid-string and broke
+    // JSON parsing, wiping usable memory.
+    const raw = await callClaude([{ role: 'user', content: userText }], systemText, 500);
     if (raw) {
-      const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
-      let parsed;
-      try { parsed = JSON.parse(cleaned); } catch (e) {
-        console.warn('[agentProfiles] update-memory parse failed:', e.message, '| raw:', cleaned.slice(0, 120));
+      const objText = extractJsonObject(raw);
+      let parsed = null;
+      if (objText) {
+        try { parsed = JSON.parse(objText); }
+        catch (e) {
+          console.warn('[agentProfiles] update-memory parse failed:', e.message, '| raw first 120:', objText.slice(0, 120));
+        }
+      } else {
+        console.warn('[agentProfiles] update-memory: no complete JSON object in response (likely truncation); keeping previous memory');
       }
       if (parsed) {
         if (typeof parsed.summary === 'string' && parsed.summary.trim()) {

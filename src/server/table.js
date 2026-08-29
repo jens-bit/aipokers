@@ -2,7 +2,7 @@ import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
-import { recordHandResult, runMemoryUpdate, getMemoryContext } from './agentProfiles.js';
+import { recordHandResult, runMemoryUpdate, getMemoryContext, updateComputedMemory } from './agentProfiles.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
@@ -540,14 +540,23 @@ export class Table {
     }
   }
 
-  // For each AI seat with an agentId, increment the local hand counter and
-  // fire an /update-memory call every 5 hands. Then refresh the cached
-  // memoryContext so the next decision uses the new self-knowledge.
+  // For each AI seat with an agentId: every hand refresh the computed
+  // (deterministic) memory + cached memoryContext. Every 20 hands, also
+  // trigger the LLM narrative refresh (fed the computed stats).
   _maybeTriggerMemoryUpdates() {
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.agentIds[seat]) continue;
       this.aiHandsPlayed[seat] = (this.aiHandsPlayed[seat] ?? 0) + 1;
-      if (this.aiHandsPlayed[seat] > 0 && this.aiHandsPlayed[seat] % 5 === 0) {
+      try {
+        updateComputedMemory(this.agentIds[seat], this.agentUserIds[seat]);
+      } catch (err) {
+        console.error('[table] computed memory update failed:', err.message);
+      }
+      // Refresh the cached memoryContext string (so the next decision picks
+      // up the latest computed stats even without a narrative update).
+      this._refreshAgentMemory(seat);
+
+      if (this.aiHandsPlayed[seat] > 0 && this.aiHandsPlayed[seat] % 20 === 0) {
         this._triggerMemoryUpdate(seat);
       }
     }
