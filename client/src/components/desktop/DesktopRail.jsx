@@ -1,4 +1,4 @@
-import { NavIcon } from './primitives.jsx';
+import { Hood, NavIcon } from './primitives.jsx';
 
 const NAV_ITEMS = [
   { key: 'home', icon: 'home', label: 'Command Center' },
@@ -8,7 +8,29 @@ const NAV_ITEMS = [
   { key: 'profile', icon: 'profile', label: 'Account' },
 ];
 
-export function DesktopRail({ activeTab, onNavigate, onDraftAgent }) {
+function isPlaying(agent) {
+  return !!agent?.activeTableId;
+}
+
+function statusLine(agent) {
+  if (isPlaying(agent)) return 'Playing now';
+  if (agent?.status && agent.status !== 'idle') return String(agent.status);
+  return 'Idle · ready to deploy';
+}
+
+// stats.winRate is stored as a whole percentage (0-100).
+function winRateOf(agent) {
+  const rate = agent?.stats?.winRate;
+  if (rate == null || !agent?.stats?.handsPlayed) return null;
+  return `${Number(rate).toFixed(0)}%`;
+}
+
+export function DesktopRail({
+  agents, loading, activeTab, activeAgentId,
+  onNavigate, onSelectAgent, onDraftAgent,
+}) {
+  const liveCount = agents.filter(isPlaying).length;
+
   return (
     <div className="dsk-rail">
       <div className="dsk-rail__nav-block">
@@ -23,6 +45,9 @@ export function DesktopRail({ activeTab, onNavigate, onDraftAgent }) {
             >
               <NavIcon name={item.icon} />
               <span className="dsk-nav__label">{item.label}</span>
+              {item.key === 'agents' && agents.length > 0 && (
+                <span className="dsk-nav__badge">{agents.length}</span>
+              )}
             </button>
           ))}
         </div>
@@ -30,6 +55,12 @@ export function DesktopRail({ activeTab, onNavigate, onDraftAgent }) {
 
       <div className="dsk-rail__section">
         <span className="dsk-label dsk-label--sm">CONVERSATIONS</span>
+        {liveCount > 0 && (
+          <div className="dsk-rail__live">
+            <span className="dsk-dot" aria-hidden />
+            <span>{liveCount} LIVE</span>
+          </div>
+        )}
       </div>
 
       <div className="dsk-rail__list">
@@ -37,6 +68,39 @@ export function DesktopRail({ activeTab, onNavigate, onDraftAgent }) {
           <span>YOUR AGENTS</span>
           <i />
         </div>
+
+        {loading && <p className="dsk-rail__empty">Loading roster…</p>}
+        {!loading && agents.length === 0 && (
+          <p className="dsk-rail__empty">No agents yet. Draft one to get started.</p>
+        )}
+
+        {agents.map((agent) => {
+          const playing = isPlaying(agent);
+          const winRate = winRateOf(agent);
+          return (
+            <button
+              key={agent.id}
+              type="button"
+              className={`dsk-thread${activeAgentId === agent.id ? ' is-active' : ''}`}
+              onClick={() => onSelectAgent(agent)}
+            >
+              <div className="dsk-thread__avatar">
+                <Hood size={34} dim={!playing} />
+                {playing && <span className="dsk-thread__live-dot" aria-hidden />}
+              </div>
+              <div className="dsk-thread__body">
+                <div className="dsk-thread__top">
+                  <span className="dsk-thread__name">{agent.name}</span>
+                  <span className="dsk-thread__time">{playing ? 'live' : 'idle'}</span>
+                </div>
+                <div className="dsk-thread__bottom">
+                  <span className="dsk-thread__preview">{statusLine(agent)}</span>
+                  {winRate && <span className="dsk-thread__stat">{winRate}</span>}
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="dsk-rail__footer">

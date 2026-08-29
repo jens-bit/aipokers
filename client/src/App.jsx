@@ -61,6 +61,7 @@ export default function App() {
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
   const isDesktop = useIsDesktop();
+  const [desktopWatchAgent, setDesktopWatchAgent] = useState(null);
   const [desktopFocusTable, setDesktopFocusTable] = useState(false);
 
   function setActiveAgent(id) {
@@ -148,6 +149,7 @@ export default function App() {
   const handleLeave = useCallback(() => {
     callAgentFinish(activeAgentIdRef.current); // use ref — never stale
     setDesktopFocusTable(false);
+    setDesktopWatchAgent(null);
     disconnect();
   }, [disconnect, callAgentFinish]);
 
@@ -171,7 +173,49 @@ export default function App() {
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
   if (isDesktop && !desktopFocusTable) {
-    return <DesktopShell />;
+    const watchPayload = (payload, agent) => {
+      setDesktopWatchAgent(agent || null);
+      setActiveAgent(payload.agentId);
+      watch({
+        tableId: payload.tableId,
+        agentId: payload.agentId,
+        userId: getUserId(),
+        agentStrategy: payload.strategy,
+        displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+        wantOpponentAI: false,
+        memoryContext: payload.memoryContext ?? '',
+      });
+    };
+
+    return (
+      <DesktopShell
+        watchingAgent={desktopWatchAgent}
+        onWatchAgent={async (agent) => {
+          if (!agent?.activeTableId) return;
+          let memoryContext = '';
+          try {
+            const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+            if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+          } catch { /* watch with empty context */ }
+          watchPayload({
+            tableId: agent.activeTableId,
+            agentId: agent.id,
+            agentName: agent.name,
+            strategy: agent.strategy,
+            memoryContext,
+          }, agent);
+        }}
+        onDeployAgent={async (agent) => {
+          const res = await fetch(`/api/agents/${agent.id}/queue`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: getUserId() }),
+          });
+          if (!res.ok) return;
+          watchPayload(await res.json(), agent);
+        }}
+      />
+    );
   }
 
   if (!config) {
