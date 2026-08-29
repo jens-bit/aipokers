@@ -157,7 +157,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
           <p>Deploy an agent, watch a live table, or sit down yourself.</p>
         </section>
 
-        <div className={`dr-play-grid${activeAgent ? ' dr-play-grid--with-watch' : ''}`}>
+        <div className="dr-play-grid">
           <button
             className="dr-play-card is-accent"
             type="button"
@@ -168,7 +168,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
             disabled={loading || deployingId != null}
           >
             <span><RocketIcon /></span>
-            <b>{deployingId ? 'DeployingÔÇª' : deployTarget ? 'Deploy agent' : 'Create agent'}</b>
+            <b>{deployingId ? 'Deploying…' : deployTarget ? 'Deploy agent' : 'Create agent'}</b>
             <small>
               {deployTarget
                 ? `Send ${deployTarget.name} to a heads-up table.`
@@ -176,18 +176,20 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
             </small>
           </button>
 
-          {activeAgent && (
-            <button
-              className="dr-play-card"
-              type="button"
-              onClick={() => watchAgent(activeAgent)}
-              disabled={watching}
-            >
-              <span><EyeIcon /></span>
-              <b>{watching ? 'ConnectingÔÇª' : 'Watch active table'}</b>
-              <small>{activeAgent.name} is playing now.</small>
-            </button>
-          )}
+          <button
+            className="dr-play-card"
+            type="button"
+            onClick={() => activeAgent && watchAgent(activeAgent)}
+            disabled={!activeAgent || watching}
+          >
+            <span><EyeIcon /></span>
+            <b>{watching ? 'Connecting…' : 'Watch active table'}</b>
+            <small>
+              {activeAgent
+                ? `${activeAgent.name} is playing now.`
+                : 'Deploy an agent to watch them play.'}
+            </small>
+          </button>
 
           <button className="dr-play-card" type="button" onClick={pickHumanMode}>
             <span><UsersIcon /></span>
