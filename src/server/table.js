@@ -581,6 +581,26 @@ export class Table {
     }
   }
 
+  // BUG-12: an AI seat's reasoning/equity are secret from opposing seated
+  // players — leaking them tells the opponent our exact hand strength read.
+  // Spectators (agent owners watching from the AI's POV) still get the full
+  // payload, and it is fully preserved in currentHandDecisions for stored
+  // hand records / replays.
+  _broadcastDecision({ seat, action, reasoning, equity, potOdds }) {
+    const fullPayload = JSON.stringify({
+      type: ServerMsg.DECISION, seat, action, reasoning, equity, potOdds,
+    });
+    const sanitizedPayload = JSON.stringify({
+      type: ServerMsg.DECISION, seat, action,
+    });
+    for (const ws of this.connections) {
+      if (ws && ws.readyState === ws.OPEN) ws.send(sanitizedPayload);
+    }
+    for (const s of this.spectators) {
+      if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(fullPayload);
+    }
+  }
+
   // ÔöÇÔöÇ Table chat ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
   // Push a chat line into history and broadcast it to every WS at the table
@@ -829,8 +849,7 @@ export class Table {
     try {
       this.game.act(aiSeat, action);
       this._incrementRaiseCountIfAggressive(action);
-      this._broadcast({
-        type: ServerMsg.DECISION,
+      this._broadcastDecision({
         seat: aiSeat,
         action,
         reasoning,
