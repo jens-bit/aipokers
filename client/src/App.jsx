@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
+import { WatchScreen } from './components/WatchScreen.jsx';
 import { Play } from './components/Play.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
@@ -39,6 +40,7 @@ export default function App() {
     reconnectAttempt, maxReconnectAttempts,
     config, connect, watch, disconnect, act, deal, rename,
     chatMessages, sendChat,
+    sitOut,
     lastDecision,
   } = table;
   const displayNames = useMemo(() => {
@@ -400,6 +402,23 @@ export default function App() {
           </button>
         </nav>
       </div>
+    );
+  }
+
+  // Mobile spectator: full-screen WatchScreen replaces the legacy layout
+  if (config?.isSpectator && !isDesktop) {
+    return (
+      <WatchScreen
+        game={game}
+        mySeat={mySeat}
+        lastDecision={lastDecision}
+        chatMessages={chatMessages}
+        sendChat={sendChat}
+        displayNames={displayNames}
+        onLeave={handleLeave}
+        onSitOut={sitOut}
+        config={config}
+      />
     );
   }
 

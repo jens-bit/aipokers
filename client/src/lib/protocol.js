@@ -8,6 +8,7 @@ export const ClientMsg = Object.freeze({
   CHAT: 'chat',
   LEAVE: 'leave',
   PING: 'ping',
+  SIT_OUT: 'sit_out',
 });
 
 export const ServerMsg = Object.freeze({

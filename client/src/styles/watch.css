@@ -1,1 +1,475 @@
-/* watch.css — intentionally empty; WatchBanner removed */
+/* watch.css — PORT-2: full watch screen layout */
+
+/* ── screen shell ─────────────────────────────────────────────────────── */
+.watch-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--sys-bg, #0A0A0A);
+  color: var(--sys-text, #EDEDED);
+  font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
+  overflow: hidden;
+}
+
+.watch-screen__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 10px;
+  background: var(--sys-panel, #111111);
+  flex-shrink: 0;
+}
+
+.watch-screen__back {
+  background: none;
+  border: none;
+  color: var(--sys-text, #EDEDED);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  margin-right: -2px;
+}
+
+.watch-screen__title {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── felt ─────────────────────────────────────────────────────────────── */
+.watch-felt {
+  position: relative;
+  flex-shrink: 0;
+  height: 300px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #1a2a2c 0%, #0f1818 62%, #0a1212 100%);
+  border-bottom: 1px solid rgba(0,212,170,0.14);
+}
+
+.watch-felt__arc {
+  position: absolute;
+  left: -14%;
+  right: -14%;
+  top: 32px;
+  bottom: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,212,170,0.10);
+  pointer-events: none;
+}
+
+.watch-felt__seat {
+  position: absolute;
+  top: 12px;
+  z-index: 2;
+}
+.watch-felt__seat--left  { left: 12px; }
+.watch-felt__seat--right { right: 12px; }
+
+.watch-felt__pot {
+  position: absolute;
+  top: 68px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+}
+
+.watch-felt__pot > div,
+.watch-felt__pot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 13px;
+  border-radius: 16px;
+  background: rgba(8,10,10,0.6);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.watch-felt__pot-label {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.watch-felt__pot-amt {
+  font-family: var(--sys-font-display, "Playfair Display", serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--sys-text, #EDEDED);
+  letter-spacing: -0.01em;
+}
+
+.watch-felt__board {
+  position: absolute;
+  top: 114px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  z-index: 2;
+}
+
+.watch-felt__street {
+  position: absolute;
+  top: 194px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 2;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 10px;
+  color: var(--sys-muted, #6B6B6B);
+  letter-spacing: 0.14em;
+}
+
+/* ── hero readout ──────────────────────────────────────────────────────── */
+.watch-felt__hero {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(8,10,10,0.72);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.watch-felt__hero.is-active {
+  border-color: rgba(0,212,170,0.35);
+  box-shadow: inset 0 1px 0 rgba(0,212,170,0.18), 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.watch-felt__hero-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.watch-felt__hero-lbl {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+  display: block;
+}
+.watch-felt__hero-lbl.is-live { color: var(--sys-teal, #00D4AA); }
+
+.watch-felt__hero-num {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sys-text, #EDEDED);
+  font-variant-numeric: tabular-nums;
+}
+.watch-felt__hero-num.is-live  { color: var(--sys-teal, #00D4AA); }
+.watch-felt__hero-num.is-muted { color: var(--sys-muted, #6B6B6B); }
+
+.watch-felt__hero-pos {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.watch-felt__action-chip {
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--sys-teal, #00D4AA);
+  color: #0A0A0A;
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.watch-felt__waiting {
+  font-size: 11.5px;
+  color: var(--sys-muted, #6B6B6B);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* ── sit-out strip ────────────────────────────────────────────────────── */
+.watch-sitout-strip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--sys-panel, #111111);
+  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+}
+
+.watch-sitout-strip__title {
+  font-size: 12px;
+  color: var(--sys-text, #EDEDED);
+  font-weight: 500;
+}
+
+.watch-sitout-strip__meta {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 10px;
+  color: var(--sys-muted, #6B6B6B);
+  margin-top: 1px;
+  letter-spacing: 0.06em;
+}
+
+.watch-sitout-strip__btn {
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
+  color: var(--sys-dim, #A1A1A1);
+  font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── tabs ─────────────────────────────────────────────────────────────── */
+.watch-tabs {
+  flex-shrink: 0;
+  display: flex;
+  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  background: var(--sys-panel, #111111);
+  padding: 0 8px;
+}
+
+.watch-tabs__tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0 10px;
+  cursor: pointer;
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  user-select: none;
+}
+
+.watch-tabs__tab.is-active {
+  color: var(--sys-teal, #00D4AA);
+  border-bottom-color: var(--sys-teal, #00D4AA);
+}
+
+/* ── panel ────────────────────────────────────────────────────────────── */
+.watch-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--sys-bg, #0A0A0A);
+  -webkit-overflow-scrolling: touch;
+}
+
+.watch-panel__live {
+  padding: 11px 14px;
+}
+
+.watch-panel__voice {
+  font-size: 13px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.5;
+  font-style: italic;
+  margin-bottom: 9px;
+}
+
+.watch-panel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--sys-muted, #6B6B6B);
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.watch-panel__bullets {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.watch-panel__bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.35;
+}
+
+/* ── analysis row ─────────────────────────────────────────────────────── */
+.watch-analysis-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+}
+
+.watch-analysis-row__label {
+  font-size: 12px;
+  color: var(--sys-dim, #A1A1A1);
+  min-width: 80px;
+}
+
+.watch-analysis-row__bar-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+
+.watch-analysis-row__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.watch-analysis-row__note {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.watch-analysis-row__value {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sys-text, #EDEDED);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── sit-out confirmation sheet ────────────────────────────────────────── */
+.watch-sitout-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.78);
+  display: flex;
+  align-items: flex-end;
+}
+
+.watch-sitout-sheet {
+  width: 100%;
+  background: var(--sys-panel-2, #131316);
+  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px 14px;
+  box-shadow: 0 -8px 28px rgba(0,0,0,0.55);
+}
+
+.watch-sitout-sheet__handle {
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sys-border-2, rgba(255,255,255,0.10));
+  margin: 0 auto 14px;
+}
+
+.watch-sitout-sheet__title {
+  font-family: var(--sys-font-display, "Playfair Display", serif);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--sys-text, #EDEDED);
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.watch-sitout-sheet__body {
+  font-size: 13px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.watch-sitout-sheet__session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(0,212,170,0.05);
+  border: 1px solid rgba(0,212,170,0.18);
+}
+
+.watch-sitout-sheet__session-lbl {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-teal, #00D4AA);
+}
+
+.watch-sitout-sheet__session-hands {
+  font-size: 11.5px;
+  color: var(--sys-dim, #A1A1A1);
+}
+
+.watch-sitout-sheet__btns {
+  display: flex;
+  gap: 9px;
+}
+
+/* ── shared buttons ────────────────────────────────────────────────────── */
+.watch-btn {
+  height: 44px;
+  border-radius: 8px;
+  flex: 1;
+  cursor: pointer;
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.watch-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
+  color: var(--sys-dim, #A1A1A1);
+}
+
+.watch-btn--primary {
+  background: var(--sys-teal, #00D4AA);
+  border: none;
+  color: #0A0A0A;
+  box-shadow: 0 0 14px rgba(0,212,170,0.30);
+}
+

@@ -344,6 +344,7 @@ export function useTable({ wsUrl }) {
     if (!text || !String(text).trim()) return;
     send({ type: ClientMsg.CHAT, text: String(text).trim() });
   }, [send]);
+  const sitOut = useCallback(() => { send({ type: ClientMsg.SIT_OUT }); }, [send]);
   const dismissError = useCallback(() => setError(null), []);
 
   // Cleanup on unmount.
@@ -372,6 +373,7 @@ export function useTable({ wsUrl }) {
     rename,
     chatMessages,
     sendChat,
+    sitOut,
     lastDecision,
   };
 }
