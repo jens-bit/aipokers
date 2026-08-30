@@ -9,6 +9,10 @@
 //      felt by WATCH alone (agent vs agent, no House). Nothing owned the tempo,
 //      the table sat at WAITING forever, and the floor still reported it as
 //      playing because liveGameView only asks isAiOnly().
+//   3. WV2-5 — the showdown payload a spectator receives: revealed cards on
+//      result.showdown and on the terminal STATE, folded seats absent from
+//      both, winners named. This is what the felt renders the reveal from.
+//   4. WV2-5 — a pot won without a showdown reveals nothing at all.
 //
 // ANTHROPIC_API_KEY is optional — without one the agent handler returns its
 // safe check/fold fallback, so hands still complete and everything under test
@@ -29,7 +33,8 @@ const { installAgentProfileRoutes } = await import('../src/server/agentProfiles.
 const registry = await import('../src/server/tableRegistry.js');
 const { setPersistEnabled: setOpponentStatsPersist } = await import('../src/server/opponentStats.js');
 const { ClientMsg, ServerMsg } = await import('../src/server/protocol.js');
-const { Streets } = await import('../src/engine/game.js');
+const { Streets, Actions } = await import('../src/engine/game.js');
+const { Table } = await import('../src/server/table.js');
 
 setOpponentStatsPersist(false);
 
@@ -176,6 +181,114 @@ console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (
   wsB.close();
   await sleep(200);
   check('the table keeps playing after every watcher leaves', table.closed === false && table.autoPlay === true);
+}
+
+// ── 3) WV2-5: the showdown payload a spectator receives ──────────────────────
+// Driven through the real Table with plain seats, so every action is explicit
+// and the walk is deterministic -- no model calls, no timers.
+console.log('\n[verify] 3) WV2-5 — revealed cards reach the spectator');
+{
+  const fakeWs = () => ({
+    readyState: 1, OPEN: 1, received: [],
+    send(payload) { this.received.push(JSON.parse(payload)); },
+    ofType(type) { return this.received.filter((m) => m.type === type); },
+  });
+
+  const table = new Table({ tableId: 'watch-v2-showdown', smallBlind: 10, bigBlind: 20, maxSeats: 6 });
+  for (const id of ['p0', 'p1', 'p2']) {
+    table.seatPlayer(fakeWs(), { playerId: id, buyIn: 1000, displayName: id.toUpperCase() });
+  }
+  // A spectator watching seat 0, exactly as WATCH attaches one.
+  const spectator = fakeWs();
+  table.spectators.push({ ws: spectator, spectatorSeat: 0 });
+
+  table.maybeStartHand({ clientDriven: true });
+
+  // Seat 2 folds; the other two check/call to a real showdown.
+  let guard = 400;
+  let folded = false;
+  while (table.game && table.game.street !== Streets.COMPLETE && guard-- > 0) {
+    const seat = table.game.toAct;
+    if (seat === null || seat === undefined) break;
+    const legal = table.game.legalActions(seat);
+    let pick;
+    if (!folded && seat === 2 && legal.some((a) => a.type === Actions.FOLD)) {
+      pick = { type: Actions.FOLD };
+      folded = true;
+    } else {
+      pick = legal.find((a) => a.type === Actions.CHECK)
+          ?? legal.find((a) => a.type === Actions.CALL)
+          ?? { type: Actions.FOLD };
+    }
+    table.applyAction(table.connections[seat], { type: pick.type });
+  }
+
+  check('the hand reached a showdown', table.game?.result?.type === 'showdown',
+        `result was ${table.game?.result?.type ?? 'none'}`);
+
+  // -- the hand-result payload --
+  const results = spectator.ofType(ServerMsg.HAND_RESULT);
+  check('the spectator received HAND_RESULT', results.length === 1, `got ${results.length}`);
+  const result = results[0]?.result ?? null;
+
+  check('it carries a showdown array', Array.isArray(result?.showdown));
+  check('every contestant is in it, and only them',
+        (result?.showdown ?? []).map((sd) => sd.seat).sort().join(',') === '0,1',
+        JSON.stringify((result?.showdown ?? []).map((sd) => sd.seat)));
+  check('the seat that folded is NOT in it',
+        !(result?.showdown ?? []).some((sd) => sd.seat === 2));
+  check('each entry carries two hole cards',
+        (result?.showdown ?? []).every((sd) => Array.isArray(sd.holeCards) && sd.holeCards.length === 2),
+        JSON.stringify(result?.showdown));
+  check('winners carry seat, amount and a hand description',
+        Array.isArray(result?.winners) && result.winners.length > 0
+          && result.winners.every((w) => Number.isInteger(w.seat) && w.amount > 0 && typeof w.descr === 'string'),
+        JSON.stringify(result?.winners));
+  check('the pot is reported', Number.isFinite(result?.pot) && result.pot > 0, String(result?.pot));
+
+  // -- the terminal STATE, which is what the felt actually renders from --
+  const states = spectator.ofType(ServerMsg.STATE);
+  const terminal = states[states.length - 1]?.state ?? null;
+  check('the spectator saw a terminal STATE', !!terminal);
+  check('it is at COMPLETE', terminal?.street === Streets.COMPLETE, terminal?.street);
+  check('it carries the result alongside', terminal?.result?.type === 'showdown');
+  check('revealed seats show their cards in it',
+        (terminal?.seats ?? []).filter((s, i) => i !== 2).every((s) => s.holeCards.length === 2),
+        JSON.stringify((terminal?.seats ?? []).map((s) => s.holeCards)));
+  check('the mucked seat shows nothing', (terminal?.seats ?? [])[2]?.holeCards.length === 0);
+  check('the felt can name the winner from it',
+        !!(terminal?.seats ?? [])[result?.winners?.[0]?.seat]?.displayName);
+
+  table.closeTable('verify done');
+}
+
+// ── 4) WV2-5: an uncontested pot reveals nothing ─────────────────────────────
+console.log('\n[verify] 4) WV2-5 — a hand won without a showdown reveals nothing');
+{
+  const fakeWs = () => ({
+    readyState: 1, OPEN: 1, received: [],
+    send(payload) { this.received.push(JSON.parse(payload)); },
+    ofType(type) { return this.received.filter((m) => m.type === type); },
+  });
+
+  const table = new Table({ tableId: 'watch-v2-uncontested', smallBlind: 10, bigBlind: 20, maxSeats: 6 });
+  for (const id of ['q0', 'q1']) {
+    table.seatPlayer(fakeWs(), { playerId: id, buyIn: 1000, displayName: id.toUpperCase() });
+  }
+  const spectator = fakeWs();
+  table.spectators.push({ ws: spectator, spectatorSeat: 0 });
+  table.maybeStartHand({ clientDriven: true });
+  table.applyAction(table.connections[table.game.toAct], { type: Actions.FOLD });
+
+  const result = spectator.ofType(ServerMsg.HAND_RESULT)[0]?.result ?? null;
+  check('the result is uncontested', result?.type === 'uncontested', result?.type);
+  check('no showdown array, so nothing is revealed', result?.showdown === undefined);
+  const terminal = spectator.ofType(ServerMsg.STATE).slice(-1)[0]?.state ?? null;
+  check("and no seat but the spectator\'s own shows cards",
+        (terminal?.seats ?? []).slice(1).every((s) => s.holeCards.length === 0),
+        JSON.stringify((terminal?.seats ?? []).map((s) => s.holeCards)));
+
+  table.closeTable('verify done');
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────
