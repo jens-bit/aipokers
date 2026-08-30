@@ -1065,7 +1065,7 @@ export function installAgentProfileRoutes(app) {
     let joinedExisting = false;
     let sessionStarted = false;
 
-    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id });
+    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id, userId });
 
     // ── Bankroll gate ─────────────────────────────────────────────────────────
     // Only enforce when the server manages sessions (liveTables present).

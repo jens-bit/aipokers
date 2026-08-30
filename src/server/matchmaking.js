@@ -32,6 +32,11 @@ const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 }
 // deploy creates a fresh one instead.
 export const JOIN_MIN_SCORE = Number(process.env.MATCHMAKING_MIN_SCORE ?? 25);
 
+// Bonus applied when a deploying agent is joining a table that already holds
+// one of their own agents (same userId). Keeps owner agents together and
+// skips the JOIN_MIN_SCORE gate so a same-owner join always beats a fresh table.
+export const SAME_OWNER_SCORE_BONUS = 50;
+
 // A table with fewer hands than this left in its session cap would give a
 // joiner a pointless few-hand stay, so it is skipped.
 export const MIN_REMAINING_HANDS = Number(process.env.MATCHMAKING_MIN_HANDS ?? 10);
@@ -117,14 +122,21 @@ export function scoreTableForJoin(table, joinerProfile) {
 // Ranked by projected action; ties go to the fuller table, so the floor
 // concentrates into one lively felt instead of drifting into several quiet
 // ones. `candidates` is any iterable of Tables.
-export function pickTableToJoin(candidates, { profile = null, agentId = null } = {}) {
+//
+// MATCH-2: when `userId` is supplied, tables that already hold one of the
+// owner's agents get SAME_OWNER_SCORE_BONUS added and bypass JOIN_MIN_SCORE
+// entirely — any open own-table with a free seat beats creating a fresh table.
+export function pickTableToJoin(candidates, { profile = null, agentId = null, userId = null } = {}) {
   const joiner = profile ? normalizeProfile(profile) : NEUTRAL;
   const ranked = [];
   for (const table of candidates ?? []) {
     const blocker = joinBlocker(table, { agentId });
     if (blocker) continue;
-    const score = scoreTableForJoin(table, joiner);
-    if (score < JOIN_MIN_SCORE) continue;
+    const isOwnTable = !!userId &&
+      (table.agentUserIds ?? []).some((uid) => uid != null && uid === userId);
+    const base = scoreTableForJoin(table, joiner);
+    const score = isOwnTable ? base + SAME_OWNER_SCORE_BONUS : base;
+    if (!isOwnTable && score < JOIN_MIN_SCORE) continue;
     ranked.push({ table, score, seated: table.seatedCount() });
   }
   if (ranked.length === 0) return null;
