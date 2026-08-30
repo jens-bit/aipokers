@@ -37,6 +37,24 @@ function formatAction(action) {
   return String(t).toUpperCase();
 }
 
+// WV2-2: the wire carries equity as a 0..1 FRACTION. estimateEquity returns
+// (wins + ties) / iterations and table.js puts that straight on the DECISION
+// message, so the hero readout showed "0.674375%" where it meant 67.4%.
+// Every equity render in this screen goes through here.
+//
+// A value above 1 cannot be a fraction — the flagged-hands API stores integer
+// percents — so it is passed through rather than multiplied into nonsense.
+function equityPct(equity) {
+  var n = (typeof equity === 'number') ? equity : parseFloat(equity);
+  if (!isFinite(n)) return null;
+  return n <= 1 ? n * 100 : n;
+}
+
+function formatEquity(equity) {
+  var pct = equityPct(equity);
+  return pct === null ? null : pct.toFixed(1) + '%';
+}
+
 function posLabel(seat, game) {
   if (!game) return '';
   if (game.bigBlindSeat === seat)   return 'BB';
@@ -50,8 +68,8 @@ function posLabel(seat, game) {
 
 function DecisionBand({ street, action, equity, reasoning }) {
   const actionLabel = formatAction(action);
-  const equityNum   = (typeof equity === 'number') ? equity : parseFloat(equity);
-  const hasEquity   = !isNaN(equityNum);
+  const equityNum   = equityPct(equity);
+  const hasEquity   = equityNum !== null;
 
   return (
     <div style={{
@@ -321,8 +339,8 @@ function WatchFelt({ game, mySeat, lastDecision }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  var hasEquity   = lastDecision && lastDecision.equity != null && !between;
-  var equityVal   = hasEquity ? lastDecision.equity : null;
+  var equityText  = between ? null : formatEquity(lastDecision && lastDecision.equity);
+  var hasEquity   = equityText !== null;
   var actionLabel = lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
     : (game && game.toAct === heroSeat && !between ? 'TO ACT' : null);
@@ -415,7 +433,7 @@ function WatchFelt({ game, mySeat, lastDecision }) {
           <span className={'watch-felt__hero-lbl' + (hasEquity ? ' is-live' : '')}>Equity</span>
           <div>
             <span className={'watch-felt__hero-num' + (hasEquity ? ' is-live' : ' is-muted')}>
-              {equityVal != null ? (equityVal + '%') : '--'}
+              {equityText || '--'}
             </span>
           </div>
         </div>
