@@ -57,7 +57,7 @@ const SeatChip = ({ name, stack, pos, acting, folded, align = 'left', dealer }) 
   <div style={{
     display: 'flex', alignItems: 'center', gap: 7,
     padding: '4px 9px 4px 5px', borderRadius: 18,
-    background: 'rgba(8,10,10,0.72)',
+    background: 'rgba(23,27,27,0.72)',
     border: `1px solid ${acting ? `${M_TEAL}66` : M_BORDER}`,
     boxShadow: acting ? `0 0 10px ${M_TEAL}2E` : 'none',
     opacity: folded ? 0.42 : 1,
@@ -88,15 +88,15 @@ const Felt = ({ children, mode }) => (
     height: mode === 'strip' ? 96 : mode === 'half' ? 336 : '100%',
     flex: mode === 'full' ? 1 : 'none',
     minHeight: 0, overflow: 'hidden',
-    background: 'radial-gradient(ellipse at 50% 42%, #1a2a2c 0%, #0f1818 62%, #0a1212 100%)',
-    borderBottom: mode === 'full' ? 'none' : `1px solid ${M_TEAL}24`,
+    background: 'radial-gradient(ellipse at 50% 42%, #2f4d48 0%, #1d2e2c 62%, #162423 100%)',
+    borderBottom: mode === 'full' ? 'none' : `1px solid ${M_TEAL}38`,
   }}>
     {/* inner arc — decorative only */}
     {mode !== 'strip' && (
       <div style={{
         position: 'absolute', left: '-14%', right: '-14%',
         top: mode === 'half' ? 26 : 74, height: mode === 'half' ? 300 : 470,
-        borderRadius: '50%', border: `1px solid ${M_TEAL}14`,
+        borderRadius: '50%', border: `1px solid ${M_TEAL}1F`,
         pointerEvents: 'none',
       }}/>
     )}
@@ -105,7 +105,7 @@ const Felt = ({ children, mode }) => (
 );
 
 const PotPill = ({ size = 'lg' }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: size === 'sm' ? '2px 10px' : '3px 13px', borderRadius: 16, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: size === 'sm' ? '2px 10px' : '3px 13px', borderRadius: 16, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
     <Lbl size={size === 'sm' ? 8.5 : 9}>Pot</Lbl>
     {size === 'sm'
       ? <Num size={13} weight={700}>${HAND.pot}</Num>
@@ -123,7 +123,7 @@ const Board = ({ w, h, gap = 5 }) => (
 );
 
 const EquityBlock = ({ compact }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: compact ? '5px 10px' : '8px 12px', borderRadius: 9, background: 'rgba(8,10,10,0.62)', border: `1px solid ${M_TEAL}2E` }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: compact ? '5px 10px' : '8px 12px', borderRadius: 9, background: 'rgba(23,27,27,0.62)', border: `1px solid ${M_TEAL}2E` }}>
     <Lbl size={8.5} color={M_TEAL}>Equity</Lbl>
     <Num size={compact ? 13 : 15} weight={700} color={M_TEAL}>{HAND.equity}%</Num>
     <div style={{ width: 1, height: 14, background: M_BORDER }}/>
@@ -195,7 +195,7 @@ const TableFullScreenM = () => (
 
       {/* slim chat handle */}
       <div style={{ position: 'absolute', bottom: 14, left: 14, right: 14, zIndex: 3 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, height: 40, padding: '0 12px', borderRadius: 20, background: 'rgba(8,10,10,0.9)', border: `1px solid ${M_BORDER_2}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, height: 40, padding: '0 12px', borderRadius: 20, background: 'rgba(23,27,27,0.9)', border: `1px solid ${M_BORDER_2}` }}>
           <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: '#0A0F17', border: `1px solid ${M_TEAL}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
             <MoodGhost mood="confident" accent={M_TEAL} size={23} ring={false}/>
           </div>

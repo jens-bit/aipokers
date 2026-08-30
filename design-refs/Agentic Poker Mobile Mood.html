@@ -453,7 +453,7 @@ if (window.__relayout) { window.__relayout(); setTimeout(window.__relayout, 60);
       var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
       var max = MIN_CONTENT;
       inRow.forEach(function (f) {
-        var best = Math.max(f.getBoundingClientRect().height, parseFloat(f.dataset.h || '0') || 0);
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
         f.dataset.h = String(best);
         max = Math.max(max, best);
       });
@@ -463,7 +463,6 @@ if (window.__relayout) { window.__relayout(); setTimeout(window.__relayout, 60);
     plan.forEach(function (p) {
       p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
-    remember();
     return true;
   }
   var pending = null;
@@ -480,14 +479,14 @@ if (window.__relayout) { window.__relayout(); setTimeout(window.__relayout, 60);
   function stale() {
     var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
     for (var i = 0; i < fs.length; i++) {
-      var h = fs[i].getBoundingClientRect().height;
+      var h = fs[i].offsetHeight;
       var seen = parseFloat(fs[i].dataset.h || '0');
       if (h - seen > 2) return true;
     }
     return false;
   }
   function remember() {
-    frames().forEach(function (f) { f.dataset.h = String(f.getBoundingClientRect().height); });
+    frames().forEach(function (f) { f.dataset.h = String(f.offsetHeight); });
   }
   function boot() {
     schedule(0);

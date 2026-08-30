@@ -265,7 +265,7 @@ const MaterializingOccupant = ({ x, y, name, phase = 0.72 }) => (
       {/* his first words — arrives before the name chip does */}
       <div style={{
         maxWidth: 168, marginBottom: 2,
-        background: 'rgba(10,15,23,0.92)', border: `1px solid ${M_TEAL}55`,
+        background: 'rgba(17,23,32,0.92)', border: `1px solid ${M_TEAL}55`,
         borderRadius: 10, borderBottomLeftRadius: 3, padding: '7px 10px',
         boxShadow: `0 0 18px ${M_TEAL}22`,
         animation: 'rise 0.5s ease-out both',
@@ -286,7 +286,7 @@ const MaterializingOccupant = ({ x, y, name, phase = 0.72 }) => (
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         height: 17, padding: '0 7px', borderRadius: 4,
-        background: 'rgba(10,10,10,0.7)', border: `1px dashed ${M_TEAL}66`,
+        background: 'rgba(19,19,22,0.7)', border: `1px dashed ${M_TEAL}66`,
         opacity: 0.6, animation: 'fadein 1.9s ease-out both',
       }}>
         <span style={{ width: 4.5, height: 4.5, borderRadius: '50%', border: `1px dashed ${M_TEAL}` }}/>

@@ -194,7 +194,7 @@ const DerivedTypeScale = () => {
 };
 
 const SystemTokensM = () => (
-  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values.">
+  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values. AMBIENCE PASS: ground lifted #0A0A0A → #1A1A1E, panels to #232329 / #28282F, borders to 0.12 / 0.18, felt and room fill-light roughly ×2 — tuned for phone OLEDs, which crush shadows. Mood glows unchanged, so they pop harder against the lighter room. Text colours untouched.">
     <SyLbl>Grounds, panels, borders</SyLbl>
     <Row>
       <Swatch hex={M_BG} name="M_BG" use="app ground, floor ground"/>

@@ -15,7 +15,7 @@ const BetPill = ({ amount, align }) => (
   <div style={{
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '2px 8px 2px 5px', borderRadius: 11,
-    background: 'rgba(8,10,10,0.78)', border: `1px solid ${M_GOLD}44`,
+    background: 'rgba(23,27,27,0.78)', border: `1px solid ${M_GOLD}44`,
   }}>
     <svg width="11" height="11" viewBox="0 0 24 24">
       <ellipse cx="12" cy="13" rx="8" ry="2.6" fill="#0A0604"/>
@@ -34,7 +34,7 @@ const SeatChipSm = ({ name, stack, acting, folded, dealer }) => (
   <div style={{
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '3px 7px 3px 4px', borderRadius: 14,
-    background: 'rgba(8,10,10,0.78)',
+    background: 'rgba(23,27,27,0.78)',
     border: `1px solid ${acting ? `${M_TEAL}66` : M_BORDER}`,
     boxShadow: acting ? `0 0 8px ${M_TEAL}2E` : 'none',
     opacity: folded ? 0.42 : 1, position: 'relative',
@@ -92,7 +92,7 @@ const WatchSheetScreen = ({ detent }) => {
             <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}><SeatChip {...W_HAND.seats[0]}/></div>
             <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}><SeatChip {...W_HAND.seats[1]} align="right" dealer/></div>
             <div style={{ position: 'absolute', top: L.pot, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
                 <Lbl size={9}>Pot</Lbl>
                 <Amt size={23}>${W_HAND.pot}</Amt>
               </div>
@@ -167,7 +167,7 @@ const Watch4HandScreenM = () => (
       <Seat x={378} y={12} tx="-100%" align="right" chip={{ name: 'nash_eq', stack: '980', pos: 'CO', dealer: true }} bet="240"/>
 
       <div style={{ position: 'absolute', top: 106, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
           <Lbl size={9}>Pot</Lbl>
           <Amt size={23}>$960</Amt>
         </div>
@@ -209,7 +209,7 @@ const Watch6HandScreenM = () => (
       <Seat x={380} y={112} tx="-100%" align="right" sm chip={{ name: 'lockdwn', stack: '2,200' }}/>
 
       <div style={{ position: 'absolute', top: 118, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 11px', borderRadius: 14, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 11px', borderRadius: 14, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
           <Lbl size={8.5}>Pot</Lbl>
           <Num size={14} weight={700}>$15</Num>
         </div>
@@ -255,7 +255,7 @@ const WatchShowdownScreenM = () => (
         background: `linear-gradient(180deg, transparent, ${M_GOLD}55)` }}/>
       <div style={{ position: 'absolute', top: 236, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16,
-          background: 'rgba(8,10,10,0.78)', border: `1px solid ${M_GOLD}55`, boxShadow: `0 0 14px ${M_GOLD}22` }}>
+          background: 'rgba(23,27,27,0.78)', border: `1px solid ${M_GOLD}55`, boxShadow: `0 0 14px ${M_GOLD}22` }}>
           <Amt size={19} color={M_GOLD}>$1,240</Amt>
           <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_GOLD }}>→ BALANCED V2.1</span>
         </div>

@@ -364,7 +364,7 @@ const DeskTableStage = ({ between, sitOut }) => (
 
     {/* pot + board, centred */}
     <div style={{ position: 'absolute', top: 178, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, zIndex: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 16px', borderRadius: 18, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 16px', borderRadius: 18, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
         <Lbl size={9}>Pot</Lbl>
         {between ? <Num size={26} weight={700} color={M_MUTED}>—</Num> : <Amt size={30}>$480</Amt>}
       </div>
@@ -407,7 +407,7 @@ const DeskTableStage = ({ between, sitOut }) => (
         {between ? (
           <span style={{ fontSize: 12.5, color: M_MUTED, fontStyle: 'italic' }}>waiting for the deal</span>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(8,10,10,0.62)', border: `1px solid ${M_TEAL}2E` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(23,27,27,0.62)', border: `1px solid ${M_TEAL}2E` }}>
             <Lbl size={9} color={M_TEAL}>Equity</Lbl>
             <Num size={17} weight={700} color={M_TEAL}>87.4%</Num>
             <span style={{ padding: '4px 10px', borderRadius: 5, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em' }}>BET $240</span>

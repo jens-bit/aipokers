@@ -1,11 +1,14 @@
 // Shared atoms for the mobile mood concepts — tokens, ghost avatar, phone shell.
 
-const M_BG = '#0A0A0A';
-const M_PANEL = '#111111';
-const M_PANEL_2 = '#131316';
-const M_SURF = '#1A1A1F';
-const M_BORDER = 'rgba(255,255,255,0.06)';
-const M_BORDER_2 = 'rgba(255,255,255,0.10)';
+// AMBIENCE (Aug 2026): the house lights came up ~2 steps. Night, not void — panels
+// separate from the ground, borders read, mood glows pop HARDER against the lift.
+// Text colours untouched; ink-on-teal button text stays #0A0A0A (it is ink, not ground).
+const M_BG = '#1A1A1E';
+const M_PANEL = '#232329';
+const M_PANEL_2 = '#28282F';
+const M_SURF = '#2F2F37';
+const M_BORDER = 'rgba(255,255,255,0.12)';
+const M_BORDER_2 = 'rgba(255,255,255,0.18)';
 const M_TEXT = '#EDEDED';
 const M_DIM = '#A1A1A1';
 const M_MUTED = '#6B6B6B';

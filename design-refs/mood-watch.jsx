@@ -20,12 +20,12 @@ const W_HAND = {
 const WatchFelt = ({ h, children }) => (
   <div style={{
     position: 'relative', flexShrink: 0, height: h, overflow: 'hidden',
-    background: 'radial-gradient(ellipse at 50% 40%, #1a2a2c 0%, #0f1818 62%, #0a1212 100%)',
-    borderBottom: `1px solid ${M_TEAL}24`,
+    background: 'radial-gradient(ellipse at 50% 40%, #2f4d48 0%, #1d2e2c 62%, #162423 100%)',
+    borderBottom: `1px solid ${M_TEAL}38`,
   }}>
     <div style={{
       position: 'absolute', left: '-14%', right: '-14%', top: 34, height: h - 36,
-      borderRadius: '50%', border: `1px solid ${M_TEAL}14`, pointerEvents: 'none',
+      borderRadius: '50%', border: `1px solid ${M_TEAL}1F`, pointerEvents: 'none',
     }}/>
     {children}
   </div>
@@ -37,7 +37,7 @@ const HeroReadout = ({ faceDown, showAction, timer, note }) => (
     position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 3,
     display: 'flex', alignItems: 'center', gap: 7,
     padding: '9px 10px', borderRadius: 12,
-    background: 'rgba(8,10,10,0.72)',
+    background: 'rgba(23,27,27,0.72)',
     border: `1px solid ${showAction ? `${M_TEAL}55` : M_BORDER}`,
     boxShadow: showAction ? `inset 0 1px 0 ${M_TEAL}2E, 0 4px 12px rgba(0,0,0,0.4)` : 'none',
   }}>
@@ -144,7 +144,7 @@ const WatchLiveScreenM = () => (
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}><SeatChip {...W_HAND.seats[1]} align="right"/></div>
 
       <div style={{ position: 'absolute', top: 74, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
           <Lbl size={9}>Pot</Lbl>
           <Amt size={23}>${W_HAND.pot}</Amt>
         </div>
@@ -188,7 +188,7 @@ const WatchBetweenScreenM = () => (
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}><SeatChip {...W_HAND.seats[1]} align="right"/></div>
 
       <div style={{ position: 'absolute', top: 66, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(8,10,10,0.6)', border: `1px solid ${M_BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 13px', borderRadius: 16, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
           <Lbl size={9}>Pot</Lbl>
           <Num size={15} weight={700} color={M_MUTED}>—</Num>
         </div>

@@ -154,7 +154,7 @@ const GhostChip = ({ name, accent, state }) => (
   <div style={{
     display: 'inline-flex', alignItems: 'center', gap: 6,
     height: 19, padding: '0 8px', borderRadius: 10,
-    background: 'rgba(6,8,9,0.82)', border: `1px solid ${accent}44`,
+    background: 'rgba(14,17,18,0.82)', border: `1px solid ${accent}44`,
     whiteSpace: 'nowrap',
   }}>
     {state === 'live' && <LiveDot size={5}/>}
@@ -193,7 +193,7 @@ const PotTicker = ({ x, y, amount, mini }) => (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: mini ? 5 : 7,
       height: mini ? 18 : 22, padding: mini ? '0 8px' : '0 10px', borderRadius: 11,
-      background: 'rgba(6,8,9,0.82)', border: `1px solid ${M_TEAL}44`,
+      background: 'rgba(14,17,18,0.82)', border: `1px solid ${M_TEAL}44`,
       boxShadow: `0 0 12px ${M_TEAL}22`,
     }}>
       <Lbl size={mini ? 7.5 : 8}>Pot</Lbl>
@@ -213,25 +213,25 @@ const RoomLayer = ({ layout, ftu, viewBox, W = FLOOR_W, H = FLOOR_H, table }) =>
       style={{ position: 'absolute', inset: 0, display: 'block' }}>
       <defs>
         <radialGradient id={`feltG${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#1b3630"/>
-          <stop offset="0.65" stopColor="#0f1d19"/>
-          <stop offset="1" stopColor="#0a1512"/>
+          <stop offset="0" stopColor="#2f5a50"/>
+          <stop offset="0.65" stopColor="#1d362e"/>
+          <stop offset="1" stopColor="#152822"/>
         </radialGradient>
         <radialGradient id={`feltD${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#12211d"/>
-          <stop offset="1" stopColor="#0a1210"/>
+          <stop offset="0" stopColor="#213a32"/>
+          <stop offset="1" stopColor="#16241f"/>
         </radialGradient>
         <radialGradient id={`poolG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor={M_TEAL} stopOpacity="0.13"/>
+          <stop offset="0" stopColor={M_TEAL} stopOpacity="0.26"/>
           <stop offset="1" stopColor={M_TEAL} stopOpacity="0"/>
         </radialGradient>
         <radialGradient id={`cornerG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor="#1a1420" stopOpacity="0.85"/>
-          <stop offset="1" stopColor="#0A0A0A" stopOpacity="0"/>
+          <stop offset="0" stopColor="#2a2233" stopOpacity="0.85"/>
+          <stop offset="1" stopColor="#1A1A1E" stopOpacity="0"/>
         </radialGradient>
         <linearGradient id={`barG${layout}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#1d1a16"/>
-          <stop offset="1" stopColor="#0d0c0a"/>
+          <stop offset="0" stopColor="#302c27"/>
+          <stop offset="1" stopColor="#1a1815"/>
         </linearGradient>
       </defs>
 
@@ -256,7 +256,7 @@ const RoomLayer = ({ layout, ftu, viewBox, W = FLOOR_W, H = FLOOR_H, table }) =>
       {/* felts */}
       {L.felts.map((f, i) => (
         <g key={`f${i}`} opacity={o}>
-          <ellipse cx={f.cx} cy={f.cy} rx={f.rx + (f.lit ? 9 : 7)} ry={f.ry + (f.lit ? 9 : 7)} fill="#15100a"/>
+          <ellipse cx={f.cx} cy={f.cy} rx={f.rx + (f.lit ? 9 : 7)} ry={f.ry + (f.lit ? 9 : 7)} fill="#241d15"/>
           <ellipse cx={f.cx} cy={f.cy} rx={f.rx} ry={f.ry}
             fill={f.lit ? `url(#feltG${layout})` : `url(#feltD${layout})`}
             stroke={f.lit ? `${M_TEAL}2E` : `${M_TEAL}14`} strokeWidth={f.lit ? 1.2 : 1}/>
@@ -489,20 +489,20 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip 
         <div style={{ position: 'absolute', inset: 0, opacity: 0.5 }}>
           <RoomLayer layout="two" viewBox="88 44 186 310"/>
         </div>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 42%, rgba(10,10,10,0) 0%, rgba(10,10,10,0.72) 62%, rgba(10,10,10,0.94) 100%)' }}/>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 42%, rgba(26,26,30,0) 0%, rgba(26,26,30,0.68) 62%, rgba(26,26,30,0.92) 100%)' }}/>
 
         {pot && <PotTicker x={195} y={18} amount={pot}/>}
 
         <div style={{ position: 'absolute', left: 20, right: 20, top: pot ? 58 : 30, zIndex: 5 }}>
           <div style={{
-            background: 'rgba(12,14,16,0.92)', border: `1px solid ${m.color}66`,
+            background: 'rgba(21,23,26,0.92)', border: `1px solid ${m.color}66`,
             borderRadius: 14, padding: '14px 16px',
             boxShadow: `0 0 22px ${m.color}22`, position: 'relative',
           }}>
             <div style={{ fontSize: 15, color: M_TEXT, lineHeight: 1.5, fontStyle: 'italic' }}>“{line}”</div>
             <div style={{
               position: 'absolute', bottom: -7, left: '50%', marginLeft: -7,
-              width: 12, height: 12, background: 'rgba(12,14,16,0.92)',
+              width: 12, height: 12, background: 'rgba(21,23,26,0.92)',
               borderRight: `1px solid ${m.color}66`, borderBottom: `1px solid ${m.color}66`,
               transform: 'rotate(45deg)',
             }}/>
@@ -610,7 +610,7 @@ const CasinoFTUScreenM = () => (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             height: 19, padding: '0 9px', borderRadius: 10,
-            background: 'rgba(6,8,9,0.82)', border: `1px dashed ${M_TEAL}66`,
+            background: 'rgba(14,17,18,0.82)', border: `1px dashed ${M_TEAL}66`,
           }}>
             <Icon name="plus" size={9} color={M_TEAL} strokeWidth={3}/>
             <span style={{ fontSize: 10, color: M_TEAL, fontWeight: 500 }}>Draft your first agent</span>
