@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
-import { telegramAuthMiddleware } from './auth.js';
+import { telegramAuthMiddleware, isOwner } from './auth.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
 import {
@@ -64,14 +64,6 @@ let liveTables = null;
 
 export function setLiveTableProvider(provider) {
   liveTables = provider ?? null;
-}
-
-// True when the given table exists AND is autonomously advancing hands. This
-// is the single source of truth for presence — see presentAgent.
-function isTableLive(tableId) {
-  if (!tableId || !liveTables) return false;
-  const table = liveTables.getTable?.(tableId);
-  return !!table && !table.closed && !!table.autoPlay;
 }
 
 // Retire every agent whose activeTableId points at a table that no longer
@@ -636,22 +628,39 @@ function applyProposalPatch(agent, patch) {
 }
 
 // Compute the fields the floor UI needs — mood, lastMoment, unseenRecap,
-// presence — on top of the persisted agent record. Backfills defaults for
-// legacy agents so a first-load call after upgrade still returns a
-// well-shaped object.
-export function presentAgent(agent) {
+// presence, liveGame — on top of the persisted agent record. Backfills
+// defaults for legacy agents so a first-load call after upgrade still returns
+// a well-shaped object.
+//
+// AGE-37 presence law: 'playing' if and only if a session loop is actually
+// advancing hands at this agent's table. A stored status of "playing" is not
+// evidence of anything — that stale flag is exactly what made the floor lie
+// about frozen tables (BUG-16). The live table is the only witness.
+//
+// `owner` must only be true when the caller has proven ownership; it is what
+// gates heroHole in liveGame.
+export function presentAgent(agent, { owner = false } = {}) {
   if (!agent) return agent;
   ensureMood(agent);
   ensureStats(agent);
   ensureProfile(agent);
-  const presence = (agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting';
+  const liveGame = agent.activeTableId
+    ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
+    : null;
+  // Without an injected registry (routes installed with no WebSocket server)
+  // there is nothing to consult, so fall back to the stored flags.
+  const presence = liveTables
+    ? (liveGame ? 'playing' : 'resting')
+    : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
   return {
     ...agent,
     mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
     lastMoment: agent.lastMoment ?? null,
+    sessionRecap: agent.sessionRecap ?? null,
     unseenRecap: !!agent.unseenRecap,
     proposal: agent.proposal ?? null,
     presence,
+    liveGame,
   };
 }
 
@@ -767,20 +776,28 @@ export function installAgentProfileRoutes(app) {
   app.get('/api/agent-profile', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
+    const owner = isOwner(req, userId);
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
-      agents: profile.agents.map(presentAgent),
+      agents: profile.agents.map((a) => presentAgent(a, { owner })),
       chat: profile.chat,
     });
   });
 
   // GET /api/agents?userId=... — agents array with the floor-UI fields
-  // (mood, lastMoment, unseenRecap, proposal, presence) folded in.
+  // (mood, lastMoment, unseenRecap, proposal, presence, liveGame) folded in.
+  // This is the casino floor's single data call.
+  //
+  // AGE-37: liveGame is present only while the agent is genuinely playing,
+  // and its heroHole is populated only for the authenticated owner — the same
+  // scoping law AGE-33 applied to DECISION broadcasts.
   app.get('/api/agents', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
-    res.json({ agents: profile.agents.map(presentAgent) });
+    const owner = isOwner(req, userId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner })) });
   });
 
   // DELETE /api/agents/:agentId?userId=...
@@ -976,7 +993,7 @@ export function installAgentProfileRoutes(app) {
     // pending proposals are preserved so the owner can still act on them.
     try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
@@ -991,7 +1008,7 @@ export function installAgentProfileRoutes(app) {
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
@@ -1003,7 +1020,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
@@ -1017,7 +1034,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.unseenRecap = false;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message

@@ -420,6 +420,35 @@ export class Table {
     }));
   }
 
+  // AGE-37: the floor's view of this table for one agent. Returns null unless
+  // the session loop is genuinely advancing hands here — that null IS the
+  // presence answer, so an agent whose table died reads as resting rather
+  // than eternally "playing".
+  //
+  // `includeHole` must only be true when the caller has proven ownership of
+  // the seat. Same law as AGE-33: an agent's hole cards belong to its owner
+  // and to nobody else.
+  liveGameView(agentId, { includeHole = false } = {}) {
+    if (this.closed || !this.autoPlay) return null;
+    const seat = this.agentIds.findIndex((id) => id === agentId);
+    if (seat === -1) return null;
+    const g = this.game;
+    const inHand = !!g && g.street !== Streets.WAITING;
+    return {
+      tableId: this.tableId,
+      heroSeat: seat,
+      street: g ? g.street : Streets.WAITING,
+      board: inHand ? [...g.community] : [],
+      heroHole: includeHole && inHand ? [...(g.seats[seat]?.holeCards ?? [])] : null,
+      pot: inHand ? g.pot : 0,
+      toAct: inHand ? g.toAct : null,
+      actionDeadline: this.actionDeadline ?? null,
+      handNumber: g ? g.handNumber : 0,
+      handsThisSession: this.handsThisSession,
+      maxHands: this.maxHands,
+    };
+  }
+
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
   maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {

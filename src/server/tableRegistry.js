@@ -62,6 +62,15 @@ export function countAutonomousTables() {
   return n;
 }
 
+// AGE-37: the floor's view of one agent's live table, or null when the loop
+// is not actually advancing hands there. `includeHole` must only be true for
+// a caller proven to own the seat.
+export function getLiveGame(tableId, { agentId, includeHole = false } = {}) {
+  const table = tables.get(tableId);
+  if (!table) return null;
+  return table.liveGameView(agentId, { includeHole });
+}
+
 export function getOrCreateTable(tableId, opts = {}) {
   const existing = tables.get(tableId);
   if (existing) return existing;
