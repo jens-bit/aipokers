@@ -5,6 +5,7 @@
 
 import assert from 'node:assert';
 import { Game, Streets, Actions } from './game.js';
+import { createDeck } from './deck.js';
 
 function totalChips(game) {
   return game.seats.reduce((sum, s) => sum + s.stack, 0) + game.pot;
@@ -193,6 +194,151 @@ header('Test 6: fold to one player (uncontested, no showdown)');
   assert.strictEqual(game.seats[2].stack, 1010, 'BB wins SB');
   assert.strictEqual(totalChips(game), 3000);
   ok('uncontested fold-around: correct winner, no showdown');
+}
+
+
+// ---------------------------------------------------------------------------
+// MST-3: 5- and 6-handed play. The seat ceiling moved from 4 to 6 in Tree 6;
+// these cases exist so that is a tested claim rather than an edited constant.
+// ---------------------------------------------------------------------------
+header('Test 7: 6-player hand - blinds, UTG acts first, conservation');
+{
+  const game = new Game({
+    tableId: 't7',
+    seats: Array.from({ length: 6 }, (_, i) => ({ playerId: `p${i}`, stack: 1000 })),
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  // dealer=0, SB=1, BB=2, UTG=3.
+  assert.strictEqual(game.toAct, 3, 'UTG acts first 6-handed');
+  assert.strictEqual(game.seats[1].contribThisStreet, 10, 'SB');
+  assert.strictEqual(game.seats[2].contribThisStreet, 20, 'BB');
+  assert.strictEqual(game.seats[0].contribThisStreet, 0, 'button posts no blind');
+  for (const s of game.seats) assert.strictEqual(s.holeCards.length, 2, 'all six dealt');
+  // Every card in play is distinct - the deal loop must not hand out dupes.
+  const dealt = game.seats.flatMap((s) => s.holeCards);
+  assert.strictEqual(new Set(dealt).size, 12, 'twelve distinct hole cards');
+  playDownPassive(game);
+  assert.strictEqual(game.street, Streets.COMPLETE);
+  assert.strictEqual(totalChips(game), 6000);
+  assert.strictEqual(game.dealerSeat, 1, 'button rotated');
+  ok('6-player hand: blinds, action order, distinct deal, conservation');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 8: blinds rotate across hand boundaries (5-handed, 7 hands)');
+{
+  const game = new Game({
+    tableId: 't8',
+    seats: Array.from({ length: 5 }, (_, i) => ({ playerId: `p${i}`, stack: 10_000 })),
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  for (let hand = 0; hand < 7; hand++) {
+    const btn = game.dealerSeat;
+    game.startHand();
+    assert.strictEqual(game.seats[(btn + 1) % 5].contribThisStreet, 10, `hand ${hand}: SB is btn+1`);
+    assert.strictEqual(game.seats[(btn + 2) % 5].contribThisStreet, 20, `hand ${hand}: BB is btn+2`);
+    assert.strictEqual(game.toAct, (btn + 3) % 5, `hand ${hand}: UTG is btn+3`);
+    playDownPassive(game);
+    assert.strictEqual(game.dealerSeat, (btn + 1) % 5, `hand ${hand}: button advanced one seat`);
+  }
+  assert.strictEqual(totalChips(game), 50_000, 'chips conserved over seven hands');
+  ok('blinds and button rotate correctly across seven 5-handed hands');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 9: multiway side pots - two all-ins of different sizes (5-handed)');
+{
+  //     seat: 0 (BTN) 1 (SB)  2 (BB)   3 (UTG)  4
+  //    stack: 1000     60      150      1000     1000
+  const game = new Game({
+    tableId: 't9',
+    seats: [
+      { playerId: 'btn',   stack: 1000 },
+      { playerId: 'short', stack: 60 },
+      { playerId: 'mid',   stack: 150 },
+      { playerId: 'utg',   stack: 1000 },
+      { playerId: 'folder', stack: 1000 },
+    ],
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  assert.strictEqual(game.toAct, 3, 'UTG first');
+  game.act(3, { type: Actions.RAISE, amount: 300 });
+  game.act(4, { type: Actions.FOLD });
+  game.act(0, { type: Actions.CALL });        // 300
+  game.act(1, { type: Actions.CALL });        // all-in for 60
+  game.act(2, { type: Actions.CALL });        // all-in for 150
+
+  // btn and utg still have chips behind, so the hand plays on; they check it
+  // down, leaving the three side-pot layers exactly as built preflop.
+  assert.strictEqual(game.street, Streets.FLOP, 'two live stacks keep the hand going');
+  playDownPassive(game);
+
+  assert.strictEqual(game.street, Streets.COMPLETE, 'runs out once nobody can act');
+  assert.strictEqual(game.result.type, 'showdown');
+  assert.strictEqual(totalChips(game), 3210, 'every chip accounted for');
+
+  // Layers: 60*4 = 240 (all four), 90*3 = 270 (btn/mid/utg), 150*2 = 300
+  // (btn/utg). Nothing is uncalled, so nothing is refunded.
+  const paid = game.result.winners.reduce((sum, w) => sum + w.amount, 0);
+  assert.strictEqual(paid, 810, 'side pots sum to the whole pot');
+
+  // A player all-in for 60 can only ever collect the main pot.
+  const short = game.result.winners.find((w) => w.playerId === 'short');
+  if (short) assert.ok(short.amount <= 240, 'short stack cannot win beyond the main pot');
+  const mid = game.result.winners.find((w) => w.playerId === 'mid');
+  if (mid) assert.ok(mid.amount <= 510, 'mid stack cannot win beyond main + first side pot');
+  assert.strictEqual(game.seats[4].stack, 1000, 'the folder kept its stack');
+  ok('multiway side pots: layered correctly, chips conserved, eligibility respected');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 10: multiway split pot (board plays for three contestants)');
+{
+  // Deal order with dealerSeat 0 and N=4: two passes starting left of the
+  // button, so seats 1,2,3,0 then 1,2,3,0; then burn, flop(3), burn, turn,
+  // burn, river.
+  const scripted = [
+    '2c', '2d', '4c', '7h',              // first card to seats 1,2,3,0
+    '3c', '3d', '5c', '8h',              // second card to seats 1,2,3,0
+    '9c',                                // burn
+    'As', 'Ks', 'Qs',                    // flop
+    '9d',                                // burn
+    'Js',                                // turn
+    '9h',                                // burn
+    'Ts',                                // river - royal flush on the board
+  ];
+  const deck = [...scripted, ...createDeck().filter((c) => !scripted.includes(c))];
+  assert.strictEqual(deck.length, 52, 'rigged deck is a full deck');
+
+  const game = new Game({
+    tableId: 't10',
+    seats: Array.from({ length: 4 }, (_, i) => ({ playerId: `p${i}`, stack: 1000 })),
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand(deck);
+  game.act(3, { type: Actions.FOLD });   // UTG out
+  game.act(0, { type: Actions.CALL });   // BTN calls 20
+  game.act(1, { type: Actions.CALL });   // SB completes
+  game.act(2, { type: Actions.CHECK });  // BB checks its option
+  // Three-way, board plays; check it down.
+  playDownPassive(game);
+
+  assert.strictEqual(game.street, Streets.COMPLETE);
+  assert.strictEqual(game.result.type, 'showdown');
+  assert.deepStrictEqual(game.community, ['As', 'Ks', 'Qs', 'Js', 'Ts'], 'board is the royal');
+  assert.strictEqual(game.result.winners.length, 3, 'all three contestants split');
+  for (const w of game.result.winners) {
+    assert.strictEqual(w.amount, 20, 'each takes back an equal third of the 60 pot');
+  }
+  assert.strictEqual(totalChips(game), 4000, 'chips conserved');
+  for (const s of game.seats) assert.strictEqual(s.stack, 1000, 'everyone is square');
+  ok('multiway split: three-way tie, pot divided evenly, chips conserved');
 }
 
 console.log(`\n${passed} test(s) passed`);
