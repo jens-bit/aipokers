@@ -33,6 +33,18 @@ const RECAP_MAX_HANDS = 'long session, sitting out';
 const RECAP_BUST = 'someone ran out of chips — session over';
 const RECAP_SIT_OUT = 'sat out by owner';
 const RECAP_IDLE = 'the table went quiet, so I stepped away';
+const RECAP_STALL = 'something jammed at my table, so I stepped away';
+
+// Watchdog for the autonomous loop. A hand that cannot advance — the engine
+// rejecting both the model's action AND the safe fallback, or _maybeRunAiTurn
+// failing outright — schedules nothing, so the table would sit in the registry
+// forever reporting presence=playing. The 60s inactivity reaper used to catch
+// exactly this, and autonomous tables opt out of it. Generous by design: the
+// longest hand observed against live Haiku is ~30s. Set SESSION_STALL_MS to
+// override verbatim; otherwise the floor scales with HAND_PAUSE_MS so a slow
+// tempo can never trip it.
+const SESSION_STALL_MS = Number(process.env.SESSION_STALL_MS ?? 120_000);
+const SESSION_STALL_MS_EXPLICIT = process.env.SESSION_STALL_MS !== undefined;
 
 // Complementary House archetypes. Playtest 2026-08-29 showed tight-vs-tight
 // tables produce fold-fests (seven straight uncontested preflop hands). Fix:
@@ -134,6 +146,10 @@ export class Table {
     this.maxHands = Number.isFinite(maxHands) ? maxHands : SESSION_MAX_HANDS;
     this.handPauseMs = Number.isFinite(handPauseMs) ? handPauseMs : HAND_PAUSE_MS;
     this._nextHandTimer = null;
+    this._stallTimer = null;
+    this.stallMs = SESSION_STALL_MS_EXPLICIT
+      ? SESSION_STALL_MS
+      : Math.max(SESSION_STALL_MS, this.handPauseMs * 3 + 60_000);
     this.closed = false;
     // Advisory deadline for the seat currently to act (the AI's think delay).
     // Surfaced to the floor as liveGame.actionDeadline. A real server-side
@@ -197,7 +213,24 @@ export class Table {
     return true;
   }
 
+  // Re-arm the stall watchdog. Called on every sign of progress: a deal
+  // scheduled, a state broadcast, an action applied. If nothing resets it
+  // within stallMs the table is wedged, and closing it honestly beats leaving
+  // a ghost that claims to be playing.
+  _resetStallWatchdog() {
+    if (!this.autoPlay || this.closed) return;
+    if (this._stallTimer) clearTimeout(this._stallTimer);
+    this._stallTimer = setTimeout(() => {
+      this._stallTimer = null;
+      if (this.closed) return;
+      console.error(`[table:${this.tableId}] session made no progress for ${this.stallMs}ms — closing a wedged table`);
+      this.closeTable('session stalled', { recap: RECAP_STALL });
+    }, this.stallMs);
+    this._stallTimer.unref?.();
+  }
+
   _scheduleNextHand(ms) {
+    this._resetStallWatchdog();
     if (this._nextHandTimer) clearTimeout(this._nextHandTimer);
     this._nextHandTimer = setTimeout(() => {
       this._nextHandTimer = null;
@@ -216,6 +249,7 @@ export class Table {
     if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
     if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
     if (this._nextHandTimer) { clearTimeout(this._nextHandTimer); this._nextHandTimer = null; }
+    if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
   }
 
   // The single close path for every reason a table ends: sit-out, bust, hand
@@ -1014,6 +1048,7 @@ export class Table {
       const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
       s.ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: [], yourSeat: s.spectatorSeat }));
     }
+    this._resetStallWatchdog();
     this._notifyStateChange();
     // Schedule AI turn if applicable ÔÇö async, fire-and-forget.
     this._maybeRunAiTurn().catch((err) =>

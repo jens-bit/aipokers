@@ -13,7 +13,9 @@
 //   6. disconnect — assert hands keep completing
 //   7. SIT_OUT — assert graceful close, presence flips to resting,
 //      activeTableId cleared
-//   8. concurrency cap refuses deploys past MAX_CONCURRENT_TABLES
+//   7. concurrency cap refuses deploys past MAX_CONCURRENT_TABLES
+//   8. a wedged table is reaped by the stall watchdog instead of lingering as
+//      a ghost that still claims to be playing
 //   9. boot reconciliation retires agents whose table no longer exists
 //
 // No ANTHROPIC_API_KEY required. Without one the agent handler returns its
@@ -27,6 +29,8 @@
 process.env.HAND_PAUSE_MS ??= '600';
 process.env.SESSION_MAX_HANDS ??= '100';
 process.env.MAX_CONCURRENT_TABLES ??= '2';
+// Short enough that the stall section finishes quickly; production is 120s.
+process.env.SESSION_STALL_MS ??= '4000';
 
 import express from 'express';
 import http from 'node:http';
@@ -295,7 +299,49 @@ const capAgentIds = [];
 }
 
 // ── 8) boot reconciliation ───────────────────────────────────────────────────
-console.log('\n[verify] 8) boot reconciliation retires agents whose table is gone');
+console.log(`\n[verify] 8) a wedged table is reaped (SESSION_STALL_MS=${process.env.SESSION_STALL_MS})`);
+{
+  const stallId = await newAgent();
+  // Section 7 filled the floor to the cap — free a slot first.
+  registry.listTables()[0]?.closeTable('making room for the stall test', { recap: 'test' });
+  await sleep(50);
+
+  const r = await j('POST', `/api/agents/${stallId}/deploy`, { userId });
+  check('stall-test deploy accepted', r.status === 200, `got ${r.status}`);
+  const stallTableId = r.body?.tableId;
+  const table = registry.getTable(stallTableId);
+
+  // Wait for a hand in progress, then make the engine reject everything — the
+  // one path _maybeRunAiTurn cannot recover from (the model's action AND the
+  // safe fallback both refused). That path schedules nothing, so before the
+  // watchdog existed it wedged the table forever with presence stuck on
+  // 'playing' — the very lie this tree exists to remove.
+  const live = await waitFor(
+    'hand in progress',
+    async () => table?.game ?? null,
+    (g) => !!g && g.street !== 'waiting' && g.street !== 'complete',
+    30_000, 40,
+  );
+  check('stall-test table reached a live hand', live.ok);
+  table.game.act = () => { throw new Error('simulated engine rejection'); };
+
+  const reaped = await waitFor(
+    'watchdog',
+    async () => registry.hasTable(stallTableId),
+    (present) => present === false,
+    Number(process.env.SESSION_STALL_MS) + 15_000, 200,
+  );
+  check('stall watchdog closed the wedged table', reaped.ok);
+
+  const a = await getAgent(stallId);
+  check('wedged agent flipped to resting', a?.presence === 'resting', `got ${a?.presence}`);
+  check('wedged agent released its table', !a?.activeTableId);
+  check('wedged agent carries a recap',    !!a?.sessionRecap?.text);
+  console.log(`       recap: "${a?.sessionRecap?.text}"`);
+}
+
+// ── 9) boot reconciliation ───────────────────────────────────────────────────
+console.log('\n[verify] 9) boot reconciliation retires agents whose table is gone');
 {
   const playingBefore = (await j('GET', `/api/agents?userId=${userId}`)).body.agents.filter((a) => a.activeTableId);
   check('agents are holding live tables before the simulated restart', playingBefore.length > 0);
