@@ -23,6 +23,14 @@ import { notifyMoodAlert } from './notifications/telegram.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
+// -- MST-1: multi-seat tables ----------------------------------------------
+// Hard ceiling -- the engine accepts 2..6 seats.
+export const SEAT_LIMIT = 6;
+// Default size of a newly created table.
+export const MAX_SEATS = Math.min(SEAT_LIMIT, Math.max(2, Number(process.env.MAX_SEATS ?? 6)));
+// Occupied, chipped seats needed before a hand can be dealt.
+export const MIN_TO_DEAL = 2;
+
 // ── AGE-35: server-side session loop ────────────────────────────────────────
 // Pause between a completed hand and the next deal on an autonomous table.
 const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 8000);
@@ -74,18 +82,27 @@ function pickComplementaryHouse(opposingProfile) {
   return HOUSE_TAG;
 }
 
-// A Table owns a single Game instance and the WebSocket connections for its
-// 2ÔÇô4 seats. It serializes incoming actions, broadcasts filtered state, and
-// auto-starts the next hand once enough seated players still have chips.
+// A Table owns the seat roster for 2 to 6 players plus the Game instance those
+// seats are currently playing in. It serializes incoming actions, broadcasts
+// filtered state, and auto-starts the next hand once enough seated players
+// still have chips.
 //
-// Seat invariant: occupied seats are contiguous from index 0. The
+// Seat invariant: occupied seats are contiguous from index 0, and
 // game.seats[i] always corresponds to table.pending[i]. seatPlayer / seatAI
-// always pick the lowest free index, and a mid-table disconnect compacts the
-// remaining seats down (only for maxSeats > 2 ÔÇö HU keeps fixed indices).
+// take the lowest free index; a departure in the middle compacts the seats
+// above it down (_compactSeats), which is why everything per-seat lives in the
+// arrays listed in Table.SEAT_FIELDS and moves as one unit.
+//
+// MST-1: the roster and the Game are separate things. The roster changes the
+// moment somebody sits down or stands up; the Game is brought back into
+// agreement with it between hands, in _reconcileSeats. That is what makes
+// join-in-progress and leave-mid-session possible without tearing the table
+// down -- previously the Game was built once, on the first deal, and never
+// revisited.
 export class Table {
-  constructor({ tableId, smallBlind, bigBlind, maxSeats = 2, onEmpty, onStateChange, maxHands, handPauseMs }) {
-    if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > 4) {
-      throw new Error('maxSeats must be an integer 2..4');
+  constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs }) {
+    if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
+      throw new Error(`maxSeats must be an integer ${MIN_TO_DEAL}..${SEAT_LIMIT}`);
     }
     this.tableId = tableId;
     this.smallBlind = smallBlind;
@@ -109,6 +126,24 @@ export class Table {
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
+    // MST-1: chips live on the table, not inside whichever Game instance is
+    // current -- the Game is rebuilt whenever the roster changes.
+    this.seatStacks = Array(maxSeats).fill(null);
+    // Seats that asked to leave. They fold out of the hand in progress and are
+    // removed by the next between-hands reconcile.
+    this.seatLeaving = Array(maxSeats).fill(false);
+    // handsThisSession when the seat sat down, so a late joiner's session
+    // length is reported honestly instead of the whole table's.
+    this.seatJoinedAtHand = Array(maxSeats).fill(0);
+
+    // The roster (playerIds in seat order) the current Game was built from.
+    // Any mismatch against the live roster triggers a rebuild.
+    this._gameRoster = null;
+    // Button continuity across rebuilds. Seat indices move when players come
+    // and go, so the button is remembered by playerId plus the seat order it
+    // was recorded in.
+    this._buttonPlayerId = null;
+    this._buttonOrder = null;
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
 
     // Per-street raise counter, keyed by `${handNumber}:${street}`. Reset at
@@ -134,9 +169,11 @@ export class Table {
     // Spectators: users who watch their AI play from its seat's POV
     this.spectators = [];                          // [{ ws, spectatorSeat }]
 
-    // BUG-14: SIT_OUT — when set, the table finishes the CURRENT hand and
-    // then closes gracefully in _handCompleted.
-    this._pendingSitOut = false;
+    // BUG-14 / MST-1: SIT_OUT is seat-scoped. Seats in this set finish the
+    // CURRENT hand (folding as soon as it is their turn) and are freed in
+    // _handCompleted. The table itself only closes when the departure leaves
+    // it with fewer than MIN_TO_DEAL seats.
+    this._pendingSitOut = new Set();
 
     // ── AGE-35: autonomous session loop ──────────────────────────────────
     // autoPlay tables deal themselves. Nothing a client does — connecting,
@@ -157,6 +194,229 @@ export class Table {
     // action timer for HUMAN seats is still Fredrik's queue.
     this.actionDeadline = null;
   }
+
+  // -- MST-1: seat bookkeeping ----------------------------------------------
+  // Every per-seat array in one place. Anything that clears or moves a seat
+  // goes through here, so a new per-seat field can never be forgotten by one
+  // of the call sites (clear, compact, retire).
+  static SEAT_FIELDS = [
+    ['connections',      () => null],
+    ['pending',          () => null],
+    ['aiSeats',          () => false],
+    ['aiStrategy',       () => null],
+    ['agentIds',         () => null],
+    ['agentUserIds',     () => null],
+    ['agentMemory',      () => ''],
+    ['agentProfiles',    () => null],
+    ['aiHandsPlayed',    () => 0],
+    ['aiRecentHands',    () => []],
+    ['aiLastChatHand',   () => -1],
+    ['seatStacks',       () => null],
+    ['seatLeaving',      () => false],
+    ['seatJoinedAtHand', () => 0],
+  ];
+
+  _clearSeat(seat) {
+    for (const [field, empty] of Table.SEAT_FIELDS) this[field][seat] = empty();
+  }
+
+  _moveSeat(from, to) {
+    if (from === to) return;
+    for (const [field] of Table.SEAT_FIELDS) this[field][to] = this[field][from];
+    this._clearSeat(from);
+  }
+
+  seatedCount() { return this.pending.filter((p) => p !== null).length; }
+  freeSeatCount() { return this.pending.filter((p) => p === null).length; }
+  hasFreeSeat() { return !this.closed && this.pending.some((p) => p === null); }
+  defaultBuyIn() { return this.bigBlind * 100; }
+
+  // The stack a seat carries into the next hand.
+  seatStack(seat) {
+    return this.seatStacks[seat] ?? this.pending[seat]?.buyIn ?? 0;
+  }
+
+  // Seats that will still be here for the next deal: occupied, not leaving,
+  // and holding chips.
+  _survivingSeats() {
+    const out = [];
+    for (let i = 0; i < this.maxSeats; i++) {
+      if (!this.pending[i]) continue;
+      if (this.seatLeaving[i] || this._pendingSitOut.has(i)) continue;
+      if (this.seatStack(i) <= 0) continue;
+      out.push(i);
+    }
+    return out;
+  }
+
+  // True once the seat is actually represented in the current Game. A seat
+  // that joined mid-hand is occupied but not yet dealt in.
+  _seatIsInGame(seat) {
+    return !!this.game && seat < this.game.seats.length;
+  }
+
+  // Copy the live Game stacks back onto the table's per-seat ledger, so chips
+  // survive the Game instance they were won in.
+  _captureStacks() {
+    if (!this.game) return;
+    for (let i = 0; i < this.game.seats.length && i < this.maxSeats; i++) {
+      if (this.pending[i]) this.seatStacks[i] = this.game.seats[i].stack;
+    }
+  }
+
+  // The engine rotates its button at the end of every hand, so on a completed
+  // hand game.dealerSeat already names the NEXT hand's button. Remember it by
+  // playerId (indices move when seats come and go) together with the seat
+  // order it was recorded in, so a rebuild can resume the rotation.
+  _recordButton() {
+    if (!this.game) return;
+    this._buttonOrder = this.game.seats.map((s) => s.playerId);
+    this._buttonPlayerId = this._buttonOrder[this.game.dealerSeat] ?? null;
+  }
+
+  // Where the button sits in a freshly built roster.
+  //
+  // DEAD-BLIND RULE (deliberately simple; this is play money): the button
+  // walks the OLD seat order from wherever it was until it finds a player who
+  // is still here, and the blinds follow the button as usual. Nobody posts a
+  // dead blind, and a seat that joins between hands owes no catch-up big
+  // blind -- it is simply dealt in. The only cost of the simplification is
+  // that in rare join/leave patterns a player can skip one big blind.
+  _resolveButtonSeat(roster) {
+    if (!this._buttonOrder || !this._buttonPlayerId) return 0;
+    const start = this._buttonOrder.indexOf(this._buttonPlayerId);
+    if (start === -1) return 0;
+    for (let i = 0; i < this._buttonOrder.length; i++) {
+      const pid = this._buttonOrder[(start + i) % this._buttonOrder.length];
+      const idx = roster.indexOf(pid);
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  }
+
+  // Occupied seats stay contiguous from index 0 so game.seats[i] always maps
+  // to this table's seat i. A departure in the middle shifts everyone above it
+  // down; spectator points of view and pending sit-outs move with them.
+  _compactSeats() {
+    const order = [];
+    for (let i = 0; i < this.maxSeats; i++) if (this.pending[i]) order.push(i);
+    if (order.every((from, to) => from === to)) return;
+
+    const remap = new Map();
+    order.forEach((from, to) => { remap.set(from, to); this._moveSeat(from, to); });
+    for (const s of this.spectators) {
+      if (remap.has(s.spectatorSeat)) s.spectatorSeat = remap.get(s.spectatorSeat);
+    }
+    const movedSitOuts = new Set();
+    for (const seat of this._pendingSitOut) {
+      if (remap.has(seat)) movedSitOuts.add(remap.get(seat));
+    }
+    this._pendingSitOut = movedSitOuts;
+    // Seat indices moved, so whatever the Game was built from is stale.
+    this._gameRoster = null;
+  }
+
+  // -- MST-1: the between-hands reconcile -----------------------------------
+  // The one place where the table's seat roster and the Game's seat array are
+  // brought back into agreement. Runs ONLY between hands. Order matters:
+  //   1. bank the stacks from the hand that just finished
+  //   2. retire seats that busted or asked to leave
+  //   3. compact, so occupied seats stay contiguous from 0
+  //   4. rebuild the Game when the roster no longer matches what it was built
+  //      from, carrying stacks, hand number and the button across
+  _reconcileSeats() {
+    if (this.closed) return;
+    if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
+
+    this._captureStacks();
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.pending[seat]) continue;
+      const busted = this.seatStack(seat) <= 0;
+      if (!this.seatLeaving[seat] && !busted) continue;
+      this._retireSeat(seat, busted ? RECAP_BUST : RECAP_SIT_OUT);
+    }
+
+    this._compactSeats();
+
+    const roster = [];
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (this.pending[seat]) roster.push(this.pending[seat].playerId);
+    }
+
+    const unchanged = !!this.game
+      && !!this._gameRoster
+      && this._gameRoster.length === roster.length
+      && this._gameRoster.every((pid, i) => pid === roster[i]);
+    if (unchanged) return;
+
+    this._rebuildGame(roster);
+  }
+
+  _rebuildGame(roster) {
+    const handNumber = this.game?.handNumber ?? 0;
+    if (roster.length < MIN_TO_DEAL) {
+      this.game = null;
+      this._gameRoster = null;
+      return;
+    }
+    this.game = new Game({
+      tableId: this.tableId,
+      seats: roster.map((playerId, i) => ({ playerId, stack: this.seatStack(i) })),
+      smallBlind: this.smallBlind,
+      bigBlind: this.bigBlind,
+      dealerSeat: this._resolveButtonSeat(roster),
+    });
+    // Hand numbering belongs to the table, not to a Game instance -- the
+    // client's hand dividers and the session cap both read it.
+    this.game.handNumber = handNumber;
+    this._gameRoster = roster;
+    console.log(`[table:${this.tableId}] seats reconciled -- ${roster.length}-handed (${roster.join(', ')}), button seat ${this.game.dealerSeat}`);
+  }
+
+  // Take one seat out of the table: report that agent's session, tell the
+  // sockets bound to the seat their session is over, and blank the seat. The
+  // Game still contains it until the next rebuild -- which is exactly what
+  // "the seat frees up next hand" means.
+  _retireSeat(seat, recap) {
+    const occupant = this.pending[seat];
+    if (!occupant) return;
+    const agentId = this.agentIds[seat];
+    if (agentId) {
+      try {
+        const buyIn = occupant.buyIn ?? this.defaultBuyIn();
+        const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
+        const watched = this.spectators.some((s) => s.spectatorSeat === seat);
+        finishAgentSession(agentId, this.agentUserIds[seat], {
+          recap,
+          sessionPnl: finalStack - buyIn,
+          watched,
+          sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+        });
+      } catch (err) {
+        console.error('[table] finishAgentSession failed:', err.message);
+      }
+    }
+
+    // The owner watching this seat loses their session; everyone else at the
+    // table just sees the seat open up.
+    const closedMsg = JSON.stringify({ type: ServerMsg.TABLE_CLOSED, reason: recap });
+    const ws = this.connections[seat];
+    if (ws && ws.readyState === ws.OPEN) ws.send(closedMsg);
+    for (const spec of [...this.spectators]) {
+      if (spec.spectatorSeat !== seat) continue;
+      if (spec.ws && spec.ws.readyState === spec.ws.OPEN) spec.ws.send(closedMsg);
+      const idx = this.spectators.indexOf(spec);
+      if (idx !== -1) this.spectators.splice(idx, 1);
+    }
+
+    const displayName = occupant.displayName ?? occupant.playerId;
+    this._pendingSitOut.delete(seat);
+    this._clearSeat(seat);
+    console.log(`[table:${this.tableId}] seat ${seat} freed -- ${displayName} (${recap})`);
+    this._broadcast({ type: ServerMsg.SEAT_LEFT, seat, displayName, reason: recap });
+  }
+
 
   // ── AGE-35: session loop ──────────────────────────────────────────────────
 
@@ -200,6 +460,38 @@ export class Table {
     this.startSessionLoop({ delayMs: 250 });
     return heroSeat;
   }
+  // MST-1/MST-2: seat an agent at a table that is ALREADY running. The seat is
+  // occupied immediately -- so the floor stops claiming the agent is resting --
+  // but the Game only learns about it at the next reconcile, which is what
+  // "dealt into the next hand" means. Returns the seat, or null when the table
+  // cannot take it.
+  joinAgentSession({ agentId, userId, displayName, strategy, memoryContext = '', agentProfile = null, buyIn } = {}) {
+    if (this.closed) return null;
+    if (!this.hasFreeSeat()) return null;
+    if (agentId && this.agentIds.includes(agentId)) return null;
+
+    const seat = this.seatAI({
+      displayName: displayName || 'Agent',
+      strategy: strategy || '',
+      agentId,
+      userId,
+      memoryContext,
+      agentProfile: agentProfile ? normalizeProfile(agentProfile) : null,
+      buyIn: Number.isInteger(buyIn) ? buyIn : this.defaultBuyIn(),
+    });
+    console.log(`[table:${this.tableId}] ${displayName || 'Agent'} joined seat ${seat} of ${this.maxSeats} -- dealt in from hand ${this.handsThisSession + 1}`);
+
+    // A table that was not yet self-dealing (or had gone quiet waiting for a
+    // second body) starts now.
+    if (!this.autoPlay) {
+      this.startSessionLoop({ delayMs: 250 });
+    } else if (!this._nextHandTimer && (!this.game || this.game.street === Streets.COMPLETE || this.game.street === Streets.WAITING)) {
+      this._scheduleNextHand(250);
+    }
+    this._notifyStateChange();
+    return seat;
+  }
+
 
   // Flip the table into autonomous mode and queue the first deal. Idempotent;
   // a no-op on a table that still has a human seat.
@@ -262,20 +554,21 @@ export class Table {
     if (this.closed) return;
     this.closed = true;
     this.autoPlay = false;
+    this._captureStacks();
     this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason });
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       try {
         const buyIn      = this.pending[seat]?.buyIn ?? (this.bigBlind * 100);
-        const finalStack = this.game?.seats?.[seat]?.stack ?? buyIn;
+        const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
         const sessionPnl = finalStack - buyIn;
         const watched    = this.spectators.some((s) => s.spectatorSeat === seat);
         finishAgentSession(agentId, this.agentUserIds[seat], {
           recap: recap ?? reason,
           sessionPnl,
           watched,
-          sessionHands: this.handsThisSession,
+          sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -289,29 +582,37 @@ export class Table {
     this._notifyStateChange();
   }
 
-  // BUG-14: initiated by ClientMsg.SIT_OUT from either a seated player or a
-  // spectator (agent owner watching). If a hand is in progress we finish it
-  // first; otherwise close now. Either path ends in `_closeSitOut()`.
+  // BUG-14 / MST-1: sitting out is SEAT-scoped. The requester's seat folds out
+  // of the hand in progress and is freed once that hand completes; everyone
+  // else plays on. The table itself only closes when the departure would leave
+  // it with fewer than MIN_TO_DEAL seats.
+  //
+  // Initiated by ClientMsg.SIT_OUT from either a seated player or a spectator
+  // (the agent's owner watching it play).
   sitOut(ws) {
-    const isSeated = this.connections.some((c) => c === ws);
-    const isSpectator = this.spectators.some((s) => s.ws === ws);
-    if (!isSeated && !isSpectator) throw new Error('not at this table');
+    const seated = this.connections.indexOf(ws);
+    const spectator = this.spectators.find((s) => s.ws === ws);
+    const seat = seated !== -1 ? seated : (spectator ? spectator.spectatorSeat : -1);
+    if (seat === -1 || !this.pending[seat]) throw new Error('not at this table');
+
     const inHand = !!this.game &&
       this.game.street !== Streets.COMPLETE &&
       this.game.street !== Streets.WAITING;
     if (inHand) {
-      this._pendingSitOut = true;
-      return { pending: true };
+      this._pendingSitOut.add(seat);
+      return { pending: true, seat };
     }
-    this._closeSitOut();
-    return { pending: false };
+
+    this.seatLeaving[seat] = true;
+    if (this._survivingSeats().length < MIN_TO_DEAL) {
+      this.closeTable(RECAP_SIT_OUT, { recap: RECAP_SIT_OUT });
+      return { pending: false, seat, tableClosed: true };
+    }
+    this._reconcileSeats();
+    this._notifyStateChange();
+    return { pending: false, seat, tableClosed: false };
   }
 
-  // Close the table cleanly following a sit-out. Delegates to the shared
-  // close path so the agent is retired the same way on every route out.
-  _closeSitOut() {
-    this.closeTable(RECAP_SIT_OUT, { recap: RECAP_SIT_OUT });
-  }
 
   // Returns the seat the player got, or throws.
   seatPlayer(ws, { playerId, buyIn, displayName }) {
@@ -344,6 +645,9 @@ export class Table {
       displayName: (displayName && String(displayName).trim()) || playerId,
     };
     this.connections[free] = ws;
+    this.seatStacks[free] = buyIn;
+    this.seatLeaving[free] = false;
+    this.seatJoinedAtHand[free] = this.handsThisSession;
     return free;
   }
 
@@ -395,6 +699,12 @@ export class Table {
     this.agentProfiles[free] = agentProfile ? normalizeProfile(agentProfile) : null;
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
+    this.aiLastChatHand[free] = -1;
+    this.seatStacks[free] = aiBuyIn;
+    this.seatLeaving[free] = false;
+    // MST-1: a seat that arrives mid-session gets credited only with the hands
+    // it is actually dealt into.
+    this.seatJoinedAtHand[free] = this.handsThisSession;
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
@@ -485,7 +795,9 @@ export class Table {
     const seat = this.agentIds.findIndex((id) => id === agentId);
     if (seat === -1) return null;
     const g = this.game;
-    const inHand = !!g && g.street !== Streets.WAITING;
+    // MST-1: a seat that joined mid-hand is occupied but not yet in the Game.
+    const dealtIn = !!g && seat < g.seats.length;
+    const inHand = !!g && g.street !== Streets.WAITING && dealtIn;
     return {
       tableId: this.tableId,
       heroSeat: seat,
@@ -496,6 +808,9 @@ export class Table {
       toAct: inHand ? g.toAct : null,
       actionDeadline: this.actionDeadline ?? null,
       handNumber: g ? g.handNumber : 0,
+      dealtIn,
+      seatCount: this.seatedCount(),
+      maxSeats: this.maxSeats,
       handsThisSession: this.handsThisSession,
       maxHands: this.maxHands,
       blinds: `${this.smallBlind}/${this.bigBlind}`,
@@ -569,30 +884,22 @@ export class Table {
       if (this.connections[i] === ws) {
         disconnectedWasHuman = !this.aiSeats[i];
         hadActiveGame = !!(this.game && this.game.street !== Streets.WAITING && this.game.street !== Streets.COMPLETE);
-        this.connections[i] = null;
         // For Phase 1 dev simplicity, always release the seat on disconnect so
         // a fresh tab can take it. This means abandoning a tab mid-hand opens
-        // the seat back up; we'll add proper sit-out / timeout handling later.
-        this.pending[i] = null;
-        // Also clear AI flags so the table slot can be reused cleanly.
-        this.aiSeats[i] = false;
-        this.aiStrategy[i] = null;
-        this.agentIds[i] = null;
-        this.agentUserIds[i] = null;
-        this.agentMemory[i] = '';
-        this.agentProfiles[i] = null;
-        this.aiHandsPlayed[i] = 0;
-        this.aiRecentHands[i] = [];
+        // the seat back up; proper sit-out / timeout handling is Fredrik's
+        // seat-lifecycle queue.
+        this._clearSeat(i);
         if (hadActiveGame) {
           this.game = null;
+          this._gameRoster = null;
         }
       }
     }
 
-    // For multi-seat tables, maintain the contiguous-from-zero invariant by
-    // compacting when a middle disconnect creates a gap. HU (maxSeats=2)
-    // keeps its existing seat-index-stable behaviour.
-    if (this.maxSeats > 2) this._compactSeatsIfGapped();
+    // Occupied seats stay contiguous from zero, so a middle disconnect shifts
+    // everyone above it down. The Game is rebuilt against the new order by the
+    // next reconcile.
+    this._compactSeats();
 
     if (disconnectedWasHuman && hadActiveGame && !this.hasHumanPlayer()) {
       // Route through the shared close path so the AI seat's agent is retired
@@ -614,63 +921,7 @@ export class Table {
     }
   }
 
-  // Detects whether a non-null seat sits after a null seat, and if so shifts
-  // occupied seats down to indices [0..k-1]. Always destroys the existing game
-  // because seat indices change.
-  _compactSeatsIfGapped() {
-    let sawNull = false;
-    let hasGap = false;
-    for (let i = 0; i < this.maxSeats; i++) {
-      if (this.pending[i] === null) sawNull = true;
-      else if (sawNull) { hasGap = true; break; }
-    }
-    if (!hasGap) return;
 
-    this.game = null;
-
-    const filled = [];
-    for (let i = 0; i < this.maxSeats; i++) {
-      if (this.pending[i]) {
-        filled.push({
-          pending: this.pending[i],
-          ws: this.connections[i],
-          aiSeat: this.aiSeats[i],
-          aiStrategy: this.aiStrategy[i],
-          agentId: this.agentIds[i],
-          userId: this.agentUserIds[i],
-          memory: this.agentMemory[i],
-          profile: this.agentProfiles[i],
-          handsPlayed: this.aiHandsPlayed[i],
-          recentHands: this.aiRecentHands[i],
-          lastChatHand: this.aiLastChatHand[i],
-        });
-      }
-    }
-    this.pending = Array(this.maxSeats).fill(null);
-    this.connections = Array(this.maxSeats).fill(null);
-    this.aiSeats = Array(this.maxSeats).fill(false);
-    this.aiStrategy = Array(this.maxSeats).fill(null);
-    this.agentIds = Array(this.maxSeats).fill(null);
-    this.agentUserIds = Array(this.maxSeats).fill(null);
-    this.agentMemory = Array(this.maxSeats).fill('');
-    this.agentProfiles = Array(this.maxSeats).fill(null);
-    this.aiHandsPlayed = Array(this.maxSeats).fill(0);
-    this.aiRecentHands = Array(this.maxSeats).fill(null).map(() => []);
-    this.aiLastChatHand = Array(this.maxSeats).fill(-1);
-    for (let i = 0; i < filled.length; i++) {
-      this.pending[i] = filled[i].pending;
-      this.connections[i] = filled[i].ws;
-      this.aiSeats[i] = filled[i].aiSeat;
-      this.aiStrategy[i] = filled[i].aiStrategy;
-      this.agentIds[i] = filled[i].agentId;
-      this.agentUserIds[i] = filled[i].userId;
-      this.agentMemory[i] = filled[i].memory ?? '';
-      this.agentProfiles[i] = filled[i].profile ?? null;
-      this.aiHandsPlayed[i] = filled[i].handsPlayed ?? 0;
-      this.aiRecentHands[i] = filled[i].recentHands ?? [];
-      this.aiLastChatHand[i] = filled[i].lastChatHand ?? -1;
-    }
-  }
 
   // Called once at least 2 pending players are seated.
   // AGE-36: `clientDriven` marks the calls that originate from a WS client
@@ -682,17 +933,11 @@ export class Table {
     if (this.closed) return;
     if (clientDriven && (this.autoPlay || this.isAiOnly())) return;
     if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
-    const filled = this.pending.filter((p) => p !== null);
-    if (filled.length < 2) return;
-
-    if (!this.game) {
-      this.game = new Game({
-        tableId: this.tableId,
-        seats: filled.map((p) => ({ playerId: p.playerId, stack: p.buyIn })),
-        smallBlind: this.smallBlind,
-        bigBlind: this.bigBlind,
-      });
-    }
+    // MST-1: joins, departures and busts all land here, between hands. This is
+    // the reconciliation the old build-the-Game-once code never did.
+    this._reconcileSeats();
+    if (this.closed) return;
+    if (!this.game || this.game.seats.length < MIN_TO_DEAL) return;
 
     if (this.game.seats.some((s) => s.stack <= 0)) {
       this.closeTable('a player ran out of chips', { recap: RECAP_BUST });
@@ -760,13 +1005,26 @@ export class Table {
     this._updateAgentMoods(this.game.result);
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
-    if (this._pendingSitOut) {
-      this._pendingSitOut = false;
-      this._closeSitOut();
-      return;
+    // MST-1: bank the chips and note where the button goes next BEFORE any
+    // seat leaves. Both are read by the reconcile at the next deal.
+    this._captureStacks();
+    this._recordButton();
+
+    // Seats that asked to sit out during the hand are released now.
+    if (this._pendingSitOut.size > 0) {
+      for (const seat of [...this._pendingSitOut]) this.seatLeaving[seat] = true;
+      this._pendingSitOut.clear();
     }
-    if (this.game.seats.some((s) => s.stack <= 0)) {
-      this.closeTable('a player ran out of chips', { recap: RECAP_BUST });
+
+    // A departure or a bust only ends the TABLE when it can no longer be
+    // dealt. With three or more agents seated, one leaving is just a seat
+    // opening up -- the rest play on.
+    const leaving = this.seatLeaving.some(Boolean);
+    const survivors = this._survivingSeats();
+    if (survivors.length < MIN_TO_DEAL) {
+      const byChoice = leaving && survivors.length + 1 >= MIN_TO_DEAL;
+      this.closeTable(byChoice ? RECAP_SIT_OUT : 'a player ran out of chips',
+                      { recap: byChoice ? RECAP_SIT_OUT : RECAP_BUST });
       return;
     }
     // AGE-35: the session ends gracefully at the hand cap rather than running
@@ -774,6 +1032,12 @@ export class Table {
     if (this.autoPlay && this.handsThisSession >= this.maxHands) {
       this.closeTable('session hand limit reached', { recap: RECAP_MAX_HANDS });
       return;
+    }
+    // Free the departed seats now rather than at the next deal, so an owner
+    // who sat their agent out sees it resting immediately.
+    if (leaving) {
+      this._reconcileSeats();
+      this._notifyStateChange();
     }
     // Auto-deal when all FILLED seats are AI. On an autonomous table this is
     // the session loop; a legacy spectator-created AI table keeps its old
@@ -822,6 +1086,8 @@ export class Table {
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
+      // MST-1: a seat that joined mid-hand is not in this hand's Game.
+      if (!this._seatIsInGame(seat)) continue;
       const currentMood = getAgentMood(agentId, this.agentUserIds[seat]);
       if (!currentMood) continue;
       const profile = this.agentProfiles[seat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
@@ -936,6 +1202,8 @@ export class Table {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       const won = winners.some((w) => w.seat === seat);
+      // MST-1: a seat that joined mid-hand is not in this hand's Game.
+      if (!this._seatIsInGame(seat)) continue;
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
       const handSummary = {
         handNumber,
@@ -1020,6 +1288,7 @@ export class Table {
   _maybeTriggerMemoryUpdates() {
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.agentIds[seat]) continue;
+      if (!this._seatIsInGame(seat)) continue;
       this.aiHandsPlayed[seat] = (this.aiHandsPlayed[seat] ?? 0) + 1;
       try {
         updateComputedMemory(this.agentIds[seat], this.agentUserIds[seat]);
@@ -1249,7 +1518,13 @@ export class Table {
     // For backwards compatibility with the (heads-up) agent prompt, expose a
     // single primary opponent. Pick the seat immediately left of the AI; in
     // HU this collapses to the only opponent.
-    const oppSeat = (aiSeat + 1) % N;
+    // MST-1: prefer a live opponent so oppStack means something at a full
+    // table; falls back to the seat on the left when everyone else has folded.
+    let oppSeat = (aiSeat + 1) % N;
+    for (let i = 1; i < N; i++) {
+      const cand = (aiSeat + i) % N;
+      if (!g.seats[cand].folded) { oppSeat = cand; break; }
+    }
     const opp = g.seats[oppSeat];
     const legal = g.legalActions(aiSeat);
 
@@ -1322,7 +1597,7 @@ export class Table {
     // to the briefing so the LLM can adapt sizing/fold decisions to how
     // this specific opponent has been playing.
     const opponentReads = [];
-    for (let i = 0; i < this.pending.length; i++) {
+    for (let i = 0; i < N; i++) {
       if (i === aiSeat) continue;
       const pid = this.pending[i]?.playerId;
       if (!pid) continue;
@@ -1371,6 +1646,22 @@ export class Table {
     if (aiSeat === null || aiSeat === undefined) return;
     if (!this.aiSeats[aiSeat]) return;
     if (g.street === Streets.COMPLETE || g.street === Streets.WAITING) return;
+
+    // MST-1: a seat that asked to sit out mid-hand folds out of it rather than
+    // burning a model call. The seat itself is freed by the reconcile once the
+    // hand completes.
+    if (this._pendingSitOut.has(aiSeat) || this.seatLeaving[aiSeat]) {
+      const streetBefore = g.street;
+      try {
+        this.game.act(aiSeat, { type: 'fold' });
+        this._logAction(aiSeat, streetBefore, { type: 'fold' });
+        this._broadcastState();
+        if (this.game.street === Streets.COMPLETE) this._handCompleted();
+      } catch (err) {
+        console.error(`[table:${this.tableId}] sit-out fold failed:`, err.message);
+      }
+      return;
+    }
 
     const gameState = this._buildAiGameState(aiSeat);
     const strategy = this.agentStrategy || this.aiStrategy[aiSeat];

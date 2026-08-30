@@ -10,7 +10,7 @@
 // it through an injected provider (see setLiveTableProvider) so the import
 // graph stays acyclic.
 
-import { Table } from './table.js';
+import { Table, MAX_SEATS } from './table.js';
 
 const tables = new Map(); // tableId -> Table
 
@@ -86,7 +86,7 @@ export function getOrCreateTable(tableId, opts = {}) {
     tableId,
     smallBlind: opts.smallBlind ?? defaultBlinds.smallBlind,
     bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
-    maxSeats: opts.maxSeats ?? 2,
+    maxSeats: opts.maxSeats ?? MAX_SEATS,
     onEmpty: (id) => { tables.delete(id); },
     onStateChange: (t) => stateHook?.(t),
   });
