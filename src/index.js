@@ -11,6 +11,7 @@ import { rateLimiter } from './server/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
+const PUBLIC_DIR = path.join(__dirname, '..', 'client', 'public');
 
 const port = Number(process.env.PORT ?? 8765);
 const host = process.env.HOST ?? '0.0.0.0';
@@ -73,6 +74,16 @@ if (openApiSpec) {
     res.json(openApiSpec);
   });
 }
+
+// GET /welcome — serve the landing page (static, no framework).
+// Prefer the built copy from client/dist; fall back to client/public for
+// dev / WS-only mode. Must be registered before the SPA static fallback
+// so it is not swallowed by the catch-all index.html route.
+app.get('/welcome', (_req, res) => {
+  const built = path.join(STATIC_DIR, 'welcome', 'index.html');
+  const source = path.join(PUBLIC_DIR, 'welcome', 'index.html');
+  res.sendFile(existsSync(built) ? built : source);
+});
 
 if (existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR, { extensions: ['html'] }));
