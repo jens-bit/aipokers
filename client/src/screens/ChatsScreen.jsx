@@ -427,6 +427,17 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Belt-and-braces: scroll the composer into view after the keyboard animates
+  // in (iOS in Telegram needs an explicit push — --tg-h shrinks the container
+  // but the browser doesn't always auto-scroll the focused element up).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    function onFocus() { setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150); }
+    el.addEventListener('focus', onFocus);
+    return () => el.removeEventListener('focus', onFocus);
+  }, []);
+
   useEffect(() => {
     fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
       .then((r) => r.json())
