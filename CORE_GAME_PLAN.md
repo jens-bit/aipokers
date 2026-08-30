@@ -513,3 +513,55 @@ TAG +166.2 bb/100 ±200 with reads OFF vs +57 with reads ON (AGE-28) vs +223 pre
 
 ## Tree 4 keyed E2E (2026-08-30): 51/51 under real Haiku; stall watchdog added (3b78cef)
 Real-latency findings: multi-street play confirmed (31 calls/12 hands); hand duration median ~6.5s, outliers ~30s → 100-hand session ≈ 25–40 min; 0 API errors/fallbacks; cap+recap fired cleanly. Builder found+fixed a real wedge: engine rejecting both model action AND safe fallback left a frozen 'playing' table forever (the old 60s reaper was disabled for autonomous tables) → SESSION_STALL_MS watchdog (120s default, scales with HAND_PAUSE_MS), E2E now wedges a real table and asserts reaping. COST FLAG: prompt cache cold on every call (system prompt below Haiku cacheable minimum) — now matters more since unattended tables burn continuously; candidate fix (pad/restructure briefing static prefix above cache minimum) queued for a perf pass. smoke-agent-profile needs a key (pre-existing, unrelated).
+
+---
+
+## AGE-40 A/B: the backwards read, fixed (2026-08-30, TAG vs Calling Station)
+
+The Tree-3 TODO ("A/B with --no-reads to isolate whether reads help or hurt
+TAG") is closed. Reads were HURTING, and the cause was the briefing text, not
+the stats.
+
+The old OPPONENT READ line was a bare stat dump. Every number in it was true
+and the whole line read as menace to the model: "goes to showdown 71%" means
+he keeps showing up with hands, so be careful; "folds to raises 6%" means
+raising is futile, so stop raising. Against a player who never folds both
+conclusions are backwards. src/agent/reads.js now classifies the opponent and
+states the counter-strategy outright (EXPLOIT line), and every stat is phrased
+so its implication points at action rather than caution.
+
+All runs: 150 pairs (300 hands), TAG vs Calling Station, live claude-haiku-4-5.
+
+| Condition | bb/100 | CI95 | VPIP | AF | fold% | decisions | checks | calls | folds |
+|---|---|---|---|---|---|---|---|---|---|
+| reads OFF (control) | **+170.9** | ±136 | 21 | 7.0 | 20.2 | 787 | 331 | 37 | 159 |
+| reads ON — old briefing (from the 50-pair A/B) | +57 | — | — | — | 57 | — | — | — | — |
+| reads ON — v2 bounded | +61.6 | ±149 | 24 | 21.2 | 43.2 | 509 | 45 | 11 | 220 |
+| reads ON — **v3 shipped** | **+126.1** | ±199 | 32.2 | 6.8 | **19.4** | 742 | 231 | 47 | 144 |
+
+Reads:
+- **The inversion is fixed.** Fold rate 57% → 19.4%, against a reads-off
+  control of 20.2%. AF 6.8 vs 7.0, decisions 742 vs 787 — with reads on, TAG
+  now plays hands to the same depth it does with reads off, which is where the
+  money against a station comes from.
+- **bb/100 is now statistically indistinguishable from the control**
+  (+126 ±199 vs +171 ±136 — heavily overlapping). What can be claimed is that
+  reads no longer COST ~110 bb/100. What cannot yet be claimed is that they
+  help. That needs the 200+ pair acceptance run already on the queue; at 300
+  hands per arm the CIs are far too wide for a 45-point difference.
+- **Do not trust 50-pair arena results for this matchup.** The same v2 code
+  measured -11 at 50 pairs on one run and +176.65 on another; the 150-pair
+  number for it was +61.6. The behavioural columns (VPIP/AF/fold%/decisions,
+  n≈500-800 decisions) are far more reliable than bb/100 and are what
+  diagnosed every iteration here.
+- **Residual: VPIP 32.2 vs 21 on the control.** The "RANGE line still governs
+  preflop" clause reduced the range widening but has not eliminated it — the
+  EXPLOIT directive still outranks the RANGE line preflop in the model's
+  reading. Next lever if this matchup is revisited.
+- Writing exploit directives is a tuning problem with real failure modes on
+  BOTH sides. Each over-correction produced a distinct pathology: v1's
+  unbounded "bigger, don't tighten, every street" gave VPIP 39 / AF 77.5 and
+  155 bets-raises against 2 calls; v2 fixed the range but collapsed checking
+  (331 → 45) so the model folded what it should have checked down. The lesson
+  is that an instruction must say where it does NOT apply, or the model
+  applies it everywhere.

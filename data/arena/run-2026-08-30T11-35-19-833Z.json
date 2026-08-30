@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-08-30T11:35:19.834Z",
+  "args": {
+    "pairs": 50,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "TAG,Calling Station",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000,
+    "reads": true
+  },
+  "profiles": {
+    "Nit": {
+      "strategy": "You are a tight, patient player. Favor premium hands and strong holdings; skip marginal spots. Follow the RANGE line the server gives you rather than a fixed hand list — 'inside your range' means you can play, 'outside' means you can fold. Value bet made hands two streets; rarely bluff.",
+      "profile": {
+        "tightness": 88,
+        "aggression": 50,
+        "bluffFreq": 8,
+        "discipline": 85
+      }
+    },
+    "Loose Cannon": {
+      "strategy": "You are a loose-aggressive pressure player. Attack pots often, but do not attack blindly — follow the sizing and BLUFF DIE hints the server gives. When the BLUFF DIE says NO or the raise counter is 2+ this street, don't just fire another raise — call, pot-control, or jam based on the spot. Calling is a legitimate action when the price is right; the goal is variance, not autoraise.",
+      "profile": {
+        "tightness": 12,
+        "aggression": 85,
+        "bluffFreq": 55,
+        "discipline": 30
+      }
+    },
+    "TAG": {
+      "strategy": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+      "profile": {
+        "tightness": 70,
+        "aggression": 70,
+        "bluffFreq": 30,
+        "discipline": 80
+      }
+    },
+    "Calling Station": {
+      "strategy": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop.",
+      "profile": {
+        "tightness": 15,
+        "aggression": 5,
+        "bluffFreq": 3,
+        "discipline": 40
+      }
+    }
+  },
+  "matchups": [
+    {
+      "a": "TAG",
+      "b": "Calling Station",
+      "TAG": {
+        "hands": 100,
+        "netChips": 3533,
+        "bb100": 176.65,
+        "ci95": 301.25,
+        "vpip": 24.7,
+        "pfr": 24.7,
+        "af": 80,
+        "foldRate": 39.8,
+        "fallbackRate": 0,
+        "decisions": 176
+      },
+      "Calling Station": {
+        "hands": 100,
+        "netChips": -3533,
+        "bb100": -176.65,
+        "ci95": 301.25,
+        "vpip": 95.1,
+        "pfr": 4.9,
+        "af": 0.06,
+        "foldRate": 6.7,
+        "fallbackRate": 0,
+        "decisions": 178
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 0,
+      "netChips": 0,
+      "bb100": 0,
+      "ci95": 0,
+      "vpip": 0,
+      "pfr": 0,
+      "af": 0,
+      "foldRate": 0,
+      "fallbackRate": 0,
+      "decisions": 0
+    },
+    "Loose Cannon": {
+      "hands": 0,
+      "netChips": 0,
+      "bb100": 0,
+      "ci95": 0,
+      "vpip": 0,
+      "pfr": 0,
+      "af": 0,
+      "foldRate": 0,
+      "fallbackRate": 0,
+      "decisions": 0
+    },
+    "TAG": {
+      "hands": 100,
+      "netChips": 3533,
+      "bb100": 176.65,
+      "ci95": 301.25,
+      "vpip": 24.7,
+      "pfr": 24.7,
+      "af": 80,
+      "foldRate": 39.8,
+      "fallbackRate": 0,
+      "decisions": 176
+    },
+    "Calling Station": {
+      "hands": 100,
+      "netChips": -3533,
+      "bb100": -176.65,
+      "ci95": 301.25,
+      "vpip": 95.1,
+      "pfr": 4.9,
+      "af": 0.06,
+      "foldRate": 6.7,
+      "fallbackRate": 0,
+      "decisions": 178
+    }
+  },
+  "elapsedSec": 419.7,
+  "apiKeyPresent": true,
+  "model": "claude-haiku-4-5"
+}
