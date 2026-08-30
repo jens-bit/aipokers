@@ -19,6 +19,8 @@ import { AnalysisPanel } from './components/AnalysisPanel.jsx';
 import { DesktopShell } from './components/desktop/DesktopShell.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
+import { ChatsScreen } from './screens/ChatsScreen.jsx';
+import { YouScreen } from './screens/YouScreen.jsx';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -52,7 +54,7 @@ export default function App() {
   }, [game?.seats]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState('casino');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
@@ -74,6 +76,11 @@ export default function App() {
   function navigateTo(tab) {
     setActiveTab(tab);
     setAgentChatTarget(null);
+  }
+
+  function openAgentChat(agent) {
+    setAgentChatTarget(agent);
+    setActiveTab('chats');
   }
 
   const callAgentFinish = useCallback((agentId) => {
@@ -235,170 +242,92 @@ export default function App() {
   }
 
   if (!config) {
-    const playWatchPayload = (payload) => {
-      setActiveAgent(payload.agentId);
-      watch({
-        tableId: payload.tableId,
-        agentId: payload.agentId,
-        userId: getUserId(),
-        agentStrategy: payload.strategy,
-        displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-        wantOpponentAI: false,
-        memoryContext: payload.memoryContext ?? '',
-      });
-    };
-
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game">
-          {agentChatTarget ? (
-            <div className="pre-game__chat-wrap">
-              <AgentChat
-                agent={agentChatTarget}
-                onBack={() => setAgentChatTarget(null)}
-                onDeploy={async (agent) => {
-                  setAgentChatTarget(null);
-                  const res = await fetch(`/api/agents/${agent.id}/queue`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: getUserId() }),
-                  });
-                  if (!res.ok) return;
-                  const payload = await res.json();
-                  setActiveAgent(payload.agentId);
-                  watch({
-                    tableId: payload.tableId,
-                    agentId: payload.agentId,
-                    userId: getUserId(),
-                    agentStrategy: payload.strategy,
-                    displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                    wantOpponentAI: false,
-                    memoryContext: payload.memoryContext ?? '',
-                  });
-                }}
-              />
-            </div>
-          ) : (
-            <>
-              {activeTab === 'play' && (
-                <Play
-                  key={playKey}
-                  onConnect={connect}
-                  onWatch={playWatchPayload}
-                  onDone={() => {
-                    setPlayInitialStep('play-mode');
-                    setPlayKey((k) => k + 1);
-                    setActiveTab('agents');
-                  }}
-                  initialStep={playInitialStep}
-                  existingAgent={editingAgent}
-                />
-              )}
-              {activeTab === 'home' && (
-                <CasinoFloor
-                  onCreateAgent={() => {
-                    setEditingAgent(null);
-                    setPlayInitialStep('create-agent');
-                    setPlayKey((k) => k + 1);
-                    setActiveTab('play');
-                  }}
-                  onChat={(agent) => setAgentChatTarget(agent)}
-                  onWatch={async (agent) => {
-                    if (!agent?.activeTableId) return;
-                    let memoryContext = '';
-                    try {
-                      const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
-                      if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-                    } catch { /* watch with empty context */ }
-                    setActiveAgent(agent.id);
-                    watch({
-                      tableId: agent.activeTableId,
-                      agentId: agent.id,
-                      userId: getUserId(),
-                      agentStrategy: agent.strategy,
-                      displayName: agent.name || getTelegramDisplayName() || 'Agent',
-                      wantOpponentAI: false,
-                      memoryContext,
+          {activeTab === 'casino' && (
+            <CasinoFloor
+              onCreateAgent={() => navigateTo('chats')}
+              onChat={openAgentChat}
+              onWatch={async (agent) => {
+                if (!agent?.activeTableId) return;
+                let memoryContext = '';
+                try {
+                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+                  if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+                } catch { /* watch with empty context */ }
+                setActiveAgent(agent.id);
+                watch({
+                  tableId: agent.activeTableId,
+                  agentId: agent.id,
+                  userId: getUserId(),
+                  agentStrategy: agent.strategy,
+                  displayName: agent.name || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext,
+                });
+              }}
+            />
+          )}
+          {activeTab === 'chats' && (
+            agentChatTarget ? (
+              <div className="pre-game__chat-wrap">
+                <AgentChat
+                  agent={agentChatTarget}
+                  onBack={() => setAgentChatTarget(null)}
+                  onDeploy={async (agent) => {
+                    setAgentChatTarget(null);
+                    const res = await fetch(`/api/agents/${agent.id}/queue`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: getUserId() }),
                     });
-                  }}
-                />
-              )}
-              {activeTab === 'agents' && (
-                <AgentsTab
-                  onDeploy={playWatchPayload}
-                  onVsYou={(payload) => {
+                    if (!res.ok) return;
+                    const payload = await res.json();
                     setActiveAgent(payload.agentId);
-                    connect({
-                      tableId: 'vsyou-' + Date.now().toString(36),
-                      displayName: getTelegramDisplayName() || 'Player',
-                      buyIn: 1000,
-                      smallBlind: 10,
-                      bigBlind: 20,
-                      wantAI: true,
+                    watch({
+                      tableId: payload.tableId,
                       agentId: payload.agentId,
                       userId: getUserId(),
                       agentStrategy: payload.strategy,
-                      agentDisplayName: payload.agentName,
+                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                      wantOpponentAI: false,
                       memoryContext: payload.memoryContext ?? '',
                     });
                   }}
-                  onCreateAgent={() => {
-                    setEditingAgent(null);
-                    setPlayInitialStep('create-agent');
-                    setPlayKey((k) => k + 1);
-                    setActiveTab('play');
-                  }}
-                  onOpenChat={(agent) => {
-                    setAgentChatTarget(agent);
-                  }}
                 />
-              )}
-              {activeTab === 'history' && <HistoryTab />}
-              {activeTab === 'profile' && <ProfilePlaceholder />}
-            </>
+              </div>
+            ) : (
+              <ChatsScreen
+                onSelectAgent={openAgentChat}
+                onCreateAgent={() => navigateTo('chats')}
+              />
+            )
           )}
+          {activeTab === 'you' && <YouScreen />}
         </div>
         <nav className="tab-bar">
           <button
-            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('home')}
+            className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => navigateTo('casino')}
           >
-            <HomeIcon />
-            <span>HOME</span>
+            <CasinoIcon />
+            <span>CASINO</span>
           </button>
           <button
-            className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => {
-              setPlayInitialStep('play-mode');
-              setEditingAgent(null);
-              setPlayKey((k) => k + 1);
-              navigateTo('play');
-            }}
+            className={`tab-bar__tab${activeTab === 'chats' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => navigateTo('chats')}
           >
-            <PlayIcon />
-            <span>PLAY</span>
+            <ChatsIcon />
+            <span>CHATS</span>
           </button>
           <button
-            className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('agents')}
+            className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => navigateTo('you')}
           >
-            <AgentsIcon />
-            <span>AGENTS</span>
-          </button>
-          <button
-            className={`tab-bar__tab${activeTab === 'history' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('history')}
-          >
-            <HistoryIcon />
-            <span>HISTORY</span>
-          </button>
-          <button
-            className={`tab-bar__tab${activeTab === 'profile' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('profile')}
-          >
-            <ProfileIcon />
-            <span>PROFILE</span>
+            <YouIcon />
+            <span>YOU</span>
           </button>
         </nav>
       </div>
@@ -499,34 +428,22 @@ export default function App() {
       />
       <nav className="tab-bar">
         <button
-          className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); setActiveTab('home'); }}
+          className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); navigateTo('casino'); }}
         >
-          <HomeIcon /><span>HOME</span>
+          <CasinoIcon /><span>CASINO</span>
         </button>
         <button
-          className={`tab-bar__tab${activeTab === 'play' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); setActiveTab('play'); }}
+          className={`tab-bar__tab${activeTab === 'chats' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); navigateTo('chats'); }}
         >
-          <PlayIcon /><span>PLAY</span>
+          <ChatsIcon /><span>CHATS</span>
         </button>
         <button
-          className={`tab-bar__tab${activeTab === 'agents' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); setActiveTab('agents'); }}
+          className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); navigateTo('you'); }}
         >
-          <AgentsIcon /><span>AGENTS</span>
-        </button>
-        <button
-          className={`tab-bar__tab${activeTab === 'history' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); setActiveTab('history'); }}
-        >
-          <HistoryIcon /><span>HISTORY</span>
-        </button>
-        <button
-          className={`tab-bar__tab${activeTab === 'profile' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); setActiveTab('profile'); }}
-        >
-          <ProfileIcon /><span>PROFILE</span>
+          <YouIcon /><span>YOU</span>
         </button>
       </nav>
     </div>
@@ -733,45 +650,24 @@ function ProfilePlaceholder() {
   );
 }
 
-function HomeIcon() {
+function CasinoIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M10 2L2 8.5V18h5v-6h6v6h5V8.5L10 2z" />
+      <path d="M10 2C8 6.5 4 7.5 4 11a3 3 0 006 0 3 3 0 006 0C16 7.5 12 6.5 10 2z" />
+      <rect x="8.5" y="14" width="3" height="4" rx="1" />
     </svg>
   );
 }
 
-function PlayIcon() {
+function ChatsIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <rect x="2" y="5" width="11" height="13" rx="1.5" opacity="0.45" />
-      <rect x="7" y="2" width="11" height="13" rx="1.5" />
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 12a2 2 0 01-2 2H7l-3 3V6a2 2 0 012-2h8a2 2 0 012 2z" />
     </svg>
   );
 }
 
-function AgentsIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="4" y="7" width="12" height="9" rx="2" />
-      <path d="M8 3h4v4H8z" />
-      <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-      <path d="M8.5 14.5h3" />
-    </svg>
-  );
-}
-
-function HistoryIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-      <circle cx="10" cy="10" r="7.5" />
-      <path d="M10 6v4l2.5 2.5" />
-    </svg>
-  );
-}
-
-function ProfileIcon() {
+function YouIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
       <circle cx="10" cy="6" r="3.5" />
