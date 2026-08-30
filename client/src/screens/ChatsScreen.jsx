@@ -69,7 +69,7 @@ function LiveDot() {
   return <span style={{ width: 5, height: 5, borderRadius: '50%', background: M_TEAL, boxShadow: `0 0 6px ${M_TEAL}`, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, onClick }) {
+function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal, onClick }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <button
@@ -99,7 +99,9 @@ function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, onClick }
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
         <span style={{ fontFamily: MONO, fontSize: 11.5, color: String(pnl).startsWith('−') ? M_RED : M_TEAL, fontWeight: 700 }}>{pnl}</span>
-        {unread ? (
+        {proposal ? (
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 6px ${M_GOLD}88`, display: 'inline-block', flexShrink: 0, marginTop: 1 }} />
+        ) : unread ? (
           <span style={{ minWidth: 17, height: 17, padding: '0 5px', borderRadius: 9, background: M_TEAL, color: M_BG, fontFamily: MONO, fontSize: 9.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{unread}</span>
         ) : state === 'recap' ? (
           <span style={{ width: 17, height: 17, borderRadius: 9, background: `${M_GOLD}26`, border: `1px solid ${M_GOLD}77`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -110,6 +112,92 @@ function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, onClick }
         )}
       </div>
     </button>
+  );
+}
+
+
+// ── Proposal UI ───────────────────────────────────────────────────────────
+
+const PROFILE_LABELS = { tightness: 'Tightness', aggression: 'Aggression', bluffFreq: 'Bluff freq', discipline: 'Discipline' };
+
+function ProposalCard({ proposal, agentProfile, accent, accepting, onAccept, onDiscuss }) {
+  const delta = proposal?.suggestedPatch?.profileDelta ?? {};
+  const diffRows = Object.entries(delta).map(([k, d]) => {
+    const from = Math.round(agentProfile?.[k] ?? 50);
+    const to = Math.max(0, Math.min(100, from + Number(d)));
+    return { key: k, label: PROFILE_LABELS[k] ?? k, from, to };
+  });
+  return (
+    <div style={{ background: M_PANEL_2, border: `1px solid ${M_GOLD}44`, borderRadius: 12, borderBottomLeftRadius: 4, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderBottom: `1px solid ${M_BORDER}`, background: 'rgba(205,179,128,0.06)' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', color: M_GOLD }}>WANTS TO CHANGE ITSELF</span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.1em', color: M_MUTED }}>YOUR CALL</span>
+      </div>
+      <div style={{ padding: '9px 12px 2px', fontSize: 12.5, color: M_TEXT, lineHeight: 1.45 }}>
+        {proposal?.text}
+      </div>
+      {diffRows.length > 0 && (
+        <div style={{ padding: '7px 12px 9px' }}>
+          {diffRows.map((r, i) => (
+            <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0', borderTop: i > 0 ? `1px solid ${M_BORDER}` : 'none' }}>
+              <span style={{ flex: 1, fontSize: 11, color: M_DIM }}>{r.label}</span>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: M_MUTED }}>{r.from}%</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={M_FAINT} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              <span style={{ minWidth: 44, textAlign: 'right', fontFamily: MONO, fontSize: 11, fontWeight: 700, color: accent }}>{r.to}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ padding: '8px 12px', borderTop: `1px solid ${M_BORDER}`, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onDiscuss}
+          style={{ height: 28, padding: '0 14px', borderRadius: 7, border: `1px solid ${M_BORDER}`, background: 'transparent', color: M_DIM, fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', cursor: 'pointer' }}
+        >
+          DISCUSS
+        </button>
+        <button
+          type="button"
+          onClick={onAccept}
+          disabled={accepting}
+          style={{ height: 28, padding: '0 14px', borderRadius: 7, border: 'none', background: M_GOLD, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', cursor: accepting ? 'default' : 'pointer', opacity: accepting ? 0.6 : 1 }}
+        >
+          {accepting ? 'ACCEPTING…' : 'ACCEPT'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AgentCardMsg({ mood, accent, children }) {
+  return (
+    <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#0A0F17', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
+        <MoodGhost mood={mood} accent={accent} size={27} ring={false} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function AcceptedLine() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', marginBottom: 9 }}>
+      <div style={{ flex: 1, height: 1, background: M_BORDER }} />
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 20, padding: '0 10px', borderRadius: 10, background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44` }}>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_TEAL} strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12l5 5 9-11" /></svg>
+        <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL }}>CHANGE ACCEPTED</span>
+      </div>
+      <div style={{ flex: 1, height: 1, background: M_BORDER }} />
+    </div>
   );
 }
 
@@ -211,6 +299,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
                 state="live"
                 msg={lastMomentOf(agent)}
                 pnl={agent.stats?.netWon != null ? (agent.stats.netWon >= 0 ? `+${agent.stats.netWon}` : `−${Math.abs(agent.stats.netWon)}`) : '—'}
+                proposal={!!agent.proposal}
                 onClick={() => onSelectAgent(agent)}
               />
             );
@@ -249,6 +338,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
                 msg={lastMomentOf(agent)}
                 pnl={agent.stats?.netWon != null ? (agent.stats.netWon >= 0 ? `+${agent.stats.netWon}` : `−${Math.abs(agent.stats.netWon)}`) : '—'}
                 time="—"
+                proposal={!!agent.proposal}
                 onClick={() => onSelectAgent(agent)}
               />
             );
@@ -321,14 +411,15 @@ function SysLine({ children }) {
 function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
-  const mood     = moodOf(agent);
-  const cause    = causeOf(agent);
   const agState  = stateOf(agent);
   const isLive   = agState === 'live';
 
-  const [chat, setChat]       = useState([]);
-  const [draft, setDraft]     = useState('');
-  const [loading, setLoading] = useState(false);
+  const [localMood, setLocalMood]   = useState(() => moodOf(agent));
+  const [localCause, setLocalCause] = useState(() => causeOf(agent));
+  const [chat, setChat]             = useState([]);
+  const [draft, setDraft]           = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [proposalAccepting, setProposalAccepting] = useState(false);
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
   const msgIdRef  = useRef(0);
@@ -341,15 +432,24 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       .then((r) => r.json())
       .then((data) => {
         const hands = data.recentHands || [];
+        const msgs = [];
         if (hands.length > 0) {
           const won  = hands.filter((h) => h.won).length;
           const lost = hands.length - won;
-          setChat([mkMsg('assistant', `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`)]);
+          msgs.push(mkMsg('assistant', `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`));
         } else {
-          setChat([mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')]);
+          msgs.push(mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.'));
         }
+        if (agent.proposal) {
+          msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
+        }
+        setChat(msgs);
       })
-      .catch(() => setChat([mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')]));
+      .catch(() => {
+        const msgs = [mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')];
+        if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
+        setChat(msgs);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
 
@@ -375,10 +475,43 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       const data = await res.json();
       const newAi = (data.chat || []).filter((m) => m.role === 'assistant').pop();
       if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+      if (data.pepTalk?.soothed && data.pepTalk.newState) {
+        setLocalMood(data.pepTalk.newState);
+        setLocalCause('feeling better');
+      }
     } catch {
       setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — please try again.')]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleDiscuss() {
+    inputRef.current?.focus();
+  }
+
+  async function handleAccept(proposalMsgId) {
+    setProposalAccepting(true);
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/proposal/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error('accept failed');
+      setChat((prev) => prev.map((m) => m._id === proposalMsgId ? { ...m, role: 'accepted' } : m));
+      const chatRes = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId, content: 'My proposed change was just accepted.', existingAgentId: agent.id }),
+      });
+      const chatData = await chatRes.json();
+      const newAi = (chatData.chat || []).filter((m) => m.role === 'assistant').pop();
+      if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+    } catch {
+      // silent fail — card stays visible
+    } finally {
+      setProposalAccepting(false);
     }
   }
 
@@ -418,11 +551,11 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
         </button>
       </div>
 
-      {/* MoodBand */}
+      {/* MoodBand — uses local mood updated live by pepTalk */}
       <MoodBand
         accent={accent}
-        mood={mood}
-        cause={cause || lastMomentOf(agent)}
+        mood={localMood}
+        cause={localCause || lastMomentOf(agent)}
         state={agState}
         action={actionLabel}
         onAction={handleAction}
@@ -443,13 +576,31 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
 
       {/* Chat feed */}
       <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
-        {chat.map((msg) => (
-          msg.role === 'assistant'
-            ? <AgentBubble key={msg._id} mood={mood} accent={accent}>{msg.content}</AgentBubble>
-            : <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
-        ))}
+        {chat.map((msg) => {
+          if (msg.role === 'proposal') {
+            return (
+              <AgentCardMsg key={msg._id} mood={localMood} accent={accent}>
+                <ProposalCard
+                  proposal={msg.proposal}
+                  agentProfile={agent.profile}
+                  accent={accent}
+                  accepting={proposalAccepting}
+                  onAccept={() => handleAccept(msg._id)}
+                  onDiscuss={handleDiscuss}
+                />
+              </AgentCardMsg>
+            );
+          }
+          if (msg.role === 'accepted') {
+            return <AcceptedLine key={msg._id} />;
+          }
+          if (msg.role === 'assistant') {
+            return <AgentBubble key={msg._id} mood={localMood} accent={accent}>{msg.content}</AgentBubble>;
+          }
+          return <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>;
+        })}
         {loading && (
-          <AgentBubble mood={mood} accent={accent}>
+          <AgentBubble mood={localMood} accent={accent}>
             <span className="dr-typing"><i /><i /><i /></span>
           </AgentBubble>
         )}
