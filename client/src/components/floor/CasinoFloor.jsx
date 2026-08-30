@@ -12,7 +12,7 @@ import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
 
-export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy }) {
+export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [zoomedId, setZoomedId] = useState(null);
@@ -148,43 +148,45 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
         <RoomLayer
           layout={layout}
           ftu={ftu}
-          viewBox={zoomedPlacement ? zoomViewBox(zoomedPlacement.x, zoomedPlacement.y) : undefined}
+          viewBox={!desktopMode && zoomedPlacement ? zoomViewBox(zoomedPlacement.x, zoomedPlacement.y) : undefined}
         />
       </div>
 
-      {/* The whole occupant layer is unmounted while zoomed — otherwise the
-          agent's small floor ghost stays on screen behind its zoomed self. */}
-      {!zoomed && (
+      {/* On mobile, unmount occupants when zoomed so the small ghost stays hidden
+          behind the FloorZoom modal. On desktop, occupants stay mounted always. */}
+      {(!zoomed || desktopMode) && (
         <>
-          <div
-            className="floor-standup"
-            role={flaggableAgent ? 'button' : undefined}
-            tabIndex={flaggableAgent ? 0 : undefined}
-            onClick={flaggableAgent ? () => setFlaggedAgent(flaggableAgent) : undefined}
-            onKeyDown={flaggableAgent ? (e) => { if (e.key === 'Enter' || e.key === ' ') setFlaggedAgent(flaggableAgent); } : undefined}
-            style={flaggableAgent ? { cursor: 'pointer' } : undefined}
-            aria-label={flaggableAgent ? `${flaggableAgent.flaggedCount} flagged hand${flaggableAgent.flaggedCount !== 1 ? 's' : ''} — tap to review` : undefined}
-          >
-            <span className="floor-standup__label">Standup</span>
-            <span className="floor-standup__line">
-              {loading
-                ? 'Reading the room…'
-                : standupLine({ playing, resting, lounge, total: agents.length })}
-            </span>
-            {flaggableAgent && (
-              <span style={{
-                flexShrink: 0, marginLeft: 'auto',
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                height: 18, padding: '0 6px', borderRadius: 3,
-                background: 'rgba(155,123,255,0.14)', border: '1px solid rgba(155,123,255,0.35)',
-                color: '#9B7BFF',
-                fontFamily: "'Oswald', 'Inter', sans-serif",
-                fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em',
-              }}>
-                {flaggableAgent.flaggedCount} FLAGGED
+          {!desktopMode && (
+            <div
+              className="floor-standup"
+              role={flaggableAgent ? 'button' : undefined}
+              tabIndex={flaggableAgent ? 0 : undefined}
+              onClick={flaggableAgent ? () => setFlaggedAgent(flaggableAgent) : undefined}
+              onKeyDown={flaggableAgent ? (e) => { if (e.key === 'Enter' || e.key === ' ') setFlaggedAgent(flaggableAgent); } : undefined}
+              style={flaggableAgent ? { cursor: 'pointer' } : undefined}
+              aria-label={flaggableAgent ? `${flaggableAgent.flaggedCount} flagged hand${flaggableAgent.flaggedCount !== 1 ? 's' : ''} — tap to review` : undefined}
+            >
+              <span className="floor-standup__label">Standup</span>
+              <span className="floor-standup__line">
+                {loading
+                  ? 'Reading the room…'
+                  : standupLine({ playing, resting, lounge, total: agents.length })}
               </span>
-            )}
-          </div>
+              {flaggableAgent && (
+                <span style={{
+                  flexShrink: 0, marginLeft: 'auto',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  height: 18, padding: '0 6px', borderRadius: 3,
+                  background: 'rgba(155,123,255,0.14)', border: '1px solid rgba(155,123,255,0.35)',
+                  color: '#9B7BFF',
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
+                  fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em',
+                }}>
+                  {flaggableAgent.flaggedCount} FLAGGED
+                </span>
+              )}
+            </div>
+          )}
 
           {placements.map((p) => (
             <Fragment key={p.agent.id}>
@@ -222,7 +224,15 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                 stack={p.stack}
                 chipMaxW={p.chipMaxW}
                 room={room}
-                onClick={() => setZoomedId(p.agent.id)}
+                onClick={() => {
+                  if (desktopMode) {
+                    const newId = p.agent.id === zoomedId ? null : p.agent.id;
+                    setZoomedId(newId);
+                    onGhostSelect?.(newId ? p.agent : null);
+                  } else {
+                    setZoomedId(p.agent.id);
+                  }
+                }}
               />
               {p.felt && p.feltPot != null && (
                 <PotTicker
@@ -247,7 +257,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
         </>
       )}
 
-      {zoomed && (
+      {zoomed && !desktopMode && (
         <FloorZoom
           agent={zoomed}
           index={agents.indexOf(zoomed)}

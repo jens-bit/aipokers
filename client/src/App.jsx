@@ -16,7 +16,7 @@ import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HistoryTab } from './components/HistoryTab.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { AnalysisPanel } from './components/AnalysisPanel.jsx';
-import { DesktopShell } from './components/desktop/DesktopShell.jsx';
+import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
@@ -216,7 +216,7 @@ export default function App() {
     };
 
     return (
-      <DesktopShell
+      <DesktopHome
         game={game}
         lastDecision={lastDecision}
         watchingAgent={desktopWatchAgent}
