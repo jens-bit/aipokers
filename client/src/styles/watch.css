@@ -395,6 +395,7 @@
   background: var(--sys-panel, #111111);
   border-top: 1px solid var(--sys-border, rgba(255,255,255,0.06));
   overflow: hidden;
+  overscroll-behavior: contain;
   transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -459,6 +460,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--sys-bg, #0A0A0A);
   -webkit-overflow-scrolling: touch;
 }

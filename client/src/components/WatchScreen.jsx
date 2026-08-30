@@ -992,6 +992,19 @@ export function WatchScreen({
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
+
+  // Belt-and-braces: non-passive touchmove on the sheet container so that a
+  // drag starting on the grab handle cannot bubble up to Telegram's webview
+  // and trigger the native "minimize Mini App" gesture. disableVerticalSwipes()
+  // in initTelegram() is the primary fix; this is the fallback.
+  var sheetElRef = useRef(null);
+  useEffect(function() {
+    var el = sheetElRef.current;
+    if (!el) return;
+    function block(e) { if (e.cancelable) e.preventDefault(); }
+    el.addEventListener('touchmove', block, { passive: false });
+    return function() { el.removeEventListener('touchmove', block); };
+  }, []);
   var hidden    = sheet.detent === 'hidden';
   // PEEK shows the latest one-line voice row -- the newest decision's reasoning
   // and its equity, the same pair the expanded body leads with.
@@ -1037,7 +1050,7 @@ export function WatchScreen({
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
             crosses a detent never loses its pointer capture mid-gesture. */}
-        <div className="watch-sheet" data-detent={sheet.detent}>
+        <div className="watch-sheet" data-detent={sheet.detent} ref={sheetElRef}>
           <div key="grab-handle" className="watch-sheet__grab" {...sheet.handlers}>
             <SheetHandle thin={hidden} />
           </div>

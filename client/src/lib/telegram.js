@@ -8,11 +8,14 @@ export function getWebApp() {
 
 // Call once at app startup. ready() tells Telegram the UI is rendered;
 // expand() asks Telegram to make the Mini App full-height.
+// disableVerticalSwipes() stops Telegram from intercepting downward drags
+// as a "minimize the Mini App" gesture — required for our sheet drag to work.
 export function initTelegram() {
   const tg = getWebApp();
   if (!tg) return null;
   try { tg.ready(); } catch {}
   try { tg.expand(); } catch {}
+  try { tg.disableVerticalSwipes?.(); } catch {}
   return tg;
 }
 
