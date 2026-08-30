@@ -223,91 +223,223 @@ export async function sendTelegram(chatId, text, button) {
   }
 }
 
+// ── Budget constants ──────────────────────────────────────────────────────────
+const MAX_DAILY = 2;
+const TYPE_PRIORITY = { session_recap: 1, proposal: 2, mood_alert: 3, milestone: 4, quiet_win: 5 };
+
+function getDailyCount(os, now) {
+  const today = localDateStr(now || _now());
+  if (os.dailyCounts.date !== today) os.dailyCounts = { date: today, count: 0 };
+  return os.dailyCounts.count;
+}
+
+function incDailyCount(os, now) {
+  getDailyCount(os, now); // ensure reset
+  os.dailyCounts.count++;
+}
+
+function isQuietHour(now) {
+  const h = (now || _now()).getHours();
+  return h >= 0 && h < 8;
+}
+
+function next8am(from) {
+  const f = from || _now();
+  const d = new Date(f.getFullYear(), f.getMonth(), f.getDate(), 8, 0, 0, 0);
+  if (d.getTime() <= f.getTime()) d.setDate(d.getDate() + 1);
+  return d;
+}
+
+// Called after a successful send to update per-type tracking.
+function applyTypeSentSideEffects(os, type, now) {
+  if (type === 'mood_alert') os.moodAlertDate = localDateStr(now || _now());
+  if (type === 'quiet_win')  os.quietWinWeek  = isoWeekStr(now || _now());
+  if (type === 'proposal')   os.proposalNotified = true;
+}
+
+// Flush holds whose deliverAfter <= now. Sorted by priority, within daily budget.
+// Exported so the verify script can call it directly in tests.
+export async function _flushDueHolds(ownerId, chatId, now) {
+  const t  = now || _now();
+  const os = ownerState(ownerId);
+  if (!os.pendingHolds || os.pendingHolds.length === 0) return;
+
+  const nowMs = t.getTime();
+  const due  = os.pendingHolds.filter((h) => h.deliverAfter <= nowMs);
+  if (due.length === 0) return;
+  os.pendingHolds = os.pendingHolds.filter((h) => h.deliverAfter > nowMs);
+
+  // Priority order; recap (1) wins every tie.
+  due.sort((a, b) => a.priority - b.priority);
+
+  const budget = Math.max(0, MAX_DAILY - getDailyCount(os, t));
+  const toSend = due.slice(0, budget);
+  const toDrop = due.slice(budget);
+
+  for (const h of toDrop) {
+    console.log('[notify] dropped held ' + h.type + ' for ' + ownerId + ' (budget spent at flush)');
+  }
+
+  for (const h of toSend) {
+    // Mood alert has a daily hard cap that must be re-checked at flush time.
+    if (h.type === 'mood_alert' && os.moodAlertDate === localDateStr(t)) {
+      console.log('[notify] mood_alert cap hit at flush — skipping held event for ' + ownerId);
+      continue;
+    }
+    const cid = h.chatId || String(chatId);
+    const ok  = await sendTelegram(cid, h.text, h.button || null);
+    if (ok) {
+      incDailyCount(os, t);
+      applyTypeSentSideEffects(os, h.type, t);
+      os.sentLog.unshift({ type: h.type, agentId: h.agentId, sentAt: t.getTime() });
+      os.sentLog = os.sentLog.slice(0, 50);
+      console.log('[notify] flushed ' + h.type + ' for ' + ownerId);
+    }
+  }
+  saveNotifState();
+}
+
+// Core scheduler: enforces quiet hours, daily budget, per-type deduplication.
+// Caller is responsible for per-type caps (moodAlertDate, proposalNotified, etc.)
+// before calling this function.
+async function scheduleNotification(ownerId, chatId, type, text, button, agentId, now) {
+  const t  = now || _now();
+  const os = ownerState(ownerId);
+
+  // Flush any holds that have come due (e.g. it's now past 08:00).
+  await _flushDueHolds(ownerId, chatId, t);
+
+  // Quiet window 00:00–08:00 → hold until 08:00.
+  if (isQuietHour(t)) {
+    // Deduplicate single-instance types already in holds.
+    if (type === 'mood_alert' && os.pendingHolds.some((h) => h.type === 'mood_alert')) {
+      console.log('[notify] duplicate mood_alert hold suppressed for ' + ownerId);
+      return;
+    }
+
+    const deliverAfter = next8am(t).getTime();
+    const priority     = TYPE_PRIORITY[type] || 9;
+    os.pendingHolds.push({
+      type, priority, text, button: button || null,
+      agentId, chatId: String(chatId), queuedAt: t.getTime(), deliverAfter,
+    });
+    if (type === 'proposal') os.proposalNotified = true;
+
+    // Schedule a timer to flush at 08:00. Unref so the process can exit.
+    const delay = deliverAfter - t.getTime();
+    const timer = setTimeout(async () => {
+      await _flushDueHolds(ownerId, chatId, _now());
+      saveNotifState();
+    }, delay);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+
+    console.log('[notify] held ' + type + ' for ' + ownerId + ' until ' + hhMM(deliverAfter));
+    saveNotifState();
+    return;
+  }
+
+  // Daily budget.
+  if (getDailyCount(os, t) >= MAX_DAILY) {
+    console.log('[notify] budget spent — dropped ' + type + ' for ' + ownerId);
+    return;
+  }
+
+  // Send.
+  const ok = await sendTelegram(chatId, text, button || null);
+  if (ok) {
+    incDailyCount(os, t);
+    applyTypeSentSideEffects(os, type, t);
+    os.sentLog.unshift({ type, agentId, sentAt: t.getTime() });
+    os.sentLog = os.sentLog.slice(0, 50);
+    saveNotifState();
+  }
+}
+
+// On module init: flush any holds that expired during a server restart.
+// Also reschedule timers for future holds.
+if (ENABLED) {
+  Promise.resolve().then(async () => {
+    const now = _now();
+    for (const [ownerId, os] of Object.entries(notifState)) {
+      const holds = os.pendingHolds || [];
+      const chatId = holds.length > 0 ? holds[0].chatId : null;
+      if (!chatId) continue;
+      const hasDue = holds.some((h) => h.deliverAfter <= now.getTime());
+      if (hasDue) {
+        await _flushDueHolds(ownerId, chatId, now);
+        saveNotifState();
+      }
+      // Reschedule flush timers for future holds.
+      for (const h of (os.pendingHolds || [])) {
+        const delay = Math.max(0, h.deliverAfter - now.getTime());
+        const timer = setTimeout(async () => {
+          await _flushDueHolds(ownerId, h.chatId, _now());
+          saveNotifState();
+        }, delay);
+        if (timer && typeof timer.unref === 'function') timer.unref();
+      }
+    }
+  }).catch((err) => console.error('[notify] init flush error:', err.message));
+}
+
 // ── Public trigger functions ──────────────────────────────────────────────────
-// Each is a no-op when ENABLED is false. Budget enforcement is added in NTF-3.
+// Per-type caps are checked here; budget + quiet-hours are handled by scheduleNotification.
 
 // Fires when a session ends while the owner was not watching.
 export async function notifySessionRecap(ownerId, chatId, agentId, agentName, opts) {
   if (!ENABLED) return;
+  const now            = _now();
   const pnl            = (opts && opts.pnl !== undefined) ? opts.pnl : 0;
   const hands          = (opts && opts.hands !== undefined) ? opts.hands : 0;
-  const sessionEndTime = (opts && opts.sessionEndTime) ? opts.sessionEndTime : _now().getTime();
+  const sessionEndTime = (opts && opts.sessionEndTime) ? opts.sessionEndTime : now.getTime();
   const os  = ownerState(ownerId);
   const msg = buildSessionRecap(os, agentName, pnl, hands, sessionEndTime);
-  const ok  = await sendTelegram(chatId, msg.text, msg.button);
-  if (ok) {
-    os.sentLog.unshift({ type: 'session_recap', agentId, sentAt: _now().getTime() });
-    os.sentLog = os.sentLog.slice(0, 50);
-    saveNotifState();
-  }
+  await scheduleNotification(ownerId, chatId, 'session_recap', msg.text, msg.button, agentId, now);
 }
 
 // Fires when a self-change proposal is freshly created.
 export async function notifyProposal(ownerId, chatId, agentId, agentName, opts) {
   if (!ENABLED) return;
+  const now          = _now();
   const proposalText = (opts && opts.proposalText) ? opts.proposalText : '';
-  const os  = ownerState(ownerId);
-  if (os.proposalNotified) return;
+  const os           = ownerState(ownerId);
+  if (os.proposalNotified) return; // one pending notification at a time
   const msg = buildProposal(os, agentName, proposalText);
-  const ok  = await sendTelegram(chatId, msg.text, msg.button);
-  if (ok) {
-    os.proposalNotified = true;
-    os.sentLog.unshift({ type: 'proposal', agentId, sentAt: _now().getTime() });
-    os.sentLog = os.sentLog.slice(0, 50);
-    saveNotifState();
-  }
+  await scheduleNotification(ownerId, chatId, 'proposal', msg.text, msg.button, agentId, now);
 }
 
 // Fires when an agent enters tilted or sulking (hard cap once/day/owner).
 export async function notifyMoodAlert(ownerId, chatId, agentId, agentName, opts) {
   if (!ENABLED) return;
+  const now       = _now();
   const moodState = (opts && opts.moodState) ? opts.moodState : 'tilted';
   const cause     = (opts && opts.cause) ? opts.cause : null;
   const os        = ownerState(ownerId);
-  const today     = localDateStr();
-  if (os.moodAlertDate === today) return;
+  if (os.moodAlertDate === localDateStr(now)) return; // hard cap once/day/owner
   const msg = buildMoodAlert(os, agentName, moodState, cause);
-  const ok  = await sendTelegram(chatId, msg.text, null);
-  if (ok) {
-    os.moodAlertDate = today;
-    os.sentLog.unshift({ type: 'mood_alert', agentId, sentAt: _now().getTime() });
-    os.sentLog = os.sentLog.slice(0, 50);
-    saveNotifState();
-  }
+  await scheduleNotification(ownerId, chatId, 'mood_alert', msg.text, null, agentId, now);
 }
 
 // Fires on third consecutive profitable session (once per week).
 export async function notifyQuietWin(ownerId, chatId, agentId, agentName) {
   if (!ENABLED) return;
+  const now  = _now();
   const os   = ownerState(ownerId);
-  const week = isoWeekStr();
-  if (os.quietWinWeek === week) return;
+  if (os.quietWinWeek === isoWeekStr(now)) return; // weekly cap
   const msg = buildQuietWin(os, agentName);
-  const ok  = await sendTelegram(chatId, msg.text, null);
-  if (ok) {
-    os.quietWinWeek = week;
-    os.sentLog.unshift({ type: 'quiet_win', agentId, sentAt: _now().getTime() });
-    os.sentLog = os.sentLog.slice(0, 50);
-    saveNotifState();
-  }
+  await scheduleNotification(ownerId, chatId, 'quiet_win', msg.text, null, agentId, now);
 }
 
 // Fires when lifetime hands cross a milestone threshold (once per threshold).
 export async function notifyMilestone(ownerId, chatId, agentId, agentName, opts) {
   if (!ENABLED) return;
+  const now       = _now();
   const threshold = (opts && opts.threshold) ? opts.threshold : 1000;
-  const os  = ownerState(ownerId);
+  const os        = ownerState(ownerId);
   if (!os.sentMilestones) os.sentMilestones = {};
   const key = agentId + ':' + threshold;
-  if (os.sentMilestones[key]) return;
-  os.sentMilestones[key] = true;
+  if (os.sentMilestones[key]) return; // once per milestone, never re-sent
+  os.sentMilestones[key] = true; // mark before schedule (trigger fires once per threshold crossing)
   const msg = buildMilestone(os, agentName, threshold);
-  const ok  = await sendTelegram(chatId, msg.text, msg.button || null);
-  if (ok) {
-    os.sentLog.unshift({ type: 'milestone', agentId, sentAt: _now().getTime() });
-    os.sentLog = os.sentLog.slice(0, 50);
-    saveNotifState();
-  } else {
-    delete os.sentMilestones[key];
-  }
+  await scheduleNotification(ownerId, chatId, 'milestone', msg.text, msg.button || null, agentId, now);
 }
