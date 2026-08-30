@@ -194,6 +194,7 @@ export function YouScreen() {
 
   const totalHands     = agents.reduce((s, a) => s + (a.stats?.handsPlayed || 0), 0);
   const agentCount     = agents.length;
+  const stableBankroll = agents.reduce((s, a) => s + (a.careerStats?.bankroll ?? a.bankroll ?? 0), 0);
 
   // Derived stats
   const winRatePct = (() => {
@@ -254,7 +255,7 @@ export function YouScreen() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
           <ChipGlyph />
           <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: M_TEXT }}>
-            {totalHands > 0 ? `${(totalHands * 10).toLocaleString()}.00` : '1,000.00'}
+            {stableBankroll > 0 ? stableBankroll.toLocaleString() : '—'}
           </span>
           <div style={{ flex: 1 }} />
           <Lbl size={9}>Balance</Lbl>

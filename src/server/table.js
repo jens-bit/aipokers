@@ -388,6 +388,9 @@ export class Table {
           sessionPnl: finalStack - buyIn,
           watched,
           sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          finalStack,
+          buyInAmount: buyIn,
+          tableId: this.tableId,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -589,6 +592,9 @@ export class Table {
           sessionPnl,
           watched,
           sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          finalStack,
+          buyInAmount: buyIn,
+          tableId: this.tableId,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
