@@ -10,7 +10,7 @@ function parseBoard(rawBoard) {
   return rawBoard.map(function(c) { return (c && c.length >= 2) ? [c[0], c[1]] : null; });
 }
 
-export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, onProfile }) {
+export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, onProfile, onDeploy }) {
   const mood = moodOf(agent);
   const m = MOODS[safeMood(mood)];
   const accent = accentFor(agent, index);
@@ -101,8 +101,13 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
             </>
           ) : (
             <>
+              <div style={{ flex: 1.3 }}>
+                <button type="button" className="floor-btn floor-btn--primary" onClick={onDeploy}>
+                  Deal him in
+                </button>
+              </div>
               <div style={{ flex: 1 }}>
-                <button type="button" className="floor-btn floor-btn--primary" onClick={onChat}>
+                <button type="button" className="floor-btn floor-btn--ghost" onClick={onChat}>
                   Chat
                 </button>
               </div>

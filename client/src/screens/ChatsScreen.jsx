@@ -177,9 +177,6 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
   if (!agents.length) {
     return (
       <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto' }}>
-        <div style={{ padding: '12px 14px 0', flexShrink: 0 }}>
-          <StandupCollapsed hands="0 hands" />
-        </div>
         <SectionLbl mt={18}>Start here</SectionLbl>
         <DraftCard onCreateAgent={onCreateAgent} />
       </div>
@@ -192,10 +189,6 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto' }}>
-      <div style={{ padding: '12px 14px 0', flexShrink: 0 }}>
-        <StandupCollapsed hands={`${totalHands} hand${totalHands !== 1 ? 's' : ''}`} />
-      </div>
-
       {live.length > 0 && (
         <>
           <SectionLbl right={
@@ -450,7 +443,6 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
 
       {/* Chat feed */}
       <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
-        <SysLine>Chat · {agent.name}</SysLine>
         {chat.map((msg) => (
           msg.role === 'assistant'
             ? <AgentBubble key={msg._id} mood={mood} accent={accent}>{msg.content}</AgentBubble>
