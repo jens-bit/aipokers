@@ -106,7 +106,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeAgentId && status === 'closed') callAgentFinish(activeAgentId);
+    if (activeAgentId && status === 'closed' && !isSpectatorRef.current) callAgentFinish(activeAgentId);
   }, [status, activeAgentId, callAgentFinish]);
 
   useEffect(() => {

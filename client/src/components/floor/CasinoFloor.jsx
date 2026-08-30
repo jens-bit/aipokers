@@ -45,7 +45,14 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   useEffect(() => {
     load();
     const id = setInterval(load, POLL_MS);
-    return () => clearInterval(id);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', load);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', load);
+    };
   }, [load]);
 
   // Resolve against the latest poll so a zoomed agent stays current (and
@@ -135,11 +142,11 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
                 room={room}
                 onClick={() => setZoomedId(p.agent.id)}
               />
-              {p.felt && potFor(p.agent, liveGame) && (
+              {p.felt && potFor(p.agent) && (
                 <PotTicker
                   x={p.felt.cx}
                   y={p.felt.cy - p.felt.ry - 12}
-                  amount={potFor(p.agent, liveGame)}
+                  amount={potFor(p.agent)}
                   mini={mini}
                   room={room}
                 />
@@ -172,8 +179,8 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   );
 }
 
-function potFor(agent, liveGame) {
-  if (liveGame?.agentId !== agent.id) return null;
+function potFor(agent) {
+  const liveGame = agent?.liveGame;
   return Number.isFinite(liveGame?.pot) ? liveGame.pot.toLocaleString() : null;
 }
 

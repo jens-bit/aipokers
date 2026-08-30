@@ -980,6 +980,7 @@ export function installAgentProfileRoutes(app) {
     activeTables.add(tableId);
     agent.activeTableId = tableId;
     agent.status = 'playing';
+    agent.unseenRecap = false;
     ensureMemory(agent);
     saveStore(userId);
 
