@@ -1,31 +1,30 @@
 import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
-import { Table } from './table.js';
-import { getAgentProfile } from './agentProfiles.js';
+import { getAgentProfile, setLiveTableProvider, reconcileActiveSessions } from './agentProfiles.js';
+import * as registry from './tableRegistry.js';
+
+const { getOrCreateTable } = registry;
 
 // Either pass `server` (an existing http.Server, e.g. shared with Express) to
 // attach the WebSocket upgrade handler to it, or pass `port`/`host` to create
 // a standalone listening WS server. Returns { wss, tables }.
+//
+// This function is also the composition root: it hands the REST layer a live
+// view of the table registry (AGE-35 deploy needs to create tables) and runs
+// boot reconciliation so no agent is left pointing at a table that died with
+// the previous process.
 export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = { smallBlind: 10, bigBlind: 20 } }) {
   const wss = server
     ? new WebSocketServer({ server })
     : new WebSocketServer({ port, host });
-  const tables = new Map();   // tableId -> Table
 
-  function getOrCreateTable(tableId, opts = {}) {
-    let table = tables.get(tableId);
-    if (!table) {
-      table = new Table({
-        tableId,
-        smallBlind: opts.smallBlind ?? defaultBlinds.smallBlind,
-        bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
-        maxSeats: opts.maxSeats ?? 2,
-        onEmpty: (id) => tables.delete(id),
-      });
-      tables.set(tableId, table);
-    }
-    return table;
+  registry.setDefaultBlinds(defaultBlinds);
+  setLiveTableProvider(registry);
+  const retired = reconcileActiveSessions();
+  if (retired > 0) {
+    console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);
   }
+  const tables = registry.allTables();
 
   function send(ws, msg) {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -79,7 +78,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             } else {
               table.scheduleHouseFallback();
             }
-            table.maybeStartHand();
+            table.maybeStartHand({ clientDriven: true });
             return;
           }
 
@@ -97,7 +96,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
-            table.maybeStartHand();
+            table.maybeStartHand({ clientDriven: true });
             return;
           }
 
@@ -118,7 +117,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
           case ClientMsg.DEAL: {
             const table = tables.get(ws.tableId);
             if (!table) throw new Error('not seated at any table');
-            table.maybeStartHand();
+            // AGE-36: DEAL is a human control. On an autonomous AI-only table
+            // maybeStartHand ignores it — the server loop sets the tempo.
+            table.maybeStartHand({ clientDriven: true });
             return;
           }
 

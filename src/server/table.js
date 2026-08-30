@@ -22,6 +22,18 @@ import {
 
 const HOUSE_FALLBACK_MS = 5000;
 
+// ── AGE-35: server-side session loop ────────────────────────────────────────
+// Pause between a completed hand and the next deal on an autonomous table.
+const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 8000);
+// Hands one deployment is allowed to play before the agent gracefully sits
+// out. Bounds the LLM spend of a table nobody is watching.
+const SESSION_MAX_HANDS = Number(process.env.SESSION_MAX_HANDS ?? 100);
+// Recap lines the agent is left with when a session ends for each reason.
+const RECAP_MAX_HANDS = 'long session, sitting out';
+const RECAP_BUST = 'someone ran out of chips — session over';
+const RECAP_SIT_OUT = 'sat out by owner';
+const RECAP_IDLE = 'the table went quiet, so I stepped away';
+
 // Complementary House archetypes. Playtest 2026-08-29 showed tight-vs-tight
 // tables produce fold-fests (seven straight uncontested preflop hands). Fix:
 // pick the House that creates action against the specific agent's shape.
@@ -58,7 +70,7 @@ function pickComplementaryHouse(opposingProfile) {
 // always pick the lowest free index, and a mid-table disconnect compacts the
 // remaining seats down (only for maxSeats > 2 ÔÇö HU keeps fixed indices).
 export class Table {
-  constructor({ tableId, smallBlind, bigBlind, maxSeats = 2, onEmpty }) {
+  constructor({ tableId, smallBlind, bigBlind, maxSeats = 2, onEmpty, maxHands, handPauseMs }) {
     if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > 4) {
       throw new Error('maxSeats must be an integer 2..4');
     }
@@ -109,6 +121,124 @@ export class Table {
     // BUG-14: SIT_OUT — when set, the table finishes the CURRENT hand and
     // then closes gracefully in _handCompleted.
     this._pendingSitOut = false;
+
+    // ── AGE-35: autonomous session loop ──────────────────────────────────
+    // autoPlay tables deal themselves. Nothing a client does — connecting,
+    // watching, leaving — advances or stops them; only the loop, a bust, the
+    // hand cap, or an explicit SIT_OUT does.
+    this.autoPlay = false;
+    this.handsThisSession = 0;
+    this.maxHands = Number.isFinite(maxHands) ? maxHands : SESSION_MAX_HANDS;
+    this.handPauseMs = Number.isFinite(handPauseMs) ? handPauseMs : HAND_PAUSE_MS;
+    this._nextHandTimer = null;
+    this.closed = false;
+    // Advisory deadline for the seat currently to act (the AI's think delay).
+    // Surfaced to the floor as liveGame.actionDeadline. A real server-side
+    // action timer for HUMAN seats is still Fredrik's queue.
+    this.actionDeadline = null;
+  }
+
+  // ── AGE-35: session loop ──────────────────────────────────────────────────
+
+  // True when the table is populated exclusively by AI seats — the only shape
+  // the server-side loop is allowed to drive.
+  isAiOnly() {
+    if (!this.pending.some((p) => p !== null)) return false;
+    return this.pending.every((p, i) => p === null || this.aiSeats[i]);
+  }
+
+  // Stand up a fully server-driven session: the owner's agent plus a
+  // complementary House, then start dealing. No client is involved at any
+  // point — this is what makes the agent live while nobody is watching.
+  // Returns the seat the agent took, or null when the table cannot host it.
+  startAgentSession({ agentId, userId, displayName, strategy, memoryContext = '', agentProfile = null, buyIn } = {}) {
+    if (this.closed) return null;
+    if (this.pending.filter((p) => p !== null).length > 0) return null;
+    const profile = agentProfile ? normalizeProfile(agentProfile) : null;
+    const stack = Number.isInteger(buyIn) ? buyIn : this.bigBlind * 100;
+
+    const heroSeat = this.seatAI({
+      displayName: displayName || 'Agent',
+      strategy: strategy || '',
+      agentId,
+      userId,
+      memoryContext,
+      agentProfile: profile,
+      buyIn: stack,
+    });
+    const house = pickComplementaryHouse(profile);
+    this.seatAI({
+      displayName: house.displayName,
+      strategy: house.strategy,
+      agentProfile: house.profile,
+      buyIn: stack,
+    });
+    // Leave the table-wide agentStrategy null: _maybeRunAiTurn prefers it over
+    // the per-seat text, which would hand the hero's strategy to the House.
+    this.agentStrategy = null;
+    console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house === HOUSE_STATION ? 'Station' : 'TAG'} House, max ${this.maxHands} hands`);
+    this.startSessionLoop({ delayMs: 250 });
+    return heroSeat;
+  }
+
+  // Flip the table into autonomous mode and queue the first deal. Idempotent;
+  // a no-op on a table that still has a human seat.
+  startSessionLoop({ delayMs = 0 } = {}) {
+    if (this.closed) return false;
+    if (!this.isAiOnly()) return false;
+    this.autoPlay = true;
+    // The 60s inactivity reaper exists to stop orphaned AI tables. The loop's
+    // own bounds (hand cap + bust) replace it.
+    if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
+    this._scheduleNextHand(delayMs);
+    return true;
+  }
+
+  _scheduleNextHand(ms) {
+    if (this._nextHandTimer) clearTimeout(this._nextHandTimer);
+    this._nextHandTimer = setTimeout(() => {
+      this._nextHandTimer = null;
+      if (this.closed) return;
+      try {
+        this.maybeStartHand();
+      } catch (err) {
+        console.error(`[table:${this.tableId}] session loop deal failed:`, err.message);
+      }
+    }, Math.max(0, ms));
+    // Never hold the process open just to deal another hand.
+    this._nextHandTimer.unref?.();
+  }
+
+  _clearTimers() {
+    if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
+    if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
+    if (this._nextHandTimer) { clearTimeout(this._nextHandTimer); this._nextHandTimer = null; }
+  }
+
+  // The single close path for every reason a table ends: sit-out, bust, hand
+  // cap, idle reaper, opponent left. Broadcasts TABLE_CLOSED, retires every AI
+  // seat that belongs to an agent (clearing activeTableId and leaving an
+  // unseenRecap), kills the timers, and drops the table from the registry.
+  // Idempotent — a second call is a no-op.
+  closeTable(reason, { recap = null } = {}) {
+    if (this.closed) return;
+    this.closed = true;
+    this.autoPlay = false;
+    this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason });
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      try {
+        finishAgentSession(agentId, this.agentUserIds[seat], { recap: recap ?? reason });
+      } catch (err) {
+        console.error('[table] finishAgentSession failed:', err.message);
+      }
+    }
+    this.game = null;
+    this.actionDeadline = null;
+    this._clearTimers();
+    console.log(`[table:${this.tableId}] closed after ${this.handsThisSession} hand(s) — ${reason}`);
+    this.onEmpty?.(this.tableId);
   }
 
   // BUG-14: initiated by ClientMsg.SIT_OUT from either a seated player or a
@@ -129,24 +259,10 @@ export class Table {
     return { pending: false };
   }
 
-  // Close the table cleanly following a sit-out. Broadcasts TABLE_CLOSED,
-  // runs the agent's finish path for every AI seat with an owning agentId,
-  // then destroys the game + drops the table via onEmpty.
+  // Close the table cleanly following a sit-out. Delegates to the shared
+  // close path so the agent is retired the same way on every route out.
   _closeSitOut() {
-    this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'sat out by owner' });
-    for (let seat = 0; seat < this.maxSeats; seat++) {
-      const agentId = this.agentIds[seat];
-      if (!agentId) continue;
-      try {
-        finishAgentSession(agentId, this.agentUserIds[seat]);
-      } catch (err) {
-        console.error('[table] finishAgentSession failed:', err.message);
-      }
-    }
-    this.game = null;
-    if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
-    if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
-    this.onEmpty?.(this.tableId);
+    this.closeTable(RECAP_SIT_OUT, { recap: RECAP_SIT_OUT });
   }
 
   // Returns the seat the player got, or throws.
@@ -291,14 +407,16 @@ export class Table {
 
   // Clears any existing inactivity timer and starts a fresh 60s countdown.
   // Only runs on AI tables; harmless no-op on human vs human.
+  // AGE-35: autonomous tables opt out — the session loop's own bounds (hand
+  // cap, bust, sit-out) replace the reaper, and a table pausing HAND_PAUSE_MS
+  // between hands must not read as "inactive".
   _resetAiInactivityTimer() {
+    if (this.autoPlay) return;
     if (!this.aiSeats.some(Boolean)) return;
     if (this._aiInactivityTimer) clearTimeout(this._aiInactivityTimer);
     this._aiInactivityTimer = setTimeout(() => {
       this._aiInactivityTimer = null;
-      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'Session ended ÔÇö no activity for 60 seconds' });
-      this.game = null;
-      this.onEmpty?.(this.tableId);
+      this.closeTable('Session ended — no activity for 60 seconds', { recap: RECAP_IDLE });
     }, 60_000);
   }
 
@@ -307,6 +425,10 @@ export class Table {
     const specIdx = this.spectators.findIndex((s) => s.ws === ws);
     if (specIdx !== -1) {
       this.spectators.splice(specIdx, 1);
+      // AGE-35/36: on an autonomous table the last watcher leaving changes
+      // nothing — the agent keeps playing (FLR-5: leaving a watch never
+      // recalls the agent).
+      if (this.autoPlay) return;
       if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
         if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
         if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
@@ -347,8 +469,10 @@ export class Table {
     if (this.maxSeats > 2) this._compactSeatsIfGapped();
 
     if (disconnectedWasHuman && hadActiveGame && !this.hasHumanPlayer()) {
-      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'Session ended — opponent left' });
-      this.game = null;
+      // Route through the shared close path so the AI seat's agent is retired
+      // (activeTableId cleared) instead of being left pointing at a dead table.
+      this.closeTable('Session ended — opponent left', { recap: 'my opponent left the table' });
+      return;
     }
 
     if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
@@ -423,7 +547,13 @@ export class Table {
   }
 
   // Called once at least 2 pending players are seated.
-  maybeStartHand() {
+  // AGE-36: `clientDriven` marks the calls that originate from a WS client
+  // (JOIN / WATCH / DEAL). On an autonomous table those never deal — the
+  // server loop owns the tempo, so a spectator arriving mid-pause observes
+  // rather than triggers.
+  maybeStartHand({ clientDriven = false } = {}) {
+    if (this.closed) return;
+    if (clientDriven && this.autoPlay) return;
     if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
     const filled = this.pending.filter((p) => p !== null);
     if (filled.length < 2) return;
@@ -438,7 +568,7 @@ export class Table {
     }
 
     if (this.game.seats.some((s) => s.stack <= 0)) {
-      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
+      this.closeTable('a player ran out of chips', { recap: RECAP_BUST });
       return;
     }
 
@@ -492,6 +622,8 @@ export class Table {
   }
 
   _handCompleted() {
+    this.handsThisSession++;
+    this.actionDeadline = null;
     this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
@@ -507,14 +639,20 @@ export class Table {
       return;
     }
     if (this.game.seats.some((s) => s.stack <= 0)) {
-      this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason: 'a player ran out of chips' });
+      this.closeTable('a player ran out of chips', { recap: RECAP_BUST });
       return;
     }
-    // Auto-deal when all FILLED seats are AI (spectator mode ÔÇö no human to click DEAL).
-    const allFilledAreAi = this.pending.some((p) => p !== null) &&
-      this.pending.every((p, i) => p === null || this.aiSeats[i]);
-    if (allFilledAreAi) {
-      setTimeout(() => this.maybeStartHand(), 2500);
+    // AGE-35: the session ends gracefully at the hand cap rather than running
+    // up an unbounded model bill on a table nobody may be watching.
+    if (this.autoPlay && this.handsThisSession >= this.maxHands) {
+      this.closeTable('session hand limit reached', { recap: RECAP_MAX_HANDS });
+      return;
+    }
+    // Auto-deal when all FILLED seats are AI. On an autonomous table this is
+    // the session loop; a legacy spectator-created AI table keeps its old
+    // 2.5s tempo until startSessionLoop takes it over.
+    if (this.isAiOnly()) {
+      this._scheduleNextHand(this.autoPlay ? this.handPauseMs : 2500);
     }
   }
 
@@ -1091,6 +1229,9 @@ export class Table {
 
     // Human-like thinking delay (0.8ÔÇô2.5 s).
     const thinkMs = 800 + Math.random() * 1700;
+    // Advisory deadline for the floor's LiveBar countdown (AGE-37). Set before
+    // the await so a floor push during the think window carries it.
+    this.actionDeadline = Date.now() + Math.round(thinkMs);
     await new Promise((r) => setTimeout(r, thinkMs));
 
     // Re-check: the human might have acted somehow, or hand ended.
