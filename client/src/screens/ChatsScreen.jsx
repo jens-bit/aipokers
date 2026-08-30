@@ -450,7 +450,6 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
 
       {/* Chat feed */}
       <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
-        <SysLine>Chat · {agent.name}</SysLine>
         {chat.map((msg) => (
           msg.role === 'assistant'
             ? <AgentBubble key={msg._id} mood={mood} accent={accent}>{msg.content}</AgentBubble>
