@@ -72,17 +72,29 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 
 <!-- ARTBOARDS -->
 <div class="frame" style="left:520px;top:80px">
-  <div class="grouphdr" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px">The page</div>
-  <div class="groupsub" style="font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px">One long page, six sections, in the order a stranger needs them: <b>who he is</b> → <b>how he comes to exist</b> → <b>what makes him different</b> → <b>where he lives</b> → <b>why it is credible</b> → <b>the legal floor</b>. The mobile artboard is the same page and the same copy, not a reduced one.</div>
-  <div class="fh" style="margin-top:78px"><span class="fn">L1</span><span class="ft">Desktop · 1440</span><span class="fb">marketing territory</span></div>
-  <div id="ldesk"></div>
-  <div class="fa"><b>The hero is a poster, not a screenshot.</b> One ghost, one felt, one light — drawn here in burgundy and gold rather than borrowed from the floor, because the floor is a product surface and this is a book cover. The ghost is the product's own <code>MoodGhost</code> atom with its accent set to gold: <b>marketing colour, product anatomy</b>. Below the fold the palette hands over: every device frame is the real black-and-teal build, and the burgundy is only the wall it hangs on.</div>
+  <div class="grouphdr" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px">Viewport discipline</div>
+  <div class="groupsub" style="font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px">The page is now built against a breakpoint table — <b>1440 · 1280 · 768 · 390</b> — with one law on top: <b>the hero fits the first viewport</b>, at 1440×900 and at 1280×800 alike, with the next section's header just peeking above the fold. The headline loses size per breakpoint (88 → 68 → 52), never presence. Section paddings tightened (76px → 54/44px) so each scroll lands at a natural stop. The gold dashed line on these two frames <b>is</b> the fold.</div>
+  <div class="fh" style="margin-top:78px"><span class="fn">V1</span><span class="ft">Hero · 1440×900</span><span class="fb">fold drawn</span></div>
+  <div id="lhv1"></div>
+  <div class="fa"><b>Everything above the line, art included.</b> Masthead, headline at 88, sub, CTA with its microcopy, and the full ghost-at-felt scene sit inside the first viewport, and the HOW IT WORKS label peeks below the hero's border so the page visibly continues. The hero section takes an exact height (viewport − 62px peek) and centres its row inside it.</div>
 </div>
 
 <div class="frame" style="left:2080px;top:80px">
-  <div class="fh" style="margin-top:78px"><span class="fn">L2</span><span class="ft">Mobile · 390</span><span class="fb teal">same page</span></div>
+  <div class="fh" style="margin-top:78px"><span class="fn">V2</span><span class="ft">Hero · 1280×800</span><span class="fb gold">the broken one, fixed</span></div>
+  <div id="lhv2"></div>
+  <div class="fa"><b>The laptop case that used to overflow.</b> Headline drops to 68, the scene to 430×310, the masthead pad to 22px — and the same law holds: full hero above the fold, next section peeking. Nothing is removed; everything is rescaled.</div>
+</div>
+
+<div class="frame" style="left:520px;top:1180px">
+  <div class="fh"><span class="fn">L1</span><span class="ft">Full page · 1280</span><span class="fb">laptop rhythm</span></div>
+  <div id="lp1280"></div>
+  <div class="fa"><b>The scroll rhythm at laptop width.</b> Hero (one viewport) → how-it-works (phones at 0.335, whole section ≈ one screen) → moods → floor (desktop shot at 0.62) → proof → quote → footer CTA. Dead vertical space between sections is gone: section padding is 44px and every block ends where the next begins. A 768 tablet breakpoint exists in code (<code>Landing768M</code>): two-column sections collapse, the floor switches to the phone shot.</div>
+</div>
+
+<div class="frame" style="left:2080px;top:1180px">
+  <div class="fh"><span class="fn">L2</span><span class="ft">Full page · 390</span><span class="fb teal">unchanged</span></div>
   <div id="lmob"></div>
-  <div class="fa"><b>Not a cut-down.</b> Every section and every sentence survives — the three steps stack, the mood strip goes vertical with the ghost beside its line rather than above it, and the floor shot becomes the phone screen instead of the desktop one. <b>The one thing that changes is which product screenshot is honest at that width</b>: showing a 1440 desktop floor on a phone page would be showing a surface the reader cannot reach.</div>
+  <div class="fa"><b>Mobile keeps the current design</b> — caption-before-shot steps, row-layout mood cards, the phone floor shot — untouched by this pass apart from inheriting the tightened section padding.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -101,7 +113,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-landing.jsx"></script>
 
 <script type="text/babel">
-[['ldesk', LandingDesktopM], ['lmob', LandingMobileM]].forEach(function (p) {
+[['lhv1', LandingHero1440M], ['lhv2', LandingHero1280M], ['lp1280', Landing1280M], ['lmob', LandingMobileM]].forEach(function (p) {
   var el = document.getElementById(p[0]);
   if (el) ReactDOM.createRoot(el).render(React.createElement(p[1]));
 });
@@ -119,28 +131,26 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       return (parseInt(f.style.left, 10) || 0) >= 500;
     });
     if (!fs.length) return false;
-    for (var i = 0; i < fs.length; i++) {
-      if (fs[i].getBoundingClientRect().height < MIN_CONTENT) return false;
-      var roots = fs[i].querySelectorAll(':scope > div[id]');
-      for (var k = 0; k < roots.length; k++) {
-        if (!roots[k].children.length) return false;
-      }
-    }
+    /* THE RULE — never abort, never stop watching; heights only grow. */
     var rows = fs.map(function (f) { return +f.dataset.row; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return a - b; });
     var plan = [], y = FIRST;
     for (var r = 0; r < rows.length; r++) {
       var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
-      var max = 0;
-      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
-      if (max < MIN_CONTENT) return false;
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.getBoundingClientRect().height, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
       plan.push({ frames: inRow, top: y });
       y += Math.ceil(max) + GUTTER;
     }
     plan.forEach(function (p) {
       p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
+    remember();
     return true;
   }
   var pending = null;
@@ -151,9 +161,25 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       if (!relayout() && tries++ < MAX_TRIES) schedule(250);
     }, delay || 0);
   }
+  /* SELF-VERIFYING: a committed layout is only trusted while frame heights match the
+     heights it was computed from. A heartbeat re-measures for 40s — mounts, fonts and
+     images can all land after every scheduled pass has already run and stopped. */
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      var h = fs[i].getBoundingClientRect().height;
+      var seen = parseFloat(fs[i].dataset.h || '0');
+      if (h - seen > 2) return true;
+    }
+    return false;
+  }
+  function remember() {
+    frames().forEach(function (f) { f.dataset.h = String(f.getBoundingClientRect().height); });
+  }
   function boot() {
     schedule(0);
     [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(function () { schedule(60); });
