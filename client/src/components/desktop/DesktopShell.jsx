@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
 import { AgentChat } from '../AgentChat.jsx';
-import { CreateAgent } from '../CreateAgent.jsx';
+import { BirthScreen } from '../../screens/BirthScreen.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { DesktopRail } from './DesktopRail.jsx';
 import { DesktopComposer } from './DesktopComposer.jsx';
@@ -101,29 +101,10 @@ export function DesktopShell({
 
         <div className="dsk-content">
           {creating ? (
-            <div className="dsk-takeover">
-              <div className="dsk-takeover__head">
-                <button
-                  type="button"
-                  className="dsk-takeover__back"
-                  onClick={() => setCreating(false)}
-                  aria-label="Back to Command Center"
-                >
-                  <NavIcon name="arrow-left" size={18} />
-                </button>
-                <div>
-                  <span className="dsk-label dsk-label--sm dsk-label--teal">DRAFT</span>
-                  <h1 className="dsk-takeover__title">Draft agent</h1>
-                </div>
-              </div>
-              <div className="dsk-takeover__body">
-                <CreateAgent
-                  onBack={() => setCreating(false)}
-                  onDone={() => { setCreating(false); loadAgents(); }}
-                  onCreated={handleCreated}
-                />
-              </div>
-            </div>
+            <BirthScreen
+              onBack={() => setCreating(false)}
+              onBirth={handleCreated}
+            />
           ) : (
           <>
           <div className="dsk-conv-header">
