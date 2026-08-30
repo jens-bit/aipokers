@@ -169,7 +169,7 @@ function ListView({ agentName, hands, onSelect, onBack }) {
 function BoardCards({ board }) {
   if (!board || board.length === 0) return null;
   return (
-    <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+    <div style={{ display: 'flex', gap: 3, flexShrink: 0, minWidth: 104 }}>
       {board.map((c, i) => {
         if (typeof c === 'string' && c.length >= 2) {
           return <PlayingCard key={i} rank={c[0]} suit={c[1].toLowerCase()} w={23} h={32} />;
@@ -195,30 +195,33 @@ function isMatched(street) {
 }
 
 // StreetRow — verbatim port from design-refs/mood-screens-f.jsx.
-function StreetRow({ street, board, action, equity, matched, reason, last }) {
+// showStreetHeader: false for 2nd+ rows sharing the same street label (street grouping).
+function StreetRow({ street, board, action, equity, matched, reason, last, showStreetHeader = true }) {
   return (
     <div style={{ padding: `10px ${PAD}px`, borderBottom: last ? 'none' : `1px solid ${M_BORDER}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
-        <span style={{
-          fontFamily: OSWALD, fontSize: 9, fontWeight: 600,
-          letterSpacing: '0.14em', color: M_MUTED, textTransform: 'uppercase', flexShrink: 0,
-        }}>{street}</span>
-        <div style={{ flex: 1, height: 1, background: M_BORDER }} />
-        {equity != null && (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{
-              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-              fontSize: 14, fontWeight: 700, color: matched ? M_TEAL : M_RED,
-            }}>{equity}%</span>
-            <span style={{
-              fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600,
-              letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED,
-            }}>
-              {matched ? 'WITH THE MATH' : 'AGAINST IT'}
-            </span>
-          </div>
-        )}
-      </div>
+      {showStreetHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
+          <span style={{
+            fontFamily: OSWALD, fontSize: 9, fontWeight: 600,
+            letterSpacing: '0.14em', color: M_MUTED, textTransform: 'uppercase', flexShrink: 0,
+          }}>{street}</span>
+          <div style={{ flex: 1, height: 1, background: M_BORDER }} />
+          {equity != null && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{
+                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                fontSize: 14, fontWeight: 700, color: matched ? M_TEAL : M_RED,
+              }}>{equity}%</span>
+              <span style={{
+                fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600,
+                letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED,
+              }}>
+                {matched ? 'WITH THE MATH' : 'AGAINST IT'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <BoardCards board={board} />
         {action && (
@@ -234,7 +237,7 @@ function StreetRow({ street, board, action, equity, matched, reason, last }) {
       </div>
       {reason && (
         <div style={{
-          fontSize: 11.5, color: M_DIM, lineHeight: 1.45, marginTop: 7, fontStyle: 'italic',
+          fontSize: 12, color: M_DIM, lineHeight: 1.45, marginTop: 7, fontStyle: 'italic',
         }}>
           "{reason}"
         </div>
@@ -288,6 +291,15 @@ function VerdictBand({ hand, agentName, mood = 'neutral' }) {
           {agentName}{hand.handNumber != null ? ` · Hand #${hand.handNumber}` : ''}
         </div>
       </div>
+      <button type="button" style={{
+        flexShrink: 0, height: 30, padding: '0 10px', borderRadius: 6,
+        background: 'transparent', border: `1px solid ${M_BORDER}`,
+        color: M_TEXT, cursor: 'pointer',
+        fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em',
+        textTransform: 'uppercase', whiteSpace: 'nowrap',
+      }}>
+        Open chat
+      </button>
     </div>
   );
 }
@@ -338,44 +350,70 @@ function HandReview({ hand, agentName, agentMood, onBack }) {
           <div style={{ padding: 24, textAlign: 'center', color: M_MUTED, fontSize: 13 }}>
             No street data recorded for this hand.
           </div>
-        ) : (
-          streets.map(({ street, board, action, equity, potOdds, reasoning }, idx) => {
-            const matched = isMatched({ equity, potOdds, action });
-            return (
-              <StreetRow
-                key={`${street}-${idx}`}
-                street={(street ?? 'PREFLOP').toUpperCase()}
-                board={board}
-                action={action}
-                equity={equity}
-                matched={matched}
-                reason={reasoning}
-                last={idx === streets.length - 1}
-              />
-            );
-          })
-        )}
+        ) : (() => {
+          // Group consecutive rows sharing the same street under one header.
+          const groups = [];
+          streets.forEach(({ street, board, action, equity, potOdds, reasoning }, idx) => {
+            const streetKey = (street ?? 'PREFLOP').toUpperCase();
+            if (groups.length > 0 && groups[groups.length - 1].street === streetKey) {
+              groups[groups.length - 1].rows.push({ board, action, equity, potOdds, reasoning, idx });
+            } else {
+              groups.push({ street: streetKey, rows: [{ board, action, equity, potOdds, reasoning, idx }] });
+            }
+          });
+          const totalRows = streets.length;
+          let rowCount = 0;
+          return groups.map((group) =>
+            group.rows.map(({ board, action, equity, potOdds, reasoning, idx }, ri) => {
+              const matched = isMatched({ equity, potOdds, action });
+              const globalIdx = rowCount++;
+              return (
+                <StreetRow
+                  key={`${group.street}-${idx}`}
+                  street={group.street}
+                  board={board}
+                  action={action}
+                  equity={equity}
+                  matched={matched}
+                  reason={reasoning}
+                  last={globalIdx === totalRows - 1}
+                  showStreetHeader={ri === 0}
+                />
+              );
+            })
+          );
+        })()}
       </div>
 
       {/* Composer strip — same anatomy as screen #5 */}
       <div style={{
         flexShrink: 0, borderTop: `1px solid ${M_BORDER}`,
-        background: M_PANEL_2, padding: `9px ${PAD}px 22px`,
+        background: M_PANEL, padding: `9px ${PAD}px 22px`,
       }}>
-        {hand.handNumber != null && (
-          <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {Array.isArray(hand.holeCards) && hand.holeCards.length > 0 && (
+            <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+              {hand.holeCards.slice(0, 2).map((c, i) => {
+                if (typeof c === 'string' && c.length >= 2) {
+                  return <PlayingCard key={i} rank={c[0]} suit={c[1].toLowerCase()} w={16} h={22} />;
+                }
+                return <CardBack key={i} w={16} h={22} />;
+              })}
+            </div>
+          )}
+          {hand.handNumber != null && (
             <span style={{
-              fontFamily: OSWALD, fontSize: 9, fontWeight: 600,
-              letterSpacing: '0.12em', color: M_MUTED, textTransform: 'uppercase',
+              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+              fontSize: 9.5, fontWeight: 500, color: M_MUTED,
             }}>
               HAND #{hand.handNumber} WILL BE QUOTED
             </span>
-          </div>
-        )}
+          )}
+        </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 9, height: 44,
           padding: '0 6px 0 14px', borderRadius: 22,
-          background: M_PANEL, border: `1px solid ${M_BORDER}`,
+          background: M_PANEL_2, border: `1px solid ${M_BORDER}`,
         }}>
           <span style={{
             flex: 1, fontSize: 13.5, color: M_MUTED,
