@@ -120,6 +120,12 @@ function buildUserPrompt(gs) {
     moodLine = `\nSTATE: ${gs.mood.state}${cause}.${hint}`;
   }
 
+  // TLK-1: table talk needle — queued by _maybeSendAgentTalk when an opponent's
+  // line lands on a susceptible agent. Cleared after each decision.
+  const tableTalkLine = gs.tableTalk
+    ? `\nTABLE TALK: "${gs.tableTalk}" — an opponent just said this at the table.`
+    : '';
+
   // Opponent reads (deterministic, from the last-N-hands ring in
   // opponentStats), rendered by src/agent/reads.js. Each read yields the stat
   // line plus an explicit EXPLOIT directive for the shape it describes.
@@ -141,7 +147,7 @@ HOLE CARDS: ${gs.holeCards.join(' ')}
 BOARD: ${board}
 POT: ${gs.pot}  MY STACK: ${gs.myStack}  OPP STACK: ${gs.oppStack}
 MY CONTRIB THIS STREET: ${gs.myContrib}
-POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${moodLine}${readsBlock}
+POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${moodLine}${tableTalkLine}${readsBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
 The math and policy lines above are ADVISORY server hints, not commands.
