@@ -118,6 +118,9 @@
   align-items: flex-end;
 }
 
+/* The outer row only positions and centres; the pill is the inner element.
+   Before WV2-5 both rules landed on the same node, so the "pill" stretched
+   the full width of the felt. */
 .watch-felt__pot {
   position: absolute;
   top: var(--wv-pot, 60px);
@@ -128,15 +131,68 @@
   z-index: 2;
 }
 
-.watch-felt__pot > div,
-.watch-felt__pot {
+.watch-felt__pot-pill {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 3px 13px;
   border-radius: 16px;
   background: rgba(8,10,10,0.6);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+}
+
+/* WV2-5: the pot going to its winner. Ported from mood-watch2.jsx's
+   WatchShowdownScreenM -- a trail from under the board down to the pill,
+   which takes the meta line's slot for as long as the showdown is up. */
+.watch-felt__pot-trail {
+  position: absolute;
+  top: calc(var(--wv-board, 128px) + 68px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: max(0px, calc(var(--wv-meta, 236px) - var(--wv-board, 128px) - 62px));
+  z-index: 1;
+  background: linear-gradient(180deg, transparent, rgba(205,179,128,0.33));
+  pointer-events: none;
+}
+
+.watch-felt__won {
+  position: absolute;
+  top: var(--wv-meta, 236px);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+}
+
+.watch-felt__won-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 13px;
+  border-radius: 16px;
+  background: rgba(8,10,10,0.78);
+  border: 1px solid rgba(205,179,128,0.33);
+  box-shadow: 0 0 14px rgba(205,179,128,0.13);
+}
+
+.watch-felt__won-amt {
+  font-family: var(--sys-font-display, "Playfair Display", serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--sys-gold, #CDB380);
+  letter-spacing: 0.005em;
+}
+
+.watch-felt__won-to {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+  white-space: nowrap;
 }
 
 .watch-felt__pot-label {

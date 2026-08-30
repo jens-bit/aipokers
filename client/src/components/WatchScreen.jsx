@@ -26,6 +26,15 @@ function handActive(game) {
   return active.includes(game.street);
 }
 
+// WV2-5: a hand that has finished but not yet been cleared by the next deal.
+// The engine's result -- winners, the pot, and every contestant's revealed hole
+// cards -- rides along on the terminal STATE, so the felt can hold the showdown
+// on screen for the whole pause between hands instead of blanking the instant
+// the hand ends.
+function handSettled(game) {
+  return !!game && game.street === Streets.COMPLETE && !!game.result;
+}
+
 function formatAction(action) {
   if (!action) return '--';
   const t = action.type;
@@ -434,10 +443,23 @@ function compactFor(slot, opponentCount) {
 // ---- WatchFelt -------------------------------------------------------------
 
 function WatchFelt({ game, mySeat, lastDecision, geom }) {
-  var between   = !handActive(game);
+  // WV2-5: three phases, not two. `settled` is a finished hand still on
+  // screen -- board, reveals and the pot going to its winner -- and it holds
+  // until the next deal clears it.
+  var live      = handActive(game);
+  var settled   = !live && handSettled(game);
+  var between   = !live && !settled;
   var street    = game ? (game.street || '').toUpperCase() : '';
   var pot       = game ? (game.pot || 0) : 0;
   var community = game ? (game.community || []) : [];
+  var result    = settled ? game.result : null;
+
+  // Which seats showed, and what they showed. Everyone else mucked.
+  var revealed = {};
+  if (result && result.showdown) {
+    result.showdown.forEach(function(sd) { revealed[sd.seat] = sd.holeCards || []; });
+  }
+  var winner = (result && result.winners && result.winners.length) ? result.winners[0] : null;
 
   var heroSeat  = Number.isInteger(mySeat) ? mySeat : 0;
   var seatCount = Math.max((game && game.seats) ? game.seats.length : 2, 2);
@@ -450,11 +472,16 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  var equityText  = between ? null : formatEquity(lastDecision && lastDecision.equity);
+  // Equity is a live read on a hand in progress. At showdown the cards are on
+  // the table, so the ref's readout shows an em dash there -- as it does
+  // between hands.
+  var equityText  = live ? formatEquity(lastDecision && lastDecision.equity) : null;
   var hasEquity   = equityText !== null;
-  var actionLabel = lastDecision && lastDecision.action
+  // At showdown the readout stops reporting the hero's last action and says
+  // how the hand ended -- the ref's `note` slot.
+  var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
-    : (game && game.toAct === heroSeat && !between ? 'TO ACT' : null);
+    : (game && game.toAct === heroSeat && live ? 'TO ACT' : null));
 
   // Opponents in seat order clockwise from the hero, so the ring on screen
   // matches the order the action actually moves in.
@@ -472,10 +499,43 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
       dealer: game.dealerSeat === si,
       // WV2-4: what this seat has put in on the current street, shown in front
       // of it. Zero and between hands both mean no pill.
-      bet: (!between && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
+      bet: (live && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
+      // WV2-5: at showdown a seat either shows its hand or it does not. A seat
+      // that FOLDED and did not show is mucked -- face down and dim, because
+      // folds keep their secrets. A seat that won uncontested never had to
+      // show either, but it did not muck, so its backs stay at full strength.
+      reveal: (settled && revealed[si] && revealed[si].length)
+        ? revealed[si].map(pc).filter(Boolean)
+        : null,
+      mucked: settled && !revealed[si] && !!s.folded,
     });
   }
   var slots = slotsFor(opponentSeats.length);
+
+  var heroWon    = !!(winner && winner.seat === heroSeat);
+  var heroShowed = !!(result && revealed[heroSeat]);
+  var heroNote   = !settled ? 'waiting for the deal'
+    : heroWon    ? (winner.descr || 'won the pot')
+    : heroShowed ? 'lost at showdown'
+    : 'folded';
+
+  var winnerName = (winner && game.seats && game.seats[winner.seat])
+    ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
+    : null;
+
+  // WV2-5: the street and what the hero is being asked for, on the meta line.
+  var blinds = (game && game.smallBlind != null && game.bigBlind != null)
+    ? ('$' + game.smallBlind + '/$' + game.bigBlind)
+    : '';
+  var toCall = (live && heroData && game.currentBet != null)
+    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
+    : 0;
+  var tableLabel = '#' + (game && game.tableId ? game.tableId : '--');
+  var metaLine = between
+    ? [tableLabel, blinds, 'SHUFFLING'].filter(Boolean).join(' · ')
+    : [tableLabel, blinds, street, seatCount + '-HANDED']
+        .concat(toCall > 0 ? ['TO CALL $' + toCall.toLocaleString()] : [])
+        .filter(Boolean).join(' · ');
 
   // WV2-3: the felt's height and its three interior tops come from the sheet's
   // current detent, so it grows and shrinks with the drag.
@@ -494,7 +554,8 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
         var slot    = slots[i];
         var align   = alignFor(slot);
         var compact = compactFor(slot, opponentSeats.length);
-        var showBacks = !between && !o.folded;
+        var showCards = !!o.reveal;
+        var showBacks = live ? !o.folded : (settled && !showCards);
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
             {compact
@@ -502,9 +563,16 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
                   folded={o.folded} dealer={o.dealer} />
               : <SeatChip name={o.name} stack={o.stack} pos={o.pos} acting={o.acting}
                   folded={o.folded} align={align} dealer={o.dealer} />}
-            {(showBacks || o.bet) && (
+            {(showBacks || showCards || o.bet) && (
               <div className="watch-felt__seat-row">
-                {showBacks && <SeatCardBacks />}
+                {showCards && (
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {o.reveal.map(function(c, k) {
+                      return <PlayingCard key={k} rank={c[0]} suit={c[1]} w={22} h={31} />;
+                    })}
+                  </div>
+                )}
+                {showBacks && <SeatCardBacks mucked={o.mucked} />}
                 {o.bet && <BetPill amount={o.bet} />}
               </div>
             )}
@@ -512,12 +580,20 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
         );
       })}
 
-      <div className="watch-felt__pot">
-        <span className="watch-felt__pot-label">POT</span>
-        <span className="watch-felt__pot-amt">
-          {between ? '--' : ('$' + pot.toLocaleString())}
-        </span>
-      </div>
+      {/* The pot ticker is an outer positioning row with the pill inside it --
+          without the inner element the pill spanned the whole felt. At
+          showdown the pot has already moved, so it steps aside for the
+          winner pill below the board. */}
+      {!settled && (
+        <div className="watch-felt__pot">
+          <div className="watch-felt__pot-pill">
+            <span className="watch-felt__pot-label">POT</span>
+            <span className="watch-felt__pot-amt">
+              {between ? '--' : ('$' + pot.toLocaleString())}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="watch-felt__board">
         {boardSlots.map(function(c, i) {
@@ -527,11 +603,21 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
         })}
       </div>
 
-      <div className="watch-felt__street">
-        {between
-          ? ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + seatCount + '-HANDED · SHUFFLING')
-          : ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + (game && game.blinds ? game.blinds : '') + ' · ' + seatCount + '-HANDED · ' + street)}
-      </div>
+      {settled ? (
+        <>
+          <div className="watch-felt__pot-trail" />
+          <div className="watch-felt__won">
+            <div className="watch-felt__won-pill">
+              <span className="watch-felt__won-amt">
+                {'$' + (result.pot || 0).toLocaleString()}
+              </span>
+              {winnerName && <span className="watch-felt__won-to">{'→ ' + winnerName}</span>}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="watch-felt__street">{metaLine}</div>
+      )}
 
       <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
         <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
@@ -573,7 +659,7 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
 
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
-          : <span className="watch-felt__waiting">waiting for the deal</span>}
+          : <span className="watch-felt__waiting">{heroNote}</span>}
       </div>
     </div>
   );
