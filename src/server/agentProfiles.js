@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
-import { telegramAuthMiddleware } from './auth.js';
+import { telegramAuthMiddleware, isOwner } from './auth.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
 import {
@@ -52,6 +52,58 @@ function getOrCreate(userId) {
 // ── In-memory active table tracking ─────────────────────────────────────────
 
 const activeTables = new Set();
+
+// ── Live table provider (AGE-35) ────────────────────────────────────────────
+// The REST layer needs to create and inspect live tables, but table.js imports
+// THIS module, so importing tableRegistry here would close a cycle. The
+// registry is injected instead — createServer() in wsServer.js is the
+// composition root and wires it on every boot path. When nothing is injected
+// (routes installed without a WebSocket server) deploy degrades to the old
+// behaviour: it hands back a tableId and waits for a client to build the table.
+let liveTables = null;
+
+export function setLiveTableProvider(provider) {
+  liveTables = provider ?? null;
+}
+
+// ── Agent-change listener (AGE-38) ──────────────────────────────────────────
+// The floor channel needs to re-push FLOOR_STATE when an agent's standing
+// changes (deployed, retired, recap written). Injected for the same reason as
+// the table provider: no import back out of this module.
+let agentChangeListener = null;
+
+export function setAgentChangeListener(fn) {
+  agentChangeListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitAgentChange(userId) {
+  if (!agentChangeListener) return;
+  try { agentChangeListener(String(userId ?? 'anon')); }
+  catch (err) { console.error('[agents] change listener failed:', err.message); }
+}
+
+// Retire every agent whose activeTableId points at a table that no longer
+// exists — the state a process restart always leaves behind. Returns the
+// number of agents retired.
+export function reconcileActiveSessions() {
+  let retired = 0;
+  for (const [userId, profile] of Object.entries(store)) {
+    for (const agent of (profile.agents || [])) {
+      const stale = (agent.activeTableId || agent.status === 'playing') &&
+        !(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
+      if (!stale) continue;
+      if (agent.activeTableId) activeTables.delete(agent.activeTableId);
+      agent.status = 'idle';
+      agent.activeTableId = null;
+      agent.unseenRecap = true;
+      agent.sessionRecap = { text: 'table closed while I was away', at: Date.now() };
+      agent.lastMoment = { text: 'table closed while I was away', mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+      retired++;
+      saveStore(userId);
+    }
+  }
+  return retired;
+}
 
 // ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
 // { tableId, expiresAt }
@@ -466,7 +518,10 @@ export function getMemoryContext(agentId, userId) {
 // table closes (natural end, sit-out, disconnect). Marks the agent idle,
 // sets unseenRecap, and builds a self-change proposal from leaks. No HTTP
 // round-trip; same in-process pattern as recordHandResult.
-export function finishAgentSession(agentId, userId) {
+// `recap` (AGE-35) is the line the agent leaves the session on — "long
+// session, sitting out", "sat out by owner", etc. It becomes both the stored
+// sessionRecap and the lastMoment the floor renders in the ghost's bubble.
+export function finishAgentSession(agentId, userId, { recap = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -474,8 +529,15 @@ export function finishAgentSession(agentId, userId) {
   agent.status = 'idle';
   agent.activeTableId = null;
   agent.unseenRecap = true;
+  if (typeof recap === 'string' && recap.trim()) {
+    ensureMood(agent);
+    const text = recap.trim().slice(0, 200);
+    agent.sessionRecap = { text, at: Date.now() };
+    agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  }
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
   saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
   return agent;
 }
 
@@ -583,23 +645,65 @@ function applyProposalPatch(agent, patch) {
 }
 
 // Compute the fields the floor UI needs — mood, lastMoment, unseenRecap,
-// presence — on top of the persisted agent record. Backfills defaults for
-// legacy agents so a first-load call after upgrade still returns a
-// well-shaped object.
-export function presentAgent(agent) {
+// presence, liveGame — on top of the persisted agent record. Backfills
+// defaults for legacy agents so a first-load call after upgrade still returns
+// a well-shaped object.
+//
+// AGE-37 presence law: 'playing' if and only if a session loop is actually
+// advancing hands at this agent's table. A stored status of "playing" is not
+// evidence of anything — that stale flag is exactly what made the floor lie
+// about frozen tables (BUG-16). The live table is the only witness.
+//
+// `owner` must only be true when the caller has proven ownership; it is what
+// gates heroHole in liveGame.
+export function presentAgent(agent, { owner = false } = {}) {
   if (!agent) return agent;
   ensureMood(agent);
   ensureStats(agent);
   ensureProfile(agent);
-  const presence = (agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting';
+  const liveGame = agent.activeTableId
+    ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
+    : null;
+  // Without an injected registry (routes installed with no WebSocket server)
+  // there is nothing to consult, so fall back to the stored flags.
+  const presence = liveTables
+    ? (liveGame ? 'playing' : 'resting')
+    : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
   return {
     ...agent,
     mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
     lastMoment: agent.lastMoment ?? null,
+    sessionRecap: agent.sessionRecap ?? null,
     unseenRecap: !!agent.unseenRecap,
     proposal: agent.proposal ?? null,
     presence,
+    liveGame,
   };
+}
+
+// AGE-38: the compact projection the floor channel pushes over WebSocket —
+// presentAgent minus the heavy fields (strategy text, recentHands, memory)
+// that the floor never renders. Same owner scoping: heroHole rides inside
+// liveGame and is only present when `owner` is true.
+export function floorSnapshot(userId, { owner = false } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  return profile.agents.map((agent) => {
+    const p = presentAgent(agent, { owner });
+    return {
+      id: p.id,
+      name: p.name,
+      style: p.style,
+      risk: p.risk,
+      presence: p.presence,
+      mood: p.mood,
+      lastMoment: p.lastMoment,
+      sessionRecap: p.sessionRecap,
+      unseenRecap: p.unseenRecap,
+      proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
+      activeTableId: p.activeTableId ?? null,
+      liveGame: p.liveGame,
+    };
+  });
 }
 
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
@@ -714,20 +818,28 @@ export function installAgentProfileRoutes(app) {
   app.get('/api/agent-profile', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
+    const owner = isOwner(req, userId);
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
-      agents: profile.agents.map(presentAgent),
+      agents: profile.agents.map((a) => presentAgent(a, { owner })),
       chat: profile.chat,
     });
   });
 
   // GET /api/agents?userId=... — agents array with the floor-UI fields
-  // (mood, lastMoment, unseenRecap, proposal, presence) folded in.
+  // (mood, lastMoment, unseenRecap, proposal, presence, liveGame) folded in.
+  // This is the casino floor's single data call.
+  //
+  // AGE-37: liveGame is present only while the agent is genuinely playing,
+  // and its heroHole is populated only for the authenticated owner — the same
+  // scoping law AGE-33 applied to DECISION broadcasts.
   app.get('/api/agents', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
-    res.json({ agents: profile.agents.map(presentAgent) });
+    const owner = isOwner(req, userId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner })) });
   });
 
   // DELETE /api/agents/:agentId?userId=...
@@ -763,13 +875,62 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
+    ensureMemory(agent);
+    ensureProfile(agent);
+
+    // Already at a live table — hand back the same one rather than stacking a
+    // second autonomous session on top of the first.
+    if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) {
+      return res.json({
+        tableId: agent.activeTableId,
+        agentId: agent.id,
+        agentName: agent.name,
+        strategy: agent.strategy,
+        displayName: 'Agent',
+        memoryContext: getAgentMemoryContext(agent),
+        alreadyPlaying: true,
+      });
+    }
+
+    // AGE-35: the global cost bound. Each autonomous table burns model calls
+    // with or without a watcher, so refuse past the cap with a clear reason.
+    if (liveTables && liveTables.countAutonomousTables() >= liveTables.MAX_CONCURRENT_TABLES) {
+      return res.status(503).json({
+        error: `The floor is full — ${liveTables.MAX_CONCURRENT_TABLES} tables are already running. Try again once one finishes.`,
+        maxConcurrentTables: liveTables.MAX_CONCURRENT_TABLES,
+      });
+    }
+
     const tableId = 'table-' + randomUUID().slice(0, 8);
+
+    // AGE-35: build the table and start the session loop NOW. Before this the
+    // table only came into being when a client sent WATCH, which is why an
+    // agent could show as "playing" while its game was frozen (BUG-16/17).
+    let sessionStarted = false;
+    if (liveTables) {
+      try {
+        const table = liveTables.getOrCreateTable(tableId);
+        const seat = table.startAgentSession({
+          agentId: agent.id,
+          userId,
+          displayName: agent.name || 'Agent',
+          strategy: agent.strategy || '',
+          memoryContext: getAgentMemoryContext(agent),
+          agentProfile: agent.profile ?? null,
+        });
+        sessionStarted = seat !== null;
+      } catch (err) {
+        console.error('[agents] failed to start server-side session:', err.message);
+      }
+    }
+
     activeTables.add(tableId);
     agent.activeTableId = tableId;
     agent.status = 'playing';
-    ensureMemory(agent);
+    agent.unseenRecap = false;
     saveStore(userId);
-    console.log(`[agents] deployed ${agent.name} to table ${tableId}`);
+    console.log(`[agents] deployed ${agent.name} to table ${tableId}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
+    emitAgentChange(userId);
 
     res.json({
       tableId,
@@ -778,6 +939,7 @@ export function installAgentProfileRoutes(app) {
       strategy: agent.strategy,
       displayName: 'Agent',
       memoryContext: getAgentMemoryContext(agent),
+      sessionStarted,
     });
   });
 
@@ -874,7 +1036,8 @@ export function installAgentProfileRoutes(app) {
     // pending proposals are preserved so the owner can still act on them.
     try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
     saveStore(userId);
-    res.json(presentAgent(agent));
+    emitAgentChange(userId);
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
@@ -889,7 +1052,7 @@ export function installAgentProfileRoutes(app) {
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
@@ -901,7 +1064,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
@@ -915,7 +1078,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.unseenRecap = false;
     saveStore(userId);
-    res.json(presentAgent(agent));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message
