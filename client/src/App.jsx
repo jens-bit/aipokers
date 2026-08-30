@@ -325,6 +325,25 @@ export default function App() {
                   memoryContext,
                 });
               }}
+              onDeploy={async (agent) => {
+                const res = await fetch(`/api/agents/${agent.id}/queue`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: getUserId() }),
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
             />
           )}
           {activeTab === 'chats' && (
