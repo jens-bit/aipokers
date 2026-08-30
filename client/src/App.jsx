@@ -21,6 +21,7 @@ import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
+import { BirthScreen, MaterializingOccupant } from './screens/BirthScreen.jsx';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -61,6 +62,8 @@ export default function App() {
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  const [isCreating, setIsCreating]       = useState(false);
+  const [newlyBornAgent, setNewlyBornAgent] = useState(null);
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
@@ -242,13 +245,29 @@ export default function App() {
   }
 
   if (!config) {
+    // Birth flow overlays all tabs — shown full-screen while creating a new agent.
+    if (isCreating) {
+      return (
+        <div className="app">
+          <BirthScreen
+            onBack={() => setIsCreating(false)}
+            onBirth={(agent) => {
+              setIsCreating(false);
+              setNewlyBornAgent(agent);
+              navigateTo('casino');
+            }}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
-        <div className="pre-game">
+        <div className="pre-game" style={{ position: 'relative' }}>
           {activeTab === 'casino' && (
             <CasinoFloor
-              onCreateAgent={() => navigateTo('chats')}
+              onCreateAgent={() => setIsCreating(true)}
               onChat={openAgentChat}
               onWatch={async (agent) => {
                 if (!agent?.activeTableId) return;
@@ -275,7 +294,7 @@ export default function App() {
               selectedAgent={agentChatTarget}
               onSelectAgent={openAgentChat}
               onBack={() => setAgentChatTarget(null)}
-              onCreateAgent={() => navigateTo('chats')}
+              onCreateAgent={() => setIsCreating(true)}
               onDeploy={async (agent) => {
                 setAgentChatTarget(null);
                 const res = await fetch(`/api/agents/${agent.id}/queue`, {
@@ -318,6 +337,15 @@ export default function App() {
             />
           )}
           {activeTab === 'you' && <YouScreen />}
+
+          {/* Newly born ghost materialises on the CASINO floor for ~5 s */}
+          {newlyBornAgent && activeTab === 'casino' && (
+            <MaterializingOccupant
+              name={newlyBornAgent.name}
+              phase={0.72}
+              onDone={() => setNewlyBornAgent(null)}
+            />
+          )}
         </div>
         <nav className="tab-bar">
           <button
