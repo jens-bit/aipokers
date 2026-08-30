@@ -870,6 +870,13 @@ export class Table {
       return;
     }
 
+    // MST-5: the socket belongs to neither a seat nor a spectator, so it has
+    // already been detached — by _retireSeat when its agent sat out, say.
+    // Falling through would run the "nobody is left here" cleanup below and
+    // drop a table that is still dealing out of the registry, which reads to
+    // the floor as every agent at it suddenly resting.
+    if (!this.connections.includes(ws)) return;
+
     let disconnectedWasHuman = false;
     let hadActiveGame = false;
     for (let i = 0; i < this.connections.length; i++) {
@@ -899,6 +906,10 @@ export class Table {
       this.closeTable('Session ended — opponent left', { recap: 'my opponent left the table' });
       return;
     }
+
+    // Same law as the spectator branch: a table the server is driving belongs
+    // to the server, and nobody disconnecting retires it.
+    if (this.autoPlay || this.isAiOnly()) return;
 
     if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
       if (this._aiInactivityTimer) {
