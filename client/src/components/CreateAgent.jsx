@@ -268,7 +268,7 @@ function CreatedAgentCard({ agent, deploying, onDeploy, onKeepTuning }) {
           onClick={onDeploy}
           disabled={deploying}
         >
-          {deploying ? 'DeployingÔÇª' : 'Deploy now'}
+          {deploying ? 'Dealing in…' : 'Deal him in'}
         </button>
         <button className="dr-secondary-btn" type="button" onClick={onKeepTuning} disabled={deploying}>
           Keep tuning

@@ -168,7 +168,7 @@ export function Play({ onConnect, onWatch, onDone, initialStep = 'play-mode', ag
             disabled={loading || deployingId != null}
           >
             <span><RocketIcon /></span>
-            <b>{deployingId ? 'Deploying…' : deployTarget ? 'Deploy agent' : 'Create agent'}</b>
+            <b>{deployingId ? 'Dealing in…' : deployTarget ? 'Deal him in' : 'Create agent'}</b>
             <small>
               {deployTarget
                 ? `Send ${deployTarget.name} to a heads-up table.`

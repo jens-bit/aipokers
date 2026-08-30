@@ -106,7 +106,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat, onVsYou }) {
                     onClick={() => deploy(agent)}
                     disabled={busy}
                   >
-                    {isPlaying ? 'View table' : busy ? 'Deploying…' : 'Deploy'}
+                    {isPlaying ? 'View table' : busy ? 'Dealing in…' : 'Deal him in'}
                   </button>
                   {onVsYou && (
                     <button

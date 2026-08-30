@@ -113,9 +113,9 @@ export function DesktopRail({
                   type="button"
                   className="dsk-thread__deploy"
                   onClick={() => onDeployAgent(agent)}
-                  title={`Deploy ${agent.name}`}
+                  title={`Deal him in: ${agent.name}`}
                 >
-                  DEPLOY
+                  DEAL HIM IN
                 </button>
               )}
             </div>
