@@ -2,12 +2,12 @@
  * Complements tokens.css with sys-* variables from mood-atoms.jsx. */
 
 :root {
-  --sys-bg:       #0A0A0A;
-  --sys-panel:    #111111;
-  --sys-panel-2:  #131316;
-  --sys-surf:     #1A1A1F;
-  --sys-border:   rgba(255, 255, 255, 0.06);
-  --sys-border-2: rgba(255, 255, 255, 0.10);
+  --sys-bg:       #1A1A1E;
+  --sys-panel:    #232329;
+  --sys-panel-2:  #28282F;
+  --sys-surf:     #2F2F37;
+  --sys-border:   rgba(255, 255, 255, 0.12);
+  --sys-border-2: rgba(255, 255, 255, 0.18);
   --sys-text:     #EDEDED;
   --sys-dim:      #A1A1A1;
   --sys-muted:    #6B6B6B;

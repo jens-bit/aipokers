@@ -19,7 +19,7 @@ export function LiveBar({ table, blinds, pot, equity, action, timer = 12, board 
   return (
     <div style={{
       flexShrink: 0,
-      background: '#131316',
+      background: '#28282F',
       ...(strip ? {} : { borderBottom: '1px solid #00D4AA3D' }),
       boxShadow: 'inset 0 1px 0 #00D4AA2E, 0 6px 14px rgba(0,0,0,0.35)',
       cursor: 'pointer',
@@ -65,7 +65,7 @@ export function LiveBar({ table, blinds, pot, equity, action, timer = 12, board 
                 </div>
               ))}
             </div>
-            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
           </>
         )}
 
@@ -81,13 +81,13 @@ export function LiveBar({ table, blinds, pot, equity, action, timer = 12, board 
         {/* stats or note */}
         {note ? (
           <>
-            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
             <div style={{ fontSize: 12, color: '#6B6B6B', fontStyle: 'italic', minWidth: 0 }}>{note}</div>
             <div style={{ flex: 1 }} />
           </>
         ) : (
           <>
-            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <span style={{
                 fontFamily: '"Oswald","Inter",sans-serif', fontSize: 8.5, fontWeight: 500,
@@ -100,7 +100,7 @@ export function LiveBar({ table, blinds, pot, equity, action, timer = 12, board 
                 }}>${pot}</span>
               </div>
             </div>
-            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+            <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <span style={{
                 fontFamily: '"Oswald","Inter",sans-serif', fontSize: 8.5, fontWeight: 500,

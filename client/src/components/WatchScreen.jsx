@@ -83,14 +83,14 @@ function DecisionBand({ street, action, equity, reasoning }) {
   return (
     <div style={{
       padding: '10px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{
           fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
           fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
           padding: '2px 7px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.12)',
           color: 'var(--sys-muted,#6B6B6B)',
           textTransform: 'uppercase', flexShrink: 0,
         }}>{(street || 'PREFLOP').toUpperCase()}</span>
@@ -151,14 +151,14 @@ function HandDivider({ handNumber }) {
       display: 'flex', alignItems: 'center', gap: 9,
       padding: '8px 14px',
     }}>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
       <span style={{
         fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
         fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: 'var(--sys-muted,#6B6B6B)',
       }}>HAND #{handNumber}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
     </div>
   );
 }

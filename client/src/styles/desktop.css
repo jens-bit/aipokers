@@ -12,9 +12,9 @@
 .dsk-root {
   --dsk-bg: #070708;
   --dsk-panel: #0c0c0e;
-  --dsk-surface: #131316;
+  --dsk-surface: #28282F;
   --dsk-surface-2: #191920;
-  --dsk-border: rgba(255, 255, 255, 0.06);
+  --dsk-border: rgba(255, 255, 255, 0.12);
   --dsk-border-strong: rgba(255, 255, 255, 0.10);
   --dsk-text: #EDEDED;
   --dsk-dim: #A1A1A1;

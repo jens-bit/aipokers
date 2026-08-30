@@ -19,9 +19,9 @@ const M_GOLD   = '#CDB380';
 const M_TEXT   = '#EDEDED';
 const M_DIM    = '#A1A1A1';
 const M_MUTED  = '#6B6B6B';
-const M_BORDER = 'rgba(255,255,255,0.06)';
-const M_PANEL  = '#111111';
-const M_PANEL_2 = '#181818';
+const M_BORDER = 'rgba(255,255,255,0.12)';
+const M_PANEL  = '#232329';
+const M_PANEL_2 = '#28282F';
 const OSWALD   = "'Oswald', 'Inter', sans-serif";
 const PAD      = 14;
 
@@ -75,7 +75,7 @@ function BackBtn({ onClick }) {
       style={{
         position: 'absolute', top: 10, left: 12, zIndex: 3,
         width: 34, height: 34, display: 'grid', placeItems: 'center',
-        border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10,
+        border: `1px solid ${M_BORDER}`, borderRadius: 10,
         background: 'rgba(8,10,11,0.86)', color: M_TEXT, cursor: 'pointer',
         padding: 0,
       }}
