@@ -271,39 +271,51 @@ export default function App() {
             />
           )}
           {activeTab === 'chats' && (
-            agentChatTarget ? (
-              <div className="pre-game__chat-wrap">
-                <AgentChat
-                  agent={agentChatTarget}
-                  onBack={() => setAgentChatTarget(null)}
-                  onDeploy={async (agent) => {
-                    setAgentChatTarget(null);
-                    const res = await fetch(`/api/agents/${agent.id}/queue`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: getUserId() }),
-                    });
-                    if (!res.ok) return;
-                    const payload = await res.json();
-                    setActiveAgent(payload.agentId);
-                    watch({
-                      tableId: payload.tableId,
-                      agentId: payload.agentId,
-                      userId: getUserId(),
-                      agentStrategy: payload.strategy,
-                      displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                      wantOpponentAI: false,
-                      memoryContext: payload.memoryContext ?? '',
-                    });
-                  }}
-                />
-              </div>
-            ) : (
-              <ChatsScreen
-                onSelectAgent={openAgentChat}
-                onCreateAgent={() => navigateTo('chats')}
-              />
-            )
+            <ChatsScreen
+              selectedAgent={agentChatTarget}
+              onSelectAgent={openAgentChat}
+              onBack={() => setAgentChatTarget(null)}
+              onCreateAgent={() => navigateTo('chats')}
+              onDeploy={async (agent) => {
+                setAgentChatTarget(null);
+                const res = await fetch(`/api/agents/${agent.id}/queue`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: getUserId() }),
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                setActiveAgent(payload.agentId);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+              onWatch={async (agent) => {
+                if (!agent?.activeTableId) return;
+                let memoryContext = '';
+                try {
+                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+                  if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+                } catch { /* watch with empty context */ }
+                setAgentChatTarget(null);
+                setActiveAgent(agent.id);
+                watch({
+                  tableId: agent.activeTableId,
+                  agentId: agent.id,
+                  userId: getUserId(),
+                  agentStrategy: agent.strategy,
+                  displayName: agent.name || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext,
+                });
+              }}
+            />
           )}
           {activeTab === 'you' && <YouScreen />}
         </div>
