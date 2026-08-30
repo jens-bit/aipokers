@@ -17,6 +17,7 @@
 // one-sentence explanation produced by the model alongside the decision.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { formatOpponentRead } from './reads.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -55,16 +56,6 @@ function moodPromptHint(state) {
     case 'sulking':    return ' You have shut down a little — tighten sizings and stick close to the script.';
     default:           return '';
   }
-}
-
-// Coarse VPIP → label bucket. Used only in the OPPONENT READ briefing line.
-function vpipLabel(vpip) {
-  if (!Number.isFinite(vpip)) return 'unknown';
-  if (vpip < 15) return 'very tight';
-  if (vpip < 25) return 'tight';
-  if (vpip < 45) return 'normal';
-  if (vpip < 70) return 'loose';
-  return 'very loose';
 }
 
 // Build the per-turn user message describing the current game state.
@@ -130,20 +121,17 @@ function buildUserPrompt(gs) {
   }
 
   // Opponent reads (deterministic, from the last-N-hands ring in
-  // opponentStats). Advisory: gives the model the ammunition to actually
-  // exploit weak players instead of guessing based on hand strength alone.
+  // opponentStats), rendered by src/agent/reads.js. Each read yields the stat
+  // line plus an explicit EXPLOIT directive for the shape it describes.
+  //
+  // The directive is the point. Handing the model raw percentages and hoping
+  // it derives the counter-strategy produced the opposite of one: reads-on
+  // TAG folded 57% against a Calling Station versus 31% with reads off, and
+  // gave up two thirds of its edge. See reads.js for the full autopsy.
   const readLines = [];
   if (Array.isArray(gs.opponentReads)) {
     for (const r of gs.opponentReads) {
-      if (!r || !Number.isFinite(r.handsObserved) || r.handsObserved < 10) continue;
-      const label = vpipLabel(r.vpip);
-      const afText = Number.isFinite(r.af) ? r.af.toFixed(1) : (r.af === Infinity ? 'inf (never calls)' : '0');
-      const foldToRaise = Number.isFinite(r.foldToRaise) ? `folds to raises ${r.foldToRaise.toFixed(0)}%` : 'no fold-to-raise data yet';
-      const wtsd = Number.isFinite(r.wentToShowdown) ? `goes to showdown ${r.wentToShowdown.toFixed(0)}%` : '';
-      readLines.push(
-        `OPPONENT READ (${r.displayName || r.playerId}, ${r.handsObserved} hands): ` +
-        `VPIP ${r.vpip.toFixed(0)}% (${label}), PFR ${r.pfr.toFixed(0)}%, AF ${afText}, ${foldToRaise}, ${wtsd}.`,
-      );
+      readLines.push(...formatOpponentRead(r));
     }
   }
   const readsBlock = readLines.length > 0 ? `\n${readLines.join('\n')}` : '';
@@ -158,6 +146,11 @@ LEGAL ACTIONS: ${actions.join(' | ')}
 
 The math and policy lines above are ADVISORY server hints, not commands.
 Weigh them; deviate when your strategy calls for it, and say why briefly.
+
+An EXPLOIT line is different: it is the counter-strategy for how this specific
+opponent has actually been playing, measured over real hands. Follow it. In
+particular, a high showdown percentage means he PAYS OFF your value bets — it
+is never a reason to fold more.
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.
 Respond with the JSON object including both "action" and "reasoning".
