@@ -9,13 +9,17 @@ const M_PANEL_2 = '#28282F';
 const M_SURF = '#2F2F37';
 const M_BORDER = 'rgba(255,255,255,0.12)';
 const M_BORDER_2 = 'rgba(255,255,255,0.18)';
-const M_TEXT = '#EDEDED';
-const M_DIM = '#A1A1A1';
-const M_MUTED = '#6B6B6B';
-const M_FAINT = '#3A3A3F';
+// CONTRAST LAW: every text token is measured against the worst composited base it
+// actually sits on (the teal-tinted pill, L=0.0330), not against the flat ground.
+// The ambience pass lifted the room, so the greys lifted with it — holding them fixed
+// would have preserved the hex and destroyed the relationship.
+const M_TEXT = '#EDEDED';   // primary   · 12.4:1 panel
+const M_DIM = '#C3C3C6';    // secondary ·  8.2:1 panel
+const M_MUTED = '#9E9EA2';  // tertiary  ·  5.5:1 panel · 4.7:1 on tinted pills
+const M_FAINT = '#55555C';  // NOT TEXT  · dashes, rings, empty pips only
 const M_TEAL = '#00D4AA';
 const M_GOLD = '#CDB380';
-const M_RED = '#FF4D4F';
+const M_RED = '#FF6B6D';    // 5.3:1 panel
 const M_PURPLE = '#9B7BFF';
 const M_PINK = '#FF7A8E';
 
@@ -28,13 +32,16 @@ const MONO = '"JetBrains Mono", ui-monospace, monospace';
 const INTER = '"Inter", -apple-system, system-ui, sans-serif';
 
 // Identity = accent (border/rim). Mood = eyes + glow. Never mixed.
-// Neutral/sulking use the existing --neutral and --text-muted tokens from styles.css.
+// FIVE colours, five moods — the neutral/sulking pair must never collapse onto one
+// token. Pre-lift they were #888888 vs #6B6B6B (neutral brighter, more present);
+// post-lift that relationship is #BDBDC1 vs #9E9EA2, both clearing AA.
+const M_NEUTRAL = '#BDBDC1';  // mood only — never a text token
 const MOODS = {
-  confident:  { label: 'CONFIDENT',  color: M_TEAL,   glow: 0.34, pip: '▲', cause: 'won three big pots in a row' },
-  neutral:    { label: 'NEUTRAL',    color: '#888888', glow: 0.10, pip: '–', cause: 'even session, nothing notable' },
+  confident:  { label: 'CONFIDENT',  color: M_TEAL,     glow: 0.34, pip: '▲', cause: 'won three big pots in a row' },
+  neutral:    { label: 'NEUTRAL',    color: M_NEUTRAL,  glow: 0.10, pip: '–', cause: 'even session, nothing notable' },
   frustrated: { label: 'FRUSTRATED', color: M_GOLD,   glow: 0.20, pip: '!', cause: 'folded the best hand twice' },
   tilted:     { label: 'TILTED',     color: M_RED,    glow: 0.36, pip: '⚡', cause: 'lost two big pots as favorite' },
-  sulking:    { label: 'SULKING',    color: '#6B6B6B', glow: 0.07, pip: '▾', cause: 'got shown a bluff, wants to sit out' },
+  sulking:    { label: 'SULKING',    color: M_MUTED, glow: 0.07, pip: '▾', cause: 'got shown a bluff, wants to sit out' },
 };
 
 // ── The expression vehicle ──
@@ -447,7 +454,7 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
-  M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
+  M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
   MOODS, MoodGhost, MoodPip, MoodAvatar, MoodChip,
   Lbl, Num, Amt, LiveDot, Btn, PhoneShell, TabBar, ChatComposer, DayDivider, BackHeader,
   GlobalHeader, SpadeLogo, STATES, StateTag, MoodBand, LiveBar, CANON,

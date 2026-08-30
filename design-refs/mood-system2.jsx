@@ -191,7 +191,36 @@ const StateMatrixM = () => {
   };
   const states = ['live', 'recap', 'resting', 'drafting'];
   return (
-    <Sheet title="State matrix" sub="Agent presence × surface. Two laws visible at once. Status never lies — a live marker appears only where the agent is actually playing. And a live felt is a diorama: board, the agent's own hole cards face up, and the pot, readable with no tap at all. Three states describe an agent that exists; drafting describes one that does not — dashed everywhere, no mood, no P&L, no name on any list surface, and a dashed roster row holding a seat in the list rather than a filled one.">
+    <Sheet title="State matrix" sub="Agent presence × surface. Two laws visible at once. Status never lies — a live marker appears only where the agent is actually playing. And a live felt is a diorama: board, the agent's own hole cards face up, and the pot, readable with no tap at all. Three states describe an agent that exists; drafting describes one that does not — dashed everywhere, no mood, no P&L, no name on any list surface, and a dashed roster row holding a seat in the list rather than a filled one. THE SNACK is an affordance on MOOD, not a state — it appears wherever mood is soothable (frustrated / tilted / sulking) in any live state, and is absent rather than disabled when he is fine.">
+      {/* the snack row: an affordance keyed to MOOD, shown rather than described */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${M_BORDER}` }}>
+        <div style={{ width: 120, flexShrink: 0 }}>
+          <SyLbl>The snack</SyLbl>
+          <div data-typescan="skip" style={{ fontSize: 11, color: M_MUTED, lineHeight: 1.45 }}>
+            keyed to mood,<br/>not to state
+          </div>
+        </div>
+        {[
+          { m: 'tilted', label: 'soothable', chip: { left: 2, state: 'ready' } },
+          { m: 'sulking', label: 'soothable · on cooldown', chip: { left: 1, state: 'cooldown', time: '11:40' } },
+          { m: 'confident', label: 'fine — no chip at all', chip: null },
+        ].map(row => (
+          <div key={row.m} style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
+              <MoodGhost mood={row.m} accent={M_PURPLE} size={26}/>
+              <MoodChip mood={row.m}/>
+            </div>
+            {row.chip
+              ? <SnackChip full {...row.chip}/>
+              : <div style={{ height: 40, borderRadius: 20, border: `1px dashed ${M_BORDER_2}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span data-typescan="skip" style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, letterSpacing: '0.1em' }}>ABSENT</span>
+                </div>}
+            <div data-typescan="skip" style={{ fontSize: 10.5, color: M_MUTED, marginTop: 7, lineHeight: 1.4 }}>{row.label}</div>
+          </div>
+        ))}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: `120px repeat(4, ${CELL_W}px)`, gap: 14 }}>
         <div/>
         {['Floor (occupant)', 'Chats row (AgentRow)', 'Thread header (MoodBand)', 'Desktop rail (roster + tile)'].map(h => (

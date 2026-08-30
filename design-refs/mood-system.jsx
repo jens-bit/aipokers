@@ -194,7 +194,7 @@ const DerivedTypeScale = () => {
 };
 
 const SystemTokensM = () => (
-  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values. AMBIENCE PASS: ground lifted #0A0A0A → #1A1A1E, panels to #232329 / #28282F, borders to 0.12 / 0.18, felt and room fill-light roughly ×2 — tuned for phone OLEDs, which crush shadows. Mood glows unchanged, so they pop harder against the lighter room. Text colours untouched.">
+  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values. AMBIENCE PASS: ground lifted #0A0A0A → #1A1A1E, panels to #232329 / #28282F, borders to 0.12 / 0.18, felt and room fill-light roughly ×2 — tuned for phone OLEDs, which crush shadows. Mood glows unchanged, so they pop harder against the lighter room. CONTRAST: the greys were lifted <b>with</b> the room — M_DIM → #C3C3C6, M_MUTED → #9E9EA2, M_RED → #FF6B6D — because holding them fixed under a brighter ground drops secondary text to 2.75:1. Every text token now clears AA against the worst base it sits on (the teal-tinted pill), measured rather than assumed. M_FAINT #55555C is reclassified as non-text: dashes, rings and empty pips only.">
     <SyLbl>Grounds, panels, borders</SyLbl>
     <Row>
       <Swatch hex={M_BG} name="M_BG" use="app ground, floor ground"/>
@@ -209,12 +209,12 @@ const SystemTokensM = () => (
     <Row mb={22}>
       <div style={{ width: 280 }}>
         <div style={{ height: 42, borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}/>
-        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>rgba(255,255,255,0.06)</div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>{M_BORDER}</div>
         <div style={{ fontSize: 11, color: M_DIM, marginTop: 2 }}>M_BORDER · every card and divider</div>
       </div>
       <div style={{ width: 280 }}>
         <div style={{ height: 42, borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER_2}` }}/>
-        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>rgba(255,255,255,0.10)</div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>{M_BORDER_2}</div>
         <div style={{ fontSize: 11, color: M_DIM, marginTop: 2 }}>M_BORDER_2 · inputs, ghost buttons</div>
       </div>
     </Row>

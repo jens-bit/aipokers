@@ -20,30 +20,30 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 .ft{font-family:"Playfair Display",serif;font-size:17px;font-weight:600;color:#EDEDED}
 .fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0}
 .fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
-.fb.dim{color:#8A8A92;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
-.fa{margin-top:12px;max-width:406px;font-size:12px;line-height:1.5;color:#8A8A92}
+.fb.dim{color:#9E9EA2;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
+.fa{margin-top:12px;max-width:406px;font-size:12px;line-height:1.5;color:#9E9EA2}
 .fa b{color:#C9C9CE;font-weight:600}
 .fa code{font-family:"JetBrains Mono",monospace;font-size:11px;color:#00D4AA}
 .panel{width:400px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:22px 22px 24px}
 .panel h1{font-family:"Playfair Display",serif;font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
 .panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
-.panel p{font-size:12.5px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p{font-size:12.5px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
 .panel p b{color:#EDEDED;font-weight:600}
-.panel .rule{display:flex;gap:9px;font-size:12px;line-height:1.5;color:#A1A1A1;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
-.panel .rule span:first-child{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6B6B6B;flex-shrink:0;padding-top:1px}
-.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:18px 0 8px}
+.panel .rule{display:flex;gap:9px;font-size:12px;line-height:1.5;color:#C3C3C6;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.panel .rule span:first-child{font-family:"JetBrains Mono",monospace;font-size:10px;color:#9E9EA2;flex-shrink:0;padding-top:1px}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:18px 0 8px}
 .swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
-.sw{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:#8A8A92;border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:4px 7px}
+.sw{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:#9E9EA2;border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:4px 7px}
 .sw i{width:9px;height:9px;border-radius:2px;display:block}
 .rec{margin-top:10px;padding:11px 13px;border-radius:9px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.28)}
 .rec .h{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
-.rec p{margin:0;font-size:12px;color:#A1A1A1;line-height:1.55}
+.rec p{margin:0;font-size:12px;color:#C3C3C6;line-height:1.55}
 .detail{width:406px;background:#0A0A0A;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 0}
 .grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
-.groupsub{font-size:12px;color:#8A8A92;line-height:1.5;margin-bottom:18px;max-width:900px}
+.groupsub{font-size:12px;color:#9E9EA2;line-height:1.5;margin-bottom:18px;max-width:900px}
 .lawrow{display:flex;gap:12px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}
 .lawrow .k{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;width:86px;flex-shrink:0;padding-top:2px}
-.lawrow .v{font-size:12px;line-height:1.5;color:#A1A1A1}
+.lawrow .v{font-size:12px;line-height:1.5;color:#C3C3C6}
 </style>
 </head>
 <body>
@@ -64,7 +64,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     <p style="margin-bottom:6px">One status system in home rows, thread bands and team cards. An idle agent shows no live marker anywhere.</p>
     <div class="lawrow"><span class="k" style="color:#00D4AA">Live</span><span class="v">playing now — pulse dot, and a sticky bar in the thread</span></div>
     <div class="lawrow"><span class="k" style="color:#CDB380">Recap</span><span class="v">finished since you last looked — gold tick</span></div>
-    <div class="lawrow"><span class="k" style="color:#6B6B6B">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
+    <div class="lawrow"><span class="k" style="color:#9E9EA2">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
 
     <div class="lbl" style="color:#CDB380">Law 3 · the floor is a fish tank</div>
     <p style="margin-bottom:6px">A felt where one of <b>your own</b> agents is playing renders as a living <b>mini-diorama</b> — board on the felt centre, his two hole cards face up and fanned in front of his seated ghost, pot above the far rail. The felt <b>is</b> the zero-tap view; there is no now-playing bar. Another user&rsquo;s agent always shows <b>backs</b>.</p>
@@ -349,6 +349,36 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
   <div class="fa"><b>Three ghosts, one felt — existed in code, never drawn.</b> Balanced and Aggressive are yours: face-up minis at the near rail, per the diorama law. doyle_v3 belongs to another owner: card backs, always. One PotTicker above the far rail serves the whole table — a pot is the table's, not a seat's.</div>
 </div>
 
+<!-- THE SNACK -->
+<div class="frame" style="left:520px;top:10800px">
+  <div class="grouphdr">The snack — the first item</div>
+  <div class="groupsub">Designed before it is built, and shipped <b>alone</b>. Scope law: <b>items touch STATE, never SKILL</b> — a snack soothes one mood step and changes nothing about how he plays. One effect, one button, and it <b>shares the pep-talk cooldown</b>, so care has one clock. Inventory is <b>3, regenerating daily at 08:00</b> — shown as pantry pips, never a number with a glyph. <b>No store, no prices, no currency iconography anywhere</b>: the biscuit is warm gold with a bite taken out, the moment reads as feeding a pet. Reuses MoodBand, thread bubbles, EventLine, ZoomView — the chip docks above the composer via the thread's new <code>dock</code> slot.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">28a</span><span class="ft">The button</span><span class="fb gold">soothable only</span></div>
+  <div id="sn1"></div>
+  <div class="fa"><b>Tilted agent, chip ready, two pips in the pantry.</b> The chip docks between feed and composer — care sits next to talking, not inside it. Below, at 1:1: the <b>cooldown</b> state (mm:ss, marked shared with pep talk), the <b>empty pantry</b> (restocks at 08:00), and the rule that matters most: on a fine agent the chip is <b>absent, not disabled</b> — care you cannot spend wrongly needs no grey state.</div>
+  <div style="margin-top:16px"><div id="sn1s"></div></div>
+</div>
+<div class="frame" style="left:980px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28b</span><span class="ft">The moment</span><span class="fb teal">one step down</span></div>
+  <div id="sn2"></div>
+  <div class="fa"><b>Three things move at once, all in existing anatomy.</b> The EventLine logs the act (TILTED ▾ FRUSTRATED · one step, gold — reward territory), the MoodBand is already showing <b>frustrated</b> with &ldquo;stepped down — was tilted a minute ago&rdquo; as its cause, and the chip has decremented to one pip and entered the shared cooldown. His acknowledgment is in his voice, mid-chew — grudging, because he is still frustrated. A snack is one step, not a cure.</div>
+</div>
+<div class="frame" style="left:1440px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28c</span><span class="ft">The refusal</span><span class="fb">no error styling</span></div>
+  <div id="sn3"></div>
+  <div class="fa"><b>&ldquo;He's fine. Save it.&rdquo;</b> Trying to feed a confident agent is declined by the house in a muted EventLine — the same furniture as every other event, <b>no red, no toast, no error state</b>. The pantry keeps its pips and the agent gets the last word. Being told no is part of the fiction.</div>
+</div>
+<div class="frame" style="left:1900px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28d</span><span class="ft">The zoom</span><span class="fb">same affordance</span></div>
+  <div id="sn4"></div>
+  <div class="fa"><b>The sulking case, where the zoom already lives.</b> The chip rides the zoom's new <code>extra</code> slot between cause line and actions — identical anatomy to the thread's dock, so the affordance is learned once. CHAT and PROFILE keep their places; the snack never replaces a conversation, it sits beside one.</div>
+</div>
+<div class="frame" style="left:2360px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28e</span><span class="ft">Flavor · the bar</span><span class="fb gold">six seconds</span></div>
+  <div id="sn5"></div>
+  <div class="fa"><b>The cheapest possible version, priced in elements: one biscuit svg, two crumb dots, one warm pool.</b> All four ride the existing <code>drift</code> keyframe plus a single 6s <code>crumbfade</code> — CSS only, self-terminating, no state. The room notices him being cared for and then goes back to its night. Value Bot keeps sulking in the corner: a snack is his owner's to give, not ambient.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -367,6 +397,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-casino.jsx"></script>
 <script type="text/babel" src="mood-watch.jsx"></script>
 <script type="text/babel" src="mood-watch2.jsx"></script>
+<script type="text/babel" src="mood-snack.jsx"></script>
 <script type="text/babel" src="mood-birth.jsx"></script>
 <script type="text/babel" src="mood-flow.jsx"></script>
 
@@ -410,6 +441,12 @@ const mounts = [
   ['wm2', Watch6HandScreenM],
   ['wm3', WatchShowdownScreenM],
   ['ftrio', FloorTrioScreenM],
+  ['sn1', SnackThreadScreenM],
+  ['sn1s', SnackStatesStripM],
+  ['sn2', SnackMomentScreenM],
+  ['sn3', SnackRefusalScreenM],
+  ['sn4', SnackZoomScreenM],
+  ['sn5', SnackFloorScreenM],
 ];
 mounts.forEach(([id, Comp]) => {
   ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);

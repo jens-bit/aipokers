@@ -478,7 +478,7 @@ const FloorFullScreenM = () => (
 );
 
 // ═══ ZOOM ═══
-const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip }) => {
+const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip, extra }) => {
   const m = MOODS[mood];
   return (
     <PhoneShell>
@@ -531,6 +531,7 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip 
             <StateTag state={state} compact/>
           </div>
           <div style={{ fontSize: 13, color: m.color, lineHeight: 1.45, marginBottom: 13 }}>{cause}</div>
+          {extra && <div style={{ marginBottom: 12 }}>{extra}</div>}
           <div style={{ display: 'flex', gap: 9 }}>
             {primary === 'watch' ? (
               <>

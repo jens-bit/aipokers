@@ -120,7 +120,7 @@ const AgentCardMsg = ({ mood, accent, time, children }) => (
 
 // ═══ THE ONE SCREEN ═══
 // Header, band, bar slot, feed, composer. Nothing else exists in a thread.
-const ThreadScreen = ({ name, accent, mood, cause, state, action, bar, children }) => (
+const ThreadScreen = ({ name, accent, mood, cause, state, action, bar, dock, children }) => (
   <PhoneShell>
     <GlobalHeader back title={name}/>
     <MoodBand accent={accent} mood={mood} cause={cause} state={state} action={action}/>
@@ -128,6 +128,7 @@ const ThreadScreen = ({ name, accent, mood, cause, state, action, bar, children 
     <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'hidden', paddingTop: 10 }}>
       {children}
     </div>
+    {dock}
     <ChatComposer placeholder={`Message ${name}…`}/>
   </PhoneShell>
 );

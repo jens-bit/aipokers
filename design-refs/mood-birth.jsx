@@ -84,7 +84,7 @@ const TraitBar = ({ k, v, accent = M_TEAL }) => (
       {v != null && <div style={{ height: '100%', width: `${v}%`, background: accent, boxShadow: `0 0 6px ${accent}77` }}/>}
     </div>
     <span style={{ minWidth: 26, textAlign: 'right' }}>
-      {v == null ? <span style={{ fontFamily: MONO, fontSize: 10.5, color: M_FAINT }}>—</span>
+      {v == null ? <span style={{ fontFamily: MONO, fontSize: 10.5, color: M_MUTED }}>—</span>
                  : <Num size={10.5} color={M_TEXT}>{v}</Num>}
     </span>
   </div>
@@ -104,7 +104,7 @@ const DraftStrip = ({ style, risk, tight, aggr }) => (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
           <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED }}>{k}</span>
           {v == null
-            ? <span style={{ fontFamily: MONO, fontSize: 12, color: M_FAINT }}>—</span>
+            ? <span style={{ fontFamily: MONO, fontSize: 12, color: M_MUTED }}>—</span>
             : <Num size={12} weight={700} color={M_TEXT}>{v}</Num>}
         </div>
       </React.Fragment>
@@ -128,7 +128,7 @@ const DraftProfile = ({ phase, style, risk, tight, aggr, name }) => (
     <div style={{ display: 'flex', alignItems: 'stretch' }}>
       <div style={{ flex: 1, minWidth: 0, padding: '8px 12px 10px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-          <span style={{ fontFamily: ROZHA, fontSize: 15, color: name ? M_TEXT : M_FAINT }}>
+          <span style={{ fontFamily: ROZHA, fontSize: 15, color: name ? M_TEXT : M_MUTED }}>
             {name || 'unnamed'}
           </span>
         </div>
