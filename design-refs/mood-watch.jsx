@@ -32,7 +32,7 @@ const WatchFelt = ({ h, children }) => (
 );
 
 // ── the hero readout: LiveBar's row at full size ──
-const HeroReadout = ({ faceDown, showAction, timer }) => (
+const HeroReadout = ({ faceDown, showAction, timer, note }) => (
   <div style={{
     position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 3,
     display: 'flex', alignItems: 'center', gap: 7,
@@ -70,7 +70,7 @@ const HeroReadout = ({ faceDown, showAction, timer }) => (
         <SeatTimerRing value={timer}/>
       </>
     ) : (
-      <span style={{ fontSize: 11.5, color: M_MUTED, fontStyle: 'italic', whiteSpace: 'nowrap' }}>waiting for the deal</span>
+      <span style={{ fontSize: 11.5, color: M_MUTED, fontStyle: 'italic', whiteSpace: 'nowrap' }}>{note || 'waiting for the deal'}</span>
     )}
   </div>
 );
@@ -273,5 +273,5 @@ const WatchSitOutScreenM = () => (
 
 Object.assign(window, {
   WatchLiveScreenM, WatchBetweenScreenM, WatchSitOutScreenM,
-  WatchFelt, HeroReadout, WatchTabs, SitOutStrip, W_HAND,
+  WatchFelt, HeroReadout, WatchTabs, SitOutStrip, AnalysisRow, W_HAND,
 });

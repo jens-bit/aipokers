@@ -53,7 +53,7 @@ const SeatAvatar = ({ mood, size = 34 }) => {
 };
 
 // compact seat chip — top corners, never an oval seat ring
-const SeatChip = ({ name, stack, pos, acting, folded, align = 'left' }) => (
+const SeatChip = ({ name, stack, pos, acting, folded, align = 'left', dealer }) => (
   <div style={{
     display: 'flex', alignItems: 'center', gap: 7,
     padding: '4px 9px 4px 5px', borderRadius: 18,
@@ -62,7 +62,14 @@ const SeatChip = ({ name, stack, pos, acting, folded, align = 'left' }) => (
     boxShadow: acting ? `0 0 10px ${M_TEAL}2E` : 'none',
     opacity: folded ? 0.42 : 1,
     flexDirection: align === 'right' ? 'row-reverse' : 'row',
+    position: 'relative',
   }}>
+    {dealer && (
+      <span style={{ position: 'absolute', top: -5, [align === 'right' ? 'left' : 'right']: -4,
+        width: 14, height: 14, borderRadius: 7, background: '#F4EBDD', color: '#0A0A0A',
+        fontFamily: MONO, fontSize: 8.5, fontWeight: 700, display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(0,0,0,0.5)' }}>D</span>
+    )}
     <AgentAvatar size={24}/>
     <div style={{ minWidth: 0, textAlign: align === 'right' ? 'right' : 'left' }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: M_TEXT, lineHeight: 1.15, whiteSpace: 'nowrap' }}>{name}</div>

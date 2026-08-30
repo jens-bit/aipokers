@@ -306,6 +306,49 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 </div>
 
 
+<!-- WATCH · THE SHEET -->
+<div class="frame" style="left:520px;top:8200px">
+  <div class="grouphdr">Watch — the analysis sheet</div>
+  <div class="groupsub">Restores the locked three-state table the WATCH redesign lost. <b>The tab bar is the grab handle</b>: LIVE ANALYSIS / RANGE / HISTORY / CHAT sits on a draggable bottom sheet with three detents, and the felt scales fluidly between them. <b>The same hand across all three frames</b> — turn, pot $480, AK on K♣9♣4♣2♣ — so only the sheet moves. MoodBand and the hero readout survive every detent.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">25a</span><span class="ft">Expanded</span><span class="fb teal">~55% sheet</span></div>
+  <div id="ws1"></div>
+  <div class="fa"><b>The current layout, plus the handle.</b> Felt at 306px, full analysis stack below — voice line, equity, fold equity, pot odds, solver line. The grab pill sits above the tabs in the same panel, so dragging the tabs IS dragging the sheet.</div>
+</div>
+<div class="frame" style="left:980px;top:8200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">25b</span><span class="ft">Peek</span><span class="fb">tab bar + one line</span></div>
+  <div id="ws2"></div>
+  <div class="fa"><b>The sheet collapses to its handle, tabs, and the latest one-line voice row</b> with the live equity number at its end — the single most useful line of the analysis, kept. The felt takes ~80%: pot, board and table meta re-space to the taller room, nothing changes size.</div>
+</div>
+<div class="frame" style="left:1440px;top:8200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">25c</span><span class="ft">Hidden</span><span class="fb">full-bleed table</span></div>
+  <div id="ws3"></div>
+  <div class="fa"><b>Swiped fully down: a thin grab strip is all that remains.</b> The table runs edge to edge; MoodBand and the hero readout stay overlaid, because mood and the agent's own cards are never optional. Tap or drag the strip to bring the tabs back.</div>
+</div>
+
+<!-- WATCH · MULTIWAY -->
+<div class="frame" style="left:520px;top:9500px">
+  <div class="grouphdr">Watch — multiway</div>
+  <div class="groupsub">Nothing past 2-handed existed, and tables hold six. The seat system is a <b>slot ring</b>: top-left → top-centre → top-right → left rail → right rail, hero anchored bottom as today. Full <code>SeatChip</code> anatomy through 4-handed; <b>the rails and 6-handed use <code>SeatChipSm</code></b> — avatar 18, name 10px, stack only — the one compact variant the density genuinely earns. <b>Degrade rule:</b> when a slot cannot keep an 11px name legible, position drops first, the avatar second, <b>the stack never</b> — a seat you cannot price is not information. Street bets sit in front of seats as gold chip pills; the dealer pip is a cream D on the chip.</div>
+  <div class="fh" style="margin-top:130px"><span class="fn">26a</span><span class="ft">4-handed · mid-hand</span><span class="fb teal">full chips</span></div>
+  <div id="wm1"></div>
+  <div class="fa"><b>One folded, two bets live.</b> Phil_AI (acting, $240 in front), doyle_v3 folded and dimmed at top-centre, nash_eq with the dealer pip and $240. Three full SeatChips fit 390px with room — 4-handed never needs the compact variant.</div>
+</div>
+<div class="frame" style="left:980px;top:9500px">
+  <div class="fh" style="margin-top:130px"><span class="fn">26b</span><span class="ft">6-handed · preflop</span><span class="fb gold">density stress test</span></div>
+  <div id="wm2"></div>
+  <div class="fa"><b>All five opponent slots live, all compact.</b> Blinds posted as bet pills, kira_v2 acting on the left rail, the board face-down, hero UTG — the readout says so instead of pretending an equity. Pot pill drops to its small size between the rails. Everything stays legible at 390px because the compact chip gives up position and 6px of avatar, not the stack.</div>
+</div>
+<div class="frame" style="left:1440px;top:9500px">
+  <div class="fh" style="margin-top:130px"><span class="fn">26c</span><span class="ft">Multiway showdown</span><span class="fb gold">pot slides</span></div>
+  <div id="wm3"></div>
+  <div class="fa"><b>Two reveal, one keeps its secrets.</b> Phil_AI and nash_eq show face-up minis at their chips; doyle_v3 mucks — face-down, dimmed, and the analysis row says why: <i>mucked cards stay down</i>. The pot rides a gold trail toward the winner with the amount and his name on the pill — a drawn moment of motion, not an animation.</div>
+</div>
+<div class="frame" style="left:1900px;top:9500px">
+  <div class="fh" style="margin-top:130px"><span class="fn">27</span><span class="ft">Floor · the trio felt</span><span class="fb teal">fish-tank law</span></div>
+  <div id="ftrio"></div>
+  <div class="fa"><b>Three ghosts, one felt — existed in code, never drawn.</b> Balanced and Aggressive are yours: face-up minis at the near rail, per the diorama law. doyle_v3 belongs to another owner: card backs, always. One PotTicker above the far rail serves the whole table — a pot is the table's, not a seat's.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -323,6 +366,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-screens-f.jsx"></script>
 <script type="text/babel" src="mood-casino.jsx"></script>
 <script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-watch2.jsx"></script>
 <script type="text/babel" src="mood-birth.jsx"></script>
 <script type="text/babel" src="mood-flow.jsx"></script>
 
@@ -359,6 +403,13 @@ const mounts = [
   ['b2', BirthDraftScreenM],
   ['b3', BirthFloorScreenM],
   ['b4', BirthEditScreenM],
+  ['ws1', SheetExpandedScreenM],
+  ['ws2', SheetPeekScreenM],
+  ['ws3', SheetHiddenScreenM],
+  ['wm1', Watch4HandScreenM],
+  ['wm2', Watch6HandScreenM],
+  ['wm3', WatchShowdownScreenM],
+  ['ftrio', FloorTrioScreenM],
 ];
 mounts.forEach(([id, Comp]) => {
   ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);
@@ -389,33 +440,30 @@ if (window.__relayout) { window.__relayout(); setTimeout(window.__relayout, 60);
       return (parseInt(f.style.left, 10) || 0) >= 500;
     });
     if (!fs.length) return false;
-    /* MEASURE AND VALIDATE BEFORE COMMITTING ANYTHING. Three ways a pass can be
-       premature, all of which must abort rather than write a bad layout:
-         a. the document has no layout yet (hidden iframe → every rect is 0);
-         b. a mount root is still empty (Babel has not run);
-         c. any row measures 0 tall.                                          */
-    for (var i = 0; i < fs.length; i++) {
-      if (fs[i].getBoundingClientRect().height < MIN_CONTENT) return false;   /* a */
-      var roots = fs[i].querySelectorAll(':scope > div[id]');
-      for (var k = 0; k < roots.length; k++) {
-        if (!roots[k].children.length) return false;                          /* b */
-      }
-    }
+    /* THE RULE — the guard never aborts and never stops watching.
+       Every pass commits, using each frame's BEST-KNOWN height: the max it has ever
+       measured. Heights only grow as mounts land, so the layout converges and can
+       never be stranded by one slow or broken frame the way an abort path strands
+       every frame at its stale static top. */
     var rows = fs.map(function (f) { return +f.dataset.row; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return a - b; });
     var plan = [], y = FIRST;
     for (var r = 0; r < rows.length; r++) {
       var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
-      var max = 0;
-      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
-      if (max < MIN_CONTENT) return false;                                    /* c */
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.getBoundingClientRect().height, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
       plan.push({ frames: inRow, top: y });
       y += Math.ceil(max) + GUTTER;
     }
     plan.forEach(function (p) {
       p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
+    remember();
     return true;
   }
   var pending = null;
@@ -426,9 +474,26 @@ if (window.__relayout) { window.__relayout(); setTimeout(window.__relayout, 60);
       if (!relayout() && tries++ < MAX_TRIES) schedule(250);
     }, delay || 0);
   }
+  /* SELF-VERIFYING: a committed layout is only trusted while frame heights match the
+     heights it was computed from. A heartbeat re-measures for 40s — mounts, fonts and
+     images can all land after every scheduled pass has already run and stopped. */
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      var h = fs[i].getBoundingClientRect().height;
+      var seen = parseFloat(fs[i].dataset.h || '0');
+      if (h - seen > 2) return true;
+    }
+    return false;
+  }
+  function remember() {
+    frames().forEach(function (f) { f.dataset.h = String(f.getBoundingClientRect().height); });
+  }
   function boot() {
     schedule(0);
     [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    /* forever, not for 40s — a mount can land whenever it likes */
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(function () { schedule(60); });

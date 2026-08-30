@@ -164,33 +164,30 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       return (parseInt(f.style.left, 10) || 0) >= 500;
     });
     if (!fs.length) return false;
-    /* MEASURE AND VALIDATE BEFORE COMMITTING ANYTHING. Three ways a pass can be
-       premature, all of which must abort rather than write a bad layout:
-         a. the document has no layout yet (hidden iframe → every rect is 0);
-         b. a mount root is still empty (Babel has not run);
-         c. any row measures 0 tall.                                          */
-    for (var i = 0; i < fs.length; i++) {
-      if (fs[i].getBoundingClientRect().height < MIN_CONTENT) return false;   /* a */
-      var roots = fs[i].querySelectorAll(':scope > div[id]');
-      for (var k = 0; k < roots.length; k++) {
-        if (!roots[k].children.length) return false;                          /* b */
-      }
-    }
+    /* THE RULE — the guard never aborts and never stops watching.
+       Every pass commits, using each frame's BEST-KNOWN height: the max it has ever
+       measured. Heights only grow as mounts land, so the layout converges and can
+       never be stranded by one slow or broken frame the way an abort path strands
+       every frame at its stale static top. */
     var rows = fs.map(function (f) { return +f.dataset.row; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return a - b; });
     var plan = [], y = FIRST;
     for (var r = 0; r < rows.length; r++) {
       var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
-      var max = 0;
-      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
-      if (max < MIN_CONTENT) return false;                                    /* c */
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.getBoundingClientRect().height, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
       plan.push({ frames: inRow, top: y });
       y += Math.ceil(max) + GUTTER;
     }
     plan.forEach(function (p) {
       p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
+    remember();
     return true;
   }
   var pending = null;
@@ -201,9 +198,26 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       if (!relayout() && tries++ < MAX_TRIES) schedule(250);
     }, delay || 0);
   }
+  /* SELF-VERIFYING: a committed layout is only trusted while frame heights match the
+     heights it was computed from. A heartbeat re-measures for 40s — mounts, fonts and
+     images can all land after every scheduled pass has already run and stopped. */
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      var h = fs[i].getBoundingClientRect().height;
+      var seen = parseFloat(fs[i].dataset.h || '0');
+      if (h - seen > 2) return true;
+    }
+    return false;
+  }
+  function remember() {
+    frames().forEach(function (f) { f.dataset.h = String(f.getBoundingClientRect().height); });
+  }
   function boot() {
     schedule(0);
     [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    /* forever, not for 40s — a mount can land whenever it likes */
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(function () { schedule(60); });

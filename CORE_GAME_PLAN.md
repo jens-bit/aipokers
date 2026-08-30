@@ -565,3 +565,6 @@ Reads:
   (331 → 45) so the model folded what it should have checked down. The lesson
   is that an instruction must say where it does NOT apply, or the model
   applies it everywhere.
+
+## CACHE-1 verdict (2026-08-30): prompt caching NOT viable on Haiku 4.5 — closed
+cache_control was already correctly set; the blocker is Haiku 4.5's 4096-token minimum cacheable prefix (highest of any current model; Opus 5 is 512, Sonnet 5 is 1024). Our static prefix is 235 tokens — 17x below the floor — and padding to 4096 costs more than it saves. Verdict: accept cold cache on Haiku; revisit only if (a) the static prefix organically grows past ~4k (e.g. richer strategy/memory text), or (b) decisions move to a model with a lower floor. Branch feature/prompt-cache holds the measurement; not merged.

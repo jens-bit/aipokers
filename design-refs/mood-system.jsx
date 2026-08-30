@@ -384,6 +384,19 @@ const GhostAnatomyM = () => (
       </div>
     </Row>
 
+    <SyLbl>Seat chips · full and compact</SyLbl>
+    <Row gap={16} mb={22}>
+      <div data-typescan="skip" style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+        <SeatChip name="Phil_AI" stack="2,104" pos="SB" acting dealer/>
+        <SeatChipSm name="Phil_AI" stack="2,104" acting dealer/>
+      </div>
+      <Callout>
+        Full chip through 4-handed. <b style={{ color: M_TEXT }}>SeatChipSm</b> is for the rails
+        and 6-handed only: avatar 18, name 10px, stack kept, position dropped.
+        Degrade order is law — <b style={{ color: M_TEXT }}>pos first, avatar second, the stack never</b>.
+      </Callout>
+    </Row>
+
     <SyLbl>Seated with cards · canonical playing posture</SyLbl>
     <Row gap={16} mb={22}>
       <div style={{ width: 300 }}>
