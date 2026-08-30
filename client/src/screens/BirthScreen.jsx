@@ -2,19 +2,20 @@
 // FormingGhost · DraftBand · DraftStrip · BirthScreen (chat-first draft)
 // MaterializingOccupant — exported for App.jsx to overlay on the CASINO floor.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { M_TEAL } from '../components/floor/atoms.jsx';
+import { MoodBand } from '../components/system/MoodBand.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
 const M_PANEL   = '#232329';
-const M_PANEL_2 = '#1b1b1b';
+const M_PANEL_2 = '#28282F';
 const M_BORDER  = 'rgba(255,255,255,0.12)';
 const M_TEXT    = '#EDEDED';
 const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
-const M_FAINT   = '#3f3f3f';
+const M_FAINT   = '#3A3A3F';
 const M_GOLD    = '#CDB380';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
@@ -26,7 +27,8 @@ const MONO     = '"JetBrains Mono",ui-monospace,monospace';
 // Verbatim port from mood-birth.jsx: exact path + eye geometry.
 // phase 0 = dashed outline, no fill, no eyes.  phase 1 = finished neutral ghost.
 function FormingGhost({ size = 40, phase = 0.5, accent = M_TEAL, drift = true }) {
-  const uid = Math.random().toString(36).slice(2, 8); // stable-enough per render
+  const rawId = useId();
+  const uid = rawId.replace(/:/g, '');
   const fill   = 0.10 + phase * 0.30;
   const stroke = 0.30 + phase * 0.55;
   const dash   = phase >= 0.98 ? 'none' : `${1.5 + phase * 4} ${4 - phase * 2.6}`;
@@ -68,7 +70,6 @@ function FormingGhost({ size = 40, phase = 0.5, accent = M_TEAL, drift = true })
 // ── DraftBand ─────────────────────────────────────────────────────────────
 // MoodBand anatomy with a forming ghost + "NO MOOD YET"/"READY" chip.
 function DraftBand({ phase = 0, cause, onSkip, ready }) {
-  const pct    = Math.round(phase * 100);
   const border = phase >= 0.98 ? `1px solid ${M_TEAL}55` : `1px dashed ${M_DIM}55`;
   const shadow = phase > 0.4 ? `0 0 14px ${M_TEAL}${phase > 0.8 ? '33' : '1A'}` : 'none';
   return (
@@ -106,25 +107,22 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
               DRAFTING
             </span>
           </span>
-          {phase > 0 && (
-            <span style={{ fontFamily: MONO, fontSize: 9, color: M_FAINT, fontWeight: 500 }}>
-              {pct}%
-            </span>
-          )}
         </div>
         <div style={{ fontSize: 11.5, color: M_DIM, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {cause || 'nothing decided yet'}
         </div>
       </div>
 
-      {/* Skip / action button */}
+      {/* Skip / action button — primary when ready */}
       <button
         type="button"
         onClick={onSkip}
         style={{
           height: 30, padding: '0 12px', borderRadius: 8, flexShrink: 0,
-          border: `1px solid rgba(255,255,255,0.14)`, background: 'transparent',
-          color: M_TEXT, fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600,
+          border: ready ? 'none' : `1px solid rgba(255,255,255,0.14)`,
+          background: ready ? M_TEAL : 'transparent',
+          color: ready ? '#0A0A0A' : M_TEXT,
+          fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600,
           letterSpacing: '0.10em', cursor: 'pointer', textTransform: 'uppercase',
         }}
       >
@@ -157,6 +155,70 @@ function DraftStrip({ style, risk, tight, aggr }) {
           </span>
         </span>
       ))}
+    </div>
+  );
+}
+
+
+// ── DiffCard ─────────────────────────────────────────────────────────────
+// Proposal-diff pattern from mood-birth.jsx BirthEditScreenM.
+// Shown when the agent proposes a strategy rebuild.
+function DiffCard({ accent = M_GOLD, origin, quote, from, to, rows, est, primary = 'Save', secondary = 'Keep talking', onPrimary, onSecondary }) {
+  return (
+    <div style={{
+      background: M_PANEL_2, border: `1px solid ${M_GOLD}44`,
+      borderRadius: 12, borderBottomLeftRadius: 4, overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px',
+        borderBottom: `1px solid ${M_BORDER}`, background: 'rgba(205,179,128,0.06)',
+      }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', color: M_GOLD, flex: 1 }}>{origin}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: M_MUTED, fontWeight: 500 }}>{from}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={M_FAINT} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: M_GOLD, fontWeight: 700 }}>{to}</span>
+        </span>
+      </div>
+      {quote && (
+        <div style={{ padding: '9px 12px 2px', fontSize: 12.5, color: M_TEXT, lineHeight: 1.45 }}>{quote}</div>
+      )}
+      <div style={{ padding: '7px 12px 9px' }}>
+        {(rows || []).map((r, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0',
+            borderTop: i > 0 ? `1px solid ${M_BORDER}` : 'none',
+          }}>
+            <span style={{ flex: 1, fontSize: 12, color: M_DIM }}>{r.k}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: M_MUTED }}>{r.from}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={M_FAINT} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span style={{ minWidth: 44, textAlign: 'right', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: accent }}>{r.to}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{
+        padding: '8px 12px', borderTop: `1px solid ${M_BORDER}`,
+        background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, fontWeight: 500 }}>{est}</span>
+        <div style={{ flex: 1 }} />
+        <button type="button" onClick={onSecondary} style={{
+          height: 28, padding: '0 10px', borderRadius: 6, border: 'none',
+          background: 'transparent', color: M_DIM, fontFamily: OSWALD,
+          fontSize: 9, fontWeight: 600, letterSpacing: '0.10em', cursor: 'pointer',
+          textTransform: 'uppercase',
+        }}>{secondary}</button>
+        <button type="button" onClick={onPrimary} style={{
+          height: 28, padding: '0 12px', borderRadius: 6, border: 'none',
+          background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD,
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.10em', cursor: 'pointer',
+          textTransform: 'uppercase',
+        }}>{primary}</button>
+      </div>
     </div>
   );
 }
@@ -273,19 +335,22 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
 // ── BirthScreen ──────────────────────────────────────────────────────────
 // Full draft conversation with FormingGhost gaining definition as you talk.
 // Calls onBirth(agent) when the server confirms agent creation.
-export function BirthScreen({ onBack, onBirth }) {
+// Pass `agent` prop (existing agent object) to open in edit/rebuild mode.
+export function BirthScreen({ onBack, onBirth, agent }) {
   const userId  = getUserId();
+  const isEdit  = !!agent;
 
   const [chat, setChat]       = useState([]);
   const [draft, setDraft]     = useState('');
   const [loading, setLoading] = useState(false);
-  const [phase, setPhase]     = useState(0);
-  const [agentName, setAgentName] = useState(null);
+  const [phase, setPhase]     = useState(isEdit ? 0.72 : 0);
+  const [agentName, setAgentName] = useState(isEdit ? agent.name : null);
+  const [pendingDiff, setPendingDiff] = useState(null);
 
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
   const msgIdRef  = useRef(0);
-  const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
+  const mkMsg = (role, content, diff = null) => ({ role, content, diff, _id: ++msgIdRef.current });
 
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
@@ -304,30 +369,30 @@ export function BirthScreen({ onBack, onBirth }) {
     if (!text || loading) return;
     setDraft('');
     setLoading(true);
+    setPendingDiff(null);
     setChat((prev) => [...prev, mkMsg('user', text)]);
 
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId, content: text }),
+        body: JSON.stringify({ userId, content: text, ...(isEdit ? { agentId: agent.id } : {}) }),
       });
       const data = await res.json();
 
       // Pick up the AI reply
       const allAi = (data.chat || []).filter((m) => m.role === 'assistant');
       const reply = allAi[allAi.length - 1];
-      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
+      const diff = data.diff || null;
+      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content, diff)]);
 
       aiCount.current += 1;
-      const newPhase = data.agentId ? 1.0 : Math.min(0.98, aiCount.current * 0.28);
+      const newPhase = data.agentId ? 1.0 : Math.min(0.98, isEdit ? 0.72 + aiCount.current * 0.09 : aiCount.current * 0.28);
       setPhase(newPhase);
 
       if (data.agentId) {
-        // Agent is born — extract name if possible
-        const name = data.agentName || 'New agent';
+        const name = data.agentName || agentName || 'New agent';
         setAgentName(name);
-        // Short pause so user can read the final message, then hand off
         setTimeout(() => onBirth({ id: data.agentId, name, strategy: data.strategy || '' }), 1200);
       }
     } catch {
@@ -344,8 +409,22 @@ export function BirthScreen({ onBack, onBirth }) {
     ? ['Tight and patient', 'Aggressive bluffer', 'Solver-strict']
     : ['Heads-up only', 'Everywhere in position'];
 
+  const openingLine = isEdit
+    ? 'Tell me what to change.'
+    : 'One open seat. Tell me how it should play — style, risk, how tight, how aggressive.';
+  const openingNote = isEdit
+    ? null
+    : 'Plain words work. "Patient, hates bluffing, folds when it smells wrong."';
+
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
+      <style>{`
+        @keyframes drift {
+          0%   { transform: translateY(0px); }
+          50%  { transform: translateY(-5px); }
+          100% { transform: translateY(0px); }
+        }
+      `}</style>
 
       {/* Back header */}
       <div style={{
@@ -364,71 +443,115 @@ export function BirthScreen({ onBack, onBirth }) {
           </svg>
         </button>
         <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT }}>
-          New agent
+          {isEdit ? (agent.name || 'Rebuild') : 'New agent'}
         </span>
       </div>
 
-      {/* DraftBand */}
-      <DraftBand
-        phase={phase}
-        cause={isReady ? (agentName ?? 'ready to deploy') : hasTalked ? 'taking shape…' : 'nothing decided yet'}
-        onSkip={onBack}
-        ready={isReady}
-      />
+      {/* Band — MoodBand in edit mode, DraftBand for new */}
+      {isEdit ? (
+        <MoodBand
+          accent={agent.accent || M_TEAL}
+          mood={agent.mood || 'neutral'}
+          state={agent.state || 'resting'}
+          cause={agent.cause || 'rebuilding strategy'}
+          action="Deploy"
+          onAction={onBack}
+        />
+      ) : (
+        <DraftBand
+          phase={phase}
+          cause={isReady ? (agentName ?? 'ready to deploy') : hasTalked ? 'taking shape…' : 'nothing decided yet'}
+          onSkip={onBack}
+          ready={isReady}
+        />
+      )}
 
       {/* Feed */}
       <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
 
-        {/* Large ghost centred when conversation is empty */}
-        {!hasTalked && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.2, pointerEvents: 'none' }}>
-            <FormingGhost size={132} phase={0} />
-          </div>
-        )}
-
-        {/* Ghost watermark behind conversation when in progress */}
-        {hasTalked && phase > 0 && phase < 1 && (
-          <div style={{ position: 'absolute', right: -14, top: 26, opacity: 0.13, pointerEvents: 'none', zIndex: 0 }}>
-            <FormingGhost size={168} phase={phase} />
-          </div>
-        )}
-
-        <div style={{ position: 'relative', zIndex: 1, paddingTop: 10 }}>
-          <SysLine>Drafting</SysLine>
-
-          {/* Opening AI prompt always shown */}
-          <AgentBubble>
-            <>
-              One open seat. Tell me how it should play — style, risk, how tight, how aggressive.
-              <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>
-                Plain words work. "Patient, hates bluffing, folds when it smells wrong."
-              </div>
-            </>
-          </AgentBubble>
-
-          {/* Conversation */}
-          {chat.map((msg, i) => (
-            msg.role === 'user'
-              ? <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
-              : (
-                <span key={msg._id}>
-                  <AgentBubble>{msg.content}</AgentBubble>
-                  {/* DraftStrip after each AI reply while still forming */}
-                  {!isReady && i === chat.length - 1 && (
-                    <div style={{ padding: '0 14px', marginBottom: 9 }}>
-                      <DraftStrip />
-                    </div>
+        {!hasTalked ? (
+          /* Entry state: ghost fills center, opening message pinned to bottom */
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
+              <FormingGhost size={132} phase={isEdit ? 0.72 : 0} />
+            </div>
+            <div style={{ flexShrink: 0, paddingBottom: 4 }}>
+              <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
+              <AgentBubble>
+                <>
+                  {openingLine}
+                  {openingNote && (
+                    <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
                   )}
-                </span>
-              )
-          ))}
+                </>
+              </AgentBubble>
+            </div>
+          </div>
+        ) : (
+          /* Mid-draft: ghost watermark behind conversation */
+          <>
+            {phase > 0 && phase < 1 && (
+              <div style={{ position: 'absolute', right: -14, top: 26, opacity: 0.13, pointerEvents: 'none', zIndex: 0 }}>
+                <FormingGhost size={168} phase={phase} />
+              </div>
+            )}
 
-          {loading && (
-            <AgentBubble>
-              <span className="dr-typing"><i /><i /><i /></span>
-            </AgentBubble>
-          )}
-        </div>
+            <div style={{ position: 'relative', zIndex: 1, paddingTop: 10 }}>
+              <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
+
+              {/* Opening AI prompt always shown */}
+              <AgentBubble>
+                <>
+                  {openingLine}
+                  {openingNote && (
+                    <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
+                  )}
+                </>
+              </AgentBubble>
+
+              {/* Conversation */}
+              {chat.map((msg, i) => (
+                msg.role === 'user'
+                  ? <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
+                  : (
+                    <span key={msg._id}>
+                      <AgentBubble>{msg.content}</AgentBubble>
+                      {/* DiffCard after agent message if a rebuild proposal is present */}
+                      {msg.diff && (
+                        <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <DiffCard
+                            accent={agent?.accent || M_TEAL}
+                            origin={msg.diff.origin}
+                            quote={msg.diff.quote}
+                            from={msg.diff.from}
+                            to={msg.diff.to}
+                            rows={msg.diff.rows}
+                            est={msg.diff.est}
+                            primary={msg.diff.primary || 'Save'}
+                            secondary={msg.diff.secondary || 'Keep talking'}
+                            onPrimary={() => send('Save')}
+                            onSecondary={() => {}}
+                          />
+                        </div>
+                      )}
+                      {/* DraftStrip after each AI reply while still forming (create mode only) */}
+                      {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
+                        <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <DraftStrip />
+                        </div>
+                      )}
+                    </span>
+                  )
+              ))}
+
+              {loading && (
+                <AgentBubble>
+                  <span className="dr-typing"><i /><i /><i /></span>
+                </AgentBubble>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Composer */}
@@ -464,7 +587,7 @@ export function BirthScreen({ onBack, onBirth }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Describe how it should play…"
+            placeholder={isEdit ? `Message ${agent?.name || 'agent'}…` : 'Describe how it should play…'}
             disabled={loading || isReady}
             style={{
               flex: 1, height: 38, padding: '0 12px', borderRadius: 10,
