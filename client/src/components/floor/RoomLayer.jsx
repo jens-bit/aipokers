@@ -23,26 +23,25 @@ export function RoomLayer({ layout, ftu, viewBox }) {
     >
       <defs>
         <radialGradient id={`feltG${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#1b3630" />
-          <stop offset="0.65" stopColor="#0f1d19" />
-          <stop offset="1" stopColor="#0a1512" />
+          <stop offset="0" stopColor="#2f5a50" />
+          <stop offset="0.65" stopColor="#1d362e" />
+          <stop offset="1" stopColor="#152822" />
         </radialGradient>
         <radialGradient id={`feltD${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#12211d" />
-          <stop offset="1" stopColor="#0a1210" />
+          <stop offset="0" stopColor="#213a32" />
+          <stop offset="1" stopColor="#16241f" />
         </radialGradient>
         <radialGradient id={`poolG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor={M_TEAL} stopOpacity="0.13" />
+          <stop offset="0" stopColor={M_TEAL} stopOpacity="0.26" />
           <stop offset="1" stopColor={M_TEAL} stopOpacity="0" />
         </radialGradient>
         <radialGradient id={`cornerG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor="#241a30" stopOpacity="0.95" />
-          <stop offset="0.55" stopColor="#171126" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#0A0A0A" stopOpacity="0" />
+          <stop offset="0" stopColor="#2a2233" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#1A1A1E" stopOpacity="0" />
         </radialGradient>
         <linearGradient id={`barG${layout}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#1d1a16" />
-          <stop offset="1" stopColor="#0d0c0a" />
+          <stop offset="0" stopColor="#302c27" />
+          <stop offset="1" stopColor="#1a1815" />
         </linearGradient>
       </defs>
 
@@ -76,7 +75,7 @@ export function RoomLayer({ layout, ftu, viewBox }) {
       {L.felts.map((f, i) => (
         <g key={`f${i}`} opacity={o}>
           <ellipse cx={f.cx} cy={f.cy} rx={f.rx + (f.lit ? 9 : 7)} ry={f.ry + (f.lit ? 9 : 7)}
-            fill="#15100a" opacity={f.lit ? 1 : 0.34} />
+            fill="#241d15" opacity={f.lit ? 1 : 0.34} />
           <ellipse cx={f.cx} cy={f.cy} rx={f.rx} ry={f.ry}
             fill={f.lit ? `url(#feltG${layout})` : `url(#feltD${layout})`}
             opacity={f.lit ? 1 : 0.62}

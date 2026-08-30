@@ -18,8 +18,8 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', cause, state = 
   return (
     <div style={{
       flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11,
-      padding: '9px 14px 11px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-      background: '#111111',
+      padding: '9px 14px 11px', borderBottom: '1px solid rgba(255,255,255,0.12)',
+      background: '#232329',
     }}>
       <div style={{
         width: 42, height: 42, borderRadius: 12, flexShrink: 0,

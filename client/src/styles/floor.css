@@ -5,14 +5,14 @@
  * ============================================================ */
 
 .floor {
-  --flr-bg: #0A0A0A;
+  --flr-bg: #1A1A1E;
   --flr-text: #EDEDED;
   --flr-dim: #A1A1A1;
   --flr-muted: #6B6B6B;
   --flr-faint: #3A3A3F;
   --flr-teal: #00D4AA;
   --flr-gold: #CDB380;
-  --flr-border: rgba(255, 255, 255, 0.06);
+  --flr-border: rgba(255, 255, 255, 0.12);
   --flr-oswald: 'Oswald', 'Inter', sans-serif;
   --flr-mono: 'JetBrains Mono', ui-monospace, monospace;
 

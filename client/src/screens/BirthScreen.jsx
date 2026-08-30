@@ -7,10 +7,10 @@ import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { M_TEAL } from '../components/floor/atoms.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
-const M_BG      = '#0A0A0A';
-const M_PANEL   = '#141414';
+const M_BG      = '#1A1A1E';
+const M_PANEL   = '#232329';
 const M_PANEL_2 = '#1b1b1b';
-const M_BORDER  = 'rgba(255,255,255,0.06)';
+const M_BORDER  = 'rgba(255,255,255,0.12)';
 const M_TEXT    = '#EDEDED';
 const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
@@ -100,7 +100,7 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
           {/* Drafting tag */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5, height: 16, padding: '0 6px',
-            borderRadius: 3, background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.06)`,
+            borderRadius: 3, background: 'rgba(255,255,255,0.04)', border: `1px solid ${M_BORDER}`,
           }}>
             <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED }}>
               DRAFTING
@@ -479,7 +479,7 @@ export function BirthScreen({ onBack, onBirth }) {
             aria-label="Send"
             style={{
               width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
-              background: draft.trim() && !loading && !isReady ? M_TEAL : 'rgba(255,255,255,0.06)',
+              background: draft.trim() && !loading && !isReady ? M_TEAL : 'rgba(255,255,255,0.12)',
               color: draft.trim() && !loading && !isReady ? M_BG : M_MUTED,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: draft.trim() && !loading && !isReady ? 'pointer' : 'default', padding: 0,

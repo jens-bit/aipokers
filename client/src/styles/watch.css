@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--sys-bg, #0A0A0A);
+  background: var(--sys-bg, #1A1A1E);
   color: var(--sys-text, #EDEDED);
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
   overflow: hidden;
@@ -16,7 +16,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 14px 10px;
-  background: var(--sys-panel, #111111);
+  background: var(--sys-panel, #232329);
   flex-shrink: 0;
 }
 
@@ -138,7 +138,7 @@
   padding: 3px 13px;
   border-radius: 16px;
   background: rgba(8,10,10,0.6);
-  border: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  border: 1px solid var(--sys-border, rgba(255,255,255,0.12));
 }
 
 /* WV2-5: the pot going to its winner. Ported from mood-watch2.jsx's
@@ -249,7 +249,7 @@
   padding: 9px 10px;
   border-radius: 12px;
   background: rgba(8,10,10,0.72);
-  border: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  border: 1px solid var(--sys-border, rgba(255,255,255,0.12));
 }
 
 .watch-felt__hero.is-active {
@@ -260,7 +260,7 @@
 .watch-felt__hero-divider {
   width: 1px;
   height: 22px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.12);
   flex-shrink: 0;
 }
 
@@ -321,8 +321,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--sys-panel, #111111);
-  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  background: var(--sys-panel, #232329);
+  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.12));
 }
 
 .watch-sitout-strip__title {
@@ -357,8 +357,8 @@
 .watch-tabs {
   flex-shrink: 0;
   display: flex;
-  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.06));
-  background: var(--sys-panel, #111111);
+  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.12));
+  background: var(--sys-panel, #232329);
   padding: 0 8px;
 }
 
@@ -392,8 +392,8 @@
   min-height: 18px;
   display: flex;
   flex-direction: column;
-  background: var(--sys-panel, #111111);
-  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  background: var(--sys-panel, #232329);
+  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.12));
   overflow: hidden;
   overscroll-behavior: contain;
   transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -461,7 +461,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--sys-bg, #0A0A0A);
+  background: var(--sys-bg, #1A1A1E);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -511,7 +511,7 @@
   align-items: center;
   gap: 10px;
   padding: 9px 0;
-  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.12));
 }
 
 .watch-analysis-row__label {
@@ -559,7 +559,7 @@
 
 .watch-sitout-sheet {
   width: 100%;
-  background: var(--sys-panel-2, #131316);
+  background: var(--sys-panel-2, #28282F);
   border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
   border-radius: 16px 16px 0 0;
   padding: 16px 16px 14px;
