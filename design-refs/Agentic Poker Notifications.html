@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#8A8A92}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:20px;flex-shrink:0;padding-top:2px;color:#CDB380}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#A1A1A1}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- LAWS -->
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">The re-engagement kit</div>
+    <div class="h1">The bot's voice<br/>when you're away</div>
+    <p>These are not screens. They are <b>Telegram messages</b>, drawn as Telegram draws them: a sentence, and at most one inline button. Nothing else survives the medium — no mood ghosts, no cards, no charts. Colours here are ours so the board reads with the rest of the system; in the client they inherit the user's theme.</p>
+
+    <div class="lbl" style="color:#00D4AA">Three rules, non-negotiable</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Every message lives in the agent's world.</b> Poker, moods, money. Never &ldquo;we miss you&rdquo;, never a streak about the owner, never guilt — the Mood Design Law forbids a mood caused by your absence, so a ping cannot imply one.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Every message names its cause.</b> A time, a number, a hand, or a named agent. If a line cannot be checked against the floor within one tap, it does not ship.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>The cap is part of the design, not a setting.</b> Two pings per day total; recaps win every tie; nothing sends between 00:00 and 08:00.</span></div>
+
+    <div class="lbl">Buttons mean decisions</div>
+    <p>A recap and a proposal carry an inline button, because each has a thing to do. <b>Mood alerts, quiet wins and most milestones carry none</b> — an invitation with a call-to-action becomes a chore, and a flavour ping with a button is a growth mechanic in costume.</p>
+
+    <div class="lbl">Voice</div>
+    <p>Lines are written for the existing cast — Grinder v1.2 dry and self-diagnosing, Aggressive v1.3 clipped, Bluff Master theatrical, Value Bot barely willing. <b>Two to three alternates per type</b>, so the bot never repeats itself twice running.</p>
+  </div>
+</div>
+
+<!-- THE DAY -->
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">As it actually arrives</div>
+  <div class="groupsub">One real device, two days, <b>three messages</b>. The Tuesday recap describes 02:14 but lands at 08:02, because the overnight window <b>holds</b> rather than cancels — and it says so, which is why the delay does not read as a bug. Wednesday spends its whole budget: a recap at 08:00, a proposal at 14:20, and nothing else all day.</div>
+  <div class="fh" style="margin-top:82px"><span class="fn">N0</span><span class="ft">Telegram chat</span><span class="fb teal">bot dm</span></div>
+  <div id="nday"></div>
+  <div class="fa"><b>Everything a ping can be is in this frame.</b> Bot avatar, one sentence, an optional inline button, a timestamp. The bubble is the whole design surface — which is the constraint that makes the copy do the work.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh"><span class="fn">N1</span><span class="ft">Session recap</span><span class="fb teal">priority 1</span></div>
+  <div id="n1"></div>
+  <div class="fa"><b>The only ping you implicitly asked for</b> — you deployed him, so his result is owed to you. It wins every tie, and it is the one type allowed to describe something that happened while you slept.</div>
+</div>
+
+<div class="frame" style="left:1560px;top:80px">
+  <div class="fh"><span class="fn">N2</span><span class="ft">The proposal</span><span class="fb teal">priority 2</span></div>
+  <div id="n2"></div>
+  <div class="fa"><b>He is blocked until you answer</b>, which is why it ranks above mood and milestone. <b>One pending at a time and no reminders</b> — a second nudge about the same proposal would be pressure, and the diff stays behind the button so the message is still a sentence.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1400px">
+  <div class="fh"><span class="fn">N3</span><span class="ft">The mood alert</span><span class="fb gold">priority 3</span></div>
+  <div id="n3"></div>
+  <div class="fa"><b>Capped once a day per owner, not per agent</b> — four agents having a bad night must not become four pings. No button: the response is a conversation, and a button would make it a task.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1400px">
+  <div class="fh"><span class="fn">N4</span><span class="ft">The quiet win</span><span class="fb ">priority 5</span></div>
+  <div id="n4"></div>
+  <div class="fa"><b>The only type whose job is character rather than information</b>, and the first thing dropped when the budget is tight. It asks for nothing, which is what makes it safe to send — and it is a joke about <b>him</b>, never about you.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1400px">
+  <div class="fh"><span class="fn">N5</span><span class="ft">The milestone</span><span class="fb gold">priority 4</span></div>
+  <div id="n5"></div>
+  <div class="fa"><b>The ask belongs to the agent.</b> &ldquo;He wants a harder table&rdquo; — not &ldquo;unlock higher stakes&rdquo;. Same event, and only one of those two sentences is about him. Button only when a table move is actually available.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2700px">
+  <div class="fh"><span class="fn">N6</span><span class="ft">The budget</span><span class="fb teal">policy</span></div>
+  <div id="nbudget"></div>
+  <div class="fa"><b>The cap only means something as arithmetic.</b> Four events qualified on the day above and two were delivered — the ladder decided, and the two that lost were dropped rather than queued, because a ping that arrives a day late is worse than one that never arrives.</div>
+</div>
+
+<div class="frame" style="left:1360px;top:2700px">
+  <div class="fh"><span class="fn">N7</span><span class="ft">The refusals</span><span class="fb ">law, made checkable</span></div>
+  <div id="nviolations"></div>
+  <div class="fa"><b>A law with no rejected examples is a preference.</b> Every line here would pass a growth review and fails this one — kept on the board so the next person writing copy can see the boundary rather than guess at it.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-notify.jsx"></script>
+
+<script type="text/babel">
+const mounts = [
+  ['nday', NotifyDayScreenM],
+  ['n1', Notif1], ['n2', Notif2], ['n3', Notif3], ['n4', Notif4], ['n5', Notif5],
+  ['nbudget', BudgetBoard],
+  ['nviolations', ViolationsBoard],
+];
+mounts.forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+
+<script>
+/* ─── canvas auto-layout ───────────────────────────────────────────────────────
+   Frames are absolutely positioned, so nothing pushes them apart when content
+   grows — which is how three canvases ended up with overlapping artboards. Row
+   membership stays as authored; the TOPS are computed from measured heights, so
+   a sheet that grows by 500px can no longer paint over the row beneath it.
+   Side-column panels (left < 500) never share a column with artboards, so they
+   keep their authored position.                                              */
+(function () {
+  var GUTTER = 80, FIRST = 80, busy = false;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    if (busy) return;
+    busy = true;
+    var fs = frames().filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var y = FIRST;
+    rows.forEach(function (r) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === r; });
+      inRow.forEach(function (f) { f.style.top = y + 'px'; });
+      var max = 0;
+      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
+      y += Math.ceil(max) + GUTTER;
+    });
+    busy = false;
+  }
+  var pending = null;
+  function schedule() {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(function () { pending = null; relayout(); });
+  }
+  window.addEventListener('load', function () {
+    schedule();
+    setTimeout(schedule, 400);
+    setTimeout(schedule, 1200);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(schedule);
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+  });
+  window.__relayout = relayout;
+})();
+</script>
+</body>
+</html>

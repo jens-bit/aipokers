@@ -23,7 +23,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 - `src/server/wsServer.js` — WebSocket protocol (JOIN/WATCH/ACTION/CHAT). Protocol is public (llms.txt) — keep it stable.
 - `src/server/agentProfiles.js` — agent CRUD, creation chat, stats, memory. Auth in `auth.js` (Telegram initData), rate limiting in `rateLimit.js`.
 - `src/agent/handler.js` — the LLM decision call (claude-haiku, prompt caching) + trash-talk generation.
-- `client/src/` — React/Vite Mini App. `design-refs/` at root = Codex-built design source of truth: **PORT from it, never redesign, never modify it.**
+- `client/src/` — React/Vite Mini App. `design-refs/` at root = design source of truth (Codex built the May-era refs; Claude Design owns the mood/mobile wave from Aug 2026 — one design source per wave, all output lands in design-refs/): **PORT from it, never redesign, never modify it.**
 - `data/` — JSON persistence. On the VPS this is LIVE USER DATA. (Migration out of git → SQLite is planned; see ownership below.)
 
 ## Team + ownership (update as it changes)

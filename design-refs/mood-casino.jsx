@@ -27,7 +27,7 @@ const LAYOUTS = {
   },
   one: {
     felts: [
-      { cx: 158, cy: 186, rx: 102, ry: 47, lit: true, seat: 0 },
+      { cx: 158, cy: 190, rx: 106, ry: 52, lit: true, seat: 0 },
       { cx: 312, cy: 92,  rx: 60,  ry: 27, lit: false },
     ],
     bar: { x1: 18, x2: 216, y: 402 },
@@ -35,32 +35,33 @@ const LAYOUTS = {
   },
   two: {
     felts: [
-      { cx: 300, cy: 126, rx: 66, ry: 30, lit: true, seat: 1 },
-      { cx: 146, cy: 296, rx: 96, ry: 44, lit: true, seat: 0 },
+      { cx: 240, cy: 160, rx: 92,  ry: 47, lit: true, seat: 1 },
+      { cx: 130, cy: 370, rx: 100, ry: 52, lit: true, seat: 0 },
     ],
-    bar: { x1: 18, x2: 180, y: 452 },
+    bar: { x1: 18, x2: 180, y: 470 },
     corner: { cx: 300, cy: 556, rx: 84, ry: 68 },
   },
-  // three playing, one resting — the diamond with one felt dark
+  // three playing, one resting — a 2×2 grid, not a diamond: every lit felt has to be
+  // big enough to carry its own diorama, and four diamond points cannot be.
   three: {
     felts: [
-      { cx: 195, cy: 128, rx: 72, ry: 32, lit: true, seat: 0 },
-      { cx: 92,  cy: 296, rx: 72, ry: 32, lit: true, seat: 1 },
-      { cx: 298, cy: 296, rx: 72, ry: 32, lit: true, seat: 2 },
-      { cx: 195, cy: 464, rx: 72, ry: 32, lit: false },
+      { cx: 100, cy: 150, rx: 88, ry: 52, lit: true, seat: 0 },
+      { cx: 290, cy: 150, rx: 88, ry: 52, lit: true, seat: 1 },
+      { cx: 100, cy: 400, rx: 88, ry: 52, lit: true, seat: 2 },
+      { cx: 290, cy: 400, rx: 88, ry: 52, lit: false },
     ],
-    bar: { x1: 18, x2: 372, y: 606, sliver: true },
+    bar: { x1: 18, x2: 372, y: 592, sliver: true },
     corner: null,
   },
   full: {
-    // a compact diamond — never more than four felts
+    // the same 2×2 grid, all four lit — never more than four felts
     felts: [
-      { cx: 195, cy: 128, rx: 72, ry: 32, lit: true, seat: 0 },
-      { cx: 92,  cy: 296, rx: 72, ry: 32, lit: true, seat: 1 },
-      { cx: 298, cy: 296, rx: 72, ry: 32, lit: true, seat: 2 },
-      { cx: 195, cy: 464, rx: 72, ry: 32, lit: true, seat: 3 },
+      { cx: 100, cy: 150, rx: 88, ry: 52, lit: true, seat: 0 },
+      { cx: 290, cy: 150, rx: 88, ry: 52, lit: true, seat: 1 },
+      { cx: 100, cy: 400, rx: 88, ry: 52, lit: true, seat: 2 },
+      { cx: 290, cy: 400, rx: 88, ry: 52, lit: true, seat: 3 },
     ],
-    bar: { x1: 18, x2: 372, y: 606, sliver: true },
+    bar: { x1: 18, x2: 372, y: 592, sliver: true },
     corner: null,
   },
 };
@@ -202,11 +203,12 @@ const PotTicker = ({ x, y, amount, mini }) => (
 );
 
 // ── the architecture, drawn from a layout ──
-const RoomLayer = ({ layout, ftu, viewBox }) => {
-  const L = LAYOUTS[layout] || LAYOUTS.one;
+const RoomLayer = ({ layout, ftu, viewBox, W = FLOOR_W, H = FLOOR_H, table }) => {
+  const T = table || LAYOUTS;
+  const L = T[layout] || T.one;
   const o = ftu ? 0.4 : (L.dimRoom ? 0.62 : 1);
   return (
-    <svg width={FLOOR_W} height={FLOOR_H} viewBox={viewBox || `0 0 ${FLOOR_W} ${FLOOR_H}`}
+    <svg width={W} height={H} viewBox={viewBox || `0 0 ${W} ${H}`}
       preserveAspectRatio={viewBox ? 'xMidYMid slice' : 'none'}
       style={{ position: 'absolute', inset: 0, display: 'block' }}>
       <defs>
@@ -307,16 +309,56 @@ const FloorStandup = ({ line, net, flagged }) => (
   </div>
 );
 
-// board cards laid on a lit felt
-const FeltCards = ({ f, count = 4, w = 20 }) => (
-  <div style={{ position: 'absolute', left: f.cx, top: f.cy - w * 0.7, transform: 'translateX(-50%)', display: 'flex', gap: 3, zIndex: 2 }}>
-    {[['K','c'],['9','c'],['4','c'],['2','c'],['A','h']].slice(0, count).map((c, i) => (
-      <div key={i} style={{ filter: `drop-shadow(0 0 6px ${M_TEAL}66)` }}>
-        <PlayingCard rank={c[0]} suit={c[1]} w={w} h={w * 1.4}/>
+// ═══ THE DIORAMA ═══
+// A felt where one of the USER'S OWN agents is playing renders as a living
+// mini-diorama: board on the felt centre, his two hole cards face up and fanned in
+// front of his seated ghost, pot above the far rail. Another user's agent always
+// shows backs. The floor is WATCHING the game, not driving it — hands advance
+// server-side whether or not anyone is looking.
+//
+// LEGIBILITY IS THE GATE. PlayingCard locks rank size to w * 0.42, so a legible rank
+// needs w >= 20. Whether a felt can pay for that depends on its ry and on how much of
+// the centre the community board takes. Every lit felt is tested independently: it
+// earns a diorama or it degrades to glow + pot. Cards are never shrunk below reading
+// size, so no felt ever gets an unreadable diorama.
+const MIN_HOLE_W = 20;
+const DIORAMA_MIN_RY = 47;   // what MIN_HOLE_W works out to on mobile, at board w 17
+
+// one geometry function, both platforms - card size scales with the felt
+const dioramaMetrics = (f, bw = 17, maxH = 32) => {
+  const gap = 3, rim = 2, rot = 2;
+  const avail = f.ry - rim - bw * 0.7 - gap;
+  const hh = Math.min(maxH, Math.round(avail - rot));
+  const hw = Math.round(hh / 1.39);
+  return { bw, gap, rim, hh, hw, fits: hw >= MIN_HOLE_W };
+};
+
+const Diorama = ({ f, hole, own = true, bw = 17, maxH = 32, glow = 6 }) => {
+  const m = dioramaMetrics(f, bw, maxH);
+  if (!m.fits) return null;
+  return (
+    <>
+      {/* the community board, on the felt centre - deliberately subordinate */}
+      <div style={{ position: 'absolute', left: f.cx, top: f.cy - bw * 0.7, transform: 'translateX(-50%)', display: 'flex', gap: bw > 20 ? 5 : 3, zIndex: 2 }}>
+        {[['K','c'],['9','c'],['4','c'],['2','c']].map((c, i) => (
+          <div key={i} style={{ filter: `drop-shadow(0 0 ${glow}px ${M_TEAL}55)` }}>
+            <PlayingCard rank={c[0]} suit={c[1]} w={bw} h={Math.round(bw * 1.4)}/>
+          </div>
+        ))}
       </div>
-    ))}
-  </div>
-);
+      {/* his own hand, fanned in front of the seated ghost at the far rail */}
+      <div style={{ position: 'absolute', left: f.cx, top: f.cy - f.ry + m.rim, transform: 'translateX(-50%)', display: 'flex', gap: 1, zIndex: 4 }}>
+        {[0, 1].map(i => (
+          <div key={i} style={{ transform: `rotate(${i ? 4 : -4}deg)`, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>
+            {own
+              ? <PlayingCard rank={hole[i][0]} suit={hole[i][1]} w={m.hw} h={m.hh}/>
+              : <CardBack w={m.hw} h={m.hh} branded/>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+};
 
 // ═══ the floor, in a given density state ═══
 const FloorScreen = ({ layout, standup, seats, bar, lounge, ghostSize = 56, mini }) => {
@@ -335,10 +377,15 @@ const FloorScreen = ({ layout, standup, seats, bar, lounge, ghostSize = 56, mini
           const gh = (ghostSize * 1.2) + 19 + 3;
           return (
             <React.Fragment key={`s${i}`}>
-              <FeltCards f={f} count={mini ? 3 : 4} w={mini ? 16 : 20}/>
+              <Diorama f={f} hole={s.hole} own={s.own !== false}/>
               <Occupant x={f.cx} y={f.cy - gh + 8} name={s.name} accent={s.accent} mood={s.mood}
                 state="live" size={ghostSize} speed={s.speed}/>
-              <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={s.pot} mini={mini}/>
+              {/* a diorama stacks its pot above the ghost name chip, above the far rail and
+                  on the centre axis so it cannot foul a chip at any name width.
+                  A degraded felt keeps the plain ticker below the near rail. */}
+              {dioramaMetrics(f).fits
+                ? <PotTicker x={f.cx} y={f.cy - gh + 8 - 27} amount={s.pot}/>
+                : <PotTicker x={f.cx} y={f.cy + f.ry + 8} amount={s.pot} mini={mini}/>}
             </React.Fragment>
           );
         })}
@@ -362,10 +409,10 @@ const FloorScreen = ({ layout, standup, seats, bar, lounge, ghostSize = 56, mini
 
 // the cast — moods stay with the agent across every state
 const CAST = {
-  balanced:   { name: 'Balanced v2.1', accent: M_TEAL,   mood: 'confident', speed: 4.6 },
-  aggressive: { name: 'Aggressive v1.3', accent: M_PURPLE, mood: 'tilted',  speed: 3.4 },
-  bluff:      { name: 'Bluff Master', accent: M_GOLD,   mood: 'confident', speed: 5.6 },
-  value:      { name: 'Value Bot',    accent: M_PINK,   mood: 'sulking',   speed: 7 },
+  balanced:   { name: 'Balanced v2.1', accent: M_TEAL,   mood: 'confident', speed: 4.6, hole: [['A','s'],['K','h']] },
+  aggressive: { name: 'Aggressive v1.3', accent: M_PURPLE, mood: 'tilted',  speed: 3.4, hole: [['Q','s'],['Q','d']] },
+  bluff:      { name: 'Bluff Master', accent: M_GOLD,   mood: 'confident', speed: 5.6, hole: [['J','c'],['T','c']] },
+  value:      { name: 'Value Bot',    accent: M_PINK,   mood: 'sulking',   speed: 7,   hole: [['9','h'],['8','h']] },
 };
 
 // ═══ 1 · QUIET NIGHT — nobody playing ═══
@@ -406,9 +453,9 @@ const FloorTwoScreenM = () => (
     ghostSize={50}/>
 );
 
-// ═══ 4 · THREE PLAYING, ONE RESTING — the diamond with one felt dark ═══
+// ═══ 4 · THREE PLAYING, ONE RESTING — the 2×2 grid with one felt dark ═══
 const FloorThreeScreenM = () => (
-  <FloorScreen layout="three" mini ghostSize={40}
+  <FloorScreen layout="three" mini ghostSize={46}
     standup={{ net: '+$740', flagged: '5 flagged' }}
     seats={{
       0: { ...CAST.balanced, pot: '480' },
@@ -420,7 +467,7 @@ const FloorThreeScreenM = () => (
 
 // ═══ 5 · FULL HOUSE — the stress test ═══
 const FloorFullScreenM = () => (
-  <FloorScreen layout="full" mini ghostSize={40}
+  <FloorScreen layout="full" mini ghostSize={46}
     standup={{ net: '+$980', flagged: '6 flagged' }}
     seats={{
       0: { ...CAST.balanced, pot: '480' },
@@ -431,7 +478,7 @@ const FloorFullScreenM = () => (
 );
 
 // ═══ ZOOM ═══
-const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot }) => {
+const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip }) => {
   const m = MOODS[mood];
   return (
     <PhoneShell>
@@ -472,6 +519,12 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot }) => {
         }}/>
 
         <div style={{ position: 'absolute', left: 16, right: 16, bottom: 18, zIndex: 6 }}>
+          {/* THE ZOOM STRIP — the same LiveBar, slotted between bubble and buttons */}
+          {strip && (
+            <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', border: `1px solid ${M_TEAL}3D` }}>
+              <LiveBar strip {...strip}/>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
             <MoodChip mood={mood}/>
             <StateTag state={state} compact/>
@@ -496,16 +549,51 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot }) => {
   );
 };
 
-const ZoomTiltedScreenM = () => (
-  <ZoomView name="Aggressive v1.3" accent={M_PURPLE} mood="tilted" state="live" pot="120"
-    line="Third river he's hit on me. I'm fine. I'm FINE."
-    cause="steaming — lost two big pots as favourite" primary="chat"/>
-);
+// ── zoom · the strip's three states, plus the resting route ──
 
+// 1 · mid-hand, thinking — timer running, no action committed yet
 const ZoomPlayingScreenM = () => (
   <ZoomView name="Balanced v2.1" accent={M_TEAL} mood="confident" state="live" pot="480"
     line="He checked the turn — he's capped. Betting 240 for value."
-    cause="rolling — won three big pots in a row" primary="watch"/>
+    cause="rolling — won three big pots in a row" primary="watch"
+    strip={{ table: '48291', blinds: '$5/$10', street: 'turn', pot: '480', equity: '87.4',
+             action: 'TO ACT', timer: 9, hole: CAST.balanced.hole,
+             board: [['K','c'],['9','c'],['4','c'],['2','c'], null] }}/>
+);
+
+// 2 · action just taken — the chip is lit with the committed bet
+const ZoomActionScreenM = () => (
+  <ZoomView name="Balanced v2.1" accent={M_TEAL} mood="confident" state="live" pot="720"
+    line="240 in. If he calls with a worse king, that's the whole hand."
+    cause="rolling — won three big pots in a row" primary="watch"
+    strip={{ table: '48291', blinds: '$5/$10', street: 'turn', pot: '720', equity: '87.4',
+             action: 'BET $240', timer: 14, hole: CAST.balanced.hole,
+             board: [['K','c'],['9','c'],['4','c'],['2','c'], null] }}/>
+);
+
+// 3 · between hands — cards face down, no equity, no timer
+const ZoomBetweenScreenM = () => (
+  <ZoomView name="Balanced v2.1" accent={M_TEAL} mood="confident" state="live"
+    line="Good table. I'll take another orbit here."
+    cause="rolling — won three big pots in a row" primary="watch"
+    strip={{ table: '48291', blinds: '$5/$10', faceDown: true, note: 'shuffling up…',
+             hole: CAST.balanced.hole, board: [null, null, null, null, null] }}/>
+);
+
+// 4 · zoom on a RESTING agent — the PROFILE route, never drawn before
+const ZoomRestingScreenM = () => (
+  <ZoomView name="Value Bot" accent={M_PINK} mood="sulking" state="resting"
+    line="I'd rather not talk about the last session."
+    cause="sulking — cold deck all night, sat out at 02:14" primary="chat"/>
+);
+
+const ZoomTiltedScreenM = () => (
+  <ZoomView name="Aggressive v1.3" accent={M_PURPLE} mood="tilted" state="live" pot="120"
+    line="Third river he's hit on me. I'm fine. I'm FINE."
+    cause="steaming — lost two big pots as favourite" primary="chat"
+    strip={{ table: '38104', blinds: '$10/$20', street: 'river', pot: '120', equity: '31.2',
+             action: 'TO ACT', timer: 4, hole: CAST.aggressive.hole,
+             board: [['K','c'],['9','c'],['4','c'],['2','c'],['5','h']] }}/>
 );
 
 // ═══ the floor, first run ═══
@@ -598,6 +686,7 @@ const PostureSheetScreenM = () => (
 
 Object.assign(window, {
   FloorQuietScreenM, FloorOneScreenM, FloorTwoScreenM, FloorThreeScreenM, FloorFullScreenM,
-  ZoomTiltedScreenM, ZoomPlayingScreenM, CasinoFTUScreenM, PostureSheetScreenM,
-  FloorGhost, Occupant, RoomLayer, POSTURE, LAYOUTS, CAST,
+  ZoomTiltedScreenM, ZoomPlayingScreenM, ZoomActionScreenM, ZoomBetweenScreenM, ZoomRestingScreenM,
+  CasinoFTUScreenM, PostureSheetScreenM,
+  FloorGhost, Occupant, RoomLayer, GhostChip, PotTicker, Diorama, dioramaMetrics, DIORAMA_MIN_RY, MIN_HOLE_W, FloorStandup, POSTURE, LAYOUTS, CAST,
 });

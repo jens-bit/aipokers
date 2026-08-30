@@ -456,3 +456,49 @@ Mobile HOME becomes a diegetic casino floor: one stylized room where the agents 
 ## Megaprompt — Tree 3.5 (personality layer: mood engine + floor API; paste AFTER Tree 3 merges, on branch feature/personality-layer)
 
 Six sub-tasks, AGE-29..34: (1) mood state machine (confident/neutral/frustrated/tilted/sulking; events from existing data: wonBigPot, lostAsEquityFavorite, lostBigPot, cardDead, streaks; tiltResistance TRAIT from profile — no slider; decay toward neutral; persisted {state,cause,updatedAt}); (2) STATE line in briefing (bounded effect per Mood Design Law) + pep-talk soothing one step, 10-hand cooldown, mechanical detection; (3) agent.lastMoment (template voice, no LLM), agent.unseenRecap + POST /:id/seen, GET /api/agents extended with mood/lastMoment/unseenRecap/presence — the casino floor's single data call; (4) self-change proposals from Tree-3 leak stats, accept/reject endpoints applying strategy patch; (5) SIT_OUT WS message (BUG-14: finish hand → graceful close → idle+recap) + complementary House matchmaking (tight agent gets Station-House, loose gets TAG-House — playtest fold-fest fix); (6) end-to-end verification, no arena needed. Constraints: backend only, bounded mood effects enforced in code, no client changes. RIDER (added later same night): BUG-15 — _broadcastDecision must send full reasoning/equity payloads to a spectator ONLY for their own spectatorSeat; bare {seat, action} for all other seats (opponent thoughts currently leak to spectators). Full prompt text issued in session 2026-08-29 (late); reconstruct from this summary + Personality Layer section if lost.
+
+---
+
+## Post-opponent-model arena (run-2026-08-29T17-33-01-129Z, AGE-28)
+
+| Agent | bb/100 (AGE-23 → 28) | VPIP | AF | Fold% |
+|---|---|---|---|---|
+| TAG | +295.8 → +56.7 ±83 | 22.8 → 19.3 | 8.4 → 12.6 | 43.9 → 57 |
+| Loose Cannon | −416.9 → **+51.4** | 100 → **53.8** | 171.7 → **4.5** | 1.3 → 21.5 |
+| Nit | −28.1 → −19.5 | 9.1 → 16.7 | — | 78 → 68 |
+| Calling Station | +149.2 → **−88.6** | 100 → 96.5 | 0.15 | 6 |
+
+Reads: **Calibration riders nailed** (Cannon hit the 55-65 VPIP target; maniac AF pathology gone; Nit near target). Ecosystem became REALISTIC poker: the Cannon is now a legit LAG (+51, beats Station +221), Station is correctly the biggest loser, TAG ≈ LAG on top. **Target miss: TAG vs Station fell +223 → +57 (was expected to grow with reads)** — hypothesis: the "goes to showdown" read made TAG cautious (fold rate → 57%) instead of widening thin value. TODO (small, later): A/B with `--no-reads` (flag exists) to isolate whether reads help or hurt TAG; consider a briefing line teaching the correct exploit ("vs a player who never folds: value bet wider, never bluff"). Fallbacks 0, spread ~80pts, run faster (2007s — less raise-warring). Tree 3 merged to main 2026-08-29 night; Tree 3.5 (personality layer) started immediately after.
+
+---
+
+## EOD status 2026-08-29 — everything shipped today, and the decisions that closed the night
+
+SHIPPED TO PROD (all merged to main, auto-deploy green):
+- Skill engine complete: Tree 0 (API lockdown), Tree 1 (equity+arena), Tree 2 (policy compiler), Tree 3 (opponent model + grounded memory). Three arena runs validated it (see tables above).
+- Casino floor as mobile HOME (FLR-1..8): SVG room, three zones, mood postures, tap-zoom, pot tickers.
+- Personality layer / Tree 3.5 (AGE-29..34): mood engine, pep talks, moments/recap, self-change proposals, SIT_OUT + complementary House, spectator reasoning scoped (BUG-15). Prod ghosts have moods.
+- FLR-9: playing ghost seated at the near rail with card-back fan. FLR-10: create-agent chat fails politely outside Telegram (was: silently ate your message); 720–1099px browsers get a centered phone frame.
+
+DESIGN DECISIONS (Claude Design, tonight — canon):
+- **Fish-tank law (REVERSES the earlier "no cards on floor" law):** a felt where the USER'S OWN agent plays renders as a living mini-diorama — board cards, agent's hole cards FACE UP, pot ticker. Other users' agents always show card backs. Cards scale with felt; too-small felts degrade to glow+pot. Rationale: the product is watching your pet play; a felt with face-down cards is a dead aquarium.
+- The Spotify-style now-playing bar was designed and KILLED same night (clunky; the diorama makes it redundant).
+- Zoom on a playing agent gains a LiveBar strip (hole cards, board, pot, equity, action+timer; thinking/acted/between-hands states). Zoom on a resting agent shows Profile button (artboard was missing).
+- Design system Phase 2 extracted (zip 15/16): five sheets — tokens, mood logic, ghost anatomy, component inventory, state matrix. Component names in the inventory are the production names.
+
+PLAYTEST FINDINGS (tonight, prod):
+- **The big one: agents only "live" while watched.** Hands advance only while a client has the table open. Floor honestly shows the agent seated (he IS at a table) but the game is frozen until WATCH wakes it — "Waiting…" then a fresh hand on entry. Breaks the Tamagotchi promise. Fix = Tree 4 headline.
+- Desktop browser can't authenticate (Telegram-only HMAC) — chat/agents unavailable outside Telegram. By design, now fails politely (FLR-10). Desktop play TODAY: Telegram Desktop app runs mini apps. LATER: Telegram Login Widget on web (Fredrik's queue).
+
+## Tree 4 scope (megaprompt tomorrow — server-side life + live floor)
+1. **Server-side play loop:** agents at tables play hands autonomously on the server, viewer or none. Watching becomes passive observation, not the engine. Mood/moments/recap machinery (3.5) already receives the results.
+2. **Floor channel:** lightweight WS (or poll upgrade) streaming floor state — presence, mood, per-felt board/hole cards/pot — feeding the fish-tank diorama and the zoom LiveBar in real time.
+3. Riders: presence truth (seated only when hands actually advancing), verify table-close retires agents in all paths, equity "—" in mobile watch AnalysisPanel.
+Then Tree 4b (threads/sticky live bar/chats voice) after the design system port; --no-reads A/B and 200-pair acceptance run still queued.
+
+## Design phase COMPLETE (zip 19, 2026-08-29 ~23:00) — design-refs/ synced
+Desktop parity wave landed: home (one live + zoom echo), quiet/FTU, WATCH (+ sit-out in the same between-hands position as mobile), thread with proposal ACCEPT/DISCUSS and docked LiveBar, ThreadRosterRail. Command Center furniture audit on the board: PORTED bankroll header→DeskTopBar, tiles→PGameTile (=LiveBar expanded), composer→PComposer (slash rail demoted to "/" focus state), StandupCard (desktop-only by decision); SUPERSEDED EV chips→MoodBand+flagged card, icon rails→roster, slash palette→proposal pattern; PARKED XP/tiers (needs pre-launch decision — recommendation: keep parked through the 50-humans test; the agents' own progression (versions, bankrolls, standup) is the progression) and achievement toasts. Both design-board contradictions resolved. design-refs/ now carries the full mood suite incl. mood-watch, mood-desktop3, mood-system(2), design-system doc — THE port source for Tree 4b. Design iteration stops here; changes only from playtest findings.
+
+## Post-freeze additions (zips 20–22, synced to design-refs/) — design NOW fully frozen
+- Birth flow (mood-birth.jsx / mood-birth2.jsx): create-agent redrawn as the birth scene — chat-first draft with FormingGhost gaining definition, one-row profile strip, NO "agent created" card (the ghost materializes at the bar on the floor; desktop: dashed roster row solidifies, StandupCard logs "joined the room"). Edit variant uses the proposal-diff pattern. Draft assistant speaks in the SYSTEM voice; the ghost's first words happen on the floor.
+- Notification kit (mood-notify.jsx + Notifications.html): the Telegram bot's re-engagement messages as an implementation reference for Tree 4/4b — five types (session recap [button], proposal, mood alert, quiet win, milestone), each with trigger, frequency cap, and 2–3 alternate lines in agent voice. Laws: every message in the agent's world (never "we miss you", no owner-guilt), causes always named, budget ≤2 pings/day with a priority ladder (recap wins ties), quiet hours (a 02:14 recap HOLDS until 08:00 and says so), mood alert capped once/day PER OWNER, one pending proposal at a time.

@@ -134,6 +134,7 @@ const ThreadScreen = ({ name, accent, mood, cause, state, action, bar, children 
 
 const TURN_BAR = (
   <LiveBar table="48291" blinds="$5/$10" street="turn" pot="480" equity="62.1" action="TO ACT" timer={9}
+    hole={[['Q','s'],['Q','d']]}
     board={[['K','c'],['9','c'],['4','c'],['2','c'],null]}/>
 );
 
@@ -142,6 +143,7 @@ const DOCKING_BAR = (
   <div style={{ flexShrink: 0, height: 36, overflow: 'hidden', position: 'relative' }}>
     <div style={{ transform: 'translateY(-26px)' }}>
       <LiveBar table="48291" blinds="$5/$10" street="preflop" pot="15" equity="—" action="POSTED SB" timer={18}
+        hole={[['Q','s'],['Q','d']]}
         board={[null, null, null]}/>
     </div>
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, background: `${M_TEAL}66`, boxShadow: `0 0 8px ${M_TEAL}55` }}/>

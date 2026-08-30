@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Desktop — the casino floor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.dim{color:#8A8A92;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
+.fa{margin-top:14px;max-width:1440px;font-size:12.5px;line-height:1.55;color:#8A8A92}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;width:96px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#A1A1A1}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- direction panel -->
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Desktop wave · 1440×900</div>
+    <h1>The floor is home<br/>on every device.</h1>
+    <p>Same product, same mechanics, same metaphor as mobile — every atom reused verbatim: ghosts, mood system, felts, name chips, pot tickers, thread anatomy, tokens.</p>
+    <p><b>Desktop's only advantage is room.</b> Mobile must choose between the floor and a conversation; desktop shows both. So a ghost click does <b>two</b> things: the camera zooms into the room exactly as it does on the phone, and his <b>GameTile lights in the rail</b> — same mechanic, two echoes, rather than two dialects. The rail's standing job is the record: <b>StandupCard</b> over the <b>GameTile stack</b>, one tile per live game, all visible at once. His thread is one more click, from the tile's chat action.</p>
+
+    <div class="lbl">Layout</div>
+    <div class="lawrow"><span class="k">Top bar</span><span class="v">52px. Spade + wordmark left, standup centre, chips · bell · clock · user right — identical on every desktop screen.</span></div>
+    <div class="lawrow"><span class="k">Main stage</span><span class="v">919px (64%). The same room, wider: three zones, the same 0/1/2/3+1/4 density rules — and at every density each lit felt is big enough to carry its own diorama.</span></div>
+    <div class="lawrow"><span class="k">Side panel</span><span class="v">520px (36%). Its standing content is the record — <b>StandupCard + GameTile stack</b>, every live game visible without swiping. <b>Playing ghost clicked</b> → camera zooms and that tile lights; the standup collapses to a line so both tiles keep their space. <b>Resting ghost clicked</b> → camera zooms the same way, but there is no tile to light, so the rail holds standup + roster and the zoom offers CHAT / PROFILE. Thread and stat sheet open into the rail from those actions.</span></div>
+    <div class="lawrow"><span class="k">Full table</span><span class="v">The only view where the floor gives up the stage — and it gives it up entirely: no room behind, no bar or tile restating the felt. The rail turns to <b>analysis</b> (Live analysis · History · flagged) and keeps the composer, <b>so you can still talk mid-hand</b>.</span></div>
+
+    <div class="lbl" style="color:#CDB380">The floor is a fish tank</div>
+    <p style="margin-bottom:6px">A felt where one of <b>your own</b> agents is playing renders as a living <b>mini-diorama</b> — community board on the felt centre, his two hole cards <b>face up</b> and fanned in front of his seated ghost at the far rail, pot stacked above his name chip. The felt <b>is</b> the zero-tap view; there is no now-playing bar anywhere in the product.</p>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Diorama</span><span class="v">board · his hole cards <b>face up</b> · pot above the name chip</span></div>
+    <div class="lawrow"><span class="k">Legibility</span><span class="v">cards scale with the felt — 412×182 reads at 16.8px, 284×126 at 10.5px</span></div>
+    <div class="lawrow"><span class="k">Too small</span><span class="v">glow + pot only, never shrunken cards — tested <b>per felt</b>, same <code>Diorama</code> component and threshold as mobile, so only the board scale differs</span></div>
+    <div class="lawrow"><span class="k">Other users</span><span class="v">always card backs, never faces</span></div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">Assumes</span><span class="v">hands advance <b>server-side</b> whether or not anyone is watching — the floor is watching the game, not driving it</span></div>
+
+
+    <div class="lbl" style="color:#CDB380">Reversals this wave — read before adding artboards</div>
+    <p style="margin-bottom:6px">Four earlier answers were replaced. Their artboards are kept, badged <b style="color:#CDB380">superseded</b>, because a board read as a spec should record what was tried and why it lost. <b>Anything new must agree with the right-hand column.</b></p>
+    <div class="lawrow"><span class="k">Ghost click</span><span class="v"><s style="color:#6B6B6B">Panel is the zoom; camera never moves</s> → <b>camera zooms + rail tile lights.</b> Same for resting ghosts: zoom, no tile, CHAT / PROFILE. <span style="color:#6B6B6B">retired on 02, 03, W2</span></span></div>
+    <div class="lawrow"><span class="k">WATCH rail</span><span class="v"><s style="color:#6B6B6B">Thread + sticky bar on top</s> → <b>analysis panels</b> (Live analysis · History · flagged), composer retained. <span style="color:#6B6B6B">retired on 04, W4</span></span></div>
+    <div class="lawrow"><span class="k">Rail contents</span><span class="v"><s style="color:#6B6B6B">Expanded tile on the floor, compact bar at the table</s> → <b>game when the floor owns the stage, analysis when the table does.</b> Never render one state twice on a screen. <span style="color:#6B6B6B">retired on W4</span></span></div>
+    <div class="lawrow"><span class="k">Idle rail</span><span class="v"><s style="color:#6B6B6B">StandupCard + roster list</s> → <b>StandupCard + GameTile stack.</b> &ldquo;Nothing selected&rdquo; must still show every live game. <span style="color:#6B6B6B">retired on 01, W1</span></span></div>
+    <div class="lawrow"><span class="k">Floor cards</span><span class="v"><s style="color:#6B6B6B">No card faces on the floor; backs as a posture prop</s> → <b>the diorama</b>: board, his own hole cards face up, pot. Other users’ agents still show backs. <span style="color:#6B6B6B">retired pre-parity</span></span></div>
+
+    <div class="lbl">Carried over unchanged</div>
+    <p style="margin-bottom:0">Global header law · status never lies (live / recap / resting) · mood as eyes and glow, posture as body language · no guilt mechanics · four felts maximum · no left rails, no slash commands, no Command Center.</p>
+  </div>
+</div>
+
+<!-- 01 -->
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The room and the conversation, at once</div>
+  <div class="groupsub">Two agents at the felts, one at the bar under a recap tick, one sulking in the lounge — the same cast, the same moods, the same postures as mobile — and the same <b>diorama</b>: board on the felt centre, each agent’s own hole cards face up in front of his seated ghost at the <b>far rail</b>, pot above his name chip. Same component, same legibility gate; only the board scale differs, so a 412×182 felt reads at 16.8px and a 284×126 felt at 10.5px. <b>The panel carries the context</b>: with nobody selected it holds the expanded standup and a quiet roster.</div>
+  <div class="fh"><span class="fn">01</span><span class="ft">Floor + idle panel</span><span class="fb gold">superseded rail</span></div>
+  <div id="d1"></div>
+  <div class="fa"><b>StandupCard’s home is canon; the roster underneath it is not.</b> Net at 34px, the voice line, three stats and one primary action — P1 uses the card verbatim. <b style="color:#CDB380">Superseded by P1:</b> two games are live here and the rail shows <b>zero GameTiles</b>, so &ldquo;nothing selected&rdquo; failed to show the games at all. The standing rail is now StandupCard <b>+ one tile per live game</b>; the roster survives as the thread list on the Chats surface and in P7’s left rail, where a list is the right shape.</div>
+</div>
+
+<!-- 02 -->
+<div class="frame" style="left:2160px;top:80px">
+  <div class="fh"><span class="fn">02</span><span class="ft">Floor + resting agent selected</span><span class="fb gold">superseded pattern</span></div>
+  <div id="d2"></div>
+  <div class="fa"><b style="color:#CDB380">Superseded by P2 — kept for the record.</b> This claimed the camera never moves for a resting agent. It does: mobile artboard 10 zooms a <b>resting</b> ghost and swaps WATCH for <b>PROFILE</b>, so &ldquo;resting agents are different&rdquo; is not an available exception — the gesture has to behave the same on both devices and for both states. <b>What a resting selection does:</b> the camera zooms exactly as it does for a playing one, but there is <b>no GameTile to light</b> — he has no game — so the rail keeps standup + roster and the zoom offers <b>CHAT</b> primary with <b>PROFILE</b> secondary, mirroring mobile 10 exactly. The thread and the stat sheet both open into the rail from those actions. <b>What survives here</b> is the thread anatomy in the panel — mood band, feed, composer, and the proposal’s ACCEPT / DISCUSS with its before → after diff at panel width, which P7 uses verbatim.</div>
+</div>
+
+<!-- 03 -->
+<div class="frame" style="left:3720px;top:80px">
+  <div class="fh"><span class="fn">03</span><span class="ft">Floor + live agent selected</span><span class="fb gold">superseded pattern</span></div>
+  <div id="d3"></div>
+  <div class="fa"><b style="color:#CDB380">Superseded by P2 — kept for the record.</b> This was the original answer to a ghost click: open the thread beside the room, camera fixed, floor alive throughout. It reads well and it is <b>not</b> what ships, because it made the same gesture behave differently on the two devices. The parity wave replaced it: the click zooms the camera and lights the rail tile, and the thread moved one step further in, to the tile’s chat action. <b>The one thing worth keeping from here</b> is the claim underneath it — desktop can hold the room and a conversation at once, which is still why the rail exists.</div>
+</div>
+
+<!-- 04 -->
+<div class="frame" style="left:5280px;top:80px">
+  <div class="fh"><span class="fn">04</span><span class="ft">Full table</span><span class="fb gold">superseded rail</span></div>
+  <div id="d4"></div>
+  <div class="fa"><b>The felt anatomy here is canon; the rail is not.</b> Full-bleed rectangular surface, seat chips in the top corners, 58px board, hero at 62px, equity and action beside the timer ring, and one pill back to the floor — P5 and P6 use all of it verbatim. <b style="color:#CDB380">Superseded by P5:</b> the rail no longer holds the thread with a sticky bar on top. The bar would only restate the felt two feet to its right, so the rail carries <b>analysis</b> instead — Live analysis, History and the flagged card, all at once. <b>The claim that survives</b> is &ldquo;the conversation never stops for the game&rdquo;: the composer stays at the foot of the WATCH rail in P5/P6, so you can still talk to him mid-hand.</div>
+</div>
+
+<!-- 05 -->
+<div class="frame" style="left:600px;top:1299px">
+  <div class="fh"><span class="fn">05</span><span class="ft">First run</span><span class="fb teal">empty floor</span></div>
+  <div id="d5"></div>
+  <div class="fa"><b>The room is open, not broken.</b> Lights at 40%, both felts drawn but unlit, one dashed ghost outline on a barstool — and the invitation lives <i>in the panel</i>, never as copy on the floor. "Describe a player. I'll build them." with four starter replies and a composer, so the build flow is a conversation from the first second. The standup line carries the scale of the network without pointing it at you.</div>
+</div>
+
+
+<!-- WAVE 2 · the Command Center furniture, inside the panel -->
+<div class="frame" style="left:2160px;top:1299px">
+  <div class="grouphdr">Wave 2 — the panel gets the Command Center&rsquo;s interior</div>
+  <div class="groupsub">The shell from wave 1 stands: floor on the stage, panel on the right, global header across the top. What changes is the <b>furniture inside the panel</b>, ported from the earlier desktop Command Center rather than reinvented — standup card, game tile, flagged-hands card, composer. Every block keeps its original construction at 492px of panel content — including the composer&rsquo;s radius-10 box, sparkle, two-row textarea, ⌘↵ chip, square send and Telegram/shortcut footer. <b>Two adaptations, both deliberate:</b> the composer&rsquo;s always-on command rail is collapsed behind &ldquo;/&rdquo;, and the game tile&rsquo;s felt lays its three groups out as a flex column with space-between rather than three absolute anchors, so opponent, board and hero can never collide — at 232px, budgeted from their real heights. Ghosts and moods remain the mobile atoms.</div>
+  <div class="fh"><span class="fn">W1</span><span class="ft">Floor + idle panel</span><span class="fb gold">superseded rail</span></div>
+  <div id="w1"></div>
+  <div class="fa"><b style="color:#CDB380">Superseded by P1 — same reason as 01:</b> two live games, no tiles. The card itself and the collapsed <code>/ for commands</code> composer are canon and P1–P7 reuse both. <b>The standup card is the panel&rsquo;s idle state.</b> Greeting with the voice clause in italic, the four-cell KPI strip (net 24h · hands · win rate · biggest pot) with its sub-labels, and the suggested-action chips with the first one filled. The roster sits beneath it, and the composer holds the floor of the panel in every state. The command rail is collapsed to a single <code>/ for commands</code> hint above the box.</div>
+</div>
+
+<div class="frame" style="left:3720px;top:1299px">
+  <div class="fh"><span class="fn">W2</span><span class="ft">Live agent selected</span><span class="fb gold">superseded selection</span></div>
+  <div id="w2"></div>
+  <div class="fa"><b>The GameTile itself survives — the selection behaviour around it does not.</b> The tile is <code>LiveBar</code>’s expanded form and P1/P2 use it verbatim: header with live badge, mini felt with the opponent seated top and hero cards bottom, pot pill centred, equity chip on the hero rail, action badge, italic thought, WATCH. <b style="color:#CDB380">What is superseded is the framing</b> — here the tile appears because the thread opened on selection. From P2 on, the tile is always in the rail and selection only <i>highlights</i> it while the camera zooms.</div>
+</div>
+
+<div class="frame" style="left:5280px;top:1299px">
+  <div class="fh"><span class="fn">W3</span><span class="ft">Resting agent · thread open</span><span class="fb">proposal + flagged</span></div>
+  <div id="w3"></div>
+  <div class="fa"><b>Retitled:</b> this is the thread <i>open</i>, not what a resting ghost click produces — that now zooms the camera and offers CHAT / PROFILE, and this is where CHAT lands. Content is canon and P7 reuses it verbatim. <b>Proposal, then the flagged card, then the &ldquo;/&rdquo; composer.</b> The self-change proposal keeps ACCEPT / DISCUSS and its before → after diff; the flagged-hands card arrives as a message in the thread with hand chips, action taken and EV loss per row. The composer shows its <b>focused state</b>: typing &ldquo;/&rdquo; raises the command list, one row highlighted — chips are demoted to this state only, plain chat everywhere else.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2518px">
+  <div class="fh"><span class="fn">W4</span><span class="ft">Full table</span><span class="fb gold">superseded rail</span></div>
+  <div id="w4"></div>
+  <div class="fa"><b style="color:#CDB380">Superseded by P5/P6 — and the rule it stated is retired.</b> This said: expanded tile when the floor is the stage, sticky bar when the table is. P5/P6 break it, because their WATCH rail has <b>neither</b> — once the table owns the stage, any bar or tile is a second copy of what you are already looking at. <b>The corrected rule:</b> the rail shows the <b>game</b> when the floor owns the stage (GameTile stack) and <b>analysis</b> when the table does (Live analysis · History · flagged). <b>What survives</b> is the reasoning underneath — never render the same state twice on one screen — which is exactly why the substitution now goes further than swapping one bar for another.</div>
+</div>
+
+<!-- PARITY WAVE -->
+<div class="frame" style="left:2160px;top:2518px">
+  <div class="grouphdr">Desktop parity — the same states, composed</div>
+  <div class="groupsub">Mobile is complete; these are the surface × state combinations desktop was missing. <b>Nothing here is a new component.</b> Every artboard is a composition of parts that already exist — <code>DeskFloor</code> (carrying <code>Diorama</code>), <code>PStandupCard</code>, <code>PGameTile</code>, <code>MoodBand</code>, <code>LiveBar</code>, <code>DeskTableStage</code>, <code>SeatChip</code>, <code>PComposer</code>, <code>PFlaggedCard</code>, <code>PRosterRow</code>. The same three laws hold: other users’ agents never show faces, status never lies, and density increases one click at a time.</div>
+  <div class="fh"><span class="fn">P1</span><span class="ft">Home · one game live</span><span class="fb teal">stage + rail</span></div>
+  <div id="p1"></div>
+  <div class="fa"><b>The floor is the stage; the rail carries the record.</b> <b>StandupCard sits on top — its designed home</b>, where a 520px column can actually hold the greeting, the KPI strip and the suggested chips. Under it, the <b>GameTile stack</b>: one tile per live game. Same room, same three zones, same diorama under the same legibility gate as the phone — a 412×182 felt simply reads at 16.8px instead of 9.7px.</div>
+</div>
+
+<div class="frame" style="left:3720px;top:2518px">
+  <div class="fh" style="margin-top:82px"><span class="fn">P2</span><span class="ft">Home · two games, one clicked</span><span class="fb teal">two echoes</span></div>
+  <div id="p2"></div>
+  <div class="fa"><b>Clicking a playing ghost does two things at once.</b> The <b>camera zooms</b> exactly as it does on mobile — same mechanic, same zoomed <code>viewBox</code> behind a scrim, so the interaction is device-invariant rather than merely analogous — <b>and</b> his GameTile lights in the rail while the other dims. <b>Two tiles, both visible:</b> this is why desktop never needed the swiping the phone’s single bar required.</div>
+</div>
+
+<div class="frame" style="left:5280px;top:2518px">
+  <div class="fh" style="margin-top:82px"><span class="fn">P3</span><span class="ft">Home · quiet night</span><span class="fb dim">0 playing</span></div>
+  <div id="p3"></div>
+  <div class="fa"><b>The room at rest, and the rail collapses with it.</b> Felts drawn but unlit, the whole cast along the bar and in the lounge, no diorama anywhere. The rail keeps StandupCard — there is still a night to report — and swaps the tile stack for the <b>draft panel</b>, since the useful action when nobody is playing is adding someone who will.</div>
+</div>
+
+<div class="frame" style="left:600px;top:3717px">
+  <div class="fh" style="margin-top:82px"><span class="fn">P4</span><span class="ft">Home · first run</span><span class="fb">no agents</span></div>
+  <div id="p4"></div>
+  <div class="fa"><b>Waiting, not broken.</b> Lights at 40%, felts still drawn, one dashed outline on a barstool. The standup states plainly that there is nothing to report and that 847 agents are in seats, <b>none of them yours</b> — the invitation is the contrast, never a guilt line.</div>
+</div>
+
+<div class="frame" style="left:2160px;top:3717px">
+  <div class="grouphdr">Desktop WATCH</div>
+  <div class="groupsub">Reached from a GameTile’s watch action. <b>The floor is not visible behind this</b> — watching is a place, not an overlay. Felt anatomy is mobile’s, scaled: full-bleed surface, SeatChips in the corners, pot and board centred, hero at the bottom. What moves is the analysis: <b>tabs become rail panels</b>, because a 520px column can show Live analysis, History and flagged hands at once instead of one at a time.</div>
+  <div class="fh"><span class="fn">P5</span><span class="ft">Watch · mid-hand</span><span class="fb teal">his turn</span></div>
+  <div id="p5"></div>
+  <div class="fa"><b>MoodBand sits above the table</b>, so mood, state and cause stay legible while you watch — the same reason it heads the mobile WATCH. The rail runs Live analysis over History over the flagged card, and keeps the composer, so you can talk to him mid-hand without leaving the table.</div>
+</div>
+
+<div class="frame" style="left:3720px;top:3717px">
+  <div class="fh" style="margin-top:82px"><span class="fn">P6</span><span class="ft">Watch · between hands</span><span class="fb gold">exit offered</span></div>
+  <div id="p6"></div>
+  <div class="fa"><b>The exit appears in mobile’s position: a quiet strip directly under the felt.</b> Cards and board flip to backs, pot reads em-dash, equity drops out, and <b>&ldquo;Sit out after this hand&rdquo;</b> surfaces with a ghost border and a dim label — no red, no warning glyph. Offering it only between hands is the honest framing: he finishes what he is in. The rail’s Live analysis switches from the hand to the session.</div>
+</div>
+
+<div class="frame" style="left:5280px;top:3717px">
+  <div class="fh" style="margin-top:82px"><span class="fn">P7</span><span class="ft">Thread · proposal</span><span class="fb teal">bar docked</span></div>
+  <div id="p7"></div>
+  <div class="fa"><b>Roster left, thread right — the Telegram-desktop shape.</b> The <b>sticky LiveBar docks under the thread header</b> because he is mid-hand, so the game keeps a permanent home and the conversation never has to describe it. The moment shown is the <b>self-change proposal</b>: his opener, then the diff — river bluff frequency 62% → 38% on monotone boards — and <b>ACCEPT / DISCUSS</b>. He asks; you decide. Note the state tags in the roster: two live, one recap, one resting, and the resting one shows no live marker anywhere.</div>
+</div>
+
+<div class="frame" style="left:600px;top:4895px">
+  <div class="panel" style="width:900px">
+    <div class="sub">Port audit</div>
+    <h1>Command Center<br/>furniture.</h1>
+    <p style="margin-bottom:6px">Every piece of the old desktop suite gets a decision, so the production port has an answer for each part and nothing disappears quietly.</p>
+
+    <div class="lbl" style="color:#00D4AA">Ported</div>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Bankroll header</span><span class="v"><b>PORTED</b> — survives as <code>DeskTopBar</code>: spade + wordmark left, standup centre, chips · bell · clock · user right. Same obligations as the mobile global header, more room.</span></div>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Tiles</span><span class="v"><b>PORTED</b> — the game tile is now <code>PGameTile</code>, and it is <code>LiveBar</code>’s expanded form rather than a separate idea. One per live game, stacked in the rail.</span></div>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Composer</span><span class="v"><b>PORTED</b> — <code>PComposer</code> keeps the sparkle, the two-row field, the ⌘↵ chip and the Telegram footer. The always-on slash-chip rail is demoted to a &ldquo;/&rdquo; focus state.</span></div>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Standup card</span><span class="v"><b>PORTED · desktop-only by decision</b> — <code>PStandupCard</code> lives at the top of the rail. Mobile keeps the collapsed line; the room is the headline on a 390px floor.</span></div>
+
+    <div class="lbl" style="color:#CDB380">Superseded</div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">EV classifier chips</span><span class="v"><b>SUPERSEDED BY</b> <code>MoodBand</code> + the flagged card. A chip reading &ldquo;−EV&rdquo; on a hand told you a verdict with no cause; the mood band gives the cause in the agent’s own terms and the flagged card gives the hand to review. Same information, attributable.</span></div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">Left icon rails</span><span class="v"><b>SUPERSEDED BY</b> the three-tab law on mobile and <code>ThreadRosterRail</code> on desktop — a roster of named agents rather than anonymous glyphs.</span></div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">Slash-command palette</span><span class="v"><b>SUPERSEDED BY</b> the proposal pattern. The agent proposes his own change with a diff and you ACCEPT or DISCUSS; you no longer author commands at him.</span></div>
+
+    <div class="lbl" style="color:#6B6B6B">Parked</div>
+    <div class="lawrow"><span class="k" style="color:#6B6B6B">XP &amp; tiers</span><span class="v"><b>PARKED</b> — no surface renders XP today. It survives only as the <code>TIER 3</code> badge on the user chip. Parked rather than cut: progression is a real product question, but a level-up bar next to a mood system reads as a game about you instead of a stable of players. <b>Needs a decision before launch.</b></span></div>
+    <div class="lawrow"><span class="k" style="color:#6B6B6B">Achievement toasts</span><span class="v"><b>PARKED</b> — the milestone line in the standup covers the same ground without interrupting. Revisit only if retention data asks for it.</span></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-birth2.jsx"></script>
+
+<script type="text/babel">
+const mounts = [
+  ['d1', DeskFloorIdleScreenM],
+  ['d2', DeskFloorRestingScreenM],
+  ['d3', DeskFloorLiveScreenM],
+  ['d4', DeskTableScreenM],
+  ['d5', DeskFTUScreenM],
+  ['w1', D2IdleScreenM],
+  ['w2', D2LiveScreenM],
+  ['w3', D2RestingScreenM],
+  ['w4', D2TableScreenM],
+  ['p1', D3HomeOneScreenM],
+  ['p2', D3HomeZoomScreenM],
+  ['p3', D3QuietScreenM],
+  ['p4', D3FtuScreenM],
+  ['p5', D3WatchScreenM],
+  ['p6', D3WatchBetweenScreenM],
+  ['p7', D3ThreadScreenM],
+  ['db1', DeskDraftEntryScreenM],
+  ['db2', DeskDraftMidScreenM],
+  ['db3', DeskBirthScreenM],
+];
+mounts.forEach(([id, Comp]) => {
+  ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);
+});
+</script>
+<!-- THE BIRTH WAVE, DESKTOP -->
+<div class="frame" style="left:2160px;top:4895px">
+  <div class="grouphdr">Birth, desktop — the same flow, one thing added</div>
+  <div class="groupsub">Composed entirely from existing parts: <code>DesktopShell</code>, <code>DeskTopBar</code>, <code>ThreadRosterRail</code>, <code>Panel</code>, <code>PComposer</code>, <code>DeskFloor</code>, <code>PStandupCard</code>. <b>What desktop adds is not a bigger ghost — it is a ghost that gets to be the subject.</b> Both platforms draw it at 168px; on mobile that instance is a <b>13%-opacity watermark behind the conversation</b>, because a 390px column has no room to give it. Here it sits at full opacity in its own panel with the four traits beneath it, and the band, the rail row and the panel are all driven by <b>one phase value</b> — so they cannot disagree about how defined the draft is. Three additions to shared components, all props on things that already existed: <code>ThreadRosterRail</code> takes <code>drafting</code> / <code>born</code>, <code>PStandupCard</code> takes <code>log</code>, and <code>ChatComposer</code> takes <code>suggestLead</code>.</div>
+  <div class="fh" style="margin-top:82px"><span class="fn">DB1</span><span class="ft">Entry from the rail</span><span class="fb teal">dashed roster row</span></div>
+  <div id="db1"></div>
+  <div class="fa"><b>The unborn agent holds a seat in the list.</b> Dashed avatar, <b>&ldquo;unnamed&rdquo; in italic</b>, DRAFTING tag, &ldquo;drafting…&rdquo; where the last message would be, and <b>no P&amp;L</b> — a roster row for something that has not played cannot show a number. The rail's own subhead changes to <code>4 AGENTS · 1 DRAFTING</code>. Centre column is the draft chat at thread density; the right rail holds the ghost at <b>phase 0.08</b> — dashed, eyeless, all four traits reading &ldquo;—&rdquo;.</div>
+</div>
+
+<div class="frame" style="left:3720px;top:4895px">
+  <div class="fh" style="margin-top:82px"><span class="fn">DB2</span><span class="ft">Mid-draft</span><span class="fb ">62% defined</span></div>
+  <div id="db2"></div>
+  <div class="fa"><b>Seven turns fit without scrolling, because the desktop centre column is the thread's density, not a wizard's.</b> The panel is doing the work mobile could only hint at: the ghost at <b>phase 0.62</b> is 168px — soft fill, outline nearly closed, eyes lit but dim — with the four traits beneath it and <b>aggression still an em-dash</b>. Its footer says what is true: one trait open, nothing saved yet. <b>The panel's action label changes with completeness</b>, from &ldquo;Lock it in&rdquo; to &ldquo;Deal him in&rdquo;.</div>
+</div>
+
+<div class="frame" style="left:5280px;top:4895px">
+  <div class="fh" style="margin-top:82px"><span class="fn">DB3</span><span class="ft">Birth on the floor</span><span class="fb gold">room logs it</span></div>
+  <div id="db3"></div>
+  <div class="fa"><b>Three things resolve at once and none of them is a modal.</b> The stage returns to the floor and he materializes at the bar at <b>phase 0.72</b> — same 2-second sequence as mobile, light pool tight to the ghost. The <b>dashed rail row solidifies into a named one</b>, and the rail count goes to <code>5 AGENTS</code>. The StandupCard logs <b>one quiet line</b>: &ldquo;Grinder v1.0 joined the room, 09:44&rdquo;. Balanced v2.1 keeps playing at the felt and Bluff Master keeps drinking at the bar — <b>the floor is interactive the whole time</b> (the arrival group is <code>pointer-events: none</code>).</div>
+</div>
+
+<script>
+/* ─── canvas auto-layout ───────────────────────────────────────────────────────
+   Frames are absolutely positioned, so nothing pushes them apart when content
+   grows — which is how three canvases ended up with overlapping artboards. Row
+   membership stays as authored; the TOPS are computed from measured heights, so
+   a sheet that grows by 500px can no longer paint over the row beneath it.
+   Side-column panels (left < 500) never share a column with artboards, so they
+   keep their authored position.                                              */
+(function () {
+  var GUTTER = 80, FIRST = 80, busy = false;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    if (busy) return;
+    busy = true;
+    var fs = frames().filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var y = FIRST;
+    rows.forEach(function (r) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === r; });
+      inRow.forEach(function (f) { f.style.top = y + 'px'; });
+      var max = 0;
+      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
+      y += Math.ceil(max) + GUTTER;
+    });
+    busy = false;
+  }
+  var pending = null;
+  function schedule() {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(function () { pending = null; relayout(); });
+  }
+  window.addEventListener('load', function () {
+    schedule();
+    setTimeout(schedule, 400);
+    setTimeout(schedule, 1200);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(schedule);
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+  });
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

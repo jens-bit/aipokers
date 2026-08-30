@@ -247,11 +247,14 @@ const GlobalHeader = ({ title, back }) => (
   </div>
 );
 
-// ── LAW 2 · three agent states, one visual system everywhere ──
+// ── LAW 2 · agent states, one visual system everywhere ──
+// Three states describe an agent that exists. 'drafting' describes one that does not yet:
+// it borrows M_DIM (no new colour) and is marked by a dashed ring, never a filled dot.
 const STATES = {
-  live:    { label: 'LIVE',    color: M_TEAL },
-  resting: { label: 'RESTING', color: M_MUTED },
-  recap:   { label: 'RECAP',   color: M_GOLD },
+  live:     { label: 'LIVE',     color: M_TEAL },
+  resting:  { label: 'RESTING',  color: M_MUTED },
+  recap:    { label: 'RECAP',    color: M_GOLD },
+  drafting: { label: 'DRAFTING', color: M_DIM, dashed: true },
 };
 
 const StateTag = ({ state, compact }) => {
@@ -260,14 +263,15 @@ const StateTag = ({ state, compact }) => {
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
       height: compact ? 16 : 18, padding: compact ? '0 5px' : '0 6px', borderRadius: 3,
-      background: state === 'resting' ? 'rgba(255,255,255,0.04)' : `${s.color}1A`,
-      border: `1px solid ${state === 'resting' ? M_BORDER_2 : `${s.color}55`}`,
+      background: (state === 'resting' || s.dashed) ? 'rgba(255,255,255,0.04)' : `${s.color}1A`,
+      border: s.dashed ? `1px dashed ${s.color}66` : `1px solid ${state === 'resting' ? M_BORDER_2 : `${s.color}55`}`,
     }}>
       {state === 'live' && <LiveDot size={4.5}/>}
       {state === 'recap' && (
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M5 12l5 5 9-11"/></svg>
       )}
       {state === 'resting' && <span style={{ width: 4.5, height: 4.5, borderRadius: '50%', background: M_MUTED }}/>}
+      {s.dashed && <span style={{ width: 5.5, height: 5.5, borderRadius: '50%', border: `1px dashed ${s.color}`, animation: 'drift 3.2s ease-in-out infinite' }}/>}
       <span style={{ fontFamily: OSWALD, fontSize: compact ? 8.5 : 9, fontWeight: 600, letterSpacing: '0.12em', color: s.color }}>{s.label}</span>
     </span>
   );
@@ -302,41 +306,72 @@ const MoodBand = ({ accent, mood, cause, state, action }) => {
   );
 };
 
-// THE CORE MECHANIC — sticky live bar. Docks under the header, chat scrolls beneath.
-const LiveBar = ({ table, blinds, pot, equity, action, timer = 12, board, street }) => (
+// THE CORE MECHANIC — one bar, two homes: docked under a thread header, and slotted
+// into a zoom under the speech bubble. Same component, same size, so live state reads
+// identically in both. The floor needs no bar — the felt itself is the zero-tap view.
+const LiveBar = ({ table, blinds, pot, equity, action, timer = 12, board, street,
+                  hole, faceDown, note, strip }) => (
   <div style={{
     flexShrink: 0, background: M_PANEL_2,
-    borderBottom: `1px solid ${M_TEAL}3D`,
+    // as a zoom strip the wrapper owns the border, so don't draw a second one
+    ...(strip ? {} : { borderBottom: `1px solid ${M_TEAL}3D` }),
     boxShadow: `inset 0 1px 0 ${M_TEAL}2E, 0 6px 14px rgba(0,0,0,0.35)`,
     cursor: 'pointer',
   }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px 0' }}>
-      <LiveDot size={5}/>
-      <Lbl size={9} color={M_TEAL}>Live</Lbl>
-      <Num size={9.5} color={M_MUTED} weight={500}>#{table} · {blinds} · {street}</Num>
+      {faceDown
+        ? <span style={{ width: 5, height: 5, borderRadius: '50%', background: M_MUTED, flexShrink: 0 }}/>
+        : <LiveDot size={5}/>}
+      <Lbl size={9} color={faceDown ? M_MUTED : M_TEAL}>{faceDown ? 'Between hands' : 'Live'}</Lbl>
+      <Num size={9.5} color={M_MUTED} weight={500}>#{table} · {blinds}{faceDown ? '' : ` · ${street}`}</Num>
       <div style={{ flex: 1 }}/>
-      <Num size={10} color={timer <= 5 ? M_RED : M_DIM} weight={600}>{timer}s</Num>
+      {!faceDown && <Num size={10} color={timer <= 5 ? M_RED : M_DIM} weight={600}>{timer}s</Num>}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_TEAL} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6"/></svg>
     </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px 9px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 14px 9px' }}>
+      {/* the agent's own hand — the first place faces are ever shown */}
+      {hole && (
+        <>
+          <div style={{ display: 'flex', gap: 1.5, flexShrink: 0 }}>
+            {hole.map((c, i) => (
+              <div key={i} style={{ transform: `rotate(${i ? 4 : -4}deg)` }}>
+                {faceDown
+                  ? <CardBack w={21} h={29} branded/>
+                  : <PlayingCard rank={c[0]} suit={c[1]} w={21} h={29}/>}
+              </div>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
+        </>
+      )}
       <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
         {board.map((c, i) => (
-          c ? <PlayingCard key={i} rank={c[0]} suit={c[1]} w={19} h={26}/>
+          c && !faceDown ? <PlayingCard key={i} rank={c[0]} suit={c[1]} w={19} h={26}/>
             : <CardBack key={i} w={19} h={26} branded/>
         ))}
       </div>
-      <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
-      <div style={{ minWidth: 0 }}>
-        <Lbl size={8.5}>Pot</Lbl>
-        <div><Num size={13} weight={700}>${pot}</Num></div>
-      </div>
-      <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
-      <div style={{ minWidth: 0 }}>
-        <Lbl size={8.5}>Equity</Lbl>
-        <div><Num size={13} weight={700} color={M_TEAL}>{equity}%</Num></div>
-      </div>
-      <div style={{ flex: 1 }}/>
-      <span style={{ padding: '4px 9px', borderRadius: 5, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', whiteSpace: 'nowrap', flexShrink: 0 }}>{action}</span>
+      {note ? (
+        <>
+          <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
+          <div style={{ fontSize: 12, color: M_MUTED, fontStyle: 'italic', minWidth: 0 }}>{note}</div>
+          <div style={{ flex: 1 }}/>
+        </>
+      ) : (
+        <>
+          <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
+          <div style={{ minWidth: 0 }}>
+            <Lbl size={8.5}>Pot</Lbl>
+            <div><Num size={13} weight={700}>${pot}</Num></div>
+          </div>
+          <div style={{ width: 1, height: 22, background: M_BORDER, flexShrink: 0 }}/>
+          <div style={{ minWidth: 0 }}>
+            <Lbl size={8.5}>Equity</Lbl>
+            <div><Num size={13} weight={700} color={M_TEAL}>{equity}%</Num></div>
+          </div>
+          <div style={{ flex: 1 }}/>
+          <span style={{ padding: '4px 9px', borderRadius: 5, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', whiteSpace: 'nowrap', flexShrink: 0 }}>{action}</span>
+        </>
+      )}
     </div>
   </div>
 );
@@ -354,8 +389,18 @@ const CANON = {
 };
 
 // screen chrome bits reused across chat screens
-const ChatComposer = ({ placeholder = 'Message your agent…', chips }) => (
+const ChatComposer = ({ placeholder = 'Message your agent…', chips, suggest, suggestLead }) => (
   <div style={{ flexShrink: 0, borderTop: `1px solid ${M_BORDER}`, background: M_PANEL, padding: '10px 14px 22px' }}>
+    {suggest && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 9, overflow: 'hidden' }}>
+        {suggestLead && (
+          <span style={{ flexShrink: 0, fontFamily: MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM, paddingRight: 2 }}>{suggestLead}</span>
+        )}
+        {suggest.map((c, i) => (
+          <span key={i} style={{ flexShrink: 0, height: 26, padding: '0 10px', borderRadius: 13, background: M_PANEL_2, border: `1px solid ${i === 0 ? `${M_TEAL}55` : M_BORDER}`, display: 'inline-flex', alignItems: 'center', fontSize: 11.5, color: i === 0 ? M_TEAL : M_DIM, whiteSpace: 'nowrap' }}>{c}</span>
+        ))}
+      </div>
+    )}
     {chips && (
       <div style={{ display: 'flex', gap: 6, marginBottom: 9, overflow: 'hidden' }}>
         {chips.map((c, i) => (

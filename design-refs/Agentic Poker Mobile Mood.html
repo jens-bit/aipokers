@@ -52,7 +52,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <div class="frame" style="left:60px;top:80px">
   <div class="panel">
     <div class="sub">Iteration 7 · coherence</div>
-    <h1>Two laws, then<br/>everything else.</h1>
+    <h1>Four laws, then<br/>everything else.</h1>
 
     <div class="lbl">Law 1 · the header never changes</div>
     <p style="margin-bottom:6px">Spade logo left, chip balance and bell right — on <b>every</b> screen. Sub-screens slot a back arrow beside the logo and swap the wordmark for the screen title. <b>The right side is byte-identical everywhere</b>, so entering a thread can never feel like entering a different app.</p>
@@ -66,8 +66,16 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     <div class="lawrow"><span class="k" style="color:#CDB380">Recap</span><span class="v">finished since you last looked — gold tick</span></div>
     <div class="lawrow"><span class="k" style="color:#6B6B6B">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
 
-    <div class="lbl">Law 3 · screen #5 is the language</div>
-    <p style="margin-bottom:6px">The live thread defines the tokens every other screen derives from. They live in one object, so "matches #5" is checkable rather than remembered.</p>
+    <div class="lbl" style="color:#CDB380">Law 3 · the floor is a fish tank</div>
+    <p style="margin-bottom:6px">A felt where one of <b>your own</b> agents is playing renders as a living <b>mini-diorama</b> — board on the felt centre, his two hole cards face up and fanned in front of his seated ghost, pot above the far rail. The felt <b>is</b> the zero-tap view; there is no now-playing bar. Another user&rsquo;s agent always shows <b>backs</b>.</p>
+    <div class="lawrow"><span class="k" style="color:#00D4AA">Diorama</span><span class="v">board · his hole cards <b>face up</b> · pot above the far rail</span></div>
+    <div class="lawrow"><span class="k">Legibility</span><span class="v">cards scale with the felt — a rank under <b>8.4px</b> is not drawn; the felt grows or the hand is not shown</span></div>
+    <div class="lawrow"><span class="k">Too small</span><span class="v">glow + pot only — tested <b>per felt</b>, never by shrinking cards. Every current density clears it, so this is a latent guard rather than a state you can see</span></div>
+    <div class="lawrow"><span class="k">Other users</span><span class="v">always card backs, never faces</span></div>
+    <div class="lawrow"><span class="k" style="color:#CDB380">Assumes</span><span class="v">hands advance <b>server-side</b> whether or not anyone is watching — the floor is watching the game, not driving it</span></div>
+
+    <div class="lbl">Law 4 · the live thread is the language</div>
+    <p style="margin-bottom:6px">The live thread defines the tokens every other screen derives from. They live in one object, so "matches the live thread" is checkable rather than remembered.</p>
     <div class="lawrow"><span class="k">Insets</span><span class="v">14px side padding, everywhere</span></div>
     <div class="lawrow"><span class="k">Cards</span><span class="v">12px radius, 1px rgba(255,255,255,.06)</span></div>
     <div class="lawrow"><span class="k">Type</span><span class="v">name 15 Playfair · body 13.5 · sub 12 · meta 9.5 mono</span></div>
@@ -88,173 +96,215 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
   </div>
 </div>
 
-<!-- collapsed masthead detail -->
-<div class="frame" style="left:60px;top:1000px">
-  <div class="fh"><span class="fn">10b</span><span class="ft">Masthead · collapsed</span></div>
-  <div class="detail" id="d1"></div>
-  <div class="fa">Once read, the standup folds to one slim line — net, hands, flagged count.</div>
-</div>
-
-<!-- ROW 1 · FLOOR DENSITY STATES -->
 <div class="frame" style="left:520px;top:80px">
-  <div class="grouphdr">The floor breathes — five density states of one room</div>
-  <div class="groupsub">The camera never moves and the floor never scrolls. What changes is the <b style="color:#C9C9CE">room&rsquo;s own dressing</b>: which felts are lit, how large they are, where they sit, and how much space the bar is allowed. Zone geometry is a layout table with five entries; ghost, name-chip and pot-ticker anatomy is byte-identical in every state. Moods stay with the agent — mood belongs to the agent, occupancy belongs to the moment. The only chrome permitted on the floor is the global header and the standup line.</div>
+  <div class="grouphdr">The floor, at five densities</div>
+  <div class="groupsub">One room, five occupancy states. Only geometry and occupancy change — moods stay with the agent, postures stay invariant, and the same standup line sits at the top of every one. A felt with your own agent playing on it becomes a <b>diorama</b>: board, his hole cards face up, pot above his name chip.</div>
   <div class="fh"><span class="fn">01</span><span class="ft">Quiet night</span><span class="fb dim">0 playing</span></div>
   <div id="f0"></div>
-  <div class="fa"><b>Lights at 62%, both felts unlit and empty.</b> The whole cast is off the felts: three along a widened bar, Aggressive still tilted in the lounge. The standup drops its numbers for one line — <i>&ldquo;Everyone&rsquo;s resting.&rdquo;</i> The felts stay drawn, so the room reads as between hands rather than closed.</div>
+  <div class="fa"><b>Lights at 62%, both felts unlit and empty.</b> The whole cast is off the felts — three along a widened bar, Aggressive still tilted in the lounge. The standup drops its numbers for a line. <b>No diorama anywhere</b>, because a diorama is a live hand being watched. The floor with nothing to show still reads as a room rather than an empty state.</div>
 </div>
 
 <div class="frame" style="left:980px;top:80px">
   <div class="fh" style="margin-top:120px"><span class="fn">02</span><span class="ft">One game</span><span class="fb teal">1 playing</span></div>
   <div id="f1"></div>
-  <div class="fa"><b>The hero felt.</b> One table at full size with its own light pool, board glowing, Balanced seated at the far side and the pot ticker on the near rail. The back felt stays dark. Bar keeps two, lounge keeps one.</div>
+  <div class="fa"><b>The hero felt, as a living diorama.</b> The felt is 212×104 so the cards stay legible: board on the centre, <b>Balanced’s own A♠K♥ face up and fanned</b> in front of his seated ghost, pot above the far rail. Hole ranks render at <b>9.7px</b> against the board’s 7.1px — his hand is the focal object, the community board subordinate. <b>No tap required</b>: this is the zero-tap view of a live hand.</div>
 </div>
 
 <div class="frame" style="left:1440px;top:80px">
   <div class="fh" style="margin-top:120px"><span class="fn">03</span><span class="ft">Two games</span><span class="fb teal">2 playing</span></div>
   <div id="f1b"></div>
-  <div class="fa"><b>Both felts lit, each with its own pool.</b> The main felt shrinks slightly and slides down to make room; the back felt grows and gains a seat. The bar contracts to a third of the wall and loses a stool. Aggressive is tilted <i>and</i> playing — the red shimmer is visible from across the room.</div>
-</div>
-
-<div class="frame" style="left:2360px;top:80px">
-  <div class="fh" style="margin-top:120px"><span class="fn">05</span><span class="ft">Full house</span><span class="fb">4 playing · stress test</span></div>
-  <div id="f1c"></div>
-  <div class="fa"><b>The room rearranges into a diamond.</b> Four felts at 72×32, ghosts down to 40px, three board cards instead of four, tickers at mini scale — and the bar squeezed to a 16px sliver along the bottom edge with the lounge dropped entirely, since nobody is resting. <b>Never more than four felts.</b> Each seat still carries name chip, live pulse, mood posture and its own pot.</div>
+  <div class="fa"><b>Two dioramas, both readable.</b> The back felt is 184×94 so it carries its own hand rather than degrading — every playing agent shows board, own cards and pot, at <b>8.4px</b> and <b>9.7px</b> ranks. The felts sit on a diagonal for depth; only their rows have to stay clear, not their columns. Aggressive is tilted <i>and</i> playing — the red shimmer reads from across the room.</div>
 </div>
 
 <div class="frame" style="left:1900px;top:80px">
   <div class="fh" style="margin-top:120px"><span class="fn">04</span><span class="ft">Three playing</span><span class="fb teal">3 + 1 resting</span></div>
   <div id="f1d"></div>
-  <div class="fa"><b>The diamond, with one felt dark.</b> Three seats live — each with its ghost, name chip and own pot ticker — and the fourth felt drawn but unlit, holding the shape of the room so the arrangement does not reflow. Value Bot rests at the bar sliver with its drink, directly beneath the empty felt. Completes the set: <b>0 · 1 · 2 · 3+1 · 4</b>.</div>
+  <div class="fa"><b>A 2×2 grid, with one felt dark.</b> Three seats live — each a <b>full diorama</b> at a 9.7px rank, no compromise for density — and the fourth felt drawn but unlit, holding the shape of the room so the arrangement does not reflow. Value Bot rests at the bar sliver with its drink. <b>The diamond became a grid</b> because four diamond points cannot each be big enough to hold a readable hand, and shrinking the cards is not allowed.</div>
 </div>
 
-<!-- ROW 1b · zoom, first run, postures -->
-<div class="frame" style="left:520px;top:1180px">
+<div class="frame" style="left:2360px;top:80px">
+  <div class="fh" style="margin-top:120px"><span class="fn">05</span><span class="ft">Full house</span><span class="fb ">4 playing · stress test</span></div>
+  <div id="f1c"></div>
+  <div class="fa"><b>The room fills its 2×2 grid.</b> Four felts at 176×104, ghosts at 46px, and the bar squeezed to a 16px sliver with the lounge dropped entirely since nobody is resting. <b>Never more than four felts.</b> Every seat carries name chip, live pulse, mood posture, pot <b>and a full diorama</b> — four boards, four hands, all at a <b>9.7px</b> rank, identical to the solo felt. <b>Density no longer costs information.</b></div>
+</div>
+
+<div class="frame" style="left:520px;top:1295px">
   <div class="grouphdr">Zoom, first run, and the posture spec</div>
-  <div class="groupsub">Tapping any ghost on any density state zooms to it. The zoom is taken from the two-games room, which is why Aggressive is tilted and mid-hand.</div>
+  <div class="groupsub">The floor already shows the hand; the zoom is for <b>reading and acting on</b> it. Under the speech bubble sits <b>the same LiveBar</b> as the thread — reused, not redrawn — in three states: thinking, action taken, and between hands. A resting agent gets no strip and a PROFILE button instead of WATCH.</div>
   <div class="fh"><span class="fn">06</span><span class="ft">Zoom · tilted</span><span class="fb dim">no tabs</span></div>
   <div id="f2"></div>
-  <div class="fa"><b>The camera pushes in and the ghost turns to face you.</b> The room stays behind, cropped through a zoomed viewBox under a scrim, so this reads as a camera move rather than a screen change. <b>CHAT leads</b> because a steaming agent needs talking to; WATCH stays available because the hand is still running.</div>
+  <div class="fa"><b>The camera pushes in and the ghost turns to face you.</b> The room stays behind, cropped through a zoomed viewBox under a scrim, so this reads as a camera move rather than a screen change. <b>CHAT leads</b> because a steaming agent needs talking to; WATCH stays available because the hand is still running. The strip shows why he is steaming — <b>31.2% on the river with 4s left</b>.</div>
 </div>
 
-<div class="frame" style="left:980px;top:1180px">
-  <div class="fh" style="margin-top:82px"><span class="fn">07</span><span class="ft">Zoom · playing</span><span class="fb dim">no tabs</span></div>
+<div class="frame" style="left:980px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">07</span><span class="ft">Zoom · thinking</span><span class="fb dim">no tabs</span></div>
   <div id="f3"></div>
-  <div class="fa"><b>Identical anatomy, inverted priority.</b> Same bubble, same mood block, same two actions — but WATCH becomes primary, because there is a live hand to see.</div>
+  <div class="fa"><b>Mid-hand · thinking.</b> Identical anatomy to 06, inverted priority — WATCH leads because there is a live hand to see. The <b>zoom strip</b> slots between bubble and buttons: the same <code>LiveBar</code> component as the thread, showing his hole cards face up, the board, pot, equity and a running timer with <b>TO ACT</b> pending.</div>
 </div>
 
-<div class="frame" style="left:1440px;top:1180px">
-  <div class="fh" style="margin-top:82px"><span class="fn">08</span><span class="ft">Floor · first run</span><span class="fb teal">tabs</span></div>
+<div class="frame" style="left:1440px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">08</span><span class="ft">Zoom · action taken</span><span class="fb dim">no tabs</span></div>
+  <div id="f3b"></div>
+  <div class="fa"><b>The action chip lights with what he actually did.</b> <b>BET $240</b> replaces TO ACT, the pot jumps 480 → 720, and the timer resets for the opponent. The bubble carries his reasoning in the past tense. Nothing else in the anatomy moves — only the chip and the numbers.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">09</span><span class="ft">Zoom · between hands</span><span class="fb ">cards down</span></div>
+  <div id="f3c"></div>
+  <div class="fa"><b>Between hands the strip goes quiet rather than disappearing.</b> Hole cards and board flip to <b>backs</b>, the live dot drops to a muted marker, equity and timer vanish, and the line reads &ldquo;shuffling up…&rdquo;. Keeping the strip mounted means the layout does not jump every thirty seconds — and the agent stays available to talk to.</div>
+</div>
+
+<div class="frame" style="left:2360px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">10</span><span class="ft">Zoom · resting</span><span class="fb ">profile route</span></div>
+  <div id="f3d"></div>
+  <div class="fa"><b>The route the flow map has always claimed and no artboard ever drew.</b> Zoom on a resting agent: <b>no strip</b>, because there is no hand — and the secondary button reads <b>PROFILE</b> instead of WATCH. CHAT leads. Value Bot sulks at 0.93 scale and −7°, and the cause line explains the mood without you having to ask.</div>
+</div>
+
+<div class="frame" style="left:2820px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">11</span><span class="ft">Floor · first run</span><span class="fb teal">tabs</span></div>
   <div id="f4"></div>
   <div class="fa"><b>The room is waiting, not broken.</b> Lights at 40%, felts still drawn, one dashed ghost outline on a barstool. The sentiment lives in the standup line — &ldquo;The room is open · 847 agents in seats&rdquo; — never as copy on the floor.</div>
 </div>
 
-<div class="frame" style="left:1900px;top:1180px">
-  <div class="fh" style="margin-top:82px"><span class="fn">09</span><span class="ft">Mood postures</span><span class="fb">vocabulary</span></div>
+<div class="frame" style="left:3280px;top:1295px">
+  <div class="fh" style="margin-top:82px"><span class="fn">12</span><span class="ft">Mood postures</span><span class="fb ">vocabulary</span></div>
   <div id="f5"></div>
   <div class="fa"><b>The body-language spec.</b> Five moods × three contexts. Posture is invariant — confident floats 7px taller, sulking sits 8px lower at −7° and 0.93 scale — while context only sets the accent colour.</div>
 </div>
 
-<!-- supporting: the chats tab keeps the thread list; the stories row is retired -->
-<div class="frame" style="left:520px;top:2280px">
-  <div class="grouphdr">Supporting — the other two tabs</div>
-  <div class="groupsub">CASINO replaces both the old feed and the TEAM tab. CHATS is where the voices live; YOU is unchanged.</div>
-  <div class="fh"><span class="fn">10</span><span class="ft">Chats</span><span class="fb teal">tabs</span></div>
+<div class="frame" style="left:520px;top:2504px">
+  <div class="grouphdr">Supporting — the other tabs</div>
+  <div class="groupsub">Chats keeps the thread list, You holds account and replays, and the mood sheet is the reference. Three tabs only: Casino · Chats · You.</div>
+  <div class="fh"><span class="fn">00</span><span class="ft">Masthead · collapsed</span><span class="fb dim">component</span></div>
+  <div id="d1"></div>
+  <div class="fa"><b>The standup, collapsed to one line.</b> This is what mobile carries at the top of the floor — net, flagged count, and a chevron. <b>Deliberate, not an omission:</b> the full StandupCard is a desktop affordance where the side panel has the room for it; on a 390px floor the room itself is the headline and the numbers are a line.</div>
+</div>
+
+<div class="frame" style="left:980px;top:2504px">
+  <div class="fh" style="margin-top:82px"><span class="fn">13</span><span class="ft">Chats</span><span class="fb teal">tab</span></div>
   <div id="s1"></div>
-  <div class="fa"><b>Voice, not furniture.</b> Two sections — AT THE TABLES above RESTING — and every preview is the agent&rsquo;s own last line, tinted by its mood: teal-shifted when confident, red-shifted when tilted, cool grey when sulking. State tags are gone; the unread badge and the gold recap tick carry all of it.</div>
+  <div class="fa"><b>Recaps lead, live agents follow.</b> Two gold-tick rows under &ldquo;While you were away&rdquo;, then the live ones. 48px avatars so the expression carries the row, and every preview is the agent’s own voice rather than a status string.</div>
 </div>
 
-<div class="frame" style="left:980px;top:2280px">
-  <div class="fh" style="margin-top:82px"><span class="fn">11</span><span class="ft">Agent profile</span><span class="fb">from zoom</span></div>
+<div class="frame" style="left:1440px;top:2504px">
+  <div class="fh" style="margin-top:82px"><span class="fn">14</span><span class="ft">Agent profile</span><span class="fb ">stat sheet</span></div>
   <div id="s7b"></div>
-  <div class="fa"><b>Reached from the zoom's second action.</b> Career, mood timeline, activity, edit-strategy.</div>
+  <div class="fa"><b>The mood timeline is the argument.</b> Ten sessions plotted against the five states with results underneath — two peaks, two hard drops to tilted, slow climbs back. &ldquo;Tilts fast, recovers slow&rdquo; is legible without the caption.</div>
 </div>
 
-<div class="frame" style="left:1440px;top:2280px">
-  <div class="fh" style="margin-top:82px"><span class="fn">12</span><span class="ft">You</span><span class="fb teal">tabs</span></div>
+<div class="frame" style="left:1900px;top:2504px">
+  <div class="fh" style="margin-top:82px"><span class="fn">15</span><span class="ft">You</span><span class="fb ">tab</span></div>
   <div id="s8"></div>
-  <div class="fa"><b>Balance, lifetime, replays, settings</b> — same header and insets as everything else.</div>
+  <div class="fa"><b>Account, bankroll, and replays.</b> Replays live here as a subsection rather than a fourth tab — three tabs hold, at the cost of burying hand review one level deeper.</div>
 </div>
 
-<div class="frame" style="left:1900px;top:2280px">
-  <div class="fh" style="margin-top:82px"><span class="fn">13</span><span class="ft">Mood sheet</span><span class="fb">reference</span></div>
+<div class="frame" style="left:2360px;top:2504px">
+  <div class="fh" style="margin-top:82px"><span class="fn">16</span><span class="ft">Mood sheet</span><span class="fb ">reference</span></div>
   <div id="s9"></div>
-  <div class="fa"><b>The five states at badge and large scale</b> — the atoms the floor renders from.</div>
+  <div class="fa"><b>The five moods, their causes and their cures.</b> Reachable from any mood chip. Causes are all poker events — never your absence.</div>
 </div>
 
-<!-- ROW 2 · THREAD LIFECYCLE -->
-<div class="frame" style="left:520px;top:3380px">
-  <div class="grouphdr">14 · One screen, photographed five times</div>
-  <div class="groupsub">These five frames are the <b style="color:#C9C9CE">same React component</b> rendered with different props — <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00D4AA">ThreadScreen({state, bar, children})</code>. Header, mood band, feed and composer are structurally identical because there is only one of each. The only things that vary are the sticky bar and the newest messages; divergence anywhere else would be a code change, not a design choice.</div>
-  <div class="fh"><span class="fn">14a</span><span class="ft">Resting</span><span class="fb dim">no bar</span></div>
+<div class="frame" style="left:520px;top:3627px">
+  <div class="grouphdr">The thread, across one lifecycle</div>
+  <div class="groupsub">Five frames, <b>one component</b>: <code>ThreadScreen</code> renders header, mood band, bar slot, feed and composer, and all five call it. Measured identical — header 41px, band 63px, composer 77px — with only the bar’s presence and height changing, and the feed absorbing the difference.</div>
+  <div class="fh"><span class="fn">17a</span><span class="ft">Resting</span><span class="fb ">no bar</span></div>
   <div id="s3a"></div>
-  <div class="fa">Last session's recap and a pending self-change proposal. <b>RESTING</b> tag, no sticky bar, DEPLOY in the band.</div>
+  <div class="fa">Idle agent, no live marker anywhere and no bar. The proposal card is how strategy changes arrive — he asks, you accept.</div>
 </div>
 
-<div class="frame" style="left:980px;top:3380px">
-  <div class="fh" style="margin-top:120px"><span class="fn">14b</span><span class="ft">Deploying</span><span class="fb teal">bar half-docked</span></div>
+<div class="frame" style="left:980px;top:3627px">
+  <div class="fh" style="margin-top:120px"><span class="fn">17b</span><span class="ft">Deploying</span><span class="fb teal">bar half-docked</span></div>
   <div id="s3b"></div>
-  <div class="fa">Proposal accepted, version bumped, "Taking seat at #48291" just posted — and the bar caught <b>mid-slide</b>, clipped at 36px of its 62.</div>
+  <div class="fa">Proposal accepted, version bumped, &ldquo;Taking seat at #48291&rdquo; just posted — and the bar caught <b>mid-slide</b>, clipped at 36px of its 62.</div>
 </div>
 
-<div class="frame" style="left:1440px;top:3380px">
-  <div class="fh" style="margin-top:120px"><span class="fn">14c</span><span class="ft">Live</span><span class="fb teal">canon</span></div>
+<div class="frame" style="left:1440px;top:3627px">
+  <div class="fh" style="margin-top:120px"><span class="fn">17c</span><span class="ft">Live</span><span class="fb teal">bar docked</span></div>
   <div id="s3c"></div>
-  <div class="fa">Canon, untouched. Bar holds the hand, feed holds events only; the pep talk eases tilt one step.</div>
+  <div class="fa">The bar fully docked at 75px under the mood band — hole cards, board, pot, equity, action and timer. The feed scrolls beneath it, so the game has a permanent home and the conversation never has to represent it.</div>
 </div>
 
-<div class="frame" style="left:1900px;top:3380px">
-  <div class="fh" style="margin-top:120px"><span class="fn">14d</span><span class="ft">Just ended</span><span class="fb">bar gone</span></div>
+<div class="frame" style="left:1900px;top:3627px">
+  <div class="fh" style="margin-top:120px"><span class="fn">17d</span><span class="ft">Just ended</span><span class="fb gold">recap</span></div>
   <div id="s3d"></div>
-  <div class="fa">Bar gone the moment play stops. <b>RECAP</b> tag, and the recap posts into this same thread — never a review centre.</div>
+  <div class="fa">The bar drops the moment play stops and the state tag flips to <b>RECAP</b> — so &ldquo;live&rdquo; and &ldquo;just ended&rdquo; can never read the same.</div>
 </div>
 
-<div class="frame" style="left:2360px;top:3380px">
-  <div class="fh" style="margin-top:120px"><span class="fn">14e</span><span class="ft">Returned later</span><span class="fb">retention</span></div>
+<div class="frame" style="left:2360px;top:3627px">
+  <div class="fh" style="margin-top:120px"><span class="fn">17e</span><span class="ft">Returned later</span><span class="fb ">resting</span></div>
   <div id="s3e"></div>
-  <div class="fa">Same thread, hours later. Mood cause line updated, night compressed to one arc, "run it back?" offered.</div>
+  <div class="fa">Hours later: RESTING, no bar, and the session summary sitting in the feed as history. He flagged his own mistakes before you asked.</div>
 </div>
 
-<!-- ROW 3 · FULL TABLE -->
-<div class="frame" style="left:520px;top:4480px">
-  <div class="grouphdr">15 · Full table — canon header, three collapse states</div>
-  <div class="groupsub">Full-bleed rectangular felt with the global header intact above it. Board, pot and equity survive every collapse; seats and hero cards drop in order of how little they're needed to follow the hand.</div>
-  <div class="fh"><span class="fn">15a</span><span class="ft">Full</span><span class="fb">table owns the screen</span></div>
-  <div id="s5a"></div>
-  <div class="fa">Seat chips top corners, board and pot centred, hero and equity at the bottom, slim chat handle carrying the agent's line.</div>
+<!-- WATCH -->
+<div class="frame" style="left:520px;top:4788px">
+  <div class="grouphdr">Watch — the full table</div>
+  <div class="groupsub">Every designed path ends here: tap a diorama, take the zoom's WATCH, or tap the thread's live bar. Nothing is invented for this screen — <b>MoodBand</b> is the header so mood, state and cause stay visible while you watch, <b>SeatChip</b> holds the top corners, and the hero readout is <b>LiveBar's own row</b> at full size: the same Lbl/Num pair, the same 1×22 divider, the same Oswald action chip. No tab bar; a sub-screen gets the back arrow.</div>
+  <div class="fh"><span class="fn">18a</span><span class="ft">Watch · mid-hand</span><span class="fb teal">his turn</span></div>
+  <div id="w18a"></div>
+  <div class="fa"><b>His turn, timer running.</b> The board and pot sit centred, the felt goes full-bleed under the mood band, and the readout carries stack, equity, the committed action and the <b>timer ring from play.jsx</b> at its original geometry. Below, LIVE ANALYSIS opens with his voice line and then the numbers behind it — equity, fold equity, pot odds, and whether the solver agrees with what he just did.</div>
 </div>
 
-<div class="frame" style="left:980px;top:4480px">
-  <div class="fh" style="margin-top:120px"><span class="fn">15b</span><span class="ft">Half</span><span class="fb">chat open</span></div>
-  <div id="s5b"></div>
-  <div class="fa">Felt to 336px, cards 42→34px. Everything needed to follow the hand survives; chat and composer take the rest.</div>
+<div class="frame" style="left:980px;top:4788px">
+  <div class="fh" style="margin-top:82px"><span class="fn">18b</span><span class="ft">Watch · between hands</span><span class="fb">exit offered</span></div>
+  <div id="w18b"></div>
+  <div class="fa"><b>Between hands — and the only place the exit appears.</b> Cards and board flip to backs, pot reads em-dash, equity drops out, and a quiet strip surfaces <b>&ldquo;Sit out after this hand&rdquo;</b>: ghost border, dim label, no red, no warning icon. The server has supported a graceful mid-session exit all along and no screen ever offered it. Offering it only between hands is the honest framing — he finishes what he is in.</div>
 </div>
 
-<div class="frame" style="left:1440px;top:4480px">
-  <div class="fh" style="margin-top:120px"><span class="fn">15c</span><span class="ft">Strip</span><span class="fb">keyboard up</span></div>
-  <div id="s5c"></div>
-  <div class="fa">96px band — board, pot, equity, action, timer. Seats and hero cards drop; the input sits above the real keyboard.</div>
+<div class="frame" style="left:1440px;top:4788px">
+  <div class="fh" style="margin-top:82px"><span class="fn">18c</span><span class="ft">Watch · sit-out confirm</span><span class="fb gold">no guilt</span></div>
+  <div id="w18c"></div>
+  <div class="fa"><b>One small sheet, and the room behind it already answering.</b> The felt has gone dark and he is <b>mid-walk to the bar</b> — the consequence is shown rather than described. Copy states what happens and stops: finishes the hand, leaves the table, takes a seat at the bar, redeploy whenever. The session line banks <b>+$340</b> as a fact, not a reproach. Secondary reads <i>Keep playing</i>, never &ldquo;Are you sure?&rdquo;.</div>
 </div>
 
-<div class="frame" style="left:1900px;top:4480px">
-  <div class="fh" style="margin-top:120px"><span class="fn">16</span><span class="ft">Hand review</span><span class="fb">sheet · re-derived</span></div>
+<div class="frame" style="left:1900px;top:4788px">
+  <div class="fh" style="margin-top:120px"><span class="fn">19</span><span class="ft">Hand review</span><span class="fb">sheet · re-derived</span></div>
   <div id="s11"></div>
-  <div class="fa"><b>Re-derived from screen #5.</b> Global header, a verdict band with the mood band's exact anatomy, and #5's composer quoting the hand. Equity is teal where the action matched the math, red where it defied it — the river jam at 38% is the one red row.</div>
+  <div class="fa"><b>Re-derived from the live thread.</b> Global header, a verdict band with the mood band's exact anatomy, and #5's composer quoting the hand. Equity is teal where the action matched the math, red where it defied it — the river jam at 38% is the one red row.</div>
 </div>
 
 <!-- FLOW MAP -->
-<div class="frame" style="left:520px;top:5580px">
-  <div class="fh"><span class="fn">17</span><span class="ft">Flow map</span><span class="fb teal">navigation</span></div>
+<div class="frame" style="left:520px;top:6033px">
+  <div class="fh"><span class="fn">20</span><span class="ft">Flow map</span><span class="fb teal">navigation</span></div>
   <div id="s10"></div>
   <div class="fa" style="max-width:1180px;margin-top:16px">
     <b>Navigation law.</b>
     <b style="color:#00D4AA">Tabs</b> — Chats · Team · You, top-level only.
     <b style="color:#00D4AA">Threads</b> — back arrow in the global header, no tab bar.
-    <b style="color:#00D4AA">Live game</b> — never a scrolling message; it docks as the sticky bar.
+    <b style="color:#00D4AA">Live game</b> — the felt shows it on the floor; the thread docks it as the sticky bar.
     <b style="color:#00D4AA">Team</b> — a LIVE agent goes to the table, a resting one to its profile.
     <b style="color:#00D4AA">Hand review</b> — a sheet, reachable from flagged chips, the masthead and profiles.
   </div>
 </div>
+
+<!-- THE BIRTH WAVE -->
+<div class="frame" style="left:520px;top:7022px">
+  <div class="grouphdr">Birth — how an agent comes to exist</div>
+  <div class="groupsub">The conversation <b>is</b> the creation: there is no form, no wizard and no &ldquo;agent created&rdquo; card. Nothing here is a new pattern — header, band, bubbles, composer, chips, diff card, floor and ghost atoms are all reused. One thing is genuinely new: <b>a ghost that does not exist yet</b>, drawn at a definition level. <code>FormingGhost</code> is MoodGhost's own silhouette path and eye geometry with a <code>phase</code>: dashed outline and no eyes at 0, a finished ghost at 1. <b>Drafting is now a fourth state in LAW 2</b> — borrowing M_DIM, marked by a dashed ring rather than a filled dot, because it describes an agent that does not exist rather than the status of one that does.</div>
+  <div class="fh" style="margin-top:82px"><span class="fn">21</span><span class="ft">Entry</span><span class="fb teal">no ghost yet</span></div>
+  <div id="b1"></div>
+  <div class="fa"><b>Tapping &ldquo;Draft your first agent&rdquo; on the FTU floor opens a thread, not a form.</b> The band is <code>MoodBand</code>'s anatomy exactly — 42px avatar well, chip row, cause line, action — but the well holds a ghost at <b>phase 0</b>: dashed, unfilled, <b>eyeless</b>. The chip slot reads NO MOOD YET rather than showing a mood, because mood belongs to an agent that has played. Suggestion chips ride in <code>ChatComposer</code>'s existing chips slot; the cause line reads &ldquo;nothing decided yet&rdquo;.</div>
+</div>
+
+<div class="frame" style="left:980px;top:7022px">
+  <div class="fh" style="margin-top:82px"><span class="fn">22</span><span class="ft">Mid-draft</span><span class="fb ">62% defined</span></div>
+  <div id="b2"></div>
+  <div class="fa"><b>Two exchanges in, and the draft is in the room.</b> The forming ghost appears twice: as a <b>168px watermark</b> at 13% opacity behind the conversation on the right, and inside the profile card that arrives as a message. Both are the same component at <b>phase 0.62</b> — soft fill, dashed outline nearly closed, eyes lit but dim. The emerging profile uses the analysis panels' own vocabulary (Lbl · Num · bar), and <b>unset traits are dashes, never zeros</b>: aggression is still open, so it shows &ldquo;—&rdquo;. An unanswered question is not an answer of nothing.</div>
+</div>
+
+<div class="frame" style="left:1440px;top:7022px">
+  <div class="fh" style="margin-top:82px"><span class="fn">23</span><span class="ft">The birth</span><span class="fb gold">floor is the confirmation</span></div>
+  <div id="b3"></div>
+  <div class="fa"><b>Strategy locked, and the screen returns to the floor — where he is already materializing at the bar.</b> Caught mid-arrival at <b>phase 0.72</b>: outline still dashed, fill soft, <b>eyes just lit</b>. A light pool finds him. His first words arrive <b>before</b> his name chip does, which lands last and is still fading in at 60% with a dashed border. Balanced v2.1 keeps playing at the felt throughout — the room does not stop for him. <b>There is no &ldquo;agent created&rdquo; card anywhere</b>; a new ghost in the room is the receipt. Animation is opacity and outline only: no particles, no confetti.</div>
+</div>
+
+<div class="frame" style="left:1900px;top:7022px">
+  <div class="fh" style="margin-top:82px"><span class="fn">24</span><span class="ft">Rebuild</span><span class="fb ">owner-initiated</span></div>
+  <div id="b4"></div>
+  <div class="fa"><b>Opened from an existing agent's thread, so the header is his — real MoodBand, frustrated, purple, his cause line intact.</b> No forming ghost: he exists, and nothing is being drafted. The change presents as a <b>diff</b>, v1.3 → v1.4, and this is the same card the agent uses when it proposes a change itself — identical gold border, header strip, before → after rows and footer. <b>Only the origin line and the verbs differ</b>: &ldquo;You asked for a rebuild&rdquo; instead of &ldquo;Wants to change itself&rdquo;, Save v1.4 instead of Accept. One pattern, two directions.</div>
+</div>
+</div>
+
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -272,6 +322,8 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-screens-e.jsx"></script>
 <script type="text/babel" src="mood-screens-f.jsx"></script>
 <script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
 <script type="text/babel" src="mood-flow.jsx"></script>
 
 <script type="text/babel">
@@ -282,6 +334,9 @@ const mounts = [
   ['f1b', FloorTwoScreenM],
   ['f1d', FloorThreeScreenM],
   ['f1c', FloorFullScreenM],
+  ['f3b', ZoomActionScreenM],
+  ['f3c', ZoomBetweenScreenM],
+  ['f3d', ZoomRestingScreenM],
   ['f2', ZoomTiltedScreenM],
   ['f3', ZoomPlayingScreenM],
   ['f4', CasinoFTUScreenM],
@@ -293,17 +348,71 @@ const mounts = [
   ['s3c', ThreadLiveScreenM],
   ['s3d', ThreadEndedScreenM],
   ['s3e', ThreadAwayScreenM],
-  ['s5a', TableFullScreenM],
-  ['s5b', TableHalfScreenM],
-  ['s5c', TableStripScreenM],
+  ['w18a', WatchLiveScreenM],
+  ['w18b', WatchBetweenScreenM],
+  ['w18c', WatchSitOutScreenM],
   ['s11', HandReviewScreenM],
   ['s8', YouScreenM],
   ['s9', MoodSheetScreenM],
   ['s10', FlowMap],
+  ['b1', BirthEntryScreenM],
+  ['b2', BirthDraftScreenM],
+  ['b3', BirthFloorScreenM],
+  ['b4', BirthEditScreenM],
 ];
 mounts.forEach(([id, Comp]) => {
   ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);
 });
 </script>
+<script>
+/* ─── canvas auto-layout ───────────────────────────────────────────────────────
+   Frames are absolutely positioned, so nothing pushes them apart when content
+   grows — which is how three canvases ended up with overlapping artboards. Row
+   membership stays as authored; the TOPS are computed from measured heights, so
+   a sheet that grows by 500px can no longer paint over the row beneath it.
+   Side-column panels (left < 500) never share a column with artboards, so they
+   keep their authored position.                                              */
+(function () {
+  var GUTTER = 80, FIRST = 80, busy = false;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    if (busy) return;
+    busy = true;
+    var fs = frames().filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var y = FIRST;
+    rows.forEach(function (r) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === r; });
+      inRow.forEach(function (f) { f.style.top = y + 'px'; });
+      var max = 0;
+      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
+      y += Math.ceil(max) + GUTTER;
+    });
+    busy = false;
+  }
+  var pending = null;
+  function schedule() {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(function () { pending = null; relayout(); });
+  }
+  window.addEventListener('load', function () {
+    schedule();
+    setTimeout(schedule, 400);
+    setTimeout(schedule, 1200);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(schedule);
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+  });
+  window.__relayout = relayout;
+})();
+</script>
+
 </body>
 </html>

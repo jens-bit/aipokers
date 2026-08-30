@@ -1,9 +1,20 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-05-09 after the post-AJ-review reconciliation
+Last updated: 2026-08-29 late night (post Tree 3.5 + FLR-9/10 deploy)
+
 
 ---
 
 ## OPEN
+
+### BUG-16 — Presence lies: agent shown seated/"playing" while his table is frozen
+**Severity:** High (product identity)
+**Where:** server table lifecycle + floor presence; observed 2026-08-29 on prod
+**What:** Hands only advance while a client has the table open. An agent assigned to a table shows presence=playing (floor seats him with cards) but nothing is happening; opening WATCH shows "Waiting…" and then a hand starts because the viewer's arrival wakes the game. The pet only lives while stared at.
+**Fix:** Tree 4 server-side play loop — agents play autonomously on the server; watching becomes passive. Presence=playing only when hands actually advance.
+
+### BUG-17 — WATCH entry appears to start a NEW game rather than joining the running one
+**Severity:** Medium (symptom of BUG-16)
+**What:** Same root cause as BUG-16; fold into Tree 4. Verify on entry mid-hand: viewer should join the hand in progress, not trigger a fresh deal.
 
 
 ### BUG-10 — In-game header drops platform branding — RESOLVED (verified visually 2026-08-29: spade + branding present in watch header; fix commit c7be663 from May)
@@ -18,25 +29,25 @@ Last updated: 2026-05-09 after the post-AJ-review reconciliation
 **What:** Sub-task 5 of feature/play-cleanup (commit 4c4dbdf) moved the suggestion chips immediately below the greeting message to eliminate dead whitespace. Over-corrected — they now sit pinned to the top, which feels glued. User wants them to sit naturally in the middle of the chat flow with the greeting above and input below.
 **Fix:** Restructure the message-list flex so the chips sit centered within available vertical space, not anchored under the greeting. Greeting at top, chips centered, input at bottom.
 
-### BUG-12 — DECISION broadcast leaks AI reasoning + equity to live opponents
+### BUG-12 — DECISION broadcast leaks AI reasoning + equity to live opponents — RESOLVED (routing fixed; spectator scoping completed by BUG-15 fix in AGE-33)
 **Severity:** High (game integrity)
 **Where:** src/server/table.js `_maybeRunAiTurn` — `this._broadcast({ type: ServerMsg.DECISION, ... })`
 **What:** The DECISION message (action, reasoning, and — since AGE-16 — equity and potOdds) is broadcast to every connection at the table, including a human playing AGAINST the AI. Reasoning can describe hand strength, and equity ~85% preflop effectively reveals AA/KK. Observed 2026-08-29 in vs-AI play: you see House's thoughts.
 **Fix:** Route DECISION only to spectators whose agent it is (and into the stored hand review); never to opposing seats mid-hand. Fold into Tree 4 (UI surfacing) or fix standalone earlier.
 
-### BUG-13 — Min-raise wars: 20–30 raise ping-pong before all-in
+### BUG-13 — Min-raise wars: 20–30 raise ping-pong before all-in — RESOLVED (Tree 2 sizing directives; confirmed gone in AGE-28 arena + prod playtest)
 **Severity:** Medium (gameplay quality; also inflates LLM cost + arena runtimes)
 **Where:** Agent decision behavior (src/agent/handler.js prompt) — engine is rule-correct; the models each min-raise, reopening action indefinitely.
 **What:** AI vs AI / vs House escalate via repeated minimum raises, taking 20–30 turns to reach all-in. Classic LLM poker pathology. Observed 2026-08-29.
 **Fix:** Tree 2 policy compiler adds sizing directives (commit big or don't reraise; no min-raise chains) + add a `RAISES THIS STREET: n` line to the decision briefing so the model can see the loop. Optionally a soft cap on raises per street as backstop.
 
-### BUG-14 — No way to stop a deployed agent
+### BUG-14 — No way to stop a deployed agent — RESOLVED (AGE-33: SIT_OUT WS message, finish hand → TABLE_CLOSED "sat out by owner" → idle+recap)
 **Severity:** High (UX / control)
 **Where:** watch view + agent thread; server table lifecycle
 **What:** Once deployed (e.g. vs House), an agent plays until someone busts — no STOP/sit-out control exists. Observed 2026-08-29 on localhost.
 **Fix:** Add a STOP button (watch view + thread/rail). Behavior: finish the current hand, then close the table gracefully (TABLE_CLOSED "sat out by owner"), call /api/agents/:id/finish so the agent goes idle. Server largely supports this via spectator-leave/onEmpty; needs an explicit SIT_OUT WS message so it is deliberate, not a side effect of closing the tab. Fold into Tree 3.5 or a small standalone fix.
 
-### BUG-15 — Spectators see ALL seats’ reasoning, including the opponent’s
+### BUG-15 — Spectators see ALL seats’ reasoning, including the opponent’s — RESOLVED (AGE-33: full payload only when deciding seat === spectatorSeat)
 **Severity:** Medium now (immersion), High later (cheating in PvP spectating)
 **Where:** src/server/table.js `_broadcastDecision` (BUG-12 fix routed by connection type only)
 **What:** Spectators receive full DECISION payloads (reasoning/equity) for every seat — watching your agent vs House shows the HOUSE’s thinking too. Observed 2026-08-29 evening on localhost.

@@ -62,14 +62,14 @@ const StableRow = ({ agents }) => (
   </div>
 );
 
-const StandupCollapsed = () => (
-  <div style={{ margin: `0 ${CANON.pad}px`, height: 37, padding: '0 13px', background: M_PANEL_2, border: `1px solid ${M_BORDER}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 9 }}>
+const StandupCollapsed = ({ bare, net = '+$340', hands = '184 hands', flagged = '4 flagged' }) => (
+  <div style={{ margin: bare ? 0 : `0 ${CANON.pad}px`, height: 37, padding: '0 13px', background: M_PANEL_2, border: `1px solid ${M_BORDER}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
     <Lbl size={9}>Standup</Lbl>
-    <Num size={12} weight={700} color={M_TEAL}>+$340</Num>
+    <Num size={12} weight={700} color={M_TEAL}>{net}</Num>
     <span style={{ color: M_FAINT, fontFamily: MONO, fontSize: 10 }}>·</span>
-    <span style={{ fontSize: 11.5, color: M_DIM }}>184 hands</span>
+    <span style={{ fontSize: 11.5, color: M_DIM }}>{hands}</span>
     <span style={{ color: M_FAINT, fontFamily: MONO, fontSize: 10 }}>·</span>
-    <span style={{ fontSize: 11.5, color: M_GOLD }}>4 flagged</span>
+    <span style={{ fontSize: 11.5, color: M_GOLD }}>{flagged}</span>
     <div style={{ flex: 1 }}/>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
   </div>
