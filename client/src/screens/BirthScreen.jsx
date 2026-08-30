@@ -293,6 +293,14 @@ export function BirthScreen({ onBack, onBirth }) {
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    function onFocus() { setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150); }
+    el.addEventListener('focus', onFocus);
+    return () => el.removeEventListener('focus', onFocus);
+  }, []);
+
+  useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;

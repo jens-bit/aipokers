@@ -6,8 +6,7 @@
   width: 100%;
   max-width: var(--max-w-mobile);
   margin: 0 auto;
-  height: 100vh;
-  height: 100dvh; /* responds to virtual keyboard on iOS/Android */
+  height: var(--tg-h, 100dvh); /* --tg-h tracks Telegram viewport; 100dvh elsewhere */
   overflow: hidden;
   position: relative;
   padding-top: var(--safe-top);

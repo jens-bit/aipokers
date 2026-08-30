@@ -209,7 +209,16 @@ function LiveAnalysisTab({ feed }) {
 
 function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
   var [text, setText] = useState('');
-  var listRef = useRef(null);
+  var listRef    = useRef(null);
+  var chatInputRef = useRef(null);
+
+  useEffect(function() {
+    var el = chatInputRef.current;
+    if (!el) return;
+    function onFocus() { setTimeout(function() { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150); }
+    el.addEventListener('focus', onFocus);
+    return function() { el.removeEventListener('focus', onFocus); };
+  }, []);
 
   // Merge thread messages and ambient table speech sorted by timestamp.
   var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
@@ -301,7 +310,7 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
         )}
       </div>
       <form className="dr-chat-tab__form" onSubmit={submit}>
-        <input className="dr-chat-tab__input" value={text}
+        <input ref={chatInputRef} className="dr-chat-tab__input" value={text}
           onChange={function(e) { setText(e.target.value); }}
           placeholder={'Message ' + (agentName || 'your agent') + '...'}
           maxLength={280} disabled={loading} aria-label="Chat message" />

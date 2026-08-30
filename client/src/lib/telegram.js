@@ -39,6 +39,38 @@ export function isInTelegram() {
   return getWebApp() != null;
 }
 
+// Tracks Telegram.WebApp.viewportHeight (shrinks when iOS keyboard opens) and
+// writes it to --tg-h on <html>. All keyboard-aware containers use
+// height: var(--tg-h, 100dvh) instead of 100dvh so the layout compresses and
+// the composer rides just above the keyboard. Falls back to visualViewport on
+// plain browsers, then 100dvh (left unset) outside any supported context.
+// Returns a cleanup function suitable for useEffect.
+export function initViewportTracking() {
+  function update() {
+    const tg = window.Telegram?.WebApp;
+    let h;
+    if (tg && tg.viewportHeight > 0) {
+      h = tg.viewportHeight;
+    } else if (window.visualViewport) {
+      h = window.visualViewport.height;
+    } else {
+      return; // leave --tg-h unset; CSS fallback (100dvh) takes over
+    }
+    document.documentElement.style.setProperty('--tg-h', `${Math.round(h)}px`);
+  }
+  update();
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.onEvent('viewportChanged', update);
+    return () => tg.offEvent('viewportChanged', update);
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', update);
+    return () => window.visualViewport.removeEventListener('resize', update);
+  }
+  return () => {};
+}
+
 // Returns the raw initData string used to authenticate Telegram Mini App
 // requests. Empty string outside Telegram (local dev).
 export function getTelegramInitData() {
