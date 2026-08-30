@@ -42,24 +42,40 @@
   text-overflow: ellipsis;
 }
 
+/* ── the stage: felt above, draggable sheet below ─────────────────────── */
+/* WV2-3: the felt no longer has a fixed height. WatchScreen writes its height
+   and the three interior tops (--wv-pot / --wv-board / --wv-meta) as inline
+   custom properties, interpolated from mood-watch2.jsx's SHEET_LAY, so the
+   felt scales fluidly as the sheet is dragged between its detents. */
+.watch-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ── felt ─────────────────────────────────────────────────────────────── */
 .watch-felt {
   position: relative;
   flex-shrink: 0;
-  height: 300px;
   overflow: hidden;
   background: radial-gradient(ellipse at 50% 40%, #1a2a2c 0%, #0f1818 62%, #0a1212 100%);
   border-bottom: 1px solid rgba(0,212,170,0.14);
+  transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
+
+.watch-stage.is-dragging .watch-felt,
+.watch-stage.is-dragging .watch-sheet { transition: none; }
 
 .watch-felt__arc {
   position: absolute;
   left: -14%;
   right: -14%;
-  top: 32px;
-  bottom: 28px;
+  top: 34px;
+  height: calc(100% - 36px);
   border-radius: 50%;
-  border: 1px solid rgba(0,212,170,0.10);
+  border: 1px solid rgba(0,212,170,0.08);
   pointer-events: none;
 }
 
@@ -80,8 +96,8 @@
   top: 10px;
   transform: translateX(-50%);
 }
-.watch-felt__seat--ml { left: 10px;  top: 182px; }
-.watch-felt__seat--mr { right: 10px; top: 182px; }
+.watch-felt__seat--ml { left: 10px;  top: calc(var(--wv-board, 108px) + 68px); }
+.watch-felt__seat--mr { right: 10px; top: calc(var(--wv-board, 108px) + 68px); }
 
 /* Three or more opponents: step the chips down so a 6-max ring still fits a
    narrow phone. Matches the compact-tile scaling in the spectate refs. */
@@ -96,7 +112,7 @@
 
 .watch-felt__pot {
   position: absolute;
-  top: 68px;
+  top: var(--wv-pot, 60px);
   left: 0;
   right: 0;
   display: flex;
@@ -126,15 +142,15 @@
 
 .watch-felt__pot-amt {
   font-family: var(--sys-font-display, "Playfair Display", serif);
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 600;
   color: var(--sys-text, #EDEDED);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.005em;
 }
 
 .watch-felt__board {
   position: absolute;
-  top: 114px;
+  top: var(--wv-board, 108px);
   left: 0;
   right: 0;
   display: flex;
@@ -145,7 +161,7 @@
 
 .watch-felt__street {
   position: absolute;
-  top: 194px;
+  top: var(--wv-meta, 184px);
   left: 0;
   right: 0;
   text-align: center;
@@ -161,7 +177,7 @@
   position: absolute;
   left: 14px;
   right: 14px;
-  bottom: 14px;
+  bottom: 16px;
   z-index: 3;
   display: flex;
   align-items: center;
@@ -169,11 +185,11 @@
   padding: 9px 10px;
   border-radius: 12px;
   background: rgba(8,10,10,0.72);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid var(--sys-border, rgba(255,255,255,0.06));
 }
 
 .watch-felt__hero.is-active {
-  border-color: rgba(0,212,170,0.35);
+  border-color: rgba(0,212,170,0.33);
   box-shadow: inset 0 1px 0 rgba(0,212,170,0.18), 0 4px 12px rgba(0,0,0,0.4);
 }
 
@@ -301,6 +317,77 @@
 .watch-tabs__tab.is-active {
   color: var(--sys-teal, #00D4AA);
   border-bottom-color: var(--sys-teal, #00D4AA);
+}
+
+/* ── the sheet ────────────────────────────────────────────────────────── */
+/* WV2-3, ported from design-refs/mood-watch2.jsx (PART 1 · THE SHEET).
+   Three detents of one screen; the tab bar wears the grab handle and the
+   sheet is dragged by its tabs. */
+.watch-sheet {
+  flex: 1;
+  min-height: 18px;
+  display: flex;
+  flex-direction: column;
+  background: var(--sys-panel, #111111);
+  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.06));
+  overflow: hidden;
+  transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Everything the sheet can be dragged by. touch-action:none so a vertical
+   drag never turns into a page scroll mid-gesture. */
+.watch-sheet__grab {
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.watch-sheet__grab:active { cursor: grabbing; }
+
+.watch-sheet__handle {
+  display: flex;
+  justify-content: center;
+  padding: 7px 0 2px;
+  flex-shrink: 0;
+}
+.watch-sheet__handle.is-thin { padding: 7px 0; }
+
+.watch-sheet__handle i {
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sys-border-2, rgba(255,255,255,0.10));
+}
+
+/* PEEK: the tab bar plus the latest one-line voice row. */
+.watch-sheet__peek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  flex-shrink: 0;
+}
+
+.watch-sheet__peek-line {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--sys-text, #EDEDED);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-sheet__peek-eq {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sys-teal, #00D4AA);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 /* ── panel ────────────────────────────────────────────────────────────── */
