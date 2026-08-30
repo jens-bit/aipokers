@@ -484,6 +484,27 @@ export class Table {
   }
 
 
+  // WV2-1: an AI-only table with enough bodies to deal and nothing driving it
+  // is a ghost — the floor reports it as playing (liveGameView only asks
+  // isAiOnly) while it sits at WAITING forever.
+  //
+  // That is exactly the shape a table assembled seat-by-seat by WATCH takes:
+  // the first watcher seats its agent and arms the House fallback, the second
+  // watcher CANCELS that fallback and seats a second agent, and from then on
+  // nobody owns the tempo. Heads-up-vs-House survived only because the House
+  // timer's own maybeStartHand() is not clientDriven.
+  //
+  // So: whenever a client-driven call finds an undriven AI-only table that
+  // could deal, the server adopts it. Idempotent; a no-op on a table that
+  // already has a loop, has a human seat, or is short of MIN_TO_DEAL.
+  _adoptUndrivenTable() {
+    if (this.closed || this.autoPlay) return false;
+    if (!this.isAiOnly()) return false;
+    if (this._survivingSeats().length < MIN_TO_DEAL) return false;
+    console.log(`[table:${this.tableId}] adopting an undriven AI-only table (${this.seatedCount()} seated) — starting the session loop`);
+    return this.startSessionLoop({ delayMs: 250 });
+  }
+
   // Flip the table into autonomous mode and queue the first deal. Idempotent;
   // a no-op on a table that still has a human seat.
   startSessionLoop({ delayMs = 0 } = {}) {
@@ -942,7 +963,12 @@ export class Table {
   // JOIN and on DEAL exactly as before.
   maybeStartHand({ clientDriven = false } = {}) {
     if (this.closed) return;
-    if (clientDriven && (this.autoPlay || this.isAiOnly())) return;
+    if (clientDriven && (this.autoPlay || this.isAiOnly())) {
+      // WV2-1: observation still never deals — but if nothing is driving this
+      // AI-only table, hand it to the session loop before backing off.
+      this._adoptUndrivenTable();
+      return;
+    }
     if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
     // MST-1: joins, departures and busts all land here, between hands. This is
     // the reconciliation the old build-the-Game-once code never did.
