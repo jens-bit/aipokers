@@ -355,9 +355,33 @@ export class Table {
     return this.connections.some((c, i) => c !== null && !this.aiSeats[i]);
   }
 
-  // Seat an AI for a spectating user and register their WS for state broadcasts.
-  // Returns the seat index the AI was placed at.
+  // Attach a watcher to the table.
+  //
+  // AGE-36: watching is observation, never causation. When the agent is
+  // ALREADY seated — the normal case now that /deploy stands the session up
+  // server-side — the watcher simply attaches to that seat and receives an
+  // immediate snapshot of whatever is happening. It does not seat a second
+  // AI, does not schedule a House, and does not deal. (Re-seating on every
+  // WATCH is what made entering a running table look like a fresh game —
+  // BUG-17.)
+  //
+  // The legacy path survives for tables that do not exist yet (PvP queue,
+  // older clients): there, the spectator's arrival still creates the session.
+  // Returns the seat index being watched.
   addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+    const existingSeat = agentId ? this.agentIds.findIndex((id) => id === agentId) : -1;
+    const attachSeat = existingSeat !== -1
+      ? existingSeat
+      // Autonomous table we cannot match by agentId (e.g. a watcher that
+      // supplied no agentId): watch the first occupied seat rather than
+      // seating anyone new.
+      : (this.autoPlay ? this.pending.findIndex((p) => p !== null) : -1);
+
+    if (attachSeat !== -1) {
+      this.spectators.push({ ws, spectatorSeat: attachSeat });
+      return attachSeat;
+    }
+
     // A second spectator (new agent joining) cancels any pending House fallback.
     if (this._houseFallbackTimer && this.pending.some((p) => p !== null)) {
       clearTimeout(this._houseFallbackTimer);
@@ -376,6 +400,24 @@ export class Table {
     // Schedule House as fallback opponent after HOUSE_FALLBACK_MS if still alone.
     this.scheduleHouseFallback();
     return seat;
+  }
+
+  // Push the current table state to a single connection, from `seat`'s point
+  // of view. A watcher joining mid-hand gets the hand in progress rather than
+  // an empty board and a "Waiting…" placeholder. No-op when no hand has been
+  // dealt yet — there is nothing to show.
+  sendSnapshot(ws, seat) {
+    if (!ws || ws.readyState !== ws.OPEN) return;
+    if (!this.game) return;
+    if (seat < 0 || seat >= this.game.seats.length) return;
+    const state = this._augmentState(this.game.getPublicState(seat));
+    ws.send(JSON.stringify({
+      type: ServerMsg.STATE,
+      state,
+      legalActions: [],
+      yourSeat: seat,
+      snapshot: true,
+    }));
   }
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
@@ -425,10 +467,12 @@ export class Table {
     const specIdx = this.spectators.findIndex((s) => s.ws === ws);
     if (specIdx !== -1) {
       this.spectators.splice(specIdx, 1);
-      // AGE-35/36: on an autonomous table the last watcher leaving changes
-      // nothing — the agent keeps playing (FLR-5: leaving a watch never
-      // recalls the agent).
-      if (this.autoPlay) return;
+      // AGE-35/36 (FLR-5): a watcher leaving never recalls the agent. On any
+      // AI-only table the game belongs to the server, so the last spectator
+      // walking away neither pauses nor closes it. Autonomous tables are
+      // bounded by the hand cap; legacy AI-only tables by the 60s reaper,
+      // which now retires the agent properly on its way out.
+      if (this.autoPlay || this.isAiOnly()) return;
       if (this.connections.every((c) => c === null) && this.spectators.length === 0) {
         if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
         if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
@@ -548,12 +592,13 @@ export class Table {
 
   // Called once at least 2 pending players are seated.
   // AGE-36: `clientDriven` marks the calls that originate from a WS client
-  // (JOIN / WATCH / DEAL). On an autonomous table those never deal — the
-  // server loop owns the tempo, so a spectator arriving mid-pause observes
-  // rather than triggers.
+  // (JOIN / WATCH / DEAL). On ANY AI-only table those never deal — the server
+  // owns the tempo, so a watcher arriving mid-pause observes rather than
+  // triggers. Tables with a seated human are untouched: they still deal on
+  // JOIN and on DEAL exactly as before.
   maybeStartHand({ clientDriven = false } = {}) {
     if (this.closed) return;
-    if (clientDriven && this.autoPlay) return;
+    if (clientDriven && (this.autoPlay || this.isAiOnly())) return;
     if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
     const filled = this.pending.filter((p) => p !== null);
     if (filled.length < 2) return;

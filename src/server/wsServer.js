@@ -96,6 +96,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
+            // AGE-36: hand the watcher the hand already in progress. Sent
+            // after WATCHING so the client knows its spectatorSeat first.
+            table.sendSnapshot(ws, spectatorSeat);
             table.maybeStartHand({ clientDriven: true });
             return;
           }
