@@ -241,4 +241,44 @@ header('Test 7: a busted seat is removed and the rest carry on');
   ok('bust frees one seat instead of ending the table');
 }
 
+// ---------------------------------------------------------------------------
+header('Test 8: WV2-1 — an AI-only table nobody is driving gets adopted');
+{
+  // The shape that used to hang: two owned agents assembled at one felt by
+  // WATCH alone. The first watcher seats its agent and arms the House
+  // fallback; the second CANCELS that fallback and seats a second agent, so
+  // no House ever arrives and nothing owns the tempo. The table is AI-only,
+  // which is what liveGameView reads as "playing" -- a ghost at WAITING.
+  const table = newTable({ tableId: 'adopt-test' });
+  const wsA = fakeWs();
+  const seatA = table.addSpectator(wsA, { agentId: 'agent-a', displayName: 'Alpha', agentStrategy: '' });
+  assert.strictEqual(seatA, 0);
+  assert.strictEqual(table.autoPlay, false, 'one seat is not enough to adopt');
+  table.maybeStartHand({ clientDriven: true });
+  assert.strictEqual(table.autoPlay, false, 'still below MIN_TO_DEAL');
+
+  const wsB = fakeWs();
+  const seatB = table.addSpectator(wsB, { agentId: 'agent-b', displayName: 'Beta', agentStrategy: '' });
+  assert.strictEqual(seatB, 1);
+  assert.strictEqual(table._houseFallbackTimer, null, 'the second agent cancels the House fallback');
+  assert.ok(table.isAiOnly(), 'agent vs agent, no House');
+
+  table.maybeStartHand({ clientDriven: true });
+  assert.strictEqual(table.autoPlay, true, 'the server takes the tempo');
+  assert.ok(table._nextHandTimer, 'a deal is queued');
+  table.closeTable('test done');
+  ok('an undriven AI-only table is adopted by the session loop');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 9: WV2-1 — adoption never touches a table with a human seat');
+{
+  const table = newTable({ tableId: 'adopt-human' });
+  seatPlayers(table, 2);
+  table.maybeStartHand({ clientDriven: true });
+  assert.strictEqual(table.autoPlay, false, 'humans keep their own tempo');
+  assert.ok(table.game && table.game.street !== Streets.WAITING, 'and JOIN still deals');
+  ok('human tables still deal client-driven and are never adopted');
+}
+
 console.log(`\n${passed} test(s) passed`);

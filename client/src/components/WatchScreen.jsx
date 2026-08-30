@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodBand } from './system/MoodBand.jsx';
-import { SeatChip } from './system/SeatChip.jsx';
+import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { accentFor } from './floor/atoms.jsx';
@@ -26,6 +26,15 @@ function handActive(game) {
   return active.includes(game.street);
 }
 
+// WV2-5: a hand that has finished but not yet been cleared by the next deal.
+// The engine's result -- winners, the pot, and every contestant's revealed hole
+// cards -- rides along on the terminal STATE, so the felt can hold the showdown
+// on screen for the whole pause between hands instead of blanking the instant
+// the hand ends.
+function handSettled(game) {
+  return !!game && game.street === Streets.COMPLETE && !!game.result;
+}
+
 function formatAction(action) {
   if (!action) return '--';
   const t = action.type;
@@ -35,6 +44,24 @@ function formatAction(action) {
   if (t === 'bet')   return 'BET $' + action.amount;
   if (t === 'raise') return 'RAISE $' + action.amount;
   return String(t).toUpperCase();
+}
+
+// WV2-2: the wire carries equity as a 0..1 FRACTION. estimateEquity returns
+// (wins + ties) / iterations and table.js puts that straight on the DECISION
+// message, so the hero readout showed "0.674375%" where it meant 67.4%.
+// Every equity render in this screen goes through here.
+//
+// A value above 1 cannot be a fraction — the flagged-hands API stores integer
+// percents — so it is passed through rather than multiplied into nonsense.
+function equityPct(equity) {
+  var n = (typeof equity === 'number') ? equity : parseFloat(equity);
+  if (!isFinite(n)) return null;
+  return n <= 1 ? n * 100 : n;
+}
+
+function formatEquity(equity) {
+  var pct = equityPct(equity);
+  return pct === null ? null : pct.toFixed(1) + '%';
 }
 
 function posLabel(seat, game) {
@@ -50,8 +77,8 @@ function posLabel(seat, game) {
 
 function DecisionBand({ street, action, equity, reasoning }) {
   const actionLabel = formatAction(action);
-  const equityNum   = (typeof equity === 'number') ? equity : parseFloat(equity);
-  const hasEquity   = !isNaN(equityNum);
+  const equityNum   = equityPct(equity);
+  const hasEquity   = equityNum !== null;
 
   return (
     <div style={{
@@ -285,16 +312,117 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
 }
 
 
+// ---- the sheet: three detents of one screen ---------------------------------
+// WV2-3, ported from design-refs/mood-watch2.jsx (PART 1 · THE SHEET).
+//
+// The analysis tab bar is the grab handle. The screen has three vertical
+// states and the felt scales fluidly between them as the sheet is dragged.
+
+// SHEET_LAY, verbatim from the ref: the felt's height at each detent, and the
+// absolute tops of the pot ticker, the board and the meta line inside it.
+var SHEET_LAY = {
+  expanded: { felt: 306, pot: 60,  board: 108, meta: 184 },
+  peek:     { felt: 508, pot: 128, board: 196, meta: 286 },
+  hidden:   { felt: 620, pot: 168, board: 244, meta: 336 },
+};
+
+var DETENTS = ['expanded', 'peek', 'hidden'];
+
+// The ref's HIDDEN detent leaves exactly the thin grab handle below the felt
+// (7 + 4 + 7 of padding and bar, plus the 1px border), so the region those
+// three felt heights are measured against is 620 + 19 = 639. Reading them as
+// fractions of that is what lets a 390x844 mock scale to a real phone --
+// and it lands on the brief's own numbers: PEEK's felt is 508/639 = 79.5%.
+var SHEET_REGION = SHEET_LAY.hidden.felt + 19;
+
+// Felt height at each detent, as a fraction of the stage.
+var FELT_FRAC = DETENTS.map(function(d) { return SHEET_LAY[d].felt / SHEET_REGION; });
+
+// The three interior tops as fractions of the felt's own height, so they hold
+// their proportions on a stage taller or shorter than the ref's. At the ref's
+// region these reproduce SHEET_LAY exactly.
+var INNER_FRAC = DETENTS.map(function(d) {
+  var L = SHEET_LAY[d];
+  return { pot: L.pot / L.felt, board: L.board / L.felt, meta: L.meta / L.felt };
+});
+
+function clamp(n, lo, hi) { return n < lo ? lo : n > hi ? hi : n; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// Where a continuous felt fraction sits on the 0(expanded)..2(hidden) scale.
+function detentPos(frac) {
+  if (frac <= FELT_FRAC[0]) return 0;
+  if (frac >= FELT_FRAC[2]) return 2;
+  var i = frac <= FELT_FRAC[1] ? 0 : 1;
+  return i + (frac - FELT_FRAC[i]) / (FELT_FRAC[i + 1] - FELT_FRAC[i]);
+}
+
+// The hero readout is 74px tall and sits 16px off the bottom, so the felt's
+// last 90px belong to it. These three keep the stack clear of it on a phone
+// shorter than the ref's: the meta line above the readout, the board above the
+// meta line, the pot above the board. Inert at every SHEET_LAY detent -- they
+// only bite below roughly 250px of felt.
+var HERO_BAND = 90;   // readout height + its bottom offset
+var META_H    = 19;   // meta line plus its breathing room
+var BOARD_H   = 70;   // a 64px card plus its gap
+var POT_H     = 36;   // the pot pill plus its gap
+var SEAT_BAND = 44;   // the seat chips own the top of the felt
+
+// The felt's height and interior tops for a stage of `stagePx` at position `p`.
+function feltGeometry(frac, stagePx) {
+  var p    = detentPos(frac);
+  var i    = clamp(Math.floor(p), 0, 1);
+  var t    = clamp(p - i, 0, 1);
+  var felt = Math.round(frac * stagePx);
+  var a = INNER_FRAC[i], b = INNER_FRAC[i + 1];
+
+  var meta  = lerp(a.meta,  b.meta,  t) * felt;
+  var board = lerp(a.board, b.board, t) * felt;
+  var pot   = lerp(a.pot,   b.pot,   t) * felt;
+
+  // A felt too short to hold the stack squeezes it rather than letting the
+  // meta line slide under the hero readout: the three keep their spacing
+  // ratios and are rescaled into the band between the seat chips and the
+  // readout. On any stage the ref's own detents fit, this is a no-op.
+  var floor   = SEAT_BAND;
+  var ceiling = felt - HERO_BAND - META_H;
+  if (meta > ceiling && meta > floor) {
+    var k = (ceiling - floor) / (meta - floor);
+    pot   = floor + (pot - floor) * k;
+    board = floor + (board - floor) * k;
+    meta  = ceiling;
+  }
+
+  return {
+    felt:  felt,
+    pot:   Math.round(Math.max(floor, pot)),
+    board: Math.round(Math.max(floor, board)),
+    meta:  Math.round(Math.max(floor, meta)),
+  };
+}
+
+// ---- SheetHandle -----------------------------------------------------------
+
+function SheetHandle({ thin }) {
+  return (
+    <div className={'watch-sheet__handle' + (thin ? ' is-thin' : '')}>
+      <i />
+    </div>
+  );
+}
+
 // ---- seat ring -------------------------------------------------------------
-// MST-4: up to five opponents around the felt, hero anchored at the bottom.
-// The design language puts the first two in the top corners; beyond that the
-// ring fills outward -- top centre, then the two side rails -- so the board and
-// the pot ticker in the middle are never covered.
+// WV2-4, per design-refs/mood-watch2.jsx (PART 2 · MULTIWAY). The engine seats
+// 2..6, so the ring holds one to five opponents with the hero anchored at the
+// bottom. Slots come into play in the order the brief sets -- top corners,
+// then top centre, then the side rails -- and each row below lists them in
+// ring order (up the left, across the top, down the right) so the opponent
+// sitting in each is the one the action actually reaches next.
 var SEAT_SLOTS = {
   1: ['tl'],
   2: ['tl', 'tr'],
   3: ['tl', 'tc', 'tr'],
-  4: ['ml', 'tl', 'tr', 'mr'],
+  4: ['ml', 'tl', 'tc', 'tr'],
   5: ['ml', 'tl', 'tc', 'tr', 'mr'],
 };
 
@@ -302,13 +430,36 @@ function slotsFor(count) {
   return SEAT_SLOTS[Math.max(1, Math.min(5, count))] || SEAT_SLOTS[2];
 }
 
+function alignFor(slot) {
+  return (slot === 'tr' || slot === 'mr') ? 'right' : 'left';
+}
+
+// "Full SeatChip through 4-handed; the rails and 6-handed use SeatChipSm."
+// A rail seat is always compact; at six-handed every seat is.
+function compactFor(slot, opponentCount) {
+  return slot === 'ml' || slot === 'mr' || opponentCount >= 5;
+}
+
 // ---- WatchFelt -------------------------------------------------------------
 
-function WatchFelt({ game, mySeat, lastDecision }) {
-  var between   = !handActive(game);
+function WatchFelt({ game, mySeat, lastDecision, geom }) {
+  // WV2-5: three phases, not two. `settled` is a finished hand still on
+  // screen -- board, reveals and the pot going to its winner -- and it holds
+  // until the next deal clears it.
+  var live      = handActive(game);
+  var settled   = !live && handSettled(game);
+  var between   = !live && !settled;
   var street    = game ? (game.street || '').toUpperCase() : '';
   var pot       = game ? (game.pot || 0) : 0;
   var community = game ? (game.community || []) : [];
+  var result    = settled ? game.result : null;
+
+  // Which seats showed, and what they showed. Everyone else mucked.
+  var revealed = {};
+  if (result && result.showdown) {
+    result.showdown.forEach(function(sd) { revealed[sd.seat] = sd.holeCards || []; });
+  }
+  var winner = (result && result.winners && result.winners.length) ? result.winners[0] : null;
 
   var heroSeat  = Number.isInteger(mySeat) ? mySeat : 0;
   var seatCount = Math.max((game && game.seats) ? game.seats.length : 2, 2);
@@ -321,11 +472,16 @@ function WatchFelt({ game, mySeat, lastDecision }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  var hasEquity   = lastDecision && lastDecision.equity != null && !between;
-  var equityVal   = hasEquity ? lastDecision.equity : null;
-  var actionLabel = lastDecision && lastDecision.action
+  // Equity is a live read on a hand in progress. At showdown the cards are on
+  // the table, so the ref's readout shows an em dash there -- as it does
+  // between hands.
+  var equityText  = live ? formatEquity(lastDecision && lastDecision.equity) : null;
+  var hasEquity   = equityText !== null;
+  // At showdown the readout stops reporting the hero's last action and says
+  // how the hand ended -- the ref's `note` slot.
+  var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
-    : (game && game.toAct === heroSeat && !between ? 'TO ACT' : null);
+    : (game && game.toAct === heroSeat && live ? 'TO ACT' : null));
 
   // Opponents in seat order clockwise from the hero, so the ring on screen
   // matches the order the action actually moves in.
@@ -339,35 +495,105 @@ function WatchFelt({ game, mySeat, lastDecision }) {
       stack: s.stack ? s.stack.toLocaleString() : '0',
       pos: posLabel(si, game),
       acting: game.toAct === si,
-      folded: s.folded,
+      folded: !!s.folded,
+      dealer: game.dealerSeat === si,
+      // WV2-4: what this seat has put in on the current street, shown in front
+      // of it. Zero and between hands both mean no pill.
+      bet: (live && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
+      // WV2-5: at showdown a seat either shows its hand or it does not. A seat
+      // that FOLDED and did not show is mucked -- face down and dim, because
+      // folds keep their secrets. A seat that won uncontested never had to
+      // show either, but it did not muck, so its backs stay at full strength.
+      reveal: (settled && revealed[si] && revealed[si].length)
+        ? revealed[si].map(pc).filter(Boolean)
+        : null,
+      mucked: settled && !revealed[si] && !!s.folded,
     });
   }
   var slots = slotsFor(opponentSeats.length);
-  var dense = opponentSeats.length >= 3;
+
+  var heroWon    = !!(winner && winner.seat === heroSeat);
+  var heroShowed = !!(result && revealed[heroSeat]);
+  var heroNote   = !settled ? 'waiting for the deal'
+    : heroWon    ? (winner.descr || 'won the pot')
+    : heroShowed ? 'lost at showdown'
+    : 'folded';
+
+  var winnerName = (winner && game.seats && game.seats[winner.seat])
+    ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
+    : null;
+
+  // WV2-5: the street and what the hero is being asked for, on the meta line.
+  var blinds = (game && game.smallBlind != null && game.bigBlind != null)
+    ? ('$' + game.smallBlind + '/$' + game.bigBlind)
+    : '';
+  var toCall = (live && heroData && game.currentBet != null)
+    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
+    : 0;
+  var tableLabel = '#' + (game && game.tableId ? game.tableId : '--');
+  var metaLine = between
+    ? [tableLabel, blinds, 'SHUFFLING'].filter(Boolean).join(' · ')
+    : [tableLabel, blinds, street, seatCount + '-HANDED']
+        .concat(toCall > 0 ? ['TO CALL $' + toCall.toLocaleString()] : [])
+        .filter(Boolean).join(' · ');
+
+  // WV2-3: the felt's height and its three interior tops come from the sheet's
+  // current detent, so it grows and shrinks with the drag.
+  var feltStyle = geom ? {
+    height: geom.felt + 'px',
+    '--wv-pot':   geom.pot + 'px',
+    '--wv-board': geom.board + 'px',
+    '--wv-meta':  geom.meta + 'px',
+  } : undefined;
 
   return (
-    <div className="watch-felt">
+    <div className="watch-felt" style={feltStyle}>
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
-        var slot = slots[i];
+        var slot    = slots[i];
+        var align   = alignFor(slot);
+        var compact = compactFor(slot, opponentSeats.length);
+        var showCards = !!o.reveal;
+        var showBacks = live ? !o.folded : (settled && !showCards);
         return (
-          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (dense ? ' is-dense' : '')}>
-            <SeatChip name={o.name} stack={o.stack} pos={o.pos}
-              acting={o.acting} folded={o.folded}
-              cards={!between}
-              dense={dense}
-              align={(slot === 'tr' || slot === 'mr') ? 'right' : 'left'} />
+          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
+            {compact
+              ? <SeatChipSm name={o.name} stack={o.stack} acting={o.acting}
+                  folded={o.folded} dealer={o.dealer} />
+              : <SeatChip name={o.name} stack={o.stack} pos={o.pos} acting={o.acting}
+                  folded={o.folded} align={align} dealer={o.dealer} />}
+            {(showBacks || showCards || o.bet) && (
+              <div className="watch-felt__seat-row">
+                {showCards && (
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {o.reveal.map(function(c, k) {
+                      return <PlayingCard key={k} rank={c[0]} suit={c[1]} w={22} h={31} />;
+                    })}
+                  </div>
+                )}
+                {showBacks && <SeatCardBacks mucked={o.mucked} />}
+                {o.bet && <BetPill amount={o.bet} />}
+              </div>
+            )}
           </div>
         );
       })}
 
-      <div className="watch-felt__pot">
-        <span className="watch-felt__pot-label">POT</span>
-        <span className="watch-felt__pot-amt">
-          {between ? '--' : ('$' + pot.toLocaleString())}
-        </span>
-      </div>
+      {/* The pot ticker is an outer positioning row with the pill inside it --
+          without the inner element the pill spanned the whole felt. At
+          showdown the pot has already moved, so it steps aside for the
+          winner pill below the board. */}
+      {!settled && (
+        <div className="watch-felt__pot">
+          <div className="watch-felt__pot-pill">
+            <span className="watch-felt__pot-label">POT</span>
+            <span className="watch-felt__pot-amt">
+              {between ? '--' : ('$' + pot.toLocaleString())}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="watch-felt__board">
         {boardSlots.map(function(c, i) {
@@ -377,11 +603,21 @@ function WatchFelt({ game, mySeat, lastDecision }) {
         })}
       </div>
 
-      <div className="watch-felt__street">
-        {between
-          ? ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + seatCount + '-HANDED · SHUFFLING')
-          : ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + (game && game.blinds ? game.blinds : '') + ' · ' + seatCount + '-HANDED · ' + street)}
-      </div>
+      {settled ? (
+        <>
+          <div className="watch-felt__pot-trail" />
+          <div className="watch-felt__won">
+            <div className="watch-felt__won-pill">
+              <span className="watch-felt__won-amt">
+                {'$' + (result.pot || 0).toLocaleString()}
+              </span>
+              {winnerName && <span className="watch-felt__won-to">{'→ ' + winnerName}</span>}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="watch-felt__street">{metaLine}</div>
+      )}
 
       <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
         <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
@@ -415,7 +651,7 @@ function WatchFelt({ game, mySeat, lastDecision }) {
           <span className={'watch-felt__hero-lbl' + (hasEquity ? ' is-live' : '')}>Equity</span>
           <div>
             <span className={'watch-felt__hero-num' + (hasEquity ? ' is-live' : ' is-muted')}>
-              {equityVal != null ? (equityVal + '%') : '--'}
+              {equityText || '--'}
             </span>
           </div>
         </div>
@@ -423,7 +659,7 @@ function WatchFelt({ game, mySeat, lastDecision }) {
 
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
-          : <span className="watch-felt__waiting">waiting for the deal</span>}
+          : <span className="watch-felt__waiting">{heroNote}</span>}
       </div>
     </div>
   );
@@ -483,14 +719,17 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 
 var TABS = ['Live analysis', 'Range', 'History', 'Chat'];
 
-function WatchTabs({ active, onSelect }) {
+// WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
+// click. Selection and dragging are one gesture, resolved by the sheet: a tap
+// that lands on a tab selects it, a drag moves the sheet.
+function WatchTabs({ active }) {
   return (
     <div className="watch-tabs">
       {TABS.map(function(t, i) {
         return (
           <div key={t}
-            className={'watch-tabs__tab' + (active === i ? ' is-active' : '')}
-            onClick={function() { onSelect(i); }}>
+            data-watch-tab={i}
+            className={'watch-tabs__tab' + (active === i ? ' is-active' : '')}>
             {t}
           </div>
         );
@@ -512,6 +751,123 @@ function EmptyTab({ text }) {
       {text}
     </div>
   );
+}
+
+// ---- useSheetDrag ----------------------------------------------------------
+// One gesture on the grab surface (handle + tab bar) does everything the ref
+// asks of it: drag moves the sheet fluidly, release snaps to the nearest
+// detent, and a tap either selects the tab under the finger or -- on the
+// handle itself -- cycles EXPANDED -> PEEK -> HIDDEN -> EXPANDED.
+var TAP_SLOP_PX = 6;
+var TAP_MAX_MS  = 400;
+
+function useSheetDrag({ onSelectTab }) {
+  // Measured height of the stage the felt and the sheet share.
+  var [stagePx, setStagePx] = useState(function() {
+    return typeof window === 'undefined' ? SHEET_REGION : Math.max(320, window.innerHeight - 170);
+  });
+  var [frac,     setFrac]     = useState(FELT_FRAC[0]);
+  var [dragging, setDragging] = useState(false);
+
+  var stageRef = useRef(null);
+  var gesture  = useRef(null);
+
+  useEffect(function() {
+    var el = stageRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    var ro = new ResizeObserver(function(entries) {
+      var h = entries[0] && entries[0].contentRect ? entries[0].contentRect.height : 0;
+      if (h > 0) setStagePx(h);
+    });
+    ro.observe(el);
+    return function() { ro.disconnect(); };
+  }, []);
+
+  function snap(nextFrac) {
+    var best = 0;
+    for (var i = 1; i < FELT_FRAC.length; i++) {
+      if (Math.abs(FELT_FRAC[i] - nextFrac) < Math.abs(FELT_FRAC[best] - nextFrac)) best = i;
+    }
+    setFrac(FELT_FRAC[best]);
+  }
+
+  function goTo(index) {
+    setFrac(FELT_FRAC[clamp(index, 0, FELT_FRAC.length - 1)]);
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    var tabAttr = e.target && e.target.closest ? e.target.closest('[data-watch-tab]') : null;
+    gesture.current = {
+      id: e.pointerId,
+      y: e.clientY,
+      frac: frac,
+      t: Date.now(),
+      moved: false,
+      tab: tabAttr ? Number(tabAttr.getAttribute('data-watch-tab')) : null,
+    };
+    if (e.currentTarget.setPointerCapture) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not captureable */ }
+    }
+    setDragging(true);
+  }
+
+  function onPointerMove(e) {
+    var g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    var dy = e.clientY - g.y;
+    if (Math.abs(dy) > TAP_SLOP_PX) g.moved = true;
+    // Dragging DOWN shrinks the sheet, which grows the felt.
+    setFrac(clamp(g.frac + dy / Math.max(1, stagePx), FELT_FRAC[0], FELT_FRAC[FELT_FRAC.length - 1]));
+  }
+
+  function onPointerUp(e) {
+    var g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    gesture.current = null;
+    setDragging(false);
+    var isTap = !g.moved && (Date.now() - g.t) < TAP_MAX_MS;
+    if (!isTap) { snap(frac); return; }
+    setFrac(g.frac);
+    if (g.tab !== null && !isNaN(g.tab)) {
+      // A tap on a tab selects it, and opens the sheet if it was not open.
+      onSelectTab(g.tab);
+      if (g.frac !== FELT_FRAC[0]) goTo(0);
+      return;
+    }
+    // A tap on the handle cycles the detents.
+    goTo((DETENTS.indexOf(detentName(g.frac)) + 1) % DETENTS.length);
+  }
+
+  function onPointerCancel() {
+    if (!gesture.current) return;
+    gesture.current = null;
+    setDragging(false);
+    snap(frac);
+  }
+
+  return {
+    stageRef: stageRef,
+    dragging: dragging,
+    detent: detentName(frac),
+    geom: feltGeometry(frac, stagePx),
+    handlers: {
+      onPointerDown: onPointerDown,
+      onPointerMove: onPointerMove,
+      onPointerUp: onPointerUp,
+      onPointerCancel: onPointerCancel,
+    },
+  };
+}
+
+// The detent a felt fraction reads as -- the nearest one, so a sheet mid-drag
+// still reports something the render tree can key off.
+function detentName(frac) {
+  var best = 0;
+  for (var i = 1; i < FELT_FRAC.length; i++) {
+    if (Math.abs(FELT_FRAC[i] - frac) < Math.abs(FELT_FRAC[best] - frac)) best = i;
+  }
+  return DETENTS[best];
 }
 
 // ---- WatchScreen (export) --------------------------------------------------
@@ -634,6 +990,15 @@ export function WatchScreen({
 
   var between = !handActive(game);
 
+  // WV2-3: the sheet owns the vertical layout of the whole screen.
+  var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
+  var hidden    = sheet.detent === 'hidden';
+  // PEEK shows the latest one-line voice row -- the newest decision's reasoning
+  // and its equity, the same pair the expanded body leads with.
+  var latest    = decisionFeed.find(function(item) { return item.type === 'decision'; }) || null;
+  var peekLine  = latest && latest.reasoning ? '“' + latest.reasoning + '”' : null;
+  var peekEquity = latest ? formatEquity(latest.equity) : null;
+
   function handleSitOutConfirm() {
     setSitOutPending(false);
     if (onSitOut) onSitOut();
@@ -664,27 +1029,53 @@ export function WatchScreen({
         onAction={function() { setActiveTab(3); }}
       />
 
-      <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision} />
+      <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
+        ref={sheet.stageRef}>
 
-      {between && (
-        <SitOutStrip onRequest={function() { setSitOutPending(true); }} />
-      )}
+        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision} geom={sheet.geom} />
 
-      <WatchTabs active={activeTab} onSelect={setActiveTab} />
+        {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
+            always mounted (the tab one merely hidden at HIDDEN) so a drag that
+            crosses a detent never loses its pointer capture mid-gesture. */}
+        <div className="watch-sheet" data-detent={sheet.detent}>
+          <div key="grab-handle" className="watch-sheet__grab" {...sheet.handlers}>
+            <SheetHandle thin={hidden} />
+          </div>
 
-      <div className="watch-panel">
-        {activeTab === 0 && <LiveAnalysisTab feed={decisionFeed} />}
-        {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
-        {activeTab === 2 && <EmptyTab text="No hands played yet." />}
-        {activeTab === 3 && (
-          <ChatTab
-            agentThread={agentThread}
-            tableSpeech={tableSpeech}
-            onSend={sendToAgent}
-            loading={agentLoading}
-            agentName={config ? config.displayName : null}
-          />
-        )}
+          {between && sheet.detent === 'expanded' && (
+            <SitOutStrip key="sitout" onRequest={function() { setSitOutPending(true); }} />
+          )}
+
+          <div key="grab-tabs" className="watch-sheet__grab" hidden={hidden} {...sheet.handlers}>
+            <WatchTabs active={activeTab} />
+          </div>
+
+          {sheet.detent === 'peek' && (
+            <div className="watch-sheet__peek">
+              <span className="watch-sheet__peek-line">
+                {peekLine || 'Waiting for first action...'}
+              </span>
+              {peekEquity && <span className="watch-sheet__peek-eq">{peekEquity}</span>}
+            </div>
+          )}
+
+          {sheet.detent === 'expanded' && (
+            <div className="watch-panel">
+              {activeTab === 0 && <LiveAnalysisTab feed={decisionFeed} />}
+              {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
+              {activeTab === 2 && <EmptyTab text="No hands played yet." />}
+              {activeTab === 3 && (
+                <ChatTab
+                  agentThread={agentThread}
+                  tableSpeech={tableSpeech}
+                  onSend={sendToAgent}
+                  loading={agentLoading}
+                  agentName={config ? config.displayName : null}
+                />
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {sitOutPending && (
