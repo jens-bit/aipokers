@@ -63,6 +63,7 @@ const TypeRow = ({ family, css, size, weight, use, sample }) => (
 // every family/size/weight actually painted, so it cannot drift from the code.
 const TYPE_FAMILIES = [
   { key: 'Playfair Display', css: PLAYFAIR, role: 'names, amounts, titles' },
+  { key: 'Rozha One', css: ROZHA, role: 'DISPLAY ONLY — pot amounts, zoom name, birth title. Never body, labels, or table numerals.' },
   { key: 'Oswald', css: OSWALD, role: 'labels, buttons, state tags' },
   { key: 'JetBrains Mono', css: MONO, role: 'numbers, stats, timestamps' },
   { key: 'Inter', css: INTER, role: 'body and voice' },
@@ -387,7 +388,7 @@ const GhostAnatomyM = () => (
     <Row gap={16} mb={22}>
       <div style={{ width: 300 }}>
         <div style={{ position: 'relative', height: 168, background: M_BG, border: `1px solid ${M_BORDER}`, borderRadius: 8, overflow: 'hidden' }}>
-          <RoomLayer layout="one" W={298} H={168} viewBox="40 96 236 132"/>
+          <RoomLayer layout="one" W={298} H={166} viewBox="40 96 236 132"/>
           <div style={{ position: 'absolute', inset: 0 }}>
             <Occupant x={149} y={16} name="Balanced v2.1" accent={M_TEAL} mood="confident" state="live" size={48} speed={5}/>
             <div style={{ position: 'absolute', left: 149, top: 112, transform: 'translateX(-50%)', display: 'flex', gap: 3 }}>

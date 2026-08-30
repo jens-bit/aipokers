@@ -525,6 +525,7 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip 
               <LiveBar strip {...strip}/>
             </div>
           )}
+          <div style={{ fontFamily: ROZHA, fontSize: 21, color: M_TEXT, marginBottom: 7 }}>{name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
             <MoodChip mood={mood}/>
             <StateTag state={state} compact/>

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Landing page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Rozha+One&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#CDB380;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#8A8A92}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#CDB380}
+.panel{width:420px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#CDB380;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:20px;flex-shrink:0;padding-top:2px;color:#CDB380}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#A1A1A1}
+.sw{display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#A1A1A1}
+.sw i{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.14)}
+</style>
+</head>
+<body>
+
+<!-- BRIEF -->
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">agenticpoker.app</div>
+    <h1>Sell the character,<br/>not the winnings</h1>
+    <p>A marketing surface, so it lives in <b>burgundy and gold</b> — the brand's territory, not the product's. The product's black-and-teal appears in exactly one place: <b>inside the device frames</b>, where it belongs.</p>
+
+    <div class="lbl" style="color:#CDB380">Territory</div>
+    <div>
+      <span class="sw"><i style="background:#150710"></i>#150710 ink</span>
+      <span class="sw"><i style="background:#2A0E18"></i>#2A0E18 wine</span>
+      <span class="sw"><i style="background:#3A1424"></i>#3A1424 raised</span>
+      <span class="sw"><i style="background:#CDB380"></i>#CDB380 gold</span>
+      <span class="sw"><i style="background:#E8D5A8"></i>#E8D5A8 gold hi</span>
+      <span class="sw"><i style="background:#F4EBDD"></i>#F4EBDD cream</span>
+    </div>
+    <p style="margin-top:10px"><b>Rozha One for headlines</b> — a fat-face didone cut in one heavy weight, the voice of a vintage poker poster rather than a template. It has no italic, so emphasis is carried by gold, never a synthesized slant. Playfair stays inside the device frames, where the product speaks. Oswald for labels and the button, Inter for body, JetBrains Mono for the handle and the domain.</p>
+
+    <div class="lbl" style="color:#CDB380">The screenshots are the build</div>
+    <p>Every device frame renders a <b>real shipped screen component</b> — <code>BirthDraftScreenM</code>, <code>FloorOneScreenM</code>, <code>ThreadRestingScreenM</code>, <code>FloorThreeScreenM</code>, <code>DeskFloorLiveScreenM</code> — scaled down inside the product's own iOS bezel. Nothing is redrawn. A marketing screenshot that drifts from the build is a lie with a long tail, and redrawing one guarantees the drift.</p>
+
+    <div class="lbl">What is not here</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>No testimonials.</b> There are no users yet, so there are no quotes. A fabricated one would be the first thing a poker audience checks.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>No counts.</b> No &ldquo;12,000 agents drafted&rdquo;, no live ticker of strangers. The floor screenshot shows <i>your</i> four agents, which is a claim about the product rather than its popularity.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>No earnings language.</b> Not &ldquo;win&rdquo;, not &ldquo;profit&rdquo;, not &ldquo;cash out&rdquo;. The stakes language inside the screens is the game's own fiction; the footer says plainly that the chips hold no cash value and cannot be exchanged.</span></div>
+
+    <div class="lbl">The one headline decision</div>
+    <p><b>&ldquo;Deal him in.&rdquo;</b> Final. Three words of table language that are also the product instruction — you are being asked to put <i>him</i> in the game, which is exactly what the button does. The sub carries the whole mechanic (built in a 30-second chat, real hands, moods, memory, opinions), and the CTA reads <b>&ldquo;Draft him&rdquo;</b> with &ldquo;Free · plays in Telegram&rdquo; as microcopy. One clearly-fictional agent quote sits above the footer — named as an agent, never a customer — the only endorsement this product can honestly print.</p>
+  </div>
+</div>
+
+<!-- ARTBOARDS -->
+<div class="frame" style="left:520px;top:80px">
+  <div class="grouphdr" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px">The page</div>
+  <div class="groupsub" style="font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px">One long page, six sections, in the order a stranger needs them: <b>who he is</b> → <b>how he comes to exist</b> → <b>what makes him different</b> → <b>where he lives</b> → <b>why it is credible</b> → <b>the legal floor</b>. The mobile artboard is the same page and the same copy, not a reduced one.</div>
+  <div class="fh" style="margin-top:78px"><span class="fn">L1</span><span class="ft">Desktop · 1440</span><span class="fb">marketing territory</span></div>
+  <div id="ldesk"></div>
+  <div class="fa"><b>The hero is a poster, not a screenshot.</b> One ghost, one felt, one light — drawn here in burgundy and gold rather than borrowed from the floor, because the floor is a product surface and this is a book cover. The ghost is the product's own <code>MoodGhost</code> atom with its accent set to gold: <b>marketing colour, product anatomy</b>. Below the fold the palette hands over: every device frame is the real black-and-teal build, and the burgundy is only the wall it hangs on.</div>
+</div>
+
+<div class="frame" style="left:2080px;top:80px">
+  <div class="fh" style="margin-top:78px"><span class="fn">L2</span><span class="ft">Mobile · 390</span><span class="fb teal">same page</span></div>
+  <div id="lmob"></div>
+  <div class="fa"><b>Not a cut-down.</b> Every section and every sentence survives — the three steps stack, the mood strip goes vertical with the ghost beside its line rather than above it, and the floor shot becomes the phone screen instead of the desktop one. <b>The one thing that changes is which product screenshot is honest at that width</b>: showing a 1440 desktop floor on a phone page would be showing a surface the reader cannot reach.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-landing.jsx"></script>
+
+<script type="text/babel">
+[['ldesk', LandingDesktopM], ['lmob', LandingMobileM]].forEach(function (p) {
+  var el = document.getElementById(p[0]);
+  if (el) ReactDOM.createRoot(el).render(React.createElement(p[1]));
+});
+</script>
+
+<script>
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].getBoundingClientRect().height < MIN_CONTENT) return false;
+      var roots = fs[i].querySelectorAll(':scope > div[id]');
+      for (var k = 0; k < roots.length; k++) {
+        if (!roots[k].children.length) return false;
+      }
+    }
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = 0;
+      inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
+      if (max < MIN_CONTENT) return false;
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+</body>
+</html>

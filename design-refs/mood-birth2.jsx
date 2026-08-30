@@ -25,7 +25,7 @@ const DraftGrowthPanel = ({ phase, style, risk, tight, aggr, name }) => (
 
       <div style={{ padding: `14px ${DB_PAD}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontFamily: PLAYFAIR, fontSize: 19, color: name ? M_TEXT : M_FAINT }}>
+          <span style={{ fontFamily: ROZHA, fontSize: 19, color: name ? M_TEXT : M_FAINT }}>
             {name || 'unnamed'}
           </span>
           {!name && <span style={{ fontSize: 11.5, color: M_MUTED }}>named last</span>}

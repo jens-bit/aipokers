@@ -5,6 +5,26 @@
 
 const TG_PAD = 14;
 
+// Session figures are canon and live in exactly one place. They match the mobile
+// standup, PStandupCard and the state matrix; a line that needs a number reads it
+// from here so a message can never credit one agent with another's night.
+const CAST_SESSION = {
+  'Balanced v2.1':   { net: '+$340', hands: 64, win: '61.8%' },
+  'Aggressive v1.3': { net: '+$120', hands: 48, win: '54.2%' },
+  'Bluff Master':    { net: '+$210', hands: 42, win: '52.4%', roi: '18.4%' },
+  'Value Bot':       { net: '−$45',  hands: 30, win: '46.7%' },
+  'Grinder v1.2':    { net: '+$340', hands: 38, win: '57.1%' },
+};
+const S = (name) => CAST_SESSION[name];
+// Lifetime figures are a DIFFERENT scope. Bluff Master's 18.4% is a session ROI in canon,
+// so it cannot prove anything about 1,000 hands — the tier promotion is the lifetime proof.
+const CAST_LIFETIME = {
+  'Bluff Master': { hands: '1,000', tier: 'TIER 2' },
+};
+const L = (name) => CAST_LIFETIME[name];
+// for prose that already says "up", so the sign is not marked twice
+const AMT = (name) => CAST_SESSION[name].net.replace(/^\+/, '');
+
 // ── Telegram chrome ──
 // Layout is Telegram's; the colours are ours, so the board reads against the rest of
 // the system. In the client these inherit the user's theme.
@@ -95,16 +115,16 @@ const NotifyDayScreenM = () => (
     <TgHeader/>
     <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'hidden', paddingTop: 10, background: M_BG }}>
       <TgDay>TUESDAY</TgDay>
-      <TgMsg time="08:02" button="Open the floor">
+      <TgMsg time="08:00" button="Open the floor">
         The Grinder sat out at 02:14, up <b>$340</b>. Wants to talk.
       </TgMsg>
 
       <TgDay>WEDNESDAY</TgDay>
       <TgMsg time="08:00" button="Open the floor">
-        Balanced v2.1 closed the night <b>+$210</b> across 42 hands. He flagged two spots he
-        is not sure about.
+        Bluff Master closed the night <b>{S('Bluff Master').net}</b> across {S('Bluff Master').hands} hands.
+        He flagged two spots he is not sure about.
       </TgMsg>
-      <TgMsg time="14:20" button="See his idea">
+      <TgMsg time="12:00" button="See his idea">
         I keep folding when I'm ahead. Can I loosen up?
         <div style={{ marginTop: 4, color: M_DIM, fontSize: 13 }}>— Grinder v1.2</div>
       </TgMsg>
@@ -187,9 +207,10 @@ const BudgetBoard = () => {
     { p: 4, type: 'Milestone', note: 'keeps until tomorrow', color: M_DIM },
     { p: 5, type: 'Quiet win', note: 'optional; the first to be dropped', color: M_MUTED },
   ];
+  // derived, not chosen: window opens 08:00, minimum gap 4h, budget 2
   const day = [
-    { t: '02:14', ev: 'Session ended unwatched', type: 'Session recap', sent: 'HELD → 08:00', ok: true },
-    { t: '09:40', ev: 'Self-change proposal created', type: 'Proposal', sent: 'SENT 14:20', ok: true },
+    { t: '02:14', ev: 'Session ended unwatched', type: 'Session recap', sent: 'HELD → SENT 08:00', ok: true },
+    { t: '09:40', ev: 'Self-change proposal created', type: 'Proposal', sent: 'HELD → SENT 12:00', ok: true },
     { t: '15:02', ev: 'Entered tilted', type: 'Mood alert', sent: 'DROPPED — budget spent', ok: false },
     { t: '22:10', ev: 'Third winning night', type: 'Quiet win', sent: 'DROPPED — budget spent', ok: false },
   ];
@@ -200,6 +221,8 @@ const BudgetBoard = () => {
         <div style={{ fontSize: 12.5, color: M_DIM, marginTop: 5, lineHeight: 1.5 }}>
           <b style={{ color: M_TEXT }}>Two pings a day, maximum.</b> Not two per type — two in total.
           When more events qualify than the budget allows, the ladder decides, and a recap wins every tie.
+          <b style={{ color: M_TEXT }}> Consecutive pings sit at least four hours apart</b> — two arriving
+          within the hour is a burst even when the daily cap permits it, so the second one waits.
         </div>
       </div>
 
@@ -233,11 +256,23 @@ const BudgetBoard = () => {
         ))}
       </div>
 
-      <div style={{ padding: '11px 16px', borderTop: `1px solid ${M_BORDER}`, background: 'rgba(205,179,128,0.05)' }}>
-        <div style={{ fontSize: 12, color: M_DIM, lineHeight: 1.5 }}>
-          <b style={{ color: M_GOLD }}>Delivery window.</b> Nothing sends between <b style={{ color: M_TEXT }}>00:00 and 08:00</b> local.
-          Agents play all night; owners do not. An overnight event is <b style={{ color: M_TEXT }}>held, not cancelled</b> — which is
-          why the recap above describes 02:14 but arrives at 08:02, and says so.
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: M_BORDER, borderTop: `1px solid ${M_BORDER}` }}>
+        <div style={{ background: M_PANEL, padding: '11px 16px' }}>
+          <Lbl size={8.5} color={M_GOLD}>Delivery window</Lbl>
+          <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.5, marginTop: 5 }}>
+            Nothing sends between <b style={{ color: M_TEXT }}>00:00 and 08:00</b> local. Agents play all night;
+            owners do not. An overnight event is <b style={{ color: M_TEXT }}>held, not cancelled</b> — which is why
+            the recap above describes 02:14 and arrives at <b style={{ color: M_TEXT }}>08:00</b>, and says so.
+          </div>
+        </div>
+        <div style={{ background: M_PANEL, padding: '11px 16px' }}>
+          <Lbl size={8.5} color={M_GOLD}>Minimum gap · 4h</Lbl>
+          <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.5, marginTop: 5 }}>
+            The proposal was created at 09:40, inside the window and with budget to spare — but the
+            recap had gone at 08:00, so it waits until <b style={{ color: M_TEXT }}>12:00</b>. The window and the gap
+            fix the <i>times</i>; the budget and the ladder fix the <i>drops</i> — <b style={{ color: M_TEXT }}>all four rules</b>{' '}
+            together produce the day above, and none of it is chosen.
+          </div>
         </div>
       </div>
     </div>
@@ -288,9 +323,9 @@ const Notif1 = () => (
     cap="Once per session. Never more than one recap per day."
     why="The time he stopped and the number he stopped at. Both checkable on the floor."
     alternates={[
-      { text: <>Grinder v1.2 finished at <b>02:14</b> — up <b>$340</b> across 64 hands. He flagged two spots he is not sure about.</>, button: 'Open the floor' },
-      { text: <>Session done. Up <b>$340</b>, and he sat himself out before the table got worse.</>, button: 'Open the floor' },
-      { text: <>Balanced v2.1 closed the night <b>+$210</b>. He says the 3-bet at 01:40 is worth a look.</>, button: 'See the hand' },
+      { text: <>Grinder v1.2 finished at <b>02:14</b> — up <b>{AMT('Grinder v1.2')}</b> across {S('Grinder v1.2').hands} hands. He flagged two spots he is not sure about.</>, button: 'Open the floor' },
+      { text: <>Session done. Up <b>{AMT('Grinder v1.2')}</b>, and he sat himself out before the table got worse.</>, button: 'Open the floor' },
+      { text: <>Balanced v2.1 finished {S('Balanced v2.1').hands} hands at <b>{S('Balanced v2.1').win}</b>. He says the 3-bet at 01:40 is worth a look.</>, button: 'See the hand' },
     ]}/>
 );
 
@@ -323,7 +358,7 @@ const Notif3 = () => (
 const Notif4 = () => (
   <NotifCard n="04" name="The quiet win" badge="NO BUTTON" badgeColor={M_MUTED}
     primary={<>Third winning night in a row. He hasn't mentioned it. He's mentioned it four times.</>}
-    trigger="Three or more consecutive profitable sessions, and nothing else queued."
+    trigger="Three or more consecutive profitable sessions, and no higher-priority ping eligible today."
     cap="Once per week. First thing dropped when the budget is tight."
     why="A fact about his results, and a joke about his character. Nothing is asked of you."
     alternates={[
@@ -335,14 +370,14 @@ const Notif4 = () => (
 
 const Notif5 = () => (
   <NotifCard n="05" name="The milestone" badge="OPTIONAL BUTTON" badgeColor={M_GOLD}
-    primary={<><b>1,000 hands.</b> He wants a harder table.</>}
+    primary={<><b>{L('Bluff Master').hands} hands.</b> He wants a harder table.</>}
     trigger="A lifetime hand count or tier threshold is crossed."
     cap="Once per milestone. Never re-sent."
     why="The count is the cause, and the ask is his, not the product's."
     alternates={[
-      { text: <><b>1,000 hands</b> played. Bluff Master is asking about $10/$20.</>, button: 'Move him up' },
-      { text: <>That's <b>1,000 hands</b> at <b>58.7%</b>. He thinks he has outgrown the table.</>, button: 'Move him up' },
-      { text: <>Promoted to <b>TIER 2</b> on his own results. He would like you to know that.</> },
+      { text: <><b>{L('Bluff Master').hands} hands</b> played. Bluff Master is asking about $10/$20.</>, button: 'Move him up' },
+      { text: <>{L('Bluff Master').hands} hands, and a <b>{L('Bluff Master').tier}</b> promotion off his own results. He thinks he has outgrown the table.</>, button: 'Move him up' },
+      { text: <>Promoted to <b>{L('Bluff Master').tier}</b>. He would like you to know that.</> },
     ]}/>
 );
 

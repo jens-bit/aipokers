@@ -7,7 +7,7 @@
 <title>Agentic Poker · Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
@@ -143,49 +143,80 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script>
 /* ─── canvas auto-layout ───────────────────────────────────────────────────────
    Frames are absolutely positioned, so nothing pushes them apart when content
-   grows — which is how three canvases ended up with overlapping artboards. Row
-   membership stays as authored; the TOPS are computed from measured heights, so
-   a sheet that grows by 500px can no longer paint over the row beneath it.
-   Side-column panels (left < 500) never share a column with artboards, so they
-   keep their authored position.                                              */
+   grows — which is how several canvases ended up with overlapping artboards. Row
+   membership stays as authored; the TOPS are computed from measured heights.
+
+   Two hazards this has to survive, both learned the hard way:
+   1. Artboards are mounted by a Babel script that runs AFTER load, so an early
+      pass measures empty roots. A layout derived from zero heights is worse than
+      no layout at all — so it REFUSES TO COMMIT until every frame has content,
+      and keeps retrying. It is self-healing rather than call-order dependent.
+   2. requestAnimationFrame is suspended in hidden/throttled iframes, so all
+      scheduling runs on timers.                                              */
 (function () {
-  var GUTTER = 80, FIRST = 80, busy = false;
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
   function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
   function relayout() {
-    if (busy) return;
-    busy = true;
-    var fs = frames().filter(function (f) {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
       if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
       return (parseInt(f.style.left, 10) || 0) >= 500;
     });
+    if (!fs.length) return false;
+    /* MEASURE AND VALIDATE BEFORE COMMITTING ANYTHING. Three ways a pass can be
+       premature, all of which must abort rather than write a bad layout:
+         a. the document has no layout yet (hidden iframe → every rect is 0);
+         b. a mount root is still empty (Babel has not run);
+         c. any row measures 0 tall.                                          */
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].getBoundingClientRect().height < MIN_CONTENT) return false;   /* a */
+      var roots = fs[i].querySelectorAll(':scope > div[id]');
+      for (var k = 0; k < roots.length; k++) {
+        if (!roots[k].children.length) return false;                          /* b */
+      }
+    }
     var rows = fs.map(function (f) { return +f.dataset.row; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return a - b; });
-    var y = FIRST;
-    rows.forEach(function (r) {
-      var inRow = fs.filter(function (f) { return +f.dataset.row === r; });
-      inRow.forEach(function (f) { f.style.top = y + 'px'; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
       var max = 0;
       inRow.forEach(function (f) { max = Math.max(max, f.getBoundingClientRect().height); });
+      if (max < MIN_CONTENT) return false;                                    /* c */
+      plan.push({ frames: inRow, top: y });
       y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
-    busy = false;
+    return true;
   }
   var pending = null;
-  function schedule() {
-    if (pending) cancelAnimationFrame(pending);
-    pending = requestAnimationFrame(function () { pending = null; relayout(); });
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
   }
-  window.addEventListener('load', function () {
-    schedule();
-    setTimeout(schedule, 400);
-    setTimeout(schedule, 1200);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
     if (window.ResizeObserver) {
-      var ro = new ResizeObserver(schedule);
+      var ro = new ResizeObserver(function () { schedule(60); });
       frames().forEach(function (f) { ro.observe(f); });
     }
-  });
+    /* mounts land later; watch for them rather than guessing a delay */
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
   window.__relayout = relayout;
 })();
 </script>

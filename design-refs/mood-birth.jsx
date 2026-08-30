@@ -128,7 +128,7 @@ const DraftProfile = ({ phase, style, risk, tight, aggr, name }) => (
     <div style={{ display: 'flex', alignItems: 'stretch' }}>
       <div style={{ flex: 1, minWidth: 0, padding: '8px 12px 10px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-          <span style={{ fontFamily: PLAYFAIR, fontSize: 15, color: name ? M_TEXT : M_FAINT }}>
+          <span style={{ fontFamily: ROZHA, fontSize: 15, color: name ? M_TEXT : M_FAINT }}>
             {name || 'unnamed'}
           </span>
         </div>

@@ -17,6 +17,9 @@ const M_PURPLE = '#9B7BFF';
 const M_PINK = '#FF7A8E';
 
 const PLAYFAIR = '"Playfair Display", Georgia, serif';
+// Display-only face: pot amounts, agent names at zoom, the birth title. One weight,
+// no italic. NEVER body, labels, or table numerals — that is the S1 law.
+const ROZHA = '"Rozha One", Georgia, serif';
 const OSWALD = '"Oswald", "Inter", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, monospace';
 const INTER = '"Inter", -apple-system, system-ui, sans-serif';
@@ -32,10 +35,14 @@ const MOODS = {
 };
 
 // ── The expression vehicle ──
-const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true }) => {
+const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone }) => {
   const uid = React.useId().replace(/:/g, '');
   const m = MOODS[mood];
-  const eye = mood === 'neutral' ? accent : m.color;
+  // `tone`: a full colour override for the mood-driven parts (eyes + glow). Product
+  // surfaces never pass it — it exists so marketing can render the anatomy in its own
+  // territory (gold) without the atom hardcoding teal past the accent prop.
+  const mc = tone || m.color;
+  const eye = tone ? tone : (mood === 'neutral' ? accent : m.color);
   const slump = mood === 'sulking';
   const cy = slump ? 46 : 42;
 
@@ -82,8 +89,8 @@ const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true }
     <svg width={size} height={size} viewBox="0 0 80 80" style={{ display: 'block', overflow: 'visible' }}>
       <defs>
         <radialGradient id={`g${uid}`} cx="50%" cy="54%" r="52%">
-          <stop offset="0" stopColor={m.color} stopOpacity={m.glow}/>
-          <stop offset="1" stopColor={m.color} stopOpacity="0"/>
+          <stop offset="0" stopColor={mc} stopOpacity={m.glow}/>
+          <stop offset="1" stopColor={mc} stopOpacity="0"/>
         </radialGradient>
         <linearGradient id={`h${uid}`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor="#141A22"/>
@@ -155,7 +162,7 @@ const Num = ({ children, color = M_TEXT, size = 13, weight = 600 }) => (
 );
 
 const Amt = ({ children, color = M_TEXT, size = 24 }) => (
-  <span style={{ fontFamily: PLAYFAIR, fontSize: size, fontWeight: 600, color, letterSpacing: '-0.01em' }}>{children}</span>
+  <span style={{ fontFamily: ROZHA, fontSize: size, fontWeight: 400, color, letterSpacing: '0.005em' }}>{children}</span>
 );
 
 const LiveDot = ({ color = M_TEAL, size = 6 }) => (
@@ -437,7 +444,7 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
-  M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, PLAYFAIR, OSWALD, MONO, INTER,
+  M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
   MOODS, MoodGhost, MoodPip, MoodAvatar, MoodChip,
   Lbl, Num, Amt, LiveDot, Btn, PhoneShell, TabBar, ChatComposer, DayDivider, BackHeader,
   GlobalHeader, SpadeLogo, STATES, StateTag, MoodBand, LiveBar, CANON,
