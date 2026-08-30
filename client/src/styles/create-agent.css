@@ -16,9 +16,12 @@
 }
 
 /* When chips are visible the log must not flex-grow, so the chips-center
-   sibling can claim the remaining vertical space between messages and input. */
+   sibling can claim the remaining vertical space between messages and input.
+   !important beats .dr-chat-log { flex: 1 } in agent-chat.css which loads
+   after this file (same specificity, later wins without the override). */
 .create-agent__log--with-chips {
-  flex: 0 0 auto;
+  flex: 0 0 auto !important;
+  overflow-y: visible !important;
 }
 
 /* Fills space between the message log and the input; centers chips. */
