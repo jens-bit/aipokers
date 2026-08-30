@@ -113,6 +113,9 @@ export class Table {
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
+    // HC-1: House cast identity per seat — null for player/agent seats.
+    this.seatAccentColors = Array(maxSeats).fill(null);
+    this.seatTalkLines    = Array(maxSeats).fill(null);
     // MST-1: chips live on the table, not inside whichever Game instance is
     // current -- the Game is rebuilt whenever the roster changes.
     this.seatStacks = Array(maxSeats).fill(null);
@@ -205,6 +208,8 @@ export class Table {
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
+    ['seatAccentColors', () => null],
+    ['seatTalkLines',    () => null],
   ];
 
   _clearSeat(seat) {
@@ -439,15 +444,18 @@ export class Table {
     });
     const house = pickComplementaryHouse(profile);
     this.seatAI({
-      displayName: house.displayName,
-      strategy: house.strategy,
+      displayName:  house.displayName,
+      strategy:     house.strategy,
       agentProfile: house.profile,
-      buyIn: stack,
+      buyIn:        stack,
+      stableId:     house.stableId,
+      accentColor:  house.accentColor,
+      talkLines:    house.talkLines,
     });
     // Leave the table-wide agentStrategy null: _maybeRunAiTurn prefers it over
     // the per-seat text, which would hand the hero's strategy to the House.
     this.agentStrategy = null;
-    console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house === HOUSE_STATION ? 'Station' : 'TAG'} House, max ${this.maxHands} hands`);
+    console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house.displayName} (${house.castMember?.archetype ?? 'House'}), max ${this.maxHands} hands`);
     this.startSessionLoop({ delayMs: 250 });
     return heroSeat;
   }
@@ -676,23 +684,26 @@ export class Table {
       // action instead of a fold-fest.
       const opposingProfile = this.agentProfiles.find((p) => p) ?? null;
       const house = pickComplementaryHouse(opposingProfile);
-      console.log(`[table:${this.tableId}] scheduling House archetype=${house === HOUSE_STATION ? 'Station' : 'TAG'} vs opponent T=${opposingProfile?.tightness ?? '?'}`);
+      console.log(`[table:${this.tableId}] scheduling ${house.displayName} (${house.castMember?.archetype ?? 'House'}) vs opponent T=${opposingProfile?.tightness ?? '?'}`);
       this.maybeAutoSeatAI({
         agentDisplayName: house.displayName,
-        agentStrategy: house.strategy,
-        agentId: null,
-        userId: null,
-        memoryContext: '',
-        agentProfile: house.profile,
+        agentStrategy:    house.strategy,
+        agentId:          null,
+        userId:           null,
+        memoryContext:    '',
+        agentProfile:     house.profile,
+        stableId:         house.stableId,
+        accentColor:      house.accentColor,
+        talkLines:        house.talkLines,
       });
       this.maybeStartHand();
     }, HOUSE_FALLBACK_MS);
   }
 
   // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
-  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const free = this.pending.findIndex((p) => p === null);
-    if (free === -1) throw new Error('table full ÔÇö cannot seat AI');
+    if (free === -1) throw new Error('table full — cannot seat AI');
 
     // Match the human player's buy-in if not specified.
     const humanSeat = this.pending.findIndex((p, i) => p !== null && !this.aiSeats[i]);
@@ -703,7 +714,12 @@ export class Table {
       // across compaction -- the button is tracked by playerId, and
       // opponentStats keys its reads on it. `ai_agent_<seat>` was neither:
       // a seat freed and refilled could reissue a live id.
-      playerId: agentId ? `agent_${agentId}` : `ai_${this.tableId}_${this._seatSeq++}`,
+      // HC-1: cast members use a stable `house_<id>` so reads accumulate.
+      playerId: agentId
+        ? `agent_${agentId}`
+        : stableId
+          ? `house_${stableId}`
+          : `ai_${this.tableId}_${this._seatSeq++}`,
       buyIn: aiBuyIn,
       displayName,
     };
@@ -716,6 +732,9 @@ export class Table {
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
     this.aiLastChatHand[free] = -1;
+    // HC-1: cast identity (null for player/agent seats)
+    this.seatAccentColors[free] = accentColor ?? null;
+    this.seatTalkLines[free]    = Array.isArray(talkLines) ? [...talkLines] : null;
     this.seatStacks[free] = aiBuyIn;
     this.seatLeaving[free] = false;
     // MST-1: a seat that arrives mid-session gets credited only with the hands
@@ -833,14 +852,15 @@ export class Table {
       blinds: `${this.smallBlind}/${this.bigBlind}`,
       seats: g ? g.seats.map((s, i) => ({
         displayName: this.pending[i]?.displayName ?? s.playerId ?? '',
-        stack: s.stack ?? 0,
+        stack:       s.stack ?? 0,
+        accentColor: this.seatAccentColors[i] ?? null,
       })) : [],
     };
   }
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
@@ -854,6 +874,9 @@ export class Table {
       userId,
       memoryContext,
       agentProfile,
+      stableId,
+      accentColor,
+      talkLines,
     });
   }
 
@@ -1586,6 +1609,18 @@ export class Table {
       ? (this.pending[opponentSeat]?.displayName || `Seat ${opponentSeat}`)
       : 'opponent';
     const agentStyle = this.agentStrategy || this.aiStrategy[aiSeat] || '';
+
+    // HC-1: cast members have pre-written lines — use one instead of calling
+    // the model. Same frequency gates already passed above; this just skips
+    // the LLM cost for House opponents.
+    const castLines = this.seatTalkLines?.[aiSeat];
+    if (Array.isArray(castLines) && castLines.length > 0) {
+      const line = castLines[Math.floor(Math.random() * castLines.length)];
+      if (this.aiSeats[aiSeat] && this.pending[aiSeat]) {
+        this.sendChat(aiSeat, line, true);
+      }
+      return;
+    }
 
     generateAiChatLine({
       trigger,

@@ -23,6 +23,7 @@
 // empty felt; the floor exists to skip the genuinely pathological case.
 
 import { normalizeProfile } from '../agent/policy.js';
+import { pickCastMember } from './houseCast.js';
 
 // Neutral shape for a seat we know nothing about.
 const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
@@ -55,15 +56,20 @@ export const HOUSE_STATION = {
 export const HOUSE_STRATEGY = HOUSE_TAG.strategy;
 export const HOUSE_PROFILE = HOUSE_TAG.profile;
 
-// Pick the House shape to seat against the agents already at the table.
-// Accepts a single profile (the heads-up call site) or an array of them.
-// Tight table → loose Station House; loose table → TAG House. TAG is the
-// default when there is nothing to complement.
+// Pick the House cast member whose archetype best complements the agents already
+// at the table. Returns a house descriptor with display-ready fields plus the
+// stable id and full castMember reference for table plumbing.
 export function pickComplementaryHouse(opposing) {
-  const profiles = toProfileList(opposing);
-  if (profiles.length === 0) return HOUSE_TAG;
-  const meanTightness = mean(profiles.map((p) => p.tightness));
-  return meanTightness > 60 ? HOUSE_STATION : HOUSE_TAG;
+  const member = pickCastMember(opposing);
+  return {
+    displayName: member.name,
+    strategy:    member.strategy,
+    profile:     member.profile,
+    accentColor: member.accentColor,
+    talkLines:   member.talkLines,
+    stableId:    member.id,
+    castMember:  member,
+  };
 }
 
 // ── Action potential ────────────────────────────────────────────────────────
