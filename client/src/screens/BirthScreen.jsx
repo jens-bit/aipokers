@@ -282,8 +282,10 @@ export function BirthScreen({ onBack, onBirth }) {
   const [phase, setPhase]     = useState(0);
   const [agentName, setAgentName] = useState(null);
 
-  const feedRef  = useRef(null);
-  const inputRef = useRef(null);
+  const feedRef   = useRef(null);
+  const inputRef  = useRef(null);
+  const msgIdRef  = useRef(0);
+  const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
@@ -292,7 +294,9 @@ export function BirthScreen({ onBack, onBirth }) {
 
   useEffect(() => {
     const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (atBottom) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
   async function send(content = draft) {
@@ -300,7 +304,7 @@ export function BirthScreen({ onBack, onBirth }) {
     if (!text || loading) return;
     setDraft('');
     setLoading(true);
-    setChat((prev) => [...prev, { role: 'user', content: text }]);
+    setChat((prev) => [...prev, mkMsg('user', text)]);
 
     try {
       const res = await fetch('/api/agents/chat', {
@@ -313,7 +317,7 @@ export function BirthScreen({ onBack, onBirth }) {
       // Pick up the AI reply
       const allAi = (data.chat || []).filter((m) => m.role === 'assistant');
       const reply = allAi[allAi.length - 1];
-      if (reply) setChat((prev) => [...prev, reply]);
+      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
 
       aiCount.current += 1;
       const newPhase = data.agentId ? 1.0 : Math.min(0.98, aiCount.current * 0.28);
@@ -327,7 +331,7 @@ export function BirthScreen({ onBack, onBirth }) {
         setTimeout(() => onBirth({ id: data.agentId, name, strategy: data.strategy || '' }), 1200);
       }
     } catch {
-      setChat((prev) => [...prev, { role: 'assistant', content: 'Something went wrong — try again.' }]);
+      setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — try again.')]);
     } finally {
       setLoading(false);
     }
@@ -405,9 +409,9 @@ export function BirthScreen({ onBack, onBirth }) {
           {/* Conversation */}
           {chat.map((msg, i) => (
             msg.role === 'user'
-              ? <OwnerBubble key={i}>{msg.content}</OwnerBubble>
+              ? <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
               : (
-                <span key={i}>
+                <span key={msg._id}>
                   <AgentBubble>{msg.content}</AgentBubble>
                   {/* DraftStrip after each AI reply while still forming */}
                   {!isReady && i === chat.length - 1 && (
@@ -465,7 +469,7 @@ export function BirthScreen({ onBack, onBirth }) {
             style={{
               flex: 1, height: 38, padding: '0 12px', borderRadius: 10,
               border: `1px solid rgba(255,255,255,0.10)`, background: M_PANEL_2,
-              color: M_TEXT, fontSize: 14, outline: 'none',
+              color: M_TEXT, fontSize: 16, outline: 'none',
               fontFamily: 'Inter,-apple-system,sans-serif',
             }}
           />

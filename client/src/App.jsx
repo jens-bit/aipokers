@@ -22,6 +22,7 @@ import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen, MaterializingOccupant } from './screens/BirthScreen.jsx';
+import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -62,6 +63,7 @@ export default function App() {
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  const [agentProfileTarget, setAgentProfileTarget] = useState(null);
   const [isCreating, setIsCreating]       = useState(false);
   const [newlyBornAgent, setNewlyBornAgent] = useState(null);
   const [lastAgentHand, setLastAgentHand] = useState(null);
@@ -84,6 +86,10 @@ export default function App() {
   function openAgentChat(agent) {
     setAgentChatTarget(agent);
     setActiveTab('chats');
+  }
+
+  function openAgentProfile(agent) {
+    setAgentProfileTarget(agent);
   }
 
   const callAgentFinish = useCallback((agentId) => {
@@ -261,6 +267,37 @@ export default function App() {
       );
     }
 
+    if (agentProfileTarget) {
+      return (
+        <div className="app">
+          <AgentProfileScreen
+            agent={agentProfileTarget}
+            onBack={() => setAgentProfileTarget(null)}
+            onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
+            onWatch={async (ag) => {
+              if (!ag?.activeTableId) return;
+              let memoryContext = '';
+              try {
+                const res = await fetch(`/api/agents/${ag.id}/memory?userId=${getUserId()}`);
+                if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+              } catch { /* watch with empty context */ }
+              setAgentProfileTarget(null);
+              setActiveAgent(ag.id);
+              watch({
+                tableId: ag.activeTableId,
+                agentId: ag.id,
+                userId: getUserId(),
+                agentStrategy: ag.strategy,
+                displayName: ag.name || getTelegramDisplayName() || 'Agent',
+                wantOpponentAI: false,
+                memoryContext,
+              });
+            }}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="app">
         <Header status={status} hasConfig={false} />
@@ -269,6 +306,7 @@ export default function App() {
             <CasinoFloor
               onCreateAgent={() => setIsCreating(true)}
               onChat={openAgentChat}
+              onProfile={openAgentProfile}
               onWatch={async (agent) => {
                 if (!agent?.activeTableId) return;
                 let memoryContext = '';
@@ -295,6 +333,7 @@ export default function App() {
               onSelectAgent={openAgentChat}
               onBack={() => setAgentChatTarget(null)}
               onCreateAgent={() => setIsCreating(true)}
+              onOpenProfile={openAgentProfile}
               onDeploy={async (agent) => {
                 setAgentChatTarget(null);
                 const res = await fetch(`/api/agents/${agent.id}/queue`, {

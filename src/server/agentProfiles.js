@@ -561,6 +561,18 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     agent.sessionRecap = { text, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   }
+  // Append to session log (cap 10)
+  ensureStats(agent);
+  if (!Array.isArray(agent.sessionLog)) agent.sessionLog = [];
+  agent.sessionLog.push({
+    endedAt: Date.now(),
+    mood: agent.mood?.state ?? 'neutral',
+    net: typeof sessionPnl === 'number' ? sessionPnl : null,
+    hands: sessionHands || 0,
+  });
+  if (agent.sessionLog.length > 10) agent.sessionLog = agent.sessionLog.slice(-10);
+  agent.stats.netWon = (agent.stats.netWon ?? 0) + (typeof sessionPnl === 'number' ? sessionPnl : 0);
+
   const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
   saveStore(userId ?? 'anon');
@@ -727,6 +739,14 @@ export function presentAgent(agent, { owner = false } = {}) {
   const presence = liveTables
     ? (liveGame ? 'playing' : 'resting')
     : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
+  const sessionLog = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
+  const careerStats = {
+    hands: agent.stats?.handsPlayed ?? 0,
+    sessions: sessionLog.length,
+    net: typeof agent.stats?.netWon === 'number' ? agent.stats.netWon : null,
+    biggestPot: agent.stats?.biggestPot ?? 0,
+    winRate: typeof agent.stats?.winRate === 'number' ? agent.stats.winRate : null,
+  };
   return {
     ...agent,
     mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
@@ -737,6 +757,8 @@ export function presentAgent(agent, { owner = false } = {}) {
     presence,
     liveGame,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),
+    sessionLog,
+    careerStats,
   };
 }
 

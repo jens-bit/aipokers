@@ -12,7 +12,7 @@ import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
 
-export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
+export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [zoomedId, setZoomedId] = useState(null);
@@ -240,6 +240,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
           onBack={() => setZoomedId(null)}
           onChat={() => onChat(zoomed)}
           onWatch={() => onWatch(zoomed)}
+          onProfile={() => { setZoomedId(null); onProfile?.(zoomed); }}
         />
       )}
 
