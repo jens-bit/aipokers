@@ -3,7 +3,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
-import { Occupant, PotTicker, FeltDiorama, dioramaMetrics, accentFor, speedFor, M_TEAL } from './atoms.jsx';
+import { Occupant, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
@@ -87,8 +87,8 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     ...tables.slice(0, litFelts.length).flatMap((group, fi) => {
       const f = litFelts[fi];
       // Up to three ghosts side by side at the near rail: same seated posture,
-      // same card backs, spread across the felt's width. Beyond three the felt
-      // simply stops adding bodies (the pot ticker still speaks for the table).
+      // spread across the felt's width. Beyond three the felt simply stops
+      // adding bodies (the pot ticker still speaks for the table).
       const seated = group.agents.slice(0, FELT_SEATS);
       const shrink = seated.length === 1 ? 1 : seated.length === 2 ? 0.84 : 0.7;
       const size = Math.round(ghostSize * shrink);
@@ -96,23 +96,26 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
       // One ticker per felt, fed by whichever seated agent reports the pot.
       const feltPot = group.agents.map(potFor).find(Boolean) ?? null;
       const ghostY = f.cy - Math.round(size * 1.2) - 14;
-      const dioFits = dioramaMetrics(f).fits;
+      const bwCheck = mini ? 13 : 17;
+      const dioFits = dioramaMetrics(f, bwCheck, mini ? 24 : 32).fits;
       const potY = feltPot != null
         ? (dioFits ? ghostY - 27 : f.cy + f.ry + 8)
         : null;
+      // Clamp name chip width when multiple ghosts share a felt so they don't
+      // bleed into each other. Stack value is dropped at that point — the pot
+      // ticker already shows the table total.
+      const chipMaxW = seated.length > 1 ? Math.max(28, Math.round(span) - 26) : undefined;
       return seated.map((agent, i) => {
         const lg = agent?.liveGame;
         const agentStack = lg?.heroStack ?? null;
         return {
           agent,
           felt: i === 0 ? f : null,
+          feltRef: f,
+          feltBoard: i === 0 ? { board: lg?.board ?? [], street: lg?.street ?? null } : null,
+          feltHole: lg?.heroHole ?? null,
           feltPot: i === 0 ? feltPot : null,
           feltPotY: i === 0 ? potY : null,
-          diorama: i === 0 ? {
-            hole: lg?.heroHole ?? null,
-            board: lg?.board ?? [],
-            street: lg?.street ?? null,
-          } : null,
           x: f.cx + (i - (seated.length - 1) / 2) * span,
           y: ghostY,
           state: 'live',
@@ -120,6 +123,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
           speed: speedFor(agent, fi + i),
           accentIndex: fi + i,
           stack: agentStack,
+          chipMaxW,
         };
       });
     }),
@@ -184,12 +188,22 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
 
           {placements.map((p) => (
             <Fragment key={p.agent.id}>
-              {p.felt && p.diorama && (
-                <FeltDiorama
+              {/* Board: once per felt (first agent at this table). */}
+              {p.feltBoard && (
+                <FeltBoard
                   f={p.felt}
-                  hole={p.diorama.hole}
-                  board={p.diorama.board}
-                  street={p.diorama.street}
+                  board={p.feltBoard.board}
+                  street={p.feltBoard.street}
+                  room={room}
+                  mini={mini}
+                />
+              )}
+              {/* Hole cards: every seated agent at their own x position. */}
+              {p.feltRef && (
+                <FeltHoleCards
+                  f={p.feltRef}
+                  x={p.x}
+                  hole={p.feltHole}
                   room={room}
                   mini={mini}
                 />
@@ -206,6 +220,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                 drink={p.drink}
                 dim={p.dim}
                 stack={p.stack}
+                chipMaxW={p.chipMaxW}
                 room={room}
                 onClick={() => setZoomedId(p.agent.id)}
               />

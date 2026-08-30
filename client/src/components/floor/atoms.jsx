@@ -134,7 +134,9 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
 }
 
 // ── Name + state marker chip that floats above a ghost ────────────────────
-export function GhostChip({ name, accent = M_TEAL, state = 'resting', stack = null }) {
+// chipMaxW: max px for the name span — use when multiple ghosts share a felt
+// so the chip doesn't bleed into the neighbor's space.
+export function GhostChip({ name, accent = M_TEAL, state = 'resting', stack = null, chipMaxW }) {
   return (
     <div className="floor-chip" style={{ borderColor: `${accent}44` }}>
       {state === 'live' && <span className="floor-dot" aria-hidden />}
@@ -144,8 +146,11 @@ export function GhostChip({ name, accent = M_TEAL, state = 'resting', stack = nu
           <path d="M5 12l5 5 9-11" />
         </svg>
       )}
-      <span className="floor-chip__name">{name}</span>
-      {stack != null && (
+      <span
+        className="floor-chip__name"
+        style={chipMaxW ? { maxWidth: chipMaxW, overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
+      >{name}</span>
+      {stack != null && chipMaxW == null && (
         <span className="floor-chip__stack">{stack.toLocaleString()}</span>
       )}
     </div>
@@ -234,7 +239,7 @@ function SeatedCardFan({ scale = 1 }) {
 export function Occupant({
   x, y, name, accent = M_TEAL, mood = 'neutral', state = 'resting',
   size = 56, speed = 5, drink = false, dim = false, seated = false,
-  stack = null, onClick, room = IDENTITY_ROOM,
+  stack = null, chipMaxW, onClick, room = IDENTITY_ROOM,
 }) {
   const m = MOODS[safeMood(mood)];
   const shadowAlpha = state === 'resting' ? '1A' : '2E';
@@ -262,11 +267,11 @@ export function Occupant({
             <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
           </span>
           {shadow}
-          <GhostChip name={name} accent={accent} state={state} stack={stack} />
+          <GhostChip name={name} accent={accent} state={state} stack={stack} chipMaxW={chipMaxW} />
         </>
       ) : (
         <>
-          <GhostChip name={name} accent={accent} state={state} stack={stack} />
+          <GhostChip name={name} accent={accent} state={state} stack={stack} chipMaxW={chipMaxW} />
           <span className="floor-occupant__body">
             <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
             {drink && (
@@ -288,17 +293,68 @@ export function Occupant({
 export const MIN_HOLE_W = 20;
 export const DIORAMA_MIN_RY = 47;
 
+// Adaptive: try decreasing board-card width until hole cards are legible, then
+// fall back to a relaxed minimum for mini layouts (hole cards "slightly smaller
+// than board" per the design — rank is still readable at w≥16).
 export function dioramaMetrics(f, bw = 17, maxH = 32) {
   const gap = 3, rim = 2, rot = 2;
-  const avail = f.ry - rim - bw * 0.7 - gap;
+  const minW = maxH <= 24 ? 16 : MIN_HOLE_W;
+  for (let b = bw; b >= 11; b--) {
+    const avail = f.ry - rim - b * 0.7 - gap;
+    const hh = Math.min(maxH, Math.round(avail - rot));
+    const hw = Math.round(hh / 1.39);
+    if (hw >= minW) return { bw: b, gap, rim, hh, hw, fits: true };
+  }
+  const avail = f.ry - rim - 11 * 0.7 - gap;
   const hh = Math.min(maxH, Math.round(avail - rot));
   const hw = Math.round(hh / 1.39);
-  return { bw, gap, rim, hh, hw, fits: hw >= MIN_HOLE_W };
+  return { bw: 11, gap, rim, hh, hw, fits: hw >= minW };
 }
 
 const SHOW_STREET = new Set(['flop', 'turn', 'river', 'showdown']);
 
-export function FeltDiorama({ f, hole, board, street, room = IDENTITY_ROOM, mini = false }) {
+// Community board at the felt centre — rendered once per table.
+export function FeltBoard({ f, board, street, room = IDENTITY_ROOM, mini = false }) {
+  const bw = mini ? 13 : 17;
+  const maxH = mini ? 24 : 32;
+  const m = dioramaMetrics(f, bw, maxH);
+  if (!m.fits) return null;
+
+  const boardCards = Array.isArray(board)
+    ? board.filter(Boolean).map(parseCard).filter(Boolean)
+    : [];
+  if (!boardCards.length) return null;
+
+  const boardY = f.cy - m.bw * 0.7;
+  const glow = 6;
+
+  return (
+    <>
+      <div style={Object.assign(
+        { position: 'absolute', display: 'flex', gap: m.bw > 16 ? 5 : 3, zIndex: 2 },
+        roomStyle(room, f.cx, boardY)
+      )}>
+        {boardCards.map((c, i) => (
+          <div key={i} style={{ filter: `drop-shadow(0 0 ${glow}px #00D4AA55)` }}>
+            <PlayingCard rank={c.rank} suit={c.suit} w={m.bw} h={Math.round(m.bw * 1.4)} />
+          </div>
+        ))}
+      </div>
+      {street && SHOW_STREET.has(street) && (
+        <div style={Object.assign(
+          { position: 'absolute', zIndex: 3 },
+          roomStyle(room, f.cx, boardY + Math.round(m.bw * 1.4) + 4)
+        )}>
+          <span className="floor-diorama__street">{street.toUpperCase()}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+// An agent's two hole cards fanned at their seat x-position (not the felt centre).
+// Each seated agent at a multi-ghost felt calls this independently.
+export function FeltHoleCards({ f, x, hole, room = IDENTITY_ROOM, mini = false }) {
   const bw = mini ? 13 : 17;
   const maxH = mini ? 24 : 32;
   const m = dioramaMetrics(f, bw, maxH);
@@ -307,55 +363,33 @@ export function FeltDiorama({ f, hole, board, street, room = IDENTITY_ROOM, mini
   const holeCards = hole && hole.length >= 2
     ? [parseCard(hole[0]), parseCard(hole[1])]
     : null;
-  const boardCards = Array.isArray(board)
-    ? board.filter(Boolean).map(parseCard).filter(Boolean)
-    : [];
-  const hasBoard = boardCards.length > 0;
-
-  const boardY = f.cy - bw * 0.7;
   const holeY = f.cy - f.ry + m.rim;
-  const glow = 6;
-
-  const boardStyle = Object.assign(
-    { position: 'absolute', display: 'flex', gap: bw > 16 ? 5 : 3, zIndex: 2 },
-    roomStyle(room, f.cx, boardY)
-  );
-  const holeStyle = Object.assign(
-    { position: 'absolute', display: 'flex', gap: 1, zIndex: 4 },
-    roomStyle(room, f.cx, holeY)
-  );
 
   return (
+    <div style={Object.assign(
+      { position: 'absolute', display: 'flex', gap: 1, zIndex: 4 },
+      roomStyle(room, x, holeY)
+    )}>
+      {[0, 1].map(i => (
+        <div key={i} style={{
+          transform: `rotate(${i ? 4 : -4}deg)`,
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))',
+        }}>
+          {(holeCards && holeCards[i])
+            ? <PlayingCard rank={holeCards[i].rank} suit={holeCards[i].suit} w={m.hw} h={m.hh} />
+            : <CardBack w={m.hw} h={m.hh} branded />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Convenience wrapper for single-agent felts (backward-compat).
+export function FeltDiorama({ f, hole, board, street, room = IDENTITY_ROOM, mini = false }) {
+  return (
     <>
-      {hasBoard && (
-        <div style={boardStyle}>
-          {boardCards.map((c, i) => (
-            <div key={i} style={{ filter: `drop-shadow(0 0 ${glow}px #00D4AA55)` }}>
-              <PlayingCard rank={c.rank} suit={c.suit} w={bw} h={Math.round(bw * 1.4)} />
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={holeStyle}>
-        {[0, 1].map(i => (
-          <div key={i} style={{
-            transform: `rotate(${i ? 4 : -4}deg)`,
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))',
-          }}>
-            {(holeCards && holeCards[i])
-              ? <PlayingCard rank={holeCards[i].rank} suit={holeCards[i].suit} w={m.hw} h={m.hh} />
-              : <CardBack w={m.hw} h={m.hh} branded />}
-          </div>
-        ))}
-      </div>
-      {hasBoard && street && SHOW_STREET.has(street) && (
-        <div style={Object.assign(
-          { position: 'absolute', zIndex: 3 },
-          roomStyle(room, f.cx, boardY + Math.round(bw * 1.4) + 4)
-        )}>
-          <span className="floor-diorama__street">{street.toUpperCase()}</span>
-        </div>
-      )}
+      <FeltBoard f={f} board={board} street={street} room={room} mini={mini} />
+      <FeltHoleCards f={f} x={f.cx} hole={hole} room={room} mini={mini} />
     </>
   );
 }
