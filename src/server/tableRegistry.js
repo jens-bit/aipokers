@@ -16,6 +16,14 @@ const tables = new Map(); // tableId -> Table
 
 let defaultBlinds = { smallBlind: 10, bigBlind: 20 };
 
+// AGE-38: invoked with the Table whenever its visible state changes. Set by
+// createServer() to feed the floor channel; null in bare unit contexts.
+let stateHook = null;
+
+export function setStateHook(fn) {
+  stateHook = typeof fn === 'function' ? fn : null;
+}
+
 // Global cap on autonomous (server-driven) tables. Each one burns LLM tokens
 // on every decision with nobody necessarily watching, so the ceiling is the
 // cost bound for the whole floor.
@@ -80,6 +88,7 @@ export function getOrCreateTable(tableId, opts = {}) {
     bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
     maxSeats: opts.maxSeats ?? 2,
     onEmpty: (id) => { tables.delete(id); },
+    onStateChange: (t) => stateHook?.(t),
   });
   tables.set(tableId, table);
   return table;

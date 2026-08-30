@@ -57,12 +57,47 @@ Send (client → server):
                           hand (if any), then close the table gracefully
                           (TABLE_CLOSED "sat out by owner") and mark the
                           agent idle with an unseenRecap flag.
+  { "type": "FLOOR_SUB", "userId": "...", "initData": "...", "apiSecret": "..." }
+                        — subscribe this connection to an owner's floor. Replies
+                          immediately with FLOOR_STATE, then pushes FLOOR_GAME as
+                          their live tables change. initData / apiSecret are the
+                          same credentials the REST API takes and are optional:
+                          without them the subscription works but hole cards are
+                          withheld. Independent of JOIN/WATCH — one connection can
+                          be seated, watching, and subscribed at once.
+  { "type": "FLOOR_UNSUB" }
+                        — stop floor pushes. Disconnecting does this too.
 
 Receive (server → client):
-  GAME_STATE  — full table snapshot (seats, pot, community cards, legal actions, street)
+  GAME_STATE  — full table snapshot (seats, pot, community cards, legal actions, street).
+                A WATCH that arrives mid-hand receives one immediately, flagged
+                `snapshot: true` — you join the hand in progress.
   YOUR_TURN   — it is your turn to act; includes legal actions and time limit
   HAND_RESULT — showdown result, winners, payouts
   CHAT        — chat message from another player or the AI dealer
+  FLOOR_STATE — { userId, agents: [{ id, name, presence, mood, lastMoment,
+                sessionRecap, unseenRecap, proposal, activeTableId, liveGame }] }
+                Sent on FLOOR_SUB and whenever an agent's standing changes
+                (deployed, retired, recap written). presence is 'playing' only
+                while hands are actually advancing at that agent's table.
+  FLOOR_GAME  — { tableId, agentId, street, board, heroHole, pot, toAct,
+                actionDeadline, handNumber } — per-table delta for the diorama.
+                Throttled to at most one per second per table. heroHole is null
+                unless the subscriber proved ownership in FLOOR_SUB.
+
+## Autonomous play
+
+Deployed agents play on the server. POST /api/agents/:agentId/deploy stands up a
+table, seats the agent against a complementary House opponent, and starts a hand
+loop immediately — no WebSocket connection is required at any point. Hands deal
+themselves; watching is passive observation. A session runs until the agent busts,
+reaches the per-session hand cap, or its owner sends SIT_OUT. The platform caps how
+many autonomous tables run at once; deploy returns 503 with the cap named when the
+floor is full.
+
+Environment knobs: HAND_PAUSE_MS (pause between hands, default 8000),
+SESSION_MAX_HANDS (hands per deployment, default 100), MAX_CONCURRENT_TABLES
+(default 10), FLOOR_PUSH_INTERVAL_MS (floor throttle, default 1000).
 
 ## Agent identity
 

@@ -70,7 +70,7 @@ function pickComplementaryHouse(opposingProfile) {
 // always pick the lowest free index, and a mid-table disconnect compacts the
 // remaining seats down (only for maxSeats > 2 ÔÇö HU keeps fixed indices).
 export class Table {
-  constructor({ tableId, smallBlind, bigBlind, maxSeats = 2, onEmpty, maxHands, handPauseMs }) {
+  constructor({ tableId, smallBlind, bigBlind, maxSeats = 2, onEmpty, onStateChange, maxHands, handPauseMs }) {
     if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > 4) {
       throw new Error('maxSeats must be an integer 2..4');
     }
@@ -79,6 +79,9 @@ export class Table {
     this.bigBlind = bigBlind;
     this.maxSeats = maxSeats;
     this.onEmpty = onEmpty;
+    // AGE-38: fired whenever this table's visible state changes, so the floor
+    // channel can push a FLOOR_GAME delta. Cheap no-op when unset.
+    this.onStateChange = onStateChange ?? null;
     this.connections = Array(maxSeats).fill(null); // ws by seat
     this.pending = Array(maxSeats).fill(null);     // { playerId, buyIn, displayName } per seat before hand starts
     this.game = null;
@@ -239,6 +242,7 @@ export class Table {
     this._clearTimers();
     console.log(`[table:${this.tableId}] closed after ${this.handsThisSession} hand(s) — ${reason}`);
     this.onEmpty?.(this.tableId);
+    this._notifyStateChange();
   }
 
   // BUG-14: initiated by ClientMsg.SIT_OUT from either a seated player or a
@@ -1010,10 +1014,17 @@ export class Table {
       const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
       s.ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: [], yourSeat: s.spectatorSeat }));
     }
+    this._notifyStateChange();
     // Schedule AI turn if applicable ÔÇö async, fire-and-forget.
     this._maybeRunAiTurn().catch((err) =>
       console.error(`[table:${this.tableId}] AI turn error:`, err.message),
     );
+  }
+
+  _notifyStateChange() {
+    if (!this.onStateChange) return;
+    try { this.onStateChange(this); }
+    catch (err) { console.error(`[table:${this.tableId}] state hook failed:`, err.message); }
   }
 
   // Augment state with display names from Table metadata.

@@ -66,6 +66,22 @@ export function setLiveTableProvider(provider) {
   liveTables = provider ?? null;
 }
 
+// ── Agent-change listener (AGE-38) ──────────────────────────────────────────
+// The floor channel needs to re-push FLOOR_STATE when an agent's standing
+// changes (deployed, retired, recap written). Injected for the same reason as
+// the table provider: no import back out of this module.
+let agentChangeListener = null;
+
+export function setAgentChangeListener(fn) {
+  agentChangeListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitAgentChange(userId) {
+  if (!agentChangeListener) return;
+  try { agentChangeListener(String(userId ?? 'anon')); }
+  catch (err) { console.error('[agents] change listener failed:', err.message); }
+}
+
 // Retire every agent whose activeTableId points at a table that no longer
 // exists — the state a process restart always leaves behind. Returns the
 // number of agents retired.
@@ -521,6 +537,7 @@ export function finishAgentSession(agentId, userId, { recap = null } = {}) {
   }
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
   saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
   return agent;
 }
 
@@ -662,6 +679,31 @@ export function presentAgent(agent, { owner = false } = {}) {
     presence,
     liveGame,
   };
+}
+
+// AGE-38: the compact projection the floor channel pushes over WebSocket —
+// presentAgent minus the heavy fields (strategy text, recentHands, memory)
+// that the floor never renders. Same owner scoping: heroHole rides inside
+// liveGame and is only present when `owner` is true.
+export function floorSnapshot(userId, { owner = false } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  return profile.agents.map((agent) => {
+    const p = presentAgent(agent, { owner });
+    return {
+      id: p.id,
+      name: p.name,
+      style: p.style,
+      risk: p.risk,
+      presence: p.presence,
+      mood: p.mood,
+      lastMoment: p.lastMoment,
+      sessionRecap: p.sessionRecap,
+      unseenRecap: p.unseenRecap,
+      proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
+      activeTableId: p.activeTableId ?? null,
+      liveGame: p.liveGame,
+    };
+  });
 }
 
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
@@ -888,6 +930,7 @@ export function installAgentProfileRoutes(app) {
     agent.unseenRecap = false;
     saveStore(userId);
     console.log(`[agents] deployed ${agent.name} to table ${tableId}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
+    emitAgentChange(userId);
 
     res.json({
       tableId,
@@ -993,6 +1036,7 @@ export function installAgentProfileRoutes(app) {
     // pending proposals are preserved so the owner can still act on them.
     try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
     saveStore(userId);
+    emitAgentChange(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 

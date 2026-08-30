@@ -1,7 +1,9 @@
 import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
-import { getAgentProfile, setLiveTableProvider, reconcileActiveSessions } from './agentProfiles.js';
+import { isOwner } from './auth.js';
+import { getAgentProfile, setLiveTableProvider, setAgentChangeListener, reconcileActiveSessions } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
+import * as floor from './floorChannel.js';
 
 const { getOrCreateTable } = registry;
 
@@ -20,6 +22,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
   registry.setDefaultBlinds(defaultBlinds);
   setLiveTableProvider(registry);
+  // AGE-38: the floor channel listens to both sides — table state changes for
+  // FLOOR_GAME deltas, agent standing changes for FLOOR_STATE refreshes.
+  floor.configure({ liveTables: registry });
+  registry.setStateHook((table) => floor.notifyTable(table));
+  setAgentChangeListener((userId) => floor.notifyAgentsChanged(userId));
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);
@@ -155,6 +162,29 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             return;
           }
 
+          case ClientMsg.FLOOR_SUB: {
+            if (!msg.userId) throw new Error('userId required');
+            const userId = String(msg.userId);
+            // Same credentials the REST layer takes, carried in the message
+            // because a WebSocket frame has no headers. Without them the
+            // subscription still works — it just never receives heroHole.
+            const owner = isOwner({
+              headers: {
+                'x-telegram-init-data': msg.initData,
+                'x-api-secret': msg.apiSecret,
+              },
+            }, userId);
+            floor.subscribe(ws, { userId, owner });
+            ws.floorUserId = userId;
+            return;
+          }
+
+          case ClientMsg.FLOOR_UNSUB: {
+            floor.unsubscribe(ws);
+            ws.floorUserId = null;
+            return;
+          }
+
           case ClientMsg.LEAVE: {
             const table = tables.get(ws.tableId);
             if (table) table.removeConnection(ws);
@@ -173,11 +203,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     ws.on('close', () => {
       const table = tables.get(ws.tableId);
       if (table) table.removeConnection(ws);
+      floor.unsubscribe(ws);
     });
 
     ws.on('error', () => {
       const table = tables.get(ws.tableId);
       if (table) table.removeConnection(ws);
+      floor.unsubscribe(ws);
     });
   });
 
