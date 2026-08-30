@@ -13,6 +13,14 @@ import {
   applyPepTalk as applyMoodPepTalk,
   isSoothable as isMoodSoothable,
 } from '../agent/mood.js';
+import {
+  notifySessionRecap,
+  notifyProposal,
+  notifyQuietWin,
+  notifyMilestone,
+  recordSessionOutcome,
+  clearProposalPending,
+} from './notifications/telegram.js';
 import { formatMoment } from '../agent/moment.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -354,8 +362,20 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   ensureStats(agent);
   ensureMood(agent);
   const s = agent.stats;
-  s.handsPlayed = (s.handsPlayed ?? 0) + 1;
+  const prevHands = s.handsPlayed ?? 0;
+  s.handsPlayed = prevHands + 1;
   if (won) s.handsWon = (s.handsWon ?? 0) + 1;
+
+  // Milestone notification — fire once per threshold crossing.
+  const MILESTONES = [1000];
+  for (const m of MILESTONES) {
+    if (prevHands < m && s.handsPlayed >= m) {
+      const ownerId = String(userId ?? 'anon');
+      notifyMilestone(ownerId, ownerId, agentId, agent.name || 'Your agent', {
+        hands: s.handsPlayed, threshold: m,
+      }).catch((e) => console.error('[notify] milestone failed:', e.message));
+    }
+  }
 
   for (const d of decisions) {
     s.totalDecisions = (s.totalDecisions ?? 0) + 1;
@@ -521,7 +541,7 @@ export function getMemoryContext(agentId, userId) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0 } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -535,9 +555,41 @@ export function finishAgentSession(agentId, userId, { recap = null } = {}) {
     agent.sessionRecap = { text, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   }
+  const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
+
+  // ── Notifications ──
+  const ownerId = String(userId ?? 'anon');
+  const chatId  = ownerId;
+  const agentName = agent.name || 'Your agent';
+
+  // Session recap: owner was away when session ended.
+  if (!watched && agent.sessionRecap) {
+    notifySessionRecap(ownerId, chatId, agentId, agentName, {
+      pnl: typeof sessionPnl === 'number' ? sessionPnl : 0,
+      hands: sessionHands || 0,
+      sessionEndTime: Date.now(),
+    }).catch((e) => console.error('[notify] session recap failed:', e.message));
+  }
+
+  // Proposal: freshly created this session end.
+  if (!hadProposalBefore && agent.proposal) {
+    notifyProposal(ownerId, chatId, agentId, agentName, {
+      proposalText: agent.proposal.text || '',
+    }).catch((e) => console.error('[notify] proposal failed:', e.message));
+  }
+
+  // Quiet win: 3rd consecutive profitable session.
+  if (typeof sessionPnl === 'number') {
+    const thirdWin = recordSessionOutcome(ownerId, agentId, sessionPnl > 0);
+    if (thirdWin) {
+      notifyQuietWin(ownerId, chatId, agentId, agentName)
+        .catch((e) => console.error('[notify] quiet win failed:', e.message));
+    }
+  }
+
   return agent;
 }
 
@@ -1034,9 +1086,16 @@ export function installAgentProfileRoutes(app) {
     // Session ended — build a self-change proposal from the leaks the
     // grounded-memory computed stats detected. One proposal max; already
     // pending proposals are preserved so the owner can still act on them.
+    const hadProposalBefore = !!agent.proposal;
     try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
     saveStore(userId);
     emitAgentChange(userId);
+    // Proposal notification (owner-initiated finish — skip session recap since they are watching).
+    if (!hadProposalBefore && agent.proposal) {
+      notifyProposal(userId, userId, agentId, agent.name || 'Your agent', {
+        proposalText: agent.proposal.text || '',
+      }).catch((e) => console.error('[notify] proposal failed:', e.message));
+    }
     res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
@@ -1052,6 +1111,7 @@ export function installAgentProfileRoutes(app) {
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
+    clearProposalPending(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
@@ -1064,6 +1124,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.proposal = null;
     saveStore(userId);
+    clearProposalPending(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 

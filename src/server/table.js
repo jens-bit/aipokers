@@ -19,6 +19,7 @@ import {
   tickDecay as tickMoodDecay,
   decisionEffects as moodDecisionEffects,
 } from '../agent/mood.js';
+import { notifyMoodAlert } from './notifications/telegram.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -266,7 +267,16 @@ export class Table {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       try {
-        finishAgentSession(agentId, this.agentUserIds[seat], { recap: recap ?? reason });
+        const buyIn      = this.pending[seat]?.buyIn ?? (this.bigBlind * 100);
+        const finalStack = this.game?.seats?.[seat]?.stack ?? buyIn;
+        const sessionPnl = finalStack - buyIn;
+        const watched    = this.spectators.some((s) => s.spectatorSeat === seat);
+        finishAgentSession(agentId, this.agentUserIds[seat], {
+          recap: recap ?? reason,
+          sessionPnl,
+          watched,
+          sessionHands: this.handsThisSession,
+        });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
       }
@@ -888,6 +898,19 @@ export class Table {
         setAgentMood(agentId, this.agentUserIds[seat], mood);
       } catch (err) {
         console.error('[table] mood update failed:', err.message);
+      }
+
+      // Mood alert: notify owner when agent enters tilted or sulking.
+      const prevState = currentMood.state;
+      const nextState = mood.state;
+      if ((nextState === 'tilted' || nextState === 'sulking') && nextState !== prevState) {
+        const ownerId = this.agentUserIds[seat];
+        if (ownerId) {
+          notifyMoodAlert(String(ownerId), String(ownerId), agentId,
+            this.pending[seat]?.displayName || 'Your agent',
+            { moodState: nextState, cause: mood.cause || null }
+          ).catch((e) => console.error('[notify] mood alert failed:', e.message));
+        }
       }
     }
   }
