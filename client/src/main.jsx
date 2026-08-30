@@ -8,7 +8,7 @@ import './styles/index.css';
 // localhost and Telegram Mini App contexts pass through untouched.
 if (
   window.location.hostname === 'agenticpoker.app' &&
-  !window.Telegram?.WebApp
+  !window.Telegram?.WebApp?.initData
 ) {
   window.location.replace('/welcome');
 } else {
