@@ -115,6 +115,25 @@
   font-size: 10px;
   font-weight: 500;
 }
+.floor-chip__stack {
+  font-family: var(--flr-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--flr-teal);
+  font-variant-numeric: tabular-nums;
+}
+.floor-diorama__street {
+  font-family: var(--flr-oswald);
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--flr-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
 
 .floor-dot {
   width: 5px;

@@ -3,7 +3,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId } from '../../lib/telegram.js';
-import { Occupant, PotTicker, accentFor, speedFor, M_TEAL } from './atoms.jsx';
+import { Occupant, PotTicker, FeltDiorama, dioramaMetrics, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
@@ -74,9 +74,6 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const mini = layout === 'three' || layout === 'full';
   const ghostSize = mini ? 40 : layout === 'two' ? 50 : 56;
 
-  // Card fan height added above the ghost body in the seated posture.
-  const SEATED_CARD_H = 44;
-
   // Everyone resting stands at the bar. With no lounge corner in the compact
   // diamonds, the lounge crowd joins them rather than disappearing.
   const barAgents = L.corner ? [...resting, ...lounge.slice(1)] : [...resting, ...lounge];
@@ -96,18 +93,33 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
       const span = (f.rx * 2 - 18) / Math.max(seated.length, 1);
       // One ticker per felt, fed by whichever seated agent reports the pot.
       const feltPot = group.agents.map(potFor).find(Boolean) ?? null;
-      return seated.map((agent, i) => ({
-        agent,
-        felt: i === 0 ? f : null,
-        feltPot: i === 0 ? feltPot : null,
-        x: f.cx + (i - (seated.length - 1) / 2) * span,
-        y: f.cy + f.ry - 10 - 3 - Math.round(SEATED_CARD_H * shrink),
-        state: 'live',
-        size,
-        speed: speedFor(agent, fi + i),
-        accentIndex: fi + i,
-        seated: true,
-      }));
+      const ghostY = f.cy - Math.round(size * 1.2) - 14;
+      const dioFits = dioramaMetrics(f).fits;
+      const potY = feltPot != null
+        ? (dioFits ? ghostY - 27 : f.cy + f.ry + 8)
+        : null;
+      return seated.map((agent, i) => {
+        const lg = agent?.liveGame;
+        const agentStack = lg?.heroStack ?? null;
+        return {
+          agent,
+          felt: i === 0 ? f : null,
+          feltPot: i === 0 ? feltPot : null,
+          feltPotY: i === 0 ? potY : null,
+          diorama: i === 0 ? {
+            hole: lg?.heroHole ?? null,
+            board: lg?.board ?? [],
+            street: lg?.street ?? null,
+          } : null,
+          x: f.cx + (i - (seated.length - 1) / 2) * span,
+          y: ghostY,
+          state: 'live',
+          size,
+          speed: speedFor(agent, fi + i),
+          accentIndex: fi + i,
+          stack: agentStack,
+        };
+      });
     }),
     ...barSlots.map(({ agent, x }, i) => ({
       agent, x, y: L.bar.y - 102, state: stateOf(agent),
@@ -146,6 +158,16 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
 
           {placements.map((p) => (
             <Fragment key={p.agent.id}>
+              {p.felt && p.diorama && (
+                <FeltDiorama
+                  f={p.felt}
+                  hole={p.diorama.hole}
+                  board={p.diorama.board}
+                  street={p.diorama.street}
+                  room={room}
+                  mini={mini}
+                />
+              )}
               <Occupant
                 x={p.x}
                 y={p.y}
@@ -157,14 +179,14 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
                 speed={p.speed}
                 drink={p.drink}
                 dim={p.dim}
-                seated={p.seated}
+                stack={p.stack}
                 room={room}
                 onClick={() => setZoomedId(p.agent.id)}
               />
-              {p.felt && p.feltPot && (
+              {p.felt && p.feltPot != null && (
                 <PotTicker
                   x={p.felt.cx}
-                  y={p.felt.cy - p.felt.ry - 12}
+                  y={p.feltPotY}
                   amount={p.feltPot}
                   mini={mini}
                   room={room}
@@ -206,9 +228,12 @@ const FELT_SEATS = 3;
 // Playing agents grouped by the table they are actually at, newest table last.
 // Agents with no table id of their own each get their own felt.
 function groupByTable(playing) {
+  const seenIds = new Set();
   const byId = new Map();
   const out = [];
   for (const agent of playing) {
+    if (seenIds.has(agent.id)) continue;
+    seenIds.add(agent.id);
     const id = agent?.liveGame?.tableId || agent?.activeTableId || null;
     if (!id) { out.push({ id: `solo:${agent.id}`, agents: [agent] }); continue; }
     let group = byId.get(id);
@@ -220,7 +245,7 @@ function groupByTable(playing) {
 
 function potFor(agent) {
   const liveGame = agent?.liveGame;
-  return Number.isFinite(liveGame?.pot) ? liveGame.pot.toLocaleString() : null;
+  return Number.isFinite(liveGame?.pot) && liveGame.pot > 0 ? liveGame.pot.toLocaleString() : null;
 }
 
 // Evenly spaces agents along the bar counter, capped at what physically fits
