@@ -202,10 +202,17 @@ export function StateTag({ state = 'resting', compact }) {
 }
 
 // Two face-down card backs fanned on the felt in front of a seated ghost.
-function SeatedCardFan() {
+// MST-4: the fan scales with the ghost, so three agents seated at one felt do
+// not overflow its rail.
+function SeatedCardFan({ scale = 1 }) {
   return (
     <div
-      style={{ position: 'relative', width: 52, height: 44, flexShrink: 0, pointerEvents: 'none' }}
+      style={{
+        position: 'relative', width: 52, height: 44, flexShrink: 0, pointerEvents: 'none',
+        transform: scale === 1 ? undefined : `scale(${scale})`,
+        transformOrigin: 'bottom center',
+        marginBottom: scale === 1 ? 0 : -44 * (1 - scale),
+      }}
       aria-hidden
     >
       <div style={{ position: 'absolute', left: 2, top: 0, transformOrigin: 'bottom center', transform: 'rotate(-9deg)' }}>
@@ -245,7 +252,7 @@ export function Occupant({
     >
       {seated ? (
         <>
-          <SeatedCardFan />
+          <SeatedCardFan scale={Math.min(1, size / 56)} />
           <span className="floor-occupant__body">
             <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
           </span>

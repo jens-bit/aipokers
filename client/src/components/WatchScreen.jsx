@@ -284,6 +284,24 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
   );
 }
 
+
+// ---- seat ring -------------------------------------------------------------
+// MST-4: up to five opponents around the felt, hero anchored at the bottom.
+// The design language puts the first two in the top corners; beyond that the
+// ring fills outward -- top centre, then the two side rails -- so the board and
+// the pot ticker in the middle are never covered.
+var SEAT_SLOTS = {
+  1: ['tl'],
+  2: ['tl', 'tr'],
+  3: ['tl', 'tc', 'tr'],
+  4: ['ml', 'tl', 'tr', 'mr'],
+  5: ['ml', 'tl', 'tc', 'tr', 'mr'],
+};
+
+function slotsFor(count) {
+  return SEAT_SLOTS[Math.max(1, Math.min(5, count))] || SEAT_SLOTS[2];
+}
+
 // ---- WatchFelt -------------------------------------------------------------
 
 function WatchFelt({ game, mySeat, lastDecision }) {
@@ -309,38 +327,40 @@ function WatchFelt({ game, mySeat, lastDecision }) {
     ? formatAction(lastDecision.action)
     : (game && game.toAct === heroSeat && !between ? 'TO ACT' : null);
 
+  // Opponents in seat order clockwise from the hero, so the ring on screen
+  // matches the order the action actually moves in.
   var opponentSeats = [];
-  for (var si = 0; si < seatCount; si++) {
-    if (si !== heroSeat && game && game.seats && game.seats[si]) {
-      var s = game.seats[si];
-      opponentSeats.push({
-        name: s.displayName || ('Seat ' + (si + 1)),
-        stack: s.stack ? s.stack.toLocaleString() : '0',
-        pos: posLabel(si, game),
-        acting: game.toAct === si,
-        folded: s.folded,
-      });
-    }
+  for (var step = 1; step < seatCount; step++) {
+    var si = (heroSeat + step) % seatCount;
+    var s = game && game.seats ? game.seats[si] : null;
+    if (!s) continue;
+    opponentSeats.push({
+      name: s.displayName || ('Seat ' + (si + 1)),
+      stack: s.stack ? s.stack.toLocaleString() : '0',
+      pos: posLabel(si, game),
+      acting: game.toAct === si,
+      folded: s.folded,
+    });
   }
+  var slots = slotsFor(opponentSeats.length);
+  var dense = opponentSeats.length >= 3;
 
   return (
     <div className="watch-felt">
       <div className="watch-felt__arc" />
 
-      {opponentSeats[0] && (
-        <div className="watch-felt__seat watch-felt__seat--left">
-          <SeatChip name={opponentSeats[0].name} stack={opponentSeats[0].stack}
-            pos={opponentSeats[0].pos} acting={opponentSeats[0].acting}
-            folded={opponentSeats[0].folded} />
-        </div>
-      )}
-      {opponentSeats[1] && (
-        <div className="watch-felt__seat watch-felt__seat--right">
-          <SeatChip name={opponentSeats[1].name} stack={opponentSeats[1].stack}
-            pos={opponentSeats[1].pos} acting={opponentSeats[1].acting}
-            folded={opponentSeats[1].folded} align="right" />
-        </div>
-      )}
+      {opponentSeats.slice(0, slots.length).map(function(o, i) {
+        var slot = slots[i];
+        return (
+          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (dense ? ' is-dense' : '')}>
+            <SeatChip name={o.name} stack={o.stack} pos={o.pos}
+              acting={o.acting} folded={o.folded}
+              cards={!between}
+              dense={dense}
+              align={(slot === 'tr' || slot === 'mr') ? 'right' : 'left'} />
+          </div>
+        );
+      })}
 
       <div className="watch-felt__pot">
         <span className="watch-felt__pot-label">POT</span>
@@ -359,8 +379,8 @@ function WatchFelt({ game, mySeat, lastDecision }) {
 
       <div className="watch-felt__street">
         {between
-          ? ('#' + (game && game.tableId ? game.tableId : '--') + ' · SHUFFLING')
-          : ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + (game && game.blinds ? game.blinds : '') + ' · ' + street)}
+          ? ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + seatCount + '-HANDED · SHUFFLING')
+          : ('#' + (game && game.tableId ? game.tableId : '--') + ' · ' + (game && game.blinds ? game.blinds : '') + ' · ' + seatCount + '-HANDED · ' + street)}
       </div>
 
       <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
