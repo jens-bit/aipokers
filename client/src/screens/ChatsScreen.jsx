@@ -668,7 +668,7 @@ export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgen
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => { setAgents(data.agents || []); setLoading(false); })
       .catch(() => setLoading(false));

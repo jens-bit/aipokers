@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import '../styles/home.css';
 
 const AGENT_ACCENTS = ['#00D4AA', '#9B7BFF', '#CDB380', '#FF7A8E'];
@@ -10,7 +10,7 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
   const [deployingId, setDeployingId] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => setAgents(data.agents || []))
       .catch(() => {})

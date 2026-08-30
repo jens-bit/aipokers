@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getUserId } from '../../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { AgentChat } from '../AgentChat.jsx';
 import { BirthScreen } from '../../screens/BirthScreen.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
@@ -24,7 +24,7 @@ export function DesktopShell({
   const chatSendRef = useRef(null);
 
   const loadAgents = useCallback(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => setAgents(data.agents || []))
       .catch(() => {})

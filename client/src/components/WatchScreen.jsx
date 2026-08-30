@@ -903,7 +903,7 @@ export function WatchScreen({
     if (!agentId) return;
     var cancelled = false;
     function load() {
-      fetch('/api/agents?userId=' + getUserId())
+      fetch('/api/agents?userId=' + getUserId(), { headers: { 'x-telegram-init-data': getTelegramInitData() } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (cancelled) return;

@@ -2,7 +2,7 @@
 // Balance card · Lifetime 2×2 stats · Replays · Settings
 
 import { useEffect, useState } from 'react';
-import { getTelegramDisplayName, getUserId } from '../lib/telegram.js';
+import { getTelegramDisplayName, getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -167,7 +167,7 @@ export function YouScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then(async (data) => {
         const list = data.agents || [];
