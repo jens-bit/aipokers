@@ -82,17 +82,30 @@ if (openApiSpec) {
 app.get('/welcome', (_req, res) => {
   const built = path.join(STATIC_DIR, 'welcome', 'index.html');
   const source = path.join(PUBLIC_DIR, 'welcome', 'index.html');
+  res.setHeader('Cache-Control', 'no-store');  // CACHE-2: Telegram caches index files
   res.sendFile(existsSync(built) ? built : source);
 });
 
 if (existsSync(STATIC_DIR)) {
-  app.use(express.static(STATIC_DIR, { extensions: ['html'] }));
+  // CACHE-2: hashed /assets/* are immutable forever; index.html must never
+  // be cached so Telegram's webview always fetches the latest entry point.
+  app.use(express.static(STATIC_DIR, {
+    extensions: ['html'],
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store');
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
   // SPA fallback: any unmatched GET serves index.html so deep links and
   // browser refresh on client-side routes load the app instead of 404ing.
   // Real /assets/* requests are handled by express.static above; only paths
   // it didn't resolve fall through to here.
   app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
+    res.setHeader('Cache-Control', 'no-store');  // CACHE-2
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
   });
 } else {
