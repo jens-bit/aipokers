@@ -20,6 +20,13 @@ import {
   decisionEffects as moodDecisionEffects,
 } from '../agent/mood.js';
 import { notifyMoodAlert } from './notifications/telegram.js';
+import {
+  HOUSE_TAG,
+  HOUSE_STATION,
+  HOUSE_STRATEGY,
+  HOUSE_PROFILE,
+  pickComplementaryHouse,
+} from './matchmaking.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -55,32 +62,10 @@ const RECAP_STALL = 'something jammed at my table, so I stepped away';
 const SESSION_STALL_MS = Number(process.env.SESSION_STALL_MS ?? 120_000);
 const SESSION_STALL_MS_EXPLICIT = process.env.SESSION_STALL_MS !== undefined;
 
-// Complementary House archetypes. Playtest 2026-08-29 showed tight-vs-tight
-// tables produce fold-fests (seven straight uncontested preflop hands). Fix:
-// pick the House that creates action against the specific agent's shape.
-const HOUSE_TAG = {
-  strategy: 'You are a tight-aggressive heads-up player. You play premium hands aggressively, fold weak ones, and bluff occasionally at about 30% frequency. Mix up your play to stay unpredictable.',
-  profile:  { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 75 },
-  displayName: 'House',
-};
-const HOUSE_STATION = {
-  strategy: 'You are a loose call-heavy heads-up player. Call a wide range preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any piece of the board. Rarely raise unless you have a strong made hand.',
-  profile:  { tightness: 22, aggression: 30, bluffFreq: 10, discipline: 55 },
-  displayName: 'House',
-};
-// Backwards-compat export for anything importing HOUSE_STRATEGY (none in
-// the tree currently, but kept as the canonical text of the TAG House).
-const HOUSE_STRATEGY = HOUSE_TAG.strategy;
-const HOUSE_PROFILE = HOUSE_TAG.profile;
-
-// Pick which House archetype to seat, given the profile of the already-seated
-// agent (if any). Tight agent → loose Station House; loose agent → TAG House.
-// Default is TAG (the historical baseline) when no counterpart profile exists.
-function pickComplementaryHouse(opposingProfile) {
-  if (!opposingProfile || !Number.isFinite(opposingProfile.tightness)) return HOUSE_TAG;
-  if (opposingProfile.tightness > 60) return HOUSE_STATION;
-  return HOUSE_TAG;
-}
+// MST-2: the House archetypes and the complementarity rule moved to
+// matchmaking.js, where the same judgement now also ranks real tables. Kept
+// as re-exports so nothing importing them from here breaks.
+export { HOUSE_TAG, HOUSE_STATION, HOUSE_STRATEGY, HOUSE_PROFILE, pickComplementaryHouse };
 
 // A Table owns the seat roster for 2 to 6 players plus the Game instance those
 // seats are currently playing in. It serializes incoming actions, broadcasts
@@ -144,6 +129,9 @@ export class Table {
     // was recorded in.
     this._buttonPlayerId = null;
     this._buttonOrder = null;
+    // Monotonic per-table counter behind the synthetic playerIds of AI seats
+    // that have no agentId of their own (the House).
+    this._seatSeq = 0;
     this.agentStrategy = null;                     // player-designed strategy from CreateAgent flow
 
     // Per-street raise counter, keyed by `${handNumber}:${street}`. Reset at
@@ -687,7 +675,11 @@ export class Table {
     const aiBuyIn = buyIn ?? (humanSeat !== -1 ? this.pending[humanSeat].buyIn : this.bigBlind * 100);
 
     this.pending[free] = {
-      playerId: `ai_agent_${free}`,
+      // MST-1: playerIds must be unique for the life of the table and stable
+      // across compaction -- the button is tracked by playerId, and
+      // opponentStats keys its reads on it. `ai_agent_<seat>` was neither:
+      // a seat freed and refilled could reissue a live id.
+      playerId: agentId ? `agent_${agentId}` : `ai_${this.tableId}_${this._seatSeq++}`,
       buyIn: aiBuyIn,
       displayName,
     };

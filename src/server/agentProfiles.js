@@ -944,25 +944,19 @@ export function installAgentProfileRoutes(app) {
       });
     }
 
-    // AGE-35: the global cost bound. Each autonomous table burns model calls
-    // with or without a watcher, so refuse past the cap with a clear reason.
-    if (liveTables && liveTables.countAutonomousTables() >= liveTables.MAX_CONCURRENT_TABLES) {
-      return res.status(503).json({
-        error: `The floor is full — ${liveTables.MAX_CONCURRENT_TABLES} tables are already running. Try again once one finishes.`,
-        maxConcurrentTables: liveTables.MAX_CONCURRENT_TABLES,
-      });
-    }
-
-    const tableId = 'table-' + randomUUID().slice(0, 8);
-
-    // AGE-35: build the table and start the session loop NOW. Before this the
-    // table only came into being when a client sent WATCH, which is why an
-    // agent could show as "playing" while its game was frozen (BUG-16/17).
+    // MST-2: prefer JOINING an open AI-only table over standing up a private
+    // one. Filling a felt is both cheaper (one table's worth of model calls
+    // serves N agents) and better poker -- the matchmaker ranks candidates by
+    // how much action the resulting mix of archetypes should produce.
+    let tableId = null;
+    let seat = null;
+    let joinedExisting = false;
     let sessionStarted = false;
-    if (liveTables) {
+
+    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id });
+    if (candidate?.table) {
       try {
-        const table = liveTables.getOrCreateTable(tableId);
-        const seat = table.startAgentSession({
+        seat = candidate.table.joinAgentSession({
           agentId: agent.id,
           userId,
           displayName: agent.name || 'Agent',
@@ -970,9 +964,48 @@ export function installAgentProfileRoutes(app) {
           memoryContext: getAgentMemoryContext(agent),
           agentProfile: agent.profile ?? null,
         });
-        sessionStarted = seat !== null;
+        if (seat !== null) {
+          tableId = candidate.table.tableId;
+          joinedExisting = true;
+          sessionStarted = true;
+          console.log(`[agents] ${agent.name} joins table ${tableId} at seat ${seat} (action score ${candidate.score}, ${candidate.table.seatedCount()}/${candidate.table.maxSeats} seated)`);
+        }
       } catch (err) {
-        console.error('[agents] failed to start server-side session:', err.message);
+        console.error('[agents] join failed, falling back to a fresh table:', err.message);
+      }
+    }
+
+    if (!joinedExisting) {
+      // AGE-35: the global cost bound. Each autonomous table burns model calls
+      // with or without a watcher, so refuse past the cap with a clear reason.
+      // Only CREATING a table counts against it -- joining one does not.
+      if (liveTables && liveTables.countAutonomousTables() >= liveTables.MAX_CONCURRENT_TABLES) {
+        return res.status(503).json({
+          error: `The floor is full — ${liveTables.MAX_CONCURRENT_TABLES} tables are already running. Try again once one finishes.`,
+          maxConcurrentTables: liveTables.MAX_CONCURRENT_TABLES,
+        });
+      }
+
+      tableId = 'table-' + randomUUID().slice(0, 8);
+
+      // AGE-35: build the table and start the session loop NOW. Before this the
+      // table only came into being when a client sent WATCH, which is why an
+      // agent could show as "playing" while its game was frozen (BUG-16/17).
+      if (liveTables) {
+        try {
+          const table = liveTables.getOrCreateTable(tableId);
+          seat = table.startAgentSession({
+            agentId: agent.id,
+            userId,
+            displayName: agent.name || 'Agent',
+            strategy: agent.strategy || '',
+            memoryContext: getAgentMemoryContext(agent),
+            agentProfile: agent.profile ?? null,
+          });
+          sessionStarted = seat !== null;
+        } catch (err) {
+          console.error('[agents] failed to start server-side session:', err.message);
+        }
       }
     }
 
@@ -981,7 +1014,7 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     saveStore(userId);
-    console.log(`[agents] deployed ${agent.name} to table ${tableId}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
+    console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
     emitAgentChange(userId);
 
     res.json({
@@ -992,6 +1025,8 @@ export function installAgentProfileRoutes(app) {
       displayName: 'Agent',
       memoryContext: getAgentMemoryContext(agent),
       sessionStarted,
+      joinedExisting,
+      seat,
     });
   });
 

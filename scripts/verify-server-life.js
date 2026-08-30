@@ -29,6 +29,12 @@
 process.env.HAND_PAUSE_MS ??= '600';
 process.env.SESSION_MAX_HANDS ??= '100';
 process.env.MAX_CONCURRENT_TABLES ??= '2';
+// Tree 6 made tables 6-max by default, and a deploy now prefers joining an open
+// table over creating one. This script is the heads-up server-life suite, so it
+// pins seats to 2: every deploy fills its table and therefore still creates a
+// fresh one, exactly as when these checks were written. Multi-seat behaviour is
+// covered by scripts/verify-multi-seat.js.
+process.env.MAX_SEATS ??= '2';
 // Short enough that the stall section finishes quickly; production is 120s.
 process.env.SESSION_STALL_MS ??= '4000';
 
