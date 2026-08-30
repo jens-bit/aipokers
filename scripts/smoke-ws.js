@@ -45,8 +45,11 @@ const check = (label, cond) => {
 };
 
 console.log('\n— two clients join with different playerIds —');
-send(a, { type: 'join', tableId: 't1', playerId: 'pa-1', displayName: 'Alice', buyIn: 1000 });
-send(b, { type: 'join', tableId: 't1', playerId: 'pb-1', displayName: 'Bob', buyIn: 1000 });
+// MST-1 made tables 6-max by default. This smoke covers the heads-up client
+// path (HU blind reversal, "table full" on a third tab), so it asks for a
+// two-seat table explicitly — the JOIN message has always carried maxSeats.
+send(a, { type: 'join', tableId: 't1', playerId: 'pa-1', displayName: 'Alice', buyIn: 1000, maxSeats: 2 });
+send(b, { type: 'join', tableId: 't1', playerId: 'pb-1', displayName: 'Bob', buyIn: 1000, maxSeats: 2 });
 const joinedA = await waitFor(eventsA, (m) => m.type === 'joined');
 const joinedB = await waitFor(eventsB, (m) => m.type === 'joined');
 check('A is seated', typeof joinedA.seat === 'number');

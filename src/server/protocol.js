@@ -33,6 +33,11 @@ export const ServerMsg = Object.freeze({
   TABLE_CLOSED: 'table_closed', // { type, reason }
   CHAT: 'chat',             // { type, seat, displayName, text, isAI }
   DECISION: 'decision',     // { type, seat, action: { type, amount? }, reasoning }
+  // MST-1 (additive): one seat left a table that is still running. Sent to
+  // everyone still at the table; the departing seat's own sockets get
+  // TABLE_CLOSED instead, so a client that predates this message behaves
+  // exactly as before.
+  SEAT_LEFT: 'seat_left',   // { type, seat, displayName, reason }
   // AGE-38 floor channel (server → subscriber).
   FLOOR_STATE: 'floor_state', // { type, userId, agents: [{ id, name, presence, mood,
                               //   lastMoment, sessionRecap, unseenRecap, proposal,

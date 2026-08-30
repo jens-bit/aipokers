@@ -10,7 +10,8 @@
 // it through an injected provider (see setLiveTableProvider) so the import
 // graph stays acyclic.
 
-import { Table } from './table.js';
+import { Table, MAX_SEATS } from './table.js';
+import { pickTableToJoin } from './matchmaking.js';
 
 const tables = new Map(); // tableId -> Table
 
@@ -79,6 +80,12 @@ export function getLiveGame(tableId, { agentId, includeHole = false } = {}) {
   return table.liveGameView(agentId, { includeHole });
 }
 
+// MST-2: the best open AI-only table for a deploying agent, or null when it
+// should get a fresh table of its own. Returns { table, score, seated }.
+export function findJoinableTable({ profile = null, agentId = null } = {}) {
+  return pickTableToJoin(tables.values(), { profile, agentId });
+}
+
 export function getOrCreateTable(tableId, opts = {}) {
   const existing = tables.get(tableId);
   if (existing) return existing;
@@ -86,7 +93,7 @@ export function getOrCreateTable(tableId, opts = {}) {
     tableId,
     smallBlind: opts.smallBlind ?? defaultBlinds.smallBlind,
     bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
-    maxSeats: opts.maxSeats ?? 2,
+    maxSeats: opts.maxSeats ?? MAX_SEATS,
     onEmpty: (id) => { tables.delete(id); },
     onStateChange: (t) => stateHook?.(t),
   });

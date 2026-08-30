@@ -19,9 +19,14 @@ export const Actions = Object.freeze({
   RAISE: 'raise',
 });
 
-// NLHE game supporting 2–4 seats. Seat 0..N-1 indexed. The button rotates each
+// NLHE game supporting 2–6 seats. Seat 0..N-1 indexed. The button rotates each
 // hand. Heads-up (N=2) is a special case: the button is also the small blind
 // and acts first preflop, last on every other street.
+//
+// MST-1: the seat ceiling was 4 purely because no caller ever asked for more.
+// Nothing in the blind posting, deal order, action ring or side-pot builder is
+// specific to a seat count, so raising it to 6 is a cap change, not a rules
+// change — see the 5- and 6-handed cases in game.test.js.
 export class Game {
   constructor({
     tableId,
@@ -30,8 +35,8 @@ export class Game {
     bigBlind,
     dealerSeat = 0,
   }) {
-    if (!Array.isArray(seats) || seats.length < 2 || seats.length > 4) {
-      throw new Error('Game requires 2 to 4 seats');
+    if (!Array.isArray(seats) || seats.length < 2 || seats.length > 6) {
+      throw new Error('Game requires 2 to 6 seats');
     }
     if (!Number.isInteger(smallBlind) || smallBlind <= 0) throw new Error('smallBlind must be a positive integer');
     if (!Number.isInteger(bigBlind) || bigBlind <= smallBlind) throw new Error('bigBlind must be > smallBlind');

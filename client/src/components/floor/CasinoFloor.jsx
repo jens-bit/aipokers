@@ -60,7 +60,12 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   const zoomed = agents.find((a) => a.id === zoomedId) || null;
 
   const { playing, resting, lounge } = splitFloor(agents);
-  const layout = layoutFor(playing.length);
+  // MST-4: agents at the SAME table share one felt. A felt is a table, not an
+  // agent -- with multi-seat matchmaking several of your ghosts routinely sit
+  // down together, and drawing them at separate felts would be a lie about
+  // where they are.
+  const tables = groupByTable(playing);
+  const layout = layoutFor(tables.length);
   const L = LAYOUTS[layout];
   const litFelts = L.felts.filter((f) => f.lit);
   const ftu = !loading && agents.length === 0;
@@ -80,15 +85,29 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
   // Every occupant's anchor is resolved once, so the zoom can aim its camera
   // at the right spot in the room and the felt/bar/lounge layers stay in sync.
   const placements = [
-    ...playing.slice(0, litFelts.length).map((agent, i) => {
-      const f = litFelts[i];
-      // Seat the ghost at the near rail: card fan top is the anchor, ghost body
-      // top lands ~10px inside the felt bottom so it overlaps the rim naturally.
-      return {
-        agent, felt: f, x: f.cx, y: f.cy + f.ry - 10 - 3 - SEATED_CARD_H,
-        state: 'live', size: ghostSize, speed: speedFor(agent, i), accentIndex: i,
+    ...tables.slice(0, litFelts.length).flatMap((group, fi) => {
+      const f = litFelts[fi];
+      // Up to three ghosts side by side at the near rail: same seated posture,
+      // same card backs, spread across the felt's width. Beyond three the felt
+      // simply stops adding bodies (the pot ticker still speaks for the table).
+      const seated = group.agents.slice(0, FELT_SEATS);
+      const shrink = seated.length === 1 ? 1 : seated.length === 2 ? 0.84 : 0.7;
+      const size = Math.round(ghostSize * shrink);
+      const span = (f.rx * 2 - 18) / Math.max(seated.length, 1);
+      // One ticker per felt, fed by whichever seated agent reports the pot.
+      const feltPot = group.agents.map(potFor).find(Boolean) ?? null;
+      return seated.map((agent, i) => ({
+        agent,
+        felt: i === 0 ? f : null,
+        feltPot: i === 0 ? feltPot : null,
+        x: f.cx + (i - (seated.length - 1) / 2) * span,
+        y: f.cy + f.ry - 10 - 3 - Math.round(SEATED_CARD_H * shrink),
+        state: 'live',
+        size,
+        speed: speedFor(agent, fi + i),
+        accentIndex: fi + i,
         seated: true,
-      };
+      }));
     }),
     ...barSlots.map(({ agent, x }, i) => ({
       agent, x, y: L.bar.y - 102, state: stateOf(agent),
@@ -142,11 +161,11 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
                 room={room}
                 onClick={() => setZoomedId(p.agent.id)}
               />
-              {p.felt && potFor(p.agent) && (
+              {p.felt && p.feltPot && (
                 <PotTicker
                   x={p.felt.cx}
                   y={p.felt.cy - p.felt.ry - 12}
-                  amount={potFor(p.agent)}
+                  amount={p.feltPot}
                   mini={mini}
                   room={room}
                 />
@@ -177,6 +196,26 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch }) {
       )}
     </div>
   );
+}
+
+// How many ghosts one felt seats before it stops adding bodies. The room is a
+// diorama, not a seat map: the felt says "a game is happening here", and three
+// is as many as reads clearly at this scale.
+const FELT_SEATS = 3;
+
+// Playing agents grouped by the table they are actually at, newest table last.
+// Agents with no table id of their own each get their own felt.
+function groupByTable(playing) {
+  const byId = new Map();
+  const out = [];
+  for (const agent of playing) {
+    const id = agent?.liveGame?.tableId || agent?.activeTableId || null;
+    if (!id) { out.push({ id: `solo:${agent.id}`, agents: [agent] }); continue; }
+    let group = byId.get(id);
+    if (!group) { group = { id, agents: [] }; byId.set(id, group); out.push(group); }
+    group.agents.push(agent);
+  }
+  return out;
 }
 
 function potFor(agent) {

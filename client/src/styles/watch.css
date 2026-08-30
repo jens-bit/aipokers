@@ -68,6 +68,29 @@
   top: 12px;
   z-index: 2;
 }
+
+/* MST-4: the seat ring for 2..6 players. The first two opponents keep the
+   original top corners; a third goes top centre; a fourth and fifth take the
+   side rails, in the band between the board and the hero readout so nothing
+   overlaps. slotsFor() in WatchScreen.jsx decides which slots are in play. */
+.watch-felt__seat--tl { left: 12px; }
+.watch-felt__seat--tr { right: 12px; }
+.watch-felt__seat--tc {
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+}
+.watch-felt__seat--ml { left: 10px;  top: 182px; }
+.watch-felt__seat--mr { right: 10px; top: 182px; }
+
+/* Three or more opponents: step the chips down so a 6-max ring still fits a
+   narrow phone. Matches the compact-tile scaling in the spectate refs. */
+.watch-felt__seat.is-dense { transform: scale(0.88); transform-origin: top left; }
+.watch-felt__seat--tr.is-dense { transform-origin: top right; }
+.watch-felt__seat--mr.is-dense { transform-origin: top right; }
+.watch-felt__seat--tc.is-dense { transform: translateX(-50%) scale(0.88); transform-origin: top center; }
+
+/* Legacy aliases, kept so any older markup still lands somewhere sane. */
 .watch-felt__seat--left  { left: 12px; }
 .watch-felt__seat--right { right: 12px; }
 
