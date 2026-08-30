@@ -18,6 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { formatOpponentRead } from './reads.js';
+import { NLHE_REFERENCE, OUTPUT_CONTRACT } from './reference.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -27,23 +28,80 @@ const DEFAULT_STRATEGY =
   'fold weak hands preflop, value-bet strong hands, protect big pots, ' +
   'and bluff occasionally in position on dry boards.';
 
-// Build the system prompt (strategy + memory + output contract). Stays stable
-// per (strategy, memoryContext) so it benefits from prompt caching across
-// multiple hands until the memory next refreshes.
-function buildSystem(strategy, memoryContext = '') {
+// CACHE-1: does the invariant reference block ride along in front of the cache
+// breakpoint? Off by default — on Haiku 4.5 it is a cost INCREASE, not a
+// saving. See CACHE.md for the arithmetic and when to turn it on.
+const CACHE_PREFIX = process.env.PROMPT_CACHE_PREFIX === '1';
+
+// Build the system prompt as ordered blocks, stable content first.
+//
+// Caching is a prefix match: the cached region runs from the start of the
+// request up to a cache_control marker, and any byte that changes before a
+// marker invalidates it. So the blocks are ordered by how often they change:
+//
+//   [0] invariant  — identical for every agent at every table  (breakpoint)
+//   [1] strategy   — identical for the life of one agent       (breakpoint)
+//   [2] memory     — CHANGES EVERY HAND, so it sits behind both
+//
+// The old single-string version concatenated all three, with memoryContext in
+// the middle. That was a latent bug independent of any size question: the
+// computed-memory block restates the agent's hand count and rolling stats and
+// is refreshed after every hand, so the "stable" cached prefix changed at every
+// hand boundary. Even on a model whose minimum this prompt cleared, the entry
+// could never have survived past one hand.
+//
+// Ordering the invariant block ahead of the per-agent strategy means breakpoint
+// [0] is the same bytes for the hero, the House, and every other agent on the
+// floor — one entry serves all of them.
+// The exact pre-CACHE-1 prompt. The default path must reproduce this byte for
+// byte — see buildSystemBlocks.
+export function legacySystemText(strategy, memoryContext = '') {
   return `${strategy || DEFAULT_STRATEGY}${memoryContext || ''}
 
-You are playing No-Limit Texas Hold'em poker.
-Respond with ONLY a single-line JSON object — no prose outside the JSON, no markdown.
+${OUTPUT_CONTRACT}`;
+}
 
-JSON format (the "amount" key is required for bet/raise, omit otherwise):
-{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>"}
+function buildSystemBlocks(strategy, memoryContext = '') {
+  // DEFAULT PATH — byte-identical to the prompt that shipped before CACHE-1.
+  //
+  // The volatility ordering below is the right structure in the abstract, but
+  // it moves the agent's strategy text behind the format contract, and a
+  // 150-pair arena run showed that costs archetype adherence: the Calling
+  // Station's VPIP fell 94.6 -> 76.7, an archetype whose entire definition is
+  // "call almost everything preflop". Persona-first is load-bearing.
+  //
+  // Since caching cannot pay off on Haiku 4.5 at this prompt size anyway
+  // (CACHE.md), reordering by default would be spending real behaviour to buy
+  // nothing. So the reordering is scoped to the cache-prefix path.
+  if (!CACHE_PREFIX) {
+    return [{
+      type: 'text',
+      text: legacySystemText(strategy, memoryContext),
+      cache_control: { type: 'ephemeral' },
+    }];
+  }
 
-For bet/raise, "amount" is the TOTAL chips you want committed this street
-(your existing contribution plus any additional you're putting in now).
-
-The "reasoning" field is required for every decision: one punchy sentence,
-max 12 words, why you made this specific decision right now.`;
+  // CACHE-PREFIX PATH — ordered by how often each part changes, so the
+  // breakpoints sit in front of everything volatile:
+  //
+  //   [0] invariant  — identical for every agent at every table  (breakpoint)
+  //   [1] strategy   — identical for the life of one agent       (breakpoint)
+  //   [2] memory     — CHANGES EVERY HAND, so it sits behind both
+  //
+  // That last line is a real bug the old single-string prompt had:
+  // memoryContext sat inside the cache_control block, and it is rebuilt after
+  // every hand (updateComputedMemory -> _refreshAgentMemory) with an updated
+  // hand count and rolling stats. Even on a model whose minimum this prompt
+  // cleared, the entry would have been invalidated once per hand.
+  //
+  // Invariant ahead of strategy means breakpoint [0] is the same bytes for the
+  // hero, the House, and every other agent on the floor — one entry serves all.
+  const blocks = [
+    { type: 'text', text: `${NLHE_REFERENCE}\n\n${OUTPUT_CONTRACT}`, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: strategy || DEFAULT_STRATEGY, cache_control: { type: 'ephemeral' } },
+  ];
+  if (memoryContext) blocks.push({ type: 'text', text: memoryContext });
+  return blocks;
 }
 
 // Short in-prompt hint tied to a mood state. Kept bounded per Mood Design
@@ -345,25 +403,29 @@ export async function getAgentAction(gameState, strategy, memoryContext = '') {
   }
 
   const client = new Anthropic({ timeout: 9000 });
-  const system = buildSystem(strategy, memoryContext);
+  const systemBlocks = buildSystemBlocks(strategy, memoryContext);
   const userPrompt = buildUserPrompt(gameState);
 
   console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${MODEL}...`);
-  console.log(`[agent] system prompt (first 200): ${system.slice(0, 200).replace(/\s+/g, ' ')}`);
+  console.log(`[agent] strategy (first 120): ${(strategy || DEFAULT_STRATEGY).slice(0, 120).replace(/\s+/g, ' ')}`);
   try {
     const msg = await client.messages.create({
       model: MODEL,
       // Reasoning string takes some tokens; keep it tight but not starved.
       max_tokens: 200,
-      // Cache the system prompt (strategy + format contract) across hands.
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      system: systemBlocks,
       messages: [{ role: 'user', content: userPrompt }],
     });
 
     const text = msg.content[0]?.text ?? '';
     const { action, reasoning } = parseDecision(text, gameState);
-    const { input_tokens: inp, output_tokens: out, cache_read_input_tokens: cached = 0 } = msg.usage;
-    console.log(`[agent] → ${JSON.stringify(action)}  (in:${inp} out:${out} cached:${cached})`);
+    const {
+      input_tokens: inp,
+      output_tokens: out,
+      cache_read_input_tokens: cached = 0,
+      cache_creation_input_tokens: written = 0,
+    } = msg.usage;
+    console.log(`[agent] → ${JSON.stringify(action)}  (in:${inp} out:${out} cached:${cached} written:${written})`);
     return { action, reasoning };
   } catch (err) {
     console.error('[agent] API error:', err.message);
