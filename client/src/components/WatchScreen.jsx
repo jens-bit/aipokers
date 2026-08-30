@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodBand } from './system/MoodBand.jsx';
-import { SeatChip } from './system/SeatChip.jsx';
+import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { accentFor } from './floor/atoms.jsx';
@@ -403,20 +403,32 @@ function SheetHandle({ thin }) {
 }
 
 // ---- seat ring -------------------------------------------------------------
-// MST-4: up to five opponents around the felt, hero anchored at the bottom.
-// The design language puts the first two in the top corners; beyond that the
-// ring fills outward -- top centre, then the two side rails -- so the board and
-// the pot ticker in the middle are never covered.
+// WV2-4, per design-refs/mood-watch2.jsx (PART 2 · MULTIWAY). The engine seats
+// 2..6, so the ring holds one to five opponents with the hero anchored at the
+// bottom. Slots come into play in the order the brief sets -- top corners,
+// then top centre, then the side rails -- and each row below lists them in
+// ring order (up the left, across the top, down the right) so the opponent
+// sitting in each is the one the action actually reaches next.
 var SEAT_SLOTS = {
   1: ['tl'],
   2: ['tl', 'tr'],
   3: ['tl', 'tc', 'tr'],
-  4: ['ml', 'tl', 'tr', 'mr'],
+  4: ['ml', 'tl', 'tc', 'tr'],
   5: ['ml', 'tl', 'tc', 'tr', 'mr'],
 };
 
 function slotsFor(count) {
   return SEAT_SLOTS[Math.max(1, Math.min(5, count))] || SEAT_SLOTS[2];
+}
+
+function alignFor(slot) {
+  return (slot === 'tr' || slot === 'mr') ? 'right' : 'left';
+}
+
+// "Full SeatChip through 4-handed; the rails and 6-handed use SeatChipSm."
+// A rail seat is always compact; at six-handed every seat is.
+function compactFor(slot, opponentCount) {
+  return slot === 'ml' || slot === 'mr' || opponentCount >= 5;
 }
 
 // ---- WatchFelt -------------------------------------------------------------
@@ -456,11 +468,14 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
       stack: s.stack ? s.stack.toLocaleString() : '0',
       pos: posLabel(si, game),
       acting: game.toAct === si,
-      folded: s.folded,
+      folded: !!s.folded,
+      dealer: game.dealerSeat === si,
+      // WV2-4: what this seat has put in on the current street, shown in front
+      // of it. Zero and between hands both mean no pill.
+      bet: (!between && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
     });
   }
   var slots = slotsFor(opponentSeats.length);
-  var dense = opponentSeats.length >= 3;
 
   // WV2-3: the felt's height and its three interior tops come from the sheet's
   // current detent, so it grows and shrinks with the drag.
@@ -476,14 +491,23 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
-        var slot = slots[i];
+        var slot    = slots[i];
+        var align   = alignFor(slot);
+        var compact = compactFor(slot, opponentSeats.length);
+        var showBacks = !between && !o.folded;
         return (
-          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (dense ? ' is-dense' : '')}>
-            <SeatChip name={o.name} stack={o.stack} pos={o.pos}
-              acting={o.acting} folded={o.folded}
-              cards={!between}
-              dense={dense}
-              align={(slot === 'tr' || slot === 'mr') ? 'right' : 'left'} />
+          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
+            {compact
+              ? <SeatChipSm name={o.name} stack={o.stack} acting={o.acting}
+                  folded={o.folded} dealer={o.dealer} />
+              : <SeatChip name={o.name} stack={o.stack} pos={o.pos} acting={o.acting}
+                  folded={o.folded} align={align} dealer={o.dealer} />}
+            {(showBacks || o.bet) && (
+              <div className="watch-felt__seat-row">
+                {showBacks && <SeatCardBacks />}
+                {o.bet && <BetPill amount={o.bet} />}
+              </div>
+            )}
           </div>
         );
       })}

@@ -79,36 +79,44 @@
   pointer-events: none;
 }
 
+/* WV2-4: the seat ring, ported from mood-watch2.jsx (PART 2 · MULTIWAY). One
+   to five opponents; the ref's Seat wrapper is a column -- chip on top, then
+   the row that carries this seat's cards and its street bet toward the felt's
+   centre. slotsFor() in WatchScreen.jsx decides which slots are in play. */
 .watch-felt__seat {
   position: absolute;
   top: 12px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
 }
 
-/* MST-4: the seat ring for 2..6 players. The first two opponents keep the
-   original top corners; a third goes top centre; a fourth and fifth take the
-   side rails, in the band between the board and the hero readout so nothing
-   overlaps. slotsFor() in WatchScreen.jsx decides which slots are in play. */
+.watch-felt__seat-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .watch-felt__seat--tl { left: 12px; }
-.watch-felt__seat--tr { right: 12px; }
+.watch-felt__seat--tr { right: 12px; align-items: flex-end; }
 .watch-felt__seat--tc {
   left: 50%;
   top: 10px;
   transform: translateX(-50%);
+  align-items: center;
 }
-.watch-felt__seat--ml { left: 10px;  top: calc(var(--wv-board, 108px) + 68px); }
-.watch-felt__seat--mr { right: 10px; top: calc(var(--wv-board, 108px) + 68px); }
 
-/* Three or more opponents: step the chips down so a 6-max ring still fits a
-   narrow phone. Matches the compact-tile scaling in the spectate refs. */
-.watch-felt__seat.is-dense { transform: scale(0.88); transform-origin: top left; }
-.watch-felt__seat--tr.is-dense { transform-origin: top right; }
-.watch-felt__seat--mr.is-dense { transform-origin: top right; }
-.watch-felt__seat--tc.is-dense { transform: translateX(-50%) scale(0.88); transform-origin: top center; }
-
-/* Legacy aliases, kept so any older markup still lands somewhere sane. */
-.watch-felt__seat--left  { left: 12px; }
-.watch-felt__seat--right { right: 12px; }
+/* The rails sit level with the ref's y=112 on its 344px felt, whose board is
+   at 172 -- so they track 60px above the board and follow it as the sheet is
+   dragged. The floor keeps them clear of the top-corner chips. */
+.watch-felt__seat--ml { left: 10px;  top: max(48px, calc(var(--wv-board, 172px) - 60px)); }
+.watch-felt__seat--mr {
+  right: 10px;
+  top: max(48px, calc(var(--wv-board, 172px) - 60px));
+  align-items: flex-end;
+}
 
 .watch-felt__pot {
   position: absolute;
