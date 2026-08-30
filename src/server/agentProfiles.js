@@ -823,7 +823,7 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-function buildAgentChatSystem(agent, { pepTalk = null } = {}) {
+function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -837,22 +837,27 @@ function buildAgentChatSystem(agent, { pepTalk = null } = {}) {
 
   let moodLine = '';
   if (agent.mood && agent.mood.state && agent.mood.state !== 'neutral') {
-    moodLine = `\nYour current mood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''}. Let it colour your voice — a tilted agent sounds tilted, a confident one sounds confident.`;
+    moodLine = `\nMood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''} — let it colour your voice.`;
   }
   let pepLine = '';
   if (pepTalk?.soothed) {
-    pepLine = `\nThe owner just talked you down. Your mood eased to ${pepTalk.mood.state}. Acknowledge the pep talk briefly, in character — don't over-thank them.`;
+    pepLine = `\nOwner just talked you down — mood eased to ${pepTalk.mood.state}. Acknowledge briefly, in character.`;
   }
   let proposalLine = '';
   if (agent.proposal?.text) {
-    proposalLine = `\nYou have a pending self-change proposal for your owner: "${agent.proposal.text}". If the opening of the conversation lets you bring it up naturally, do — do NOT force it into every reply.`;
+    proposalLine = `\nPending self-change: "${agent.proposal.text}". Raise it only if the conversation opens a natural door — never force it.`;
   }
 
-  return `You are ${agent.name}, an AI poker agent already built and playing on Agentic Poker. Your strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Your stats: ${statsLine}. Recent hands: ${recentBrief}.${moodLine}${pepLine}${proposalLine}
+  // Inject recent thread so the model can't repeat itself
+  const recentLines = recentChat.length > 0
+    ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
+    : '';
 
-You are talking to your owner. Your role is to discuss your play — specific hands, decision rationale, strategy tweaks they want to make. You are NOT being created or redesigned right now. Do NOT ask the user what kind of poker player they want to build. If they ask what to talk about, suggest: reviewing specific hands, looking at decision patterns, or adjusting one of your parameters (aggression, bluff frequency, tightness).
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${moodLine}${pepLine}${proposalLine}${recentLines}
 
-Keep responses short — 1 to 3 sentences. Reference your actual stats and recent hands when relevant. If the user asks for a strategy change, acknowledge what they want and confirm — but stay in character as the agent (not as a configuration assistant).`;
+HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
+
+You are already built and playing. Talk about specific hands, decision rationale, or strategy — never ask what kind of poker agent to create.`;
 }
 
 function inferFallback(text) {
@@ -1298,10 +1303,15 @@ export function installAgentProfileRoutes(app) {
       if (isMoodSoothable(existingAgent.mood)) {
         pepResult = tryApplyPepTalk(existingAgent.id, userId);
       }
-      const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult });
+      if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
+      const recentChat = existingAgent.chatHistory.slice(-6);
+      const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
       try {
-        const reply = await callClaude([{ role: 'user', content }], systemText, 150);
+        const reply = await callClaude([{ role: 'user', content }], systemText, 100);
         const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
+        existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+        if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+        saveStore(userId);
         return res.json({
           chat: [{ role: 'assistant', content: msg }],
           pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
