@@ -325,7 +325,7 @@ function SysLine({ children }) {
 
 
 // ── AgentThread — the actual DM screen ───────────────────────────────────
-function AgentThread({ agent, onBack, onDeploy, onWatch }) {
+function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const mood     = moodOf(agent);
@@ -410,9 +410,15 @@ function AgentThread({ agent, onBack, onDeploy, onWatch }) {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {agent.name}
-        </span>
+        <button
+          type="button"
+          onClick={() => onOpenProfile?.(agent)}
+          style={{ flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
+        >
+          <span style={{ fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {agent.name}
+          </span>
+        </button>
       </div>
 
       {/* MoodBand */}
@@ -499,7 +505,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch }) {
 
 
 // ── Main export ───────────────────────────────────────────────────────────
-export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgent, onDeploy, onWatch }) {
+export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgent, onDeploy, onWatch, onOpenProfile }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -517,6 +523,7 @@ export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgen
         onBack={onBack}
         onDeploy={onDeploy}
         onWatch={onWatch}
+        onOpenProfile={onOpenProfile}
       />
     );
   }
