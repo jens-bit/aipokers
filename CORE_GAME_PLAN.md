@@ -502,3 +502,56 @@ Desktop parity wave landed: home (one live + zoom echo), quiet/FTU, WATCH (+ sit
 ## Post-freeze additions (zips 20–22, synced to design-refs/) — design NOW fully frozen
 - Birth flow (mood-birth.jsx / mood-birth2.jsx): create-agent redrawn as the birth scene — chat-first draft with FormingGhost gaining definition, one-row profile strip, NO "agent created" card (the ghost materializes at the bar on the floor; desktop: dashed roster row solidifies, StandupCard logs "joined the room"). Edit variant uses the proposal-diff pattern. Draft assistant speaks in the SYSTEM voice; the ghost's first words happen on the floor.
 - Notification kit (mood-notify.jsx + Notifications.html): the Telegram bot's re-engagement messages as an implementation reference for Tree 4/4b — five types (session recap [button], proposal, mood alert, quiet win, milestone), each with trigger, frequency cap, and 2–3 alternate lines in agent voice. Laws: every message in the agent's world (never "we miss you", no owner-guilt), causes always named, budget ≤2 pings/day with a priority ladder (recap wins ties), quiet hours (a 02:14 recap HOLDS until 08:00 and says so), mood alert capped once/day PER OWNER, one pending proposal at a time.
+
+
+---
+
+## AGE-40 A/B: the backwards read, fixed (2026-08-30, TAG vs Calling Station)
+
+The Tree-3 TODO ("A/B with --no-reads to isolate whether reads help or hurt
+TAG") is closed. Reads were HURTING, and the cause was the briefing text, not
+the stats.
+
+The old OPPONENT READ line was a bare stat dump. Every number in it was true
+and the whole line read as menace to the model: "goes to showdown 71%" means
+he keeps showing up with hands, so be careful; "folds to raises 6%" means
+raising is futile, so stop raising. Against a player who never folds both
+conclusions are backwards. src/agent/reads.js now classifies the opponent and
+states the counter-strategy outright (EXPLOIT line), and every stat is phrased
+so its implication points at action rather than caution.
+
+All runs: 150 pairs (300 hands), TAG vs Calling Station, live claude-haiku-4-5.
+
+| Condition | bb/100 | CI95 | VPIP | AF | fold% | decisions | checks | calls | folds |
+|---|---|---|---|---|---|---|---|---|---|
+| reads OFF (control) | **+170.9** | ±136 | 21 | 7.0 | 20.2 | 787 | 331 | 37 | 159 |
+| reads ON — old briefing (from the 50-pair A/B) | +57 | — | — | — | 57 | — | — | — | — |
+| reads ON — v2 bounded | +61.6 | ±149 | 24 | 21.2 | 43.2 | 509 | 45 | 11 | 220 |
+| reads ON — **v3 shipped** | **+126.1** | ±199 | 32.2 | 6.8 | **19.4** | 742 | 231 | 47 | 144 |
+
+Reads:
+- **The inversion is fixed.** Fold rate 57% → 19.4%, against a reads-off
+  control of 20.2%. AF 6.8 vs 7.0, decisions 742 vs 787 — with reads on, TAG
+  now plays hands to the same depth it does with reads off, which is where the
+  money against a station comes from.
+- **bb/100 is now statistically indistinguishable from the control**
+  (+126 ±199 vs +171 ±136 — heavily overlapping). What can be claimed is that
+  reads no longer COST ~110 bb/100. What cannot yet be claimed is that they
+  help. That needs the 200+ pair acceptance run already on the queue; at 300
+  hands per arm the CIs are far too wide for a 45-point difference.
+- **Do not trust 50-pair arena results for this matchup.** The same v2 code
+  measured -11 at 50 pairs on one run and +176.65 on another; the 150-pair
+  number for it was +61.6. The behavioural columns (VPIP/AF/fold%/decisions,
+  n≈500-800 decisions) are far more reliable than bb/100 and are what
+  diagnosed every iteration here.
+- **Residual: VPIP 32.2 vs 21 on the control.** The "RANGE line still governs
+  preflop" clause reduced the range widening but has not eliminated it — the
+  EXPLOIT directive still outranks the RANGE line preflop in the model's
+  reading. Next lever if this matchup is revisited.
+- Writing exploit directives is a tuning problem with real failure modes on
+  BOTH sides. Each over-correction produced a distinct pathology: v1's
+  unbounded "bigger, don't tighten, every street" gave VPIP 39 / AF 77.5 and
+  155 bets-raises against 2 calls; v2 fixed the range but collapsed checking
+  (331 → 45) so the model folded what it should have checked down. The lesson
+  is that an instruction must say where it does NOT apply, or the model
+  applies it everywhere.
