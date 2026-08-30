@@ -477,7 +477,11 @@ export class Table {
   // the seat. Same law as AGE-33: an agent's hole cards belong to its owner
   // and to nobody else.
   liveGameView(agentId, { includeHole = false } = {}) {
-    if (this.closed || !this.autoPlay) return null;
+    if (this.closed) return null;
+    // Non-autonomous tables that have at least one AI seat self-advance via
+    // _scheduleNextHand (isAiOnly guard). Human-only tables never advance on
+    // their own; those correctly return null so the agent reads as resting.
+    if (!this.autoPlay && !this.isAiOnly()) return null;
     const seat = this.agentIds.findIndex((id) => id === agentId);
     if (seat === -1) return null;
     const g = this.game;
@@ -494,6 +498,7 @@ export class Table {
       handNumber: g ? g.handNumber : 0,
       handsThisSession: this.handsThisSession,
       maxHands: this.maxHands,
+      blinds: `${this.smallBlind}/${this.bigBlind}`,
     };
   }
 
