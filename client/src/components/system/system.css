@@ -1,0 +1,30 @@
+/* system.css — mood-wave design tokens.
+ * Complements tokens.css with sys-* variables from mood-atoms.jsx. */
+
+:root {
+  --sys-bg:       #0A0A0A;
+  --sys-panel:    #111111;
+  --sys-panel-2:  #131316;
+  --sys-surf:     #1A1A1F;
+  --sys-border:   rgba(255, 255, 255, 0.06);
+  --sys-border-2: rgba(255, 255, 255, 0.10);
+  --sys-text:     #EDEDED;
+  --sys-dim:      #A1A1A1;
+  --sys-muted:    #6B6B6B;
+  --sys-faint:    #3A3A3F;
+  --sys-teal:     #00D4AA;
+  --sys-gold:     #CDB380;
+  --sys-red:      #FF4D4F;
+  --sys-purple:   #9B7BFF;
+  --sys-pink:     #FF7A8E;
+
+  --sys-font-display: "Playfair Display", Georgia, serif;
+  --sys-font-label:   "Oswald", "Inter", sans-serif;
+  --sys-font-mono:    "JetBrains Mono", ui-monospace, monospace;
+  --sys-font-body:    "Inter", -apple-system, system-ui, sans-serif;
+
+  --sys-pad:          14px;
+  --sys-radius:       12px;
+  --sys-radius-sheet: 16px;
+  --sys-radius-pill:  22px;
+}
