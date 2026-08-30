@@ -29,6 +29,12 @@ import {
   HOUSE_PROFILE,
   pickComplementaryHouse,
 } from './matchmaking.js';
+import {
+  pickTalkLine,
+  isStoic,
+  isSusceptible,
+  TALK_INTERVAL_HANDS,
+} from '../agent/tableTalk.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -116,6 +122,12 @@ export class Table {
     // HC-1: House cast identity per seat — null for player/agent seats.
     this.seatAccentColors = Array(maxSeats).fill(null);
     this.seatTalkLines    = Array(maxSeats).fill(null);
+    // TLK-1: table talk + needle state.
+    this.pendingNeedle         = Array(maxSeats).fill(null);  // queued talk line for next decision briefing
+    this._needledThisSession   = Array(maxSeats).fill(0);     // cap mood event once per session per seat
+    this._talkHandNumber       = -1;                          // last hand any agent talked (one per hand)
+    this._talkLastHandBySeat   = Array(maxSeats).fill(-1);    // last hand this seat talked
+    this._prefoldStreakBySeat  = Array(maxSeats).fill(0);     // consecutive preflop-fold hands per seat
     // MST-1: chips live on the table, not inside whichever Game instance is
     // current -- the Game is rebuilt whenever the roster changes.
     this.seatStacks = Array(maxSeats).fill(null);
@@ -208,8 +220,12 @@ export class Table {
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
-    ['seatAccentColors', () => null],
-    ['seatTalkLines',    () => null],
+    ['seatAccentColors',       () => null],
+    ['seatTalkLines',          () => null],
+    ['pendingNeedle',          () => null],   // TLK-1
+    ['_needledThisSession',    () => 0],      // TLK-1
+    ['_talkLastHandBySeat',    () => -1],     // TLK-1
+    ['_prefoldStreakBySeat',   () => 0],      // TLK-1
   ];
 
   _clearSeat(seat) {
@@ -1070,6 +1086,7 @@ export class Table {
     this._persistHand();
     this._recordOpponentStats(this.game.result);
     this._updateAgentMoods(this.game.result);
+    this._maybeSendAgentTalk(this.game.result);  // TLK-1
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     // MST-1: bank the chips and note where the button goes next BEFORE any
@@ -1647,6 +1664,121 @@ export class Table {
       .catch((err) => console.error('[table] AI chat error:', err.message));
   }
 
+  // TLK-1: After each hand, attempt to send a template talk line from one AI
+  // agent. Rate-limited (TALK_INTERVAL_HANDS per seat; one agent per hand).
+  // Needles susceptible AI opponents: sets pendingNeedle + fires needled mood
+  // event once per session per seat.
+  _maybeSendAgentTalk(result) {
+    if (!result || !this.game) return;
+    const handNumber = this.game.handNumber;
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+    const pot = result.pot ?? 0;
+    const bigPotThreshold = this.bigBlind * 20;
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.aiSeats[seat] || !this.pending[seat]) continue;
+      if (!this._seatIsInGame(seat)) continue;
+
+      const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+
+      // Always update the preflop-fold streak so it stays accurate even when
+      // rate-limited.
+      const onlyFoldedPreflop =
+        myDecisions.length > 0 &&
+        myDecisions.every((d) => d.street === 'preflop' && d.action?.type === 'fold');
+      if (onlyFoldedPreflop) {
+        this._prefoldStreakBySeat[seat] = (this._prefoldStreakBySeat[seat] ?? 0) + 1;
+      } else if (myDecisions.length > 0) {
+        this._prefoldStreakBySeat[seat] = 0;
+      }
+
+      // Rate limit: per-agent gap and one-agent-per-hand.
+      const lastTalkHand = this._talkLastHandBySeat[seat] ?? -1;
+      if (handNumber - lastTalkHand < TALK_INTERVAL_HANDS) continue;
+      if (this._talkHandNumber === handNumber) continue;
+
+      const won = winners.some((w) => w.seat === seat);
+      const agentId = this.agentIds[seat];
+      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
+      const moodState = mood?.state ?? 'neutral';
+
+      // Detect trigger (priority: cardDead > wonBigPot > lostAsFavorite > shownBluff).
+      let trigger = null;
+
+      if (this._prefoldStreakBySeat[seat] >= 3) {
+        trigger = 'cardDead';
+      }
+
+      if (!trigger && won && pot > bigPotThreshold) {
+        trigger = 'wonBigPot';
+      }
+
+      if (!trigger && !won && result.type === 'showdown') {
+        const maxEquity = myDecisions.reduce(
+          (m, d) => Number.isFinite(d.equity) && d.equity > m ? d.equity : m, 0
+        );
+        if (maxEquity > 0.60) trigger = 'lostAsFavorite';
+      }
+
+      if (!trigger && won && result.type === 'showdown') {
+        outerSearch:
+        for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+          if (oppSeat === seat || !this.pending[oppSeat]) continue;
+          const oppDecisions = this.currentHandDecisions.filter((d) => d.seat === oppSeat);
+          for (const d of oppDecisions) {
+            if (
+              (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+              Number.isFinite(d.equity) && d.equity < 0.38
+            ) { trigger = 'shownBluff'; break outerSearch; }
+          }
+        }
+      }
+
+      if (!trigger) continue;
+
+      const line = pickTalkLine(trigger, moodState);
+      if (!line) continue;
+
+      // Lock this hand and update per-seat timing. Reset streak if cardDead fired.
+      this._talkHandNumber = handNumber;
+      this._talkLastHandBySeat[seat] = handNumber;
+      if (trigger === 'cardDead') this._prefoldStreakBySeat[seat] = 0;
+      this.sendChat(seat, line, true);
+
+      // Needle susceptible AI opponents.
+      for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+        if (oppSeat === seat) continue;
+        if (!this.aiSeats[oppSeat] || !this.pending[oppSeat]) continue;
+        if (!this._seatIsInGame(oppSeat)) continue;
+        const oppProfile = this.agentProfiles[oppSeat] ??
+          { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+        if (isStoic(oppProfile) || !isSusceptible(oppProfile)) continue;
+
+        // Queue the line for the opponent's next decision briefing.
+        this.pendingNeedle[oppSeat] = line;
+
+        // Mood event — once per session per seat to stay BOUNDED.
+        if ((this._needledThisSession[oppSeat] ?? 0) === 0) {
+          const oppAgentId = this.agentIds[oppSeat];
+          if (oppAgentId) {
+            const oppMood = getAgentMood(oppAgentId, this.agentUserIds[oppSeat]);
+            if (oppMood) {
+              const newMood = applyMoodEvent(oppMood, 'needled', oppProfile, {});
+              try {
+                setAgentMood(oppAgentId, this.agentUserIds[oppSeat], newMood);
+              } catch (err) {
+                console.error(`[table:${this.tableId}] needle setAgentMood failed:`, err.message);
+              }
+            }
+          }
+          this._needledThisSession[oppSeat] = 1;
+        }
+      }
+
+      break; // Only one agent per hand.
+    }
+  }
+
   // Build the gameState object for the agent handler from the current game.
   _buildAiGameState(aiSeat) {
     const g = this.game;
@@ -1768,6 +1900,7 @@ export class Table {
       raisesThisStreet,
       opponentReads,
       mood,
+      tableTalk:  this.pendingNeedle[aiSeat] ?? null,   // TLK-1
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
@@ -1801,6 +1934,7 @@ export class Table {
     }
 
     const gameState = this._buildAiGameState(aiSeat);
+    this.pendingNeedle[aiSeat] = null;  // TLK-1: consumed into gameState
     const strategy = this.agentStrategy || this.aiStrategy[aiSeat];
 
     // Human-like thinking delay (0.8ÔÇô2.5 s).
