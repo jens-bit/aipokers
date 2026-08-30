@@ -87,14 +87,17 @@ export function classifyHand({ won, resultType, decisions, pot, sessionBiggestPo
 
 // Build the stored flagged-hand entry. holeCards are always persisted but the
 // GET route exposes them only to the proven owner (mirrors AGE-33 heroHole law).
+// opponentShowdownCards contains revealed cards from an actual showdown
+// (public information — mucked/folded cards are never stored here).
 //
-//   flagType    — from classifyHand()
-//   decisions   — currentHandDecisions for this agent's seat
-//   handNumber  — game hand counter
-//   pot         — final pot chips
-//   holeCards   — agent's two hole-card strings e.g. ['Ah', 'Kd']
-//   won         — agent won the hand
-export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won }) {
+//   flagType              — from classifyHand()
+//   decisions             — currentHandDecisions for this agent's seat
+//   handNumber            — game hand counter
+//   pot                   — final pot chips
+//   holeCards             — agent's two hole-card strings e.g. ['Ah', 'Kd']
+//   won                   — agent won the hand
+//   opponentShowdownCards — [{ seat, holeCards }] for opponents revealed at showdown
+export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [] }) {
   const streets = (decisions ?? []).map((d) => ({
     street:    d.street    ?? 'preflop',
     board:     Array.isArray(d.community) ? [...d.community] : [],
@@ -109,6 +112,12 @@ export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCa
     handNumber: handNumber ?? 0,
     pot:        Number.isFinite(pot) ? pot : 0,
     holeCards:  Array.isArray(holeCards) ? [...holeCards] : [],
+    opponentShowdownCards: Array.isArray(opponentShowdownCards)
+      ? opponentShowdownCards.map(({ seat, holeCards: cards }) => ({
+          seat,
+          holeCards: Array.isArray(cards) ? [...cards] : [],
+        }))
+      : [],
     won:        !!won,
     streets,
     flaggedAt:  Date.now(),

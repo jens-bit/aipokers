@@ -356,7 +356,7 @@ export function getAgentMemoryContext(agent) {
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
 
 // Record a hand result for an agent in-process.
-export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20 } = {}) {
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20, holeCards = [] } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -393,7 +393,7 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
 
   agent.recentHands = [
-    { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats },
+    { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats, holeCards: Array.isArray(holeCards) ? [...holeCards] : [] },
     ...agent.recentHands,
   ].slice(0, 20);
 
@@ -1168,6 +1168,7 @@ export function installAgentProfileRoutes(app) {
   // Returns this session's flagged hands for the floor's hand-review sheet.
   // holeCards are owner-gated: only the authenticated owner sees their agent's
   // hole cards — the same law AGE-33 applied to the DECISION broadcast.
+  // opponentShowdownCards are public (revealed at showdown) and always returned.
   app.get('/api/agents/:agentId/flagged', (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const { agentId } = req.params;
@@ -1178,6 +1179,7 @@ export function installAgentProfileRoutes(app) {
     const hands = (agent.sessionFlagged ?? []).map((h) => ({
       ...h,
       holeCards: owner ? (h.holeCards ?? []) : [],
+      // opponentShowdownCards exposed as-is — public information from the showdown
     }));
     res.json({ flaggedHands: hands, count: hands.length });
   });
