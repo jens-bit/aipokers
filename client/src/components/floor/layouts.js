@@ -18,7 +18,7 @@ export const LAYOUTS = {
   },
   one: {
     felts: [
-      { cx: 158, cy: 186, rx: 102, ry: 47, lit: true, seat: 0 },
+      { cx: 158, cy: 190, rx: 106, ry: 52, lit: true, seat: 0 },
       { cx: 312, cy: 92,  rx: 60,  ry: 27, lit: false },
     ],
     bar: { x1: 18, x2: 216, y: 402 },
@@ -26,31 +26,33 @@ export const LAYOUTS = {
   },
   two: {
     felts: [
-      { cx: 300, cy: 126, rx: 66, ry: 30, lit: true, seat: 1 },
-      { cx: 146, cy: 296, rx: 96, ry: 44, lit: true, seat: 0 },
+      { cx: 240, cy: 160, rx: 92,  ry: 47, lit: true, seat: 1 },
+      { cx: 130, cy: 370, rx: 100, ry: 52, lit: true, seat: 0 },
     ],
-    bar: { x1: 18, x2: 180, y: 452 },
+    bar: { x1: 18, x2: 180, y: 470 },
     corner: { cx: 300, cy: 556, rx: 84, ry: 68 },
   },
-  // three playing, one resting — the diamond with one felt dark
+  // three playing, one resting — 2×2 grid (not a diamond: the diamond's ry=32
+  // points are too small to carry a legible diorama; the grid keeps ry=52)
   three: {
     felts: [
-      { cx: 195, cy: 128, rx: 72, ry: 32, lit: true, seat: 0 },
-      { cx: 92,  cy: 296, rx: 72, ry: 32, lit: true, seat: 1 },
-      { cx: 298, cy: 296, rx: 72, ry: 32, lit: true, seat: 2 },
-      { cx: 195, cy: 464, rx: 72, ry: 32, lit: false },
+      { cx: 100, cy: 150, rx: 88, ry: 52, lit: true, seat: 0 },
+      { cx: 290, cy: 150, rx: 88, ry: 52, lit: true, seat: 1 },
+      { cx: 100, cy: 400, rx: 88, ry: 52, lit: true, seat: 2 },
+      { cx: 290, cy: 400, rx: 88, ry: 52, lit: false },
     ],
-    bar: { x1: 18, x2: 372, y: 606, sliver: true },
+    bar: { x1: 18, x2: 372, y: 592, sliver: true },
     corner: null,
   },
   full: {
+    // same 2×2 grid, all four lit — never more than four felts
     felts: [
-      { cx: 195, cy: 128, rx: 72, ry: 32, lit: true, seat: 0 },
-      { cx: 92,  cy: 296, rx: 72, ry: 32, lit: true, seat: 1 },
-      { cx: 298, cy: 296, rx: 72, ry: 32, lit: true, seat: 2 },
-      { cx: 195, cy: 464, rx: 72, ry: 32, lit: true, seat: 3 },
+      { cx: 100, cy: 150, rx: 88, ry: 52, lit: true, seat: 0 },
+      { cx: 290, cy: 150, rx: 88, ry: 52, lit: true, seat: 1 },
+      { cx: 100, cy: 400, rx: 88, ry: 52, lit: true, seat: 2 },
+      { cx: 290, cy: 400, rx: 88, ry: 52, lit: true, seat: 3 },
     ],
-    bar: { x1: 18, x2: 372, y: 606, sliver: true },
+    bar: { x1: 18, x2: 372, y: 592, sliver: true },
     corner: null,
   },
 };
