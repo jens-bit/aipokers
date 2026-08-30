@@ -799,6 +799,7 @@ export class Table {
       street: g ? g.street : Streets.WAITING,
       board: inHand ? [...g.community] : [],
       heroHole: includeHole && inHand ? [...(g.seats[seat]?.holeCards ?? [])] : null,
+      heroStack: inHand ? (g.seats[seat]?.stack ?? null) : null,
       pot: inHand ? g.pot : 0,
       toAct: inHand ? g.toAct : null,
       actionDeadline: this.actionDeadline ?? null,
@@ -809,6 +810,10 @@ export class Table {
       handsThisSession: this.handsThisSession,
       maxHands: this.maxHands,
       blinds: `${this.smallBlind}/${this.bigBlind}`,
+      seats: g ? g.seats.map((s, i) => ({
+        displayName: this.pending[i]?.displayName ?? s.playerId ?? '',
+        stack: s.stack ?? 0,
+      })) : [],
     };
   }
 
