@@ -98,7 +98,7 @@ export function AgentChat({ agent, onBack, onDeploy, onReady }) {
             onClick={() => onDeploy(agent)}
             style={{ fontSize: 12, padding: '6px 10px', minHeight: 32 }}
           >
-            Deploy
+            Deal him in
           </button>
         </header>
 

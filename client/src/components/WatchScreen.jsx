@@ -5,7 +5,7 @@
 //      agent name. Distinguishing signal from server: isAI=false for human-typed chat.
 
 import { useEffect, useRef, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodBand } from './system/MoodBand.jsx';
 import { SeatChip } from './system/SeatChip.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
@@ -176,15 +176,22 @@ function LiveAnalysisTab({ feed }) {
 }
 
 // ---- ChatTab ---------------------------------------------------------------
-// Bug-5 fix: owner messages (isAI:false at mySeat) render as "You" on the right.
+// PORT-6: owner↔agent private thread. Messages route through /api/agents/chat
+// so the agent replies in-voice. AI table-speech (trash talk from the WS) appears
+// as ambient rows, visually distinct from the DM thread.
 
-function ChatTab({ messages, onSend, mySeat, displayNames }) {
-  const [text, setText] = useState('');
-  const listRef = useRef(null);
+function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
+  var [text, setText] = useState('');
+  var listRef = useRef(null);
+
+  // Merge thread messages and ambient table speech sorted by timestamp.
+  var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
+    .concat(tableSpeech.map(function(m) { return Object.assign({}, m, { _type: 'ambient' }); }))
+    .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
 
   useEffect(function() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages.length]);
+  }, [merged.length, loading]);
 
   function submit(e) {
     if (e) e.preventDefault();
@@ -194,54 +201,84 @@ function ChatTab({ messages, onSend, mySeat, displayNames }) {
     setText('');
   }
 
+  var isEmpty = merged.length === 0 && !loading;
+
   return (
     <div className="dr-chat-tab">
       <div ref={listRef} className="dr-chat-tab__list">
-        {messages.length === 0
-          ? <div className="dr-chat-tab__empty">No messages yet...</div>
-          : messages.map(function(m, i) {
-              // isAI:false + seat=mySeat => the watching owner typed this
-              var isOwner = (mySeat != null) && (m.seat === mySeat) && !m.isAI;
-              if (isOwner) {
-                return (
-                  <div key={(m.t || '') + '-' + i}
-                    style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 14px', marginBottom: 9 }}>
-                    <div style={{ maxWidth: '72%' }}>
-                      <div style={{
-                        background: 'rgba(0,212,170,0.10)',
-                        border: '1px solid rgba(0,212,170,0.28)',
-                        borderRadius: 12, borderBottomRightRadius: 4,
-                        padding: '9px 12px',
-                        fontSize: 13, color: 'var(--sys-text,#EDEDED)', lineHeight: 1.5,
-                      }}>{m.text}</div>
-                      <div style={{
-                        marginTop: 3, textAlign: 'right',
-                        fontFamily: 'var(--sys-font-mono,"JetBrains Mono",monospace)',
-                        fontSize: 9.5, color: 'var(--sys-muted,#6B6B6B)',
-                      }}>You</div>
-                    </div>
-                  </div>
-                );
-              }
-
-              var self = (mySeat != null) && (m.seat === mySeat);
-              return (
-                <div key={(m.t || '') + '-' + i}
-                  className={'dr-chat-tab__row' + (self ? ' dr-chat-tab__row--self' : '')}>
-                  <span className="dr-chat-tab__name">
-                    {displayNames[m.seat] || m.displayName || ('Seat ' + m.seat)}
-                    {m.isAI && <span className="dr-chat-tab__ai-pill">AI</span>}
-                  </span>
-                  <span className="dr-chat-tab__bubble">{m.text}</span>
+        {isEmpty && (
+          <div className="dr-chat-tab__empty">
+            Talk to {agentName || 'your agent'} mid-game...
+          </div>
+        )}
+        {merged.map(function(m, i) {
+          if (m._type === 'ambient') {
+            return (
+              <div key={'ambient-' + i} style={{
+                padding: '4px 14px',
+                display: 'flex', alignItems: 'baseline', gap: 6,
+              }}>
+                <span style={{
+                  fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
+                  fontSize: 8, fontWeight: 600, letterSpacing: '0.12em',
+                  color: 'var(--sys-muted,#6B6B6B)', textTransform: 'uppercase', flexShrink: 0,
+                }}>TABLE</span>
+                <span style={{
+                  fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)',
+                  fontStyle: 'italic', lineHeight: 1.4,
+                }}>{m.text}</span>
+              </div>
+            );
+          }
+          var isUser = m.role === 'user';
+          if (isUser) {
+            return (
+              <div key={'msg-' + i} style={{
+                display: 'flex', justifyContent: 'flex-end',
+                padding: '0 14px', marginBottom: 9,
+              }}>
+                <div style={{ maxWidth: '72%' }}>
+                  <div style={{
+                    background: 'rgba(0,212,170,0.10)',
+                    border: '1px solid rgba(0,212,170,0.28)',
+                    borderRadius: 12, borderBottomRightRadius: 4,
+                    padding: '9px 12px',
+                    fontSize: 13, color: 'var(--sys-text,#EDEDED)', lineHeight: 1.5,
+                  }}>{m.content}</div>
+                  <div style={{
+                    marginTop: 3, textAlign: 'right',
+                    fontFamily: 'var(--sys-font-mono,"JetBrains Mono",monospace)',
+                    fontSize: 9.5, color: 'var(--sys-muted,#6B6B6B)',
+                  }}>You</div>
                 </div>
-              );
-            })}
+              </div>
+            );
+          }
+          return (
+            <div key={'msg-' + i} className="dr-chat-tab__row" style={{ marginBottom: 9 }}>
+              <span className="dr-chat-tab__name">
+                {agentName || 'Agent'}
+                <span className="dr-chat-tab__ai-pill">AI</span>
+              </span>
+              <span className="dr-chat-tab__bubble">{m.content}</span>
+            </div>
+          );
+        })}
+        {loading && (
+          <div className="dr-chat-tab__row" style={{ marginBottom: 9 }}>
+            <span className="dr-chat-tab__name">{agentName || 'Agent'}</span>
+            <span className="dr-chat-tab__bubble">
+              <span className="dr-typing"><i /><i /><i /></span>
+            </span>
+          </div>
+        )}
       </div>
       <form className="dr-chat-tab__form" onSubmit={submit}>
         <input className="dr-chat-tab__input" value={text}
           onChange={function(e) { setText(e.target.value); }}
-          placeholder="Say something..." maxLength={280} aria-label="Chat message" />
-        <button className="dr-chat-tab__send" type="submit" disabled={!text.trim()}>SEND</button>
+          placeholder={'Message ' + (agentName || 'your agent') + '...'}
+          maxLength={280} disabled={loading} aria-label="Chat message" />
+        <button className="dr-chat-tab__send" type="submit" disabled={!text.trim() || loading}>SEND</button>
       </form>
     </div>
   );
@@ -471,6 +508,10 @@ export function WatchScreen({
   var [sitOutPending, setSitOutPending] = useState(false);
   var [agent,         setAgent]         = useState(null);
 
+  // ---- Owner↔agent DM thread (PORT-6) ----
+  var [agentThread,   setAgentThread]   = useState([]);
+  var [agentLoading,  setAgentLoading]  = useState(false);
+
   // ---- Agent mood polling (for MoodBand) ----
   var agentId = config ? config.agentId : null;
   useEffect(function() {
@@ -536,6 +577,41 @@ export function WatchScreen({
     setDecisionFeed(function(prev) { return [band].concat(prev); });
   }, [lastDecision]);
 
+  // AI trash-talk from the WS — shown as ambient rows in the agent DM thread.
+  var tableSpeech = chatMessages.filter(function(m) { return m.isAI; })
+    .map(function(m) { return { text: m.text, t: m.t || 0 }; });
+
+  function sendToAgent(text) {
+    if (!agentId || agentLoading) return;
+    var now = Date.now();
+    setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now }]); });
+    setAgentLoading(true);
+    fetch('/api/agents/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+      body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agentId }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var serverChat = data.chat || [];
+        var newAi = null;
+        for (var j = serverChat.length - 1; j >= 0; j--) {
+          if (serverChat[j].role === 'assistant') { newAi = serverChat[j]; break; }
+        }
+        if (newAi) {
+          setAgentThread(function(prev) {
+            return prev.concat([{ role: 'assistant', content: newAi.content, t: Date.now() }]);
+          });
+        }
+      })
+      .catch(function() {
+        setAgentThread(function(prev) {
+          return prev.concat([{ role: 'assistant', content: 'Something went wrong — try again.', t: Date.now() }]);
+        });
+      })
+      .finally(function() { setAgentLoading(false); });
+  }
+
   var between = !handActive(game);
 
   function handleSitOutConfirm() {
@@ -582,10 +658,11 @@ export function WatchScreen({
         {activeTab === 2 && <EmptyTab text="No hands played yet." />}
         {activeTab === 3 && (
           <ChatTab
-            messages={chatMessages}
-            onSend={sendChat}
-            mySeat={mySeat}
-            displayNames={displayNames}
+            agentThread={agentThread}
+            tableSpeech={tableSpeech}
+            onSend={sendToAgent}
+            loading={agentLoading}
+            agentName={config ? config.displayName : null}
           />
         )}
       </div>
