@@ -336,8 +336,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const [chat, setChat]       = useState([]);
   const [draft, setDraft]     = useState('');
   const [loading, setLoading] = useState(false);
-  const feedRef  = useRef(null);
-  const inputRef = useRef(null);
+  const feedRef   = useRef(null);
+  const inputRef  = useRef(null);
+  const msgIdRef  = useRef(0);
+  const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -349,18 +351,20 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
         if (hands.length > 0) {
           const won  = hands.filter((h) => h.won).length;
           const lost = hands.length - won;
-          setChat([{ role: 'assistant', content: `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?` }]);
+          setChat([mkMsg('assistant', `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`)]);
         } else {
-          setChat([{ role: 'assistant', content: 'Ready to play. Describe any changes to my strategy, or deploy me to start.' }]);
+          setChat([mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')]);
         }
       })
-      .catch(() => setChat([{ role: 'assistant', content: 'Ready to play. Describe any changes to my strategy, or deploy me to start.' }]));
+      .catch(() => setChat([mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
 
   useEffect(() => {
     const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (atBottom) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
   async function send(content = draft) {
@@ -368,7 +372,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     if (!text || loading) return;
     setDraft('');
     setLoading(true);
-    setChat((prev) => [...prev, { role: 'user', content: text }]);
+    setChat((prev) => [...prev, mkMsg('user', text)]);
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
@@ -377,9 +381,9 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       });
       const data = await res.json();
       const newAi = (data.chat || []).filter((m) => m.role === 'assistant').pop();
-      if (newAi) setChat((prev) => [...prev, newAi]);
+      if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
     } catch {
-      setChat((prev) => [...prev, { role: 'assistant', content: 'Something went wrong — please try again.' }]);
+      setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — please try again.')]);
     } finally {
       setLoading(false);
     }
@@ -447,10 +451,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       {/* Chat feed */}
       <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
         <SysLine>Chat · {agent.name}</SysLine>
-        {chat.map((msg, i) => (
+        {chat.map((msg) => (
           msg.role === 'assistant'
-            ? <AgentBubble key={i} mood={mood} accent={accent}>{msg.content}</AgentBubble>
-            : <OwnerBubble key={i}>{msg.content}</OwnerBubble>
+            ? <AgentBubble key={msg._id} mood={mood} accent={accent}>{msg.content}</AgentBubble>
+            : <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
         ))}
         {loading && (
           <AgentBubble mood={mood} accent={accent}>
@@ -478,7 +482,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           style={{
             flex: 1, height: 38, padding: '0 12px', borderRadius: 10,
             border: `1px solid rgba(255,255,255,0.10)`, background: M_PANEL_2,
-            color: M_TEXT, fontSize: 14, outline: 'none',
+            color: M_TEXT, fontSize: 16, outline: 'none',
             fontFamily: 'Inter,-apple-system,sans-serif',
           }}
         />
