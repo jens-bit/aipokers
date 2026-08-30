@@ -154,11 +154,43 @@ assert('entry has flagType', entry.flagType, 'badBeat');
 assert('entry has handNumber', entry.handNumber, 42);
 assert('entry has pot', entry.pot, 400);
 assert('entry has holeCards', Array.isArray(entry.holeCards), true);
+assert('entry holeCards are populated', entry.holeCards.length > 0, true);
+assert('entry holeCards[0] is a string', typeof entry.holeCards[0], 'string');
 assert('entry has streets array', Array.isArray(entry.streets), true);
 assert('street has equity as integer', entry.streets[0].equity, 82);
 assert('street has formatted action', entry.streets[0].action, 'BET 80');
 assert('street has board', Array.isArray(entry.streets[0].board), true);
 assert('won is false', entry.won, false);
+assert('entry has opponentShowdownCards array', Array.isArray(entry.opponentShowdownCards), true);
+
+console.log('\nBUILDFLAGGEDENTRY — showdown opponent cards');
+const showdownEntry = buildFlaggedEntry({
+  flagType: 'badBeat',
+  decisions: [dec('river', 'bet', 120, 0.80)],
+  handNumber: 7,
+  pot: 600,
+  holeCards: ['Kh', 'Kd'],
+  won: false,
+  opponentShowdownCards: [{ seat: 1, holeCards: ['As', 'Ac'] }],
+});
+assert('showdown entry has opponentShowdownCards', Array.isArray(showdownEntry.opponentShowdownCards), true);
+assert('showdown entry has one opponent', showdownEntry.opponentShowdownCards.length, 1);
+assert('opponent seat recorded', showdownEntry.opponentShowdownCards[0].seat, 1);
+assert('opponent holeCards recorded', Array.isArray(showdownEntry.opponentShowdownCards[0].holeCards), true);
+assert('opponent holeCards populated', showdownEntry.opponentShowdownCards[0].holeCards.length, 2);
+
+console.log('\nBUILDFLAGGEDENTRY — mucked / fold win (no showdown)');
+const foldEntry = buildFlaggedEntry({
+  flagType: 'bigBluff',
+  decisions: [dec('river', 'raise', 200, 0.22)],
+  handNumber: 3,
+  pot: 500,
+  holeCards: ['7c', '2d'],
+  won: true,
+  // opponentShowdownCards omitted — fold win, no cards revealed
+});
+assert('fold-win entry has opponentShowdownCards array', Array.isArray(foldEntry.opponentShowdownCards), true);
+assert('fold-win entry has no opponent cards (mucked)', foldEntry.opponentShowdownCards.length, 0);
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} test(s): ${passed} passed, ${failed} failed`);

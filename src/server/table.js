@@ -1263,6 +1263,7 @@ export class Table {
           handNumber,
           seats: seatSnapshots,
           bb: this.bigBlind,
+          holeCards: [...(this.game.seats[seat]?.holeCards ?? [])],
         });
       } catch (err) {
         console.error('[table] result report failed:', err.message);
@@ -1297,6 +1298,18 @@ export class Table {
       if (!flagType) continue;
 
       const holeCards = [...(this.game.seats[seat]?.holeCards ?? [])];
+
+      // Opponent cards revealed at showdown are public. Mucked cards (fold wins)
+      // are absent from result.showdown entirely, so they are never stored.
+      const opponentShowdownCards = [];
+      if (result.type === 'showdown' && Array.isArray(result.showdown)) {
+        for (const { seat: sdSeat, holeCards: sdCards } of result.showdown) {
+          if (sdSeat !== seat && Array.isArray(sdCards) && sdCards.length > 0) {
+            opponentShowdownCards.push({ seat: sdSeat, holeCards: [...sdCards] });
+          }
+        }
+      }
+
       const entry = buildFlaggedEntry({
         flagType,
         decisions,
@@ -1304,6 +1317,7 @@ export class Table {
         pot,
         holeCards,
         won,
+        opponentShowdownCards,
       });
 
       try {
