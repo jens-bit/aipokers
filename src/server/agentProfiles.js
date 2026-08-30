@@ -22,6 +22,7 @@ import {
   clearProposalPending,
 } from './notifications/telegram.js';
 import { formatMoment } from '../agent/moment.js';
+import { THRESHOLDS } from './flaggedHands.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -223,6 +224,7 @@ function ensureStats(agent) {
     };
   }
   if (!Array.isArray(agent.recentHands)) agent.recentHands = [];
+  if (!Array.isArray(agent.sessionFlagged)) agent.sessionFlagged = [];
 }
 
 // Lazily backfill the memory record for agents created before this feature.
@@ -551,7 +553,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.unseenRecap = true;
   if (typeof recap === 'string' && recap.trim()) {
     ensureMood(agent);
-    const text = recap.trim().slice(0, 200);
+    const flagCount = agent.sessionFlagged?.length ?? 0;
+    const flagSuffix = flagCount > 0
+      ? ` · ${flagCount} hand${flagCount === 1 ? '' : 's'} flagged`
+      : '';
+    const text = (recap.trim() + flagSuffix).slice(0, 240);
     agent.sessionRecap = { text, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   }
@@ -730,6 +736,7 @@ export function presentAgent(agent, { owner = false } = {}) {
     proposal: agent.proposal ?? null,
     presence,
     liveGame,
+    flaggedCount: (agent.sessionFlagged?.length ?? 0),
   };
 }
 
@@ -856,6 +863,40 @@ async function callClaude(messages, systemText, maxTokens) {
   }
 }
 
+// Store one flagged hand entry for an agent. biggestPot entries replace the
+// previous biggestPot (at most one per session); drama entries accumulate up to
+// MAX_FLAGGED, evicting the oldest drama entry when full.
+export function addFlaggedHand(agentId, userId, entry) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  if (!Array.isArray(agent.sessionFlagged)) agent.sessionFlagged = [];
+
+  if (entry.flagType === 'biggestPot') {
+    // Replace in place — there is always at most one biggestPot entry per session.
+    const idx = agent.sessionFlagged.findIndex((h) => h.flagType === 'biggestPot');
+    if (idx !== -1) {
+      agent.sessionFlagged[idx] = entry;
+    } else {
+      agent.sessionFlagged.push(entry);
+    }
+  } else {
+    agent.sessionFlagged.push(entry);
+    if (agent.sessionFlagged.length > THRESHOLDS.MAX_FLAGGED) {
+      // Evict the oldest non-biggestPot entry to keep the list bounded.
+      const evictIdx = agent.sessionFlagged.findIndex((h) => h.flagType !== 'biggestPot');
+      if (evictIdx !== -1) {
+        agent.sessionFlagged.splice(evictIdx, 1);
+      } else {
+        agent.sessionFlagged.shift();
+      }
+    }
+  }
+
+  saveStore(userId ?? 'anon');
+  return agent;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export function installAgentProfileRoutes(app) {
@@ -980,6 +1021,7 @@ export function installAgentProfileRoutes(app) {
     agent.activeTableId = tableId;
     agent.status = 'playing';
     agent.unseenRecap = false;
+    agent.sessionFlagged = [];
     saveStore(userId);
     console.log(`[agents] deployed ${agent.name} to table ${tableId}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
     emitAgentChange(userId);
@@ -1033,6 +1075,7 @@ export function installAgentProfileRoutes(app) {
     agent.activeTableId = tableId;
     agent.status = 'playing';
     agent.unseenRecap = false;
+    agent.sessionFlagged = [];
     ensureMemory(agent);
     saveStore(userId);
 
@@ -1057,6 +1100,24 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     ensureStats(agent);
     res.json({ recentHands: agent.recentHands, stats: agent.stats });
+  });
+
+  // GET /api/agents/:agentId/flagged?userId=...
+  // Returns this session's flagged hands for the floor's hand-review sheet.
+  // holeCards are owner-gated: only the authenticated owner sees their agent's
+  // hole cards — the same law AGE-33 applied to the DECISION broadcast.
+  app.get('/api/agents/:agentId/flagged', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const owner = isOwner(req, userId);
+    const hands = (agent.sessionFlagged ?? []).map((h) => ({
+      ...h,
+      holeCards: owner ? (h.holeCards ?? []) : [],
+    }));
+    res.json({ flaggedHands: hands, count: hands.length });
   });
 
   // GET /api/agents/:agentId/memory?userId=...

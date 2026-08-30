@@ -10,7 +10,9 @@ import {
   getAgentMood,
   setAgentMood,
   finishAgentSession,
+  addFlaggedHand,
 } from './agentProfiles.js';
+import { classifyHand, buildFlaggedEntry } from './flaggedHands.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
@@ -117,6 +119,7 @@ export class Table {
     this._raiseCounts = {};
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
     this._houseFallbackTimer = null;               // 5s delay before auto-seating House
+    this.sessionBiggestPot = 0;                    // session high-water pot; flaggedHands tracks it
 
     // Per-hand decision log; reset at the start of each hand. Populated by
     // _maybeRunAiTurn before every AI action and consumed in _handCompleted.
@@ -755,6 +758,7 @@ export class Table {
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
     this._reportHandResults(this.game.result);
+    this._classifyAndFlagHands(this.game.result);
     this._persistHand();
     this._recordOpponentStats(this.game.result);
     this._updateAgentMoods(this.game.result);
@@ -960,6 +964,50 @@ export class Table {
         });
       } catch (err) {
         console.error('[table] result report failed:', err.message);
+      }
+    }
+  }
+
+  // Classify the just-completed hand for each AI seat and store notable ones
+  // in the agent's flagged-hands list for the floor's hand-review sheet.
+  _classifyAndFlagHands(result) {
+    if (!result || !this.game) return;
+    const resultType = result.type === 'showdown' ? 'showdown' : 'fold';
+    const pot = result.pot ?? 0;
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      const userId   = this.agentUserIds[seat];
+      const won      = winners.some((w) => w.seat === seat);
+      const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+
+      const flagType = classifyHand({
+        won,
+        resultType,
+        decisions,
+        pot,
+        sessionBiggestPot: this.sessionBiggestPot,
+      });
+
+      if (flagType === 'biggestPot') this.sessionBiggestPot = pot;
+      if (!flagType) continue;
+
+      const holeCards = [...(this.game.seats[seat]?.holeCards ?? [])];
+      const entry = buildFlaggedEntry({
+        flagType,
+        decisions,
+        handNumber: this.game.handNumber,
+        pot,
+        holeCards,
+        won,
+      });
+
+      try {
+        addFlaggedHand(agentId, userId, entry);
+      } catch (err) {
+        console.error('[table] flagged hand store failed:', err.message);
       }
     }
   }
