@@ -53,6 +53,12 @@ export function emptyPocket({ mode = 'topup', cap = null, balance = 0 } = {}) {
     balance: chips(balance),
     mode: isMode(mode) ? mode : 'topup',
     cap: cap === null || cap === undefined ? null : chips(cap),
+    // WALLET-1e: realised P&L for this pocket — what he has actually won or
+    // lost at tables, both signs. A running counter rather than a fold over
+    // the ledger, because the ledger is capped at 100 entries and a pocket
+    // that outlives 50 sessions would start quietly forgetting its own record.
+    // Funding and collecting are transfers and never touch it.
+    realised: 0,
     ledger: [],
   };
 }
@@ -72,6 +78,10 @@ export function ensurePocket(agent) {
   if (agent.pocket && typeof agent.pocket === 'object' && Number.isFinite(agent.pocket.balance)) {
     if (!Array.isArray(agent.pocket.ledger)) agent.pocket.ledger = [];
     if (!isMode(agent.pocket.mode)) agent.pocket.mode = 'topup';
+    // WALLET-1e backfill: pockets written before realised existed rebuild it
+    // from whatever table entries their ledger still holds. Approximate for a
+    // long-lived pocket, exact for every pocket written since.
+    if (!Number.isFinite(agent.pocket.realised)) agent.pocket.realised = realisedFromLedger(agent.pocket.ledger);
     return agent.pocket;
   }
   agent.pocket = emptyPocket();
@@ -155,10 +165,26 @@ export function collect(wallet, pocket, { amount = null, leaveFloat = true } = {
   return { ok: true, moved };
 }
 
-// What `auto` refills back up to, and what collect leaves behind.
+// WALLET-1e: the float is one number with one meaning — what stays in the
+// pocket when the owner collects — and it is what `auto` refills back up to.
+// The UI reads it verbatim ("Pocket back to its $300 float"), so this function
+// and the collect path must never disagree; collect() calls it.
+//
+//   auto | allowance : the roll the owner committed (the cap)
+//   topup | cut      : one buy-in at the rung he is playing — nobody has
+//                      promised him more, so the float is just enough to sit
+//                      down again at the stake he is already at.
+//
+// Never below one buy-in at the entry rung: a float that leaves him unable to
+// take a seat is not a float, it is a bust.
 export function floatFor(pocket) {
-  const cap = Number.isFinite(pocket?.cap) ? pocket.cap : POCKET_FLOAT;
-  return Math.max(ENTRY_BUYIN, Math.min(cap, POCKET_FLOAT * 5));
+  const mode = pocket?.mode ?? 'topup';
+  if (mode === 'auto' || mode === 'allowance') {
+    const cap = Number.isFinite(pocket?.cap) ? pocket.cap : POCKET_FLOAT;
+    return Math.max(ENTRY_BUYIN, Math.min(cap, POCKET_FLOAT * 5));
+  }
+  const rung = stakesFor(pocket?.balance);
+  return rung ? rung.buyIn : ENTRY_BUYIN;
 }
 
 // Auto-refill: he comes to the wallet and collects, up to the cap. Only
@@ -186,6 +212,7 @@ export function debitBuyIn(pocket, amount, tableId = null) {
   const want = chips(amount);
   if (want > pocket.balance) return { ok: false, moved: 0, reason: 'pocket does not cover the buy-in' };
   pocket.balance -= want;
+  pocket.realised = (pocket.realised ?? 0) - want;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'buyin', amount: -want, tableId });
   return { ok: true, moved: want };
 }
@@ -193,8 +220,21 @@ export function debitBuyIn(pocket, amount, tableId = null) {
 export function creditCashOut(pocket, amount, tableId = null) {
   const back = chips(amount);
   pocket.balance += back;
+  pocket.realised = (pocket.realised ?? 0) + back;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'cashout', amount: back, tableId });
   return { ok: true, moved: back };
+}
+
+// Buy-in out, cash-out in — the net of the two is the realised P&L. Transfers
+// (fund, refill, collect, seed) are the owner moving his own money and are
+// deliberately excluded.
+function realisedFromLedger(ledger) {
+  if (!Array.isArray(ledger)) return 0;
+  let n = 0;
+  for (const e of ledger) {
+    if (e?.type === 'buyin' || e?.type === 'cashout') n += Number(e.amount) || 0;
+  }
+  return n;
 }
 
 // ── Migration (SEED-1) ───────────────────────────────────────────────────────
@@ -272,8 +312,16 @@ export function pocketProjection(pocket) {
   }
   return {
     balance: p.balance,
+    // 'topup' | 'allowance' | 'auto' | 'cut'. `cut` is a mode like the others:
+    // he keeps the roll he has and simply stops being deployed. Not a
+    // punishment, and the UI draws it without a shred of guilt.
     mode: p.mode,
     cap: p.cap,
+    // WALLET-1e: what stays in the pocket when the owner collects, and what
+    // `auto` refills back up to. The refill float for auto/allowance; one
+    // buy-in at his current rung for topup/cut. collect() uses this exact
+    // number, so the receipt and the row can never disagree.
+    float,
     // PocketBar draws have/capBar. With no cap set the bar fills against the
     // rung above, so a growing pocket still reads as progress toward something.
     have: p.balance,
@@ -283,7 +331,11 @@ export function pocketProjection(pocket) {
     collectable: Math.max(0, p.balance - float),
     funded,
     collected,
-    pnl: p.balance + collected - funded,
+    // WALLET-1e: realised P&L at tables, both signs — buy-ins out against
+    // cash-outs in. Funding and collecting are the owner moving his own money
+    // between two of his own pockets and are deliberately not P&L; counting
+    // them would make a top-up read as a win.
+    pnl: Number.isFinite(p.realised) ? p.realised : realisedFromLedger(ledger),
   };
 }
 

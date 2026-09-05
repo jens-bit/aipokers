@@ -271,7 +271,7 @@ console.log('\n[verify] 9) projections carry what the UI reads and nothing else'
     w.profile.agents.reduce((n, a) => n + a.pocket.balance, 0));
 
   const p = pocketProjection(byId(w, 'a1').pocket);
-  for (const k of ['balance', 'mode', 'cap', 'have', 'capBar', 'stakes', 'broke', 'collectable', 'pnl']) {
+  for (const k of ['balance', 'mode', 'cap', 'float', 'have', 'capBar', 'stakes', 'broke', 'collectable', 'pnl']) {
     check(`pocket projection has ${k}`, k in p);
   }
   for (const k of ['attrs', 'mood', 'band', 'strategy', 'nature']) {
@@ -300,7 +300,51 @@ console.log('\n[verify] 10) ledgers reconcile — every transfer has two sides')
   conserved(w, 'after reconciling ledgers');
 }
 
-console.log('\n[verify] 11) modes are exactly the four the design ref draws');
+console.log('\n[verify] 11) WALLET-1e - float, pnl and cut in the projection');
+{
+  const w = makeWorld();
+  const agent = byId(w, 'a1');
+
+  // float: what collect leaves behind, per mode.
+  fund(w.wallet, agent.pocket, { mode: 'auto', amount: 3_000, cap: 5_000 });
+  assert('auto float is the committed cap', pocketProjection(agent.pocket).float, 5_000);
+  fund(w.wallet, agent.pocket, { mode: 'topup' });
+  assert('topup float is one buy-in at his rung', pocketProjection(agent.pocket).float, 5_000);
+  fund(w.wallet, agent.pocket, { mode: 'cut' });
+  assert('cut projects as a mode, not as broke', pocketProjection(agent.pocket).mode, 'cut');
+  assert('and cut off is not out of money', pocketProjection(agent.pocket).broke, false);
+  conserved(w, 'after mode changes');
+
+  // pnl: realised at tables, both signs, transfers excluded.
+  const w2 = makeWorld();
+  const a2 = byId(w2, 'a2');
+  assert('a seeded pocket starts flat', pocketProjection(a2.pocket).pnl, 0);
+  deploy(w2, 'a2');
+  endSession(w2, 'a2', +1_400);
+  assert('a winning night is positive', pocketProjection(a2.pocket).pnl, 1_400);
+  deploy(w2, 'a2');
+  endSession(w2, 'a2', -2_000);
+  assert('and a losing one takes it back down', pocketProjection(a2.pocket).pnl, -600);
+  const pnlBefore = pocketProjection(a2.pocket).pnl;
+  collect(w2.wallet, a2.pocket);
+  assert('collecting does not move pnl', pocketProjection(a2.pocket).pnl, pnlBefore);
+  fund(w2.wallet, a2.pocket, { mode: 'auto', amount: 1_000, cap: 5_000 });
+  assert('and neither does funding', pocketProjection(a2.pocket).pnl, pnlBefore);
+  conserved(w2, 'after a winning and a losing night');
+
+  // float and collect can never disagree - the receipt reads one number.
+  for (const mode of MODES) {
+    const w3 = makeWorld();
+    const a3 = byId(w3, 'a1');
+    fund(w3.wallet, a3.pocket, { mode, amount: 9_000, cap: 3_000 });
+    const expected = pocketProjection(a3.pocket).float;
+    collect(w3.wallet, a3.pocket);
+    assert(`${mode}: collect leaves exactly the projected float`, a3.pocket.balance, expected);
+    conserved(w3, `after collecting on ${mode}`);
+  }
+}
+
+console.log('\n[verify] 12) modes are exactly the four the design ref draws');
 {
   assert('modes', [...MODES].sort(), ['allowance', 'auto', 'cut', 'topup']);
   assert('entry buy-in', ENTRY_BUYIN, 2_000);

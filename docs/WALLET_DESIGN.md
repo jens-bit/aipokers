@@ -147,6 +147,67 @@ empty pocket; `ensureBankroll` backfills them on next load, and
 The migration is idempotent via a `meta` stamp (`migrated_wallets_at`), the
 same mechanism the JSON import uses.
 
+## The projection contract (WALLET-1e)
+
+What the client reads. These shapes are the contract; the UI port found three
+gaps in the first cut and they are closed here.
+
+`GET /api/wallet?userId=`:
+
+```js
+{ balance, staked, session, playing: { live, total }, ledger }
+```
+
+`agent.pocket`, on every agent in `GET /api/agents` and `GET /api/agents/:id`:
+
+```js
+{
+  balance,      // chips in the pocket right now
+  mode,         // 'topup' | 'allowance' | 'auto' | 'cut'
+  cap,          // allowance ceiling / auto-refill target; null for topup & cut
+  float,        // what collect leaves behind, and what auto refills up to
+  have,         // PocketBar numerator (= balance)
+  capBar,       // PocketBar denominator: cap, else the next rung's buy-in
+  stakes,       // { smallBlind, bigBlind, label } | null when broke
+  broke,        // no way back without the owner
+  collectable,  // balance - float; what Collect would move
+  funded,       // lifetime chips in from the wallet
+  collected,    // lifetime chips out to the wallet
+  pnl,          // realised table P&L, both signs
+}
+```
+
+`POST /api/agents/:id/collect`:
+
+```js
+{ collected, float, at, pocketBefore, moved, wallet, pocket, moment }
+```
+
+Three notes on fields that are easy to get wrong:
+
+**`mode` includes `'cut'`.** It is a mode like the other three, not an error
+state and not a synonym for broke: a cut-off agent keeps the roll he has, keeps
+his attributes, reads and grudges, and simply stops being deployed. A pocket
+can be `cut` and solvent at the same time, and the row draws it without a shred
+of guilt.
+
+**`float` is one number with one meaning** — what stays in the pocket when the
+owner collects. For `auto` and `allowance` it is the roll the owner committed
+(the cap); for `topup` and `cut` it is one buy-in at the rung he is playing,
+because nobody has promised him more. It never drops below one buy-in at the
+entry rung: a float he cannot sit down on is a bust, not a float. `collect()`
+calls the same function that produces this field, so the receipt and the row
+can never disagree.
+
+**`pnl` is realised table P&L, both signs** — buy-ins out against cash-outs in.
+Funding and collecting are the owner moving his own money between two of his
+own pockets and are deliberately excluded; counting them would make a top-up
+read as a win and bringing money home read as a loss. It is kept as a running
+counter on the pocket rather than folded out of the ledger, because the ledger
+is capped at 100 entries and a pocket that outlives 50 sessions would start
+quietly forgetting its own record. Pockets written before the counter existed
+backfill from whatever their ledger still holds.
+
 ## `agent.bankroll` during the transition
 
 `agent.bankroll` is **mirrored to `pocket.balance` on every write, for one
