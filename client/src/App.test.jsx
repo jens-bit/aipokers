@@ -1,0 +1,122 @@
+// client/src/App.test.jsx — TEST-1
+//
+// The shell: three tabs, and BirthScreen as the only way to make an agent.
+// These assert on what the user sees after a click, not on component internals.
+
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import App from './App.jsx';
+import { agentsResponse } from './test/fixtures/agents.js';
+import { fetchMock, telegram } from './test/harness.js';
+
+function tab(name) {
+  return screen.getByRole('button', { name });
+}
+
+describe('App shell', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('renders the three tabs', async () => {
+    render(<App />);
+    await screen.findByText('Standup');
+    const nav = document.querySelector('.tab-bar');
+    expect(within(nav).getByText('CASINO')).toBeInTheDocument();
+    expect(within(nav).getByText('CHATS')).toBeInTheDocument();
+    expect(within(nav).getByText('YOU')).toBeInTheDocument();
+  });
+
+  it('opens on the casino floor', async () => {
+    render(<App />);
+    // The standup line is the floor's own header — it is only on CASINO.
+    expect(await screen.findByText('Standup')).toBeInTheDocument();
+  });
+
+  it('switches to CHATS and back to CASINO', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    await user.click(tab('CHATS'));
+    await waitFor(() => expect(screen.queryByText('Standup')).not.toBeInTheDocument());
+    // The chats list is keyed off the same agent roster.
+    expect(await screen.findByText('The Grinder')).toBeInTheDocument();
+
+    await user.click(tab('CASINO'));
+    expect(await screen.findByText('Standup')).toBeInTheDocument();
+  });
+
+  it('switches to YOU', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    await user.click(tab('YOU'));
+    await waitFor(() => expect(screen.queryByText('Standup')).not.toBeInTheDocument());
+    // YouScreen greets the Telegram user by name.
+    expect(await screen.findByText(/Jens/)).toBeInTheDocument();
+  });
+
+  it('marks the active tab so the user can tell where they are', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    expect(tab('CASINO')).toHaveClass('tab-bar__tab--active');
+    await user.click(tab('YOU'));
+    expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
+    expect(tab('CASINO')).not.toHaveClass('tab-bar__tab--active');
+  });
+
+  // KEY-1 through the real app: App calls initViewportTracking() on mount, so
+  // Telegram's viewportChanged has to reach the --tg-h custom property every
+  // keyboard-aware container is sized by.
+  it('tracks Telegram viewport changes into --tg-h (KEY-1)', async () => {
+    render(<App />);
+    await screen.findByText('Standup');
+
+    telegram.setViewportHeight(412);
+    expect(document.documentElement.style.getPropertyValue('--tg-h')).toBe('412px');
+
+    telegram.setViewportHeight(731);
+    expect(document.documentElement.style.getPropertyValue('--tg-h')).toBe('731px');
+  });
+});
+
+describe('agent creation is BirthScreen and nothing else', () => {
+  beforeEach(() => {
+    telegram.signIn();
+  });
+
+  it('the empty floor offers exactly one way in, and it is BirthScreen', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/agents', { agents: [] });
+    render(<App />);
+
+    // The first-time stool is the only create affordance on an empty floor.
+    const stool = await screen.findByRole('button', { name: /Draft your first agent/i });
+    await user.click(stool);
+
+    // BirthScreen's own composer — the creation chat.
+    expect(await screen.findByPlaceholderText(/Describe how it should play/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
+  });
+
+  it('leaving BirthScreen returns to the floor without creating anything', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/agents', { agents: [] });
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /Draft your first agent/i }));
+    await screen.findByPlaceholderText(/Describe how it should play/i);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(await screen.findByText('Standup')).toBeInTheDocument();
+    expect(fetchMock.posts).toHaveLength(0);
+  });
+});
