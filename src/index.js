@@ -11,6 +11,7 @@ import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
 import { attachNotify } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
+import { installRoomRoutes } from './server/rooms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -46,6 +47,11 @@ const { wss, tables } = createServer({
   server: httpServer,
   defaultBlinds: { smallBlind, bigBlind },
 });
+
+// ROOMS-1: GET /api/rooms — the floor grouped by stakes tier. Registered after
+// createServer() because that is where the table registry is wired into
+// rooms.js. Public counts only, no model call, inside the /api rate limiter.
+installRoomRoutes(app);
 
 // Load the OpenAPI spec once at startup so it can be served cheaply.
 const openApiPath = path.join(__dirname, '..', 'openapi.json');

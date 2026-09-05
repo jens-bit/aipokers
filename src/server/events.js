@@ -151,6 +151,31 @@ export function eventsSince(since = 0, { limit = EVENT_RING_SIZE } = {}) {
   return out.slice(Math.max(0, out.length - cap));
 }
 
+// ROOMS-1: how recently a table must have shouted `hot` for the floor to still
+// be pointing at it. Short on purpose — the whole value of the flag is that
+// there is still time to walk over and watch, so a stale one is worse than
+// none. It is the ticker's own deadline read a second way.
+export const HOT_RECENT_MS = Number(process.env.ROOMS_HOT_WINDOW_MS ?? 20_000);
+
+/**
+ * The tableIds that fired a `hot` event inside the last `windowMs`, most
+ * recent first. Deduped: a table that went hot three times in the window is
+ * one entry, because the caller is asking "which tables", not "how often".
+ */
+export function hotTableIds({ windowMs = HOT_RECENT_MS, now = Date.now() } = {}) {
+  const span = Number(windowMs);
+  const cutoff = Number(now) - (Number.isFinite(span) && span > 0 ? span : HOT_RECENT_MS);
+  const ids = new Set();
+  // The ring is in time order, so the first event older than the cutoff ends
+  // the walk — this stays O(events in the window), not O(200), on every push.
+  for (let i = ring.length - 1; i >= 0; i--) {
+    const event = ring[i];
+    if (event.ts < cutoff) break;
+    if (event.type === EventType.HOT && event.tableId) ids.add(event.tableId);
+  }
+  return [...ids];
+}
+
 /** The id a client should send back as `since` next time. */
 export function lastEventId() {
   return ring.length > 0 ? ring[ring.length - 1].id : 0;

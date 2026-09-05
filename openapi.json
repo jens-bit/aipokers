@@ -54,6 +54,23 @@
         }
       }
     },
+    "/api/rooms": {
+      "get": {
+        "summary": "The floor, by stakes tier",
+        "operationId": "getRooms",
+        "description": "The casino grouped into rooms, one per rung of the stakes ladder — $10/$20 the floor, $25/$50 upstairs, $50/$100 the back room — in ladder order, lowest first. A room with nothing running reports zeroes rather than disappearing, so the list is stable. Counts and table ids only: nothing here is owner-scoped. A table running at blinds no rung uses (a bespoke game stood up over the WebSocket) belongs to no room and is counted in none. The same array is pushed over the WebSocket as FLOOR_ROOMS, and rides the first FLOOR_STATE, for any connection subscribed with FLOOR_SUB.",
+        "responses": {
+          "200": {
+            "description": "One entry per stakes tier",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RoomsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "summary": "List agents for a user",
@@ -503,6 +520,48 @@
         "properties": {
           "events": { "type": "array", "items": { "$ref": "#/components/schemas/CasinoEvent" } },
           "lastId": { "type": "integer", "description": "The id to pass as `since` on the next poll." }
+        }
+      },
+      "Room": {
+        "type": "object",
+        "description": "One stakes tier of the casino floor.",
+        "properties": {
+          "id": { "type": "string", "enum": ["floor", "upstairs", "backroom"], "description": "Stable id for the room." },
+          "name": { "type": "string", "description": "The house name: the floor, upstairs, the back room." },
+          "rung": { "type": "integer", "description": "Index into the stakes ladder, 0 = lowest." },
+          "stakes": {
+            "type": "object",
+            "description": "The blinds this room runs at, and the buy-in a pocket needs to walk in.",
+            "properties": {
+              "smallBlind": { "type": "integer" },
+              "bigBlind": { "type": "integer" },
+              "buyIn": { "type": "integer", "description": "100 big blinds." },
+              "label": { "type": "string", "example": "$10/$20" }
+            }
+          },
+          "tables": { "type": "integer", "description": "Tables currently running in this room." },
+          "seated": { "type": "integer", "description": "Seats filled across those tables." },
+          "hot": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Table ids that fired a `hot` event (see GET /api/events) within the last `hotWindowMs`: a big pot on the river with two or more players still live. Sorted, so an unchanged floor is a byte-identical payload."
+          },
+          "biggestPot": {
+            "type": "object",
+            "nullable": true,
+            "description": "The largest pot in the air in this room right now, or null when no hand is live in it.",
+            "properties": {
+              "tableId": { "type": "string" },
+              "pot": { "type": "integer", "description": "Chips in the middle." }
+            }
+          }
+        }
+      },
+      "RoomsResponse": {
+        "type": "object",
+        "properties": {
+          "rooms": { "type": "array", "items": { "$ref": "#/components/schemas/Room" } },
+          "hotWindowMs": { "type": "integer", "description": "How long a `hot` flag lasts, in milliseconds (default 20000)." }
         }
       },
       "StatsResponse": {

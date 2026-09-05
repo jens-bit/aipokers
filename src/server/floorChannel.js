@@ -8,6 +8,11 @@
 // changes, and a fresh FLOOR_STATE whenever an agent's standing changes
 // (deployed, retired, recap written).
 //
+// ROOMS-1 added a third thing on the wire: FLOOR_ROOMS, the floor grouped by
+// stakes tier. It is not owner-filtered (it is counts and table ids), it rides
+// the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
+// is pushed on change after that.
+//
 // Two rules the rest of the system also obeys:
 //   * Pushes are throttled to at most one per second per table per
 //     subscriber, with a trailing send so the last state of a hand is never
@@ -20,15 +25,29 @@
 
 import { ServerMsg } from './protocol.js';
 import { floorSnapshot } from './agentProfiles.js';
-import { bus as eventBus } from './events.js';
+import { bus as eventBus, EventType, HOT_RECENT_MS } from './events.js';
+import { currentRooms } from './rooms.js';
 
 // One push per table per second, per subscriber.
 const PUSH_INTERVAL_MS = Number(process.env.FLOOR_PUSH_INTERVAL_MS ?? 1000);
+
+// ROOMS-1: one FLOOR_ROOMS push per second for the whole floor. The rooms
+// payload is identical for every subscriber (it is counts, not anybody's
+// cards), so unlike FLOOR_GAME the throttle is global rather than per-sub.
+const ROOMS_PUSH_INTERVAL_MS = Number(process.env.FLOOR_ROOMS_INTERVAL_MS ?? 1000);
 
 // ws -> { userId, owner, tables: Map<tableId, { lastPushAt, lastSignature, timer, pendingTable }> }
 const subs = new Map();
 
 let liveTables = null;
+
+// ROOMS-1 push state: the last payload sent (so an unchanged floor is silent),
+// when it went, the trailing-edge timer, and the one-shot that fires when the
+// oldest `hot` flag ages out with nothing else happening to trigger a push.
+let roomsSignature = null;
+let roomsLastPushAt = 0;
+let roomsTimer = null;
+let hotExpiryTimer = null;
 
 export function configure({ liveTables: provider } = {}) {
   liveTables = provider ?? null;
@@ -85,7 +104,66 @@ function sendFloorState(ws, entry) {
     console.error('[floor] snapshot failed:', err.message);
     return;
   }
-  send(ws, { type: ServerMsg.FLOOR_STATE, userId: entry.userId, agents });
+  // ROOMS-1: the floor rides the snapshot so a client that has just subscribed
+  // can render the lobby immediately, then keeps it current from FLOOR_ROOMS.
+  send(ws, { type: ServerMsg.FLOOR_STATE, userId: entry.userId, agents, rooms: roomsPayload() });
+}
+
+// ── ROOMS-1: the floor, by stakes tier ──────────────────────────────────────
+
+function roomsPayload() {
+  try {
+    return currentRooms();
+  } catch (err) {
+    console.error('[floor] rooms snapshot failed:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Push FLOOR_ROOMS to every subscriber, if it changed. Throttled to one per
+ * second with a trailing send, so a busy floor cannot turn every action at
+ * every table into a broadcast, and the last state still lands.
+ */
+export function broadcastRooms({ force = false } = {}) {
+  if (subs.size === 0) return 0;
+  const rooms = roomsPayload();
+  const signature = JSON.stringify(rooms);
+  if (!force && signature === roomsSignature) return 0;
+
+  const now = Date.now();
+  const wait = roomsLastPushAt + ROOMS_PUSH_INTERVAL_MS - now;
+  if (!force && wait > 0) {
+    if (!roomsTimer) {
+      roomsTimer = setTimeout(() => {
+        roomsTimer = null;
+        broadcastRooms();
+      }, wait);
+      roomsTimer.unref?.();
+    }
+    return 0;
+  }
+
+  roomsSignature = signature;
+  roomsLastPushAt = now;
+  const payload = { type: ServerMsg.FLOOR_ROOMS, rooms };
+  let sent = 0;
+  for (const ws of subs.keys()) {
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
+// A `hot` flag expires on a clock rather than on an event, so without this the
+// floor could keep pointing at a table that went quiet — the last push said
+// hot, and nothing after it changes the payload until something else happens.
+function scheduleHotExpiry() {
+  if (hotExpiryTimer) clearTimeout(hotExpiryTimer);
+  hotExpiryTimer = setTimeout(() => {
+    hotExpiryTimer = null;
+    broadcastRooms();
+  }, HOT_RECENT_MS + 250);
+  hotExpiryTimer.unref?.();
 }
 
 // EVENT-1: the floor ticker. Unlike FLOOR_STATE and FLOOR_GAME this is NOT
@@ -106,6 +184,13 @@ export function broadcastEvent(event) {
 function relayEvent(event) {
   try {
     broadcastEvent(event);
+    // ROOMS-1: `hot` is the only event type the rooms payload reads, so it is
+    // the only one worth recomputing the floor for. The rest arrive with a
+    // table state change anyway, which goes through notifyTable.
+    if (event?.type === EventType.HOT) {
+      broadcastRooms();
+      scheduleHotExpiry();
+    }
   } catch (err) {
     console.error('[floor] event relay failed:', err.message);
   }
@@ -130,6 +215,10 @@ export function notifyTable(table) {
     if (!tableBelongsTo(table, entry.userId)) continue;
     pushGame(ws, entry, table);
   }
+  // ROOMS-1: seats filling, a table closing and the pot in the air all move
+  // the floor, and all of them come through here. Change-gated and throttled,
+  // so a table nobody's room cares about costs one JSON.stringify.
+  broadcastRooms();
 }
 
 function tableBelongsTo(table, userId) {
@@ -207,5 +296,11 @@ function pushGame(ws, entry, table, { force = false } = {}) {
 export function reset() {
   for (const ws of [...subs.keys()]) unsubscribe(ws);
   eventBus.off('event', relayEvent);
+  if (roomsTimer) clearTimeout(roomsTimer);
+  if (hotExpiryTimer) clearTimeout(hotExpiryTimer);
+  roomsTimer = null;
+  hotExpiryTimer = null;
+  roomsSignature = null;
+  roomsLastPushAt = 0;
   liveTables = null;
 }
