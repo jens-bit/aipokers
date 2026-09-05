@@ -4,13 +4,16 @@ import { CasinoFloor } from '../floor/CasinoFloor.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { StandupPanel } from './StandupPanel.jsx';
 import { ThreadPanel } from './ThreadPanel.jsx';
+import { DeskTableStage } from './DeskTableStage.jsx';
+import { WatchRail } from './WatchRail.jsx';
+import { useAgentThread } from './useAgentThread.js';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
 
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
-  onFocusTable, onWatchAgent, onDeployAgent, onCreateAgent,
+  onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +23,10 @@ export function DesktopHome({
   // so a half-typed message survives switching agents — the panel remounts,
   // this map does not.
   const [drafts, setDrafts] = useState({});
-  const draftKey = selectedId ?? IDLE_KEY;
+  // Focusing a live table swaps the stage AND the rail, without leaving the
+  // desktop shell (DSK2-3). Null means the floor is on stage.
+  const [deskTableId, setDeskTableId] = useState(null);
+  const draftKey = deskTableId ?? selectedId ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
   }, [draftKey]);
@@ -60,6 +66,40 @@ export function DesktopHome({
   const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
   const watchedId = isWatching ? watchingAgent?.id ?? null : null;
 
+  // DSK2-3: a live tile is one gesture — subscribe if we are not already, and
+  // put that table on the stage.
+  const openTable = useCallback((agent) => {
+    if (watchedId !== agent.id) onWatchAgent(agent);
+    setDeskTableId(agent.id);
+  }, [watchedId, onWatchAgent]);
+
+  const deskIndex = agents.findIndex((a) => a.id === deskTableId);
+  const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
+
+  // The watched agent left the table (or was retired) — fall back to the floor.
+  useEffect(() => {
+    if (deskTableId && !loading && deskIndex < 0) setDeskTableId(null);
+  }, [deskTableId, deskIndex, loading]);
+
+  if (deskAgent) {
+    return (
+      <div className="dsk-root">
+        <DesktopTopBar liveCount={liveCount} />
+        <div className="dsk-body">
+          <DeskWatch
+            agent={deskAgent}
+            game={watchedId === deskAgent.id ? game : null}
+            lastDecision={watchedId === deskAgent.id ? lastDecision : null}
+            draft={drafts[deskAgent.id] ?? ''}
+            onDraftChange={setDraft}
+            onBack={() => setDeskTableId(null)}
+            onSitOut={onSitOut}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dsk-root">
       <DesktopTopBar liveCount={liveCount} />
@@ -90,7 +130,7 @@ export function DesktopHome({
             onClose={() => setSelectedId(null)}
             onWatch={onWatchAgent}
             onDeploy={onDeployAgent}
-            onFocusTable={onFocusTable}
+            onFocusTable={() => openTable(selected)}
           />
         ) : (
           <StandupPanel
@@ -103,12 +143,44 @@ export function DesktopHome({
             draft={drafts[IDLE_KEY] ?? ''}
             onDraftChange={setDraft}
             onSelect={(agent) => setSelectedId(agent.id)}
-            onWatch={onWatchAgent}
-            onFocusTable={onFocusTable}
+            onOpenTable={openTable}
             onDraftAgent={onCreateAgent}
           />
         )}
       </div>
     </div>
+  );
+}
+
+// The table stage plus its analysis rail. Split out so the thread hook only
+// mounts while a table is actually on screen.
+function DeskWatch({ agent, game, lastDecision, draft, onDraftChange, onBack, onSitOut }) {
+  const { sending, send } = useAgentThread(agent);
+  const seats = game?.seats || [];
+  const named = seats.findIndex((s) => s?.displayName === agent.name);
+  const heroSeat = named >= 0 ? named : 0;
+
+  return (
+    <>
+      <DeskTableStage
+        game={game}
+        agentName={agent.name}
+        lastDecision={lastDecision}
+        onBack={onBack}
+        onSitOut={onSitOut}
+      />
+      <WatchRail
+        agent={agent}
+        game={game}
+        lastDecision={lastDecision}
+        heroSeat={heroSeat}
+        hands={agent.recentHands}
+        draft={draft}
+        sending={sending}
+        onDraftChange={onDraftChange}
+        onSend={(text) => { if (text.trim()) { onDraftChange(''); send(text); } }}
+        onClose={onBack}
+      />
+    </>
   );
 }

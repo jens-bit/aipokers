@@ -231,9 +231,9 @@ export default function App() {
       <DesktopHome
         game={game}
         lastDecision={lastDecision}
+        onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
-        onFocusTable={() => setDesktopFocusTable(true)}
         onWatchAgent={async (agent) => {
           if (!agent?.activeTableId) return;
           let memoryContext = '';

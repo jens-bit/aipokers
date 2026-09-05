@@ -969,4 +969,280 @@
   z-index: 1;
 }
 
+/* ── Desk table stage (DSK2-3) ────────────────────────────────────────────
+ * Ported from mood-desktop.jsx DeskTableStage. Full-bleed felt, seat chips in
+ * the top corners, pot + board centred, hero along the bottom. */
+
+.dtb {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 48% 42%, #1a2a2c 0%, #0f1818 58%, #0a1212 100%);
+}
+.dtb__arc {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 70px;
+  height: 620px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 170, 0.08);
+  pointer-events: none;
+}
+
+.dtb__back {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 13px 0 10px;
+  border-radius: 15px;
+  background: rgba(8, 10, 11, 0.86);
+  border: 1px solid var(--dsk-border-2);
+  color: var(--dsk-dim);
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+.dtb__back:hover { border-color: var(--dsk-teal); color: var(--dsk-teal); }
+
+.dtb__seat { position: absolute; top: 18px; z-index: 3; }
+.dtb__seat--left { left: 20px; }
+.dtb__seat--right { right: 20px; }
+
+.dtb__center {
+  position: absolute;
+  top: 178px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  z-index: 2;
+}
+.dtb__pot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 16px;
+  border-radius: 18px;
+  background: rgba(23, 27, 27, 0.6);
+  border: 1px solid var(--dsk-border);
+}
+.dtb__pot-amt {
+  font-family: 'Rozha One', var(--dsk-serif);
+  font-size: 30px;
+  color: var(--dsk-text);
+  letter-spacing: 0.005em;
+}
+.dtb__pot-dash {
+  font-family: var(--dsk-mono);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--dsk-muted);
+}
+.dtb__board { display: flex; gap: 7px; }
+
+.dtb__shuffling {
+  font-family: var(--dsk-mono);
+  font-size: 11px;
+  color: var(--dsk-muted);
+  letter-spacing: 0.14em;
+}
+.dtb__tocall { display: flex; align-items: center; gap: 8px; }
+.dtb__chip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--dsk-teal);
+  display: inline-block;
+}
+.dtb__tocall-amt {
+  font-family: var(--dsk-mono);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-teal);
+}
+.dtb__tocall-label {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--dsk-muted);
+}
+
+.dtb__hero {
+  position: absolute;
+  bottom: 34px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  z-index: 3;
+}
+.dtb__hero-cards { display: flex; gap: 7px; }
+.dtb__hero-row { display: flex; align-items: center; gap: 12px; }
+.dtb__hero-name { font-size: 13.5px; font-weight: 600; color: var(--dsk-text); line-height: 1.15; }
+.dtb__hero-meta { display: flex; align-items: baseline; gap: 6px; }
+.dtb__hero-stack {
+  font-family: var(--dsk-mono);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-text);
+}
+.dtb__hero-pos {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dsk-muted);
+}
+.dtb__rule { width: 1px; height: 30px; background: var(--dsk-border); }
+.dtb__waiting { font-size: 12.5px; color: var(--dsk-muted); font-style: italic; }
+
+.dtb__equity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(23, 27, 27, 0.62);
+  border: 1px solid rgba(0, 212, 170, 0.18);
+}
+.dtb__equity-val {
+  font-family: var(--dsk-mono);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-teal);
+}
+.dtb__equity-action {
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: var(--dsk-teal);
+  color: #0a0a0a;
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.dtb__exit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 20px;
+  background: rgba(8, 10, 11, 0.92);
+  border-top: 1px solid var(--dsk-border);
+}
+.dtb__exit-title { font-size: 12.5px; color: var(--dsk-text); font-weight: 500; }
+.dtb__exit-sub { font-family: var(--dsk-mono); font-size: 10px; color: var(--dsk-muted); margin-top: 1px; }
+.dtb__exit-spacer { flex: 1; }
+.dtb__exit-btn {
+  height: 34px;
+  padding: 0 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--dsk-border-2);
+  color: var(--dsk-dim);
+  font-family: Inter, sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dtb__exit-btn:hover { border-color: var(--dsk-teal); color: var(--dsk-teal); }
+.dtb__exit-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Analysis panels + rows (DSK2-3) ─────────────────────────────────────
+ * Ported from mood-desktop3.jsx AnalysisPanel / ARow. The refs note ARow is
+ * the same row as mood-watch.jsx AnalysisRow; lifting one shared atom is a
+ * follow-up, since components/system/ is outside this slice. */
+
+.dsk-apanel {
+  background: var(--dsk-surface);
+  border: 1px solid var(--dsk-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dsk-apanel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--dsk-border);
+}
+.dsk-apanel__action {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dsk-teal);
+  cursor: pointer;
+}
+.dsk-apanel__action:hover { text-decoration: underline; }
+.dsk-apanel__body { padding: 11px 13px; }
+.dsk-apanel__voice {
+  font-size: 13px;
+  color: var(--dsk-text);
+  line-height: 1.5;
+  font-style: italic;
+  margin-bottom: 4px;
+}
+.dsk-apanel__empty { font-size: 12px; color: var(--dsk-muted); line-height: 1.5; }
+
+.dsk-arow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--dsk-border);
+}
+.dsk-arow.is-first { border-top: none; }
+.dsk-arow__label { font-size: 12px; color: var(--dsk-dim); min-width: 92px; }
+.dsk-arow__track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.dsk-arow__fill { height: 100%; background: var(--dsk-text); }
+.dsk-arow__fill.is-teal { background: var(--dsk-teal); }
+.dsk-arow__fill.is-gold { background: var(--dsk-gold); }
+.dsk-arow__fill.is-red { background: var(--dsk-red); }
+.dsk-arow__note { flex: 1; font-size: 11.5px; color: var(--dsk-muted); }
+.dsk-arow__value {
+  font-family: var(--dsk-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-text);
+  margin-left: auto;
+}
+.dsk-arow__value.is-teal { color: var(--dsk-teal); }
+.dsk-arow__value.is-gold { color: var(--dsk-gold); }
+.dsk-arow__value.is-red { color: var(--dsk-red); }
+
 }

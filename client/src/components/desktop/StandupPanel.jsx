@@ -14,7 +14,7 @@ function fmtNet(net) {
   return net < 0 ? `−$${Math.abs(net).toLocaleString()}` : `+$${net.toLocaleString()}`;
 }
 
-function TileStack({ games, highlightId, watchedId, onWatch, onFocusTable, game, lastDecision }) {
+function TileStack({ games, highlightId, watchedId, onOpenTable, game, lastDecision }) {
   return (
     <>
       <div className="dsk-stack-head">
@@ -31,8 +31,8 @@ function TileStack({ games, highlightId, watchedId, onWatch, onFocusTable, game,
             lastDecision={isWatched ? lastDecision : null}
             highlighted={highlightId === agent.id || isWatched}
             dimmed={highlightId != null && highlightId !== agent.id && !isWatched}
-            onWatch={() => onWatch(agent)}
-            onFocusTable={isWatched ? onFocusTable : null}
+            onWatch={() => onOpenTable(agent)}
+            onFocusTable={isWatched ? () => onOpenTable(agent) : null}
           />
         );
       })}
@@ -42,7 +42,7 @@ function TileStack({ games, highlightId, watchedId, onWatch, onFocusTable, game,
 
 export function StandupPanel({
   agents, loading, game, lastDecision, selectedId, watchedId,
-  draft, onDraftChange, onSelect, onWatch, onFocusTable, onDraftAgent,
+  draft, onDraftChange, onSelect, onOpenTable, onDraftAgent,
 }) {
   const live = agents.filter((a) => a.activeTableId || a.liveGame?.tableId);
   const sub = loading
@@ -62,8 +62,7 @@ export function StandupPanel({
             watchedId={watchedId}
             game={game}
             lastDecision={lastDecision}
-            onWatch={onWatch}
-            onFocusTable={onFocusTable}
+            onOpenTable={onOpenTable}
           />
         )}
 
