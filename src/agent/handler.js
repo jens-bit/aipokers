@@ -1,5 +1,12 @@
 // src/agent/handler.js
-// Anthropic-powered poker agent. Called by Table when it's an AI seat's turn.
+// The poker agent's decision call. Called by Table when it's an AI seat's turn.
+//
+// MODEL-1: decisions are no longer hard-wired to Anthropic. They go through
+// src/agent/providers, which picks a provider from the model id, so a table can
+// be run against any configured model and the arena can put two of them against
+// each other. AI_MODEL still names the default; `opts.model` overrides it per
+// call. The trash-talk path below is still a direct Anthropic call — it is
+// flavour text, not a benchmark, and nothing measures it.
 //
 // Game-engine contract (from game.js):
 //   act(seat, { type, amount? })
@@ -13,8 +20,14 @@
 //   BET   → { type: 'bet',  min: <total>, max: <total> }
 //   RAISE → { type: 'raise', min: <total>, max: <total> }
 //
-// Public return shape: { action, reasoning } where `reasoning` is a
-// one-sentence explanation produced by the model alongside the decision.
+// Public return shape:
+//   { action, reasoning, usage, model, provider, costUsd }
+// `reasoning` is what he SAYS — one line in his own voice, capped and
+// solver-proofed by src/agent/voice.js (PACE-1c), not an explanation of his
+// process. MODEL-1b added the last four: every decision carries what it cost,
+// returned as well as logged so the arena can total a run without scraping
+// stdout. The fallback paths (no key, parse failure, API error) return only
+// { action, reasoning } — there was no call, so there is no usage to report.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { complete, isConfigured, providerIdFor } from './providers/index.js';

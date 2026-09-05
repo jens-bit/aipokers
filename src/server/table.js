@@ -828,6 +828,25 @@ export class Table {
     return effectiveAttrs(rec, { sessionHands });
   }
 
+  // RIDERS-1 (REPLAY-1's two exactness gaps): the pot as it stands once the
+  // action has landed, and whether that action put the seat all in.
+  //
+  // The replay timeline had to approximate both — it accumulated a pot by
+  // parsing amounts out of action strings and pinned the total to the final
+  // figure, and it guessed at all-in from the same strings, so a jam recorded
+  // as "raise 1847" played as an ordinary raise and the hold never fired. Both
+  // are facts the engine knows at the moment of the act; they only needed
+  // writing down.
+  //
+  // Stamped AFTER game.act, because the pot a viewer sees on that beat is the
+  // pot the action created, not the one it walked into.
+  _stampDecisionOutcome(idx, seat) {
+    const d = this.currentHandDecisions[idx];
+    if (!d || d.seat !== seat) return;
+    d.pot = this.game?.pot ?? null;
+    d.allIn = !!this.game?.seats?.[seat]?.allIn;
+  }
+
   // ATTR-3: the two kinds of evidence that are visible at decision time. The
   // rest (hands, beats survived, bluffs through) can only be known once the
   // hand is over and are counted there.
@@ -2331,8 +2350,12 @@ export class Table {
 
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
+    // RIDERS-1: the index of the record we just pushed, so the pot and the
+    // all-in flag can be stamped on it once the engine has applied the action.
+    const decisionIdx = this.currentHandDecisions.length - 1;
     try {
       this.game.act(aiSeat, action);
+      this._stampDecisionOutcome(decisionIdx, aiSeat);
       this._incrementRaiseCountIfAggressive(action);
       this._logAction(aiSeat, streetBefore, action);
       this._broadcastPace();
@@ -2370,6 +2393,7 @@ export class Table {
       const fallbackAction = { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) };
       try {
         this.game.act(aiSeat, fallbackAction);
+        this._stampDecisionOutcome(decisionIdx, aiSeat);
         this._logAction(aiSeat, streetBefore, fallbackAction);
         // Replace the recorded decision with the action that actually played
         // out so stats reflect the engine's view.
