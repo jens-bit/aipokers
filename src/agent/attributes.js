@@ -84,17 +84,26 @@ function clampAttr(v) {
 }
 
 // ── at() — the one interpolation every hook goes through ────────────────────
-// Maps the 0–100 attribute onto low..high (low is what a 0 does, high is what
-// a 100 does), then blends back toward `neutral` — the value the code used
-// before attributes existed — by (1 − ATTRIBUTE_IMPACT).
+// PIECEWISE, in two segments hinged on 50: 0..50 runs low→neutral and 50..100
+// runs neutral→high. Then the result blends back toward `neutral` by
+// (1 − ATTRIBUTE_IMPACT).
 //
-// Note the deliberate consequence: at full impact a value of 50 lands at the
-// MIDPOINT of low..high, which is not necessarily `neutral`. `neutral` is the
-// knob-0 anchor, not the mid-scale value. Where the two differ (READS,
-// DECEPTION, FOCUS) that gap is real and shows up in verify-attributes.js.
+// The hinge is the point (ATTR-1d). A single low→high line made 50 land on the
+// midpoint of the band, so a neutral agent was NOT today's agent: his read gate
+// was 13.5 hands instead of 10, opponents needed ×1.5 the evidence on him, and
+// his equity carried σ 0.04 of noise. Every backfilled agent in prod sits at
+// 50, so that gap was a silent live-play change dressed up as a no-op. With the
+// hinge, 50 is exactly `neutral` at every impact setting, and the endpoints are
+// unchanged: 0 still gives `low`, 100 still gives `high`.
+//
+// The two halves have different slopes whenever neutral is off-centre, which is
+// correct: the distance from "today" to "as good as it gets" is not obliged to
+// equal the distance from "today" down to "as bad as it gets".
 export function at(value, neutral, low, high) {
   const v = clampAttr(value);
-  const full = low + (v / 100) * (high - low);
+  const full = v <= 50
+    ? low + (v / 50) * (neutral - low)
+    : neutral + ((v - 50) / 50) * (high - neutral);
   const k = attributeImpact();
   return neutral + (full - neutral) * k;
 }
@@ -167,6 +176,101 @@ export function logAttrChange(agent, { key, from, to, cause = null, ts = Date.no
   agent.attrLog.push(entry);
   if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
   return entry;
+}
+
+// ── Birth ────────────────────────────────────────────────────────────────────
+// Ported verbatim from design-refs/char-system.jsx (NATURES, ATTR_STEP). Eight
+// natures, zero-sum: +1 step to one attribute, −1 to another, where a step is
+// ±8 points and the SAME shift lands on the potential band. Announced at birth
+// in his own voice — never hidden, never re-rolled, never changed again.
+
+// One nature step, on the 0–100 scale.
+export const ATTR_STEP = 8;
+
+export const NATURES = Object.freeze([
+  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.' },
+  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.' },
+  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.' },
+  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.' },
+  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.' },
+  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.' },
+  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.' },
+  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.' },
+]);
+
+const NATURE_BY_NAME = Object.fromEntries(NATURES.map((n) => [n.name, n]));
+
+// The nature is READ OUT OF THE DRAFT CONVERSATION, not rolled: the same
+// strategy always produces the same character, so a nature is never something
+// an owner can re-roll for by deleting and recreating. A priority ladder rather
+// than a score, because every rung has to be explainable in one clause when the
+// birth card says why he is what he is. Total by construction — the last rung
+// has no condition.
+const NATURE_LADDER = [
+  // Aggressive AND off the leash. The combustible one.
+  { name: 'Hothead',   when: (p) => p.aggression >= 70 && p.discipline < 50 },
+  // Bluffs constantly and means to be seen doing it.
+  { name: 'Showman',   when: (p) => p.bluffFreq >= 45 && p.aggression >= 60 },
+  // Treats his own rules as a suggestion.
+  { name: 'Gambler',   when: (p) => p.discipline < 45 && p.bluffFreq >= 30 },
+  // Very tight, not violent. Folds for a living.
+  { name: 'Rock',      when: (p) => p.tightness >= 75 && p.aggression < 60 },
+  // Disciplined and genuinely aggressive — the reg.
+  { name: 'Shark',     when: (p) => p.discipline >= 70 && p.aggression >= 60 },
+  // Disciplined and tight, without the aggression. The analyst.
+  { name: 'Professor', when: (p) => p.discipline >= 70 && p.tightness >= 60 },
+  // Steady and almost never bluffing. Nothing moves in his face.
+  { name: 'Sphinx',    when: (p) => p.discipline >= 55 && p.bluffFreq < 20 },
+  // Everyone else endures.
+  { name: 'Grinder',   when: () => true },
+];
+
+export function natureForProfile(profile) {
+  const p = {
+    tightness:  clampAttr(profile?.tightness),
+    aggression: clampAttr(profile?.aggression),
+    bluffFreq:  clampAttr(profile?.bluffFreq),
+    discipline: clampAttr(profile?.discipline),
+  };
+  const hit = NATURE_LADDER.find((rung) => rung.when(p)) ?? NATURE_LADDER[NATURE_LADDER.length - 1];
+  const nature = NATURE_BY_NAME[hit.name];
+  return { name: nature.name, up: nature.up, down: nature.down, line: nature.line };
+}
+
+// Day one. Per design 32: a 30-point potential band, and a current sitting at
+// 55–65% of the band's low edge so a newborn has somewhere to grow. The bands
+// are drawn; only the nature is deterministic.
+const BIRTH_BAND_LO_MIN = 50;
+const BIRTH_BAND_LO_MAX = 65;
+const BIRTH_BAND_WIDTH = 30;
+const BIRTH_CURRENT_MIN = 0.55;
+const BIRTH_CURRENT_MAX = 0.65;
+
+export function birthAttributes({ profile = null, rand = Math.random } = {}) {
+  const uniform = (lo, hi) => lo + rand() * (hi - lo);
+
+  const attrs = {};
+  const potential = {};
+  for (const k of ATTR_KEYS) {
+    const lo = Math.round(uniform(BIRTH_BAND_LO_MIN, BIRTH_BAND_LO_MAX));
+    potential[k] = { lo, hi: Math.min(100, lo + BIRTH_BAND_WIDTH) };
+    attrs[k] = clampAttr(Math.round(lo * uniform(BIRTH_CURRENT_MIN, BIRTH_CURRENT_MAX)));
+  }
+
+  // Zero-sum: the same ±step on the current AND on both ends of the band, so a
+  // nature moves where he can end up, not just where he starts.
+  const nature = natureForProfile(profile);
+  const shift = (key, delta) => {
+    attrs[key] = clampAttr(attrs[key] + delta);
+    potential[key] = {
+      lo: clampAttr(potential[key].lo + delta),
+      hi: clampAttr(potential[key].hi + delta),
+    };
+  };
+  shift(nature.up, +ATTR_STEP);
+  shift(nature.down, -ATTR_STEP);
+
+  return { attrs, potential, nature };
 }
 
 // ── STAMINA / fatigue ────────────────────────────────────────────────────────

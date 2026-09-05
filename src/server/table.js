@@ -885,6 +885,9 @@ export class Table {
       seatCount: this.seatedCount(),
       maxSeats: this.maxSeats,
       handsThisSession: this.handsThisSession,
+      // ATTR-1d: this seat's own session length, which is what fatigue is
+      // measured against — a seat that sat down at hand 80 is not 80 hands worn.
+      heroSessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
       maxHands: this.maxHands,
       blinds: `${this.smallBlind}/${this.bigBlind}`,
       seats: g ? g.seats.map((s, i) => ({

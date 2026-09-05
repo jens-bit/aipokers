@@ -11,6 +11,10 @@ import assert from 'node:assert';
 import {
   ATTR_KEYS,
   ATTR_LOG_CAP,
+  ATTR_STEP,
+  NATURES,
+  natureForProfile,
+  birthAttributes,
   NEUTRAL_ATTR,
   MAX_FATIGUE_DROP,
   at,
@@ -43,6 +47,8 @@ function check(label, cond) {
   else { failures++; console.error(`  FAIL ${label}`); }
 }
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
+const NEUTRAL_BANNER = '\u2014 NEUTRAL IS NEUTRAL: 50 is today at every impact \u2014';
+const BIRTH_BANNER = '\u2014 birth: natures, bands, day-one currents \u2014';
 
 // Run `fn` with the knob forced to `value`, then restore the environment.
 function withImpact(value, fn) {
@@ -80,7 +86,9 @@ console.log('\n— at() endpoints —');
 withImpact(1, () => {
   check('0 maps to low',    near(at(0, 10, 22, 5), 22));
   check('100 maps to high', near(at(100, 10, 22, 5), 5));
-  check('50 maps to the midpoint of low..high, NOT to neutral', near(at(50, 10, 22, 5), 13.5));
+  check('50 is exactly neutral, not the midpoint of low..high', near(at(50, 10, 22, 5), 10));
+  check('below 50 interpolates low to neutral', near(at(25, 10, 22, 5), 16));
+  check('above 50 interpolates neutral to high', near(at(75, 10, 22, 5), 7.5));
   check('inverted ranges work the same way', near(at(0, 100, 40, 160), 40) && near(at(100, 100, 40, 160), 160));
   check('out-of-range values clamp', near(at(-40, 0, -20, 20), -20) && near(at(999, 0, -20, 20), 20));
   check('non-numeric falls back to neutral 50', near(at(undefined, 0, -20, 20), 0));
@@ -100,16 +108,18 @@ console.log('\n— per-hook helper values (full impact) —');
 withImpact(1, () => {
   check('READS 0 needs 22 hands, 100 needs 5',
     near(readMinHands({ reads: 0 }), 22) && near(readMinHands({ reads: 100 }), 5));
-  check('READS 50 needs 13.5', near(readMinHands({ reads: 50 }), 13.5));
+  check("READS 50 needs today's 10", near(readMinHands({ reads: 50 }), 10));
   check('no READS value leaves the base gate at 10', near(readMinHands({}), 10));
-  check('DECEPTION 0 → ×0.6, 100 → ×2.4',
-    near(deceptionMinHandsMultiplier(0), 0.6) && near(deceptionMinHandsMultiplier(100), 2.4));
+  check('DECEPTION endpoints and the neutral hinge',
+    near(deceptionMinHandsMultiplier(0), 0.6) &&
+    near(deceptionMinHandsMultiplier(50), 1.0) &&
+    near(deceptionMinHandsMultiplier(100), 2.4));
   check('DECEPTION multiplies the READS gate',
     near(readMinHands({ reads: 100, deception: 100 }), 12));
   check('exploits gated below READS 40',
     exploitsAllowed(39) === false && exploitsAllowed(40) === true);
-  check('FOCUS sigma 0 → 0.08, 100 → 0',
-    near(focusSigma(0), 0.08) && near(focusSigma(100), 0));
+  check('FOCUS sigma endpoints and the neutral hinge',
+    near(focusSigma(0), 0.08) && near(focusSigma(50), 0) && near(focusSigma(100), 0));
   check('DISCIPLINE 0 → ×1.6, 50 → ×1.0, 100 → ×0.4',
     near(disciplineDeviationMultiplier(0), 1.6) &&
     near(disciplineDeviationMultiplier(50), 1.0) &&
@@ -130,6 +140,114 @@ withImpact(0, () => {
   check('COMPOSURE bonus is 0',      composureTiltBonus(0) === 0);
   check('COMPOSURE decay is the base', composureDecayHands(0, 4) === 4);
 });
+
+console.log('\n' + NEUTRAL_BANNER);
+{
+  // The ATTR-1d law. Every hook, at attribute 50, must return the constant the
+  // pre-attribute build used - at IMPACT 0, half impact, and full impact alike.
+  // Every backfilled agent in prod sits at 50, so a gap here would be a silent
+  // live-play change for every character that already exists.
+  const HOOKS = [
+    ['READS gate',            (v) => at(v, 10, 22, 5),    10],
+    ['FOCUS sigma',           (v) => at(v, 0, 0.08, 0),   0],
+    ['DISCIPLINE multiplier', (v) => at(v, 1, 1.6, 0.4),  1],
+    ['COMPOSURE tilt',        (v) => at(v, 0, -20, 20),   0],
+    ['COMPOSURE decay',       (v) => at(v, 4, 6, 2),      4],
+    ['DECEPTION multiplier',  (v) => at(v, 1, 0.6, 2.4),  1],
+    ['STAMINA onset',         (v) => at(v, 100, 40, 160), 100],
+  ];
+  for (const impact of [0, 0.5, 1]) {
+    withImpact(impact, () => {
+      for (const [label, fn, neutral] of HOOKS) {
+        check(`${label} at 50 is ${neutral} (impact ${impact})`, near(fn(50), neutral));
+      }
+    });
+  }
+  // The same, through the helpers the call sites actually use.
+  for (const impact of [0, 0.5, 1]) {
+    withImpact(impact, () => {
+      check(`helpers agree at 50 (impact ${impact})`,
+        near(readMinHands({ reads: 50 }), 10) &&
+        near(readMinHands({ reads: 50, deception: 50 }), 10) &&
+        deceptionMinHandsMultiplier(50) === 1 &&
+        focusSigma(50) === 0 &&
+        perceiveEquity(0.412, 50, 'any seed') === 0.412 &&
+        disciplineDeviationMultiplier(50) === 1 &&
+        composureTiltBonus(50) === 0 &&
+        composureDecayHands(50, 4) === 4 &&
+        near(fatigueOnset(50), 100));
+    });
+  }
+  withImpact(1, () => {
+    check('endpoints survive the hinge',
+      near(at(0, 10, 22, 5), 22) && near(at(100, 10, 22, 5), 5) &&
+      near(fatigueOnset(0), 40) && near(fatigueOnset(100), 160));
+  });
+}
+
+console.log('\n' + BIRTH_BANNER);
+{
+  check('eight natures, none repeated',
+    NATURES.length === 8 && new Set(NATURES.map((n) => n.name)).size === 8);
+  check('every nature is zero-sum across two different keys',
+    NATURES.every((n) => ATTR_KEYS.includes(n.up) && ATTR_KEYS.includes(n.down) && n.up !== n.down));
+  check('every nature has a birth line in his own voice',
+    NATURES.every((n) => typeof n.line === 'string' && n.line.length > 10));
+  check("ATTR_STEP is the design's 8", ATTR_STEP === 8);
+
+  // Deterministic: the nature is read out of the draft, never rolled, so there
+  // is nothing to re-roll by deleting and recreating the agent.
+  const TAG = { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 80 };
+  check('same profile gives the same nature every time',
+    natureForProfile(TAG).name === natureForProfile({ ...TAG }).name);
+  check('the ladder is total - even a garbage profile gets a nature',
+    typeof natureForProfile(null).name === 'string' &&
+    typeof natureForProfile({ tightness: 'x' }).name === 'string');
+  check('the four arena archetypes get four different natures',
+    new Set([
+      natureForProfile({ tightness: 88, aggression: 50, bluffFreq: 8,  discipline: 85 }).name,
+      natureForProfile({ tightness: 12, aggression: 85, bluffFreq: 55, discipline: 30 }).name,
+      natureForProfile(TAG).name,
+      natureForProfile({ tightness: 15, aggression: 5,  bluffFreq: 3,  discipline: 40 }).name,
+    ]).size === 4);
+
+  // Fixed RNG at the midpoint of every draw, so the arithmetic is checkable:
+  // lo = 57.5 -> 58, current = round(58 * 0.60) = 35.
+  const mid = () => 0.5;
+  const born = birthAttributes({ profile: TAG, rand: mid });
+  const nature = natureForProfile(TAG);
+  check('born with the profile-derived nature', born.nature.name === nature.name);
+  for (const k of ATTR_KEYS) {
+    const step = k === nature.up ? ATTR_STEP : k === nature.down ? -ATTR_STEP : 0;
+    const band = born.potential[k];
+    check(`${k}: 30-point band`, band.hi - band.lo === 30);
+    check(`${k}: the band carries the nature shift too`, band.lo === 58 + step);
+    check(`${k}: current is 55-65% of the band low, plus the shift`, born.attrs[k] === 35 + step);
+    check(`${k}: current is born below its band`, born.attrs[k] < band.lo);
+  }
+
+  // Bands stay inside 0-100 across many draws and many profiles.
+  let r = 12345;
+  const lcg = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
+  let allInRange = true;
+  for (let i = 0; i < 200; i++) {
+    const b = birthAttributes({
+      profile: { tightness: i % 100, aggression: (i * 7) % 100, bluffFreq: (i * 3) % 100, discipline: (i * 11) % 100 },
+      rand: lcg,
+    });
+    allInRange = allInRange && ATTR_KEYS.every((k) =>
+      b.potential[k].lo >= 0 && b.potential[k].hi <= 100 && b.potential[k].hi >= b.potential[k].lo &&
+      b.attrs[k] >= 0 && b.attrs[k] <= 100);
+  }
+  check('200 draws stay inside 0-100 with hi >= lo', allInRange);
+
+  // A born agent is NOT retro-applied to an existing one.
+  const legacy = { attrs: undefined };
+  ensureAttributes(legacy);
+  check('ensureAttributes still backfills neutral, never births',
+    ATTR_KEYS.every((k) => legacy.attrs[k] === 50) && legacy.nature === null);
+}
+
 
 console.log('\n— ensureAttributes / attrLog —');
 {

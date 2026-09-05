@@ -652,4 +652,26 @@ Density verdict (Jens, 09-05): the tapped panel is a picture, not a paragraph �
 
 Build order: ATTR-1 (engine, measurement-first, feature/attributes; arena --attributes off|low|high; ATTRIBUTE_IMPACT knob; attrLog ring buffer) → ATTR-2 (UI port: bars, tapped panel, birth card, hand-review row) → ATTR-3 (growth ticks + fatigue state in the session loop) → BIO-2 (per-opponent ledger → derived roles → recap line + needle injection). Target at full impact: same-strategy high vs low ≥ +30 bb/100, CI excluding zero; "off" reproduces ACCEPT-1 within CI.
 
+### ATTR-1 status (branch `feature/attributes`, 2026-09-05 — built, unmerged, unpushed)
+
+Commits: `c95578e` ATTR-1a module + tests · `daaaa1d` ATTR-1b the six hooks + verify script · `0dabb29` ATTR-1c arena `--attributes` flag · ATTR-1d piecewise lerp + birth generator.
+
+`src/agent/attributes.js` is the engine. Six hooks, each a few lines at its call site: READS and DECEPTION on the read gate in `reads.js`, FOCUS on the equity/pot-odds lines in `handler.js` (deterministic noise seeded from hand+seat+cards, so the arena's mirrored deck draws the same misjudgment on both halves), DISCIPLINE on the deviation die in `policy.js`, COMPOSURE on tilt resistance and mood decay in `mood.js`, STAMINA on within-session fatigue. `table.js` reads a seat's attributes from the stored agent record at decision time rather than threading them through every seating path, so House and human seats fall through to pre-attribute behaviour.
+
+**The piecewise fix (ATTR-1d).** `at()` was a single line low→high, which made attribute 50 land on the midpoint of the band rather than on the pre-attribute constant: a "neutral" agent had a 13.5-hand read gate instead of 10, opponents needed ×1.5 the evidence on him, and his equity carried σ 0.04 of noise. Every backfilled agent in prod sits at 50, so that was a silent live-play change for every existing character dressed up as a no-op. `at()` is now hinged at 50 — 0..50 runs low→neutral, 50..100 runs neutral→high — so **50 is exactly today's agent at every impact setting**, and the endpoints are unchanged. `verify-attributes.js` enforces both invariants and exits non-zero if either breaks.
+
+**Verify table headline** (`node scripts/verify-attributes.js`, TAG 70/70/30/80, IMPACT 1): knob-0 identity HOLDS; neutral-is-neutral HOLDS on all 15 rows (mid column == off column). Low vs high, in the direction each hook moves: read gate 16.0 → 7.0 hands; equity noise σ 0.040 → 0 (FOCUS is one-sided by construction — its neutral and its high are both "no noise", so only sub-50 FOCUS does anything); deviation 26.0% → 12.8%; tilt resistance 64 → 86; opponents need ×0.80 → ×1.84 the evidence on him; fatigue onset hand 70 → 136.
+
+**Birth (pulled forward from ATTR-3** because the birth UI is being ported in parallel**).** `birthAttributes({ profile })` draws a 30-point band per key (lo uniform 50–65), sets the current at 55–65% of the band's low edge, then applies one of the eight NATURES ±`ATTR_STEP`=8 to the current *and* to both ends of the band. The nature is picked **deterministically from the draft profile** by an explainable priority ladder, so the same strategy always yields the same character and there is nothing to re-roll by deleting and recreating. Called once at agent creation; birth writes six `attrLog` entries with cause `birth`. The four arena archetypes are born Nit → **Rock**, Loose Cannon → **Hothead**, TAG → **Shark**, Calling Station → **Grinder**. Pre-existing agents are NOT retro-rolled: `ensureAttributes()` keeps backfilling them at neutral 50 with a null nature, because rewriting a character its owner has already watched play is not a migration.
+
+Client contract: `GET /api/agents` carries `attrs`, `potential`, `nature` and `fatigue` (`fresh` while resting, from `effectiveAttrs` against that seat's own session hand count while at a table); `GET /api/agents/:id` adds the `attrLog` ring buffer (200 entries) the 90-day sparkline draws.
+
+**Measurement is PENDING CREDITS.** No `ANTHROPIC_API_KEY` is present in the environment, so not one model call was made. The three runs are wired and smoke-tested on the fallback path:
+```
+node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes high
+node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes low
+node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes off
+```
+Building the flag surfaced a defect that would have ruined exactly this measurement: with `--matchups "TAG,TAG"` both seats keyed the same stats object and the second summary silently overwrote seat A's row. Sides are now labelled `TAG#A` / `TAG#B`, which also keeps their opponent reads from merging into one record.
+
 ## Merged 2026-09-05: feature/watch-calm (WCM-1 calm between-hands state, WCM-2 felt density/colour) → main 9ab7aca. Remaining unmerged: feature/desktop-port (DSK2-1 only; DSK2-2..4 status unknown).

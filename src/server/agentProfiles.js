@@ -21,7 +21,13 @@ import {
   recordSessionOutcome,
   clearProposalPending,
 } from './notifications/telegram.js';
-import { ensureAttributes } from '../agent/attributes.js';
+import {
+  ATTR_KEYS,
+  ensureAttributes,
+  birthAttributes,
+  effectiveAttrs,
+  logAttrChange,
+} from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
 
@@ -204,10 +210,30 @@ function commitAgent(profile, existingAgentId, agentData) {
     lastUpdated: null,
   };
   agent.mood = initialMood();
+  // ATTR-1d: birth. The six attributes, their scouted potential bands, and the
+  // nature — read deterministically out of the draft profile, so the same
+  // strategy always produces the same character and there is nothing to
+  // re-roll by deleting and recreating. Only NEW agents are born; pre-existing
+  // agents keep the neutral 50 / null-nature backfill from ensureAttributes,
+  // because retro-rolling a live agent would rewrite a character its owner has
+  // already watched play.
+  const born = birthAttributes({ profile: numericProfile });
+  agent.attrs = born.attrs;
+  agent.potential = born.potential;
+  agent.nature = born.nature;
+  // One entry per key so the profile sparkline has a starting point to draw
+  // from. from === to on purpose: birth is an anchor, not a tick, and a chart
+  // must not render a phantom jump for it.
+  agent.attrLog = [];
+  const bornAt = Date.now();
+  for (const k of ATTR_KEYS) {
+    logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
+  }
   agent.bankroll = STARTING_GRANT;
   agent.ledger = [{ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null }];
   profile.agents.push(agent);
-  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
+  console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
+              ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
   return agent;
 }
 
@@ -803,6 +829,13 @@ export function presentAgent(agent, { owner = false } = {}) {
     : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
   const sessionLog = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
   ensureBankroll(agent);
+  // ATTR-1d: fatigue is a within-session STATE, so it only exists while he is
+  // actually at a table — an agent at rest is fresh by definition, and the bar
+  // is what restores him. heroSessionHands is this seat's own count, not the
+  // table's, so a late joiner is not reported as worn on someone else's hands.
+  const fatigue = presence === 'playing'
+    ? effectiveAttrs(agent, { sessionHands: liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0 }).fatigue
+    : 'fresh';
   const careerStats = {
     hands: agent.stats?.handsPlayed ?? 0,
     sessions: sessionLog.length,
@@ -820,6 +853,7 @@ export function presentAgent(agent, { owner = false } = {}) {
     proposal: agent.proposal ?? null,
     presence,
     liveGame,
+    fatigue,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),
     sessionLog,
     careerStats,

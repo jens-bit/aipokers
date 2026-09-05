@@ -102,11 +102,17 @@ const STATION_READ = {
 const rows = LEVELS.map((l) => ({ level: l, m: measure(l) }));
 const col = (pick) => rows.map(({ m }) => pick(m));
 
+// Every printed row is also recorded, so the ATTR-1d invariant below can be
+// checked against exactly what was shown rather than against a second
+// hand-maintained list that could drift away from the table.
+const printedRows = [];
+
 function table(title, lines) {
   console.log(`\n${title}`);
   console.log('  ' + 'metric'.padEnd(42) + LEVELS.map((l) => `${l.name} (${l.name === 'off' ? '—' : l.value})`.padStart(13)).join(''));
   for (const [label, values] of lines) {
     console.log('  ' + label.padEnd(42) + values.map((v) => String(v).padStart(13)).join(''));
+    if (values.some((v) => String(v) !== '')) printedRows.push({ title, label: label.trim(), values });
   }
 }
 
@@ -148,11 +154,33 @@ table('STAMINA — late-session sharpness', [
   ['stage at 2× onset', col((m) => m.wornStage)],
   ['FOCUS at 2× onset (from the column value)', col((m) => num(m.wornFocus, 1))],
   ['DISCIPLINE at 2× onset', col((m) => num(m.wornDiscipline, 1))],
-  ['equity misjudged while worn (pts)', col((m) => num(m.wornEquityError, 1))],
-  ['deviation while worn (%)', col((m) => num(m.wornDeviationPct, 1))],
 ]);
 
-// The claim the whole design rests on, checked rather than asserted.
+// Deliberately NOT in the table above. Those rows are all measured at the
+// column's own attribute value; these two are measured at a FATIGUED value
+// (FOCUS/DISCIPLINE 20 points down), so mid legitimately differs from off -
+// that difference is STAMINA doing its job. Keeping them out of the table
+// keeps the mid == off invariant a real, unconditional check.
+console.log('\nWhat being worn costs downstream, at ATTRIBUTE_IMPACT=' + attributeImpact());
+console.log('  ' + 'metric'.padEnd(42) + LEVELS.map((l) => `${l.name} (${l.name === 'off' ? '—' : l.value})`.padStart(13)).join(''));
+for (const [label, pick] of [
+  ['equity misjudged while worn (pts)', (m) => num(m.wornEquityError, 1)],
+  ['deviation while worn (%)', (m) => num(m.wornDeviationPct, 1)],
+]) {
+  console.log('  ' + label.padEnd(42) + col(pick).map((v) => String(v).padStart(13)).join(''));
+}
+
+// The two claims the whole design rests on, checked rather than asserted.
+const OFF = 0, MID = 2;   // column indices
+
+// ATTR-1d: neutral is neutral. Every row of the level table must read the same
+// in the mid column (attribute 50, knob live) as in the off column (knob 0).
+// If this ever fails, shipping the feature silently changes how every existing
+// agent plays, because every backfilled agent sits at 50.
+const drifted = printedRows.filter((r) => String(r.values[MID]) !== String(r.values[OFF]));
+
+// The knob-0 law: with ATTRIBUTE_IMPACT=0 every hook returns the pre-attribute
+// constant, whatever the attribute value is.
 const off = rows[0].m;
 const identical =
   num(off.readsMinHands, 6) === '10.000000' &&
@@ -167,11 +195,23 @@ const identical =
   off.wornEquityError === 0 &&
   off.wornDeviationPct === 100 - TAG.discipline;
 
-console.log(`\n═══ knob-0 identity: ${identical ? 'HOLDS' : 'BROKEN'} ═══`);
+console.log(`\n=== knob-0 identity: ${identical ? 'HOLDS' : 'BROKEN'} ===`);
 console.log('  With ATTRIBUTE_IMPACT=0 every hook returns the pre-attribute constant:');
-console.log(`  reads gate 10 · exploits on · σ 0 · equity untouched · deviation ${100 - TAG.discipline}% ·`);
-console.log(`  tilt ${tiltResistance(TAG)} · decay ${DECAY_HANDS} hands · deception ×1 · onset hand 100.`);
+console.log(`  reads gate 10 | exploits on | sigma 0 | equity untouched | deviation ${100 - TAG.discipline}% |`);
+console.log(`  tilt ${tiltResistance(TAG)} | decay ${DECAY_HANDS} hands | deception x1 | onset hand 100.`);
 console.log('  This is what `arena --attributes off` reproduces, and it is the reason');
-console.log('  a bb/100 delta between high and low can only be the attributes.\n');
+console.log('  a bb/100 delta between high and low can only be the attributes.');
 
-process.exit(identical ? 0 : 1);
+console.log(`\n=== neutral is neutral (mid == off on all ${printedRows.length} rows): ${drifted.length === 0 ? 'HOLDS' : 'BROKEN'} ===`);
+if (drifted.length === 0) {
+  console.log('  An agent at 50 plays exactly as he did before attributes existed, at any');
+  console.log('  impact setting. at() is hinged at 50 (0..50 runs low->neutral, 50..100 runs');
+  console.log('  neutral->high), so backfilled agents are untouched until they actually grow.');
+} else {
+  for (const r of drifted) {
+    console.error(`  DRIFT  ${r.title} / ${r.label}: mid=${r.values[MID]} off=${r.values[OFF]}`);
+  }
+}
+console.log('');
+
+process.exit(identical && drifted.length === 0 ? 0 : 1);
