@@ -132,7 +132,7 @@ function MuteToggle() {
 // so the agent replies in-voice. AI table-speech (trash talk from the WS) appears
 // as ambient rows, visually distinct from the DM thread.
 
-function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
+function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName }) {
   var [text, setText] = useState('');
   var listRef    = useRef(null);
   var chatInputRef = useRef(null);
@@ -145,9 +145,15 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
     return function() { el.removeEventListener('focus', onFocus); };
   }, []);
 
-  // Merge thread messages and ambient table speech sorted by timestamp.
+  // W4-4: the ordered record of everything said at this table — his lines
+  // (including the ones that were only ever bubbles), theirs, and yours. A
+  // bubble that was withheld from the felt because it would not fit is still
+  // here: that is the last clause of the bubble law.
   var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
     .concat(tableSpeech.map(function(m) { return Object.assign({}, m, { _type: 'ambient' }); }))
+    .concat((said || []).map(function(u) {
+      return { _type: u.mine ? 'his' : 'ambient', text: u.text, t: u.at, _id: u.id };
+    }))
     .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
 
   useEffect(function() {
@@ -190,6 +196,17 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
                   fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)',
                   fontStyle: 'italic', lineHeight: 1.4,
                 }}>{m.text}</span>
+              </div>
+            );
+          }
+          // W4-4: a line he said out loud at the table. His register in the
+          // record: his own voice, not italicised like theirs, and not a
+          // bubble — the felt already had that and let it go.
+          if (m._type === 'his') {
+            return (
+              <div key={'his-' + (m._id || i)} className="table-row table-row--his">
+                <span className="table-row__who">HIM</span>
+                <span className="table-row__text">{m.text}</span>
               </div>
             );
           }
@@ -837,7 +854,10 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 // W4-2: READ is gone. A read was never a tab — it is about ONE person, and the
 // way you ask for it is to tap them. The rows moved into ReadSheet, which opens
 // over the felt on a seat tap. CHAT stays, and W4-4 renames it TABLE.
-var TABS = ['Chat'];
+// W4-4: one tab, because there is only one thing under the felt now —
+// everything said at this table, in order, whoever said it. The felt is the
+// performance and it never scrolls; this is the transcript and it always does.
+var TABS = ['Table'];
 var TAB_CHAT = 0;
 
 // WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
@@ -1463,6 +1483,7 @@ export function WatchScreen({
                 <ChatTab
                   agentThread={agentThread}
                   tableSpeech={tableSpeech}
+                  said={tableRecord}
                   onSend={sendToAgent}
                   loading={agentLoading}
                   agentName={config ? config.displayName : null}

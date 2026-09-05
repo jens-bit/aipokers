@@ -164,9 +164,10 @@ describe('W4-5: where Chat goes', () => {
     render(<WatchScreen {...props} />);
     await userEvent.click(screen.getByRole('button', { name: 'Chat' }));
 
-    // No router, so talking stays here: the sheet's own chat tab takes over.
+    // No router, so talking stays here: the sheet's own tab takes over. W4-4
+    // named it TABLE — the record — and it carries the composer.
     await waitFor(() => {
-      expect(document.querySelector('.watch-tabs__tab.is-active')).toHaveTextContent(/chat/i);
+      expect(document.querySelector('.watch-tabs__tab.is-active')).toHaveTextContent(/table/i);
     });
   });
 

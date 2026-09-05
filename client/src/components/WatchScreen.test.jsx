@@ -403,7 +403,9 @@ describe('W3-2 the panel', () => {
   // with the one thing that is genuinely a list.
   it('W4-2: offers exactly one tab, and READ is not it', () => {
     const { container } = renderWatch(midHandGame);
-    expect(tabLabels(container)).toEqual(['Chat']);
+    // W4-4 named it TABLE: it is the ordered record of everything said here,
+    // not a chat window.
+    expect(tabLabels(container)).toEqual(['Table']);
     expect(tabLabels(container).join(' ').toLowerCase()).not.toContain('read');
   });
 
@@ -419,7 +421,7 @@ describe('W3-2 the panel', () => {
 
   it('W4-2: the panel opens on its only tab', () => {
     const { container } = renderWatch(midHandGame);
-    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Chat');
+    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Table');
     // The reads are not in the panel any more; they open over the felt.
     expect(container.querySelector('.read-panel')).toBeNull();
   });

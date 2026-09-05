@@ -1582,3 +1582,29 @@
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation: none; }
 }
+
+/* ── W4-4 · the TABLE record ────────────────────────────────────────────
+ * mood-watch4.jsx TableRow. One tab, because there is only one thing under the
+ * felt now: everything said at this table, in order, whoever said it. */
+
+.table-row {
+  display: flex;
+  gap: 9px;
+  padding: 7px 14px;
+  align-items: baseline;
+}
+.table-row__who {
+  width: 56px;
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  color: var(--sys-muted, #9E9EA2);
+}
+.table-row__text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--sys-dim, #C3C3C6);
+}
+.table-row--his .table-row__who { color: var(--sys-teal, #00D4AA); }
+.table-row--his .table-row__text { color: var(--sys-text, #EDEDED); }
