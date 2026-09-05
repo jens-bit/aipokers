@@ -19,7 +19,8 @@ import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
-import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
+import { paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS } from '../lib/pace.js';
+import { pickOpponent } from '../lib/reads.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -88,7 +89,7 @@ function posLabel(seat, game) {
 function ReadTab({ game, between, agent, lastHand, predict }) {
   return (
     <div className="watch-panel__read">
-      <ReadPanel reads={game ? game.reads : null} />
+      <ReadPanel reads={game ? game.reads : null} game={game} />
       {predict}
       {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
       <MuteToggle />
@@ -857,6 +858,10 @@ function detentName(frac) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // W3-5: the newest PACE frame, { pace, potBb, board?, card? }. During a
+  // spectator-only all-in hold the server stages the runout here card by card;
+  // without it the flip falls back to the client's own timer.
+  paceFrame,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -987,13 +992,18 @@ export function WatchScreen({
   var between = !handActive(game);
   var pace = paceOf(game);
 
-  // W3-1: the showdown runout, one card at a time. The server says SHOWDOWN and
-  // the client walks the reveal up on a timer — 450ms a card, five cards in
-  // 2.0s, which is the ww-ref's "≈ 2s reveal + 1s hold". Off a showdown there
-  // is nothing to walk: `null` means "however many the server has dealt".
+  // The showdown runout, one card at a time.
+  //
+  // W3-5: the server stages it. During a spectator-only all-in hold each PACE
+  // message carries the board as it stands, so the frame — not a local clock —
+  // says what is face up, and every watcher sees the same card at the same
+  // moment. The timer below is the fallback for a server that is not staging,
+  // and it is not started when a frame is present.
+  var staged = stagedCount(paceFrame);
   var [flipped, setFlipped] = useState(null);
   var dealtCount = (game && game.community) ? game.community.length : 0;
   useEffect(function() {
+    if (staged != null) return undefined;               // the server is driving
     if (pace !== 'showdown') { setFlipped(null); return undefined; }
     setFlipped(0);
     var n = 0;
@@ -1003,7 +1013,9 @@ export function WatchScreen({
       if (n >= dealtCount) clearInterval(id);
     }, FLIP_MS);
     return function() { clearInterval(id); };
-  }, [pace, dealtCount, game && game.handNumber]);
+  }, [staged != null, pace, dealtCount, game && game.handNumber]);
+
+  var faceUp = staged != null ? staged : flipped;
 
   // His one line on the felt: the newest decision's reasoning, in his voice.
   // Finding 3 — long voice lives in the thread, the felt gets one sentence.
@@ -1036,9 +1048,9 @@ export function WatchScreen({
 
   // Each card of the runout, during the hold.
   useEffect(function() {
-    if (pace !== 'showdown' || !flipped) return;
+    if (pace !== 'showdown' || !faceUp) return;
     beat('runoutCard', fireHaptic);
-  }, [pace, flipped]);
+  }, [pace, faceUp]);
 
   // The pot, once it is settled. Winning is a notification; losing is quiet.
   var resultSeenRef = useRef(null);
@@ -1077,12 +1089,20 @@ export function WatchScreen({
   }, [predictOn, game && game.handNumber]);
 
   // A read forming. The panel animates; the device only nudges.
-  var formingRef = useRef(false);
-  var readsForming = !!(game && game.reads && game.reads.forming);
+  //
+  // W3-5: there is no `forming` flag on the wire — the server stops sending a
+  // READ once nothing has changed — so the event is this opponent's `formed`
+  // going true, which is what the panel watches for too.
+  var formedRef = useRef(new Map());
+  var shownRead = pickOpponent(game && game.reads, game);
+  var shownWho = shownRead ? shownRead.playerId : null;
+  var shownFormed = !!(shownRead && shownRead.formed);
   useEffect(function() {
-    if (readsForming && !formingRef.current) beat('readForms', fireHaptic);
-    formingRef.current = readsForming;
-  }, [readsForming]);
+    if (!shownWho) return;
+    var before = formedRef.current.get(shownWho);
+    formedRef.current.set(shownWho, shownFormed);
+    if (before === false && shownFormed) beat('readForms', fireHaptic);
+  }, [shownWho, shownFormed]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
@@ -1140,7 +1160,7 @@ export function WatchScreen({
         ref={sheet.stageRef}>
 
         <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} flipped={flipped} line={feltLine} geom={sheet.geom} />
+          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
