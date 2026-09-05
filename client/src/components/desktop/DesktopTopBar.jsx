@@ -9,7 +9,7 @@ function initialsOf(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup }) {
+export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
@@ -65,6 +65,15 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup 
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
+
+      {/* DP-2: the wallet is reached from the number it is about. When there
+          is no wallet on this deployment there is nothing to open, and the
+          button is not drawn at all. */}
+      {onWallet && (
+        <button type="button" className="dsk-btn dsk-btn--ghost dsk-top__wallet" onClick={onWallet}>
+          {walletLabel ?? 'Wallet'}
+        </button>
+      )}
 
       <div className="dsk-top__spacer" />
       <span className="dsk-top__clock">{clock}</span>

@@ -1721,3 +1721,41 @@
 /* At ALL-IN his line is the loudest thing on the stage — the same law the
    phone applies, at the desk's size. */
 .dtb[data-pace='allin'] .dtb__line { color: #fff; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-2 — the wallet, as a rail panel. D3WalletScreenM.
+ * The components are the mobile ones; what is here is the width they sit in.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-top__wallet {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* The mobile block carries its own 14px page margins. In a 520px rail those
+   are the panel's job, so they are taken back here rather than by forking the
+   component for the desk. */
+.dsk-wallet .wal-block,
+.dsk-wallet .wal-pockets {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dsk-wallet .wal-block { margin-top: 0; }
+
+/* Room enough for the figure the ref sets at 44px on desktop. */
+.dsk-wallet .wal-block__amount { font-size: 42px; }
+
+/* The Fund sheet takes the panel the way it takes the screen on the phone:
+   it is a decision, not a popover over a list. */
+.dsk-wallet__sheet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Its own head is the panel's, so the sheet's is dropped rather than stacked. */
+.dsk-wallet__sheet .wal-sheet__head { display: none; }
+.dsk-wallet__sheet .wal-sheet { background: transparent; }
