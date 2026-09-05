@@ -5,6 +5,18 @@
 // GET /api/agents shows mood + lastMoment + unseenRecap + proposal +
 // presence. No LLM calls required.
 
+// TEST-2 — deterministic or it isn't a test. With a key present the agents
+// make real model decisions, every run deals a different hand, and this suite
+// failed intermittently on whichever machine had the key exported. The test
+// runner strips ANTHROPIC_API_KEY from the child environment; this is the
+// seatbelt for a hand-run. Live-model behaviour belongs in `npm run test:live`.
+if (process.env.ANTHROPIC_API_KEY) {
+  console.error('[verify] ANTHROPIC_API_KEY is set. This suite asserts on the deterministic');
+  console.error('[verify] check/fold fallback and is not reproducible against a live model.');
+  console.error('[verify] Unset it and re-run, or use `npm run test:e2e`, which strips it.');
+  process.exit(1);
+}
+
 import express from 'express';
 import http from 'node:http';
 import { WebSocket } from 'ws';

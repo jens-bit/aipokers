@@ -15,6 +15,23 @@ import {
   NATURES,
   natureForProfile,
   birthAttributes,
+  firstWordsFor,
+  natureHintFor,
+  NATURE_HINT_MIN_SIGNALS,
+  SCOUT_STAGES,
+  EVIDENCE_FIELD,
+  EVIDENCE_FULL,
+  MAX_TICK_CHANCE,
+  growthProximity,
+  growthChance,
+  growthCause,
+  scoutStageFor,
+  narrowedBand,
+  potentialTarget,
+  applySessionGrowth,
+  attrCostsForHand,
+  ATTR_COST_EQUITY_GAP,
+  wornMomentFor,
   NEUTRAL_ATTR,
   MAX_FATIGUE_DROP,
   at,
@@ -48,6 +65,10 @@ function check(label, cond) {
 }
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 const NEUTRAL_BANNER = '\u2014 NEUTRAL IS NEUTRAL: 50 is today at every impact \u2014';
+const CONTRACT_BANNER = '\u2014 the contract the UI reads: nature words, first words, forming hint \u2014';
+const GROWTH_BANNER = '\u2014 growth: single points, slowing at the band \u2014';
+const NARROW_BANNER = '\u2014 narrowing: hands played, visible jumps, never widening \u2014';
+const COSTS_BANNER = '\u2014 attrCosts: what an attribute cost him, in one hand \u2014';
 const BIRTH_BANNER = '\u2014 birth: natures, bands, day-one currents \u2014';
 
 // Run `fn` with the knob forced to `value`, then restore the environment.
@@ -246,6 +267,381 @@ console.log('\n' + BIRTH_BANNER);
   ensureAttributes(legacy);
   check('ensureAttributes still backfills neutral, never births',
     ATTR_KEYS.every((k) => legacy.attrs[k] === 50) && legacy.nature === null);
+}
+
+
+console.log('\n' + CONTRACT_BANNER);
+{
+  // Everything client/src/lib/attributes.js and BirthScreen.jsx read off a
+  // nature. The client renders what it is given and never invents any of it,
+  // so a missing field here is a blank panel there.
+  check('every nature carries builtFor and struggle, one clause each',
+    NATURES.every((n) =>
+      typeof n.builtFor === 'string' && n.builtFor.length > 20 && n.builtFor.length < 90 &&
+      typeof n.struggle === 'string' && n.struggle.length > 20 && n.struggle.length < 90));
+  check('builtFor and struggle differ for every nature',
+    NATURES.every((n) => n.builtFor !== n.struggle));
+  check('natureForProfile hands the words out too', (() => {
+    const n = natureForProfile({ tightness: 88, aggression: 50, bluffFreq: 8, discipline: 85 });
+    return n.name === 'Rock' && !!n.builtFor && !!n.struggle && !!n.line;
+  })());
+
+  check('every nature has firstWords in his own voice',
+    NATURES.every((n) => typeof firstWordsFor(n.name) === 'string' && firstWordsFor(n.name).length > 15));
+  check('firstWords takes a nature record as well as a name',
+    firstWordsFor({ name: 'Rock' }) === firstWordsFor('Rock'));
+  check('firstWords for an unknown nature is null, never invented',
+    firstWordsFor('Wizard') === null && firstWordsFor(null) === null);
+  check('the Rock says the line from the brief',
+    firstWordsFor('Rock') === 'Patient, you said. Good. I am a Rock.');
+
+  // The forming chip. A guess, and honest about not being one yet.
+  check('one signal is not enough to guess', natureHintFor('aggressive') === null);
+  check('no words, no guess', natureHintFor('') === null && natureHintFor(null) === null);
+  check('a draft with nothing about play gets no guess',
+    natureHintFor('call him Steve and give him a hat') === null);
+  check(`${NATURE_HINT_MIN_SIGNALS} signals is the bar`, NATURE_HINT_MIN_SIGNALS === 2);
+  check('tight + folds reads as a Rock',
+    natureHintFor('I want a patient tight player who folds a lot')?.name === 'Rock');
+  check('aggressive + bluffs reads as a Showman',
+    natureHintFor('aggressive, and he should bluff constantly')?.name === 'Showman');
+  check('grinding all night reads as a Grinder',
+    natureHintFor('a grinder who plays all night and sticks to the system')?.name === 'Grinder');
+  check('the hint names the signals it read',
+    (natureHintFor('tight and disciplined')?.signals ?? []).length === 2);
+  check('the hint is only ever a NAME — never a nature record',
+    Object.keys(natureHintFor('tight and disciplined')).sort().join(',') === 'name,signals');
+  check('a hint agrees with the birth the same words would produce', (() => {
+    const text = 'I want a patient tight player who folds a lot';
+    const hint = natureHintFor(text).name;
+    // The ladder is the single authority: whatever the hint says, a profile of
+    // that shape must be born the same thing.
+    return hint === natureForProfile({ tightness: 82, aggression: 45, bluffFreq: 25, discipline: 85 }).name;
+  })());
+
+  // The backfill for agents born before the words existed.
+  const legacy = { nature: { name: 'Sphinx', up: 'COMPOSURE', down: 'FOCUS' } };
+  ensureAttributes(legacy);
+  check('a pre-ATTR-3 nature gains its words without changing',
+    legacy.nature.name === 'Sphinx' && legacy.nature.up === 'COMPOSURE' &&
+    !!legacy.nature.builtFor && !!legacy.nature.struggle && !!legacy.nature.line);
+  check('a pre-ATTR-3 agent gains firstWords', legacy.firstWords === firstWordsFor('Sphinx'));
+  const natureless = {};
+  ensureAttributes(natureless);
+  check('an agent with no nature is never given one by the backfill',
+    natureless.nature === null && !natureless.firstWords);
+  const born = birthAttributes({ profile: { tightness: 88, aggression: 50, bluffFreq: 8, discipline: 85 } });
+  check('a newborn carries the words from the start',
+    !!born.nature.builtFor && !!born.nature.struggle);
+}
+
+
+console.log('\n' + GROWTH_BANNER);
+{
+  const FULL = {
+    hands: 400, readsFormed: 9, tiltSurvived: 6,
+    deviationsResisted: 9, bluffsThrough: 8, misjudgmentsAvoided: 400,
+  };
+  const band = { lo: 58, hi: 88 };
+
+  // The shape of the curve: free below the band, slowing to a crawl inside it,
+  // over at hi. "The first ten points of Focus are a week, the last five are a
+  // season."
+  check('below the band he climbs freely', growthProximity(35, band.lo, band.hi) > 0.9);
+  check('the climb slows as he reaches the low edge',
+    growthProximity(50, band.lo, band.hi) < growthProximity(35, band.lo, band.hi));
+  check('at the low edge it is already a third of full speed',
+    near(growthProximity(58, band.lo, band.hi), 0.35, 1e-9));
+  check('inside the band it keeps slowing',
+    growthProximity(65, band.lo, band.hi) < growthProximity(58, band.lo, band.hi));
+  check('the top half is near-zero',
+    growthProximity(75, band.lo, band.hi) < 0.06 && growthProximity(86, band.lo, band.hi) < 0.02);
+  check('at hi it is over', growthProximity(88, band.lo, band.hi) === 0);
+  check('above hi it is still over', growthProximity(95, band.lo, band.hi) === 0);
+  check('the curve never turns back up', (() => {
+    let prev = Infinity;
+    for (let v = 30; v <= 88; v++) {
+      const p = growthProximity(v, band.lo, band.hi);
+      if (p > prev + 1e-9) return false;
+      prev = p;
+    }
+    return true;
+  })());
+
+  // Evidence gates the chance; no evidence is no chance, whatever the room.
+  check('no evidence, no tick', growthChance('READS', {}, 35, band) === 0);
+  check('evidence with no room, no tick', growthChance('READS', FULL, 88, band) === 0);
+  check('a full session below the band is at the ceiling chance',
+    near(growthChance('STAMINA', FULL, 35, band), MAX_TICK_CHANCE, 1e-9));
+  check('a fraction of the evidence is a fraction of the chance',
+    growthChance('READS', { readsFormed: 1 }, 35, band) < growthChance('READS', { readsFormed: 4 }, 35, band));
+  check('even a perfect session is never a certainty', MAX_TICK_CHANCE <= 0.5);
+  check('every key has an evidence field and a scale',
+    ATTR_KEYS.every((k) => typeof EVIDENCE_FIELD[k] === 'string' && EVIDENCE_FULL[k] > 0));
+  check('every key has a cause in his world',
+    ATTR_KEYS.every((k) => typeof growthCause(k, 3) === 'string' && growthCause(k, 3).length > 12));
+  check('the cause names the evidence', /3/.test(growthCause('DECEPTION', 3)));
+
+  // A tick is ONE point, logged with its cause, and never past hi.
+  const mk = (attrs, potential, extra = {}) => {
+    const a = { id: 'agent_growth', stats: { handsPlayed: 0 }, ...extra };
+    ensureAttributes(a);
+    a.attrs = { ...defaultAttributes(), ...attrs };
+    a.potential = Object.fromEntries(ATTR_KEYS.map((k) => [k, { ...(potential ?? band) }]));
+    a.potentialBirth = JSON.parse(JSON.stringify(a.potential));
+    a.attrLog = [];
+    return a;
+  };
+
+  const always = () => 0;      // every roll succeeds
+  const never = () => 1;       // every roll fails
+
+  const grew = mk({ READS: 35 });
+  const res = applySessionGrowth(grew, { evidence: FULL, handsPlayed: 0, rand: always, now: 1000 });
+  check('a tick is exactly one point', res.ticks.every((t) => t.to - t.from === 1));
+  check('every attribute with evidence can tick', res.ticks.length === ATTR_KEYS.length);
+  check('the tick is written to the record', grew.attrs.READS === 36);
+  check('every tick is an attrLog entry with a cause',
+    grew.attrLog.length === ATTR_KEYS.length &&
+    grew.attrLog.every((e) => e.ts === 1000 && typeof e.cause === 'string' && e.cause.length > 12));
+  check('nothing grows when the dice say no',
+    applySessionGrowth(mk({ READS: 35 }), { evidence: FULL, rand: never }).ticks.length === 0);
+
+  // At the ceiling: never above hi, ever.
+  const atCeiling = mk({ READS: 88 });
+  const ceilRes = applySessionGrowth(atCeiling, { evidence: FULL, rand: always });
+  check('an attribute at hi never grows past it',
+    atCeiling.attrs.READS === 88 && !ceilRes.ticks.some((t) => t.key === 'READS'));
+  const oneBelow = mk({ READS: 87 });
+  applySessionGrowth(oneBelow, { evidence: FULL, rand: always });
+  check('an attribute one below hi may reach hi exactly', oneBelow.attrs.READS === 88);
+
+  check('a session that never happened grows nothing', (() => {
+    const idle = mk({ READS: 35 });
+    const r = applySessionGrowth(idle, { evidence: {}, rand: always });
+    return r.ticks.length === 0 && idle.attrs.READS === 35;
+  })());
+
+  console.log('\n' + NARROW_BANNER);
+
+  // Narrowing runs off HANDS PLAYED, never wins, at the ref's own stage counts.
+  check('the stages are the ref\'s 120 / 500 / 2000',
+    SCOUT_STAGES.map((x) => x.hands).join(',') === '120,500,2000');
+  check('the widths close 30 → 24 → 8 → 2',
+    SCOUT_STAGES.map((x) => x.width).join(',') === '24,8,2');
+  check('stage boundaries are exact',
+    scoutStageFor(0) === 0 && scoutStageFor(119) === 0 && scoutStageFor(120) === 1 &&
+    scoutStageFor(499) === 1 && scoutStageFor(500) === 2 &&
+    scoutStageFor(1999) === 2 && scoutStageFor(2000) === 3 && scoutStageFor(99999) === 3);
+
+  const scout = mk({ READS: 35 });
+  const before = { ...scout.potential.READS };
+  const r119 = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 119, rand: never });
+  check('nothing narrows before the first stage',
+    r119.narrowed.length === 0 && scout.potential.READS.hi - scout.potential.READS.lo === 30);
+
+  const r120 = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 120, rand: never, now: 2000 });
+  check('the first stage narrows every key', r120.narrowed.length === ATTR_KEYS.length);
+  check('the band closes to the stage width',
+    scout.potential.READS.hi - scout.potential.READS.lo === 24);
+  check('the narrowed band stays inside the band he was born with',
+    scout.potential.READS.lo >= before.lo && scout.potential.READS.hi <= before.hi);
+  check('narrowing writes an attrLog entry with cause narrowed',
+    scout.attrLog.filter((e) => e.cause === 'narrowed').length === ATTR_KEYS.length);
+  check('a narrowing entry does not move the value — no phantom step',
+    scout.attrLog.filter((e) => e.cause === 'narrowed').every((e) => e.from === e.to));
+  check('agent.narrowed carries the keys for the caret',
+    Array.isArray(scout.narrowed) && scout.narrowed.length === ATTR_KEYS.length);
+
+  const rAgain = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 130, rand: never });
+  check('the same stage never narrows twice', rAgain.narrowed.length === 0);
+  check('agent.narrowed is transient — cleared on the next session', scout.narrowed === null);
+
+  applySessionGrowth(scout, { evidence: FULL, handsPlayed: 500, rand: never });
+  check('the second stage closes it to 8', scout.potential.READS.hi - scout.potential.READS.lo === 8);
+  applySessionGrowth(scout, { evidence: FULL, handsPlayed: 2000, rand: never });
+  check('the last stage closes it to 2', scout.potential.READS.hi - scout.potential.READS.lo === 2);
+  check('the band is nearly a number, and inside the original',
+    scout.potential.READS.lo >= before.lo && scout.potential.READS.hi <= before.hi);
+
+  check('a band never widens, at any stage, for any key', (() => {
+    for (let seed = 0; seed < 40; seed++) {
+      const a = mk({}, band, { id: `agent_${seed}` });
+      let prev = ATTR_KEYS.map((k) => ({ ...a.potential[k] }));
+      for (const hands of [120, 500, 2000]) {
+        applySessionGrowth(a, { evidence: FULL, handsPlayed: hands, rand: never });
+        const now = ATTR_KEYS.map((k) => ({ ...a.potential[k] }));
+        for (let i = 0; i < ATTR_KEYS.length; i++) {
+          if (now[i].lo < prev[i].lo || now[i].hi > prev[i].hi) return false;
+        }
+        prev = now;
+      }
+    }
+    return true;
+  })());
+
+  check('the target it narrows toward is stable and inside the birth band', (() => {
+    const a = mk({}, band, { id: 'agent_target' });
+    const t1 = potentialTarget(a, 'READS');
+    const t2 = potentialTarget(a, 'READS');
+    return t1 === t2 && t1 >= band.lo && t1 <= band.hi;
+  })());
+  check('different agents scout to different truths', (() => {
+    const t = new Set();
+    for (let i = 0; i < 12; i++) t.add(potentialTarget(mk({}, band, { id: `agent_t${i}` }), 'READS'));
+    return t.size > 6;
+  })());
+  check('narrowedBand on an agent with no band is null, never a guess',
+    narrowedBand({ id: 'x' }, 'READS', 8) === null);
+
+  check('natures and birth values are never touched by growth', (() => {
+    const a = mk({ READS: 35 }, band, { nature: { name: 'Rock', up: 'DISCIPLINE', down: 'READS' } });
+    const natureBefore = JSON.stringify(a.nature);
+    const birthBefore = JSON.stringify(a.potentialBirth);
+    applySessionGrowth(a, { evidence: FULL, handsPlayed: 2000, rand: always });
+    return JSON.stringify(a.nature) === natureBefore && JSON.stringify(a.potentialBirth) === birthBefore;
+  })());
+
+  check('nothing ever regresses across a long career', (() => {
+    const a = mk({}, band, { id: 'agent_career' });
+    let prev = ATTR_KEYS.map((k) => a.attrs[k]);
+    let r = 7;
+    const lcg = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
+    for (let session = 1; session <= 60; session++) {
+      applySessionGrowth(a, { evidence: FULL, handsPlayed: session * 40, rand: lcg });
+      const now = ATTR_KEYS.map((k) => a.attrs[k]);
+      for (let i = 0; i < now.length; i++) {
+        if (now[i] < prev[i]) return false;
+        if (now[i] > a.potential[ATTR_KEYS[i]].hi) return false;
+      }
+      prev = now;
+    }
+    return true;
+  })());
+}
+
+
+console.log('\n' + COSTS_BANNER);
+{
+  // Synthetic hands. `equity` is the truth; `attr.seenEquity` is what the
+  // briefing showed him. The review's job is to say the difference out loud,
+  // as something HE did.
+  const decision = (over = {}) => ({
+    street: 'flop',
+    action: { type: 'call' },
+    equity: 0.42,
+    potOdds: 0.30,
+    attr: {
+      seenEquity: 0.42, seenPotOdds: 0.30, deviationDie: false,
+      inRange: true, moodState: 'neutral', readSubjects: [], fatigue: 'fresh',
+      ...(over.attr ?? {}),
+    },
+    ...over,
+  });
+
+  check('a clean hand costs nothing', attrCostsForHand({ decisions: [decision()], won: true }).length === 0);
+  check('a hand with no attr context costs nothing — never invented',
+    attrCostsForHand({ decisions: [{ street: 'flop', action: { type: 'call' }, equity: 0.4 }] }).length === 0);
+  check('no decisions, no lines', attrCostsForHand({}).length === 0);
+
+  // FOCUS: the gap has to be big enough AND change the answer.
+  const focusHand = [decision({
+    action: { type: 'fold' }, equity: 0.42, potOdds: 0.30,
+    attr: { seenEquity: 0.27 },   // shown 27%, needed 30% — so he folded
+  })];
+  const focus = attrCostsForHand({ decisions: focusHand, won: false });
+  check('FOCUS is charged when the misjudgment crosses the price',
+    focus.length === 1 && focus[0].key === 'FOCUS');
+  check('the FOCUS line reads as HIS misjudgment, with both numbers',
+    /^he misjudged equity by 15 points/.test(focus[0].line) &&
+    /he had 42%, he played 27%/.test(focus[0].line));
+  check('the line names no attribute — the client renders the key separately',
+    !/FOCUS|Focus/.test(focus[0].line));
+  check('the cost rides the street it happened on', focus[0].street === 'FLOP');
+
+  check('a small misjudgment is a rounding, not a cost',
+    attrCostsForHand({ decisions: [decision({ attr: { seenEquity: 0.44 } })] }).length === 0);
+  check('a big misjudgment that changes nothing is not a cost', (() => {
+    // 20 points out, but both sides of it are still miles above the price.
+    const d = decision({ equity: 0.80, potOdds: 0.20, attr: { seenEquity: 0.60 } });
+    return attrCostsForHand({ decisions: [d] }).length === 0;
+  })());
+  check('five points is the bar', ATTR_COST_EQUITY_GAP === 0.05);
+
+  // DISCIPLINE: the die fired, the hand was out of range, and he played it.
+  const disc = attrCostsForHand({
+    decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } })],
+    won: false,
+  });
+  check('DISCIPLINE is charged for taking the licence and losing',
+    disc.length === 1 && disc[0].key === 'DISCIPLINE' && disc[0].cost !== false);
+  const discWon = attrCostsForHand({
+    decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } })],
+    won: true,
+  });
+  check('the same deviation that WON is still a line, marked cost:false',
+    discWon.length === 1 && discWon[0].cost === false && /came off/.test(discWon[0].line));
+  check('a die that fired on an in-range hand is not a deviation',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: true } })] }).length === 0);
+  check('folding under the licence is the opposite of a deviation',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'fold' }, attr: { deviationDie: true, inRange: false } })] })
+      .filter((c) => c.key === 'DISCIPLINE').length === 0);
+
+  // COMPOSURE: played it while steaming.
+  const comp = attrCostsForHand({
+    decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } })], won: false,
+  });
+  check('COMPOSURE is charged for a hand played while steaming',
+    comp.length === 1 && comp[0].key === 'COMPOSURE' && /steaming/.test(comp[0].line));
+  check('steaming and winning is still a line, marked cost:false',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } })], won: true })[0].cost === false);
+  check('frustrated is not steaming',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'frustrated' } })] }).length === 0);
+
+  // READS: briefed, and folded at a price that called anyway.
+  const reads = attrCostsForHand({
+    decisions: [decision({ action: { type: 'fold' }, equity: 0.44, potOdds: 0.25, attr: { seenEquity: 0.44, readSubjects: ['The Regular'] } })],
+    won: false,
+  });
+  check('READS is charged when a briefed read was ignored',
+    reads.length === 1 && reads[0].key === 'READS' && /The Regular/.test(reads[0].line));
+  check('a read he played WITH is a line too, marked cost:false', (() => {
+    const r = attrCostsForHand({
+      decisions: [decision({ action: { type: 'call' }, attr: { readSubjects: ['The Regular'] } })], won: true,
+    });
+    return r.length === 1 && r[0].key === 'READS' && r[0].cost === false;
+  })());
+
+  // One line per key per hand, oldest first.
+  const many = attrCostsForHand({
+    decisions: [
+      decision({ street: 'flop',  action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      decision({ street: 'turn',  action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      decision({ street: 'river', action: { type: 'bet' }, attr: { moodState: 'sulking' } }),
+    ],
+    won: false,
+  });
+  check('one line per key per hand, however long the hand', many.length === 1);
+  check('the earliest decision wins the line', many[0].street === 'FLOP');
+
+  check('every entry matches the client contract {key, line, street?, cost?}', (() => {
+    const all = attrCostsForHand({
+      decisions: [
+        decision({ action: { type: 'fold' }, equity: 0.42, potOdds: 0.30, attr: { seenEquity: 0.27 } }),
+        decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } }),
+        decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      ],
+      won: false,
+    });
+    return all.length === 3 && all.every((c) =>
+      ATTR_KEYS.includes(c.key) &&
+      typeof c.line === 'string' && c.line.length > 10 &&
+      (c.street === undefined || typeof c.street === 'string') &&
+      (c.cost === undefined || c.cost === false));
+  })());
+
+  check('he says the worn line himself, with the hand count',
+    /^168 hands in\./.test(wornMomentFor(168)) && /slower/.test(wornMomentFor(168)));
 }
 
 

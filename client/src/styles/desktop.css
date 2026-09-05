@@ -1401,4 +1401,166 @@
   .dtb__hero { bottom: 26px; }
 }
 
+/* ── Player card in the panel (ATTR-2e-1) ────────────────────────────────
+ * char-profile.jsx PlayerCardRail + char-birth.jsx BirthCardRail. The bars,
+ * the fatigue line, the nature chip and the focus panel are the shared atoms
+ * from components/system — nothing here restyles them. */
+
+.dsk-panel__views {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  padding: 8px 14px 0;
+  border-bottom: 1px solid var(--dsk-border);
+  background: var(--dsk-panel);
+}
+.dsk-panel__view {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dsk-muted);
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+.dsk-panel__view:hover { color: var(--dsk-dim); }
+.dsk-panel__view.is-on { color: var(--dsk-teal); border-bottom-color: var(--dsk-teal); }
+
+.dsk-pcard__id { display: flex; gap: 12px; }
+.dsk-pcard__ghost {
+  border-radius: 13px;
+  flex-shrink: 0;
+  background: #0a0f17;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.dsk-pcard__id-text { flex: 1; min-width: 0; }
+.dsk-pcard__name {
+  font-family: var(--dsk-serif);
+  font-weight: 600;
+  color: var(--dsk-text);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsk-pcard__id-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.dsk-pcard__born {
+  font-family: var(--dsk-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--dsk-muted);
+}
+
+.dsk-pcard__nature-line {
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-style: italic;
+  color: color-mix(in oklab, var(--dsk-gold) 30%, var(--dsk-dim));
+}
+
+.dsk-pcard__sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dsk-pcard__note {
+  font-family: var(--dsk-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--dsk-muted);
+  white-space: nowrap;
+}
+.dsk-pcard__box {
+  padding: 14px 15px;
+  border-radius: 10px;
+  background: var(--dsk-surface);
+  border: 1px solid var(--dsk-border);
+}
+.dsk-pcard__fatigue {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsk-border);
+}
+.dsk-pcard__footnote {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsk-border);
+  font-size: 11.5px;
+  color: var(--dsk-muted);
+  line-height: 1.5;
+}
+
+.dsk-pcard__career {
+  display: flex;
+  padding: 10px 14px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--dsk-border);
+}
+.dsk-pcard__career-cell {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--dsk-border);
+  padding-left: 13px;
+}
+.dsk-pcard__career-val {
+  margin-top: 2px;
+  font-family: var(--dsk-mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-text);
+}
+.dsk-pcard__career-val.is-up { color: var(--dsk-teal); }
+
+/* ── Birth card extras ───────────────────────────────────────────────────── */
+
+.dsk-pcard__first {
+  font-size: 13px;
+  color: var(--dsk-text);
+  line-height: 1.55;
+  font-style: italic;
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: var(--dsk-surface);
+  border: 1px solid rgba(0, 212, 170, 0.24);
+}
+.dsk-pcard__pair { display: flex; flex-direction: column; gap: 10px; }
+.dsk-pcard__pair-row { display: flex; gap: 10px; }
+.dsk-pcard__pair-label {
+  width: 74px;
+  flex-shrink: 0;
+  padding-top: 1px;
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--dsk-muted);
+}
+.dsk-pcard__pair-label.is-up { color: var(--dsk-teal); }
+.dsk-pcard__pair-text { flex: 1; font-size: 12.5px; color: var(--dsk-dim); line-height: 1.45; }
+.dsk-pcard__pair-text.is-dim { color: var(--dsk-muted); }
+.dsk-pcard__deal { height: 42px; }
+
+/* The draft panel's guess, dressed as a guess. */
+.dsk-draft__forming { display: flex; justify-content: center; margin-bottom: 10px; }
+
 }

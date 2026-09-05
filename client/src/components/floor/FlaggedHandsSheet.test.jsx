@@ -34,6 +34,19 @@ describe('FlaggedHandsSheet list', () => {
     expect(fetchMock.requestsMatching('/flagged')[0].url).toContain('agent_grinder');
   });
 
+  // BUG-19 — holeCards on this endpoint are owner-gated by isOwner(), which
+  // reads the credential header. Without it the server cannot tell the owner
+  // is asking and returns holeCards: [], so the review rendered card backs
+  // where the agent's own hand belongs. It looked fine on localhost, where no
+  // TELEGRAM_BOT_TOKEN is set and isOwner() defaults to true.
+  it('BUG-19: sends the Telegram credential so the owner gets their hole cards', async () => {
+    renderSheet();
+    await waitFor(() => expect(fetchMock.requestsMatching('/flagged')).not.toHaveLength(0));
+    const [req] = fetchMock.requestsMatching('/flagged');
+    expect(req.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
+    expect(req.headers['x-telegram-init-data']).not.toBe('');
+  });
+
   it('renders one row per flagged hand, each with its type and hand number', async () => {
     renderSheet();
 
@@ -120,16 +133,30 @@ describe('FlaggedHandsSheet hand review', () => {
   // BUG-18 — the API returns opponentShowdownCards on every flagged entry
   // (buildFlaggedEntry in src/server/flaggedHands.js; public information, cards
   // actually turned over at showdown) and the sheet never renders them. A bad
-  // beat is unreadable without the hand that beat you. Kept red on purpose:
-  // this is a product gap, not a test bug.
-  it.todo('BUG-18: shows the opponent\'s showdown cards on a hand that went to showdown', async () => {
+  // beat is unreadable without the hand that beat you.
+  it('BUG-18: shows the opponent\'s showdown cards on a hand that went to showdown', async () => {
     await openBadBeat();
 
-    // The villain turned over 9c 9d and the river paired the nine. If the
-    // sheet rendered the showdown there would be three nines on screen — the
-    // board's and the villain's two. Today there is one.
+    // The villain turned over 9c 9d and the river paired the nine, so three
+    // nines are on screen: the board's and the villain's two.
     expect(badBeatHand.opponentShowdownCards[0].holeCards).toEqual(['9c', '9d']);
     const nines = faceUpRanks(document.body).filter((r) => r === '9');
     expect(nines).toHaveLength(3);
+  });
+
+  it('BUG-18: names the seat that showed', async () => {
+    await openBadBeat();
+    // seat 1 on the wire is the second seat at the table.
+    expect(screen.getByText('Seat 2 showed')).toBeInTheDocument();
+  });
+
+  it('BUG-18: says nothing when the pot was won without a showdown', async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    // The big bluff took it down uncontested, so opponentShowdownCards is empty.
+    await user.click(await screen.findByText(/Fired with 4% equity/));
+    await screen.findByText('Hole cards');
+
+    expect(screen.queryByText(/showed$/)).not.toBeInTheDocument();
   });
 });

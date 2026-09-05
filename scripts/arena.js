@@ -22,7 +22,21 @@ import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
 import { getAgentAction } from '../src/agent/handler.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
-import { ATTR_KEYS, effectiveAttrs, readMinHands, attributeImpact } from '../src/agent/attributes.js';
+import {
+  ATTR_KEYS,
+  effectiveAttrs,
+  readMinHands,
+  attributeImpact,
+  birthAttributes,
+  ensureAttributes,
+  applySessionGrowth,
+  newEvidence,
+  addEvidence,
+  decisionEvidence,
+  handEvidence,
+  logAttrChange,
+} from '../src/agent/attributes.js';
+import { perceivedMath } from '../src/agent/handler.js';
 import {
   recordHand as recordHandForOpponentStats,
   getRead as getOpponentRead,
@@ -40,7 +54,7 @@ resetOpponentStats();
 // bb/100 delta between two runs of the SAME strategy is attribute impact and
 // nothing else. "off" additionally forces ATTRIBUTE_IMPACT=0, which is the
 // control: it must reproduce the pre-attribute baseline.
-const ATTRIBUTE_LEVELS = { off: 50, low: 25, mid: 50, high: 80 };
+const ATTRIBUTE_LEVELS = { off: 50, low: 25, mid: 50, high: 80, grow: null };
 
 function parseArgs(argv) {
   const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000, reads: true, attributes: 'mid' };
@@ -63,7 +77,7 @@ function parseArgs(argv) {
       if (out.attributes === 'off') process.env.ATTRIBUTE_IMPACT = '0';
     }
     else if (a === '--help' || a === '-h') {
-      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads] [--attributes off|low|mid|high]');
+      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads] [--attributes off|low|mid|high|grow]');
       process.exit(0);
     }
   }
@@ -122,7 +136,7 @@ function collectDecisionMetrics(stats, decisions) {
 // nameBySeat is [nameForSeat0, nameForSeat1] — used as the opponentStats
 // playerId so reads follow the archetype across mirrored deck swaps.
 
-async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0 }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0, evidenceFor = null, evidence = null }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -237,6 +251,19 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
 
     const { action, reasoning } = await getAgentAction(gameState, bundles[seat].strategy, '');
     const streetAtDecision = game.street;
+
+    // ATTR-3 grow mode: the same evidence rules table.js runs on the live path.
+    if (evidence && evidenceFor !== null && nameBySeat[seat] === evidenceFor) {
+      const seen = perceivedMath(gameState);
+      addEvidence(evidence, decisionEvidence({
+        trueEquity: equity,
+        seenEquity: seen.equity,
+        deviationDie: !!policy.dice.deviationDie,
+        inRange: policy.range ? !!policy.range.inRange : null,
+        actionType: action?.type ?? null,
+      }));
+      if (opponentReads.length > 0) evidence._readSubjects?.add(nameBySeat[(seat + 1) % 2]);
+    }
     let fallback = /fallback|no API key|parse failure/i.test(reasoning || '');
 
     let appliedAction = action;
@@ -272,6 +299,18 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
     ? game.result.showdown.map((s) => s.seat).filter((n) => Number.isInteger(n))
     : [];
 
+  if (evidence && evidenceFor !== null) {
+    const heroSeat = nameBySeat.indexOf(evidenceFor);
+    if (heroSeat !== -1) {
+      const won = (game.result?.winners ?? []).some((w) => w.seat === heroSeat);
+      addEvidence(evidence, handEvidence({
+        decisions: decisionsBySeat[heroSeat],
+        won,
+        resultType: game.result?.type === 'showdown' ? 'showdown' : 'fold',
+      }));
+    }
+  }
+
   return {
     seat0Net: finalStack0 - buyIn,
     seat1Net: finalStack1 - buyIn,
@@ -286,7 +325,7 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
 
 // ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
 
-async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled }) {
+async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled, evidence = null }) {
   const statsA = newStats();
   const statsB = newStats();
 
@@ -304,6 +343,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       deck, seat0Bundle: bundleA, seat1Bundle: bundleB,
       nameBySeat: [nameA, nameB],
       sb, bb, buyIn, readsEnabled, sessionHands,
+      evidenceFor: evidence ? nameA : null, evidence,
     });
     // Feed opponent-stats before the mirrored hand so hand 2's reads can
     // already benefit from hand 1's evidence.
@@ -319,6 +359,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       deck, seat0Bundle: bundleB, seat1Bundle: bundleA,
       nameBySeat: [nameB, nameA],
       sb, bb, buyIn, readsEnabled, sessionHands,
+      evidenceFor: evidence ? nameA : null, evidence,
     });
     recordHandForOpponentStats({
       playerIdsBySeat: [nameB, nameA],
@@ -372,6 +413,27 @@ function withAttributes(bundle, value) {
   return { ...bundle, attrs: Object.fromEntries(ATTR_KEYS.map((k) => [k, value])) };
 }
 
+// ATTR-3 `--attributes grow`: seat A is not a level at all, he is a DAY-ONE
+// AGENT — born from the profile, with his nature, his currents at 55-65% of a
+// 30-point band, and an empty log. He plays the matchup as one session and the
+// growth machinery runs on it at the end, so the run answers a different
+// question from the others: not "what do attributes do", but "what does an
+// evening at this table make of him".
+function bornAgent(name, bundle) {
+  const agent = { id: `arena_${name.replace(/\W+/g, '_')}`, name, stats: { handsPlayed: 0 } };
+  ensureAttributes(agent);
+  const born = birthAttributes({ profile: bundle.profile });
+  agent.attrs = born.attrs;
+  agent.potential = born.potential;
+  agent.potentialBirth = JSON.parse(JSON.stringify(born.potential));
+  agent.nature = born.nature;
+  agent.attrLog = [];
+  for (const k of ATTR_KEYS) {
+    logAttrChange(agent, { key: k, from: agent.attrs[k], to: agent.attrs[k], cause: 'birth' });
+  }
+  return agent;
+}
+
 // ── Summarization ────────────────────────────────────────────────────────────
 
 function bbPer100(netChips, hands, bb) {
@@ -420,6 +482,8 @@ function summarizeAgent(agentStats, bb) {
 async function main() {
   const args = parseArgs(process.argv);
   const attrLevel = ATTRIBUTE_LEVELS[args.attributes];
+  const growMode = args.attributes === 'grow';
+  const grownAgents = [];
   if (!fs.existsSync(args.profiles)) {
     console.error(`profiles file not found: ${args.profiles}`);
     process.exit(1);
@@ -460,8 +524,11 @@ async function main() {
   console.log(`[arena] matchups: ${matchups.length}, pairs each: ${args.pairs} (${args.pairs * 2} hands per matchup)`);
   console.log(`[arena] blinds: ${args.sb}/${args.bb}, buy-in: ${args.buyIn}`);
   console.log(`[arena] opponent reads: ${args.reads ? 'ENABLED' : 'DISABLED (--no-reads)'}`);
-  console.log(`[arena] attributes: ${args.attributes.toUpperCase()} — seat A all six at ${attrLevel}, seat B at ${NEUTRAL_LEVEL}` +
-              ` (ATTRIBUTE_IMPACT=${attributeImpact()})`);
+  console.log(growMode
+    ? `[arena] attributes: GROW — seat A is a DAY-ONE agent (born from his profile, with his nature),` +
+      ` seat B at ${NEUTRAL_LEVEL} (ATTRIBUTE_IMPACT=${attributeImpact()})`
+    : `[arena] attributes: ${args.attributes.toUpperCase()} — seat A all six at ${attrLevel}, seat B at ${NEUTRAL_LEVEL}` +
+      ` (ATTRIBUTE_IMPACT=${attributeImpact()})`);
   if (args.attributes === 'off') {
     console.log('[arena]   "off" is the control: knob 0, so every hook returns its pre-attribute constant.');
   }
@@ -485,13 +552,48 @@ async function main() {
     const labelA = a === b ? `${a}#A` : a;
     const labelB = a === b ? `${b}#B` : b;
     console.log(`— ${labelA} vs ${labelB} —`);
+
+    // grow: seat A is a newborn playing his first session, not a dial setting.
+    const newborn = growMode ? bornAgent(labelA, bundles[a]) : null;
+    if (newborn) {
+      console.log(`  ${labelA} was born a ${newborn.nature.name} (+${newborn.nature.up} −${newborn.nature.down})`);
+      console.log(`  "${newborn.nature.line}"`);
+      console.log('  ' + ATTR_KEYS.map((k) => `${k.slice(0, 5)} ${newborn.attrs[k]}`).join('  '));
+    }
+    const evidence = newborn ? Object.assign(newEvidence(), { _readSubjects: new Set() }) : null;
+
     const { statsA, statsB } = await runMatchup({
-      nameA: labelA, bundleA: withAttributes(bundles[a], attrLevel),
+      nameA: labelA,
+      bundleA: newborn ? { ...bundles[a], attrs: newborn.attrs } : withAttributes(bundles[a], attrLevel),
       nameB: labelB, bundleB: withAttributes(bundles[b], NEUTRAL_LEVEL),
       pairs: args.pairs,
       sb: args.sb, bb: args.bb, buyIn: args.buyIn,
       readsEnabled: args.reads,
+      evidence,
     });
+
+    if (newborn) {
+      evidence.readsFormed = evidence._readSubjects.size;
+      delete evidence._readSubjects;
+      newborn.stats.handsPlayed = args.pairs * 2;
+      const before = Object.fromEntries(ATTR_KEYS.map((k) => [k, newborn.attrs[k]]));
+      const growth = applySessionGrowth(newborn, { evidence, handsPlayed: newborn.stats.handsPlayed });
+      console.log(`\n  ── ${labelA}'s first session ──`);
+      console.log('  evidence: ' + Object.entries(evidence).map(([k, v]) => `${k}=${v}`).join('  '));
+      if (growth.ticks.length === 0) console.log('  he did not grow tonight.');
+      for (const t of growth.ticks) {
+        console.log(`  ${t.key.padEnd(11)} ${t.from} → ${t.to}   ${t.cause}`);
+      }
+      if (growth.narrowed.length > 0) {
+        console.log(`  scouting narrowed (stage ${growth.stage}): ${growth.narrowed.join(', ')}`);
+      }
+      console.log('  ' + ATTR_KEYS.map((k) => `${k.slice(0, 5)} ${before[k]}→${newborn.attrs[k]}`).join('  '));
+      grownAgents.push({
+        label: labelA, nature: newborn.nature.name,
+        attrs: { ...newborn.attrs }, potential: newborn.potential,
+        attrLog: newborn.attrLog, evidence, ticks: growth.ticks, narrowed: growth.narrowed,
+      });
+    }
     matchupSummaries.push({
       a: labelA, b: labelB,
       [labelA]: summarizeAgent(statsA, args.bb),
@@ -508,7 +610,8 @@ async function main() {
   );
 
   console.log('\n═══ SUMMARY ═══');
-  console.log(`attributes: ${args.attributes} (seat A ${attrLevel} / seat B ${NEUTRAL_LEVEL}, impact ${attributeImpact()})`);
+  const seatALabel = growMode ? 'day-one (born)' : attrLevel;
+  console.log(`attributes: ${args.attributes} (seat A ${seatALabel} / seat B ${NEUTRAL_LEVEL}, impact ${attributeImpact()})`);
   console.log('\nPer-agent aggregate (all matchups):');
   console.table(perAgentSummary);
   console.log('\nPer-matchup detail:');
@@ -518,7 +621,7 @@ async function main() {
     // matchup A's own bb/100 IS the attribute effect, so state it as one line.
     const lo = (m[m.a].bb100 - m[m.a].ci95).toFixed(1);
     const hi = (m[m.a].bb100 + m[m.a].ci95).toFixed(1);
-    console.log(`    seat A attributes=${attrLevel} vs seat B=${NEUTRAL_LEVEL} -> A bb/100 ${m[m.a].bb100}, 95% CI [${lo}, ${hi}]`);
+    console.log(`    seat A attributes=${seatALabel} vs seat B=${NEUTRAL_LEVEL} -> A bb/100 ${m[m.a].bb100}, 95% CI [${lo}, ${hi}]`);
   }
   console.log(`\ntotal time: ${elapsedSec}s`);
 
@@ -535,6 +638,7 @@ async function main() {
       seatAValue: attrLevel,
       seatBValue: NEUTRAL_LEVEL,
       impact: attributeImpact(),
+      grown: grownAgents.length > 0 ? grownAgents : undefined,
     },
     profiles: bundles,
     matchups: matchupSummaries,

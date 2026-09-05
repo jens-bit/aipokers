@@ -4,6 +4,43 @@
 import { FloorGhost, MoodChip, StateTag, PotTicker, MOODS, safeMood, accentFor } from './atoms.jsx';
 import { moodOf, causeOf, stateOf, lastMomentOf, presenceOf } from './agentView.js';
 import { LiveBar } from '../system/LiveBar.jsx';
+import { fatigueOf, FATIGUE, fatigueLineFor } from '../../lib/attributes.js';
+
+// ATTR-2e-2 — ZoomFatigueRow (design-refs/char-play.jsx).
+// The strip stays the GAME. Fatigue is a fact about HIM, so it docks directly
+// under the strip and reads as its second line. Only ever drawn at 'worn':
+// below that there is no cost to name, and naming one would be a lie.
+function ZoomFatigueRow({ agent }) {
+  const stage = fatigueOf(agent);
+  if (stage !== 'worn') return null;
+  const f = FATIGUE[stage];
+  const hands = agent?.liveGame?.heroSessionHands;
+  // The refs put "FOCUS −6" at the end of this row. The server computes that
+  // drop in effectiveAttrs() but sends only the stage, so the delta is not on
+  // the wire — and his current FOCUS is a stat, not a cost. The sentence
+  // already names the cost ("Focus dipping"), so nothing trails it.
+
+  return (
+    <div style={{
+      marginTop: -4, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10,
+      padding: '9px 12px', borderRadius: 10,
+      background: 'rgba(205,179,128,0.05)', border: '1px solid rgba(205,179,128,0.24)',
+    }}>
+      <div style={{ display: 'flex', gap: 3, width: 40, flexShrink: 0 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{
+            flex: 1, height: 5, borderRadius: 2.5,
+            background: i < f.blocks ? '#CDB380' : '#2F2F37',
+            boxShadow: i < f.blocks ? '0 0 6px rgba(205,179,128,0.27)' : 'none',
+          }} />
+        ))}
+      </div>
+      <span style={{ flex: 1, fontSize: 12.5, color: '#CDB380', lineHeight: 1.4 }}>
+        {fatigueLineFor(stage, hands)}
+      </span>
+    </div>
+  );
+}
 
 function parseBoard(rawBoard) {
   if (!Array.isArray(rawBoard)) return [];
@@ -78,6 +115,7 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
       />
 
       <div className="floor-zoom__panel">
+        <ZoomFatigueRow agent={agent} />
         <div className="floor-zoom__tags">
           <MoodChip mood={mood} />
           <StateTag state={state} compact />

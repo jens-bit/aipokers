@@ -18,11 +18,23 @@
 //      a ghost that still claims to be playing
 //   9. boot reconciliation retires agents whose table no longer exists
 //
-// No ANTHROPIC_API_KEY required. Without one the agent handler returns its
-// safe check/fold fallback, so hands still complete and every mechanism under
-// test here (the loop, snapshots, the floor channel, presence, close paths)
-// is exercised end to end. With a key set, the same script runs against real
-// model decisions — hands just take longer.
+// Runs with NO ANTHROPIC_API_KEY, and refuses to run with one (see the guard
+// below). The agent handler returns its safe check/fold fallback, so hands
+// still complete and every mechanism under test here (the loop, snapshots, the
+// floor channel, presence, close paths) is exercised end to end —
+// deterministically, which is the whole point.
+
+// TEST-2 — deterministic or it isn't a test. With a key present the agents
+// make real model decisions, every run deals a different hand, and this suite
+// failed intermittently on whichever machine had the key exported. The test
+// runner strips ANTHROPIC_API_KEY from the child environment; this is the
+// seatbelt for a hand-run. Live-model behaviour belongs in `npm run test:live`.
+if (process.env.ANTHROPIC_API_KEY) {
+  console.error('[verify] ANTHROPIC_API_KEY is set. This suite asserts on the deterministic');
+  console.error('[verify] check/fold fallback and is not reproducible against a live model.');
+  console.error('[verify] Unset it and re-run, or use `npm run test:e2e`, which strips it.');
+  process.exit(1);
+}
 
 // Timings are compressed so the run finishes in under a minute. These must be
 // set BEFORE table.js is evaluated, hence the dynamic imports below.
@@ -72,7 +84,7 @@ await new Promise((res) => httpServer.listen(0, '127.0.0.1', res));
 const port = httpServer.address().port;
 const base = `http://127.0.0.1:${port}`;
 console.log(`[verify] server up on ${base}`);
-console.log(`[verify] HAND_PAUSE_MS=${process.env.HAND_PAUSE_MS} MAX_CONCURRENT_TABLES=${process.env.MAX_CONCURRENT_TABLES} ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY ? 'set' : 'absent (safe-fallback decisions)'}`);
+console.log(`[verify] HAND_PAUSE_MS=${process.env.HAND_PAUSE_MS} MAX_CONCURRENT_TABLES=${process.env.MAX_CONCURRENT_TABLES} decisions=safe-fallback (no API key)`);
 
 const j = async (method, path, body) => {
   const res = await fetch(base + path, {

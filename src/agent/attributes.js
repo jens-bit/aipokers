@@ -156,8 +156,22 @@ export function ensureAttributes(agent) {
     }
   }
 
-  // Assigned at birth in ATTR-3; null until then, never re-rolled after.
+  // Assigned at birth, never re-rolled after. Agents that pre-date the birth
+  // generator stay null — a null nature reads as "still forming" and that is
+  // the truth about them.
   if (agent.nature === undefined) agent.nature = null;
+  // ATTR-3: an agent born before builtFor/struggle existed keeps his nature and
+  // gains its words. Same nature, same pair, only the prose is new — this is a
+  // backfill, not a re-roll.
+  if (agent.nature && typeof agent.nature === 'object' && agent.nature.name) {
+    const canon = NATURE_BY_NAME[agent.nature.name];
+    if (canon) {
+      if (!agent.nature.builtFor) agent.nature.builtFor = canon.builtFor;
+      if (!agent.nature.struggle) agent.nature.struggle = canon.struggle;
+      if (!agent.nature.line) agent.nature.line = canon.line;
+    }
+    if (!agent.firstWords) agent.firstWords = firstWordsFor(agent.nature.name);
+  }
 
   if (!Array.isArray(agent.attrLog)) agent.attrLog = [];
   if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
@@ -187,16 +201,57 @@ export function logAttrChange(agent, { key, from, to, cause = null, ts = Date.no
 // One nature step, on the 0–100 scale.
 export const ATTR_STEP = 8;
 
+// `sig` is his signature quote and `line` is the birth announcement, both
+// verbatim from the ref. ATTR-3 adds `builtFor` / `struggle` — the zero-sum pair
+// said in words rather than as +8/-8, which is what the birth card renders under
+// BUILT FOR / WILL STRUGGLE. Each is one clause, written from that attribute's
+// "moves in his play" line in char-system.jsx, so both halves of a nature can be
+// read by someone who has never seen a bar.
 export const NATURES = Object.freeze([
-  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.' },
-  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.' },
-  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.' },
-  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.' },
-  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.' },
-  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.' },
-  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.' },
-  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.' },
+  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.',
+    builtFor: 'Long sessions. He is still counting straight at hand four hundred.',
+    struggle: 'Opponents work him out early — his sizing tells hold still.' },
+  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.',
+    builtFor: 'Nobody puts him on a hand. He is read late, if at all.',
+    struggle: 'A bad beat lands hard, and he is a long time coming back.' },
+  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.',
+    builtFor: 'The arithmetic is exact. He rarely misjudges a spot.',
+    struggle: 'He fades early. The second hour is not his.' },
+  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.',
+    builtFor: 'He plays the strategy you gave him, almost to the letter.',
+    struggle: 'He is slow to work an opponent out, and later still to act on it.' },
+  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.',
+    builtFor: 'Unreadable. His sizing tells you nothing that is true.',
+    struggle: 'He leaves your strategy behind more often than most.' },
+  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.',
+    builtFor: 'He has an opponent solved a beat before anyone else does.',
+    struggle: 'When it turns against him, it turns loudly.' },
+  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.',
+    builtFor: 'Beats slide off him. He is level again within a hand or two.',
+    struggle: 'The arithmetic slips now and then — a point here, a point there.' },
+  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.',
+    builtFor: 'He shows you nothing. The same bet, a different hand, every time.',
+    struggle: 'He is watching the room, not the player across the table.' },
 ]);
+
+// His first sentence, spoken once at the birth reveal. A template per nature,
+// never a model call: it answers the draft back in his own voice, so the owner
+// hears the character the conversation just produced rather than a stat block.
+const FIRST_WORDS = Object.freeze({
+  Grinder:   'Steady, you said. Good. I will still be here at hand four hundred.',
+  Hothead:   'Aggressive, you said. You will get it. Every hand of it.',
+  Professor: 'Numbers, then. Give me the maths and I will give you the spot.',
+  Rock:      'Patient, you said. Good. I am a Rock.',
+  Gambler:   'Loose, you said. The line was only ever a suggestion anyway.',
+  Shark:     'Tight and mean. I will have them read by the flop.',
+  Sphinx:    'Quiet, then. It happens, it is over, we deal again.',
+  Showman:   'Bluffs, you said. Sit back. Watch this.',
+});
+
+export function firstWordsFor(nature) {
+  const name = typeof nature === 'string' ? nature : nature?.name;
+  return FIRST_WORDS[name] ?? null;
+}
 
 const NATURE_BY_NAME = Object.fromEntries(NATURES.map((n) => [n.name, n]));
 
@@ -234,7 +289,54 @@ export function natureForProfile(profile) {
   };
   const hit = NATURE_LADDER.find((rung) => rung.when(p)) ?? NATURE_LADDER[NATURE_LADDER.length - 1];
   const nature = NATURE_BY_NAME[hit.name];
-  return { name: nature.name, up: nature.up, down: nature.down, line: nature.line };
+  return {
+    name: nature.name,
+    up: nature.up,
+    down: nature.down,
+    line: nature.line,
+    builtFor: nature.builtFor,
+    struggle: nature.struggle,
+  };
+}
+
+// ── The nature the ladder WOULD pick, from a half-finished draft ─────────────
+// The birth screen shows a "Forming — Rock?" chip while the conversation is
+// still running. That guess has to come from the server, because the ladder is
+// the only thing entitled to name a nature, and it has to be honest about not
+// knowing yet: null until the draft has actually said something about how he
+// should play. No model call — the same keyword reading the build fallback uses.
+//
+// Each group moves one axis. Two distinct groups is the bar for guessing at all:
+// one word ("aggressive") is a mood, two ("aggressive", "bluffs a lot") is a
+// style.
+const DRAFT_SIGNALS = [
+  { axis: 'aggression', re: /aggress|relentless|pressure|attack|pushy|punish/i,          profile: { aggression: 85, tightness: 35 } },
+  { axis: 'bluff',      re: /bluff|deceiv|unreadab|mix it up|unpredictab|trick/i,        profile: { bluffFreq: 55, aggression: 65 } },
+  { axis: 'tight',      re: /tight|patien|conservat|careful|selectiv|nitty|\bwait/i,     profile: { tightness: 82, aggression: 45 } },
+  { axis: 'discipline', re: /disciplin|stick to|by the book|rules|system|methodic|fold/i, profile: { discipline: 85 } },
+  { axis: 'loose',      re: /loose|gambl|wild|reckless|swing|degen|yolo/i,               profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
+  { axis: 'grind',      re: /grind|all night|long session|marathon|endur|steady/i,       profile: { discipline: 68, tightness: 55 } },
+  { axis: 'maths',      re: /math|equity|pot odds|calculat|precis|solver|\bgto\b/i,      profile: { discipline: 75, tightness: 65 } },
+];
+
+export const NATURE_HINT_MIN_SIGNALS = 2;
+
+// Returns { name, signals } or null. `name` is a nature NAME and nothing else,
+// which is all the forming chip renders: he does not have a nature yet, and the
+// client must never be able to mistake a guess for a birth.
+export function natureHintFor(text, { minSignals = NATURE_HINT_MIN_SIGNALS } = {}) {
+  const body = String(text ?? '');
+  if (!body.trim()) return null;
+
+  const hits = DRAFT_SIGNALS.filter((g) => g.re.test(body));
+  if (hits.length < minSignals) return null;
+
+  // Later signals win on a shared axis — the draft's most recent word about a
+  // dimension is the one the recruiter would be going on.
+  const partial = { tightness: 55, aggression: 55, bluffFreq: 25, discipline: 60 };
+  for (const h of hits) Object.assign(partial, h.profile);
+
+  return { name: natureForProfile(partial).name, signals: hits.map((h) => h.axis) };
 }
 
 // Day one. Per design 32: a 30-point potential band, and a current sitting at
@@ -271,6 +373,248 @@ export function birthAttributes({ profile = null, rand = Math.random } = {}) {
   shift(nature.down, -ATTR_STEP);
 
   return { attrs, potential, nature };
+}
+
+// ── Growth ───────────────────────────────────────────────────────────────────
+// Permanent, single points, slow, and never without a named cause
+// (char-system2.jsx S4). A tick is drawn once per attribute at the END of a
+// session, from that attribute's own evidence in that session — so growth is a
+// consequence of how he was deployed, not of how long the app was open.
+//
+// Three rules the shape has to obey, all from the ref:
+//   · ticks come in ONES. Never two points, never a jump.
+//   · they slow as he approaches his ceiling. "The first ten points of Focus
+//     are a week, the last five are a season."
+//   · nothing ever regresses, and nothing ever passes hi.
+
+// What trains each attribute, named in the ref's own words, and how much of it
+// a single session needs before the tick is as likely as it will ever get.
+export const EVIDENCE_FIELD = Object.freeze({
+  READS:      'readsFormed',            // showdowns seen — reads actually formed
+  FOCUS:      'misjudgmentsAvoided',    // sheer decision volume, counted honestly
+  DISCIPLINE: 'deviationsResisted',     // big folds made correctly
+  COMPOSURE:  'tiltSurvived',           // surviving beats without tilting
+  DECEPTION:  'bluffsThrough',          // bluffs that get through uncalled
+  STAMINA:    'hands',                  // long sessions at the table
+});
+
+export const EVIDENCE_FULL = Object.freeze({
+  READS: 4, FOCUS: 120, DISCIPLINE: 5, COMPOSURE: 3, DECEPTION: 4, STAMINA: 200,
+});
+
+// Even a perfect session is a coin-flip at best. A character that grows every
+// time he plays is a progress bar, and this is a person.
+export const MAX_TICK_CHANCE = 0.5;
+
+// How willing the attribute still is to move, by where it sits against its
+// scouted band. Below the band he climbs freely; the closer he gets to the low
+// edge the slower it goes; inside the top half it is a season's work; at hi it
+// is over.
+export function growthProximity(cur, lo, hi) {
+  const c = clampAttr(cur);
+  if (!isNum(lo) || !isNum(hi) || c >= hi) return 0;
+  if (c < lo) {
+    // Full speed a long way below, tapering to 0.35 as he reaches the low edge.
+    return 0.35 + 0.65 * Math.min(1, (lo - c) / 25);
+  }
+  const t = (c - lo) / Math.max(1, hi - lo);      // 0..1 inside the band
+  if (t < 0.5) return 0.35 - 0.54 * t;            // 0.35 → 0.08 across the lower half
+  return 0.06 * (1 - t) * 2;                      // 0.06 → 0 across the top half
+}
+
+// P(+1) for one attribute this session.
+export function growthChance(key, evidence, cur, band) {
+  const need = EVIDENCE_FULL[key];
+  if (!need) return 0;
+  const have = Number(evidence?.[EVIDENCE_FIELD[key]] ?? 0);
+  if (!Number.isFinite(have) || have <= 0) return 0;
+  const earned = Math.min(1, have / need);
+  const room = growthProximity(cur, band?.lo, band?.hi);
+  return Math.max(0, Math.min(MAX_TICK_CHANCE, earned * room));
+}
+
+// The cause is the product. A tick with no cause is a number going up in a
+// game; a tick with one is the agent telling you what he learned this evening.
+const GROWTH_CAUSE = Object.freeze({
+  READS:      (n) => `read ${n === 1 ? 'an opponent' : `${n} opponents`} well enough to act on it.`,
+  FOCUS:      (n) => `${n} decisions, and the arithmetic held.`,
+  DISCIPLINE: (n) => `let the line talk him out of ${n === 1 ? 'a hand' : `${n} hands`} he wanted to play.`,
+  COMPOSURE:  (n) => `took ${n === 1 ? 'a beat' : `${n} beats`} and did not tilt.`,
+  DECEPTION:  (n) => `${n === 1 ? 'a bluff' : `${n} bluffs`} got through uncalled.`,
+  STAMINA:    (n) => `${n} hands in one sitting, still counting straight.`,
+});
+
+export function growthCause(key, count) {
+  const t = GROWTH_CAUSE[key];
+  return t ? t(Math.max(1, Math.round(Number(count) || 0))) : 'played.';
+}
+
+// The evidence rules themselves, pure and in one place. table.js calls these on
+// the live path and scripts/verify-growth.js calls the same ones offline — a
+// verification that re-implements the rule it is verifying proves nothing.
+
+export function newEvidence() {
+  return {
+    hands: 0,
+    readsFormed: 0,
+    tiltSurvived: 0,
+    deviationsResisted: 0,
+    bluffsThrough: 0,
+    misjudgmentsAvoided: 0,
+  };
+}
+
+export function addEvidence(target, delta) {
+  if (!target || !delta) return target;
+  for (const k of Object.keys(delta)) target[k] = (target[k] ?? 0) + (delta[k] ?? 0);
+  return target;
+}
+
+// What one decision earns him. FOCUS is trained by sheer decision volume — but
+// only the decisions where the arithmetic actually held; a misjudgment big
+// enough to move the spot teaches him nothing except that he cannot count.
+// DISCIPLINE is trained by big folds made correctly: the die said he MAY leave
+// the strategy behind, the hand was outside his range, and he folded it anyway.
+export function decisionEvidence({ trueEquity = null, seenEquity = null, deviationDie = false, inRange = null, actionType = null } = {}) {
+  const ev = {};
+  if (Number.isFinite(trueEquity) && Number.isFinite(seenEquity) &&
+      Math.abs(seenEquity - trueEquity) < ATTR_COST_EQUITY_GAP) {
+    ev.misjudgmentsAvoided = 1;
+  }
+  if (deviationDie && inRange === false && actionType === 'fold') {
+    ev.deviationsResisted = 1;
+  }
+  return ev;
+}
+
+// What one finished hand earns him. DECEPTION is trained by bluffs that get
+// through UNCALLED — he bet or raised a hand that could not win a showdown, and
+// nobody paid to find out.
+export function handEvidence({ decisions = [], won = false, resultType = null, bluffMaxEquity = 0.40 } = {}) {
+  const ev = { hands: 1 };
+  if (won && resultType !== 'showdown') {
+    const bluffed = decisions.some((d) =>
+      (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+      Number.isFinite(d.equity) && d.equity < bluffMaxEquity);
+    if (bluffed) ev.bluffsThrough = 1;
+  }
+  return ev;
+}
+
+// ── The scouted ceiling ──────────────────────────────────────────────────────
+// Bands narrow from HANDS PLAYED, never from wins (char-system2.jsx S3: "Narrow
+// the band from hands played, not from wins"), in visible jumps, and never
+// widen again. The stage widths are the ref's own: a 30-point rumour on day one,
+// 24 by the first week, 8 by a month, near a number by 2,000 hands.
+export const SCOUT_STAGES = Object.freeze([
+  { hands: 120,  width: 24 },
+  { hands: 500,  width: 8 },
+  { hands: 2000, width: 2 },
+]);
+
+// Where the truth actually sits, inside the band he was born with. Derived from
+// his id, never stored: an exact potential written into the record is a number
+// one careless projection away from the screen, and the ceiling is never a
+// number on a bar.
+export function potentialTarget(agent, key) {
+  const birth = agent?.potentialBirth?.[key] ?? agent?.potential?.[key];
+  if (!birth || !isNum(birth.lo) || !isNum(birth.hi)) return null;
+  const frac = (hashSeed(`${agent?.id ?? 'anon'}:${key}:potential`) % 10000) / 10000;
+  return birth.lo + frac * (birth.hi - birth.lo);
+}
+
+// One stage of narrowing for one key. Never widens, never leaves the birth band.
+export function narrowedBand(agent, key, width) {
+  const cur = agent?.potential?.[key];
+  const birth = agent?.potentialBirth?.[key] ?? cur;
+  if (!cur || !birth || !isNum(cur.lo) || !isNum(cur.hi)) return null;
+  const target = potentialTarget(agent, key);
+  if (target == null) return null;
+
+  let lo = Math.round(target - width / 2);
+  let hi = lo + width;
+  if (lo < birth.lo) { lo = Math.round(birth.lo); hi = lo + width; }
+  if (hi > birth.hi) { hi = Math.round(birth.hi); lo = hi - width; }
+
+  // The one-way ratchet: a band may only ever close.
+  lo = Math.max(lo, Math.round(cur.lo));
+  hi = Math.min(hi, Math.round(cur.hi));
+
+  // A scouting report cannot claim a ceiling he has already walked past. If he
+  // is ahead of the estimate, the estimate was wrong, and hi moves up to meet
+  // him — never above the band it is closing from, so this can only ever narrow.
+  const reached = clampAttr(agent?.attrs?.[key] ?? 0);
+  if (hi < reached) hi = Math.min(Math.round(cur.hi), reached);
+  if (hi < lo) lo = hi;
+  return { lo: clampAttr(lo), hi: clampAttr(hi) };
+}
+
+// Which scouting stages a lifetime hand count has reached.
+export function scoutStageFor(handsPlayed) {
+  const h = Number(handsPlayed) || 0;
+  let stage = 0;
+  for (const s of SCOUT_STAGES) if (h >= s.hands) stage++;
+  return stage;
+}
+
+// ── The session's end ────────────────────────────────────────────────────────
+// Called once per finished session. Mutates the agent (ticks, bands, attrLog)
+// and returns what happened, so the caller can put it in the recap and the
+// thread without recomputing any of it.
+//
+// Returns { ticks: [{key, from, to, cause}], narrowed: [key], stage }.
+export function applySessionGrowth(agent, {
+  evidence = {},
+  handsPlayed = null,
+  rand = Math.random,
+  now = Date.now(),
+} = {}) {
+  if (!agent) return { ticks: [], narrowed: [], stage: 0 };
+  ensureAttributes(agent);
+  if (!agent.potentialBirth || typeof agent.potentialBirth !== 'object') {
+    // Agents born before ATTR-3 have no day-one record; their current band is
+    // the best available truth about where they started.
+    agent.potentialBirth = JSON.parse(JSON.stringify(agent.potential));
+  }
+
+  const ticks = [];
+  for (const key of ATTR_KEYS) {
+    const from = clampAttr(agent.attrs[key]);
+    const band = agent.potential[key];
+    const chance = growthChance(key, evidence, from, band);
+    if (chance <= 0 || rand() >= chance) continue;
+    const to = Math.min(clampAttr(band?.hi ?? 100), from + 1);
+    if (to === from) continue;                    // already at the ceiling
+    agent.attrs[key] = to;
+    const cause = growthCause(key, evidence[EVIDENCE_FIELD[key]]);
+    logAttrChange(agent, { key, from, to, cause, ts: now });
+    ticks.push({ key, from, to, cause });
+  }
+
+  // Narrowing is a separate event from growth and happens on its own clock.
+  const lifetime = isNum(handsPlayed) ? Number(handsPlayed) : (agent.stats?.handsPlayed ?? 0);
+  const reached = scoutStageFor(lifetime);
+  const already = isNum(agent.scoutStage) ? Number(agent.scoutStage) : 0;
+  const narrowed = [];
+  if (reached > already) {
+    const width = SCOUT_STAGES[reached - 1].width;
+    for (const key of ATTR_KEYS) {
+      const before = agent.potential[key];
+      const after = narrowedBand(agent, key, width);
+      if (!after || (after.lo === before.lo && after.hi === before.hi)) continue;
+      agent.potential[key] = after;
+      // The value does not move — from === to on purpose, so a sparkline drawn
+      // from the log never renders a phantom step for a scouting report.
+      const at = clampAttr(agent.attrs[key]);
+      logAttrChange(agent, { key, from: at, to: at, cause: 'narrowed', ts: now });
+      narrowed.push(key);
+    }
+    agent.scoutStage = reached;
+  }
+  // Transient: the gold caret rides for one session and then retires.
+  agent.narrowed = narrowed.length > 0 ? narrowed : null;
+
+  return { ticks, narrowed, stage: reached };
 }
 
 // ── STAMINA / fatigue ────────────────────────────────────────────────────────
@@ -311,6 +655,111 @@ export function effectiveAttrs(agent, { sessionHands = 0 } = {}) {
     fatigueDrop: drop,
     sessionHands: hands,
   };
+}
+
+// ── What an attribute cost him, in one hand ─────────────────────────────────
+// The hand review is the honest place a low attribute is allowed to cost money
+// on screen (char-system2.jsx S5, surface 4). Two laws from the ref govern
+// every line here:
+//
+//   · "annotate the cause, never grade the hand" — the line says what happened,
+//     never what he should have done.
+//   · every line reads as HIS misjudgment: "he misjudged equity by 7 points".
+//     Not "Focus is too low", not "bad fold". The attribute is the footnote,
+//     rendered separately by the client; the sentence is about him.
+//
+// And one law from this build: when the same mechanism WON the pot, it still
+// gets a line, with cost:false. An attribute that only ever appears when it
+// costs money is a scold, not a character.
+
+// How far off the true equity a briefing has to be before it is a misjudgment
+// rather than a rounding — the same five points table.js counts evidence with.
+export const ATTR_COST_EQUITY_GAP = 0.05;
+
+const TILTED_STATES = new Set(['tilted', 'sulking']);
+
+function costLine(key, text, street, cost) {
+  const entry = { key, line: text };
+  if (street) entry.street = String(street).toUpperCase();
+  if (cost === false) entry.cost = false;
+  return entry;
+}
+
+// `decisions` are one agent's decisions in one hand, in order, each carrying
+// the `attr` context table.js records at decision time. Returns at most one
+// entry per attribute, oldest decision wins, so a long hand cannot bury the
+// review in six copies of the same note.
+export function attrCostsForHand({ decisions = [], won = false } = {}) {
+  const out = [];
+  const seen = new Set();
+  const add = (key, text, street, cost) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(costLine(key, text, street, cost));
+  };
+
+  for (const d of decisions) {
+    const a = d?.attr;
+    if (!a) continue;
+    const street = d.street ?? null;
+    const type = d.action?.type ?? null;
+
+    // FOCUS — he was shown a number that was not the number, and it was far
+    // enough out to move the decision.
+    if (!seen.has('FOCUS') && Number.isFinite(d.equity) && Number.isFinite(a.seenEquity)) {
+      const gap = a.seenEquity - d.equity;
+      if (Math.abs(gap) >= ATTR_COST_EQUITY_GAP) {
+        // "Would the action differ?" — the boundary a call is decided against
+        // is the price he is being offered; with nothing to call, the coin flip.
+        const boundary = Number.isFinite(d.potOdds) ? d.potOdds : 0.5;
+        const crossed = (a.seenEquity >= boundary) !== (d.equity >= boundary);
+        if (crossed) {
+          const pts = Math.round(Math.abs(gap) * 100);
+          add('FOCUS',
+            `he misjudged equity by ${pts} point${pts === 1 ? '' : 's'} — he had ${Math.round(d.equity * 100)}%, he played ${Math.round(a.seenEquity * 100)}%`,
+            street, true);
+        }
+      }
+    }
+
+    // DISCIPLINE — the die gave him licence to leave the strategy behind, and
+    // he took it. Only a line when it did not work out.
+    if (!seen.has('DISCIPLINE') && a.deviationDie && a.inRange === false && type && type !== 'fold') {
+      add('DISCIPLINE',
+        won ? 'he went off the line here, and it came off'
+            : 'he went off the line here — the hand was outside his range',
+        street, won ? false : true);
+    }
+
+    // COMPOSURE — a decision taken while he was steaming.
+    if (!seen.has('COMPOSURE') && TILTED_STATES.has(a.moodState) && type && type !== 'fold') {
+      add('COMPOSURE',
+        won ? 'he was steaming when he played this one, and got away with it'
+            : 'he was steaming when he played this one',
+        street, won ? false : true);
+    }
+
+    // READS — he was briefed on this opponent and folded a hand the price
+    // justified anyway. The read was on the table and he did not use it.
+    if (!seen.has('READS') && Array.isArray(a.readSubjects) && a.readSubjects.length > 0) {
+      const who = a.readSubjects[0];
+      if (type === 'fold' && Number.isFinite(d.equity) && Number.isFinite(d.potOdds) && d.equity >= d.potOdds) {
+        add('READS', `he had ${who} read and folded anyway at a price that called`, street, true);
+      } else if (won) {
+        add('READS', `he had ${who} read, and played him with it`, street, false);
+      }
+    }
+  }
+
+  return out;
+}
+
+// Fatigue, said once, in his own voice — the state matrix's thread cell for
+// WORN: "he mentions it once, unprompted." Never a notification: fatigue fixes
+// itself at the bar and has nothing to ask the owner for.
+export function wornMomentFor(sessionHands) {
+  const n = Math.max(1, Math.round(Number(sessionHands) || 0));
+  return `${n} hands in. I'm still counting — just slower than I was.`;
 }
 
 // ── READS / DECEPTION — the two sides of the same table ─────────────────────

@@ -25,10 +25,15 @@ jobs:
       - name: Install server deps
         run: npm ci
 
-      # Discovers every src/**/*.test.js and every scripts/verify-*.js.
-      # Suites that need ANTHROPIC_API_KEY are skipped, not run.
+      # Discovers every src/**/*.test.js and the fast scripts/verify-*.js.
+      # No ANTHROPIC_API_KEY is set here, and the runner strips it regardless.
       - name: Server tests
         run: npm test
+
+      # The suites that boot the stack and play hands. Slow, so they are their
+      # own command locally (run before merging to main) — CI always runs them.
+      - name: End-to-end tests
+        run: npm run test:e2e
 
       - name: Install client deps
         working-directory: client
@@ -54,6 +59,13 @@ jobs:
           script: |
             set -e
             cd /opt/aipokers
+
+            # `npm start` runs `npm install` in client/, which rewrites both
+            # lockfiles on the VPS. git pull then refuses to touch them and the
+            # deploy dies before it starts (run #35). Discard the machine's
+            # edits — the repo's lockfiles are the source of truth.
+            echo "=== discard VPS-local lockfile churn ==="
+            git checkout -- package-lock.json client/package-lock.json
 
             echo "=== git pull ==="
             git pull

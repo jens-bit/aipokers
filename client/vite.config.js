@@ -18,5 +18,10 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.js'],
     include: ['src/**/*.test.jsx'],
     restoreMocks: true,
+    // Process real CSS instead of stubbing the imports, so getComputedStyle
+    // sees stylesheet rules and not just inline styles. The BUG-02 font-size
+    // check is worthless without it: every text field styled from a .css file
+    // would read as jsdom's 16px default and pass by accident.
+    css: true,
   },
 });

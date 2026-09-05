@@ -1,40 +1,27 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-08-29 late night (post Tree 3.5 + FLR-9/10 deploy)
+Last updated: 2026-09-05 (0.9.0 sweep)
 
 
 ---
 
 ## OPEN
 
-### BUG-18 — Flagged hand review never shows the opponent's showdown cards
-**Severity:** Medium (the review is unreadable without them)
-**Where:** client/src/components/floor/FlaggedHandsSheet.jsx — `HandReview`
-**What:** The server records `opponentShowdownCards` on every flagged entry (`buildFlaggedEntry` in src/server/flaggedHands.js, populated from the showdown in table.js) and GET /api/agents/:id/flagged returns it unscoped, because cards turned over at showdown are public. The sheet renders the hero's `holeCards` and the board and drops the field on the floor. A BAD BEAT review therefore shows the equity collapsing with no sight of the hand that caused it.
-**Found by:** TEST-1. Regression test exists and is deliberately red: `it.todo('BUG-18: shows the opponent's showdown cards …')` in client/src/components/floor/FlaggedHandsSheet.test.jsx. Un-todo it when the fix lands.
-**Fix:** Render an opponent-showdown row in `HandReview` next to `HoleCardsRow` (seat name + the two cards), shown only when `opponentShowdownCards` is non-empty.
+### BUG-20 — Dead 14px input rule waiting to be reused
+**Severity:** Low (latent — nothing renders it today)
+**Where:** client/src/styles/layout.css — `.dr-form-field input { font-size: 14px }`
+**What:** The rule is live in the shipped bundle and is not behind a media query, but no JSX in client/src applies the `dr-form-field` class — it is left over from a form that was removed. So nothing can focus a 14px field right now. The moment anyone reuses the class they inherit a BUG-02 iOS auto-zoom.
+**Found by:** TEST-3 stylesheet audit. `it.todo('BUG-20: …')` in client/src/test/bug02.test.jsx, with the selector held in a named KNOWN_DEAD set rather than filtered silently.
+**Fix:** Delete the rule, or raise it to 16px if the class is coming back. Then un-todo the test and drop the KNOWN_DEAD entry.
 
-### BUG-16 — Presence lies: agent shown seated/"playing" while his table is frozen
-**Severity:** High (product identity)
-**Where:** server table lifecycle + floor presence; observed 2026-08-29 on prod
-**What:** Hands only advance while a client has the table open. An agent assigned to a table shows presence=playing (floor seats him with cards) but nothing is happening; opening WATCH shows "Waiting…" and then a hand starts because the viewer's arrival wakes the game. The pet only lives while stared at.
-**Fix:** Tree 4 server-side play loop — agents play autonomously on the server; watching becomes passive. Presence=playing only when hands actually advance.
+---
 
-### BUG-17 — WATCH entry appears to start a NEW game rather than joining the running one
-**Severity:** Medium (symptom of BUG-16)
-**What:** Same root cause as BUG-16; fold into Tree 4. Verify on entry mid-hand: viewer should join the hand in progress, not trigger a fresh deal.
-
+## RESOLVED — kept here for traceability
 
 ### BUG-10 — In-game header drops platform branding — RESOLVED (verified visually 2026-08-29: spade + branding present in watch header; fix commit c7be663 from May)
 **Severity:** Medium (visual)
 **Where:** client/src/components/Header.jsx — in-game variant (rich game-view header)
 **What:** During play (vs-AI / vs-Human / Watch), only the rich in-game header shows (back arrow + avatar + name + status + settings gear). The "AGENTIC POKER" wordmark + spade logo + agents pill at the top of the app disappears. User notes this loses the platform identity during the most-shared moments.
 **Fix:** Either add a thin top strip with logo + AGENTIC POKER above the rich header, or fold the spade logo into the rich header on the far left next to/replacing the back arrow.
-
-### BUG-11 — CreateAgent suggestion chips too tightly stacked under greeting
-**Severity:** Low (UX polish)
-**Where:** client/src/components/CreateAgent.jsx + client/src/styles/create-agent.css
-**What:** Sub-task 5 of feature/play-cleanup (commit 4c4dbdf) moved the suggestion chips immediately below the greeting message to eliminate dead whitespace. Over-corrected — they now sit pinned to the top, which feels glued. User wants them to sit naturally in the middle of the chat flow with the greeting above and input below.
-**Fix:** Restructure the message-list flex so the chips sit centered within available vertical space, not anchored under the greeting. Greeting at top, chips centered, input at bottom.
 
 ### BUG-12 — DECISION broadcast leaks AI reasoning + equity to live opponents — RESOLVED (routing fixed; spectator scoping completed by BUG-15 fix in AGE-33)
 **Severity:** High (game integrity)
@@ -60,9 +47,20 @@ Last updated: 2026-08-29 late night (post Tree 3.5 + FLR-9/10 deploy)
 **What:** Spectators receive full DECISION payloads (reasoning/equity) for every seat — watching your agent vs House shows the HOUSE’s thinking too. Observed 2026-08-29 evening on localhost.
 **Fix:** In _broadcastDecision, spectators get the full payload only when the deciding seat === their spectatorSeat (their own agent); bare {seat, action} otherwise. Rider on Tree 3.5.
 
----
+### BUG-16 — Presence lies: agent shown seated/"playing" while his table is frozen — RESOLVED (Tree 4)
+**Was:** Hands only advanced while a client had the table open. An agent showed presence=playing while nothing happened; opening WATCH woke the game. The pet only lived while stared at.
+**Fixed by:** the server-side session loop (Tree 4) plus the AGE-37 presence law in `presentAgent` — presence is derived from a live table via `liveGameView`, never from the stored `status` flag.
+**Evidence:** scripts/verify-server-life.js, green in `npm run test:e2e`, asserts in order: "3+ hands completed with no client connected"; "presence is playing while the loop runs"; "liveGame reports hands this session"; "table survives the watcher leaving"; "hands continue after disconnect"; "presence still playing after disconnect"; and on sit-out "presence flipped to resting" with "liveGame gone once resting". Client side, CasinoFloor.test.jsx pins that an agent with presence resting and no liveGame draws nothing live.
 
-## RESOLVED — kept here for traceability
+### BUG-17 — WATCH entry appears to start a NEW game rather than joining the running one — RESOLVED (Tree 4)
+**Was:** Same root cause as BUG-16 — the viewer's arrival is what dealt the hand.
+**Evidence:** scripts/verify-server-life.js connects a WebSocket mid-hand and asserts "caught the table mid-hand", "a STATE snapshot arrives on WATCH", "snapshot carries the hand in progress" (handNumber not reset), and "no extra seat was created by watching". Client side, CasinoFloor.test.jsx asserts WATCH on a live agent calls onWatch and issues no POST at all — the deploy path is the only one that queues a table.
+
+### BUG-18 — Flagged hand review never showed the opponent's showdown cards — RESOLVED 2026-09-05
+Found by TEST-1, fixed in commit bb5ea0b. The server records `opponentShowdownCards` on every flagged entry and the API returns it unscoped (showdown cards are public); the sheet dropped it. New `OpponentShowdownRow` in HandReview renders the cards and the seat that showed, and nothing at all when the pot was won without a showdown. Test un-todo'd and green.
+
+### BUG-19 — /flagged fetch sent no credential, so the owner's own hole cards came back empty — RESOLVED 2026-09-05
+Found while fixing BUG-18, fixed in the same commit. `holeCards` on GET /api/agents/:id/flagged are owner-gated by `isOwner()`, which reads `x-telegram-init-data`; FlaggedHandsSheet sent no headers, so in production the review rendered card backs where the agent's own hand belongs. Invisible on localhost, where no TELEGRAM_BOT_TOKEN is set and `isOwner()` defaults to true. (FLOOR-3 had added the header to the GET /api/agents calls; this endpoint was missed.)
 
 ### BUG-09 — vs-You: agent does not seat as opponent — RESOLVED
 Fixed in commit 87d14d2. Root cause: `wsServer.js` JOIN handler gated `maybeAutoSeatAI` behind `process.env.AI_ENABLED === 'true'`. When this env var was not set on the VPS, the user's agent fell through to `scheduleHouseFallback()` instead of taking the opponent seat. Fix: removed the `AI_ENABLED` gate; `wantAI === true` is sufficient — `getAgentAction` already handles the no-API-key case gracefully. Needs `git pull && pm2 restart all` on VPS to take effect.
@@ -98,5 +96,4 @@ Discovered already fixed when checking the live code. Both placeholder component
 - All design work (icons, oval table, cards, home screen) should be PORTED from design-refs/ folder, not redesigned from scratch. Codex already built the designs.
 - For merge conflicts, prefer Cowork chat resolving them via the Edit tool directly on the conflict markers rather than running Python `re.sub` scripts — those scripts have repeatedly truncated rules at conflict boundaries, leaving unclosed CSS blocks that break the build.
 - Branch cycling within a worktree: use `git fetch origin && git checkout -B feature/next main`. The naive `git checkout main && git pull && git checkout -b feature/next` fails because git only allows one worktree per branch, and main is already checked out in C:\Projects\ai-poker.
-- Real-money TON play is on the product roadmap. Board has accepted the legal risk at sub-1K-user scale. A CLO agent (hired via Paperclip) tracks regulatory exposure and flags inflection points where real legal counsel is needed. Do not treat TON real-money as out of scope.
 
