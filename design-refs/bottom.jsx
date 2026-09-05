@@ -65,12 +65,12 @@ const RecentHands = () => (
   </div>
 );
 
-const NavTabBar = ({ active = 'agents', onChange }) => {
+const NavTabBar = ({ active = 'home', onChange }) => {
   const tabs = [
     { id: 'home', name: 'home', label: 'HOME' },
     { id: 'play', name: 'spade', label: 'PLAY' },
     { id: 'agents', name: 'agent', label: 'AGENTS' },
-    { id: 'history', name: 'history', label: 'HISTORY' },
+    { id: 'replays', name: 'replays', label: 'REPLAYS' },
     { id: 'profile', name: 'profile', label: 'PROFILE' },
   ];
   return (

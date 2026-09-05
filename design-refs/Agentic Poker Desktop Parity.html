@@ -54,10 +54,11 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
     <p>Waves 33–38 were designed mobile-first, and each shipped one or two desktop screens as proof that the layout held. What that left was <b>the states nobody screenshots</b>: the transient ones (DEAL, between hands, collect) and the negative ones (broke, cut off, no history). This wave audits all thirty matrix rows, draws what was missing, and consolidates one desktop matrix.</p>
     <p>Nothing on mobile changes. The Command Center furniture is untouched — <b>StandupCard, PGameTile, PComposer and PFlaggedCard are places to put things</b>, not things to reopen.</p>
 
-    <div class="lbl">The audit's answer</div>
-    <div class="lawrow"><span class="k">12</span><span class="v"><b>EXISTS</b> — a desktop component already drew it, because desktop is the same components in a wider frame.</span></div>
-    <div class="lawrow"><span class="k">6</span><span class="v"><b>MAPS</b> — an existing surface carried it with no new component needed.</span></div>
-    <div class="lawrow"><span class="k">12</span><span class="v"><b>MISSING</b> — drawn here, in ten new screens.</span></div>
+    <div class="lbl">The audit's answer — <span id="auditTotal">·</span> rows</div>
+    <div class="lawrow"><span class="k" id="auditExists">·</span><span class="v"><b>EXISTS</b> — a desktop component already drew it, because desktop is the same components in a wider frame.</span></div>
+    <div class="lawrow"><span class="k" id="auditMaps">·</span><span class="v"><b>MAPS</b> — an existing surface carried it with no new component needed.</span></div>
+    <div class="lawrow"><span class="k" id="auditMissing">·</span><span class="v"><b>MISSING</b> — drawn here, across ten new screens. Several share one: a state and its rail are the same frame.</span></div>
+    <p style="font-size:11.5px;color:#7A7A7E;margin:8px 0 0">These three figures are counted from the audit array at render, not written here — a hand-typed tally is a second source of truth.</p>
 
     <div class="lbl">What desktop has that mobile cannot</div>
     <p>Three things, and only three. A <b>permanent truth strip</b> — mobile has to wait for a between-hands moment to say <i>+$3,712 tonight, 43 hands, worst beat the Q3o</i>. <b>The read and the grudge ledger at once</b> — mobile gets a sheet, so it gets one or the other. And <b>three bubbles instead of two</b>, because seats are 170px apart at 852px.</p>
@@ -179,6 +180,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="mood-casino2.jsx"></script>
 <script type="text/babel" src="mood-watch4.jsx"></script>
 <script type="text/babel" src="mood-watch4b.jsx"></script>
+<script type="text/babel" src="mood-flow2.jsx"></script>
+<script type="text/babel" src="mood-birth3.jsx"></script>
+<script type="text/babel" src="mood-ftu2.jsx"></script>
 <script type="text/babel" src="mood-desk-parity.jsx"></script>
 <script type="text/babel" src="mood-desk-parity2.jsx"></script>
 

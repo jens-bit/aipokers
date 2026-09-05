@@ -51,10 +51,10 @@ const Header = () => (
       <div className="label-accent" style={{ marginBottom: 2 }}>AGENT VIEW</div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em',
-        lineHeight: 1.1, marginBottom: 4,
+        fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em',
+        lineHeight: 1.1, marginBottom: 4, minWidth: 0,
       }}>
-        <span>Aggressive v1.3</span>
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Aggressive v1.3</span>
         <span style={{
           display: 'inline-flex', alignItems: 'center',
           height: 18, padding: '0 6px', borderRadius: 4,

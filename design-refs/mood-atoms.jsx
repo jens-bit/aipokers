@@ -45,61 +45,227 @@ const MOODS = {
 };
 
 // ── The expression vehicle ──
-const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone }) => {
+// ── THE FACES ──────────────────────────────────────────────────────────────
+// One face per state was never enough and the confident one was actively wrong:
+// its brows rose at the INNER corner, which is the universal worried brow — so the
+// agent who had just won three pots looked like he was about to be sick. MOOD-2
+// gives every state a heat 0–100, so the answer is INTENSITY, not more states.
+//
+// Five states × three tiers = fifteen faces. The silhouette NEVER changes; only
+// eyes, brows and the glow do. Heat picks the tier, so the art needs no new inputs.
+const FACE_TIERS = [
+  { k: 'low',  max: 33,  label: 'held' },
+  { k: 'mid',  max: 66,  label: 'plain' },
+  { k: 'high', max: 100, label: 'full' },
+];
+const faceTier = h => (h <= 33 ? 'low' : h <= 66 ? 'mid' : 'high');
+
+// DETAIL BY SIZE, and the rule is subtractive: what drops, drops in this order.
+//   3 · floor 46+   everything — brows, lids, asymmetry, vents
+//   2 · band 38     brows and lids, no asymmetry or vents
+//   1 · seat 34     brows collapse to one stroke each; lids drop
+//   0 · thread 24   EYES AND GLOW ONLY — the eye shape has to carry the mood alone
+const faceDetail = size => (size >= 42 ? 3 : size >= 36 ? 2 : size >= 30 ? 1 : 0);
+
+// six transient expressions, 2–6s, drawn OVER the state and never stored
+const FACE_EVENTS = {
+  stunned:  { label: 'Stunned',    when: 'a bad beat just landed', hold: '3s' },
+  smug:     { label: 'Smug flash', when: 'a bluff got through',    hold: '2s' },
+  locked:   { label: 'Locked in',  when: 'all-in',                 hold: '3–5s' },
+  bored:    { label: 'Bored',      when: 'card dead',              hold: '6s' },
+  wary:     { label: 'Wary',       when: 'a nemesis sits down',    hold: '4s' },
+  pleased:  { label: 'Pleased',    when: 'given the snack',        hold: '3s' },
+};
+
+// eyes(state, tier) + brows(state, tier). Both take the eye colour and the eye-line
+// y so the sulking slump keeps working, and both are pure geometry — no state.
+const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
+  const d = faceDetail(size);
+  const t = faceTier(heat);
+  const L = 33.5, R = 46.5;   // eye centres, unchanged from the original atom
+
+  // an event replaces the eyes wholesale — it is the loudest thing the face does
+  if (event && FACE_EVENTS[event]) {
+    const ev = {
+      // wide and round, brows high AND inner-raised: the one face where a worried
+      // brow is correct, which is why it must not be the confident one
+      stunned: (
+        <g>
+          <circle cx={L} cy={cy} r="3.4" fill={eye}/>
+          <circle cx={R} cy={cy} r="3.4" fill={eye}/>
+          {d > 0 && <><path d={`M29.5 ${cy - 8} L37 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/>
+          <path d={`M50.5 ${cy - 8} L43 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/></>}
+        </g>
+      ),
+      // narrowed to arcs that turn UP at the outer edge — a grin done with eyes
+      smug: (
+        <g>
+          <path d={`M30 ${cy + 1} Q${L} ${cy - 3.4} 37 ${cy + 1}`} stroke={eye} strokeWidth="2.1" fill="none" strokeLinecap="round"/>
+          <path d={`M43 ${cy + 1} Q${R} ${cy - 3.4} 50 ${cy + 1}`} stroke={eye} strokeWidth="2.1" fill="none" strokeLinecap="round"/>
+          {d > 1 && <path d={`M43.4 ${cy - 7.4} L50.6 ${cy - 6.2}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity="0.8"/>}
+        </g>
+      ),
+      // level, tight, absolutely symmetrical: nothing left to decide
+      locked: (
+        <g>
+          <rect x={L - 3.6} y={cy - 1} width="7.2" height="2" rx="1" fill={eye}/>
+          <rect x={R - 3.6} y={cy - 1} width="7.2" height="2" rx="1" fill={eye}/>
+          {d > 0 && <><path d={`M29.8 ${cy - 6} L37.2 ${cy - 6}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/>
+          <path d={`M50.2 ${cy - 6} L42.8 ${cy - 6}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/></>}
+        </g>
+      ),
+      // half-lidded and looking down: the only face that breaks eye contact
+      bored: (
+        <g>
+          <ellipse cx={L} cy={cy + 1.4} rx="2.8" ry="1.5" fill={eye}/>
+          <ellipse cx={R} cy={cy + 1.4} rx="2.8" ry="1.5" fill={eye}/>
+          {d > 1 && <><rect x={L - 3.4} y={cy - 2.4} width="6.8" height="1.5" rx="0.7" fill={eye} opacity="0.5"/>
+          <rect x={R - 3.4} y={cy - 2.4} width="6.8" height="1.5" rx="0.7" fill={eye} opacity="0.5"/></>}
+        </g>
+      ),
+      // both eyes shifted the same way: he is watching one person, not the table
+      wary: (
+        <g>
+          <ellipse cx={L + 1.6} cy={cy} rx="2.2" ry="2" fill={eye}/>
+          <ellipse cx={R + 1.6} cy={cy} rx="2.2" ry="2" fill={eye}/>
+          {d > 0 && <><path d={`M30 ${cy - 5.6} L37 ${cy - 6.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round"/>
+          <path d={`M50.4 ${cy - 6.8} L43.4 ${cy - 5.6}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round"/></>}
+        </g>
+      ),
+      // closed, curving up: the only genuinely warm face in the set
+      pleased: (
+        <g>
+          <path d={`M30 ${cy + 1.6} Q${L} ${cy - 3} 37 ${cy + 1.6}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+          <path d={`M43 ${cy + 1.6} Q${R} ${cy - 3} 50 ${cy + 1.6}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+        </g>
+      ),
+    };
+    return ev[event];
+  }
+
+  if (mood === 'confident') {
+    // THE FIX: the brow drops toward the INNER corner and lifts at the outer, which
+    // is the assured brow. The old atom had it the other way round.
+    const narrow = t === 'low' ? 0 : t === 'mid' ? 0.55 : 1;
+    return (
+      <g>
+        {narrow < 1 ? (
+          <>
+            <ellipse cx={L} cy={cy - 1} rx="3" ry={2.6 - narrow * 0.9} fill={eye}/>
+            <ellipse cx={R} cy={cy - 1} rx="3" ry={2.6 - narrow * 0.9} fill={eye}/>
+          </>
+        ) : (
+          <>
+            <path d={`M30.2 ${cy - 2.6} Q${L} ${cy + 1.4} 36.8 ${cy - 2.6}`} stroke={eye} strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+            <path d={`M43.2 ${cy - 2.6} Q${R} ${cy + 1.4} 49.8 ${cy - 2.6}`} stroke={eye} strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+          </>
+        )}
+        {d > 0 && (
+          <>
+            <path d={`M29.8 ${cy - 8.4} L37.2 ${cy - 6.4 - narrow * 0.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity={0.6 + narrow * 0.35}/>
+            <path d={`M50.2 ${cy - 8.4 - (d > 2 && narrow === 1 ? 1.6 : 0)} L42.8 ${cy - 6.4 - narrow * 0.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity={0.6 + narrow * 0.35}/>
+          </>
+        )}
+      </g>
+    );
+  }
+
+  if (mood === 'neutral') {
+    const r = t === 'low' ? 1.5 : t === 'mid' ? 1.8 : 2.3;
+    return (
+      <g>
+        <ellipse cx="34" cy={cy} rx={2.5} ry={r} fill={eye}/>
+        <ellipse cx="46" cy={cy} rx={2.5} ry={r} fill={eye}/>
+        {d > 0 && t === 'high' && (
+          <>
+            <path d={`M30.4 ${cy - 6.6} L37.6 ${cy - 6.6}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.55"/>
+            <path d={`M49.6 ${cy - 6.6} L42.4 ${cy - 6.6}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.55"/>
+          </>
+        )}
+      </g>
+    );
+  }
+
+  if (mood === 'frustrated') {
+    const a = t === 'low' ? 9 : t === 'mid' ? 14 : 19;
+    const w = t === 'high' ? 6.9 : 6.4;
+    return (
+      <g>
+        <g transform={`rotate(${-a} ${L} ${cy})`}><rect x={L - w / 2} y={cy - 1.1} width={w} height="2.2" rx="1.1" fill={eye}/></g>
+        <g transform={`rotate(${a} ${R} ${cy})`}><rect x={R - w / 2} y={cy - 1.1} width={w} height="2.2" rx="1.1" fill={eye}/></g>
+        {d > 0 && t !== 'low' && (
+          <>
+            <path d={`M29.8 ${cy - 6.8} L37.4 ${cy - 4.6}`} stroke={eye} strokeWidth={t === 'high' ? 1.5 : 1.2} strokeLinecap="round"/>
+            <path d={`M50.2 ${cy - 6.8} L42.6 ${cy - 4.6}`} stroke={eye} strokeWidth={t === 'high' ? 1.5 : 1.2} strokeLinecap="round"/>
+          </>
+        )}
+      </g>
+    );
+  }
+
+  if (mood === 'tilted') {
+    // steaming → red-eyed. The eye COLOUR shifts at the top tier, the only place in
+    // the whole system where a mood overrides its own token — because that is what
+    // "red-eyed" means and nothing else reads as it.
+    const hot = t === 'high';
+    const ec = hot ? '#FF6B6D' : eye;
+    const a = t === 'low' ? 16 : t === 'mid' ? 24 : 30;
+    return (
+      <g>
+        <g transform={`rotate(${-a} ${L} ${cy})`}><rect x={L - 3.4} y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={ec}/></g>
+        <g transform={`rotate(${a} ${R} ${cy})`}><rect x={R - 3.4} y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={ec}/></g>
+        {d > 0 && (
+          <>
+            <path d={`M29.4 ${cy - 7} L37.6 ${cy - 4}`} stroke={ec} strokeWidth={hot ? 1.7 : 1.4} strokeLinecap="round"/>
+            <path d={`M50.6 ${cy - 7} L42.4 ${cy - 4}`} stroke={ec} strokeWidth={hot ? 1.7 : 1.4} strokeLinecap="round"/>
+          </>
+        )}
+        {d > 2 && hot && (
+          <>
+            <path d={`M26 ${cy - 12} q2.4 -2.6 0 -5.2`} stroke={ec} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.5"/>
+            <path d={`M54 ${cy - 12} q-2.4 -2.6 0 -5.2`} stroke={ec} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.5"/>
+          </>
+        )}
+      </g>
+    );
+  }
+
+  // sulking — the lid comes down as heat rises, which reads as shutting you out
+  const lid = t === 'low' ? 0 : t === 'mid' ? 1 : 1.9;
+  return (
+    <g>
+      <ellipse cx={L} cy={cy + 2.5} rx="2.2" ry={Math.max(0.7, 1.3 - lid * 0.3)} fill={eye}/>
+      <ellipse cx={R} cy={cy + 2.5} rx="2.2" ry={Math.max(0.7, 1.3 - lid * 0.3)} fill={eye}/>
+      {d > 1 && (
+        <>
+          <path d={`M30.6 ${cy - 0.6 + lid} A3 3 0 0 1 36.4 ${cy - 0.6 + lid}`} stroke={eye} strokeWidth="1" fill="none" opacity={0.55 + lid * 0.2}/>
+          <path d={`M43.6 ${cy - 0.6 + lid} A3 3 0 0 1 49.4 ${cy - 0.6 + lid}`} stroke={eye} strokeWidth="1" fill="none" opacity={0.55 + lid * 0.2}/>
+        </>
+      )}
+    </g>
+  );
+};
+
+// ── The expression vehicle ──
+// `heat` picks the intensity tier, `event` overlays a transient expression, and
+// `size` decides how much of the face survives. Existing callers pass none of the
+// three and get the mid tier at full detail, which is the face this atom always
+// drew — minus the inner-raised confident brow.
+const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event }) => {
   const uid = React.useId().replace(/:/g, '');
   const m = MOODS[mood];
-  // `tone`: a full colour override for the mood-driven parts (eyes + glow). Product
-  // surfaces never pass it — it exists so marketing can render the anatomy in its own
-  // territory (gold) without the atom hardcoding teal past the accent prop.
   const mc = tone || m.color;
   const eye = tone ? tone : (mood === 'neutral' ? accent : m.color);
   const slump = mood === 'sulking';
   const cy = slump ? 46 : 42;
-
-  const eyes = () => {
-    if (mood === 'confident') return (
-      <g>
-        <ellipse cx="33.5" cy={cy - 2} rx="3" ry="2.4" fill={eye}/>
-        <ellipse cx="46.5" cy={cy - 2} rx="3" ry="2.4" fill={eye}/>
-        <path d={`M30 ${cy - 7} L37 ${cy - 8.5}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.75"/>
-        <path d={`M50 ${cy - 7} L43 ${cy - 8.5}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.75"/>
-      </g>
-    );
-    if (mood === 'frustrated') return (
-      <g>
-        <g transform={`rotate(-14 33.5 ${cy})`}><rect x="30.4" y={cy - 1.1} width="6.4" height="2.2" rx="1.1" fill={eye}/></g>
-        <g transform={`rotate(14 46.5 ${cy})`}><rect x="43.4" y={cy - 1.1} width="6.4" height="2.2" rx="1.1" fill={eye}/></g>
-      </g>
-    );
-    if (mood === 'tilted') return (
-      <g>
-        <g transform={`rotate(-24 33.5 ${cy})`}><rect x="30.2" y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={eye}/></g>
-        <g transform={`rotate(24 46.5 ${cy})`}><rect x="43.2" y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={eye}/></g>
-        <path d={`M29.5 ${cy - 6.5} L37.5 ${cy - 4}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round"/>
-        <path d={`M50.5 ${cy - 6.5} L42.5 ${cy - 4}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round"/>
-      </g>
-    );
-    if (mood === 'sulking') return (
-      <g>
-        <ellipse cx="33.5" cy={cy + 2.5} rx="2.2" ry="1.3" fill={eye}/>
-        <ellipse cx="46.5" cy={cy + 2.5} rx="2.2" ry="1.3" fill={eye}/>
-        <path d={`M30.6 ${cy - 0.6} A3 3 0 0 1 36.4 ${cy - 0.6}`} stroke={eye} strokeWidth="1" fill="none" opacity="0.55"/>
-        <path d={`M43.6 ${cy - 0.6} A3 3 0 0 1 49.4 ${cy - 0.6}`} stroke={eye} strokeWidth="1" fill="none" opacity="0.55"/>
-      </g>
-    );
-    return (
-      <g>
-        <ellipse cx="34" cy={cy} rx="2.5" ry="1.7" fill={eye}/>
-        <ellipse cx="46" cy={cy} rx="2.5" ry="1.7" fill={eye}/>
-      </g>
-    );
-  };
+  // the glow answers heat too, bounded so the low tier is never invisible
+  const glow = Math.min(0.62, m.glow * (0.7 + (Math.max(0, Math.min(100, heat)) / 100) * 0.9));
 
   return (
     <svg width={size} height={size} viewBox="0 0 80 80" style={{ display: 'block', overflow: 'visible' }}>
       <defs>
         <radialGradient id={`g${uid}`} cx="50%" cy="54%" r="52%">
-          <stop offset="0" stopColor={mc} stopOpacity={m.glow}/>
+          <stop offset="0" stopColor={mc} stopOpacity={glow}/>
           <stop offset="1" stopColor={mc} stopOpacity="0"/>
         </radialGradient>
         <linearGradient id={`h${uid}`} x1="0" x2="0" y1="0" y2="1">
@@ -112,7 +278,7 @@ const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, 
         ? <path d="M40 20 C27 20 20 32 20 48 L17 80 L63 80 L60 48 C60 32 53 20 40 20 Z" fill={`url(#h${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4"/>
         : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill={`url(#h${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4"/>}
       <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C"/>
-      {eyes()}
+      {ghostFace({ mood, heat, size, event, eye, cy })}
     </svg>
   );
 };
@@ -453,6 +619,7 @@ const BackHeader = ({ children, right }) => (
 );
 
 Object.assign(window, {
+  FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
   MOODS, MoodGhost, MoodPip, MoodAvatar, MoodChip,

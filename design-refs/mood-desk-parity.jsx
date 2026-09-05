@@ -55,8 +55,29 @@ const AUDIT = [
   ] },
 ];
 
-const AuditSheetM = () => (
-  <Sheet title="What desktop was missing" sub="Every row of every mobile matrix, and whether desktop already drew it. EXISTS means a component draws it today. MAPS means an existing surface carries it with no new component. MISSING means this wave drew it, and the name given is the component that now does.">
+const auditTally = () => {
+  const t = { EXISTS: 0, MAPS: 0, MISSING: 0 };
+  AUDIT.forEach(g => g.rows.forEach(([, status]) => { t[status] += 1; }));
+  t.TOTAL = t.EXISTS + t.MAPS + t.MISSING;
+  return t;
+};
+
+// the doc panel is plain HTML, so it takes its figures from here rather than
+// restating them — a hardcoded summary is a second source of truth
+const publishTally = () => {
+  const t = auditTally();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('auditExists', t.EXISTS);
+  set('auditMaps', t.MAPS);
+  set('auditMissing', t.MISSING);
+  set('auditTotal', t.TOTAL);
+  set('auditProse', `${t.EXISTS} of ${t.TOTAL} rows already existed and ${t.MAPS} more mapped onto a surface without new work`);
+};
+
+const AuditSheetM = () => {
+  React.useEffect(publishTally, []);
+  return (
+  <Sheet title="What desktop was missing" sub={`${auditTally().TOTAL} rows across five mobile matrices: ${auditTally().EXISTS} already drawn on desktop, ${auditTally().MAPS} carried by an existing surface with no new component, ${auditTally().MISSING} drawn in this wave across ten screens — several MISSING rows deliberately share one, because a state and its rail are the same frame.`}>
     <div style={{ display: 'grid', gridTemplateColumns: '300px 96px 1fr', gap: '0 16px' }}>
       {['Mobile state', 'Desktop', 'Component'].map(h => (
         <div key={h} style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_MUTED, paddingBottom: 9, borderBottom: `1px solid ${M_BORDER}` }}>{h}</div>
@@ -85,7 +106,7 @@ const AuditSheetM = () => (
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_TEAL}0D`, border: `1px solid ${M_TEAL}33` }}>
         <SyLbl color={M_TEAL}>The shape of the gap</SyLbl>
         <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>
-          Twelve of thirty rows already existed and six more mapped onto a surface without new work — because desktop is the same components in a wider frame. <b style={{ color: M_TEXT }}>What was missing clustered in two places</b>: the transient states nobody screenshots (DEAL, between hands, collect) and the negative ones (broke, cut off, no history).
+          {auditTally().EXISTS} of {auditTally().TOTAL} rows already existed and {auditTally().MAPS} more mapped onto a surface without new work — because desktop is the same components in a wider frame. <b style={{ color: M_TEXT }}>What was missing clustered in two places</b>: the transient states nobody screenshots (DEAL, between hands, collect) and the negative ones (broke, cut off, no history).
         </div>
       </div>
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_GOLD}0D`, border: `1px solid ${M_GOLD}33` }}>
@@ -96,7 +117,8 @@ const AuditSheetM = () => (
       </div>
     </div>
   </Sheet>
-);
+  );
+};
 
 // ── 2 · HEAT (MOOD-2) ─────────────────────────────────────────────────────
 // mood.heat 0–100 is INTENSITY, not a new mood and not a new colour: it scales the
@@ -152,4 +174,4 @@ const HeatRosterRow = ({ name, accent, mood, heat, line, pnl }) => (
   </div>
 );
 
-Object.assign(window, { AUDIT, AuditSheetM, HEAT_STEPS, DeskHeatGhost, HeatRosterRow });
+Object.assign(window, { AUDIT, auditTally, publishTally, AuditSheetM, HEAT_STEPS, DeskHeatGhost, HeatRosterRow });

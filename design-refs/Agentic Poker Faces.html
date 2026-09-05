@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · The Faces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Design wave 41</div>
+    <h1>He looked<br/>nervous when<br/>he was winning.</h1>
+    <p>The confident face drew its brows <b>rising at the inner corner</b> — which is the universal worried brow. An agent who had just taken three pots in a row looked like he was about to be sick, and nobody could say why.</p>
+    <p>MOOD-2 gives every state a heat 0–100, so the answer is <b>intensity, not more states</b>. Five states × three tiers = fifteen faces, and the silhouette never changes in any of them: only eyes, brows and the glow move.</p>
+
+    <div class="lbl">What the wave contains</div>
+    <div class="lawrow"><span class="k">15</span><span class="v"><b>Faces.</b> Each tier covers a heat range — held 0–33, plain 34–66, full 67–100 — so the art takes an input the backend already sends.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>Event expressions</b>, 2–6 seconds, drawn over the state and never stored: stunned, smug-flash, locked-in, bored, wary, pleased.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>Sizes</b>, with a subtractive rule: asymmetry drops first, then lids, then brows. At 24px the eye shape carries the mood alone.</span></div>
+
+    <div class="lbl">Where the raised brow belongs</div>
+    <p><b>Stunned</b>, and only stunned. Wide round eyes with the brows high and inner-raised is the face of a man who has just been outdrawn — perfect for two seconds after a bad beat, ruinous as a permanent expression.</p>
+
+    <div class="lbl">One rule broken on purpose</div>
+    <p style="margin-bottom:0">Tilted at full heat is <b>the only place in the system where a mood overrides its own colour token</b>: the eyes go red. Nothing else reads as red-eyed, and the alternative was a sixth state.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The fifteen</div>
+  <div class="groupsub">Read down for the state, across for the temperature. The geometry lives in <code>mood-atoms.jsx</code> because it is the atom's own art — this board only renders it, so a drift in the atom shows up here first.</div>
+  <div id="f1"></div>
+</div>
+
+<div class="frame" style="left:600px;top:1300px">
+  <div class="fh"><span class="fn">42</span><span class="ft">Heat as a continuum</span><span class="fb teal">seven steps</span></div>
+  <div id="f2"></div>
+  <div class="fa"><b>The tiers are a drawing convenience, not a mechanic.</b> Heat is continuous and the glow tracks it smoothly even where the eyes step — which is why the strip reads as one agent over a bad hour rather than three pictures. Sulking is the row to notice: <b>intensity closes the face</b> there, where every other row opens it.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2300px">
+  <div class="fh"><span class="fn">43</span><span class="ft">Six expressions</span><span class="fb">2–6 seconds</span></div>
+  <div id="f3"></div>
+  <div class="fa"><b>None of them is stored.</b> An expression that persists becomes a state, and there are five of those — so these are the only faces that react to a single hand. Two break a rule deliberately: <b>bored looks down and wary looks sideways</b>, the only two faces that break eye contact with the owner. Card dead, he stops watching you; a nemesis sits down, he stops watching everything else.</div>
+</div>
+
+<div class="frame" style="left:600px;top:3200px">
+  <div class="fh"><span class="fn">44</span><span class="ft">Four sizes</span><span class="fb">what drops, and in what order</span></div>
+  <div id="f4"></div>
+  <div class="fa"><b>The rule is subtractive and ordered, so nothing is redrawn per size.</b> <code>faceDetail(size)</code> is derived inside the atom, which means no call site can ask for full detail at 24px or strip it at 46 — and every existing caller across nine boards got the confident-brow fix for free, because none of them passes heat or event and the default lands on the mid tier at the caller's own size.</div>
+</div>
+
+<div class="frame" style="left:600px;top:4300px">
+  <div class="grouphdr gold">The landing page, redrawn from the faces</div>
+  <div class="groupsub">THE MOODS was one face per state, which undersold the system the moment it had three. Each card now shows the arc — held, plain, full, left to right, the middle one ringed — under a headline that leads with it: <b>"Five states, and every one of them has a temperature."</b></div>
+  <div class="fh" style="margin-top:14px"><span class="fn">45</span><span class="ft">THE MOODS</span><span class="fb teal">three faces per card</span></div>
+  <div id="f5"></div>
+  <div class="fa"><b>The sub-line does the work the old one couldn't:</b> <i>each one runs from held to full — the same face, wound tighter</i>. And the promise that matters most is unchanged and still last: <b>he tilts because of bad beats and shown bluffs, never because you were away.</b></div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-landing.jsx"></script>
+<script type="text/babel" src="mood-faces.jsx"></script>
+
+<script type="text/babel">
+const MoodsBoardSection = () => (
+  <div style={{ width: 1180, background: '#1A1013', border: '1px solid rgba(205,179,128,0.18)', borderRadius: 16, padding: '32px 34px 34px' }}>
+    <div style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#CDB380', marginBottom: 12 }}>The moods</div>
+    <div style={{ fontFamily: PLAYFAIR, fontSize: 34, fontWeight: 600, color: '#F4EBDD', letterSpacing: '-0.015em', marginBottom: 12 }}>
+      Five states, and every one of them has a temperature.
+    </div>
+    <div style={{ fontSize: 14.5, color: '#D8CBBD', lineHeight: 1.6, maxWidth: 720, marginBottom: 26 }}>
+      Moods change how he plays, and each one runs from held to full — the same face, wound tighter. He tilts because of bad beats and shown bluffs, never because you were away.
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
+      {MOOD_VOICE.map(v => <MoodCard key={v.m} {...v} rowCard/>)}
+    </div>
+  </div>
+);
+
+[
+  ['f1', FacesGridM],
+  ['f2', FaceHeatStripM],
+  ['f3', FaceEventsM],
+  ['f4', FaceSizesM],
+  ['f5', MoodsBoardSection],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

@@ -208,25 +208,33 @@ const HowSection = ({ bp }) => (
 
 // ── THE MOODS ──
 const MOOD_VOICE = [
-  { m: 'confident',  line: 'Table’s passive. I’m opening wider than usual.' },
-  { m: 'neutral',    line: 'Nothing to report. Grinding.' },
-  { m: 'frustrated', line: 'That’s twice he’s rivered me. Noted.' },
-  { m: 'tilted',     line: 'I know I’m steaming. Talk me down or let me jam.' },
-  { m: 'sulking',    line: '12 hands, nothing playable. I’d rather sit out a while.' },
+  { m: 'confident',  arc: 'calm → smug',         line: 'Table’s passive. I’m opening wider than usual.' },
+  { m: 'neutral',    arc: 'flat → alert',        line: 'Nothing to report. Grinding.' },
+  { m: 'frustrated', arc: 'tight → scowling',    line: 'That’s twice he’s rivered me. Noted.' },
+  { m: 'tilted',     arc: 'steaming → red-eyed', line: 'I know I’m steaming. Talk me down or let me jam.' },
+  { m: 'sulking',    arc: 'flat → shut out',     line: '12 hands, nothing playable. I’d rather sit out a while.' },
 ];
 
-const MoodCard = ({ m, line, rowCard }) => (
+const MoodCard = ({ m, line, arc, rowCard }) => (
   <div style={{
     flex: 1, minWidth: 0, background: L_WINE_2, border: `1px solid ${L_WINE_EDGE}`,
     borderRadius: 12, padding: rowCard ? '18px 14px' : '14px 16px',
     display: 'flex', flexDirection: rowCard ? 'column' : 'row',
     alignItems: 'center', gap: rowCard ? 11 : 14, textAlign: rowCard ? 'center' : 'left',
   }}>
-    <div style={{ flexShrink: 0 }}>
-      <MoodGhost mood={m} accent={M_TEAL} size={rowCard ? 54 : 44}/>
+    {/* three intensities, because a state is a range and not a picture: the same
+        face held, plain and full, left to right */}
+    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-end', gap: rowCard ? 2 : 1 }}>
+      {[14, 50, 90].map((h, i) => (
+        <MoodGhost key={h} mood={m} accent={M_TEAL} heat={h}
+          size={rowCard ? (i === 1 ? 54 : 40) : (i === 1 ? 44 : 33)} ring={i === 1}/>
+      ))}
     </div>
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ marginBottom: 6 }}><LLbl size={9}>{m}</LLbl></div>
+      <div style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 8, justifyContent: rowCard ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
+        <LLbl size={9}>{m}</LLbl>
+        <span style={{ fontFamily: MONO, fontSize: 9, color: L_CREAM_2, opacity: 0.5, letterSpacing: '0.04em' }}>{arc}</span>
+      </div>
       <div style={{ fontFamily: INTER, fontSize: 12.5, color: L_CREAM_2,
         lineHeight: 1.45, fontStyle: 'italic' }}>“{line}”</div>
     </div>
@@ -234,8 +242,8 @@ const MoodCard = ({ m, line, rowCard }) => (
 );
 
 const MoodsSection = ({ bp }) => (
-  <Sec bp={bp} tint label="The moods" title="Five states, and he means all of them."
-    sub="Moods are real: they change how he plays, and you can talk him down. He tilts because of bad beats and shown bluffs — never because you were away.">
+  <Sec bp={bp} tint label="The moods" title="Five states, and every one of them has a temperature."
+    sub="Moods change how he plays, and each one runs from held to full — the same face, wound tighter. He tilts because of bad beats and shown bluffs, never because you were away.">
     <div style={{ display: bp.twoCol ? 'grid' : 'flex',
       gridTemplateColumns: bp.twoCol ? '1fr 1fr' : undefined,
       flexDirection: 'row', gap: 10 }}>
@@ -422,8 +430,8 @@ const LandingMobileM = () => {
         </div>
       </Sec>
 
-      <Sec bp={bp} tint label="The moods" title="Five states, and he means all of them."
-        sub="Moods are real: they change how he plays, and you can talk him down. He tilts because of bad beats and shown bluffs — never because you were away.">
+      <Sec bp={bp} tint label="The moods" title="Five states, and every one of them has a temperature."
+        sub="Moods change how he plays, and each one runs from held to full — the same face, wound tighter. He tilts because of bad beats and shown bluffs, never because you were away.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {MOOD_VOICE.map(v => <MoodCard key={v.m} {...v}/>)}
         </div>
