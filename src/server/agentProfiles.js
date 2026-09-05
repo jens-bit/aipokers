@@ -26,7 +26,6 @@ import {
   effectiveAttrs,
   logAttrChange,
   firstWordsFor,
-  natureHintFor,
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
@@ -35,6 +34,7 @@ import { loadAgentStore, saveProfile } from './store.js';
 import {
   DRAFT_MAX_WORDS,
   draftReply,
+  draftProfile,
   isGoSignal,
   slidersFromBrief,
 } from './draftGuard.js';
@@ -1640,14 +1640,12 @@ export function installAgentProfileRoutes(app) {
     // hint, for reading a vague brief into sliders, and for the build.
     const ownerSaid = () => profile.chat.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
 
-    // ATTR-3a: the nature the ladder would pick from the draft SO FAR. Only the
-    // owner's own words count — the recruiter's questions would otherwise vote
-    // for a temperament nobody asked for. Null until the draft has actually
-    // said something, so the chip can stay honestly blank.
-    const draftHint = () => {
-      const said = profile.chat.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
-      return natureHintFor(said)?.name ?? null;
-    };
+    // ATTR-3a / PACE-1d: everything the birth screen shows about a draft in
+    // progress, derived from ONE profile so the strip, the temperament chip and
+    // the primary action can never disagree. Only the owner's own words count —
+    // the recruiter's questions would otherwise vote for a temperament nobody
+    // asked for.
+    const draftState = () => draftProfile(ownerSaid());
 
     // ── "lets go" ────────────────────────────────────────────────────────────
     // The owner saying he is done briefing is the build trigger. Nothing else
@@ -1664,7 +1662,11 @@ export function installAgentProfileRoutes(app) {
       saveStore(userId);
       return res.json({
         chat: profile.chat,
-        natureHint: agent.nature?.name ?? draftHint(),
+        natureHint: agent.nature?.name ?? draftState().nature,
+        // PACE-1d: a reply that ends the draft always says so, and always
+        // carries the dials it ended on.
+        ready: true,
+        profile: agent.profile ?? null,
         agentId: agent.id,
         agentName: agent.name,
         strategy: agent.strategy,
@@ -1689,7 +1691,18 @@ export function installAgentProfileRoutes(app) {
     }
     profile.chat.push({ role: 'assistant', content: guarded.text });
     saveStore(userId);
-    return res.json({ chat: profile.chat, natureHint: draftHint() });
+    const draft = draftState();
+    return res.json({
+      chat: profile.chat,
+      natureHint: draft.nature,
+      // PACE-1d: the dials the draft has produced so far, all four of them or
+      // none — a strip with two of four filled in is a strip that looks broken.
+      profile: draft.profile,
+      // Enough to build him. The screen shows the primary action on this, so a
+      // chip pick moves the draft forward on the very first turn instead of
+      // dead-ending on a reply that reads like a closing line.
+      ready: draft.ready,
+    });
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it

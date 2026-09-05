@@ -84,6 +84,43 @@ Receive (server → client):
                 actionDeadline, handNumber } — per-table delta for the diorama.
                 Throttled to at most one per second per table. heroHole is null
                 unless the subscriber proved ownership in FLOOR_SUB.
+  PACE        — { tableId, pace, potBb, board?, card? } — the pacing state of
+                the hand in progress, server-authoritative. `pace` is one of
+                calm | heating | allin | showdown and only ever advances within
+                a hand. Sent at each deal (calm) and on every advance. The same
+                two fields ride every GAME_STATE as `pace` and `potBb`, so a
+                client that connects mid-hand is not calm until the next
+                transition.
+                `heating` is entered when the pot reaches PACE_HEAT_BB big
+                blinds (default 25). `allin` means a stack is committed and
+                nobody can act.
+                WITH A SPECTATOR ATTACHED, an all-in is staged rather than
+                resolved: the allin frame is held 3–5s, then the runout arrives
+                one card at a time 700ms apart (each frame carries `board`, the
+                cards visible so far, and `card`, the one just turned), the
+                finished board is held 2s, and only then does HAND_RESULT
+                arrive. Unwatched, none of that happens and the hand resolves
+                at machine speed — a client that ignores PACE entirely sees
+                exactly what it saw before this message existed.
+  READ        — { tableId, seat, reads: [...] } — the agent's picture of each
+                opponent, sent to the OWNER'S SPECTATOR ONLY (the socket
+                attached to that seat) and never to a seated player or to a
+                watcher on another seat. Sent when the picture changes, not on
+                every state push. Each entry is
+                { playerId, displayName, seat, handsObserved, gate, formed,
+                  shape, line, rows: [{ k, label, value, confidence, formed }] }
+                with five rows in fixed order — vpip, pfr, aggr, fold, sd.
+                `value` is 0–100 or null when there is no evidence for that row;
+                `confidence` is 0–1; `formed` is whether the agent will actually
+                act on it, gated by the same evidence bar his briefing uses.
+                `line` is one sentence in his voice, present only once the read
+                has formed. The same array rides his own GAME_STATE as `reads`.
+
+  GAME_STATE additions for the owner's spectator (never for anyone else):
+    heroEquity — his equity as a probability 0–1, present from the deal rather
+                 than from his first decision, on every snapshot including the
+                 mid-hand catch-up one.
+    reads      — as READ above.
 
 ## Autonomous play
 

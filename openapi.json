@@ -367,7 +367,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "chat": { "type": "array", "items": { "$ref": "#/components/schemas/ChatMessage" } }
+                    "chat": { "type": "array", "items": { "$ref": "#/components/schemas/ChatMessage" } },
+                    "natureHint": { "type": ["string", "null"], "description": "PACE-1d: the nature the birth ladder would pick from the draft so far, or null when it has not said enough about play. Always derived from `profile`, so the temperament chip and the profile strip cannot disagree." },
+                    "profile": { "type": ["object", "null"], "description": "PACE-1d: the four dials the draft has produced so far — all four or none, because a strip with two of four filled in looks broken.", "properties": { "tightness": { "type": "integer", "minimum": 0, "maximum": 100 }, "aggression": { "type": "integer", "minimum": 0, "maximum": 100 }, "bluffFreq": { "type": "integer", "minimum": 0, "maximum": 100 }, "discipline": { "type": "integer", "minimum": 0, "maximum": 100 } } },
+                    "ready": { "type": "boolean", "description": "PACE-1d: there is enough here to build him, so the client can show the primary action. Every reply that ends the draft carries ready:true, alongside agentId and the dials it ended on." },
+                    "agentId": { "type": "string", "description": "Present only on the turn that builds him." },
+                    "agentName": { "type": "string" },
+                    "strategy": { "type": "string" },
+                    "createdAgent": { "$ref": "#/components/schemas/Agent" }
                   }
                 }
               }

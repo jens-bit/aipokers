@@ -336,7 +336,14 @@ export function natureHintFor(text, { minSignals = NATURE_HINT_MIN_SIGNALS } = {
   const partial = { tightness: 55, aggression: 55, bluffFreq: 25, discipline: 60 };
   for (const h of hits) Object.assign(partial, h.profile);
 
-  return { name: natureForProfile(partial).name, signals: hits.map((h) => h.axis) };
+  // The dials come back with the guess. PACE-1d: the birth screen shows the
+  // temperament AND the profile strip, and the two disagreeing — an aggressive
+  // bluffer labelled a Rock — is worse than showing neither.
+  return {
+    name: natureForProfile(partial).name,
+    signals: hits.map((h) => h.axis),
+    profile: { ...partial },
+  };
 }
 
 // Day one. Per design 32: a 30-point potential band, and a current sitting at

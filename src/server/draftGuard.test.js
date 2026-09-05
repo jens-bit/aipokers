@@ -16,8 +16,10 @@ import {
   isGoSignal,
   slidersFromBrief,
   draftReply,
+  draftProfile,
 } from './draftGuard.js';
 import { installAgentProfileRoutes } from './agentProfiles.js';
+import { natureForProfile } from '../agent/attributes.js';
 
 describe('sanitizeDraftReply', () => {
   it('passes an ordinary recruiter line through untouched', () => {
@@ -164,6 +166,70 @@ describe('draftReply', () => {
   });
 });
 
+describe('draftProfile — PACE-1d forward motion', () => {
+  // The 17:45 playtest: picking this chip returned a closing line, an empty
+  // profile strip, and a temperament chip that said Rock.
+  const CHIP = 'Aggressive bluffer';
+
+  it('maps the chip to sliders on the very first turn', () => {
+    const d = draftProfile(CHIP);
+    assert.equal(d.ready, true);
+    assert.ok(d.profile, 'a chip pick produces dials, not nothing');
+  });
+
+  it('sets all four dials, never two of four', () => {
+    const d = draftProfile(CHIP);
+    for (const k of ['tightness', 'aggression', 'bluffFreq', 'discipline']) {
+      assert.equal(typeof d.profile[k], 'number', `${k} missing`);
+      assert.ok(d.profile[k] >= 0 && d.profile[k] <= 100, `${k} out of range`);
+    }
+  });
+
+  it('reads an aggressive bluffer as aggressive and bluffy', () => {
+    const d = draftProfile(CHIP);
+    assert.ok(d.profile.aggression > 70, `aggression ${d.profile.aggression}`);
+    assert.ok(d.profile.bluffFreq > 50, `bluffFreq ${d.profile.bluffFreq}`);
+  });
+
+  it('an aggressive bluffer is NEVER a Rock', () => {
+    assert.notEqual(draftProfile(CHIP).nature, 'Rock');
+  });
+
+  it('the temperament always matches the dials on screen beside it', () => {
+    for (const brief of [CHIP, 'Tight and patient', 'Solver-strict', 'be sporadic and chaotic', 'make him scary']) {
+      const d = draftProfile(brief);
+      assert.ok(d.nature, `no nature for ${brief}`);
+      // The nature is computed from THAT profile and nothing else, so the two
+      // cannot drift apart.
+      assert.equal(d.nature, natureForProfile(d.profile).name, brief);
+    }
+  });
+
+  it('every phase-one suggestion chip moves the draft forward', () => {
+    for (const chip of ['Tight and patient', 'Aggressive bluffer', 'Solver-strict']) {
+      const d = draftProfile(chip);
+      assert.equal(d.ready, true, `${chip} dead-ends`);
+      assert.ok(d.profile, `${chip} produced no dials`);
+    }
+  });
+
+  it('a tight brief still reads as a Rock — the fix did not flatten everything', () => {
+    assert.equal(draftProfile('Tight and patient').nature, 'Rock');
+  });
+
+  it('says so honestly when the draft has said nothing about play', () => {
+    const d = draftProfile('call him Steve');
+    assert.equal(d.ready, false);
+    assert.equal(d.profile, null);
+    assert.equal(d.nature, null);
+  });
+
+  it('names where the reading came from', () => {
+    assert.match(draftProfile(CHIP).source, /^brief:/);
+    assert.match(draftProfile('tight, and he should be disciplined about it').source, /^brief:|^signals:/);
+  });
+});
+
 // ── The transcript ──────────────────────────────────────────────────────────
 // No ANTHROPIC_API_KEY here, so callClaude returns null and every reply comes
 // from the guard's own fallbacks — which is exactly the path that has to be
@@ -233,6 +299,36 @@ describe('the transcript: "be sporadic and chaotic" then "lets go"', () => {
       const closing = second.body.chat.filter((m) => m.role === 'assistant').pop().content;
       assert.ok(!/```/.test(closing), 'the closing line is not code either');
       assert.ok(closing.split(/\s+/).length <= DRAFT_MAX_WORDS);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('a chip pick carries the dials, the temperament and ready on turn one', async () => {
+    const { server, post } = await boot();
+    const chipUser = `${userId}-chip`;
+    try {
+      await post('/api/agents/chat/reset', { userId: chipUser });
+      const r = await post('/api/agents/chat', { userId: chipUser, content: 'Aggressive bluffer' });
+
+      assert.equal(r.status, 200);
+      assert.equal(r.body.ready, true, 'the primary action has something to act on');
+      assert.ok(r.body.profile, 'the profile strip has dials to draw');
+      for (const k of ['tightness', 'aggression', 'bluffFreq', 'discipline']) {
+        assert.equal(typeof r.body.profile[k], 'number', `${k} missing from the strip`);
+      }
+      assert.ok(r.body.profile.aggression > 70);
+      assert.ok(r.body.profile.bluffFreq > 50);
+      assert.notEqual(r.body.natureHint, 'Rock', 'an aggressive bluffer is never a Rock');
+      assert.equal(r.body.natureHint, natureForProfile(r.body.profile).name,
+        'the chip and the strip must agree');
+
+      // And the reply that ends the draft says so too.
+      const go = await post('/api/agents/chat', { userId: chipUser, content: 'lets go' });
+      assert.equal(go.body.ready, true, 'a reply that ends the draft always carries ready');
+      assert.ok(go.body.agentId);
+      assert.ok(go.body.profile, 'and the dials it ended on');
+      assert.ok(go.body.profile.aggression > 70, 'which are the ones the chip set');
     } finally {
       server.close();
     }

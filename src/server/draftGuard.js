@@ -29,6 +29,8 @@
 // Pure and side-effect free. Everything here is deterministic: no model call,
 // no clock, no store.
 
+import { natureForProfile, natureHintFor } from '../agent/attributes.js';
+
 // One or two sentences. Sixty words is generous for that and still short
 // enough that a wall of text can never arrive.
 export const DRAFT_MAX_WORDS = 60;
@@ -139,6 +141,18 @@ export function isGoSignal(text) {
 // said out loud, so the owner can correct it — instead of asking again.
 const VAGUE_BRIEFS = [
   {
+    // PACE-1d: the "Aggressive bluffer" suggestion chip mapped to NOTHING, so
+    // picking it left the profile strip empty and the draft with no way
+    // forward. A chip is the most explicit brief the product offers — if
+    // anything maps, that does.
+    key: 'aggressive',
+    re: /\b(aggress|bluffer|bluffy|attack|pressure|relentless|pushy)\w*/i,
+    profile: { tightness: 30, aggression: 88, bluffFreq: 58, discipline: 45 },
+    line: 'Aggressive it is — he plays plenty of hands, bets and raises hard, and bluffs a good deal more than most.',
+    name: 'The Closer',
+    strategy: 'You are an aggressive, pressuring player. You enter pots freely, bet and raise far more often than you call, and bluff frequently enough that nobody can simply wait you out. You put opponents to decisions on every street.',
+  },
+  {
     key: 'chaotic',
     re: /\b(chaot|sporadic|random|erratic|unpredictab|wild|crazy|insane|mental|bonkers|degen|maniac|reckless|nuts)\w*/i,
     profile: { tightness: 15, aggression: 90, bluffFreq: 60, discipline: 20 },
@@ -156,7 +170,7 @@ const VAGUE_BRIEFS = [
   },
   {
     key: 'smart',
-    re: /\b(smart|clever|genius|brilliant|sharp|thinking|intelligent)\w*/i,
+    re: /\b(smart|clever|genius|brilliant|sharp|thinking|intelligent|solver|strict|methodical|disciplined)\w*/i,
     profile: { tightness: 70, aggression: 68, bluffFreq: 28, discipline: 85 },
     line: 'A thinker, then — selective about hands, aggressive when he is in one, and disciplined enough to stick to it.',
     name: 'The Professor',
@@ -196,6 +210,41 @@ export function slidersFromBrief(text) {
   return hit
     ? { key: hit.key, profile: { ...hit.profile }, line: hit.line, name: hit.name, strategy: hit.strategy }
     : null;
+}
+
+// ── The state of the draft, after everything the owner has said ─────────────
+// PACE-1d, from the 17:45 playtest: picking "Aggressive bluffer" got a reply
+// that read like a closing line, an empty profile strip, and a temperament chip
+// that said Rock. Three surfaces disagreeing about the same draft.
+//
+// One function now answers all three, so they cannot drift apart: the dials,
+// the temperament THOSE DIALS produce, and whether there is enough to build. A
+// nature is never computed from anything but the profile that is on screen next
+// to it.
+export function draftProfile(brief) {
+  const vague = slidersFromBrief(brief);
+  if (vague) {
+    return {
+      profile: { ...vague.profile },
+      nature: natureForProfile(vague.profile).name,
+      ready: true,
+      source: `brief:${vague.key}`,
+    };
+  }
+
+  // No single word carried it, but the draft may still have said enough across
+  // several turns for the ladder to have an opinion.
+  const hint = natureHintFor(brief);
+  if (hint?.profile) {
+    return {
+      profile: { ...hint.profile },
+      nature: natureForProfile(hint.profile).name,
+      ready: true,
+      source: `signals:${hint.signals.join('+')}`,
+    };
+  }
+
+  return { profile: null, nature: null, ready: false, source: null };
 }
 
 // The recruiter's reply when nothing else can be said: a real question about
