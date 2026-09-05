@@ -11,6 +11,9 @@ import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf, lastMomentOf } from '../components/floor/agentView.js';
 import { recentEntries, gainsWithin, grewWithin, normalizeAttrs, ATTR_KEYS } from '../lib/attributes.js';
+import { openerFor } from '../components/desktop/useAgentThread.js';
+import { ReplayCard } from '../components/replay/ReplayCard.jsx';
+import { ReplayTheatre } from '../components/replay/ReplayTheatre.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -471,18 +474,22 @@ function CostLine({ cost, row, explained, onExplain }) {
 //
 // One line per attribute, oldest first: the FIRST time it cost him something,
 // which is the only time the explanation is news.
-async function loadFirstCosts(agent, userId) {
+// WIRE-1: one request, two readers. The replay poster (R-3) wants the newest
+// flagged hand and the cost lines want the oldest ones, so the fetch is lifted
+// out rather than run twice.
+async function loadFlagged(agent, userId) {
   if (!agent?.id) return [];
-  let hands = [];
   try {
     const res = await fetch(
       `/api/agents/${encodeURIComponent(agent.id)}/flagged?userId=${encodeURIComponent(userId)}`,
       { headers: { 'x-telegram-init-data': getTelegramInitData() } },
     );
     if (!res.ok) return [];
-    hands = (await res.json()).flaggedHands ?? [];
+    return (await res.json()).flaggedHands ?? [];
   } catch { return []; }
+}
 
+function firstCostsFrom(hands) {
   const seen = new Set();
   const out = [];
   // Oldest hand first, so "first time" means what it says.
@@ -555,6 +562,8 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const [localMood, setLocalMood]   = useState(() => moodOf(agent));
   const [localCause, setLocalCause] = useState(() => causeOf(agent));
   const [chat, setChat]             = useState([]);
+  // WIRE-1: the hand he is showing off, opened from the poster in the recap.
+  const [replayHand, setReplayHand]  = useState(null);
   const [draft, setDraft]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [proposalAccepting, setProposalAccepting] = useState(false);
@@ -586,18 +595,15 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     Promise.all([
       fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
       loadAttrLog(agent, userId),
-      loadFirstCosts(agent, userId),
+      loadFlagged(agent, userId),
     ])
-      .then(([data, attrLog, firstCosts]) => {
+      .then(([data, attrLog, flagged]) => {
+        const firstCosts = firstCostsFrom(flagged);
         const hands = data.recentHands || [];
-        const msgs = [];
-        if (hands.length > 0) {
-          const won  = hands.filter((h) => h.won).length;
-          const lost = hands.length - won;
-          msgs.push(mkMsg('assistant', `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`));
-        } else {
-          msgs.push(mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.'));
-        }
+        // WIRE-1: his opener, written by the server (MOOD-2c). The branch that
+        // built a win/loss tally is gone — openerFor falls back to it only for
+        // a record written before the field existed.
+        const msgs = [mkMsg('assistant', openerFor(agent, hands))];
         // What he trained tonight rides inside the recap bubble; each tick then
         // gets its own quiet line, in his voice, with the cause behind it.
         // Nothing here fires without an attrLog entry to draw it from.
@@ -607,6 +613,13 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           for (const t of ticks) {
             msgs.push({ role: 'growth', tick: t, _id: ++msgIdRef.current });
           }
+        }
+        // WIRE-1 (REPLAY-1 R-3): the poster, in the recap. "Most hands happen
+        // while nobody watches" — this is the one the owner missed, offered as
+        // twenty-eight seconds rather than a transcript. Newest flagged hand
+        // only: a poster per hand would make the thread a feed.
+        if (flagged.length > 0) {
+          msgs.push({ role: 'replay', hand: flagged[0], _id: ++msgIdRef.current });
         }
         // F-3: the first time each attribute cost him something. The line is
         // his misjudgment, and the label beside it is tappable exactly once.
@@ -619,7 +632,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
         setChat(msgs);
       })
       .catch(() => {
-        const msgs = [mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.')];
+        const msgs = [mkMsg('assistant', openerFor(agent, []))];
         if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
         setChat(msgs);
       });
@@ -692,6 +705,17 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   function handleAction() {
     if (isLive) { onWatch?.(agent); }
     else { onDeploy?.(agent); }
+  }
+
+  // The theatre takes the whole screen while it plays — a replay inside a
+  // scrolling thread would be a video in a sidebar. Back returns to the thread.
+  if (replayHand) {
+    return (
+      <ReplayTheatre
+        hand={{ ...replayHand, agentName: agent.name }}
+        onBack={() => setReplayHand(null)}
+      />
+    );
   }
 
   return (
@@ -787,6 +811,15 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
                   markExplained(msg.cost.key);
                   setExplained((prev) => new Set(prev).add(msg.cost.key));
                 }}
+              />
+            );
+          }
+          if (msg.role === 'replay') {
+            return (
+              <ReplayCard
+                key={msg._id}
+                hand={msg.hand}
+                onOpen={() => setReplayHand(msg.hand)}
               />
             );
           }

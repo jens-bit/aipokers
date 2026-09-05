@@ -73,7 +73,7 @@ function WornOccupant({
   );
 }
 
-export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect, selectedAgentId }) {
+export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect, selectedAgentId, newbornId = null }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ownZoomedId, setOwnZoomedId] = useState(null);
@@ -252,8 +252,33 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
 
   const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
 
+  // WIRE-1 (FLOW-1 F-4): the newborn's first hand. The owner just built him and
+  // is standing on the floor watching him walk in; the moment he actually sits
+  // down is the one moment "watch him" is the obvious thing to do, and it is
+  // the link between building an agent and seeing him play. It is offered only
+  // for that agent, only once he is at a table, and it stands down as soon as
+  // the owner takes it or leaves the floor.
+  const newborn = newbornId
+    ? agents.find((a) => a.id === newbornId && a.liveGame && a.activeTableId)
+    : null;
+
+  // What the standup row does when tapped. The newborn's first hand wins over
+  // the flagged review: it is the thing that just happened, and it is gone in a
+  // hand or two either way.
+  const standupActionFor = (nb, flagged) => {
+    if (nb) return { label: `Watch ${nb.name} play his first hand`, run: () => onWatch?.(nb) };
+    if (flagged) {
+      return {
+        label: `${flagged.flaggedCount} flagged hand${flagged.flaggedCount !== 1 ? 's' : ''} — tap to review`,
+        run: () => setFlaggedAgent(flagged),
+      };
+    }
+    return null;
+  };
+
   // First agent with flagged hands — the standup becomes tappable when one exists.
   const flaggableAgent = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
+  const standupAction = standupActionFor(newborn, flaggableAgent);
 
   return (
     <div
@@ -302,20 +327,35 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
           {!desktopMode && (
             <div
               className="floor-standup"
-              role={flaggableAgent ? 'button' : undefined}
-              tabIndex={flaggableAgent ? 0 : undefined}
-              onClick={flaggableAgent ? () => setFlaggedAgent(flaggableAgent) : undefined}
-              onKeyDown={flaggableAgent ? (e) => { if (e.key === 'Enter' || e.key === ' ') setFlaggedAgent(flaggableAgent); } : undefined}
-              style={flaggableAgent ? { cursor: 'pointer' } : undefined}
-              aria-label={flaggableAgent ? `${flaggableAgent.flaggedCount} flagged hand${flaggableAgent.flaggedCount !== 1 ? 's' : ''} — tap to review` : undefined}
+              role={standupAction ? 'button' : undefined}
+              tabIndex={standupAction ? 0 : undefined}
+              onClick={standupAction ? standupAction.run : undefined}
+              onKeyDown={standupAction ? (e) => { if (e.key === 'Enter' || e.key === ' ') standupAction.run(); } : undefined}
+              style={standupAction ? { cursor: 'pointer' } : undefined}
+              aria-label={standupAction ? standupAction.label : undefined}
             >
               <span className="floor-standup__label">Standup</span>
               <span className="floor-standup__line">
                 {loading
                   ? 'Reading the room…'
-                  : standupLine({ playing, resting, lounge, total: agents.length, agents })}
+                  : newborn
+                    ? `${newborn.name} just sat down.`
+                    : standupLine({ playing, resting, lounge, total: agents.length, agents })}
               </span>
-              {flaggableAgent && (
+              {newborn && (
+                <span style={{
+                  flexShrink: 0, marginLeft: 'auto',
+                  display: 'inline-flex', alignItems: 'center',
+                  height: 18, padding: '0 7px', borderRadius: 3,
+                  background: 'rgba(0,212,170,0.14)', border: '1px solid rgba(0,212,170,0.45)',
+                  color: '#00D4AA',
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
+                  fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em',
+                }}>
+                  WATCH HIM
+                </span>
+              )}
+              {flaggableAgent && !newborn && (
                 <span style={{
                   flexShrink: 0, marginLeft: 'auto',
                   display: 'inline-flex', alignItems: 'center', gap: 4,
