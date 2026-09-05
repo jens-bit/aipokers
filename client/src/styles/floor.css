@@ -486,3 +486,41 @@
 .floor-pip[data-pip='broke'] {
   opacity: 0.86;
 }
+
+/* ── FL-2 · a live felt is the loudest object ──────────────────────────────
+   One place to look. The room and every body not in the hand drop to 42%
+   under a scrim; the live felt keeps its brightness and gains a rim. */
+
+.floor.is-room-live .floor__room-wrap { opacity: 0.42; }
+.floor.is-room-live .floor-bar-ghost { opacity: 0.42; }
+.floor.is-room-live .floor-bar-ghost.is-selected { opacity: 1; }
+
+.floor__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(8, 9, 11, 0.34);
+  pointer-events: none;
+}
+
+.floor-live-glow {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 212, 170, 0.18), transparent 68%);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.floor-live-rim {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 170, 0.53);
+  box-shadow: 0 0 22px rgba(0, 212, 170, 0.24), inset 0 0 26px rgba(0, 212, 170, 0.12);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* A resting room is not a dark one: no scrim, and the room at its own level. */
+.floor:not(.is-room-live) .floor__room-wrap { opacity: 0.92; }

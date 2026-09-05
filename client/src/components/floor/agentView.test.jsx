@@ -154,8 +154,31 @@ describe('standupLine', () => {
     expect(line(0, 0, 0, 0)).toBe('The room is open.');
   });
 
-  it('says everyone is resting when no table is running', () => {
-    expect(line(0, 2, 1, 3)).toBe("Everyone's resting.");
+  // FL-2: "Everyone's resting." is retired by wave 34 — it was a dead room,
+  // a sentence that told the owner nothing had happened and gave him nothing
+  // to look at. A count, and then whatever actually happened.
+  it('counts the room rather than passing a verdict on it', () => {
+    expect(line(0, 2, 1, 3)).toBe('Three resting · the room is quiet');
+    expect(line(0, 1, 0, 1)).toBe('One resting · the room is quiet');
+  });
+
+  it('names what happened when somebody has news', () => {
+    expect(standupLine({
+      playing: [],
+      resting: [{ name: 'Bluff Master', attrLog: [{ ts: 1000, key: 'a', from: 1, to: 3 }] }],
+      lounge: [],
+      total: 1,
+      now: 1000,
+    })).toBe('One resting · Bluff Master grew tonight');
+  });
+
+  it('says the money first, because it is what the owner can act on', () => {
+    expect(standupLine({
+      playing: [],
+      resting: [],
+      lounge: [{ name: 'Value Bot', presence: 'broke' }],
+      total: 1,
+    })).toBe('One resting · Value Bot is out of money');
   });
 
   it('counts the felt and the bar together', () => {

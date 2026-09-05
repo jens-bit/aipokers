@@ -124,10 +124,45 @@ export function newsPipFor(agent, now = Date.now()) {
   return null;
 }
 
-export function standupLine({ playing, resting, lounge, total }) {
+// ── FL-2 · a resting room still breathes ─────────────────────────────────────
+// "Everyone's resting." is retired by wave 34: it was a dead room, a sentence
+// that told the owner nothing had happened and gave him nothing to look at.
+// The standup now says what actually happened — who grew, who is out of money
+// — and falls back to a count rather than a verdict.
+
+const WORDS = ['nobody', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+function count(n) {
+  return n < WORDS.length ? WORDS[n] : String(n);
+}
+function sentence(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// The one thing worth saying about a room where nothing is being played. News
+// is ranked the same way the pips are: money he does not have, then an
+// attribute that moved, then a band that settled.
+export function roomNews(agents, now = Date.now()) {
+  const list = Array.isArray(agents) ? agents : [];
+  const broke = list.find((a) => isBroke(a));
+  if (broke) return `${broke.name} is out of money`;
+  const grew = list.find((a) => grewCount(a, now) > 0);
+  if (grew) return `${grew.name} grew tonight`;
+  const worn = list.find((a) => narrowedCount(a) > 0);
+  if (worn) return `${worn.name} settled into shape`;
+  return null;
+}
+
+export function standupLine({ playing, resting, lounge, total, agents = null, now = Date.now() }) {
   if (total === 0) return 'The room is open.';
-  if (playing.length === 0) return "Everyone's resting.";
   const rest = resting.length + lounge.length;
+
+  if (playing.length === 0) {
+    // Never a verdict on the room. A count, and the thing that happened in it.
+    const head = sentence(`${count(rest)} resting`);
+    const news = roomNews(agents ?? [...resting, ...lounge], now);
+    return news ? `${head} · ${news}` : `${head} · the room is quiet`;
+  }
+
   const p = `${playing.length} playing`;
   return rest > 0 ? `${p} · ${rest} resting` : p;
 }

@@ -12,6 +12,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The dim/scrim rules are stylesheet rules, so the stylesheet has to be
+// loaded for getComputedStyle to see them (vite.config.js has css: true).
+import '../../styles/floor.css';
+
 import { CasinoFloor } from './CasinoFloor.jsx';
 import { grewCount, isBroke, narrowedCount, newsPipFor, presenceOf, splitFloor } from './agentView.js';
 import {
@@ -216,5 +220,108 @@ describe('FL-1 — one pip, and only when he has news', () => {
     renderFloor();
     await waitFor(() => expect(ghosts()).toHaveLength(4));
     for (const el of ghosts()) expect(pips(el).length).toBeLessThanOrEqual(1);
+  });
+});
+
+// ── rule 4 ──────────────────────────────────────────────────────────────────
+
+describe('FL-2 — a resting room still breathes', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    vi.setSystemTime(NOW);
+  });
+
+  it('never says "Everyone\'s resting" — the line wave 34 retired', async () => {
+    fetchMock.route('/api/agents', restingRoom);
+    renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(screen.queryByText(/Everyone's resting/)).toBeNull();
+  });
+
+  it('says who is at the bar and what happened to one of them', async () => {
+    fetchMock.route('/api/agents', restingRoom);
+    renderFloor();
+
+    // Four resting, and the money is the thing the owner can act on.
+    expect(await screen.findByText('Four resting · Value Bot is out of money')).toBeInTheDocument();
+  });
+
+  it('names growth when nobody is broke', async () => {
+    fetchMock.route('/api/agents', { agents: [grewAgent, quietAgent] });
+    renderFloor();
+    expect(await screen.findByText('Two resting · Bluff Master grew tonight')).toBeInTheDocument();
+  });
+
+  it('is quiet, not dead, when there is genuinely no news', async () => {
+    fetchMock.route('/api/agents', { agents: [quietAgent] });
+    renderFloor();
+    expect(await screen.findByText('One resting · the room is quiet')).toBeInTheDocument();
+  });
+
+  it('leaves the room unscrimmed and at its own brightness', async () => {
+    fetchMock.route('/api/agents', restingRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(container.querySelector('.floor')).not.toHaveClass('is-room-live');
+    expect(container.querySelector('.floor__scrim')).toBeNull();
+    expect(container.querySelector('.floor-live-rim')).toBeNull();
+  });
+});
+
+// ── rule 3 ──────────────────────────────────────────────────────────────────
+
+describe('FL-2 — a live felt is the loudest object', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    vi.setSystemTime(NOW);
+    fetchMock.route('/api/agents', liveRoom);
+  });
+
+  it('drops the room under a scrim and lights one felt', async () => {
+    const { container } = renderFloor();
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+
+    expect(container.querySelector('.floor')).toHaveClass('is-room-live');
+    expect(container.querySelector('.floor__scrim')).toBeTruthy();
+    expect(container.querySelector('.floor-live-glow')).toBeTruthy();
+    expect(container.querySelector('.floor-live-rim')).toBeTruthy();
+  });
+
+  it('lights exactly one felt — one place to look', async () => {
+    const { container } = renderFloor();
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(container.querySelectorAll('.floor-live-rim')).toHaveLength(1);
+  });
+
+  it('the scrim and the rim are decoration and never take the pointer', async () => {
+    const { container } = renderFloor();
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+
+    for (const cls of ['.floor__scrim', '.floor-live-glow', '.floor-live-rim']) {
+      const el = container.querySelector(cls);
+      expect(window.getComputedStyle(el).pointerEvents).toBe('none');
+      expect(el).toHaveAttribute('aria-hidden');
+    }
+  });
+
+  it('everything not in the hand drops to 42%, and the seated body does not', async () => {
+    const { container } = renderFloor();
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+
+    const opacityOf = (el) => window.getComputedStyle(el).opacity;
+    expect(opacityOf(container.querySelector('.floor__room-wrap'))).toBe('0.42');
+    for (const bar of container.querySelectorAll('.floor-bar-ghost')) {
+      expect(opacityOf(bar)).toBe('0.42');
+    }
+    expect(opacityOf(ghost('Balanced v2.1'))).not.toBe('0.42');
+  });
+
+  it('the bar still reads: a dimmed body keeps its pip', async () => {
+    const { container } = renderFloor();
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(within(ghost('Value Bot')).getByText('POCKET $0')).toBeInTheDocument();
+    expect(container.querySelectorAll('.floor-pip').length).toBeGreaterThan(0);
   });
 });

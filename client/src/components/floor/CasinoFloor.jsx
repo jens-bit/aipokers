@@ -202,13 +202,23 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     // in one place: first placement wins, every later one is dropped.
     .filter((p, i, all) => all.findIndex((q) => q.agent.id === p.agent.id) === i);
 
+  // FL-2 — A LIVE FELT IS THE LOUDEST OBJECT. When a hand is running there is
+  // one place to look: the room drops to 42% under a scrim and the live felt
+  // gets a glow and a bright rim on top of it. With nothing live there is no
+  // scrim at all and the room sits at its own brightness.
+  const liveFelt = tables.length > 0 ? litFelts[0] : null;
+  const roomIsLive = !!liveFelt && !desktopMode;
+
   const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
 
   // First agent with flagged hands — the standup becomes tappable when one exists.
   const flaggableAgent = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
 
   return (
-    <div className={`floor${zoomed && !desktopMode ? ' is-zoomed' : ''}${desktopMode ? ' is-desktop' : ''}`} ref={rootRef}>
+    <div
+      className={`floor${zoomed && !desktopMode ? ' is-zoomed' : ''}${desktopMode ? ' is-desktop' : ''}${roomIsLive ? ' is-room-live' : ''}`}
+      ref={rootRef}
+    >
       <div className={`floor__room-wrap${zoomed && !desktopMode ? ' is-zoomed' : ''}`}>
         <RoomLayer
           layout={layout}
@@ -216,6 +226,33 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
           viewBox={!desktopMode && zoomedPlacement ? zoomViewBox(zoomedPlacement.x, zoomedPlacement.y) : undefined}
         />
       </div>
+
+      {/* The scrim, and the two marks that make one felt loud: a soft pool of
+          light around it and a rim on the felt itself. Both are decoration and
+          neither takes a pointer — the ghosts above stay tappable. */}
+      {roomIsLive && !zoomed && (
+        <>
+          <div className="floor__scrim" aria-hidden />
+          <div
+            className="floor-live-glow"
+            style={{
+              ...roomStyle(room, liveFelt.cx, liveFelt.cy - liveFelt.ry * 2.6),
+              width: liveFelt.rx * 3.4 * room.k,
+              height: liveFelt.ry * 5.2 * room.k,
+            }}
+            aria-hidden
+          />
+          <div
+            className="floor-live-rim"
+            style={{
+              ...roomStyle(room, liveFelt.cx, liveFelt.cy - liveFelt.ry),
+              width: liveFelt.rx * 2 * room.k,
+              height: liveFelt.ry * 2 * room.k,
+            }}
+            aria-hidden
+          />
+        </>
+      )}
 
       {/* On mobile, unmount occupants when zoomed so the small ghost stays hidden
           behind the FloorZoom modal. On desktop, occupants stay mounted always. */}
@@ -235,7 +272,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
               <span className="floor-standup__line">
                 {loading
                   ? 'Reading the room…'
-                  : standupLine({ playing, resting, lounge, total: agents.length })}
+                  : standupLine({ playing, resting, lounge, total: agents.length, agents })}
               </span>
               {flaggableAgent && (
                 <span style={{
