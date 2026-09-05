@@ -1,15 +1,16 @@
 // NAV-1b — full port of mood-screens-a.jsx (roster) + mood-screens-b.jsx (thread).
 // Roster = HomeScreenM. Thread = ThreadScreen. Both in this file.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { LiveBar } from '../components/system/LiveBar.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { GrowthLine, TrainingLine, GrewBadge } from '../components/system/CharacterAtoms.jsx';
+import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf, lastMomentOf } from '../components/floor/agentView.js';
-import { recentEntries, gainsWithin, grewWithin } from '../lib/attributes.js';
+import { recentEntries, gainsWithin, grewWithin, normalizeAttrs, ATTR_KEYS } from '../lib/attributes.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -425,6 +426,98 @@ function SysLine({ children }) {
 }
 
 
+// ── F-3 · CostLine ─────────────────────────────────────────────────────────
+// Port of design-refs/mood-birth3.jsx FirstCostLineScreenM's gold row. The
+// sentence is his misjudgment, never a debuff readout; the attribute label
+// beside it is the tap target, and it only opens an explanation the first time.
+function CostLine({ cost, row, explained, onExplain }) {
+  const [open, setOpen] = useState(false);
+  const canExplain = !explained;
+
+  return (
+    <>
+      <div className="cost-line">
+        <div className="cost-line__row">
+          <span className="cost-line__text">{cost.line}</span>
+          {canExplain ? (
+            <button
+              type="button"
+              className="cost-line__key"
+              onClick={() => { setOpen(true); onExplain(); }}
+              aria-label={`What ${cost.key} means`}
+            >
+              {cost.key}
+            </button>
+          ) : (
+            <span className="cost-line__key cost-line__key--plain">{cost.key}</span>
+          )}
+        </div>
+        <div className="cost-line__meta">
+          {cost.handNumber != null ? `HAND #${cost.handNumber}` : 'THIS SESSION'}
+          {canExplain ? ' · TAP THE LABEL' : ''}
+        </div>
+      </div>
+      {open && <AttrExplain attrKey={cost.key} row={row} />}
+    </>
+  );
+}
+
+
+// ── F-3 · the first time an attribute costs him something ──────────────────
+// attrCosts is the ATTR-3 contract [{ key, line, street?, cost? }]. table.js
+// computes it per hand and flaggedHands.js stores it on the entry, so the
+// flagged endpoint is where a cost line can actually be read from — recentHands
+// does not carry it.
+//
+// One line per attribute, oldest first: the FIRST time it cost him something,
+// which is the only time the explanation is news.
+async function loadFirstCosts(agent, userId) {
+  if (!agent?.id) return [];
+  let hands = [];
+  try {
+    const res = await fetch(
+      `/api/agents/${encodeURIComponent(agent.id)}/flagged?userId=${encodeURIComponent(userId)}`,
+      { headers: { 'x-telegram-init-data': getTelegramInitData() } },
+    );
+    if (!res.ok) return [];
+    hands = (await res.json()).flaggedHands ?? [];
+  } catch { return []; }
+
+  const seen = new Set();
+  const out = [];
+  // Oldest hand first, so "first time" means what it says.
+  for (const hand of [...hands].reverse()) {
+    for (const c of (Array.isArray(hand.attrCosts) ? hand.attrCosts : [])) {
+      if (!c?.key || !c?.line || !ATTR_KEYS.includes(c.key) || seen.has(c.key)) continue;
+      seen.add(c.key);
+      out.push({ key: c.key, line: c.line, handNumber: hand.handNumber ?? null });
+    }
+  }
+  return out;
+}
+
+// Which attributes this owner has already had explained. Per viewer, per
+// attribute, once — localStorage throws in private webviews, so every touch is
+// guarded and a failure just means the sentence shows again.
+const EXPLAINED_KEY = 'agentic_attr_explained';
+
+function readExplained() {
+  try {
+    const raw = localStorage.getItem(EXPLAINED_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list : []);
+  } catch { return new Set(); }
+}
+
+function markExplained(key) {
+  try {
+    const next = readExplained();
+    next.add(key);
+    localStorage.setItem(EXPLAINED_KEY, JSON.stringify([...next]));
+  } catch { /* storage unavailable — it explains itself again next time */ }
+}
+
+
 // attrLog is promised on GET /api/agents/:id and rides the list projection too.
 // Only reach for the detail endpoint when the engine is already sending
 // attributes but no log — on main today this never fires.
@@ -468,6 +561,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
   const msgIdRef  = useRef(0);
+  // F-3: which attributes this owner has already had explained. Read once on
+  // mount so a re-render cannot resurrect a sentence already answered.
+  const [explained, setExplained] = useState(() => readExplained());
+  const character = useMemo(() => normalizeAttrs(agent), [agent]);
   const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
   // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
@@ -489,8 +586,9 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     Promise.all([
       fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
       loadAttrLog(agent, userId),
+      loadFirstCosts(agent, userId),
     ])
-      .then(([data, attrLog]) => {
+      .then(([data, attrLog, firstCosts]) => {
         const hands = data.recentHands || [];
         const msgs = [];
         if (hands.length > 0) {
@@ -509,6 +607,11 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           for (const t of ticks) {
             msgs.push({ role: 'growth', tick: t, _id: ++msgIdRef.current });
           }
+        }
+        // F-3: the first time each attribute cost him something. The line is
+        // his misjudgment, and the label beside it is tappable exactly once.
+        for (const c of firstCosts) {
+          msgs.push({ role: 'cost', cost: c, _id: ++msgIdRef.current });
         }
         if (agent.proposal) {
           msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
@@ -672,6 +775,20 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           }
           if (msg.role === 'accepted') {
             return <AcceptedLine key={msg._id} />;
+          }
+          if (msg.role === 'cost') {
+            return (
+              <CostLine
+                key={msg._id}
+                cost={msg.cost}
+                row={character.rows.find((r) => r.key === msg.cost.key) ?? null}
+                explained={explained.has(msg.cost.key)}
+                onExplain={() => {
+                  markExplained(msg.cost.key);
+                  setExplained((prev) => new Set(prev).add(msg.cost.key));
+                }}
+              />
+            );
           }
           if (msg.role === 'growth') {
             return (

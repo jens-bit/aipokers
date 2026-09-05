@@ -408,3 +408,99 @@
   transform: rotate(180deg);
   color: var(--sys-teal, #00D4AA);
 }
+
+/* ── CostLine + AttrExplain (F-3) ────────────────────────────────────────
+ * design-refs/mood-birth3.jsx FirstCostLineScreenM and AttrExplain. An
+ * attribute explains itself the first time it costs him something, in the
+ * thread, in one sentence, on a tap. After that the label is just a label. */
+
+.cost-line {
+  margin: 0 14px 9px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.05);
+  border: 1px solid rgba(205, 179, 128, 0.2);
+}
+.cost-line__row { display: flex; align-items: center; gap: 9px; }
+.cost-line__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--sys-dim, #C3C3C6);
+  line-height: 1.4;
+}
+.cost-line__key {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: rgba(205, 179, 128, 0.12);
+  border: 1px solid rgba(205, 179, 128, 0.53);
+  color: var(--sys-gold, #CDB380);
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cost-line__key--plain {
+  background: transparent;
+  border-color: rgba(205, 179, 128, 0.27);
+  cursor: default;
+}
+.cost-line__meta {
+  margin-top: 7px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+}
+
+.attr-explain {
+  margin: 0 14px 9px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  background: var(--sys-panel, #232329);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+  animation: birth-rise 0.35s ease-out both;
+}
+.attr-explain__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.attr-explain__key {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--sys-gold, #CDB380);
+}
+.attr-explain__rule { flex: 1; height: 1px; background: var(--sys-border, rgba(255, 255, 255, 0.12)); }
+.attr-explain__once {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+  white-space: nowrap;
+}
+.attr-explain__mean {
+  font-size: 13.5px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.5;
+}
+.attr-explain__bar {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+.attr-explain__his {
+  font-size: 11.5px;
+  color: var(--sys-muted, #9E9EA2);
+  line-height: 1.45;
+  margin-top: 9px;
+}
