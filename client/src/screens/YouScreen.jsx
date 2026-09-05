@@ -2,7 +2,7 @@
 // Balance card · Lifetime 2×2 stats · Replays · Settings
 
 import { useEffect, useState } from 'react';
-import { getTelegramDisplayName, getUserId, getTelegramInitData } from '../lib/telegram.js';
+import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -118,6 +118,39 @@ function SettingRow({ glyph, label, value, last }) {
   );
 }
 
+// AUTH-1 — logout, web only. Inside the Mini App there is no session of ours
+// to end (Telegram owns it), so the row is not rendered at all there.
+function LogoutGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={M_DIM} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flexShrink: 0 }} aria-hidden>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  );
+}
+
+function LogoutRow() {
+  const onLogout = () => {
+    clearWebLogin();
+    window.location.reload();
+  };
+  return (
+    <button
+      type="button"
+      onClick={onLogout}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px',
+        width: '100%', border: 'none', borderTop: `1px solid ${M_BORDER}`,
+        background: 'transparent', cursor: 'pointer', textAlign: 'left', font: 'inherit',
+      }}
+    >
+      <div style={{ flexShrink: 0 }}><LogoutGlyph /></div>
+      <span style={{ flex: 1, fontSize: 13, color: M_TEXT }}>Log out</span>
+      <ChevronRight />
+    </button>
+  );
+}
+
 // ── MiniCard ────────────────────────────────────────────────────────────
 const SUIT_SYMS = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const SUIT_RED  = new Set(['h', 'd']);
@@ -161,6 +194,7 @@ export function YouScreen() {
   const userId  = getUserId();
   const name    = getTelegramDisplayName() || 'Player';
   const initials = name.slice(0, 2).toUpperCase();
+  const webLogin = getWebLogin() != null;   // AUTH-1: only the web build logs out
 
   const [agents, setAgents]   = useState([]);
   const [replays, setReplays] = useState([]);
@@ -311,6 +345,7 @@ export function YouScreen() {
         <SettingRow glyph={<BellGlyph />} label="Notifications" value="All agents" />
         <SettingRow glyph={<ShieldGlyph />} label="Table limits" value="$10/$20" />
         <SettingRow glyph={<InfoGlyph />} label="Help & rules" last />
+        {webLogin && <LogoutRow />}
       </div>
     </div>
   );
