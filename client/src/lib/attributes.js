@@ -175,6 +175,20 @@ export function seriesFor(attrLog, key, days = 90, now = Date.now()) {
   return [entries[0].from, ...entries.map((e) => e.to)];
 }
 
+/**
+ * Every growth tick inside the window, across all six attributes, oldest first —
+ * the thread's growth lines, in the order they happened.
+ */
+export function recentEntries(attrLog, hours = 24, now = Date.now()) {
+  if (!Array.isArray(attrLog)) return [];
+  const cutoff = now - hours * 60 * 60 * 1000;
+  return attrLog
+    .filter((e) => e && ATTR_KEYS.includes(e.key) && Number.isFinite(e.from) && Number.isFinite(e.to))
+    .map((e) => ({ ...e, _ts: toMillis(e.ts) }))
+    .filter((e) => e._ts != null && e._ts >= cutoff)
+    .sort((a, b) => a._ts - b._ts);
+}
+
 /** True when anything at all grew inside the window — the roster's GREW badge. */
 export function grewWithin(attrLog, hours = 24, now = Date.now()) {
   if (!Array.isArray(attrLog) || attrLog.length === 0) return false;

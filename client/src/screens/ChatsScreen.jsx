@@ -6,8 +6,10 @@ import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { LiveBar } from '../components/system/LiveBar.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
+import { GrowthLine, TrainingLine, GrewBadge } from '../components/system/CharacterAtoms.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf, lastMomentOf } from '../components/floor/agentView.js';
+import { recentEntries, gainsWithin, grewWithin } from '../lib/attributes.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -69,7 +71,7 @@ function LiveDot() {
   return <span style={{ width: 5, height: 5, borderRadius: '50%', background: M_TEAL, boxShadow: `0 0 6px ${M_TEAL}`, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal, onClick }) {
+function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal, grew, onClick }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <button
@@ -90,7 +92,10 @@ function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal,
         <MoodGhost mood={mood} accent={accent} size={36} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: PLAYFAIR, fontSize: 14, fontWeight: 600, color: M_TEXT, whiteSpace: 'nowrap', marginBottom: 3 }}>{name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+          <span style={{ fontFamily: PLAYFAIR, fontSize: 14, fontWeight: 600, color: M_TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+          {grew > 0 && <GrewBadge gain={grew} />}
+        </div>
         <div style={{
           fontSize: 12.5, lineHeight: 1.35, fontStyle: 'italic',
           color: `color-mix(in oklab, ${moodColor} 32%, ${M_DIM})`,
@@ -253,6 +258,13 @@ function DraftCard({ onCreateAgent }) {
 }
 
 // ── ChatsRoster (HomeScreenM port) ────────────────────────────────────────
+// Points gained in the last 24 hours, for the roster's GREW badge. Absent
+// attrLog (main today, and the list projection may not carry it) → no badge.
+function grewToday(agent) {
+  if (!grewWithin(agent?.attrLog)) return 0;
+  return gainsWithin(agent.attrLog).reduce((n, g) => n + g.gain, 0);
+}
+
 function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
   if (loading) {
     return (
@@ -297,6 +309,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
                 accent={accent}
                 mood={mood}
                 state="live"
+                grew={grewToday(agent)}
                 msg={lastMomentOf(agent)}
                 pnl={agent.stats?.netWon != null ? (agent.stats.netWon >= 0 ? `+${agent.stats.netWon}` : `−${Math.abs(agent.stats.netWon)}`) : '—'}
                 proposal={!!agent.proposal}
@@ -335,6 +348,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
                 accent={accent}
                 mood={mood}
                 state={state}
+                grew={grewToday(agent)}
                 msg={lastMomentOf(agent)}
                 pnl={agent.stats?.netWon != null ? (agent.stats.netWon >= 0 ? `+${agent.stats.netWon}` : `−${Math.abs(agent.stats.netWon)}`) : '—'}
                 time="—"
@@ -367,7 +381,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
 
 // ── Thread atoms (mood-screens-b.jsx port) ────────────────────────────────
 
-function AgentBubble({ mood, accent, children }) {
+function AgentBubble({ mood, accent, training, children }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <div style={{ display: 'flex', gap: 9, padding: `0 14px`, marginBottom: 9, alignItems: 'flex-end' }}>
@@ -380,7 +394,10 @@ function AgentBubble({ mood, accent, children }) {
           borderLeft: `2px solid ${moodColor}`,
           borderRadius: 12, borderBottomLeftRadius: 4,
           padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5,
-        }}>{children}</div>
+        }}>
+          {children}
+          <TrainingLine items={training} />
+        </div>
       </div>
     </div>
   );
@@ -404,6 +421,33 @@ function SysLine({ children }) {
       <div style={{ flex: 1, height: 1, background: M_BORDER }} />
     </div>
   );
+}
+
+
+// attrLog is promised on GET /api/agents/:id and rides the list projection too.
+// Only reach for the detail endpoint when the engine is already sending
+// attributes but no log — on main today this never fires.
+async function loadAttrLog(agent, userId) {
+  if (Array.isArray(agent?.attrLog)) return agent.attrLog;
+  if (!agent?.attrs || !agent?.id) return [];
+  try {
+    const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}?userId=${encodeURIComponent(userId)}`,
+      { headers: { 'x-telegram-init-data': getTelegramInitData() } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const log = data?.agent?.attrLog ?? data?.attrLog;
+    return Array.isArray(log) ? log : [];
+  } catch {
+    return [];
+  }
+}
+
+// Clock label on a growth line, from the tick's own timestamp.
+function tickTime(tick) {
+  const ts = tick?._ts ?? tick?.ts;
+  if (ts == null) return null;
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 
@@ -439,9 +483,11 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   }, []);
 
   useEffect(() => {
-    fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
+      loadAttrLog(agent, userId),
+    ])
+      .then(([data, attrLog]) => {
         const hands = data.recentHands || [];
         const msgs = [];
         if (hands.length > 0) {
@@ -450,6 +496,16 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           msgs.push(mkMsg('assistant', `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`));
         } else {
           msgs.push(mkMsg('assistant', 'Ready to play. Describe any changes to my strategy, or deploy me to start.'));
+        }
+        // What he trained tonight rides inside the recap bubble; each tick then
+        // gets its own quiet line, in his voice, with the cause behind it.
+        // Nothing here fires without an attrLog entry to draw it from.
+        const ticks = recentEntries(attrLog);
+        if (ticks.length > 0) {
+          msgs[0].training = gainsWithin(attrLog);
+          for (const t of ticks) {
+            msgs.push({ role: 'growth', tick: t, _id: ++msgIdRef.current });
+          }
         }
         if (agent.proposal) {
           msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
@@ -605,8 +661,24 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
           if (msg.role === 'accepted') {
             return <AcceptedLine key={msg._id} />;
           }
+          if (msg.role === 'growth') {
+            return (
+              <GrowthLine
+                key={msg._id}
+                attr={msg.tick.key}
+                from={msg.tick.from}
+                to={msg.tick.to}
+                line={msg.tick.cause}
+                time={tickTime(msg.tick)}
+              />
+            );
+          }
           if (msg.role === 'assistant') {
-            return <AgentBubble key={msg._id} mood={localMood} accent={accent}>{msg.content}</AgentBubble>;
+            return (
+              <AgentBubble key={msg._id} mood={localMood} accent={accent} training={msg.training}>
+                {msg.content}
+              </AgentBubble>
+            );
           }
           return <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>;
         })}

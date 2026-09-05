@@ -498,13 +498,17 @@
   justify-content: flex-end;
 }
 
+.attr-cost--stack { justify-content: flex-start; }
+
 .attr-cost__note {
   font-size: 11px;
   color: var(--sys-gold);
   opacity: 0.95;
 }
 
-.attr-cost--earned .attr-cost__note { color: var(--sys-teal); }
+.attr-cost--earned .attr-cost--stack { justify-content: flex-start; }
+
+.attr-cost__note { color: var(--sys-teal); }
 
 .attr-cost__key {
   font-family: var(--sys-font-label);
