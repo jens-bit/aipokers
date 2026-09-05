@@ -677,6 +677,7 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // again by the time the owner next looks at him — the bar did its job.
   agent.fatigue = 'fresh';
   agent.sessionHands = 0;
+  agent.wornSaidAtHand = null;
 
   const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
@@ -750,6 +751,31 @@ export function getAgentAttributes(agentId, userId) {
   if (!agent) return null;
   ensureAttributes(agent);
   return { attrs: agent.attrs, potential: agent.potential, nature: agent.nature, attrLog: agent.attrLog };
+}
+
+// ATTR-3: record the seat's fatigue stage. Returns true when the stage moved.
+//
+// The stage is written every time it changes; the MOMENT is written exactly
+// once per session, on the crossing into 'worn' — the state matrix's thread
+// cell says "he mentions it once, unprompted", and a worn agent repeating
+// himself every hand is the fastest way to make the state annoying. Fatigue
+// never notifies: it is not the owner's problem to solve.
+export function noteAgentFatigue(agentId, userId, { stage = 'fresh', sessionHands = 0, moment = null } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return false;
+  const before = agent.fatigue ?? 'fresh';
+  agent.sessionHands = Number.isFinite(sessionHands) ? sessionHands : 0;
+  if (before === stage) return false;
+
+  agent.fatigue = stage;
+  if (stage === 'worn' && moment && agent.wornSaidAtHand == null) {
+    agent.wornSaidAtHand = agent.sessionHands;
+    agent.lastMoment = { text: moment, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  }
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return true;
 }
 
 // Set the agent's mood record wholesale (used by table.js after applying
@@ -880,6 +906,7 @@ export function presentAgent(agent, { owner = false } = {}) {
     : 0;
   const live = effectiveAttrs(agent, { sessionHands });
   const fatigue = presence === 'playing' ? live.fatigue : 'fresh';
+  if (presence === 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;

@@ -29,6 +29,9 @@ import {
   narrowedBand,
   potentialTarget,
   applySessionGrowth,
+  attrCostsForHand,
+  ATTR_COST_EQUITY_GAP,
+  wornMomentFor,
   NEUTRAL_ATTR,
   MAX_FATIGUE_DROP,
   at,
@@ -65,6 +68,7 @@ const NEUTRAL_BANNER = '\u2014 NEUTRAL IS NEUTRAL: 50 is today at every impact \
 const CONTRACT_BANNER = '\u2014 the contract the UI reads: nature words, first words, forming hint \u2014';
 const GROWTH_BANNER = '\u2014 growth: single points, slowing at the band \u2014';
 const NARROW_BANNER = '\u2014 narrowing: hands played, visible jumps, never widening \u2014';
+const COSTS_BANNER = '\u2014 attrCosts: what an attribute cost him, in one hand \u2014';
 const BIRTH_BANNER = '\u2014 birth: natures, bands, day-one currents \u2014';
 
 // Run `fn` with the knob forced to `value`, then restore the environment.
@@ -514,6 +518,130 @@ console.log('\n' + GROWTH_BANNER);
     }
     return true;
   })());
+}
+
+
+console.log('\n' + COSTS_BANNER);
+{
+  // Synthetic hands. `equity` is the truth; `attr.seenEquity` is what the
+  // briefing showed him. The review's job is to say the difference out loud,
+  // as something HE did.
+  const decision = (over = {}) => ({
+    street: 'flop',
+    action: { type: 'call' },
+    equity: 0.42,
+    potOdds: 0.30,
+    attr: {
+      seenEquity: 0.42, seenPotOdds: 0.30, deviationDie: false,
+      inRange: true, moodState: 'neutral', readSubjects: [], fatigue: 'fresh',
+      ...(over.attr ?? {}),
+    },
+    ...over,
+  });
+
+  check('a clean hand costs nothing', attrCostsForHand({ decisions: [decision()], won: true }).length === 0);
+  check('a hand with no attr context costs nothing — never invented',
+    attrCostsForHand({ decisions: [{ street: 'flop', action: { type: 'call' }, equity: 0.4 }] }).length === 0);
+  check('no decisions, no lines', attrCostsForHand({}).length === 0);
+
+  // FOCUS: the gap has to be big enough AND change the answer.
+  const focusHand = [decision({
+    action: { type: 'fold' }, equity: 0.42, potOdds: 0.30,
+    attr: { seenEquity: 0.27 },   // shown 27%, needed 30% — so he folded
+  })];
+  const focus = attrCostsForHand({ decisions: focusHand, won: false });
+  check('FOCUS is charged when the misjudgment crosses the price',
+    focus.length === 1 && focus[0].key === 'FOCUS');
+  check('the FOCUS line reads as HIS misjudgment, with both numbers',
+    /^he misjudged equity by 15 points/.test(focus[0].line) &&
+    /he had 42%, he played 27%/.test(focus[0].line));
+  check('the line names no attribute — the client renders the key separately',
+    !/FOCUS|Focus/.test(focus[0].line));
+  check('the cost rides the street it happened on', focus[0].street === 'FLOP');
+
+  check('a small misjudgment is a rounding, not a cost',
+    attrCostsForHand({ decisions: [decision({ attr: { seenEquity: 0.44 } })] }).length === 0);
+  check('a big misjudgment that changes nothing is not a cost', (() => {
+    // 20 points out, but both sides of it are still miles above the price.
+    const d = decision({ equity: 0.80, potOdds: 0.20, attr: { seenEquity: 0.60 } });
+    return attrCostsForHand({ decisions: [d] }).length === 0;
+  })());
+  check('five points is the bar', ATTR_COST_EQUITY_GAP === 0.05);
+
+  // DISCIPLINE: the die fired, the hand was out of range, and he played it.
+  const disc = attrCostsForHand({
+    decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } })],
+    won: false,
+  });
+  check('DISCIPLINE is charged for taking the licence and losing',
+    disc.length === 1 && disc[0].key === 'DISCIPLINE' && disc[0].cost !== false);
+  const discWon = attrCostsForHand({
+    decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } })],
+    won: true,
+  });
+  check('the same deviation that WON is still a line, marked cost:false',
+    discWon.length === 1 && discWon[0].cost === false && /came off/.test(discWon[0].line));
+  check('a die that fired on an in-range hand is not a deviation',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: true } })] }).length === 0);
+  check('folding under the licence is the opposite of a deviation',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'fold' }, attr: { deviationDie: true, inRange: false } })] })
+      .filter((c) => c.key === 'DISCIPLINE').length === 0);
+
+  // COMPOSURE: played it while steaming.
+  const comp = attrCostsForHand({
+    decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } })], won: false,
+  });
+  check('COMPOSURE is charged for a hand played while steaming',
+    comp.length === 1 && comp[0].key === 'COMPOSURE' && /steaming/.test(comp[0].line));
+  check('steaming and winning is still a line, marked cost:false',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } })], won: true })[0].cost === false);
+  check('frustrated is not steaming',
+    attrCostsForHand({ decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'frustrated' } })] }).length === 0);
+
+  // READS: briefed, and folded at a price that called anyway.
+  const reads = attrCostsForHand({
+    decisions: [decision({ action: { type: 'fold' }, equity: 0.44, potOdds: 0.25, attr: { seenEquity: 0.44, readSubjects: ['The Regular'] } })],
+    won: false,
+  });
+  check('READS is charged when a briefed read was ignored',
+    reads.length === 1 && reads[0].key === 'READS' && /The Regular/.test(reads[0].line));
+  check('a read he played WITH is a line too, marked cost:false', (() => {
+    const r = attrCostsForHand({
+      decisions: [decision({ action: { type: 'call' }, attr: { readSubjects: ['The Regular'] } })], won: true,
+    });
+    return r.length === 1 && r[0].key === 'READS' && r[0].cost === false;
+  })());
+
+  // One line per key per hand, oldest first.
+  const many = attrCostsForHand({
+    decisions: [
+      decision({ street: 'flop',  action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      decision({ street: 'turn',  action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      decision({ street: 'river', action: { type: 'bet' }, attr: { moodState: 'sulking' } }),
+    ],
+    won: false,
+  });
+  check('one line per key per hand, however long the hand', many.length === 1);
+  check('the earliest decision wins the line', many[0].street === 'FLOP');
+
+  check('every entry matches the client contract {key, line, street?, cost?}', (() => {
+    const all = attrCostsForHand({
+      decisions: [
+        decision({ action: { type: 'fold' }, equity: 0.42, potOdds: 0.30, attr: { seenEquity: 0.27 } }),
+        decision({ action: { type: 'raise' }, attr: { deviationDie: true, inRange: false } }),
+        decision({ action: { type: 'bet' }, attr: { moodState: 'tilted' } }),
+      ],
+      won: false,
+    });
+    return all.length === 3 && all.every((c) =>
+      ATTR_KEYS.includes(c.key) &&
+      typeof c.line === 'string' && c.line.length > 10 &&
+      (c.street === undefined || typeof c.street === 'string') &&
+      (c.cost === undefined || c.cost === false));
+  })());
+
+  check('he says the worn line himself, with the hand count',
+    /^168 hands in\./.test(wornMomentFor(168)) && /slower/.test(wornMomentFor(168)));
 }
 
 

@@ -10,13 +10,14 @@ import {
   getAgentMood,
   setAgentMood,
   getAgentAttributes,
+  noteAgentFatigue,
   finishAgentSession,
   addFlaggedHand,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry } from './flaggedHands.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
-import { effectiveAttrs, readMinHands } from '../agent/attributes.js';
+import { effectiveAttrs, readMinHands, attrCostsForHand, wornMomentFor } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 import {
   applyEvent as applyMoodEvent,
@@ -1161,6 +1162,7 @@ export class Table {
     this._recordOpponentStats(this.game.result);
     this._updateAgentMoods(this.game.result);
     this._maybeSendAgentTalk(this.game.result);  // TLK-1
+    this._updateSeatFatigue();
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     // MST-1: bank the chips and note where the button goes next BEFORE any
@@ -1202,6 +1204,30 @@ export class Table {
     // 2.5s tempo until startSessionLoop takes it over.
     if (this.isAiOnly()) {
       this._scheduleNextHand(this.autoPlay ? this.handPauseMs : 2500);
+    }
+  }
+
+  // ATTR-3: fatigue is a within-session STATE that the record has to carry, so
+  // the floor can slump his posture and the card can dip the two bars it
+  // touches without asking the table. Written only when the stage actually
+  // changes; the crossing into 'worn' is the one time he mentions it, and it
+  // never pushes a notification — fatigue fixes itself at the bar.
+  _updateSeatFatigue() {
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      const eff = this._seatAttrs(seat);
+      if (!eff) continue;
+      const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+      try {
+        noteAgentFatigue(agentId, this.agentUserIds[seat], {
+          stage: eff.fatigue,
+          sessionHands,
+          moment: eff.fatigue === 'worn' ? wornMomentFor(sessionHands) : null,
+        });
+      } catch (err) {
+        console.error('[table] fatigue note failed:', err.message);
+      }
     }
   }
 
@@ -1463,6 +1489,11 @@ export class Table {
         holeCards,
         won,
         opponentShowdownCards,
+        // ATTR-3: where an attribute actually shaped this hand. Only flagged
+        // hands carry it — the review sheet is the one surface entitled to say
+        // a low attribute cost money, and it says it about him, not about the
+        // number.
+        attrCosts: attrCostsForHand({ decisions, won }),
       });
 
       try {

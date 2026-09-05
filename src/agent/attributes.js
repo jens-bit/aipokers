@@ -605,6 +605,111 @@ export function effectiveAttrs(agent, { sessionHands = 0 } = {}) {
   };
 }
 
+// ── What an attribute cost him, in one hand ─────────────────────────────────
+// The hand review is the honest place a low attribute is allowed to cost money
+// on screen (char-system2.jsx S5, surface 4). Two laws from the ref govern
+// every line here:
+//
+//   · "annotate the cause, never grade the hand" — the line says what happened,
+//     never what he should have done.
+//   · every line reads as HIS misjudgment: "he misjudged equity by 7 points".
+//     Not "Focus is too low", not "bad fold". The attribute is the footnote,
+//     rendered separately by the client; the sentence is about him.
+//
+// And one law from this build: when the same mechanism WON the pot, it still
+// gets a line, with cost:false. An attribute that only ever appears when it
+// costs money is a scold, not a character.
+
+// How far off the true equity a briefing has to be before it is a misjudgment
+// rather than a rounding — the same five points table.js counts evidence with.
+export const ATTR_COST_EQUITY_GAP = 0.05;
+
+const TILTED_STATES = new Set(['tilted', 'sulking']);
+
+function costLine(key, text, street, cost) {
+  const entry = { key, line: text };
+  if (street) entry.street = String(street).toUpperCase();
+  if (cost === false) entry.cost = false;
+  return entry;
+}
+
+// `decisions` are one agent's decisions in one hand, in order, each carrying
+// the `attr` context table.js records at decision time. Returns at most one
+// entry per attribute, oldest decision wins, so a long hand cannot bury the
+// review in six copies of the same note.
+export function attrCostsForHand({ decisions = [], won = false } = {}) {
+  const out = [];
+  const seen = new Set();
+  const add = (key, text, street, cost) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(costLine(key, text, street, cost));
+  };
+
+  for (const d of decisions) {
+    const a = d?.attr;
+    if (!a) continue;
+    const street = d.street ?? null;
+    const type = d.action?.type ?? null;
+
+    // FOCUS — he was shown a number that was not the number, and it was far
+    // enough out to move the decision.
+    if (!seen.has('FOCUS') && Number.isFinite(d.equity) && Number.isFinite(a.seenEquity)) {
+      const gap = a.seenEquity - d.equity;
+      if (Math.abs(gap) >= ATTR_COST_EQUITY_GAP) {
+        // "Would the action differ?" — the boundary a call is decided against
+        // is the price he is being offered; with nothing to call, the coin flip.
+        const boundary = Number.isFinite(d.potOdds) ? d.potOdds : 0.5;
+        const crossed = (a.seenEquity >= boundary) !== (d.equity >= boundary);
+        if (crossed) {
+          const pts = Math.round(Math.abs(gap) * 100);
+          add('FOCUS',
+            `he misjudged equity by ${pts} point${pts === 1 ? '' : 's'} — he had ${Math.round(d.equity * 100)}%, he played ${Math.round(a.seenEquity * 100)}%`,
+            street, true);
+        }
+      }
+    }
+
+    // DISCIPLINE — the die gave him licence to leave the strategy behind, and
+    // he took it. Only a line when it did not work out.
+    if (!seen.has('DISCIPLINE') && a.deviationDie && a.inRange === false && type && type !== 'fold') {
+      add('DISCIPLINE',
+        won ? 'he went off the line here, and it came off'
+            : 'he went off the line here — the hand was outside his range',
+        street, won ? false : true);
+    }
+
+    // COMPOSURE — a decision taken while he was steaming.
+    if (!seen.has('COMPOSURE') && TILTED_STATES.has(a.moodState) && type && type !== 'fold') {
+      add('COMPOSURE',
+        won ? 'he was steaming when he played this one, and got away with it'
+            : 'he was steaming when he played this one',
+        street, won ? false : true);
+    }
+
+    // READS — he was briefed on this opponent and folded a hand the price
+    // justified anyway. The read was on the table and he did not use it.
+    if (!seen.has('READS') && Array.isArray(a.readSubjects) && a.readSubjects.length > 0) {
+      const who = a.readSubjects[0];
+      if (type === 'fold' && Number.isFinite(d.equity) && Number.isFinite(d.potOdds) && d.equity >= d.potOdds) {
+        add('READS', `he had ${who} read and folded anyway at a price that called`, street, true);
+      } else if (won) {
+        add('READS', `he had ${who} read, and played him with it`, street, false);
+      }
+    }
+  }
+
+  return out;
+}
+
+// Fatigue, said once, in his own voice — the state matrix's thread cell for
+// WORN: "he mentions it once, unprompted." Never a notification: fatigue fixes
+// itself at the bar and has nothing to ask the owner for.
+export function wornMomentFor(sessionHands) {
+  const n = Math.max(1, Math.round(Number(sessionHands) || 0));
+  return `${n} hands in. I'm still counting — just slower than I was.`;
+}
+
 // ── READS / DECEPTION — the two sides of the same table ─────────────────────
 // How many observed hands the hero needs before a read on an opponent is
 // briefed at all. READS pulls it down (he solves them faster); the SUBJECT's
