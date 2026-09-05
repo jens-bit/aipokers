@@ -1,0 +1,454 @@
+/* replay.css — REPLAY-1.
+ * Ported from design-refs/mood-replay.jsx: Scrubber, the theatre, ReplayCard.
+ *
+ * The theatre reuses Watch v3's felt wholesale — the pacing states, the rope
+ * and the hero row are all in watch.css already. What is here is the scrubber,
+ * the panel under it, and the card that opens the whole thing. */
+
+/* ── the theatre ──────────────────────────────────────────────────────────── */
+
+.replay-theatre {
+  display: flex;
+  flex-direction: column;
+  height: var(--tg-h, 100%);
+  max-height: 100%;
+  background: var(--sys-bg, #1A1A1E);
+  color: var(--sys-text, #EDEDED);
+  font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
+  overflow: hidden;
+}
+
+/* The same 40px row the watch screen collapsed to in FIX-3c. */
+.replay-theatre__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--sys-panel, #232329);
+  border-bottom: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  flex-shrink: 0;
+}
+
+.replay-theatre__back {
+  background: none;
+  border: none;
+  min-height: 0;
+  color: var(--sys-text, #EDEDED);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  margin-left: -4px;
+}
+
+.replay-theatre__title {
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sys-text, #EDEDED);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-theatre__stage {
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.replay-theatre__panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 14px;
+  background: var(--sys-bg, #1A1A1E);
+}
+
+/* His line at this moment. The felt carries it too, when the felt has room;
+   here it is the record rather than the moment. */
+.replay-theatre__line {
+  font-size: 12.5px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.5;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* An attribute cost, at the street it happened on. Gold, because it cost
+   money, and phrased as his misjudgment — never as a debuff readout. */
+.replay-theatre__cost {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.replay-theatre__cost-note {
+  font-size: 11px;
+  color: var(--sys-gold, #CDB380);
+  opacity: 0.95;
+}
+
+.replay-theatre__cost-key {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--sys-gold, #CDB380);
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.27);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.replay-theatre__showdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.40);
+}
+
+.replay-theatre__cards { display: flex; gap: 2px; flex-shrink: 0; }
+
+.replay-theatre__showdown-text { flex: 1; min-width: 0; }
+
+.replay-theatre__shown {
+  font-size: 11.5px;
+  color: var(--sys-dim, #A1A1A1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-theatre__pnl {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sys-teal, #00D4AA);
+  flex-shrink: 0;
+}
+
+.replay-theatre__pnl.is-lost { color: var(--sys-red, #FF4D4F); }
+
+/* ── the scrubber ─────────────────────────────────────────────────────────── */
+
+.replay-scrub {
+  flex-shrink: 0;
+  background: var(--sys-panel, #232329);
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  padding: 9px 14px 11px;
+}
+
+.replay-scrub__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.replay-scrub__meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--sys-muted, #6B6B6B);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay-scrub__clock {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #6B6B6B);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the flag ─────────────────────────────────────────────────────────────── */
+
+.replay-flag {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  border-radius: 3px;
+  padding: 3px 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.replay-flag--gold {
+  color: var(--sys-gold, #CDB380);
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+}
+.replay-flag--red {
+  color: var(--sys-red, #FF4D4F);
+  background: rgba(255, 77, 79, 0.08);
+  border: 1px solid rgba(255, 77, 79, 0.33);
+}
+.replay-flag--purple {
+  color: var(--sys-purple, #9B7BFF);
+  background: rgba(155, 123, 255, 0.08);
+  border: 1px solid rgba(155, 123, 255, 0.33);
+}
+.replay-flag--teal {
+  color: var(--sys-teal, #00D4AA);
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.33);
+}
+
+/* ── the track ────────────────────────────────────────────────────────────── */
+
+.replay-scrub__track { position: relative; height: 22px; }
+
+.replay-scrub__rail {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sys-surf, #2F2F37);
+}
+
+.replay-scrub__fill {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sys-teal, #00D4AA);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.40);
+}
+
+.replay-scrub__tick { position: absolute; top: 4px; }
+
+.replay-scrub__tick-line {
+  width: 1px;
+  height: 14px;
+  background: var(--sys-border-2, rgba(255, 255, 255, 0.18));
+}
+
+.replay-scrub__tick.is-passed .replay-scrub__tick-line {
+  background: rgba(0, 212, 170, 0.60);
+}
+
+.replay-scrub__tick-label {
+  position: absolute;
+  top: 15px;
+  left: 0;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 7.5px;
+  letter-spacing: 0.06em;
+  color: var(--sys-faint, #3A3A3F);
+  white-space: nowrap;
+}
+
+.replay-scrub__tick.is-passed .replay-scrub__tick-label { color: var(--sys-dim, #A1A1A1); }
+
+.replay-scrub__thumb {
+  position: absolute;
+  top: 4px;
+  width: 12px;
+  height: 14px;
+  border-radius: 3px;
+  background: #EDEDED;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* The real control, invisible over the drawn one: a range input is the only
+   thing here a keyboard or a screen reader can drive. */
+.replay-scrub__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+}
+
+/* ── the controls ─────────────────────────────────────────────────────────── */
+
+.replay-scrub__controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.replay-scrub__play {
+  width: 38px;
+  height: 38px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 19px;
+  border: none;
+  background: var(--sys-teal, #00D4AA);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.33);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.replay-scrub__where { flex: 1; min-width: 0; }
+
+.replay-scrub__where-lbl {
+  display: block;
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.replay-scrub__where-text {
+  font-size: 12.5px;
+  color: var(--sys-text, #EDEDED);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-scrub__open {
+  flex-shrink: 0;
+  height: 32px;
+  min-height: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, #00D4AA);
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── ReplayCard · the poster ──────────────────────────────────────────────── */
+/* "A poster, not a link: the flag, the board, the pot, and one line." */
+
+.replay-card {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 14px 9px;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--sys-panel-2, #28282F);
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  cursor: pointer;
+  text-align: left;
+  min-height: 0;
+}
+
+.replay-card--gold { border-color: rgba(205, 179, 128, 0.27); }
+.replay-card--red { border-color: rgba(255, 77, 79, 0.27); }
+.replay-card--purple { border-color: rgba(155, 123, 255, 0.27); }
+.replay-card--teal { border-color: rgba(0, 212, 170, 0.27); }
+
+.replay-card__poster {
+  position: relative;
+  height: 104px;
+  background: radial-gradient(ellipse at 50% 45%, #2f4d48 0%, #1d2e2c 70%);
+}
+
+.replay-card__board {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.replay-card__tug {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+}
+
+.replay-card__play {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: rgba(10, 10, 10, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--sys-gold, #CDB380);
+}
+
+.replay-card--red .replay-card__play { border-color: var(--sys-red, #FF4D4F); }
+.replay-card--purple .replay-card__play { border-color: var(--sys-purple, #9B7BFF); }
+.replay-card--teal .replay-card__play { border-color: var(--sys-teal, #00D4AA); }
+
+.replay-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+}
+
+.replay-card__line {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--sys-dim, #A1A1A1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay-card__pot {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sys-teal, #00D4AA);
+  flex-shrink: 0;
+}
+
+.replay-card__pot.is-lost { color: var(--sys-red, #FF4D4F); }
+
+@media (prefers-reduced-motion: reduce) {
+  .replay-scrub__fill { transition: none; }
+}
+
+/* The theatre opened from inside the flagged sheet, which is an absolute
+   overlay on the floor rather than a screen of its own. */
+.watch-sheet-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background: var(--sys-bg, #1A1A1E);
+}

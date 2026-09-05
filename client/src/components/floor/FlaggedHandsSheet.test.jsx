@@ -48,10 +48,17 @@ describe('FlaggedHandsSheet list', () => {
   });
 
   it('renders one row per flagged hand, each with its type and hand number', async () => {
-    renderSheet();
+    const { container } = renderSheet();
+    await screen.findByText(/Hand #37/);
 
-    expect(await screen.findByText('BAD BEAT')).toBeInTheDocument();
-    expect(screen.getByText('BIG BLUFF')).toBeInTheDocument();
+    // R-3 puts a replay poster above the list, and the poster carries the
+    // newest hand's flag too — so the row assertion is scoped to the rows.
+    const rows = [...container.querySelectorAll('button')]
+      .filter((el) => !el.className.includes('replay-card'));
+    const rowText = rows.map((el) => el.textContent).join(' | ');
+    expect(rowText).toContain('BAD BEAT');
+    expect(rowText).toContain('BIG BLUFF');
+
     expect(screen.getByText(/Hand #37/)).toBeInTheDocument();
     expect(screen.getByText(/Hand #41/)).toBeInTheDocument();
   });
