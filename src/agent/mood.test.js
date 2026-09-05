@@ -14,6 +14,16 @@ import {
   ensureMood,
   isSoothable,
   decisionEffects,
+  HEAT_EVENTS,
+  HEAT_MIDPOINT,
+  HEAT_STEP,
+  HEAT_DECAY_PER_HAND,
+  SULK_LOSING_RUN,
+  stateForHeat,
+  heatForState,
+  heatScales,
+  clampHeat,
+  restAtBar,
 } from './mood.js';
 
 let failures = 0;
@@ -60,51 +70,89 @@ console.log('\n— boundaries: cannot exceed sulking or confident —');
   check(`clamped at confident`, m.state === 'confident');
 }
 
-console.log('\n— trait scaling: stoic resists more, volatile moves more —');
+console.log('\n— trait scaling: stoic takes less from the same beat —');
 {
-  // Run 3000 trials of a negative event and compare movement rates.
-  const N = 3000;
-  let stoicMoved = 0, volatileMoved = 0;
-  for (let i = 0; i < N; i++) {
-    const s = applyEvent(initialMood(), 'lostAsEquityFavorite', STOIC);
-    if (s.state !== 'neutral') stoicMoved++;
-    const v = applyEvent(initialMood(), 'lostAsEquityFavorite', VOLATILE);
-    if (v.state !== 'neutral') volatileMoved++;
-  }
-  const stoicPct = (stoicMoved / N) * 100;
-  const volatilePct = (volatileMoved / N) * 100;
-  console.log(`  stoic moved ${stoicPct.toFixed(1)}%, volatile moved ${volatilePct.toFixed(1)}%`);
-  check(`stoic moves less than volatile on negatives`, stoicMoved < volatileMoved);
-  check(`stoic still moves sometimes (>10%)`, stoicPct > 10);
-  check(`volatile moves often (>60%)`, volatilePct > 60);
+  // MOOD-2 changed the MEASURE, not the rule. Resistance used to block a whole
+  // step some fraction of the time (a dice roll); now the beat always lands and
+  // resistance scales how hard. The rule under test is the same one it always
+  // was: a stoic is harder to rattle than a volatile agent, and neither is
+  // immune.
+  const beat = 'lostAsEquityFavorite';
+  const stoicHit = applyEvent(initialMood(), beat, STOIC);
+  const volatileHit = applyEvent(initialMood(), beat, VOLATILE);
+  const stoicGain = stoicHit.heat - HEAT_MIDPOINT.neutral;
+  const volatileGain = volatileHit.heat - HEAT_MIDPOINT.neutral;
+  console.log(`  same beat: stoic +${stoicGain} heat, volatile +${volatileGain} heat`);
+
+  check(`the beat lands on both — nobody is immune`, stoicGain > 0 && volatileGain > 0);
+  check(`stoic takes less than volatile`, stoicGain < volatileGain);
+  check(`one beat does not tilt a stoic`, stoicHit.state === 'neutral');
+  check(`the same beat rattles a volatile agent`, volatileHit.state === 'frustrated');
+
+  // "Stoic still moves sometimes" — it takes more, but it gets there.
+  let stoic = initialMood();
+  for (let i = 0; i < 8; i++) stoic = applyEvent(stoic, beat, STOIC);
+  check(`enough beats tilt even a stoic`, stoic.state === 'tilted' || stoic.state === 'sulking');
+
+  // And the scales themselves, both directions.
+  const sScales = heatScales(STOIC);
+  const vScales = heatScales(VOLATILE);
+  check(`stoic heats slower`, sScales.heating < vScales.heating);
+  check(`stoic cools faster`, sScales.cooling > vScales.cooling);
 }
 
-console.log('\n— decay ticks toward neutral after DECAY_HANDS uneventful hands —');
+console.log('\n— uneventful hands cool him back to level —');
 {
-  const rand0 = () => 0;
-  let m = applyEvent(initialMood(), 'lostAsEquityFavorite', VOLATILE, { rand: rand0 });
-  m = applyEvent(m, 'lostAsEquityFavorite', VOLATILE, { rand: rand0 });
+  // MOOD-2 changed this mechanism too: decay used to step one BAND every
+  // DECAY_HANDS uneventful hands. It is continuous now, because heat between
+  // the bands is the entire point of having heat. The rules are unchanged and
+  // all still asserted: uneventful hands only ever cool, they get him back to
+  // neutral, and they stop there rather than running on into confident.
+  let m = applyEvent(initialMood(), 'lostAsEquityFavorite', VOLATILE);
+  m = applyEvent(m, 'lostAsEquityFavorite', VOLATILE);
   check(`at tilted after two hits`, m.state === 'tilted');
-  for (let i = 0; i < DECAY_HANDS - 1; i++) m = tickDecay(m);
-  check(`still tilted before threshold`, m.state === 'tilted');
+
+  const hot = m.heat;
   m = tickDecay(m);
-  check(`decays one step after threshold (tilted → frustrated)`, m.state === 'frustrated');
-  check(`uneventfulHands reset after decay`, m.uneventfulHands === 0);
-  for (let i = 0; i < DECAY_HANDS; i++) m = tickDecay(m);
-  check(`decays again (frustrated → neutral)`, m.state === 'neutral');
+  check(`an uneventful hand cools him`, m.heat < hot);
+  check(`it never heats him`, m.heat <= hot);
+  check(`uneventfulHands counts up`, m.uneventfulHands === 1);
+
+  // Enough of them and he is level again.
+  for (let i = 0; i < 40; i++) m = tickDecay(m);
+  check(`he comes back to neutral`, m.state === 'neutral');
+  check(`and lands exactly at level`, m.heat === HEAT_MIDPOINT.neutral);
+
+  // And stops. Cooling is not a route to confident: that has to be won.
+  const settled = { ...m };
   m = tickDecay(m);
-  check(`no-op at neutral`, m.state === 'neutral');
+  check(`no-op at neutral`, m.state === 'neutral' && m.heat === settled.heat);
+
+  // It works in the other direction too — a confident agent drifts back to
+  // level rather than staying elated forever.
+  let up = initialMood();
+  for (let i = 0; i < 4; i++) up = applyEvent(up, 'wonBigPot', VOLATILE);
+  check(`wins cool him to confident`, up.state === 'confident');
+  for (let i = 0; i < 40; i++) up = tickDecay(up);
+  check(`confidence drifts back to level too`, up.heat === HEAT_MIDPOINT.neutral);
+
+  // COMPOSURE still sets the rate, through the same hook it always did.
+  const hotMood = { ...initialMood(), heat: 80, state: 'tilted' };
+  const calm = tickDecay(hotMood, { composure: 100 });
+  const rattled = tickDecay(hotMood, { composure: 0 });
+  check(`a composed agent cools faster`, calm.heat < rattled.heat);
 }
 
 console.log('\n— pep talk soothes one step + enforces cooldown —');
 {
-  const rand0 = () => 0;
-  let m = applyEvent(initialMood(), 'lostAsEquityFavorite', VOLATILE, { rand: rand0 });
-  m = applyEvent(m, 'lostAsEquityFavorite', VOLATILE, { rand: rand0 });
+  let m = applyEvent(initialMood(), 'lostAsEquityFavorite', VOLATILE);
+  m = applyEvent(m, 'lostAsEquityFavorite', VOLATILE);
   check(`start at tilted`, m.state === 'tilted');
   const first = applyPepTalk(m, 20);
   check(`pep talk works when soothable`, first.soothed === true);
-  check(`moved one step toward neutral`, first.mood.state === 'frustrated');
+  check(`cools him by one step`, first.mood.heat === m.heat - HEAT_STEP);
+  check(`one step is enough to leave the tilted band here`, first.mood.state === 'frustrated');
+  check(`a pep talk never overshoots past level`, first.mood.heat >= HEAT_MIDPOINT.neutral);
   check(`records pepTalkAtHand`, first.mood.pepTalkAtHand === 20);
   const second = applyPepTalk(first.mood, 25);  // still within 10-hand cooldown
   check(`second pep talk within cooldown blocked`, second.soothed === false && second.reason === 'cooldown');
@@ -143,6 +191,61 @@ console.log('\n— isSoothable —');
   check(`frustrated soothable`,isSoothable({ state: 'frustrated' })=== true);
   check(`neutral not soothable`,   isSoothable({ state: 'neutral' })  === false);
   check(`confident not soothable`, isSoothable({ state: 'confident' })=== false);
+}
+
+console.log('\n— heat: the bands, the backfill, and what may move it —');
+{
+  check(`confident is the cold end`, stateForHeat(0) === 'confident' && stateForHeat(20) === 'confident');
+  check(`neutral is the middle`, stateForHeat(21) === 'neutral' && stateForHeat(40) === 'neutral');
+  check(`frustrated sits above it`, stateForHeat(41) === 'frustrated' && stateForHeat(60) === 'frustrated');
+  check(`tilted is the hot end`, stateForHeat(61) === 'tilted' && stateForHeat(100) === 'tilted');
+  check(`every band maps back to a heat inside itself`,
+    MOOD_STATES.every((st) => stateForHeat(heatForState(st), { losingRun: st === 'sulking' ? SULK_LOSING_RUN : 0 }) === st));
+
+  // Sulking is tilt that has stopped expecting the next hand to be different.
+  check(`tilt alone is not sulking`, stateForHeat(90, { losingRun: 0 }) === 'tilted');
+  check(`tilt plus a losing run is`, stateForHeat(90, { losingRun: SULK_LOSING_RUN }) === 'sulking');
+  check(`a losing run without the heat is not`, stateForHeat(30, { losingRun: 9 }) === 'neutral');
+
+  check(`heat is clamped to 0..100`, clampHeat(-40) === 0 && clampHeat(400) === 100);
+  check(`nonsense heat reads as level`, clampHeat('x') === HEAT_MIDPOINT.neutral);
+
+  // Backwards compatibility: a record from before heat existed.
+  const legacy = { mood: { state: 'tilted', cause: 'lost a big pot', updatedAt: 1 } };
+  ensureMood(legacy);
+  check(`a stateless-heat record is backfilled to its band midpoint`,
+    legacy.mood.heat === HEAT_MIDPOINT.tilted);
+  check(`and keeps the state it was stored with`, legacy.mood.state === 'tilted');
+  const legacyConfident = { mood: { state: 'confident' } };
+  ensureMood(legacyConfident);
+  check(`the same for the cold end`, legacyConfident.mood.heat === HEAT_MIDPOINT.confident);
+
+  // Every event has a weight, and they point the right way.
+  check(`losing events heat him`,
+    HEAT_EVENTS.lostAsEquityFavorite > 0 && HEAT_EVENTS.lostBigPot > 0 &&
+    HEAT_EVENTS.cooler > 0 && HEAT_EVENTS.sessionLossStreak > 0 &&
+    HEAT_EVENTS.cardDead > 0 && HEAT_EVENTS.needled > 0);
+  check(`winning events cool him`, HEAT_EVENTS.wonBigPot < 0 && HEAT_EVENTS.sessionWinStreak < 0);
+  check(`the beat that stings most is the worst one`,
+    HEAT_EVENTS.lostAsEquityFavorite === Math.max(...Object.values(HEAT_EVENTS)));
+  check(`an unknown event does nothing at all`,
+    applyEvent(initialMood(), 'sneezed', VOLATILE).heat === HEAT_MIDPOINT.neutral);
+
+  // The bar. The only thing that works while nobody is looking.
+  const hot = { ...initialMood(), heat: 90, state: 'tilted', losingRun: 4 };
+  check(`an hour at the bar cools him`, restAtBar(hot, { hours: 1 }).heat < hot.heat);
+  check(`a long night at the bar brings him back to level`,
+    restAtBar(hot, { hours: 24 }).heat === HEAT_MIDPOINT.neutral);
+  check(`the bar never makes him confident`, restAtBar(hot, { hours: 999 }).state === 'neutral');
+  check(`the bar never heats him`, restAtBar({ ...initialMood(), heat: 10 }, { hours: 5 }).heat === 10);
+
+  // THE LAW. Nothing moves heat without a poker event or an owner message.
+  const level = initialMood();
+  check(`no hours, no change`, restAtBar(level, { hours: 0 }) === level);
+  check(`negative hours cannot be used to heat him`, restAtBar(level, { hours: -50 }) === level);
+  check(`nonsense hours do nothing`, restAtBar(level, { hours: 'x' }) === level);
+  check(`an uneventful hand at level changes nothing`,
+    tickDecay(level).heat === level.heat);
 }
 
 console.log('\n— summary —');

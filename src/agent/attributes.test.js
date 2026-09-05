@@ -56,7 +56,7 @@ import {
 
 import { formatOpponentRead } from './reads.js';
 import { rollDice, deviationPercent } from './policy.js';
-import { tiltResistance, tickDecay, DECAY_HANDS } from './mood.js';
+import { tiltResistance, tickDecay, DECAY_HANDS, HEAT_DECAY_PER_HAND } from './mood.js';
 
 let failures = 0;
 function check(label, cond) {
@@ -778,8 +778,12 @@ withImpact(1, () => {
   // COMPOSURE → mood.js
   const stoic = { tightness: 88, aggression: 45, bluffFreq: 8, discipline: 90 };
   check('tiltResistance with no attrs is the trait alone', tiltResistance(stoic) === tiltResistance(stoic, {}));
-  const moody = { state: 'tilted', uneventfulHands: DECAY_HANDS - 1 };
-  check('tickDecay with no attrs still fires at DECAY_HANDS', tickDecay(moody).state === 'frustrated');
+  // MOOD-2 made decay continuous (heat) rather than a band-step every
+  // DECAY_HANDS. The rule here is unchanged and is about the ATTRIBUTE, not the
+  // cadence: with no COMPOSURE value, decay runs at exactly the base rate.
+  const moody = { state: 'tilted', heat: 70, uneventfulHands: DECAY_HANDS - 1 };
+  check('tickDecay with no attrs cools at the base rate',
+    70 - tickDecay(moody).heat === HEAT_DECAY_PER_HAND);
 });
 
 console.log('\n— hooks: knob 0 is bit-identical to today —');
@@ -803,8 +807,12 @@ console.log('\n— hooks: knob 0 is bit-identical to today —');
     check('COMPOSURE tilt hook is inert',
       tiltResistance(stoic, { composure: 0 }) === tiltResistance(stoic) &&
       tiltResistance(stoic, { composure: 100 }) === tiltResistance(stoic));
+    // The knob-0 law, against the mechanism as it is now: whatever COMPOSURE
+    // says, at IMPACT 0 the cooling rate is the pre-attribute one.
+    const hot = { state: 'tilted', heat: 70, uneventfulHands: DECAY_HANDS - 1 };
     check('COMPOSURE decay hook is inert',
-      tickDecay({ state: 'tilted', uneventfulHands: DECAY_HANDS - 1 }, { composure: 0 }).state === 'frustrated');
+      70 - tickDecay(hot, { composure: 0 }).heat === HEAT_DECAY_PER_HAND &&
+      70 - tickDecay(hot, { composure: 100 }).heat === HEAT_DECAY_PER_HAND);
 
     const agent = { attrs: { ...defaultAttributes(), FOCUS: 70, DISCIPLINE: 80, STAMINA: 0 } };
     const worn = effectiveAttrs(agent, { sessionHands: 300 });

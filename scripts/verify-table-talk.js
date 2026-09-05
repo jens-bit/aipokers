@@ -100,15 +100,19 @@ assert('EVENT_DELTAS.needled is -1',     EVENT_DELTAS.needled, -1);
 // applyEvent with needled on a neutral mood. With discipline=50, tiltResistance
 // ≈ 57; movement chance = 1 - 0.57*0.75 ≈ 0.57. Run 50 times and check at
 // least one state change occurred (extremely unlikely to miss at 50 attempts).
-let needledChangedOnce = false;
+// MOOD-2: a needle lands as HEAT rather than as a whole band-step. The rule is
+// the same one TLK-1 wrote — table talk gets under a susceptible agent's skin —
+// but a single needle moving him a whole state was always too strong, and heat
+// is where that intensity belongs now.
 const testProfile = { tightness: 30, aggression: 70, discipline: 20, bluffFreq: 40 };
-for (let i = 0; i < 50; i++) {
-  const base = initialMood();
-  base.state = 'neutral';
-  const after = applyEvent(base, 'needled', testProfile, {});
-  if (after.state !== 'neutral') { needledChangedOnce = true; break; }
-}
-assert('needled event can shift mood down from neutral (low-discipline profile)', needledChangedOnce, true);
+const beforeNeedle = { ...initialMood(), state: 'neutral' };
+const afterNeedle = applyEvent(beforeNeedle, 'needled', testProfile, {});
+assert('needled event heats a low-discipline agent', afterNeedle.heat > beforeNeedle.heat, true);
+assert('needled event names itself as the cause', afterNeedle.cause, 'needled by opponent table talk');
+const stoneProfile = { tightness: 88, aggression: 45, discipline: 90, bluffFreq: 8 };
+const stoicNeedled = applyEvent({ ...initialMood(), state: 'neutral' }, 'needled', stoneProfile, {});
+assert('a stoic agent takes less from the same needle',
+  (stoicNeedled.heat - beforeNeedle.heat) < (afterNeedle.heat - beforeNeedle.heat), true);
 
 // ── Rate-limit simulation ─────────────────────────────────────────────────────
 console.log('\nRate-limit simulation');

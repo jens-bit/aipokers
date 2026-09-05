@@ -10,6 +10,7 @@ import {
   tickDecay as tickMoodDecay,
   applyPepTalk as applyMoodPepTalk,
   isSoothable as isMoodSoothable,
+  heatForState,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -1059,7 +1060,15 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
     pocket: pocketProjection(agent.pocket),
-    mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
+    // MOOD-2: heat rides with the state. The floor draws posture intensity from
+    // it, the thread reads it for tone, and it is the only way two tilted
+    // agents can look like different players.
+    mood: agent.mood ? {
+      state: agent.mood.state,
+      heat: Number.isFinite(agent.mood.heat) ? agent.mood.heat : heatForState(agent.mood.state),
+      cause: agent.mood.cause ?? null,
+      updatedAt: agent.mood.updatedAt ?? null,
+    } : null,
     lastMoment: agent.lastMoment ?? null,
     sessionRecap: agent.sessionRecap ?? null,
     unseenRecap: !!agent.unseenRecap,
