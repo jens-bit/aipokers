@@ -282,8 +282,8 @@ const NaturesSheetM = () => (
             &ldquo;There is something stubborn in this one. He is a Rock.&rdquo;
           </div>
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <AttrBar name="DISCIPLINE" cur={80} lo={82} hi={96} w="100%"/>
-            <AttrBar name="READS" cur={53} lo={58} hi={76} w="100%" dim/>
+            <AttrBar name="DISCIPLINE" cur={50} lo={82} hi={96} w="100%"/>
+            <AttrBar name="READS" cur={30} lo={52} hi={76} w="100%" dim/>
           </div>
           <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 11, lineHeight: 1.5 }}>the two moved attributes animate to their shifted values on reveal; the other four are already at rest</div>
         </div>

@@ -2,8 +2,8 @@
 
 // ── S3 · CURRENT vs POTENTIAL ────────────────────────────────────────────────
 const SCOUT_STAGES = [
-  { when: 'Day one',        hands: '0 hands',   cur: 54, lo: 60, hi: 90, note: 'born. The ceiling is a rumour: a 30-point band.' },
-  { when: 'First week',     hands: '120 hands', cur: 58, lo: 62, hi: 86, note: 'the band has moved in from both ends. He is beating the low end already.' },
+  { when: 'Day one',        hands: '0 hands',   cur: 36, lo: 60, hi: 90, note: 'born. The ceiling is a rumour: a 30-point band.' },
+  { when: 'First week',     hands: '120 hands', cur: 47, lo: 62, hi: 86, note: 'the band has moved in from both ends. He is beating the low end already.' },
   { when: 'A month in',     hands: '500 hands', cur: 66, lo: 70, hi: 78, note: 'an 8-point band. You now know roughly who he will be.', narrowed: true },
   { when: 'Late',           hands: '2,000 hands', cur: 74, lo: 75, hi: 77, note: 'the band is nearly a number, and he is nearly at it.' },
 ];
@@ -13,16 +13,16 @@ const Anno = ({ children }) => (
 );
 
 const PotentialSheetM = () => (
-  <Sheet title="Current, and a ceiling that is scouted" sub="Every attribute carries a current value, visible from day one, and a born potential ceiling that is never printed as a number. It is displayed as a range that narrows as he plays. Football Manager’s potential ability, not Pokémon’s hidden IV: the sheet is never withheld, the ceiling is discovered.">
+  <Sheet title="Current, and a ceiling that is scouted" sub="Every attribute carries a current value, visible from day one, and a born potential ceiling that is never a number on the bar. It is displayed as a range that narrows as he plays. Football Manager’s potential ability, not Pokémon’s hidden IV: the sheet is never withheld, the ceiling is discovered.">
     <div style={{ display: 'flex', gap: 26, marginBottom: 24 }}>
       <div style={{ width: 430, flexShrink: 0 }}>
         <SyLbl>Bar anatomy</SyLbl>
         <div style={{ padding: '30px 22px 22px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
-          <AttrBar name="FOCUS" cur={54} lo={60} hi={90} w="100%" narrowed/>
+          <AttrBar name="FOCUS" cur={36} lo={60} hi={90} w="100%" narrowed/>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 18px', marginTop: 24 }}>
             <div><Anno><span style={{ color: M_TEAL }}>&#9644; teal fill + white cap</span><br/>current value, 0&ndash;100. The cap is the only hard edge on the bar.</Anno></div>
-            <div><Anno><span style={{ color: M_GOLD }}>&#9636; gold band, hairline ends</span><br/>the scouted ceiling. Width IS the confidence &mdash; no number is ever shown for potential.</Anno></div>
-            <div><Anno><span style={{ color: M_TEXT }}>54</span> &nbsp;mono 12, right of the name<br/>the current number, always exact.</Anno></div>
+            <div><Anno><span style={{ color: M_GOLD }}>&#9636; gold band, hairline ends</span><br/>the scouted ceiling. Width IS the confidence &mdash; no number for potential on the bar itself.</Anno></div>
+            <div><Anno><span style={{ color: M_TEXT }}>36</span> &nbsp;mono 12, right of the name<br/>the current number, always exact.</Anno></div>
             <div><Anno><span style={{ color: M_GOLD }}>60&ndash;90</span> &nbsp;mono 9.5, gold<br/>the band in words, for the row that has no room for a bar.</Anno></div>
             <div><Anno><span style={{ color: M_GOLD }}>&#9662; caret at the high end</span><br/>appears for one session after the band narrows, then retires. This is the only animation on the bar.</Anno></div>
             <div><Anno>track <span style={{ color: M_DIM }}>M_SURF</span>, h6 r3 &middot; band h14 &middot; cap 2&times;12<br/>row pitch 9 &middot; six bars = 132px tall.</Anno></div>
@@ -48,7 +48,7 @@ const PotentialSheetM = () => (
           </div>
           <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_RED}0D`, border: `1px solid ${M_RED}33` }}>
             <SyLbl color={M_RED}>Don&rsquo;t</SyLbl>
-            <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>Never print an exact potential, ever, on any surface. Never hide the current sheet behind a scouting gate. Never let the band widen again. Never show a percentage-to-ceiling &mdash; that is a progress bar, and this is a person.</div>
+            <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>Never print an exact potential on a bar. Inside a tapped bar it may be printed once, in gold — tapping is the user asking for precision. Never hide the current sheet behind a scouting gate. Never let the band widen again. Never show a percentage-to-ceiling &mdash; that is a progress bar, and this is a person.</div>
           </div>
         </div>
       </div>
@@ -185,7 +185,7 @@ const SURFACES = [
     what: 'A tick is a line in the thread with the hand that caused it, quotable into the review. Notifications batch ticks into the session recap.',
     law: 'never a standalone push · never without a cause' },
   { n: '4', where: 'Attribute annotations', on: 'Hand review', prompt: 'prompt 5',
-    what: 'Where a decision was shaped by an attribute, the row says so: “misread equity by 7% · Focus”. This is the honest place a low attribute is allowed to cost money on screen.',
+    what: 'Where a decision was shaped by an attribute, the row says so: “he misjudged equity by 7% · Focus”. This is the honest place a low attribute is allowed to cost money on screen.',
     law: 'annotate the cause, never grade the hand' },
   { n: '5', where: 'Fatigue postures', on: 'Floor', prompt: 'prompt 5',
     what: 'Worn ghosts sit lower at the felt with a slower bob; fresh ones ride high. Read at 40px with no text, across a full room.',

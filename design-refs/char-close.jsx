@@ -168,7 +168,7 @@ const AttrStateMatrixM = () => {
         <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_TEAL}0D`, border: `1px solid ${M_TEAL}33` }}>
           <SyLbl color={M_TEAL}>Invariants</SyLbl>
           <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>
-            Bars appear on exactly <b style={{ color: M_TEXT }}>two</b> surfaces — the card and the birth sheet. The floor never shows a number. An exact potential is never printed anywhere. Mood owns the eyes and the aura; fatigue owns posture and the meter; <b style={{ color: M_TEXT }}>they never share a channel</b>, so a confident agent can be worn and a tilted one can be fresh.
+            Bars appear on exactly <b style={{ color: M_TEXT }}>two</b> surfaces — the card and the birth sheet. The floor never shows a number. An exact potential appears nowhere but inside a tapped bar. Mood owns the eyes and the aura; fatigue owns posture and the meter; <b style={{ color: M_TEXT }}>they never share a channel</b>, so a confident agent can be worn and a tilted one can be fresh.
           </div>
         </div>
         <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_RED}0D`, border: `1px solid ${M_RED}33` }}>

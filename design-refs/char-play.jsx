@@ -153,7 +153,7 @@ const HandReviewAttrScreenM = () => (
 
       <StreetRow street="River" board={[['K','c'],['9','c'],['4','c'],['2','c'],['5','h']]}
         action="JAM $340" equity="38" matched={false} last
-        attr={{ note: 'misread equity by 7%', k: 'FOCUS', cost: true }}
+        attr={{ note: 'he misjudged equity by 7%', k: 'FOCUS', cost: true }}
         reason="He'd checked twice, so I read weakness. He had the ace of clubs the whole way."/>
     </div>
 

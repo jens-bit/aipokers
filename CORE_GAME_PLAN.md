@@ -639,3 +639,17 @@ node scripts/arena.js --pairs 200 --profiles scripts/arena-profiles.json --match
 node scripts/arena.js --pairs 200 --profiles scripts/arena-profiles.json --matchups "Loose Cannon,Calling Station"
 ```
 Evaluate criterion 2 (TAG vs Station CI and TAG vs Cannon CI) and the AGE-40 fold-rate check from the TAG vs Station run. Criterion 1 and engine health need not be re-verified.
+
+## Character System — design LOCKED (zips 30–32, 2026-09-02 → 09-05; synced to design-refs/)
+
+Files: char-system.jsx (ATTRS, NATURES, AttrBar/AttrTrack, FatigueMeter, GrowthTick), char-system2.jsx (potential band, growth vs fatigue, surface map), char-profile.jsx (player card v2, AttrCluster, AttrFocusPanel = sparkline + big value + 5-word caption, AttrSpark, PlayerCardRail for desktop), char-birth.jsx (nature reveal, birth card), char-play.jsx (thread growth line, worn posture at the felt, hand-review attr row, RiverAttrPanel, roster grew badge), char-close.jsx (state matrix attributes × surfaces, seam thread, how-it-plays), char-bio.jsx (biography layer: nemesis / rival / favourite victim, grudge ledger, SeatChip `history` pip). Docs: "Agentic Poker Character System.html", "Agentic Poker Biography.html".
+
+Model: STRATEGY (chosen: aggression, tightness, bluffFreq, discipline slider) vs six ATTRIBUTES (grown: READS, FOCUS, DISCIPLINE, COMPOSURE, DECEPTION, STAMINA; 0–100; execution-only). Eight zero-sum NATURES assigned at birth (±ATTR_STEP=8 on one attribute up, one down; announced in his voice; never re-rolled). Current is visible from day one; potential is a scouted band (lo–hi) that narrows with hands. Growth is permanent, single points over weeks, diminishing near the band. Fatigue is STATE (fresh / settled / worn), erodes effective FOCUS + DISCIPLINE late in a session, restored by time at the bar.
+
+Laws (binding on every build): no purchase path; fixed birth budget; attributes never gate play; the ceiling is never a number on a bar (inside a tapped bar it may be printed once, in gold); every cost line reads as HIS misjudgment ("he misjudged equity by 7% · Focus"); the biography layer touches voice, table talk and mood events only — never an attribute, band, fatigue or strategy; a grudge is never a notification. Day-one currents sit at 55–65% of the band's low edge (design 32 fix) so a newborn has room to grow.
+
+Density verdict (Jens, 09-05): the tapped panel is a picture, not a paragraph — 29c went from ~70 words to a sparkline + value + caption. Voice lives in the thread only. Permanent hint labels removed.
+
+Build order: ATTR-1 (engine, measurement-first, feature/attributes; arena --attributes off|low|high; ATTRIBUTE_IMPACT knob; attrLog ring buffer) → ATTR-2 (UI port: bars, tapped panel, birth card, hand-review row) → ATTR-3 (growth ticks + fatigue state in the session loop) → BIO-2 (per-opponent ledger → derived roles → recap line + needle injection). Target at full impact: same-strategy high vs low ≥ +30 bb/100, CI excluding zero; "off" reproduces ACCEPT-1 within CI.
+
+## Merged 2026-09-05: feature/watch-calm (WCM-1 calm between-hands state, WCM-2 felt density/colour) → main 9ab7aca. Remaining unmerged: feature/desktop-port (DSK2-1 only; DSK2-2..4 status unknown).
