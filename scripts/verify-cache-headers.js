@@ -4,7 +4,8 @@
 // Run: node scripts/verify-cache-headers.js
 
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import fs, { existsSync, readdirSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
@@ -17,6 +18,7 @@ const PORT = 18765; // ephemeral port, won't conflict with real server
 let passed = 0;
 let failed = 0;
 let serverProc = null;
+let serverCwd = null;
 
 function assert(label, got, expected) {
   if (got === expected) {
@@ -79,11 +81,18 @@ async function waitForServer(retries = 20) {
 
 async function run() {
   console.log(`\nStarting server on port ${PORT}…`);
+  // SQLITE-1: the spawned server must NOT run with cwd=ROOT. Persistence
+  // resolves data/ from cwd, so booting the real server here wrote into the
+  // developer's own data/ — since the store migrates on boot, that renamed
+  // their live agents.json. The script path is absolute so module resolution
+  // no longer needs cwd, and client/dist still resolves because index.js takes
+  // it from __dirname. Scratch dir removed in cleanup(), same as runScript.js.
+  serverCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-cache-'));
   serverProc = spawn(
     process.execPath,
-    ['--experimental-vm-modules', 'src/index.js'],
+    ['--experimental-vm-modules', path.join(ROOT, 'src', 'index.js')],
     {
-      cwd: ROOT,
+      cwd: serverCwd,
       env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NODE_NO_WARNINGS: '1' },
       stdio: 'pipe',
     }
@@ -136,5 +145,6 @@ run()
   .catch((err) => { console.error(err); })
   .finally(() => {
     if (serverProc) serverProc.kill();
+    if (serverCwd) { try { fs.rmSync(serverCwd, { recursive: true, force: true }); } catch { /* best effort */ } }
     process.exit(failed > 0 ? 1 : 0);
   });

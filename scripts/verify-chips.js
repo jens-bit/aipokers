@@ -3,26 +3,43 @@
 //
 // Usage: node scripts/verify-chips.js
 //
-// Reads data/agents.json and verifies that each agent's stored bankroll equals
+// Reads the agent store and verifies that each agent's stored bankroll equals
 // the sum implied by its ledger (grants - buyins + cashouts). Prints a summary
 // and exits non-zero when any mismatch is found.
 //
 // Full chip conservation (bankrolls + active-table chips == total grants)
 // requires access to live table state; this offline script checks the ledger
 // consistency invariant, which is the part that can be verified from disk.
+//
+// SQLITE-1: the source is now data/app.db rather than data/agents.json. This
+// stays an operational check against the machine's real data (npm run
+// test:data), so it deliberately resolves the repo root rather than cwd — it
+// is excluded from `npm test` for exactly that reason.
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DATA_FILE = path.join(ROOT, 'data', 'agents.json');
+process.chdir(ROOT);   // store.js resolves data/ from cwd
+
+const { loadAgentStore, _dbPath } = await import('../src/server/store.js');
+
+// A read-only check must not be the thing that migrates live data: opening the
+// store would import data/agents.json and rename it. Boot the server once
+// (`npm start`) and the migration happens there, where it is logged.
+if (!fs.existsSync(path.join(ROOT, 'data', 'app.db'))) {
+  const legacy = fs.existsSync(path.join(ROOT, 'data', 'agents.json'));
+  console.error(`Cannot read ${path.join(ROOT, 'data', 'app.db')}: no database on this machine.`);
+  if (legacy) console.error('data/agents.json is still here — start the server once to migrate it, then re-run.');
+  process.exit(1);
+}
 
 let store;
 try {
-  store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  store = loadAgentStore();
 } catch (err) {
-  console.error('Cannot read data/agents.json:', err.message);
+  console.error(`Cannot read ${_dbPath()}:`, err.message);
   process.exit(1);
 }
 

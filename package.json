@@ -13,6 +13,7 @@
     "test:all": "npm test && npm run test:client",
     "test:live": "node src/server/agentChat.test.js",
     "test:data": "node scripts/verify-chips.js",
+    "export:json": "node scripts/export-json.js",
     "smoke": "node scripts/smoke-hand.js",
     "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"

@@ -9,11 +9,12 @@
 //
 // Derived reads are computed on demand from the ring (cheap, N ≤ 50).
 
-import fs from 'node:fs';
-import path from 'node:path';
+// SQLITE-1: the ring buffers live in the `opponent_stats` table instead of
+// data/opponents.json. The in-memory store and the 2s save throttle are
+// unchanged — only the write target moved.
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'opponents.json');
+import { loadOpponentStats, saveOpponentStats } from './store.js';
+
 const RING_SIZE = 50;
 const SAVE_THROTTLE_MS = 2000;
 
@@ -21,10 +22,18 @@ let store = {};
 let persistEnabled = true;
 let pendingSaveTimer = null;
 let lastSaveAt = 0;
+let loaded = false;
 
-// Cold start: try to load persisted state.
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-try { store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch { store = {}; }
+// Cold start is lazy: the arena calls setPersistEnabled(false) before it plays
+// anything, and with persistence off this module must never touch the database
+// at all. Loading at module import would open one for every process that
+// merely imports table.js.
+function ensureLoaded() {
+  if (loaded) return;
+  loaded = true;
+  if (!persistEnabled) { store = {}; return; }
+  try { store = loadOpponentStats(); } catch { store = {}; }
+}
 
 function scheduleSave() {
   if (!persistEnabled) return;
@@ -34,7 +43,7 @@ function scheduleSave() {
     pendingSaveTimer = null;
     lastSaveAt = Date.now();
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+      saveOpponentStats(store);
     } catch (err) {
       console.error('[opponentStats] save failed:', err.message);
     }
@@ -43,6 +52,7 @@ function scheduleSave() {
 }
 
 function ensureEntry(playerId, displayName) {
+  ensureLoaded();
   if (!store[playerId]) {
     store[playerId] = { playerId, displayName: displayName || playerId, hands: [] };
   } else if (displayName) {
@@ -109,6 +119,7 @@ export function recordHand({ playerIdsBySeat, displayNamesBySeat, actionLog, sho
 // Compute a fresh read from the ring for a single playerId. Returns null if
 // the opponent is unknown, or an object with derived percentages if not.
 export function getRead(playerId) {
+  ensureLoaded();
   const entry = store[playerId];
   if (!entry || entry.hands.length === 0) return null;
   const n = entry.hands.length;
@@ -146,9 +157,11 @@ export function setPersistEnabled(enabled) {
 // the next save will overwrite it.
 export function reset() {
   store = {};
+  loaded = true;   // a wipe must not be undone by a lazy load on the next read
 }
 
 // For tests / diagnostics.
 export function _snapshot() {
+  ensureLoaded();
   return JSON.parse(JSON.stringify(store));
 }

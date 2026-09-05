@@ -357,6 +357,13 @@ export function readHandRows(ownerId, limit) {
   return rows.map((r) => jsonParse(r.data, null)).filter((h) => h !== null);
 }
 
+// Every owner that has hands. Hand owners are a different key space from agent
+// owners — appendHand() is called with the seat's playerId, which is not always
+// an agent owner id — so the export walks this rather than the profiles table.
+export function listHandOwners() {
+  return conn().prepare('SELECT DISTINCT owner_id FROM hands ORDER BY owner_id').all().map((r) => r.owner_id);
+}
+
 // ── Opponent stats ───────────────────────────────────────────────────────────
 
 export function loadOpponentStats() {

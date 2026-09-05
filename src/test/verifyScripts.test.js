@@ -25,11 +25,11 @@ import { ROOT, runScript, assertPassed } from './helpers/runScript.js';
 const SCRIPTS = path.join(ROOT, 'scripts');
 
 const EXCLUDED = new Map([
-  // Asserts every stored bankroll against its own ledger in data/agents.json.
-  // data/ is gitignored, so on CI there is no file to check and on a laptop it
-  // checks whatever that machine happens to hold. That makes it an operational
-  // data check, not a regression test — `npm run test:data`.
-  ['verify-chips.js', 'asserts against the machine\'s live data/agents.json (gitignored, absent on CI) — run `npm run test:data`'],
+  // Asserts every stored bankroll against its own ledger in data/app.db.
+  // data/ is gitignored, so on CI there is no database to check and on a laptop
+  // it checks whatever that machine happens to hold. That makes it an
+  // operational data check, not a regression test — `npm run test:data`.
+  ['verify-chips.js', 'asserts against the machine\'s live data/app.db (gitignored, absent on CI) — run `npm run test:data`'],
 ]);
 
 // Needs a built client to serve. Skipped rather than excluded: when

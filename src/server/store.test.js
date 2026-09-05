@@ -231,6 +231,24 @@ test('a second boot imports nothing and changes nothing', () => {
   assert.ok(fs.existsSync(path.join(dir, 'data', 'agents.json')), 'the re-appeared file is left alone, not retired again');
 });
 
+// Regression: booting the real server used to migrate whatever data/ happened
+// to be next to the cwd it was spawned in, and scripts/verify-cache-headers.js
+// spawned it with cwd=ROOT — so `npm test` renamed the developer's live
+// agents.json out from under them. The store must never reach outside its cwd.
+test('SQLITE-1: booting the server in a scratch cwd never touches another data/', () => {
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-victim-'));
+  scratchDirs.push(victim);
+  fs.mkdirSync(path.join(victim, 'data'), { recursive: true });
+  const live = path.join(victim, 'data', 'agents.json');
+  fs.writeFileSync(live, JSON.stringify({ o: { userId: 'o', chat: [], agents: [{ id: 'a1' }] } }), 'utf8');
+
+  freshCwd();          // a different cwd entirely
+  openStore();
+
+  assert.ok(fs.existsSync(live), 'the other directory\'s agents.json is still there');
+  assert.ok(!fs.existsSync(`${live}.migrated`), 'and was never migrated');
+});
+
 test('unreadable agents.json leaves the file in place and starts empty', () => {
   const dir = freshCwd();
   fs.mkdirSync(path.join(dir, 'data'), { recursive: true });

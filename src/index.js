@@ -8,6 +8,7 @@ import { installAgentProfileRoutes, getProfileStats } from './server/agentProfil
 import { readHands } from './server/handHistory.js';
 import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } from './server/auth.js';
 import { rateLimiter } from './server/rateLimit.js';
+import { openStore } from './server/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -17,6 +18,12 @@ const port = Number(process.env.PORT ?? 8765);
 const host = process.env.HOST ?? '0.0.0.0';
 const smallBlind = Number(process.env.SMALL_BLIND ?? 10);
 const bigBlind = Number(process.env.BIG_BLIND ?? 20);
+
+// SQLITE-1: open (and, on the first boot after the cutover, migrate) the
+// store before anything can serve a request. Doing it here means the migration
+// log lands at startup and a failed import stops the process instead of
+// surfacing halfway through someone's session.
+console.log(`[ai-poker] store: ${openStore()}`);
 
 const app = express();
 app.use(express.json());

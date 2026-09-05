@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
@@ -30,6 +28,7 @@ import {
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
+import { loadAgentStore, saveProfile } from './store.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -40,25 +39,41 @@ const LEDGER_CAP = 100;
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'agents.json');
+// SQLITE-1: the `profiles` + `agents` tables replace data/agents.json. The
+// in-memory `store` object keeps exactly the shape it always had —
+// { [userId]: { userId, agents: [], chat: [] } } — so every reader below is
+// untouched. Only the load and the save moved.
+//
+// Loaded lazily on first use rather than at module import: opening the
+// database at import time would create one in every process that merely
+// imports this module, including the spawned test suites that never persist.
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+let store = null;
 
-let store = {};
-try {
-  store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-} catch {
-  store = {};
+function db() {
+  if (store === null) {
+    try {
+      store = loadAgentStore();
+    } catch (err) {
+      console.error('[agents] store load failed:', err.message);
+      store = {};
+    }
+  }
+  return store;
 }
 
+// Writes just this owner's profile — the whole store no longer gets rewritten
+// on every hand. saveProfile() is one transaction, which is the write
+// atomicity the JSON rewrite never had.
 function saveStore(userId) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
-  const agents = store[userId]?.agents ?? [];
-  console.log(`[agents] saved profile for ${userId} — ${agents.length} agent(s)`);
+  const profile = db()[userId];
+  if (!profile) return;
+  const n = saveProfile(userId, profile);
+  console.log(`[agents] saved profile for ${userId} — ${n} agent(s)`);
 }
 
 function getOrCreate(userId) {
+  const store = db();
   if (!store[userId]) {
     store[userId] = {
       userId,
@@ -107,7 +122,7 @@ function emitAgentChange(userId) {
 // number of agents retired.
 export function reconcileActiveSessions() {
   let retired = 0;
-  for (const [userId, profile] of Object.entries(store)) {
+  for (const [userId, profile] of Object.entries(db())) {
     for (const agent of (profile.agents || [])) {
       const stale = (agent.activeTableId || agent.status === 'playing') &&
         !(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
@@ -303,7 +318,7 @@ export function getProfileStats() {
   const todayMs = todayStart.getTime();
   let totalAgents = 0;
   let handsPlayedToday = 0;
-  for (const profile of Object.values(store)) {
+  for (const profile of Object.values(db())) {
     for (const agent of (profile.agents || [])) {
       totalAgents++;
       for (const hand of (agent.recentHands || [])) {

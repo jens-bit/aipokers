@@ -2,8 +2,7 @@
 // Telegram sender + per-owner notification state.
 // All exports are no-ops when NOTIFY_ENABLED is not set.
 
-import fs from 'fs';
-import path from 'path';
+import { loadNotificationState, saveNotificationState } from '../store.js';
 
 // ── Feature flag ──────────────────────────────────────────────────────────────
 export const ENABLED = process.env.NOTIFY_ENABLED === '1' || process.env.NOTIFY_ENABLED === 'true';
@@ -11,18 +10,24 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://t.me/AigenicPokerBot/game';
 
 // ── Persistent state ──────────────────────────────────────────────────────────
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STATE_FILE = path.join(DATA_DIR, 'notifications.json');
+// SQLITE-1: the `notification_state` table replaces data/notifications.json.
+// Loaded lazily on first use rather than at module import, so a process that
+// only imports this module (every one that touches agentProfiles.js does) does
+// not open a database it never writes to.
 
 let notifState = {};
-try {
-  notifState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-} catch { notifState = {}; }
+let notifLoaded = false;
+
+function ensureNotifLoaded() {
+  if (notifLoaded) return;
+  notifLoaded = true;
+  try { notifState = loadNotificationState(); } catch { notifState = {}; }
+}
 
 export function saveNotifState() {
   try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(STATE_FILE, JSON.stringify(notifState, null, 2), 'utf8');
+    ensureNotifLoaded();
+    saveNotificationState(notifState);
   } catch (err) {
     console.error('[notify] state save failed:', err.message);
   }
@@ -41,6 +46,7 @@ export function saveNotifState() {
 //   agentOutcomes:    { <agentId>: [bool...] } last-5 session profitability (quiet win)
 //   sentLog:          [{ type, agentId, sentAt }]  last 50 sends
 export function ownerState(ownerId) {
+  ensureNotifLoaded();
   const id = String(ownerId);
   if (!notifState[id]) {
     notifState[id] = {
@@ -359,6 +365,7 @@ async function scheduleNotification(ownerId, chatId, type, text, button, agentId
 // Also reschedule timers for future holds.
 if (ENABLED) {
   Promise.resolve().then(async () => {
+    ensureNotifLoaded();
     const now = _now();
     for (const [ownerId, os] of Object.entries(notifState)) {
       const holds = os.pendingHolds || [];
