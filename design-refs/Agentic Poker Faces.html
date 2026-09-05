@@ -96,6 +96,32 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fa"><b>The sub-line does the work the old one couldn't:</b> <i>each one runs from held to full — the same face, wound tighter</i>. And the promise that matters most is unchanged and still last: <b>he tilts because of bad beats and shown bluffs, never because you were away.</b></div>
 </div>
 
+<div class="frame" style="left:600px;top:5400px">
+  <div class="grouphdr">Wave 43 · the hands</div>
+  <div class="groupsub">Two small detached hands, no arms, hovering where a wrist would be and moving independently. They are <b>body language at table scale</b> — what he is doing with the hand — while the face stays the emotional readout. The split earns its keep: a hand pushing a stack forward reads at 20px, where no face does. Same ink as the body one step lighter, three-fingered mitten, 22% of body width. Geometry sits in <code>mood-atoms.jsx</code> beside the face system.</div>
+  <div class="fh" style="margin-top:14px"><span class="fn">48</span><span class="ft">Eight poses, three sizes</span><span class="fb teal">and four for opponents</span></div>
+  <div id="h1"></div>
+  <div class="fa"><b>An opponent gets four — rest, hold, toss, push — and that is a rule, not an omission.</b> He does not peek, drum, clench or cover, because those are the poses that say what somebody is <i>feeling</i>, and an opponent's feelings are the READ panel's job rather than the felt's. Detail drops with size the same way the face's does: at seat scale the finger circles are sub-pixel, so the hand becomes a plain mitten and <b>position and rotation carry the pose</b>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:6600px">
+  <div class="fh"><span class="fn">49</span><span class="ft">Push · three bet bands</span><span class="fb gold">2 / 4 / 7 chips</span></div>
+  <div id="h2"></div>
+  <div class="fa"><b>The only pose carrying a quantity, and it carries it as height rather than a number</b> — so a bet's size is legible on the body before the figure reaches the hero row. Three bands and no more, because eleven chips and twelve chips are the same gesture to a human eye. And <b>all-in is not the top of the scale</b>: it gets clench, since it is a different kind of decision rather than a bigger bet.</div>
+</div>
+
+<div class="frame" style="left:600px;top:7500px">
+  <div class="fh"><span class="fn">50</span><span class="ft">Push, toss, cover</span><span class="fb">4 frames each</span></div>
+  <div id="h3"></div>
+  <div class="fa"><b>These three need a strip because their meaning lives in the movement, not the shape</b> — a still frame of any of them is ambiguous, and the other five read at rest. Cover is the one to notice: it passes through <b>clench</b> on the way up, which is the involuntary half of it, and it is the only pose that outlasts its own animation. <b>On a win it inverts</b> — one hand rakes the pot in instead. Hands travel toward the face on a loss and toward the body on a win, and that is the whole grammar of the pair.</div>
+</div>
+
+<div class="frame" style="left:600px;top:8600px">
+  <div class="fh"><span class="fn">51</span><span class="ft">Brow triggers</span><span class="fb teal">twitch · lift · knit</span></div>
+  <div id="h4"></div>
+  <div class="fa"><b>One cause each — a brow that fires for two different reasons is decoration.</b> Twitch is asymmetric on purpose, because asymmetry is what makes it read as involuntary. Lift is the only friendly brow the face owns: none of the five resting states draws both brows raised and level, so it is reserved for the moment he peeks at a strong hand. And <b>knit is the only one that persists</b>, because its cause does — it holds until heat drops below 55, which means it has to compose with all five states rather than briefly replace one.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -111,6 +137,7 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="mood-system.jsx"></script>
 <script type="text/babel" src="mood-landing.jsx"></script>
 <script type="text/babel" src="mood-faces.jsx"></script>
+<script type="text/babel" src="mood-hands.jsx"></script>
 
 <script type="text/babel">
 const MoodsBoardSection = () => (
@@ -134,6 +161,10 @@ const MoodsBoardSection = () => (
   ['f3', FaceEventsM],
   ['f4', FaceSizesM],
   ['f5', MoodsBoardSection],
+  ['h1', HandsSheetM],
+  ['h2', HandBetBandsM],
+  ['h3', HandStripsM],
+  ['h4', BrowTriggersM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
   if (el) ReactDOM.createRoot(el).render(<Comp/>);

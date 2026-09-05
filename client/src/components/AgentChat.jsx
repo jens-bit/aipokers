@@ -17,12 +17,13 @@ export function AgentChat({ agent, onBack, onDeploy, onReady }) {
   useEffect(() => {
     fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
       .then((r) => r.json())
-      .then((data) => {
-        // WIRE-1: his opener, written by the server (MOOD-2c).
-        setChat([{ role: 'assistant', content: openerFor(agent, data.recentHands || []) }]);
+      .then(() => {
+        // WIRE-1 / RAISE-2: his opener, written by the server. The hands are
+        // fetched for the review sheet, never to compose a greeting out of.
+        setChat([{ role: 'assistant', content: openerFor(agent) }]);
       })
       .catch(() => {
-        setChat([{ role: 'assistant', content: openerFor(agent, []) }]);
+        setChat([{ role: 'assistant', content: openerFor(agent) }]);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

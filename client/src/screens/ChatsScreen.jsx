@@ -615,10 +615,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       .then(([data, attrLog, flagged]) => {
         const firstCosts = firstCostsFrom(flagged);
         const hands = data.recentHands || [];
-        // WIRE-1: his opener, written by the server (MOOD-2c). The branch that
-        // built a win/loss tally is gone — openerFor falls back to it only for
-        // a record written before the field existed.
-        const msgs = [mkMsg('assistant', openerFor(agent, hands))];
+        // WIRE-1 / RAISE-2: his opener, written by the server. The tally is
+        // gone from openerFor entirely — the hands below are the review sheet's
+        // material, never a greeting's.
+        const msgs = [mkMsg('assistant', openerFor(agent))];
         // What he trained tonight rides inside the recap bubble; each tick then
         // gets its own quiet line, in his voice, with the cause behind it.
         // Nothing here fires without an attrLog entry to draw it from.
@@ -652,7 +652,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
         setChat(msgs);
       })
       .catch(() => {
-        const msgs = [mkMsg('assistant', openerFor(agent, []))];
+        const msgs = [mkMsg('assistant', openerFor(agent))];
         if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
         setChat(msgs);
       });

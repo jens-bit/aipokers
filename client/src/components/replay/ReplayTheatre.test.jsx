@@ -31,8 +31,46 @@ const coolerHand = {
   flaggedAt: 1788609400000,
 };
 
+// FIX-4: six beats — five streets and the end — so the reel has to survive four
+// beat changes rather than the one a short hand asks of it.
+const sixBeatHand = {
+  ...coolerHand,
+  streets: [
+    { street: 'preflop', board: [], action: 'raise 60', equity: 47, reasoning: 'Queens. In.' },
+    { street: 'flop', board: ['Qh', '7d', '2c'], action: 'bet 180', equity: 92, reasoning: 'Set. Charging everything.' },
+    { street: 'flop', board: ['Qh', '7d', '2c'], action: 'raise 520', equity: 90, reasoning: 'He came back. So do I.' },
+    { street: 'turn', board: ['Qh', '7d', '2c', 'Kd'], action: 'bet 900', equity: 31, reasoning: 'Still the best hand I can name.' },
+    { street: 'river', board: ['Qh', '7d', '2c', 'Kd', '3s'], action: 'call 0', equity: 0, reasoning: 'Set over set.' },
+  ],
+};
+
 const renderTheatre = (hand = coolerHand, props = {}) =>
   render(<ReplayTheatre hand={hand} onBack={() => {}} autoPlay={false} {...props} />);
+
+// A ResizeObserver that answers the way a browser's does: the observed box
+// reports the height its content actually took. .replay-theatre__stage has no
+// height of its own, so before FIX-4 that was the felt's — and the felt's is
+// derived from the number the observer feeds back in.
+function installResizeObserver() {
+  const live = [];
+  class Observer {
+    constructor(cb) { this.cb = cb; this.els = []; live.push(this); }
+    observe(el) { this.els.push(el); this.flush(); }
+    disconnect() { this.els = []; }
+    flush() {
+      this.els.forEach((el) => {
+        const felt = el.querySelector('.watch-felt');
+        const own = parseFloat(felt?.style?.height) || 0;
+        // The theatre's own box is the viewport's; only the stage answers with
+        // its content's height.
+        const h = el.classList.contains('replay-theatre') ? 800 : own;
+        this.cb([{ contentRect: { height: h } }]);
+      });
+    }
+  }
+  globalThis.ResizeObserver = Observer;
+  return () => live.forEach((o) => o.flush());
+}
 
 const felt = (container) => container.querySelector('.watch-felt');
 const scrubber = (container) => container.querySelector('.replay-scrub');
@@ -194,6 +232,78 @@ describe('R-2 the theatre', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // FIX-4 (playtest 2026-09-05): opening a replay from the recap card and
+  // pressing play got as far as the flop and stopped there.
+  //
+  // Two faults, one screen. The stage was measured by a ResizeObserver watching
+  // the element whose only child IS the felt, and the felt's height is
+  // 306/639 of whatever that observer reports — so every notification handed
+  // back 48% of the last one and the felt collapsed to nothing. And the reel's
+  // interval was keyed on `timeline.total`, read off an object rebuilt on every
+  // render because every caller spreads a fresh `hand` into the theatre.
+  describe('FIX-4: the reel plays to the end', () => {
+    it('FIX-4: a six-beat replay reaches the last beat', () => {
+      vi.useFakeTimers();
+      const flush = installResizeObserver();
+      try {
+        const { container } = render(<ReplayTheatre hand={sixBeatHand} onBack={() => {}} />);
+        const t = buildTimeline(sixBeatHand);
+        expect(t.beats).toHaveLength(6);
+
+        // Second by second, with the observer firing the way a browser's would.
+        for (let i = 0; i < Math.ceil(t.total) + 3; i++) {
+          act(() => { vi.advanceTimersByTime(1000); flush(); });
+        }
+
+        expect(container.querySelector('.replay-scrub__clock').textContent)
+          .toBe(`${Math.round(t.total)}s / ${Math.round(t.total)}s`);
+        expect(felt(container).dataset.pace).toBe('showdown');
+        expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+      } finally {
+        delete globalThis.ResizeObserver;
+        vi.useRealTimers();
+      }
+    });
+
+    it('FIX-4: the felt keeps its height instead of measuring itself away', () => {
+      vi.useFakeTimers();
+      const flush = installResizeObserver();
+      try {
+        const { container } = render(<ReplayTheatre hand={sixBeatHand} onBack={() => {}} />);
+        const first = parseFloat(felt(container).style.height);
+        expect(first).toBeGreaterThan(200);
+
+        for (let i = 0; i < 20; i++) act(() => { vi.advanceTimersByTime(100); flush(); });
+
+        expect(parseFloat(felt(container).style.height)).toBe(first);
+      } finally {
+        delete globalThis.ResizeObserver;
+        vi.useRealTimers();
+      }
+    });
+
+    it('FIX-4: every beat is reached, none is skipped or stuck', () => {
+      vi.useFakeTimers();
+      const flush = installResizeObserver();
+      try {
+        const { container } = render(<ReplayTheatre hand={sixBeatHand} onBack={() => {}} />);
+        const t = buildTimeline(sixBeatHand);
+        const seen = new Set();
+
+        for (let i = 0; i < Math.ceil(t.total * 10) + 20; i++) {
+          act(() => { vi.advanceTimersByTime(100); flush(); });
+          seen.add(container.querySelector('.replay-scrub__where-text').textContent);
+        }
+
+        expect(seen.size).toBeGreaterThanOrEqual(5);
+        expect(seen).toContain('The end of it');
+      } finally {
+        delete globalThis.ResizeObserver;
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('R-2: a one-street hand still plays', () => {

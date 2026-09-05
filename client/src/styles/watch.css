@@ -64,6 +64,14 @@
 .watch-screen__back {
   background: none;
   border: none;
+  /* FIX-4: base.css floors every <button> at --tap (44px). A flex item's
+     automatic minimum size is content-based, so that floor beat the row's
+     `height: 40px` and the header rendered 45px with the rule — the "second
+     row of padding above the felt". .watch-screen__chat already releases it;
+     this is the one control that never did. */
+  height: 28px;
+  min-height: 0;
+  flex-shrink: 0;
   color: var(--sys-text, #EDEDED);
   cursor: pointer;
   padding: 4px;
@@ -108,6 +116,21 @@
 
 .watch-stage.is-dragging .watch-felt,
 .watch-stage.is-dragging .watch-sheet { transition: none; }
+
+/* FIX-4: on a wide viewport the felt filled the window edge to edge. The seat
+   ring is absolutely positioned inside the felt (left: 12px, right: 12px), so
+   a 1000px felt threw the opponent ghosts into the far corners and left the
+   hand a speck in the middle. The felt is a stage, not a page: it takes the
+   ref's width and centres, and the seats follow it because they always were
+   positioned against it rather than against the viewport. */
+@media (min-width: 760px) {
+  .watch-felt {
+    width: 100%;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
 
 .watch-felt__arc {
   position: absolute;

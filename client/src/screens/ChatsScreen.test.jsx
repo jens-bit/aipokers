@@ -11,6 +11,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatsScreen } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
+// RAISE-2: the opening bubble is the agent's own line — served by the server,
+// or his birth words, or this last-ditch sentence. It is only an anchor here:
+// these cases are about layout and lifecycle, not about what he says.
+const OPENER = /Sit down\. What do you want to know\?/;
+
 const AGENT = {
   id: 'a1',
   name: 'Aggressive v1.3',
@@ -39,7 +44,7 @@ describe('ChatsScreen', () => {
   it('opens the thread for the selected agent', async () => {
     renderThread();
     expect(await screen.findByPlaceholderText('Message Aggressive v1.3…')).toBeInTheDocument();
-    expect(await screen.findByText(/Ready to play/)).toBeInTheDocument();
+    expect(await screen.findByText(OPENER)).toBeInTheDocument();
   });
 
   // FIX-1c. Mobile playtest 2026-09-05: opening a thread threw the iOS keyboard
@@ -50,7 +55,7 @@ describe('ChatsScreen', () => {
       const composer = await screen.findByPlaceholderText('Message Aggressive v1.3…');
 
       // Give any mount effect a chance to fire before asserting.
-      await waitFor(() => expect(screen.getByText(/Ready to play/)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(OPENER)).toBeInTheDocument());
 
       expect(composer).not.toHaveFocus();
       expect(document.activeElement).toBe(document.body);
@@ -110,7 +115,7 @@ describe('ChatsScreen', () => {
         ts: hoursAgo(2), key: 'FOCUS', from: 62, to: 62, cause: 'narrowed',
       }]));
 
-      await screen.findByText(/Ready to play/);
+      await screen.findByText(OPENER);
       expect(screen.queryByText('narrowed')).not.toBeInTheDocument();
       expect(screen.queryByText(/FOCUS/)).not.toBeInTheDocument();
       // No TONIGHT TRAINED row either — nothing was trained.
@@ -123,7 +128,7 @@ describe('ChatsScreen', () => {
           .map((key) => ({ ts: hoursAgo(0.2), key, from: 36, to: 36, cause: 'birth' })),
       ));
 
-      await screen.findByText(/Ready to play/);
+      await screen.findByText(OPENER);
       expect(screen.queryByText('birth')).not.toBeInTheDocument();
       expect(screen.queryByText('TONIGHT TRAINED')).not.toBeInTheDocument();
     });

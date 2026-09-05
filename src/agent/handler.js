@@ -153,10 +153,24 @@ function buildUserPrompt(gs) {
     policyLines.push(`SIZING: ${gs.policy.sizing.text}`);
   }
   if (Number.isInteger(gs.raisesThisStreet)) {
-    const anti = gs.raisesThisStreet >= 2
-      ? ' — no more small reraises this street; call, fold, or jam'
-      : '';
+    // RAISE-1: past the cap this is no longer advice. The table has collapsed
+    // the offer to call / fold / all-in, so say that plainly rather than
+    // leaving the model to notice the raise range has become one number.
+    const anti = gs.raiseCapped
+      ? ` — THE STREET IS CAPPED at ${gs.raiseCap ?? gs.raisesThisStreet}. Call, fold, or go all-in. There is no smaller raise.`
+      : gs.raisesThisStreet >= 2
+        ? ' — no more small reraises this street; call, fold, or jam'
+        : '';
     policyLines.push(`RAISES THIS STREET: ${gs.raisesThisStreet}${anti}`);
+  }
+  // RAISE-1: the minimum is the table's, not the engine's — a raise has to move
+  // the pot or it is a delay. Stated so the model knows the small size it might
+  // have reached for is not on the menu.
+  if (!gs.raiseCapped && (gs.canBet || gs.canRaise)) {
+    const floor = gs.canBet ? gs.minBet : gs.minRaise;
+    if (Number.isFinite(floor) && floor > 0) {
+      policyLines.push(`MIN RAISE: ${floor} total this street — the table does not accept smaller.`);
+    }
   }
   const policyBlock = policyLines.length > 0 ? `\n${policyLines.join('\n')}` : '';
 

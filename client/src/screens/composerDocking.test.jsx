@@ -30,6 +30,11 @@ import { ChatsScreen } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 import '../styles/index.css';
 
+// RAISE-2: the opening bubble is the agent's own line — served by the server,
+// or his birth words, or this last-ditch sentence. It is only an anchor here:
+// these cases are about layout and lifecycle, not about what he says.
+const OPENER = /Sit down\. What do you want to know\?/;
+
 const AGENT = {
   id: 'a1', name: 'Aggressive v1.3', status: 'resting',
   mood: { state: 'confident', cause: 'closed +$210' },
@@ -100,7 +105,7 @@ describe('FIX-2b: the thread composer docks to the tab bar', () => {
       </Shell>,
     );
     // One message in the feed — the exact state from the screenshot.
-    await screen.findByText(/Ready to play|just finished/i);
+    await screen.findByText(OPENER);
     return screen.getByRole('button', { name: 'Send' }).closest('form');
   }
 

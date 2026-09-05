@@ -25,6 +25,11 @@ import { BirthScreen } from './BirthScreen.jsx';
 import { ChatsScreen } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
+// RAISE-2: the opening bubble is the agent's own line — served by the server,
+// or his birth words, or this last-ditch sentence. It is only an anchor here:
+// these cases are about layout and lifecycle, not about what he says.
+const OPENER = /Sit down\. What do you want to know\?/;
+
 const VIEWPORT = 390; // Telegram iOS on an iPhone 14/15, the playtest device
 
 function descendants(root) {
@@ -169,7 +174,7 @@ describe('FIX-1a mobile horizontal overflow', () => {
     const { container } = render(
       <ChatsScreen selectedAgent={agent} onSelectAgent={() => {}} onBack={() => {}} onCreateAgent={() => {}} />,
     );
-    const opener = await screen.findByText(/Ready to play/);
+    const opener = await screen.findByText(OPENER);
 
     // The bubble that holds free text must be allowed to break inside a word;
     // without this a pasted URL is one unbreakable box wider than the screen.

@@ -17,18 +17,24 @@ import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 // scoreboard is not a hello, and three surfaces each building their own meant
 // three different agents saying three different things about one session.
 //
-// The tally survives only as the fallback for a record written before MOOD-2c.
-function legacyOpener(hands) {
-  if (!hands.length) return 'Ready to play. Describe any changes to my strategy, or deploy me to start.';
-  const won = hands.filter((h) => h.won).length;
-  const lost = hands.length - won;
-  return `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`;
-}
+// RAISE-2 finished the job. The tally survived here as a fallback, and it was
+// not a rare one: the server only wrote `opener` on one of its two session-end
+// paths, and only when that path had a recap string, so an agent still at a
+// table, an agent who had never finished a session, and any owner-initiated
+// finish all fell through to it. Playtest read it every time.
+//
+// The server now always serves one (agentProfiles.openerForAgent — templates,
+// no model call, so there is nothing to fail into). What is left here is a
+// last-ditch for an unreachable or older server, and it is still a sentence he
+// would say: `firstWords` is his own nature's line, already on the record.
+const LAST_DITCH = 'Sit down. What do you want to know?';
 
-export function openerFor(agent, hands = []) {
+export function openerFor(agent) {
   const served = agent?.opener;
-  if (typeof served === 'string' && served.trim()) return served;
-  return legacyOpener(hands);
+  if (typeof served === 'string' && served.trim()) return served.trim();
+  const born = agent?.firstWords;
+  if (typeof born === 'string' && born.trim()) return born.trim();
+  return LAST_DITCH;
 }
 
 export function useAgentThread(agent) {
@@ -50,9 +56,9 @@ export function useAgentThread(agent) {
     setMood(null);
     setCause(null);
 
-    const seed = (hands) => {
+    const seed = () => {
       if (cancelled) return;
-      const msgs = [mkMsg('assistant', openerFor(agent, hands))];
+      const msgs = [mkMsg('assistant', openerFor(agent))];
       if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
       setChat(msgs);
     };
@@ -62,8 +68,8 @@ export function useAgentThread(agent) {
       { headers: { 'x-telegram-init-data': getTelegramInitData() } },
     )
       .then((r) => r.json())
-      .then((data) => seed(data.recentHands || []))
-      .catch(() => seed([]));
+      .then(() => seed())
+      .catch(() => seed());
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

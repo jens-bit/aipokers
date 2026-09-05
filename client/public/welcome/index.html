@@ -60,8 +60,8 @@ svg{display:block;flex-shrink:0}
 .hero-scene-d{position:relative;width:520px;height:360px;flex-shrink:0}
 .hs-spot{
   position:absolute;left:50%;transform:translateX(-50%);pointer-events:none;
-  top:-36px;width:447px;height:346px;
-  background:radial-gradient(ellipse 50% 60% at 50% 26%,rgba(232,213,168,0.16),rgba(232,213,168,0.05) 42%,transparent 72%);
+  top:-65px;width:541px;height:418px;
+  background:radial-gradient(ellipse 48% 40% at 50% 42%,rgba(232,213,168,0.16),rgba(232,213,168,0.05) 40%,transparent 68%);
 }
 .hs-felt{
   position:absolute;left:50%;transform:translateX(-50%);border-radius:50%;
@@ -72,8 +72,8 @@ svg{display:block;flex-shrink:0}
 }
 .hs-felt-inner{position:absolute;inset:16px;border-radius:50%;border:1px solid rgba(205,179,128,0.10)}
 .hs-cards{position:absolute;left:50%;transform:translateX(-50%);display:flex;z-index:3;bottom:108px}
-.hs-card-a{transform:rotate(-9deg) translateX(7px)}
-.hs-card-k{transform:rotate(9deg) translateX(-7px)}
+.hs-card-a{transform:rotate(-11deg) translateX(2px);transform-origin:bottom center}
+.hs-card-k{transform:rotate(11deg) translateX(-2px);transform-origin:bottom center}
 .hs-card{
   background:#F4EBDD;border-radius:5px;
   display:flex;flex-direction:column;justify-content:space-between;
@@ -161,11 +161,9 @@ footer{padding:44px 72px 50px}
 
   /* hero scene 1280: 430×310 */
   .hero-scene-d{width:430px;height:310px}
-  .hs-spot{top:-31px;width:370px;height:298px}
+  .hs-spot{top:-56px;width:447px;height:360px}
   .hs-felt{bottom:16px;width:353px;height:130px}
   .hs-cards{bottom:93px}
-  .hs-card-a{transform:rotate(-9deg) translateX(5px)}
-  .hs-card-k{transform:rotate(9deg) translateX(-5px)}
   .hs-card{width:40px;height:56px;padding:3px 4px;border-radius:4px}
   .hs-rank{font-size:11px}
   .hs-suit{font-size:14px}
@@ -208,11 +206,9 @@ footer{padding:44px 72px 50px}
 
   /* hero scene 768: 300×236 */
   .hero-scene-d{width:300px;height:236px}
-  .hs-spot{top:-24px;width:258px;height:227px}
+  .hs-spot{top:-42px;width:312px;height:274px}
   .hs-felt{bottom:12px;width:246px;height:99px}
   .hs-cards{bottom:71px}
-  .hs-card-a{transform:rotate(-9deg) translateX(4px)}
-  .hs-card-k{transform:rotate(9deg) translateX(-4px)}
   .hs-card{width:28px;height:39px;padding:2px 3px;border-radius:3px}
   .hs-rank{font-size:8px}
   .hs-suit{font-size:10px}
@@ -261,7 +257,8 @@ footer{padding:44px 72px 50px}
   .hero-headline{font-size:56px;margin-bottom:16px}
   .hero-body{font-size:15px;max-width:330px;margin-bottom:24px}
   .hero-scene-d{display:none}
-  .hero-scene-m{display:flex;justify-content:center;margin-top:28px;align-self:center}
+  .hero-copy{width:100%}
+  .hero-scene-m{display:flex;justify-content:center;margin-top:28px}
 
   .sec{padding:40px 24px}
   .sec-title{font-size:28px}
@@ -322,18 +319,18 @@ footer{padding:44px 72px 50px}
       <!-- mobile scene: shown at ≤430px, after CTA -->
       <div class="hero-scene-m">
         <div style="position:relative;width:342px;height:252px;flex-shrink:0">
-          <div style="position:absolute;left:50%;top:-25px;width:294px;height:242px;transform:translateX(-50%);pointer-events:none;background:radial-gradient(ellipse 50% 60% at 50% 26%,rgba(232,213,168,0.16),rgba(232,213,168,0.05) 42%,transparent 72%)"></div>
+          <div style="position:absolute;left:50%;top:-45px;width:356px;height:292px;transform:translateX(-50%);pointer-events:none;background:radial-gradient(ellipse 48% 40% at 50% 42%,rgba(232,213,168,0.16),rgba(232,213,168,0.05) 40%,transparent 68%)"></div>
           <div style="position:absolute;left:50%;bottom:13px;transform:translateX(-50%);width:281px;height:106px;border-radius:50%;background:radial-gradient(ellipse at 50% 34%,#43182A 0%,#2C0F1C 58%,#1E0A14 100%);border:1px solid rgba(205,179,128,0.22);box-shadow:inset 0 0 40px rgba(0,0,0,0.6),0 0 0 6px #1B0912,0 0 0 7px rgba(205,179,128,0.14)">
             <div style="position:absolute;inset:10px;border-radius:50%;border:1px solid rgba(205,179,128,0.10)"></div>
           </div>
           <div style="position:absolute;left:50%;bottom:76px;transform:translateX(-50%);display:flex;z-index:3">
-            <div style="transform:rotate(-9deg) translateX(4px)">
+            <div style="transform:rotate(-11deg) translateX(2px);transform-origin:bottom center">
               <div style="width:32px;height:44px;background:#F4EBDD;border-radius:3px;display:flex;flex-direction:column;justify-content:space-between;padding:3px;box-shadow:0 2px 6px rgba(0,0,0,0.5)">
                 <span style="font-size:9px;font-weight:700;color:#111;line-height:1">A</span>
                 <span style="font-size:11px;color:#111;text-align:center;line-height:1">♠</span>
               </div>
             </div>
-            <div style="transform:rotate(9deg) translateX(-4px)">
+            <div style="transform:rotate(11deg) translateX(-2px);transform-origin:bottom center">
               <div style="width:32px;height:44px;background:#F4EBDD;border-radius:3px;display:flex;flex-direction:column;justify-content:space-between;padding:3px;box-shadow:0 2px 6px rgba(0,0,0,0.5)">
                 <span style="font-size:9px;font-weight:700;color:#CC2222;line-height:1">K</span>
                 <span style="font-size:11px;color:#CC2222;text-align:center;line-height:1">♥</span>

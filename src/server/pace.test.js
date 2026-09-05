@@ -18,6 +18,10 @@ import {
   allInHoldMs,
   seedFor,
   holdPlan,
+  raiseFloor,
+  raisesCapped,
+  raiseCapPerStreet,
+  minRaisePotFraction,
 } from './pace.js';
 
 function withHeat(bb, fn) {
@@ -179,5 +183,86 @@ describe('holdPlan', () => {
 
   it('is exactly reproducible', () => {
     assert.deepEqual(holdPlan({ heldBoard, runout, seed }), holdPlan({ heldBoard, runout, seed }));
+  });
+});
+
+// ── RAISE-1 · raise discipline dials ─────────────────────────────────────────
+describe('RAISE-1 raiseFloor', () => {
+  it('lifts a min-raise to a third of the pot', () => {
+    // 400-chip pot, bet to 20, engine minimum 40. A third of the pot is 134,
+    // so the floor is 154 — not the +20 the engine would have allowed.
+    assert.equal(raiseFloor({ minLegal: 40, maxLegal: 1000, pot: 400, currentBet: 20 }), 154);
+  });
+
+  it('keeps the engine minimum when it is already the bigger number', () => {
+    // Tiny pot, big outstanding bet: the legal minimum wins and nothing moves.
+    assert.equal(raiseFloor({ minLegal: 300, maxLegal: 1000, pot: 60, currentBet: 150 }), 300);
+  });
+
+  it('never asks for more than the jam', () => {
+    // He cannot afford a third of the pot. All-in is the one raise that is
+    // always big enough, so the floor collapses onto it rather than making the
+    // raise illegal.
+    assert.equal(raiseFloor({ minLegal: 40, maxLegal: 90, pot: 900, currentBet: 20 }), 90);
+  });
+
+  it('is the same rule for an opening bet, where currentBet is 0', () => {
+    assert.equal(raiseFloor({ minLegal: 20, maxLegal: 1000, pot: 300, currentBet: 0 }), 100);
+  });
+
+  it('survives junk without throwing', () => {
+    assert.equal(raiseFloor(), 0);
+    assert.equal(raiseFloor({ minLegal: NaN, maxLegal: 500, pot: 'x', currentBet: null }), 0);
+  });
+
+  it('follows the RAISE_MIN_POT_FRACTION dial', () => {
+    const prev = process.env.RAISE_MIN_POT_FRACTION;
+    process.env.RAISE_MIN_POT_FRACTION = '0.5';
+    try {
+      assert.equal(minRaisePotFraction(), 0.5);
+      assert.equal(raiseFloor({ minLegal: 40, maxLegal: 1000, pot: 400, currentBet: 20 }), 220);
+    } finally {
+      if (prev === undefined) delete process.env.RAISE_MIN_POT_FRACTION;
+      else process.env.RAISE_MIN_POT_FRACTION = prev;
+    }
+  });
+
+  it('ignores a nonsense fraction rather than disabling the floor', () => {
+    const prev = process.env.RAISE_MIN_POT_FRACTION;
+    process.env.RAISE_MIN_POT_FRACTION = '-3';
+    try {
+      assert.equal(minRaisePotFraction(), 1 / 3);
+    } finally {
+      if (prev === undefined) delete process.env.RAISE_MIN_POT_FRACTION;
+      else process.env.RAISE_MIN_POT_FRACTION = prev;
+    }
+  });
+});
+
+describe('RAISE-1 raisesCapped', () => {
+  it('caps at four aggressive actions — bet, raise, re-raise, cap', () => {
+    assert.equal(raiseCapPerStreet(), 4);
+    assert.equal(raisesCapped(0), false);
+    assert.equal(raisesCapped(3), false);
+    assert.equal(raisesCapped(4), true);
+    assert.equal(raisesCapped(9), true);
+  });
+
+  it('treats a missing count as uncapped', () => {
+    assert.equal(raisesCapped(undefined), false);
+    assert.equal(raisesCapped(null), false);
+  });
+
+  it('follows the RAISE_CAP_PER_STREET dial', () => {
+    const prev = process.env.RAISE_CAP_PER_STREET;
+    process.env.RAISE_CAP_PER_STREET = '2';
+    try {
+      assert.equal(raiseCapPerStreet(), 2);
+      assert.equal(raisesCapped(2), true);
+      assert.equal(raisesCapped(1), false);
+    } finally {
+      if (prev === undefined) delete process.env.RAISE_CAP_PER_STREET;
+      else process.env.RAISE_CAP_PER_STREET = prev;
+    }
   });
 });

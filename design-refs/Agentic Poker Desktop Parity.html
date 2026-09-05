@@ -150,6 +150,27 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div id="m1"></div>
 </div>
 
+<div class="frame" style="left:600px;top:13600px">
+  <div class="grouphdr gold">Wave 42 · glass, and the hand-end ceremony</div>
+  <div class="groupsub">Both new mobile sections at desktop width. The glass rail is the same six panels in the same order, in the 520 column — which is the one place they all fit without scrolling. The ceremony takes the stage rather than the whole window, so <b>the transcript stays readable while the moment plays</b>.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">P11</span><span class="ft">The glass rail</span><span class="fb teal">six panels, no scroll</span></div>
+  <div id="w1"></div>
+  <div class="fa"><b>The hard line between felt and sheet is gone on desktop too</b> — the rail's ground continues the felt's gradient and its left border is a light hairline rather than the panel border. Desktop shows the cost card and the transcript at once, which mobile has to choose between, and the agent's name takes the display face at the head of the column instead of a <code>PanelHead</code>.</div>
+</div>
+<div class="frame" style="left:600px;top:14700px">
+  <div class="fh" style="margin-top:96px"><span class="fn">P12</span><span class="ft">WON, on the stage</span><span class="fb teal">3s</span></div>
+  <div id="w2"></div>
+  <div class="fa"><b>The ceremony is stage-only, and that is the whole difference at 1440.</b> WON is 56px and the pot 44px over a teal wash, the ghost is 132px wearing the smug flash — but the rail keeps running, so his closing line lands in the transcript <i>while</i> the moment is still on screen. On mobile the felt has to be covered; here it doesn't.</div>
+</div>
+
+<div class="frame" style="left:600px;top:15800px">
+  <div class="grouphdr red">Watch v5 · desktop</div>
+  <div class="groupsub">The same seating at 1440: he faces the room from the bottom edge at <b>132px</b>, cards face up in front, bubble above his head, rope and strip under him. Six seats unchanged. <b>The one structural divergence</b> — mobile hides the thread behind a glass sheet because it has nowhere to put it; desktop keeps it open in the 520 rail permanently, so the whisper never needs to be transient.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">P13</span><span class="ft">Seated, and the thread always open</span><span class="fb teal">hands at 132</span></div>
+  <div id="w3"></div>
+  <div class="fa"><b>At 132px the hands are unmistakable</b> — three fingers, a four-chip mid-band stack, and the push travelling forward ahead of them. That is the size the pose vocabulary was drawn for and the reason desktop is where it reads best. The rail carries the full <b>HIM / YOU / TABLE</b> thread with the cost line already folded in as a TABLE entry, and its composer still says <i>Whisper to him…</i>, because the verb does not change just because the history is visible.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -184,6 +205,8 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="mood-birth3.jsx"></script>
 <script type="text/babel" src="mood-ftu2.jsx"></script>
 <script type="text/babel" src="mood-desk-parity.jsx"></script>
+<script type="text/babel" src="mood-watch4c.jsx"></script>
+<script type="text/babel" src="mood-watch5.jsx"></script>
 <script type="text/babel" src="mood-desk-parity2.jsx"></script>
 
 <script type="text/babel">
@@ -200,6 +223,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['d9', D7FtuRecapScreenM],
   ['d10', D7HeatScreenM],
   ['m1', DeskMatrixM],
+  ['w1', D8GlassScreenM],
+  ['w2', D8HandEndScreenM],
+  ['w3', D9V5ScreenM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
   if (el) ReactDOM.createRoot(el).render(<Comp/>);

@@ -135,10 +135,13 @@ const SeatGhost = ({ s, acting, selected, dealt, reveal, size = 34, timer = 9, o
         {selected && (
           <div style={{ position: 'absolute', left: '50%', top: '50%', width: size + 20, height: size + 20, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: `1px dashed ${M_TEAL}`, boxShadow: `0 0 12px ${M_TEAL}66` }}/>
         )}
+        {/* CARDS IN FRONT, over the lower third of the body. Behind the shoulder at
+            z-index −1 they read as furniture rather than as something he is holding,
+            which is the whole point of a seat having cards at all. */}
         {dealt && !s.folded && !(reveal && s.show) && (
-          <div style={{ position: 'absolute', left: '50%', top: 6, transform: 'translateX(-50%) rotate(-6deg)', zIndex: -1, display: 'flex', gap: 1 }}>
-            <CardBack w={15} h={21}/>
-            <CardBack w={15} h={21}/>
+          <div style={{ position: 'absolute', left: '50%', top: size * 0.5, transform: 'translateX(-50%)', zIndex: 4, display: 'flex', gap: 1.5 }}>
+            <div style={{ transform: 'rotate(-7deg)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={17} h={23}/></div>
+            <div style={{ transform: 'rotate(7deg)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={17} h={23}/></div>
           </div>
         )}
         <div style={{ opacity: s.folded ? 0.34 : 1, filter: s.folded ? 'saturate(0.4)' : 'none' }}>

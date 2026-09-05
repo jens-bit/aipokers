@@ -269,8 +269,9 @@ const DeskSeat = ({ s, acting, selected, reveal, order = 0 }) => (
         {acting && <SeatClock d={80} left={9}/>}
         {selected && <div style={{ position: 'absolute', left: '50%', top: '50%', width: 86, height: 86, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: `1px dashed ${M_TEAL}`, boxShadow: `0 0 16px ${M_TEAL}66` }}/>}
         {!s.folded && !(reveal && s.show) && (
-          <div style={{ position: 'absolute', left: '50%', top: 10, transform: 'translateX(-50%) rotate(-6deg)', zIndex: -1, display: 'flex', gap: 2 }}>
-            <CardBack w={24} h={34}/><CardBack w={24} h={34}/>
+          <div style={{ position: 'absolute', left: '50%', top: 32, transform: 'translateX(-50%)', zIndex: 4, display: 'flex', gap: 3 }}>
+            <div style={{ transform: 'rotate(-7deg)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.7))' }}><CardBack w={30} h={42}/></div>
+            <div style={{ transform: 'rotate(7deg)', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.7))' }}><CardBack w={30} h={42}/></div>
           </div>
         )}
         <FloorGhost mood={s.mood} accent={s.accent} size={62} speed={s.mood === 'tilted' ? 3.2 : 5.6}/>

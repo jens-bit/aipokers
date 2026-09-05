@@ -18,6 +18,11 @@ import { ThreadPanel } from './ThreadPanel.jsx';
 import { playingAgent } from '../../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../../test/harness.js';
 
+// RAISE-2: the opening bubble is the agent's own line — served by the server,
+// or his birth words, or this last-ditch sentence. It is only an anchor here:
+// these cases are about layout and lifecycle, not about what he says.
+const OPENER = /Sit down\. What do you want to know\?/;
+
 function renderPanel(props = {}) {
   return render(
     <ThreadPanel
@@ -46,7 +51,7 @@ describe('ThreadPanel', () => {
 
   it('seeds the thread from the hands endpoint, in his voice', async () => {
     renderPanel();
-    expect(await screen.findByText(/Ready to play/i)).toBeInTheDocument();
+    expect(await screen.findByText(OPENER)).toBeInTheDocument();
   });
 
   it('renders the composer draft it is given rather than owning it', () => {
