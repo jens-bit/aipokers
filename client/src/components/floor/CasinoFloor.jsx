@@ -3,11 +3,11 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { Occupant, BarGhost, WalkIn, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
+import { Occupant, BarGhost, HouseGhost, WalkIn, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
 import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
-import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
+import { LAYOUTS, feltSeatPoint, feltSlotsFor, ghostAnchorY, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
 import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
 import { NotYet } from '../ftu/NotYet.jsx';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
@@ -238,6 +238,14 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     // FL-3: while he is crossing the room, the arriving body is his only body.
     // The ordinary placement is dropped rather than drawn underneath it.
     .filter((p) => p.agent.id !== arrivingId);
+
+  // FLOOR-3 — EVERY SEAT AT THE FELT, NOT JUST THE OWNER'S. A felt with two of
+  // his agents on it was drawn as a two-handed game while the watch screen for
+  // the same table showed six seats. The house regulars are on the felt now,
+  // in the ring order the watch uses, so the two screens describe one table.
+  const houseSeats = tables
+    .slice(0, litFelts.length)
+    .flatMap((group, fi) => houseSeatsAt(litFelts[fi], group, fi, ghostSize));
 
   // FL-2 — A LIVE FELT IS THE LOUDEST OBJECT. When a hand is running there is
   // one place to look: the room drops to 42% under a scrim and the live felt
@@ -499,6 +507,21 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
             </Fragment>
           ))}
 
+          {/* FLOOR-3: the rest of the table, behind the owner's own bodies.
+              Scenery, so they are drawn after the placements and sit a layer
+              below them (.floor-house-ghost z-index). */}
+          {houseSeats.map((h) => (
+            <HouseGhost
+              key={h.key}
+              x={h.x}
+              y={h.y}
+              name={h.name}
+              size={h.size}
+              speed={h.speed}
+              room={room}
+            />
+          ))}
+
           {arriving && (
             <WalkIn
               from={{ x: DOOR_X }}
@@ -586,6 +609,55 @@ function groupByTable(playing) {
     group.agents.push(agent);
   }
   return out;
+}
+
+// FLOOR-3 — the house regulars at one felt.
+//
+// The seat ring comes off the wire: liveGameView ships `seats` (every dealt-in
+// seat, with its display name) and `heroSeat`. Walking clockwise from the hero
+// and dropping the walkers into feltSlotsFor's slots is exactly what
+// WatchScreen does with SEAT_SLOTS, so a seat lands in the same place on both
+// screens.
+//
+// Two kinds of seat are skipped, for two different reasons: one of the owner's
+// OTHER agents at this table is already drawn at the near rail (rule 1 — one
+// ghost per agent, always), and a seat with no name on it is an empty seat,
+// which stays empty.
+const HOUSE_SCALE = 0.58;
+const HOUSE_MIN = 22;
+const HOUSE_SPEEDS = [6.2, 7, 5.4, 6.6, 7.4];
+
+function houseSeatsAt(f, group, fi, ghostSize) {
+  const view = group.agents
+    .map((a) => a.liveGame)
+    .find((lg) => Array.isArray(lg?.seats) && lg.seats.length > 1);
+  if (!view) return [];
+
+  const hero = Number.isInteger(view.heroSeat) ? view.heroSeat : 0;
+  const owned = new Set(
+    group.agents.map((a) => a.liveGame?.heroSeat).filter(Number.isInteger),
+  );
+  const n = view.seats.length;
+  const around = [];
+  for (let step = 1; step < n; step += 1) around.push((hero + step) % n);
+
+  const slots = feltSlotsFor(around.length);
+  const size = Math.max(HOUSE_MIN, Math.round(ghostSize * HOUSE_SCALE));
+
+  return around.slice(0, slots.length).flatMap((si, i) => {
+    if (owned.has(si)) return [];
+    const name = view.seats[si]?.displayName;
+    if (!name) return [];
+    const point = feltSeatPoint(f, slots[i]);
+    return [{
+      key: `${view.tableId ?? fi}:${si}`,
+      name,
+      x: point.x,
+      y: ghostAnchorY(point.y, size),
+      size,
+      speed: HOUSE_SPEEDS[(fi + i) % HOUSE_SPEEDS.length],
+    }];
+  });
 }
 
 function potFor(agent) {

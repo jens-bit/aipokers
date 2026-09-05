@@ -83,6 +83,15 @@
   letter-spacing: normal;
 }
 .floor-occupant.is-dim { opacity: 0.5; }
+
+/* FLOOR-3 — the house regulars. Scenery, not a control: dimmer than anybody
+   the owner employs, a layer below them, and it does not take a pointer. */
+.floor-house-ghost {
+  z-index: 2;
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
+}
 .floor-occupant:focus-visible { outline: 1px solid var(--flr-teal); outline-offset: 4px; border-radius: 12px; }
 
 .floor-occupant__body {

@@ -19,8 +19,8 @@ import '../../styles/floor.css';
 import { CasinoFloor } from './CasinoFloor.jsx';
 import { grewCount, isBroke, narrowedCount, newsPipFor, presenceOf, splitFloor } from './agentView.js';
 import {
-  NOW, brokeAgent, grewAgent, liveRoom, playingAgent, quietAgent,
-  restingRoom, wornAgent,
+  NOW, SIX_SEATS, brokeAgent, grewAgent, liveRoom, playingAgent, quietAgent,
+  restingRoom, sixHanded, sixHandedRoom, wornAgent,
 } from '../../test/fixtures/floor2.js';
 import { fetchMock, telegram } from '../../test/harness.js';
 
@@ -452,5 +452,111 @@ describe('FL-3 — the newborn walks from the door to the bar', () => {
 
     expect(container.querySelector('.floor')).toHaveClass('is-room-live');
     expect(window.getComputedStyle(walkIn()).opacity).not.toBe('0.42');
+  });
+});
+
+// ── FLOOR-3 · every seat, not just the owner's ──────────────────────────────
+// The floor drew only the agents the owner employs, so a six-handed felt
+// looked like a heads-up table while the watch screen for that same table
+// showed six seats. The house regulars are on the felt now — scenery, but
+// present.
+
+describe('FLOOR-3 — the felt shows the whole table', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  const houseGhosts = (c) => [...c.querySelectorAll('.floor-house-ghost')];
+  const houseNames = (c) => houseGhosts(c).map(
+    (el) => el.querySelector('.floor-chip__name').textContent,
+  );
+  const leftOf = (el) => parseFloat(el.style.left);
+
+  it("draws the four house regulars alongside the owner's two", async () => {
+    fetchMock.route('/api/agents', sixHandedRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(2));
+    expect(houseNames(container).sort()).toEqual(
+      ['Calling Stn', 'Doyle_v3', 'Nit_9000', 'Rounder'],
+    );
+  });
+
+  // Rule 1 still holds across the new bodies: the owner's second agent is at
+  // seat 3 of the same table, and he is drawn once, at the near rail.
+  it("never draws one of the owner's own agents as a house body", async () => {
+    fetchMock.route('/api/agents', sixHandedRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(2));
+    expect(houseNames(container)).not.toContain('Bluff Master');
+    expect(screen.getAllByRole('button', { name: /^Bluff Master — / })).toHaveLength(1);
+  });
+
+  it('seats them in the ring order the watch uses, clockwise from the hero', async () => {
+    fetchMock.route('/api/agents', sixHandedRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(2));
+    // Hero at seat 0, so the walk is 1,2,3,4,5 into ml,tl,tc,tr,mr. Seat 3 is
+    // the owner's, so the four that remain read left to right in seat order.
+    const byX = houseGhosts(container)
+      .sort((a, b) => leftOf(a) - leftOf(b))
+      .map((el) => el.querySelector('.floor-chip__name').textContent);
+    expect(byX).toEqual(['Doyle_v3', 'Rounder', 'Nit_9000', 'Calling Stn']);
+  });
+
+  it('stands them on the felt, not out in the room', async () => {
+    fetchMock.route('/api/agents', sixHandedRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(2));
+    // LAYOUTS.one felt 0: cx 158, rx 106 — nobody is off the rail.
+    for (const el of houseGhosts(container)) {
+      expect(leftOf(el)).toBeGreaterThanOrEqual(158 - 106);
+      expect(leftOf(el)).toBeLessThanOrEqual(158 + 106);
+    }
+  });
+
+  it('an empty seat stays empty', async () => {
+    const seats = SIX_SEATS.map((s, i) => (i === 2 ? { ...s, displayName: '' } : s));
+    fetchMock.route('/api/agents', {
+      agents: [sixHanded(0, { id: 'a_playing', name: 'Balanced v2.1' }, seats)],
+    });
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(1));
+    // Five other seats, one of them nameless: four bodies, and no blank chip.
+    expect(houseGhosts(container)).toHaveLength(4);
+    expect(houseNames(container)).not.toContain('');
+  });
+
+  it('is scenery: grey accent, no cards, and nothing to tap', async () => {
+    fetchMock.route('/api/agents', sixHandedRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(2));
+    for (const el of houseGhosts(container)) {
+      expect(el.tagName).not.toBe('BUTTON');
+      expect(window.getComputedStyle(el).pointerEvents).toBe('none');
+      // One svg, and it is the body — a house seat never shows cards.
+      expect(el.querySelectorAll('svg')).toHaveLength(1);
+      expect(el.querySelector('path[stroke="#6B6B6B55"]')).toBeTruthy();
+    }
+  });
+
+  // The bug as it was reported: two owned agents, and the felt reads heads-up.
+  it('the heads-up felt gets its one opponent too', async () => {
+    fetchMock.route('/api/agents', liveRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(houseNames(container)).toEqual(['Doyle_v3']);
+  });
+
+  it('a resting room has no house bodies in it', async () => {
+    fetchMock.route('/api/agents', restingRoom);
+    const { container } = renderFloor();
+
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+    expect(houseGhosts(container)).toHaveLength(0);
   });
 });

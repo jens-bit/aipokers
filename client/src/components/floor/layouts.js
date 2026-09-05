@@ -103,3 +103,55 @@ export function roomStyle(room, x, y) {
     transformOrigin: 'top center',
   };
 }
+
+// ── FLOOR-3 · the felt is a table, and a table has every seat on it ──────────
+// The floor drew only the owner's agents, so a six-handed game looked like a
+// heads-up one and the watch screen contradicted the room it was opened from.
+//
+// The watch anchors the hero at the bottom of its ring and walks the other
+// seats clockwise into fixed slots (WatchScreen SEAT_SLOTS: up the left,
+// across the top, down the right). The floor draws that same ring on its
+// ellipse — the owner's agents keep the near rail they have always stood on,
+// and the rest of the table fans out behind it — so both screens put the same
+// seat in the same place.
+//
+// Offsets are fractions of the felt's own rx/ry, so every layout's felts get
+// the ring at their own scale.
+export const FELT_SLOTS = {
+  ml: { fx: -0.95, fy: -0.10 },
+  tl: { fx: -0.52, fy: -0.78 },
+  tc: { fx: 0,     fy: -1.02 },
+  tr: { fx: 0.52,  fy: -0.78 },
+  mr: { fx: 0.95,  fy: -0.10 },
+};
+
+// Mirrors WatchScreen's SEAT_SLOTS: slots come into play in the order the
+// brief sets, and each row is in ring order so the seat drawn in each is the
+// one the action actually reaches next.
+const RING = {
+  1: ['tl'],
+  2: ['tl', 'tr'],
+  3: ['tl', 'tc', 'tr'],
+  4: ['ml', 'tl', 'tc', 'tr'],
+  5: ['ml', 'tl', 'tc', 'tr', 'mr'],
+};
+
+export function feltSlotsFor(count) {
+  return RING[Math.max(1, Math.min(5, count))] || RING[2];
+}
+
+// Where a body standing in `slot` puts its feet on felt `f`.
+export function feltSeatPoint(f, slot) {
+  const s = FELT_SLOTS[slot] || FELT_SLOTS.tc;
+  return { x: f.cx + f.rx * s.fx, y: f.cy + f.ry * s.fy };
+}
+
+// A ghost is drawn downward from its anchor — chip, gap, body — so standing it
+// somewhere means anchoring it a body's height above that point. The near-rail
+// occupant has always been anchored at `cy - size*1.2 - 14`, which stands him
+// at `cy + 8`; the ring uses the same relation so every seat stands on the
+// felt rather than floating at its own depth.
+const CHIP_H = 22;
+export function ghostAnchorY(standY, size) {
+  return standY - size * 1.2 - CHIP_H;
+}

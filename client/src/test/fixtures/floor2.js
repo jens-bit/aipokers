@@ -107,3 +107,50 @@ export const restingRoom = { agents: [grewAgent, wornAgent, quietAgent, brokeAge
 
 // One live felt, everyone else resting.
 export const liveRoom = { agents: [playingAgent, grewAgent, wornAgent, brokeAgent] };
+
+// ── FLOOR-3 · a six-handed table, two seats of it the owner's ───────────────
+// The shape liveGameView actually ships: `seats` is every dealt-in seat with
+// its display name, and `heroSeat` is where this agent is sitting in it.
+export const SIX_SEATS = [
+  { displayName: 'Balanced v2.1', stack: 4400, accentColor: '#00D4AA' },
+  { displayName: 'Doyle_v3',      stack: 3600, accentColor: '#9B7BFF' },
+  { displayName: 'Rounder',       stack: 2900, accentColor: '#CDB380' },
+  { displayName: 'Bluff Master',  stack: 5100, accentColor: '#FF7A8E' },
+  { displayName: 'Nit_9000',      stack: 1800, accentColor: '#6B6B6B' },
+  { displayName: 'Calling Stn',   stack: 4100, accentColor: '#00D4AA' },
+];
+
+export function sixHanded(heroSeat, over = {}, seats = SIX_SEATS) {
+  return base({
+    status: 'playing',
+    presence: 'playing',
+    activeTableId: 'tbl-6',
+    liveGame: {
+      tableId: 'tbl-6', heroSeat, street: 'flop',
+      board: ['5c', '4h', '8c'], heroHole: ['6h', '6s'],
+      heroStack: seats[heroSeat].stack,
+      pot: 480, toAct: 1, actionDeadline: null, handNumber: 7, dealtIn: true,
+      seatCount: seats.length, maxSeats: 6, handsThisSession: 7, maxHands: 100,
+      blinds: '10/20',
+      seats,
+    },
+    ...over,
+  });
+}
+
+// The FLOOR-3 case: two of the owner's agents at seats 0 and 3, four house
+// regulars filling the rest of the table.
+export const sixHandedRoom = {
+  agents: [
+    sixHanded(0, {
+      id: 'a_playing',
+      name: 'Balanced v2.1',
+      mood: { state: 'confident', cause: 'stacked the loose one', updatedAt: null },
+    }),
+    sixHanded(3, {
+      id: 'a_grew',
+      name: 'Bluff Master',
+      mood: { state: 'neutral', cause: null, updatedAt: null },
+    }),
+  ],
+};
