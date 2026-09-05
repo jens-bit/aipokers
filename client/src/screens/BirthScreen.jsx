@@ -16,6 +16,8 @@ import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
 import { NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
+import { NextAction } from '../components/system/NextAction.jsx';
+import { NatureFormed } from '../components/system/NatureFormed.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
@@ -147,10 +149,24 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
 }
 
 
+// The phrase the server's isGoSignal() accepts as "I am done briefing" — it is
+// what turns the draft into an agent. "Deal him in" is the label; this is the
+// wire word behind it.
+const GO_SIGNAL = "Let's go";
+
 // ── DraftStrip ────────────────────────────────────────────────────────────
-// One-line profile: STYLE / RISK / TIGHT / AGGR — dashes when unknown.
-function DraftStrip({ style, risk, tight, aggr }) {
-  const fields = [['STYLE', style], ['RISK', risk], ['TIGHT', tight], ['AGGR', aggr]];
+// One-line profile, dashes when unknown.
+//
+// F-1: the slots are the four dials PACE-1d puts on the wire — draftProfile is
+// all four or none, so this row is never half-filled. The refs label them
+// STYLE / RISK / TIGHT / AGGR, which predates that contract; STYLE and RISK are
+// words on an agent record, not numbers, so the row names what it is showing.
+function DraftStrip({ profile }) {
+  const p = profile ?? {};
+  const fields = [
+    ['TIGHT', p.tightness], ['AGGR', p.aggression],
+    ['BLUFF', p.bluffFreq], ['DISC', p.discipline],
+  ];
   return (
     <div style={{
       display: 'flex', alignItems: 'center',
@@ -158,7 +174,9 @@ function DraftStrip({ style, risk, tight, aggr }) {
       padding: '7px 11px', gap: 0,
       maxWidth: '100%', minWidth: 0, overflow: 'hidden',
     }}>
-      {fields.map(([k, v], i) => (
+      {fields.map(([k, raw], i) => {
+        const v = Number.isFinite(raw) ? Math.round(raw) : null;
+        return (
         <span key={k} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
           {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block', flexShrink: 0 }} />}
           <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
@@ -169,7 +187,8 @@ function DraftStrip({ style, risk, tight, aggr }) {
             }
           </span>
         </span>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -529,6 +548,17 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   const [phase, setPhase]     = useState(isEdit ? 0.72 : 0);
   const [agentName, setAgentName] = useState(isEdit ? agent.name : null);
   const [pendingDiff, setPendingDiff] = useState(null);
+  // F-1 (PACE-1d): the draft's own state, straight off the wire. `profile` is
+  // all four dials or none, so the strip never shows a half-filled row; once we
+  // have them we keep them, because a chip is a decision and the strip must
+  // never fall back to dashes after one. `ready` is the server saying there is
+  // enough to build him.
+  const [draftProfile, setDraftProfile] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [natureHint, setNatureHint] = useState(null);
+  // The owner asked to keep talking, so the composer comes back with the brief
+  // intact. Talking is never taken away.
+  const [talking, setTalking] = useState(false);
   // The nature reveal. `born` holds the newborn once the server has assigned
   // him a nature; `beat` walks the two moments — the reveal on the floor, then
   // the card he was born with. Both stay null when the server sends no nature,
@@ -621,6 +651,12 @@ export function BirthScreen({ onBack, onBirth, agent }) {
         setChat((prev) => [...prev, m]);
       }
 
+      // F-1: three surfaces, one source. The dials, the temperament those dials
+      // produce, and whether he can be built now all come from this reply.
+      if (data.profile) setDraftProfile(data.profile);
+      if (data.natureHint) setNatureHint(data.natureHint);
+      if (data.ready) { setReady(true); setTalking(false); }
+
       aiCount.current += 1;
       const newPhase = data.agentId ? 1.0 : Math.min(0.98, isEdit ? 0.72 + aiCount.current * 0.09 : aiCount.current * 0.28);
       setPhase(newPhase);
@@ -638,6 +674,9 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   }
 
   const isReady  = phase >= 1.0;
+  // Only on a create draft, only once the server says he can be built, only
+  // while the owner has not asked to keep talking, and never once he exists.
+  const showNextAction = !isEdit && ready && !talking && !born;
   const hasTalked = chat.length > 0;
 
   const suggestions = phase < 0.3
@@ -791,14 +830,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                       {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
                         <>
                           <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', minWidth: 0 }}>
-                            <DraftStrip />
+                            <DraftStrip profile={draftProfile} />
                           </div>
                           {/* His temperament is not something you set, and nothing
                               is fixed until he exists — so the chip is a dashed
                               guess with no zero-sum pair. It prints a name only
                               if the server hinted one. */}
                           <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', overflow: 'hidden' }}>
-                            <NatureFormingChip guess={msg.natureHint} />
+                            <NatureFormed name={msg.natureHint ?? natureHint} formed={ready} />
                           </div>
                         </>
                       )}
@@ -816,7 +855,23 @@ export function BirthScreen({ onBack, onBirth, agent }) {
         )}
       </div>
 
-      {/* Composer */}
+      {/* F-1: the composer gives up its place. With a usable brief there is
+          exactly one thing to press, and it names the next screen. Talking is
+          demoted to the link under it, never removed — one tap brings the
+          composer back with the brief intact. */}
+      {showNextAction ? (
+        <NextAction
+          label="Deal him in"
+          sub={natureHint ? 'STRATEGY SET · NATURE FORMED' : 'STRATEGY SET'}
+          busy={loading}
+          onAct={() => send(GO_SIGNAL)}
+          onLink={() => {
+            setTalking(true);
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+        />
+      ) : (
+      /* Composer */
       <div style={{ flexShrink: 0 }}>
         {/* Suggestion chips */}
         {!hasTalked && (
@@ -876,6 +931,7 @@ export function BirthScreen({ onBack, onBirth, agent }) {
           </button>
         </form>
       </div>
+      )}
 
       {/* The nature reveal — two beats, then he is the owner's to deal in.
           BirthNatureFloorScreenM: his line, the ghost, the name chip, the badge.

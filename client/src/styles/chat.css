@@ -131,3 +131,100 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── NextAction (F-1) ─────────────────────────────────────────────────────
+ * design-refs/mood-flow2.jsx NextAction. Same border, same background and the
+ * same padding rhythm as the composer it replaces, so the swap reads as one
+ * object changing its mind rather than a new bar appearing. */
+
+.next-action {
+  flex-shrink: 0;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel, #232329);
+  padding: 10px 14px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.next-action__sub {
+  margin-bottom: 8px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+}
+.next-action__btn {
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  border: none;
+  border-radius: 8px;
+  background: var(--sys-teal, #00D4AA);
+  color: #0A0A0A;
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+}
+.next-action__btn:hover { background: #00e6b8; }
+.next-action__btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+
+.next-action__link-row { margin-top: 9px; text-align: center; }
+.next-action__link {
+  border: none;
+  background: none;
+  padding: 0 0 1px;
+  min-height: 0;
+  font-family: inherit;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--sys-muted, #9E9EA2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+.next-action__link:hover { color: var(--sys-text, #EDEDED); }
+
+/* ── NatureFormed, the guess form (F-1) ──────────────────────────────────
+ * Once the draft is usable this component renders NatureChip instead, which
+ * brings its own styles from attributes.css. */
+
+.nature-formed--guess {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 4px;
+  border: 1px dashed rgba(205, 179, 128, 0.33);
+  max-width: 100%;
+}
+.nature-formed__label {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #9E9EA2);
+}
+.nature-formed__rule {
+  width: 1px;
+  height: 12px;
+  flex-shrink: 0;
+  background: rgba(205, 179, 128, 0.27);
+}
+.nature-formed__guess {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
