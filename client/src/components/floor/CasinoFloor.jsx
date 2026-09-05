@@ -12,10 +12,15 @@ import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
 
-export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect }) {
+export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect, selectedAgentId }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [zoomedId, setZoomedId] = useState(null);
+  const [ownZoomedId, setOwnZoomedId] = useState(null);
+  // Desktop drives selection from the panel (roster clicks, Escape), so the
+  // ghost highlight follows the owner when one is supplied. Mobile stays local.
+  const controlled = desktopMode && selectedAgentId !== undefined;
+  const zoomedId = controlled ? selectedAgentId : ownZoomedId;
+  const setZoomedId = controlled ? () => {} : setOwnZoomedId;
   const [flaggedAgent, setFlaggedAgent] = useState(null);
   const [room, setRoom] = useState({ k: 1, ox: 0, oy: 0 });
   const rootRef = useRef(null);
@@ -143,8 +148,8 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
   const flaggableAgent = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
 
   return (
-    <div className={`floor${zoomed ? ' is-zoomed' : ''}`} ref={rootRef}>
-      <div className={`floor__room-wrap${zoomed ? ' is-zoomed' : ''}`}>
+    <div className={`floor${zoomed && !desktopMode ? ' is-zoomed' : ''}${desktopMode ? ' is-desktop' : ''}`} ref={rootRef}>
+      <div className={`floor__room-wrap${zoomed && !desktopMode ? ' is-zoomed' : ''}`}>
         <RoomLayer
           layout={layout}
           ftu={ftu}
@@ -208,6 +213,15 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   hole={p.feltHole}
                   room={room}
                   mini={mini}
+                />
+              )}
+              {/* Selection ring — the panel is the zoom, so the floor only
+                  marks who is open (mood-desktop.jsx DeskFloor `selected`). */}
+              {desktopMode && zoomedId === p.agent.id && (
+                <span
+                  className="floor-sel-ring"
+                  style={roomStyle(room, p.x, p.y + p.size * 0.62)}
+                  aria-hidden
                 />
               )}
               <Occupant

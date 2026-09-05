@@ -1,19 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { CasinoFloor } from '../floor/CasinoFloor.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
-import { GameTile } from './GameTile.jsx';
-import { PStandupCard } from './PStandupCard.jsx';
+import { StandupPanel } from './StandupPanel.jsx';
+import { ThreadPanel } from './ThreadPanel.jsx';
 
 const POLL_MS = 10_000;
+const IDLE_KEY = '__standup__';
 
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
-  onFocusTable, onWatchAgent, onDeployAgent,
+  onFocusTable, onWatchAgent, onDeployAgent, onCreateAgent,
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
+
+  // One draft per agent (plus the idle panel's own). Lifted above ThreadPanel
+  // so a half-typed message survives switching agents — the panel remounts,
+  // this map does not.
+  const [drafts, setDrafts] = useState({});
+  const draftKey = selectedId ?? IDLE_KEY;
+  const setDraft = useCallback((text) => {
+    setDrafts((prev) => ({ ...prev, [draftKey]: text }));
+  }, [draftKey]);
 
   const load = useCallback(() => {
     fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
@@ -36,12 +46,19 @@ export function DesktopHome({
     };
   }, [load]);
 
-  const liveAgents = agents.filter((a) => a.activeTableId || a.liveGame?.tableId);
-  const liveCount = liveAgents.length;
+  // Resolve against the latest poll so the open thread's mood/state stay fresh.
+  const selectedIndex = agents.findIndex((a) => a.id === selectedId);
+  const selected = selectedIndex >= 0 ? agents[selectedIndex] : null;
 
-  const handleGhostSelect = useCallback((agent) => {
-    setSelectedId(agent ? agent.id : null);
-  }, []);
+  // A selected agent that has been deleted elsewhere must not strand the panel.
+  const hadSelection = useRef(false);
+  useEffect(() => {
+    if (selectedId && !loading && selectedIndex < 0 && hadSelection.current) setSelectedId(null);
+    if (selectedIndex >= 0) hadSelection.current = true;
+  }, [selectedId, selectedIndex, loading]);
+
+  const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
+  const watchedId = isWatching ? watchingAgent?.id ?? null : null;
 
   return (
     <div className="dsk-root">
@@ -50,42 +67,47 @@ export function DesktopHome({
         <div className="dsk-stage">
           <CasinoFloor
             desktopMode
-            onGhostSelect={handleGhostSelect}
-            onChat={() => {}}
+            selectedAgentId={selectedId}
+            onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
+            onChat={(agent) => setSelectedId(agent.id)}
             onWatch={onWatchAgent}
             onProfile={() => {}}
             onDeploy={onDeployAgent}
-            onCreateAgent={() => {}}
+            onCreateAgent={onCreateAgent}
           />
         </div>
-        <div className="dsk-right-rail">
-          <PStandupCard agents={agents} loading={loading} />
-          <div className="dsk-tile-stack">
-            {liveAgents.map((agent) => {
-              const isWatched = watchingAgent?.id === agent.id && isWatching;
-              const highlighted = selectedId === agent.id || isWatched;
-              const dimmed = selectedId !== null && selectedId !== agent.id && !isWatched;
-              return (
-                <GameTile
-                  key={agent.id}
-                  agentName={agent.name}
-                  game={isWatched ? game : null}
-                  lastDecision={isWatched ? lastDecision : null}
-                  highlighted={highlighted}
-                  dimmed={dimmed}
-                  onWatch={() => onWatchAgent(agent)}
-                  onFocusTable={isWatched ? onFocusTable : null}
-                />
-              );
-            })}
-            {!loading && liveAgents.length === 0 && (
-              <div className="dsk-quiet-rail">
-                <span>No agents at the felt right now.</span>
-                <span className="dsk-quiet-rail__dim">Deploy one from the floor.</span>
-              </div>
-            )}
-          </div>
-        </div>
+
+        {selected ? (
+          <ThreadPanel
+            key={selected.id}
+            agent={selected}
+            accentIndex={selectedIndex}
+            game={game}
+            lastDecision={lastDecision}
+            isWatched={watchedId === selected.id}
+            draft={drafts[selected.id] ?? ''}
+            onDraftChange={setDraft}
+            onClose={() => setSelectedId(null)}
+            onWatch={onWatchAgent}
+            onDeploy={onDeployAgent}
+            onFocusTable={onFocusTable}
+          />
+        ) : (
+          <StandupPanel
+            agents={agents}
+            loading={loading}
+            game={game}
+            lastDecision={lastDecision}
+            selectedId={selectedId}
+            watchedId={watchedId}
+            draft={drafts[IDLE_KEY] ?? ''}
+            onDraftChange={setDraft}
+            onSelect={(agent) => setSelectedId(agent.id)}
+            onWatch={onWatchAgent}
+            onFocusTable={onFocusTable}
+            onDraftAgent={onCreateAgent}
+          />
+        )}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
-import { getTelegramDisplayName, getUserId, initViewportTracking } from './lib/telegram.js';
+import { getTelegramDisplayName, getTelegramInitData, getUserId, initViewportTracking } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { TableSeat } from './components/TableSeat.jsx';
 import { Card } from './components/Card.jsx';
@@ -202,6 +202,17 @@ export default function App() {
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
   if (isDesktop && !desktopFocusTable) {
+    // BIR-2: one creation path. The desktop rail's DraftPanel opens this same
+    // BirthScreen — there is no second form.
+    if (isCreating) {
+      return (
+        <BirthScreen
+          onBack={() => setIsCreating(false)}
+          onBirth={() => setIsCreating(false)}
+        />
+      );
+    }
+
     const watchPayload = (payload, agent) => {
       setDesktopWatchAgent(agent || null);
       setActiveAgent(payload.agentId);
@@ -227,7 +238,10 @@ export default function App() {
           if (!agent?.activeTableId) return;
           let memoryContext = '';
           try {
-            const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+            const res = await fetch(
+              `/api/agents/${agent.id}/memory?userId=${getUserId()}`,
+              { headers: { 'x-telegram-init-data': getTelegramInitData() } },
+            );
             if (res.ok) memoryContext = (await res.json()).memoryContext || '';
           } catch { /* watch with empty context */ }
           watchPayload({
@@ -241,12 +255,16 @@ export default function App() {
         onDeployAgent={async (agent) => {
           const res = await fetch(`/api/agents/${agent.id}/queue`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': getTelegramInitData(),
+            },
             body: JSON.stringify({ userId: getUserId() }),
           });
           if (!res.ok) return;
           watchPayload(await res.json(), agent);
         }}
+        onCreateAgent={() => setIsCreating(true)}
       />
     );
   }
