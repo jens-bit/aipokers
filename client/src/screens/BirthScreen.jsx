@@ -155,12 +155,13 @@ function DraftStrip({ style, risk, tight, aggr }) {
       display: 'flex', alignItems: 'center',
       background: M_PANEL_2, border: `1px dashed ${M_DIM}44`, borderRadius: 8,
       padding: '7px 11px', gap: 0,
+      maxWidth: '100%', minWidth: 0, overflow: 'hidden',
     }}>
       {fields.map(([k, v], i) => (
-        <span key={k} style={{ display: 'inline-flex', alignItems: 'center' }}>
-          {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block' }} />}
-          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED }}>{k}</span>
+        <span key={k} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+          {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block', flexShrink: 0 }} />}
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
+            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{k}</span>
             {v == null
               ? <span style={{ fontFamily: MONO, fontSize: 12, color: M_FAINT }}>—</span>
               : <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: M_TEXT }}>{v}</span>
@@ -701,7 +702,12 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       )}
 
       {/* Feed */}
-      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
+      {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY. A box that
+          declares only one axis has the other computed from `visible` to
+          `auto`, which turns every feed into a horizontal scroller — that is
+          what let the draft screen be dragged sideways off the ghost
+          watermark's 14px overhang. */}
+      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden auto', position: 'relative' }}>
 
         {!hasTalked ? (
           /* Entry state: ghost fills center, opening message pinned to bottom */
@@ -771,14 +777,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                       {/* DraftStrip after each AI reply while still forming (create mode only) */}
                       {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
                         <>
-                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', minWidth: 0 }}>
                             <DraftStrip />
                           </div>
                           {/* His temperament is not something you set, and nothing
                               is fixed until he exists — so the chip is a dashed
                               guess with no zero-sum pair. It prints a name only
                               if the server hinted one. */}
-                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', overflow: 'hidden' }}>
                             <NatureFormingChip guess={msg.natureHint} />
                           </div>
                         </>

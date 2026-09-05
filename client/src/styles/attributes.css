@@ -337,6 +337,13 @@
   color: var(--sys-muted);
 }
 
+.growth-line__delta,
+.growth-tick__delta { min-width: 0; }
+
+/* FIX-1a: server-authored causes are free text — wrap them, never widen the feed. */
+.growth-line__voice,
+.growth-tick__cause { overflow-wrap: anywhere; }
+
 .growth-line__voice {
   font-size: 12.5px;
   color: var(--sys-dim);
@@ -457,6 +464,7 @@
 
 /* The hint is a guess and dresses like one: dashed, a question mark, no pair. */
 .nature-forming {
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -477,6 +485,10 @@
 }
 
 .nature-forming__guess {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--sys-font-label);
   font-size: 10.5px;
   font-weight: 600;

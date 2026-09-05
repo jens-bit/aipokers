@@ -394,6 +394,7 @@ function AgentBubble({ mood, accent, training, children }) {
           borderLeft: `2px solid ${moodColor}`,
           borderRadius: 12, borderBottomLeftRadius: 4,
           padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5,
+          minWidth: 0, overflowWrap: 'anywhere',
         }}>
           {children}
           <TrainingLine items={training} />
@@ -407,7 +408,7 @@ function OwnerBubble({ children }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', padding: `0 14px`, marginBottom: 9 }}>
       <div style={{ maxWidth: 264 }}>
-        <div style={{ background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5 }}>{children}</div>
+        <div style={{ background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere' }}>{children}</div>
       </div>
     </div>
   );
@@ -642,7 +643,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       )}
 
       {/* Chat feed */}
-      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
+      {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY — a box that
+          declares one axis has the other computed from `visible` to `auto`,
+          which made the thread draggable sideways on any long token. */}
+      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden auto', paddingTop: 10 }}>
         {chat.map((msg) => {
           if (msg.role === 'proposal') {
             return (
