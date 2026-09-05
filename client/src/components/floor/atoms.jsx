@@ -14,6 +14,9 @@ export const M_GOLD = '#CDB380';
 export const M_RED = '#FF4D4F';
 export const M_PURPLE = '#9B7BFF';
 export const M_PINK = '#FF7A8E';
+// FLOOR-3: the house regulars' accent. Grey is not an identity — it is the
+// absence of one, which is exactly what a table's scenery should read as.
+export const M_GREY = '#6B6B6B';
 
 // Identity = accent (border/rim). Mood = eyes + glow. Never mixed.
 export const MOODS = {
@@ -459,6 +462,35 @@ export function BarGhost({
       />
       {pip && <RestPip kind={pip} count={pipCount} />}
     </button>
+  );
+}
+
+// ── FLOOR-3 · the rest of the table ──────────────────────────────────────────
+// A felt carrying only the owner's agents is a lie about the game: the watch
+// screen shows six seats and the floor showed two. The house regulars sit on
+// the felt now, but they are scenery — grey accent, no cards, no tap, and
+// dimmer than anybody the owner actually employs.
+//
+// The name chip is the one exception to "names are earned". A house body has
+// no posture of its own (they are all drawn the same, on purpose), so the name
+// is the only thing that tells the owner who his agent is up against.
+export function HouseGhost({
+  x, y, name, size = 32, speed = 6, room = IDENTITY_ROOM,
+}) {
+  return (
+    <div className="floor-occupant floor-house-ghost" style={roomStyle(room, x, y)}>
+      <GhostChip name={name} accent={M_GREY} state="resting" />
+      <span className="floor-occupant__body">
+        <FloorGhost mood="neutral" accent={M_GREY} size={size} speed={speed} />
+      </span>
+      <span
+        className="floor-occupant__shadow"
+        style={{
+          width: size * 1.05,
+          background: `radial-gradient(ellipse, ${M_GREY}1A, transparent 70%)`,
+        }}
+      />
+    </div>
   );
 }
 
