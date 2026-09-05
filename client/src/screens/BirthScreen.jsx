@@ -130,20 +130,25 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
         </div>
       </div>
 
-      {/* Skip / action button — primary when ready */}
+      {/* F-4: the exit, and only the exit. This control's handler is onBack, so
+          it must never dress as the primary action or borrow its words — the
+          screen said "Deal me in" here while the card below said "Deal him in",
+          and the two did opposite things. One primary action per screen, and
+          this is not it. The refs agree: DraftBand carries action="Skip" even
+          on the ready screen. */}
       <button
         type="button"
         onClick={onSkip}
         style={{
           height: 30, minHeight: 0, padding: '0 12px', borderRadius: 8, flexShrink: 0,
-          border: ready ? 'none' : `1px solid rgba(255,255,255,0.14)`,
-          background: ready ? M_TEAL : 'transparent',
-          color: ready ? '#0A0A0A' : M_TEXT,
+          border: `1px solid rgba(255,255,255,0.14)`,
+          background: 'transparent',
+          color: M_TEXT,
           fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600,
           letterSpacing: '0.10em', cursor: 'pointer', textTransform: 'uppercase',
         }}
       >
-        {ready ? 'Deal me in' : 'Skip'}
+        Skip
       </button>
     </div>
   );
