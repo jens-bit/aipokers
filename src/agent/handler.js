@@ -17,6 +17,8 @@
 // one-sentence explanation produced by the model alongside the decision.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { complete, isConfigured, providerIdFor } from './providers/index.js';
+import { costOf, formatUsd } from './providers/pricing.js';
 import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
 import { voiceLine, VOICE_MAX_WORDS } from './voice.js';
@@ -393,36 +395,48 @@ export async function generateAiChatLine({
 // memoryContext (optional) is the agent's persistent self-knowledge, formatted
 // by getAgentMemoryContext(). It is concatenated onto the strategy.
 // Returns { action: { type, amount? }, reasoning: string }.
-export async function getAgentAction(gameState, strategy, memoryContext = '') {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('[agent] ANTHROPIC_API_KEY not set — using safe fallback');
+export async function getAgentAction(gameState, strategy, memoryContext = '', opts = {}) {
+  // MODEL-1: the model and provider are per call now, defaulting to the env
+  // exactly as before. table.js passes neither and behaves identically; the
+  // arena passes a model per seat so a mirror can pit two of them.
+  const model = opts.model || MODEL;
+  const provider = opts.provider || null;
+
+  if (!isConfigured(model, provider)) {
+    console.error(`[agent] ${providerIdFor(model, provider)} not configured for ${model} — using safe fallback`);
     return {
       action: gameState.canCheck ? { type: 'check' } : { type: 'fold' },
       reasoning: 'no API key configured — defaulting to a safe action',
     };
   }
 
-  const client = new Anthropic({ timeout: 9000 });
   const system = buildSystem(strategy, memoryContext);
   const userPrompt = buildUserPrompt(gameState);
 
-  console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${MODEL}...`);
+  console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${model}...`);
   console.log(`[agent] system prompt (first 200): ${system.slice(0, 200).replace(/\s+/g, ' ')}`);
   try {
-    const msg = await client.messages.create({
-      model: MODEL,
+    const res = await complete({
+      model,
+      provider,
+      system,
       // Reasoning string takes some tokens; keep it tight but not starved.
-      max_tokens: 200,
-      // Cache the system prompt (strategy + format contract) across hands.
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      maxTokens: 200,
       messages: [{ role: 'user', content: userPrompt }],
+      timeoutMs: 9000,
+      transport: opts.transport ?? null,
     });
 
-    const text = msg.content[0]?.text ?? '';
-    const { action, reasoning } = parseDecision(text, gameState);
-    const { input_tokens: inp, output_tokens: out, cache_read_input_tokens: cached = 0 } = msg.usage;
-    console.log(`[agent] → ${JSON.stringify(action)}  (in:${inp} out:${out} cached:${cached})`);
-    return { action, reasoning };
+    const { action, reasoning } = parseDecision(res.text, gameState);
+    // MODEL-1b: every decision carries its cost. The usage is returned as well
+    // as logged so the arena can total it without scraping stdout.
+    const { inputTokens: inp, outputTokens: out, cachedInputTokens: cached } = res.usage;
+    const usd = costOf(res.usage, model, res.provider);
+    console.log(
+      `[agent] → ${JSON.stringify(action)}  ` +
+      `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)})`,
+    );
+    return { action, reasoning, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {
     console.error('[agent] API error:', err.message);
     return {

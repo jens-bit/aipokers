@@ -21,6 +21,8 @@ import { Game, Streets, Actions } from '../src/engine/game.js';
 import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
 import { getAgentAction } from '../src/agent/handler.js';
+import { newCostMeter, addCost, usdPer100Hands, formatUsd, priceFor } from '../src/agent/providers/pricing.js';
+import { providerIdFor } from '../src/agent/providers/index.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
 import {
   ATTR_KEYS,
@@ -57,7 +59,12 @@ resetOpponentStats();
 const ATTRIBUTE_LEVELS = { off: 50, low: 25, mid: 50, high: 80, grow: null };
 
 function parseArgs(argv) {
-  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000, reads: true, attributes: 'mid' };
+  const out = {
+    pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*',
+    sb: 10, bb: 20, buyIn: 2000, reads: true, attributes: 'mid',
+    // MODEL-1c: null means "whatever AI_MODEL says", which is the old behaviour.
+    model: null, modelB: null,
+  };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--pairs')     out.pairs    = parseInt(argv[++i], 10);
@@ -67,6 +74,12 @@ function parseArgs(argv) {
     else if (a === '--bb')   out.bb       = parseInt(argv[++i], 10);
     else if (a === '--buy-in') out.buyIn  = parseInt(argv[++i], 10);
     else if (a === '--no-reads') out.reads = false;
+    // MODEL-1c: --model sets both seats; --model-b overrides seat B, which is
+    // what turns a same-strategy TAG mirror into a model A/B. Seat A carries
+    // the variable in every other arena dimension too (attributes), so the
+    // convention is consistent.
+    else if (a === '--model')   out.model  = argv[++i];
+    else if (a === '--model-b') out.modelB = argv[++i];
     else if (a === '--attributes') {
       out.attributes = String(argv[++i] ?? '').toLowerCase();
       if (!(out.attributes in ATTRIBUTE_LEVELS)) {
@@ -77,7 +90,8 @@ function parseArgs(argv) {
       if (out.attributes === 'off') process.env.ATTRIBUTE_IMPACT = '0';
     }
     else if (a === '--help' || a === '-h') {
-      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads] [--attributes off|low|mid|high|grow]');
+      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads]\n' +
+                  '         [--attributes off|low|mid|high|grow] [--model <id>] [--model-b <id>]');
       process.exit(0);
     }
   }
@@ -101,6 +115,10 @@ function newStats() {
     folds: 0,
     checks: 0,
     fallbacks: 0,
+    // MODEL-1b: what this agent's decisions actually cost. Per-agent rather
+    // than per-run, so a mirror pitting two models reports each side's bill.
+    cost: newCostMeter(),
+    model: null,
   };
 }
 
@@ -111,6 +129,10 @@ function collectDecisionMetrics(stats, decisions) {
   let raisedPreflop = false;
   for (const d of decisions) {
     stats.decisions++;
+    if (d.usage && d.model) {
+      addCost(stats.cost, d.usage, d.model, d.provider);
+      if (!stats.model) stats.model = d.model;
+    }
     const t = d.action?.type;
     if (t === 'call')  stats.calls++;
     if (t === 'bet')   stats.bets++;
@@ -136,7 +158,7 @@ function collectDecisionMetrics(stats, decisions) {
 // nameBySeat is [nameForSeat0, nameForSeat1] — used as the opponentStats
 // playerId so reads follow the archetype across mirrored deck swaps.
 
-async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0, evidenceFor = null, evidence = null }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0, evidenceFor = null, evidence = null, modelBySeat = [null, null] }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -249,7 +271,10 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
     };
 
-    const { action, reasoning } = await getAgentAction(gameState, bundles[seat].strategy, '');
+    // MODEL-1c: the model follows the AGENT, not the seat — the mirror swaps
+    // seats, so the caller passes modelBySeat swapped for the second half.
+    const decision = await getAgentAction(gameState, bundles[seat].strategy, '', { model: modelBySeat[seat] ?? undefined });
+    const { action, reasoning } = decision;
     const streetAtDecision = game.street;
 
     // ATTR-3 grow mode: the same evidence rules table.js runs on the live path.
@@ -290,6 +315,11 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       fallback,
       equity,
       potOdds: gameState.potOdds,
+      // MODEL-1b: what this one decision cost, carried on the decision so the
+      // per-agent roll-up needs no second bookkeeping path.
+      usage: decision.usage ?? null,
+      model: decision.model ?? null,
+      provider: decision.provider ?? null,
     });
   }
 
@@ -325,7 +355,8 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
 
 // ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
 
-async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled, evidence = null }) {
+async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled, evidence = null,
+                            modelA = null, modelB = null }) {
   const statsA = newStats();
   const statsB = newStats();
 
@@ -344,6 +375,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       nameBySeat: [nameA, nameB],
       sb, bb, buyIn, readsEnabled, sessionHands,
       evidenceFor: evidence ? nameA : null, evidence,
+      modelBySeat: [modelA, modelB],
     });
     // Feed opponent-stats before the mirrored hand so hand 2's reads can
     // already benefit from hand 1's evidence.
@@ -360,6 +392,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       nameBySeat: [nameB, nameA],
       sb, bb, buyIn, readsEnabled, sessionHands,
       evidenceFor: evidence ? nameA : null, evidence,
+      modelBySeat: [modelB, modelA],   // swapped with the seats
     });
     recordHandForOpponentStats({
       playerIdsBySeat: [nameB, nameA],
@@ -463,6 +496,10 @@ function summarizeAgent(agentStats, bb) {
   const af   = agentStats.calls > 0 ? (agentStats.bets + agentStats.raises) / agentStats.calls : (agentStats.bets + agentStats.raises);
   const foldRate = agentStats.decisions > 0 ? agentStats.folds / agentStats.decisions : 0;
   const fallbackRate = agentStats.decisions > 0 ? agentStats.fallbacks / agentStats.decisions : 0;
+  // MODEL-1b: the cost line. usdPer100Hands is null when nothing was priced
+  // (no key, so every decision fell back) or the model has no price entry —
+  // an em dash beats a confident $0.00 nobody can act on.
+  const per100 = usdPer100Hands(agentStats.cost, totalHands);
   return {
     hands: totalHands,
     netChips: agentStats.netChips,
@@ -474,6 +511,12 @@ function summarizeAgent(agentStats, bb) {
     foldRate: Number((foldRate * 100).toFixed(1)),
     fallbackRate: Number((fallbackRate * 100).toFixed(1)),
     decisions: agentStats.decisions,
+    model: agentStats.model ?? null,
+    inTok: agentStats.cost.inputTokens,
+    outTok: agentStats.cost.outputTokens,
+    usd: Number(agentStats.cost.usd.toFixed(4)),
+    usdPer100: per100 === null ? null : Number(per100.toFixed(4)),
+    unpriced: agentStats.cost.unpriced,
   };
 }
 
@@ -570,6 +613,11 @@ async function main() {
       sb: args.sb, bb: args.bb, buyIn: args.buyIn,
       readsEnabled: args.reads,
       evidence,
+      // MODEL-1c: --model sets both seats, --model-b overrides seat B. Seat A
+      // is the variable in every arena dimension, so a mirror with
+      // --model X --model-b Y reads as "A on X against B on Y".
+      modelA: args.model,
+      modelB: args.modelB ?? args.model,
     });
 
     if (newborn) {
@@ -623,6 +671,26 @@ async function main() {
     const hi = (m[m.a].bb100 + m[m.a].ci95).toFixed(1);
     console.log(`    seat A attributes=${seatALabel} vs seat B=${NEUTRAL_LEVEL} -> A bb/100 ${m[m.a].bb100}, 95% CI [${lo}, ${hi}]`);
   }
+  // ── MODEL-1b: the cost line ────────────────────────────────────────────────
+  // The answer to CORE_GAME_PLAN's "model tiers" question is a number next to
+  // the bb/100, not an intuition. Printed per agent because a --model-b run
+  // has two different bills in one table.
+  console.log('\nCost (estimated, from the shipped price table + MODEL_PRICES):');
+  let anyPriced = false;
+  for (const [name, row] of Object.entries(perAgentSummary)) {
+    const label = row.model ? `${row.model}` : '(no model calls — all fallback)';
+    if (row.usdPer100 !== null) anyPriced = true;
+    console.log(
+      `  ${String(name).padEnd(18)} ${label}\n` +
+      `    ${row.decisions} decisions  in:${row.inTok} out:${row.outTok}  ` +
+      `total ${formatUsd(row.usd)}  → ${formatUsd(row.usdPer100)} per 100 hands` +
+      (row.unpriced > 0 ? `  (${row.unpriced} unpriced call(s))` : ''),
+    );
+  }
+  if (!anyPriced) {
+    console.log('  no priced calls — set a key, or add the model to MODEL_PRICES.');
+  }
+
   console.log(`\ntotal time: ${elapsedSec}s`);
 
   // Persist
@@ -645,7 +713,21 @@ async function main() {
     perAgent: perAgentSummary,
     elapsedSec: Number(elapsedSec),
     apiKeyPresent: !!process.env.ANTHROPIC_API_KEY,
-    model: process.env.AI_MODEL || 'claude-haiku-4-5',
+    model: args.model || process.env.AI_MODEL || 'claude-haiku-4-5',
+    // MODEL-1c: both sides recorded, so a saved A/B run says what it compared
+    // without anyone having to remember the command line.
+    models: {
+      a: args.model || process.env.AI_MODEL || 'claude-haiku-4-5',
+      b: args.modelB || args.model || process.env.AI_MODEL || 'claude-haiku-4-5',
+    },
+    providers: {
+      a: providerIdFor(args.model || process.env.AI_MODEL || 'claude-haiku-4-5'),
+      b: providerIdFor(args.modelB || args.model || process.env.AI_MODEL || 'claude-haiku-4-5'),
+    },
+    prices: {
+      a: priceFor(args.model || process.env.AI_MODEL || 'claude-haiku-4-5'),
+      b: priceFor(args.modelB || args.model || process.env.AI_MODEL || 'claude-haiku-4-5'),
+    },
   };
   fs.writeFileSync(outPath, JSON.stringify(record, null, 2), 'utf8');
   console.log(`\n[arena] wrote ${outPath}`);
@@ -664,6 +746,15 @@ function mergeStats(agg, part) {
   agg.folds             += part.folds;
   agg.checks            += part.checks;
   agg.fallbacks         += part.fallbacks;
+  if (part.model && !agg.model) agg.model = part.model;
+  if (part.cost) {
+    agg.cost.calls             += part.cost.calls;
+    agg.cost.inputTokens       += part.cost.inputTokens;
+    agg.cost.outputTokens      += part.cost.outputTokens;
+    agg.cost.cachedInputTokens += part.cost.cachedInputTokens;
+    agg.cost.usd               += part.cost.usd;
+    agg.cost.unpriced          += part.cost.unpriced;
+  }
   agg.pairSumsByMatchup.push(...part.pairSumsByMatchup);
 }
 
