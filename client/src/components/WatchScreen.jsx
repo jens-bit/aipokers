@@ -22,9 +22,13 @@ import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
-import { paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS } from '../lib/pace.js';
+import {
+  paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS,
+  SHOWDOWN_HOLD_MS, CEREMONY_MS,
+} from '../lib/pace.js';
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
+import { attrCostOf } from '../lib/attributes.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -132,7 +136,7 @@ function MuteToggle() {
 // so the agent replies in-voice. AI table-speech (trash talk from the WS) appears
 // as ambient rows, visually distinct from the DM thread.
 
-function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName }) {
+function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName, attrRecord }) {
   var [text, setText] = useState('');
   var listRef    = useRef(null);
   var chatInputRef = useRef(null);
@@ -153,6 +157,13 @@ function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName })
     .concat(tableSpeech.map(function(m) { return Object.assign({}, m, { _type: 'ambient' }); }))
     .concat((said || []).map(function(u) {
       return { _type: u.mine ? 'his' : 'ambient', text: u.text, t: u.at, _id: u.id };
+    }))
+    // W5-4: the attribute-cost card, collapsed. It was pinned over the felt for
+    // a hand and a half; once it stands down it lives here, on the hand it is
+    // about, so it can be found again instead of being gone.
+    .concat((attrRecord || []).map(function(a) {
+      return { _type: 'attr', _id: a.id, t: a.t, handNumber: a.handNumber, attrKey: a.key,
+        street: a.street, text: a.line };
     }))
     .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
 
@@ -196,6 +207,21 @@ function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName })
                   fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)',
                   fontStyle: 'italic', lineHeight: 1.4,
                 }}>{m.text}</span>
+              </div>
+            );
+          }
+          if (m._type === 'attr') {
+            return (
+              <div key={'attr-' + (m._id || i)} className="table-row table-row--attr">
+                <span className="table-row__who">
+                  {'HAND #' + (m.handNumber == null ? '--' : m.handNumber)}
+                </span>
+                <span className="table-row__text">
+                  <b className="table-row__attr-key">
+                    {[m.attrKey, m.street].filter(Boolean).join(' · ')}
+                  </b>
+                  {m.text ? ' ' + m.text : ''}
+                </span>
               </div>
             );
           }
@@ -437,6 +463,109 @@ function compactFor(slot, opponentCount) {
   return slot === 'ml' || slot === 'mr' || opponentCount >= 5;
 }
 
+// ---- W5-2 · the muck -------------------------------------------------------
+// "folds don't feel like anything." They didn't: a seat's backs were rendered
+// on `!folded`, so the instant the server said folded the cards ceased to have
+// existed and the ghost dimmed. Nobody threw anything away.
+//
+// Now the cards are thrown at the muck — the centre of the felt — over 350ms
+// with a slight arc and a turn, and the seat dims only once they have landed.
+// Transforms and opacity only, so it is one composited layer per card and the
+// felt never reflows mid-hand.
+
+export var MUCK_MS = 350;
+
+var NO_MUCK = {};
+
+/**
+ * Which seats are mid-throw right now, keyed by seat index.
+ *
+ * The fold is read off the snapshot rather than off a DECISION, because an
+ * opponent's fold is exactly the one this has to catch: DECISION only ever
+ * carries the hero. A new hand clears everything — a re-deal must not replay
+ * the last hand's mucks.
+ */
+export function useMuck(game) {
+  var handNo = game ? game.handNumber : null;
+  var seats  = (game && game.seats) ? game.seats : [];
+  // A string, so the effect's dependency is the folded pattern itself and not
+  // the identity of an array the server rebuilds on every frame.
+  var foldKey = seats.map(function (s) { return (s && s.folded) ? '1' : '0'; }).join('');
+
+  var [mucking, setMucking] = useState(NO_MUCK);
+  var prevRef   = useRef({ hand: null, key: '' });
+  var timersRef = useRef([]);
+
+  useEffect(function () {
+    var prev = prevRef.current;
+    prevRef.current = { hand: handNo, key: foldKey };
+
+    if (prev.hand !== handNo) { setMucking(NO_MUCK); return undefined; }
+
+    var fresh = [];
+    for (var i = 0; i < foldKey.length; i++) {
+      if (foldKey[i] === '1' && prev.key[i] !== '1') fresh.push(i);
+    }
+    if (fresh.length === 0) return undefined;
+
+    setMucking(function (m) {
+      var next = Object.assign({}, m);
+      fresh.forEach(function (i) { next[i] = true; });
+      return next;
+    });
+    var t = setTimeout(function () {
+      setMucking(function (m) {
+        var next = Object.assign({}, m);
+        fresh.forEach(function (i) { delete next[i]; });
+        return next;
+      });
+    }, MUCK_MS);
+    timersRef.current.push(t);
+    return undefined;
+  }, [handNo, foldKey]);
+
+  useEffect(function () {
+    return function () {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+    };
+  }, []);
+
+  return mucking;
+}
+
+// ---- W5-3 · the hand-end ceremony ------------------------------------------
+// A hand used to end by the felt quietly changing state and the next one being
+// dealt over it. A spectator who looked away for two seconds could not tell
+// whether his agent had just won or lost.
+//
+// So the hand is called. One centred block over the felt, in the display font
+// the winner pill already uses, in the gold/red the mood system already owns —
+// no new visual language, because a design ref for this is coming. When it
+// lands, only the markup inside this component changes: WHEN it runs is
+// lib/pace.js's business (SHOWDOWN_HOLD_MS then CEREMONY_MS, which together are
+// exactly the showdown dwell, so the next deal arrives as the block leaves).
+export function HandCeremony({ won, agentName, amount, winnerName, onTalk, talkLabel }) {
+  var money = '$' + (Number.isFinite(amount) ? amount : 0).toLocaleString();
+  return (
+    <div className="watch-ceremony" data-outcome={won ? 'won' : 'lost'} role="status">
+      <div className="watch-ceremony__block">
+        <div className="watch-ceremony__head">
+          {(agentName || 'YOUR AGENT').toUpperCase() + (won ? ' WON' : ' LOST')}
+        </div>
+        <div className="watch-ceremony__sub">
+          {won ? money : ('— ' + (winnerName || 'the table') + ' takes ' + money)}
+        </div>
+        {onTalk && (
+          <button type="button" className="watch-ceremony__talk" onClick={onTalk}>
+            {talkLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---- WatchFelt -------------------------------------------------------------
 
 // W3-1: PaceFelt. The felt is now told which of the four pacing states it is in
@@ -446,7 +575,7 @@ function compactFor(slot, opponentCount) {
 // R-2 exports this: the replay theatre plays the same felt, driven by an
 // authored timeline instead of by the server. Reuse, not a second felt — the
 // pacing states, the rope and the hero row are all here already.
-export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat, bubbles = [] }) {
+export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat, bubbles = [], ceremony = null }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
@@ -504,6 +633,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     ];
     return function() { timers.forEach(clearTimeout); };
   }, [handNo, live]);
+
+  // W5-2: who is mid-throw. A seat that has just folded keeps its cards for
+  // MUCK_MS so they can be thrown, and keeps its full strength until they land.
+  var mucking = useMuck(game);
 
   var beat = live ? dealBeat(dealT) : { landed: 2, backs: true };
   var heroLanded = between ? 2 : beat.landed;
@@ -646,6 +779,7 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
               folded={o.folded}
               acting={o.acting}
               selected={selectedSeat === o.seat}
+              mucking={!!mucking[o.seat]}
               dealt={beat.backs}
               reveal={!!o.reveal}
               show={o.reveal}
@@ -750,12 +884,22 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
             // the beat's own count, so card two is never on the felt before
             // card one — "never simultaneous" is a layout fact, not a timing hope.
             var down = i < heroLanded;
+            // W5-2: his own fold throws the cards he can see, face up, at the
+            // muck — the same 350ms as theirs, the other way up the felt.
+            var heroMuck = !!mucking[heroSeat];
             return (
               <div
                 key={i}
-                className={'watch-felt__hero-card' + (down ? ' is-down' : '')}
+                className={'watch-felt__hero-card' + (down ? ' is-down' : '') + (heroMuck ? ' is-mucking' : '')}
                 data-landed={down ? 'yes' : 'no'}
-                style={{ transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)' }}
+                data-mucking={heroMuck ? 'yes' : 'no'}
+                style={{
+                  transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)',
+                  // The fan he is already wearing, so the throw composes with
+                  // it instead of snapping the card upright first.
+                  '--muck-base': 'rotate(' + (i ? 3 : -3) + 'deg)',
+                  '--muck-turn': (i ? 22 : -18) + 'deg',
+                }}
               >
                 {(c && !between)
                   ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
@@ -798,6 +942,11 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
           <span className="watch-felt__hero-tag">HOLDING</span>
         )}
       </div>
+
+      {/* W5-3: the hand is called. Last in the felt so it is over everything,
+          and a node rather than a flag so the screen owns the copy, the clock
+          and the one tap it offers. */}
+      {ceremony}
     </div>
   );
 }
@@ -988,6 +1137,9 @@ function useSheetDrag({ onSelectTab }) {
   return {
     stageRef: stageRef,
     dragging: dragging,
+    // W5-5: open the sheet from outside the gesture. The ceremony's fallback
+    // selects the TABLE tab, and a selected tab in a closed sheet is nothing.
+    expand: function() { goTo(0); },
     detent: detentName(frac),
     geom: feltGeometry(frac, stagePx),
     handlers: {
@@ -1062,6 +1214,11 @@ export function WatchScreen({
   // spectator-only all-in hold the server stages the runout card by card;
   // without it the flip falls back to the client's own timer.
   paceFrame,
+  // W5-1: how far behind live the pacing queue is running, in ms. Diagnostic
+  // only — it is written onto the root as data-pace-lag so a playtest or a
+  // Playwright run can read the queue's depth without a devtools session.
+  // Absent everywhere the stream is not paced, which reads as zero.
+  paceLag,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -1248,6 +1405,73 @@ export function WatchScreen({
   var between = !handActive(game);
   var pace = paceOf(game);
 
+  // ── W5-3 · the hand-end ceremony ────────────────────────────────────────
+  // The showdown is held for SHOWDOWN_HOLD_MS so the reveal can be read, then
+  // the hand is called for CEREMONY_MS. The two are the showdown's whole dwell
+  // in lib/pace.js, so the next deal lands as the block leaves rather than over
+  // it. Latched per hand: a re-render, or a second terminal snapshot, does not
+  // call the same hand twice.
+  var [ceremonyHand, setCeremonyHand] = useState(null);
+  var ceremonySeenRef = useRef(null);
+  var settledNow = handSettled(game);
+  var settledHand = game ? game.handNumber : null;
+  useEffect(function () {
+    if (!settledNow) { setCeremonyHand(null); return undefined; }
+    if (ceremonySeenRef.current === settledHand) return undefined;
+    ceremonySeenRef.current = settledHand;
+    var open  = setTimeout(function () { setCeremonyHand(settledHand); }, SHOWDOWN_HOLD_MS);
+    var close = setTimeout(function () { setCeremonyHand(null); }, SHOWDOWN_HOLD_MS + CEREMONY_MS);
+    return function () { clearTimeout(open); clearTimeout(close); };
+  }, [settledNow, settledHand]);
+
+  // ── W5-4 · "why the hand went wrong", pinned ────────────────────────────
+  // The card used to be rendered on `between` alone, which meant it appeared
+  // when the hand ended and was gone the moment the next one was dealt — a
+  // couple of seconds, in a panel the owner may not even have open. The one
+  // thing in the product that explains a loss scrolled away before it could be
+  // read.
+  //
+  // So it is pinned: it stays through the next deal and only stands down when
+  // that hand reaches its flop, which is the first moment the owner is properly
+  // watching something else. Then it collapses into the TABLE tab as a row on
+  // the hand it belongs to, where it can be found again.
+  //
+  // No cost, no card. RiverAttrPanel returns null now, and nothing here
+  // manufactures a pin for a hand that had nothing to answer for.
+  var lastPlayedHand = (agent && Array.isArray(agent.recentHands)) ? agent.recentHands[0] : null;
+  var [attrPin, setAttrPin] = useState(null);          // { hand, atHand, at }
+  var [attrRecord, setAttrRecord] = useState([]);      // collapsed, for the TABLE tab
+  var attrIdRef = useRef(0);
+  var liveHandNo = game ? game.handNumber : null;
+  var liveHandRef = useRef(liveHandNo);
+  liveHandRef.current = liveHandNo;
+
+  useEffect(function () {
+    if (!lastPlayedHand || !attrCostOf(lastPlayedHand)) return;
+    setAttrPin(function (p) {
+      if (p && p.hand === lastPlayedHand) return p;
+      return { hand: lastPlayedHand, atHand: liveHandRef.current, at: Date.now() };
+    });
+  }, [lastPlayedHand]);
+
+  var boardLen = (game && Array.isArray(game.community)) ? game.community.length : 0;
+  useEffect(function () {
+    if (!attrPin || attrPin.atHand == null || liveHandNo == null) return;
+    if (liveHandNo <= attrPin.atHand || boardLen < 3) return;
+    var cost = attrCostOf(attrPin.hand);
+    setAttrRecord(function (r) {
+      return r.concat([{
+        id: 'a' + (++attrIdRef.current),
+        handNumber: attrPin.atHand,
+        key: cost ? cost.key : null,
+        street: cost ? cost.street : null,
+        line: cost ? cost.line : null,
+        t: attrPin.at,
+      }]);
+    });
+    setAttrPin(null);
+  }, [attrPin, liveHandNo, boardLen]);
+
   // The showdown runout, one card at a time.
   //
   // W3-5: the server stages it. During a spectator-only all-in hold each PACE
@@ -1419,9 +1643,17 @@ export function WatchScreen({
   // W4-5: one decision, both entry points. The header button and the sheet's
   // own CHAT tab are the same control and must not disagree about where
   // talking to him happens.
-  var openChat = useCallback(function() {
-    if (onOpenThread) { onOpenThread(); return; }
+  // W5-5: the ceremony's one tap comes through here with the hand it is about,
+  // so the thread opens knowing which hand is being asked about. The header
+  // button and the tab bar still call it with nothing, which is the behaviour
+  // that existed before; a container that has no thread to open falls back to
+  // the TABLE tab, and the tab is useless in a closed sheet, so the sheet opens
+  // with it.
+  var sheetApiRef = useRef(null);
+  var openChat = useCallback(function(ctx) {
+    if (onOpenThread) { onOpenThread(ctx || null); return; }
     setActiveTab(TAB_CHAT);
+    if (sheetApiRef.current && sheetApiRef.current.expand) sheetApiRef.current.expand();
   }, [onOpenThread]);
 
   // W4-2: which seat's read is open, by seat index. Null is the felt with
@@ -1440,6 +1672,7 @@ export function WatchScreen({
       setActiveTab(i);
     },
   });
+  sheetApiRef.current = sheet;
 
   // Belt-and-braces: non-passive touchmove on the sheet container so that a
   // drag starting on the grab handle cannot bubble up to Telegram's webview
@@ -1466,8 +1699,32 @@ export function WatchScreen({
     if (onLeave)  onLeave();
   }
 
+  // W5-3/W5-5: the block that calls the hand, and the single tap it offers.
+  var agentName = (config && config.displayName) ? config.displayName : null;
+  var ceremonyNode = null;
+  if (ceremonyHand != null && game && game.result) {
+    var res = game.result;
+    var heroIdx = Number.isInteger(mySeat) ? mySeat : 0;
+    var champion = (res.winners && res.winners.length) ? res.winners[0] : null;
+    var heroTook = !!(res.winners || []).some(function (w) { return w.seat === heroIdx; });
+    var championName = (champion && game.seats && game.seats[champion.seat])
+      ? (game.seats[champion.seat].displayName || ('Seat ' + (champion.seat + 1)))
+      : null;
+    ceremonyNode = (
+      <HandCeremony
+        won={heroTook}
+        agentName={agentName}
+        amount={res.pot || 0}
+        winnerName={championName}
+        talkLabel={'Talk to ' + (agentName || 'your agent') + ' about this hand'}
+        onTalk={function () { openChat({ handId: ceremonyHand }); }}
+      />
+    );
+  }
+
   return (
-    <div className="watch-screen">
+    <div className="watch-screen"
+      data-pace-lag={Number.isFinite(paceLag) ? Math.round(paceLag) : 0}>
 
       {/* FIX-3c: on the watch screen the mood band collapses into the header —
           one 40px row carrying back, his name, his mood, whether he is at a
@@ -1490,7 +1747,9 @@ export function WatchScreen({
         <button
           type="button"
           className="watch-screen__chat"
-          onClick={openChat}
+          // Called with nothing, deliberately: the header asks to talk, not to
+          // talk about a hand, and a click event is not a context.
+          onClick={function() { openChat(); }}
         >Chat</button>
       </div>
 
@@ -1507,7 +1766,10 @@ export function WatchScreen({
         <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
           game={game} mySeat={mySeat} lastDecision={lastDecision}
           handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom}
-          bubbles={bubbles} />
+          // W5-3: no speech over the ceremony. For its three seconds the hand
+          // is the only thing being said; the line is in the record either way,
+          // which is the bubble law's own clause.
+          bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
@@ -1554,15 +1816,16 @@ export function WatchScreen({
                   onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
                 />
               )}
-              {between && agent && agent.recentHands && agent.recentHands[0] && (
-                <RiverAttrPanel agent={agent} hand={agent.recentHands[0]} />
-              )}
+              {/* W5-4: pinned, not "between hands". It survives the next deal
+                  and stands down at that hand's flop. */}
+              {attrPin && agent && <RiverAttrPanel agent={agent} hand={attrPin.hand} />}
               <MuteToggle />
               {activeTab === TAB_CHAT && (
                 <ChatTab
                   agentThread={agentThread}
                   tableSpeech={tableSpeech}
                   said={tableRecord}
+                  attrRecord={attrRecord}
                   onSend={sendToAgent}
                   loading={agentLoading}
                   agentName={config ? config.displayName : null}

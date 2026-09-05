@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
+import { usePacedTable } from './hooks/usePacedTable.js';
 import { Header } from './components/Header.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
@@ -47,6 +48,15 @@ export default function App() {
     lastDecision,
     paceFrame,
   } = table;
+  // WATCH-5 (W5-1): the felt is played back, not mirrored. Every snapshot the
+  // socket delivers goes through the pacing queue, which lets no two actions
+  // land closer together than the beat in lib/pace.js. The four fields travel
+  // as one bundle so a line of table talk can never appear before the action it
+  // was said about. The live stream is still what the ActionBar and the legacy
+  // table read — pacing is for watching, and a player must never wait to see
+  // his own seat.
+  const paced = usePacedTable({ game, lastDecision, paceFrame, chatMessages });
+
   const displayNames = useMemo(() => {
     const names = {};
     (game?.seats || []).forEach((seat, index) => {
@@ -466,15 +476,18 @@ export default function App() {
   if (config?.isSpectator && !isDesktop) {
     return (
       <WatchScreen
-        game={game}
+        // W5-1: the paced bundle, not the live one. `paced.game` is null only
+        // before the first snapshot, which is the same moment `game` is.
+        game={paced.game}
         mySeat={mySeat}
-        lastDecision={lastDecision}
+        lastDecision={paced.lastDecision}
         // WIRE-1 (W3-6): the staged runout, forwarded rather than picked up off
         // the view model. useTable merges it onto `game` too, and WatchScreen
         // prefers this prop — the merge stays as the fallback for any container
         // that has not been given the frame.
-        paceFrame={paceFrame}
-        chatMessages={chatMessages}
+        paceFrame={paced.paceFrame}
+        paceLag={paced.behindMs}
+        chatMessages={paced.chatMessages}
         sendChat={sendChat}
         displayNames={displayNames}
         onLeave={handleLeave}

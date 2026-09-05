@@ -195,7 +195,13 @@ describe('WIRE-1 the app shell wiring', () => {
     // Destructured off useTable...
     expect(src).toMatch(/paceFrame,/);
     // ...and handed to WatchScreen rather than left to the merge.
-    expect(src).toMatch(/paceFrame=\{paceFrame\}/);
+    //
+    // W5-1: the frame now travels through the pacing queue with the snapshot it
+    // belongs to, so the thing forwarded is `paced.paceFrame`. The rule this
+    // test exists for is unchanged and still asserted — the container hands the
+    // frame over explicitly rather than relying on useTable merging it onto the
+    // view model.
+    expect(src).toMatch(/paceFrame=\{paced\.paceFrame\}/);
   });
 
   it('WIRE-1: and tells the floor which agent was just born', () => {

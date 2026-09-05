@@ -274,3 +274,27 @@ export function fatigueLineFor(stage, hands) {
   if (f.key === 'settled') return count ? `settled in — ${count}` : 'settled in';
   return count ? `fresh — ${count} in` : 'fresh';
 }
+
+/**
+ * W5-4: the one attribute cost a hand traced back to, or null.
+ *
+ * The ATTR-3 contract puts an array on the hand, but a hand has at most one
+ * story about why it went wrong — the panel has always shown the first — so
+ * this is the single source both the pin and the record read.
+ *
+ * Null is the honest answer and it has consequences now: WATCH-5 does not show
+ * a "why the hand went wrong" card that has nothing to say. A hand where he was
+ * simply outdrawn is not a hand he misplayed, and a card saying so every time
+ * taught the owner to stop reading the card.
+ */
+export function attrCostOf(hand) {
+  const costs = Array.isArray(hand?.attrCosts) ? hand.attrCosts : [];
+  for (const c of costs) {
+    if (c && ATTR_KEYS.includes(c.key)) return c;
+  }
+  return null;
+}
+
+export function hasAttrCost(hand) {
+  return attrCostOf(hand) !== null;
+}

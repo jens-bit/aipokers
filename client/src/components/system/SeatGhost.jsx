@@ -17,16 +17,20 @@ import { SeatClock } from './SeatClock.jsx';
 
 export function SeatGhost({
   name, stack, accent = '#00D4AA', mood = 'neutral', folded, acting, selected,
-  dealt = true, reveal, show, history, timer, timerOf = 12,
+  dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
   size = 34, side = false, order = 0, onSelect,
 }) {
   const m = safeMood(mood);
   const showing = !!(reveal && show && show.length && !folded);
+  // W5-2: mid-throw. The backs stay mounted so there is something to throw, and
+  // the dim of the folded state waits until they have landed — a seat that
+  // greys out while its cards are still in the air reads as two events.
+  const dimmed = folded && !mucking;
 
   return (
     <button
       type="button"
-      className={`seat-ghost${acting ? ' is-acting' : ''}${folded ? ' is-folded' : ''}${selected ? ' is-selected' : ''}`}
+      className={`seat-ghost${acting ? ' is-acting' : ''}${dimmed ? ' is-folded' : ''}${selected ? ' is-selected' : ''}${mucking ? ' is-mucking' : ''}`}
       onClick={onSelect}
       aria-label={`${name} — read`}
       aria-pressed={!!selected}
@@ -35,9 +39,10 @@ export function SeatGhost({
         {acting && <SeatClock d={size + 13} left={timer ?? timerOf} of={timerOf} />}
         {selected && <span className="seat-ghost__ring" aria-hidden />}
 
-        {/* Backs sit behind him while the hand is live and he has not shown. */}
-        {dealt && !folded && !showing && (
-          <span className="seat-ghost__backs" aria-hidden>
+        {/* Backs sit behind him while the hand is live and he has not shown —
+            and for the 350ms it takes to throw them once he folds. */}
+        {dealt && (!folded || mucking) && !showing && (
+          <span className={`seat-ghost__backs${mucking ? ' is-mucking' : ''}`} aria-hidden>
             <CardBack w={15} h={21} />
             <CardBack w={15} h={21} />
           </span>

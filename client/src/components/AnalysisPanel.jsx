@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AttrBar } from './system/AttrBar.jsx';
-import { normalizeAttrs, fatigueOf, FATIGUE, ATTR_KEYS } from '../lib/attributes.js';
+import { normalizeAttrs, fatigueOf, FATIGUE, ATTR_KEYS, attrCostOf } from '../lib/attributes.js';
 
 // Ported from design-refs/analysis.jsx.
 // Receives the last AI decision ({ action, reasoning, seat }) and renders the
@@ -367,16 +367,20 @@ function ChatTabContent({ messages, onSend, mySeat, displayNames }) {
 // readout. The panel names the attribute, shows its bar with the scouted band,
 // and says in words that the strategy was sound and the execution was not.
 //
-// hand.attrCosts: [{ key, line, street? }] — the ATTR-3 contract, absent from
-// the wire today. When it is missing the panel keeps its shape and reads "—",
-// the same way DSK2-3 holds the fold-equity and solver-line rows open rather
-// than swapping in different content.
+// hand.attrCosts: [{ key, line, street? }] — the ATTR-3 contract.
+//
+// W5-4: no cost, no card. The panel used to hold its shape and read "—" over
+// "Nothing in this hand traced back to an attribute", on the DSK2-3 principle
+// that a row is better held open than swapped out. That was wrong here: the
+// card is titled "why the hand went wrong", and printing it after a hand that
+// did not go wrong is the fastest way to teach an owner not to read it. A hand
+// with nothing to answer for gets silence.
 export function RiverAttrPanel({ agent, hand }) {
-  const costs = Array.isArray(hand?.attrCosts) ? hand.attrCosts.filter((c) => c?.key) : [];
-  const cost = costs.find((c) => ATTR_KEYS.includes(c.key)) ?? null;
+  const cost = attrCostOf(hand);
+  if (!cost) return null;
 
   const { rows } = normalizeAttrs(agent);
-  const row = cost ? rows.find((r) => r.key === cost.key) : null;
+  const row = rows.find((r) => r.key === cost.key) ?? null;
 
   const stage = fatigueOf(agent);
   const hands = agent?.liveGame?.heroSessionHands;
@@ -384,7 +388,7 @@ export function RiverAttrPanel({ agent, hand }) {
     (FATIGUE[stage] ?? FATIGUE.fresh).word,
     Number.isFinite(hands) && hands > 0 ? `${hands.toLocaleString()} hands` : null,
   ].filter(Boolean).join(' · ').toUpperCase();
-  const street = cost?.street ? String(cost.street).toLowerCase() : 'hand';
+  const street = cost.street ? String(cost.street).toLowerCase() : 'hand';
 
   return (
     <div style={{
@@ -403,7 +407,9 @@ export function RiverAttrPanel({ agent, hand }) {
         }}>{stateChip}</span>
       </div>
 
-      {row ? (
+      {/* The bar is the agent's own, so it is only drawn when his sheet has
+          been scouted. The cost line below stands on its own without it. */}
+      {row && (
         <AttrBar
           name={row.key}
           cur={row.cur}
@@ -411,21 +417,11 @@ export function RiverAttrPanel({ agent, hand }) {
           hi={row.hi}
           fatigued={row.fatigued}
         />
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-          <span style={{
-            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-            fontSize: 12.5, fontWeight: 700, color: '#9E9EA2',
-          }}>—</span>
-          <span style={{ fontSize: 11.5, color: '#9E9EA2' }}>
-            no attribute cost recorded for this hand
-          </span>
-        </div>
       )}
 
       <div style={{ fontSize: 11.5, color: '#9E9EA2', lineHeight: 1.5, marginTop: 10 }}>
-        {cost?.line ?? 'Nothing in this hand traced back to an attribute.'}
-        {cost?.line && (
+        {cost.line}
+        {cost.line && (
           <b style={{ color: '#C3C3C6' }}> The strategy was not wrong here. The execution was.</b>
         )}
       </div>

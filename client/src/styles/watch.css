@@ -1608,3 +1608,172 @@
 }
 .table-row--his .table-row__who { color: var(--sys-teal, #00D4AA); }
 .table-row--his .table-row__text { color: var(--sys-text, #EDEDED); }
+
+/* ── W5-2 · the muck ────────────────────────────────────────────────────
+ * "Folds don't feel like anything." The cards are thrown at the muck — the
+ * centre of the felt — over 350ms, with a slight arc and a turn, and they fade
+ * as they land. Transform and opacity only: one composited layer per card, no
+ * reflow, nothing that can move the seat ring while a hand is live.
+ *
+ * The direction is per slot, because "toward the muck" is a different vector
+ * from every chair. --muck-dx/dy is the throw; --muck-turn is the tumble, kept
+ * inside the 15–25° the brief asks for. */
+
+/* --muck-base is whatever transform the card already wears, because a keyframe
+ * replaces the whole transform property and both of these have one: the seat's
+ * backs are centred with translateX(-50%) and his own cards are fanned by a few
+ * degrees. Composing rather than clobbering is what stops a fold from starting
+ * with a jump sideways. */
+.seat-ghost__backs.is-mucking,
+.watch-felt__hero-card.is-mucking {
+  --muck-base: translate(0, 0);
+  --muck-dx: 0px;
+  --muck-dy: 52px;
+  --muck-turn: 22deg;
+  animation: watch-muck 350ms cubic-bezier(0.32, 0, 0.67, 0.35) both;
+  pointer-events: none;
+}
+.seat-ghost__backs.is-mucking { --muck-base: translateX(-50%) rotate(-6deg); }
+
+/* The arc: up and out of the seat first, then down into the middle. */
+@keyframes watch-muck {
+  0% {
+    transform: var(--muck-base) translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  45% {
+    transform:
+      var(--muck-base)
+      translate(calc(var(--muck-dx) * 0.5), calc(var(--muck-dy) * 0.42 - 9px))
+      rotate(calc(var(--muck-turn) * 0.55));
+    opacity: 1;
+  }
+  100% {
+    transform: var(--muck-base) translate(var(--muck-dx), var(--muck-dy)) rotate(var(--muck-turn));
+    opacity: 0;
+  }
+}
+
+/* Where the muck is, from each chair. */
+.watch-felt__seat--tl .seat-ghost__backs.is-mucking { --muck-dx:  34px; --muck-dy: 48px; --muck-turn:  19deg; }
+.watch-felt__seat--tc .seat-ghost__backs.is-mucking { --muck-dx:   0px; --muck-dy: 54px; --muck-turn:  24deg; }
+.watch-felt__seat--tr .seat-ghost__backs.is-mucking { --muck-dx: -34px; --muck-dy: 48px; --muck-turn: -19deg; }
+.watch-felt__seat--ml .seat-ghost__backs.is-mucking { --muck-dx:  48px; --muck-dy: 24px; --muck-turn:  16deg; }
+.watch-felt__seat--mr .seat-ghost__backs.is-mucking { --muck-dx: -48px; --muck-dy: 24px; --muck-turn: -16deg; }
+
+/* His own row is under the board, so his throw goes the other way up the felt.
+ * --muck-turn is set per card inline, so the two do not tumble in lockstep. */
+.watch-felt__hero-card.is-mucking { --muck-dx: 0px; --muck-dy: -58px; }
+
+/* The seat dims only once the cards have landed, so a fold reads as one event
+ * and not two. .is-folded is withheld for the length of the throw; this keeps
+ * the ghost itself steady underneath it. */
+.seat-ghost.is-mucking { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-ghost__backs.is-mucking,
+  .watch-felt__hero-card.is-mucking {
+    animation: watch-muck-fade 350ms linear both;
+  }
+  @keyframes watch-muck-fade {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+}
+
+/* ── W5-3 · the hand-end ceremony ───────────────────────────────────────
+ * One centred block over the felt for three seconds, in the display font the
+ * winner pill already uses and the gold/red the mood system already owns. No
+ * new visual language: a design ref is coming, and when it does only this
+ * block's markup changes. */
+
+/* Above everything the felt draws — the seat ring, the bubbles and his own
+ * row. For three seconds the hand is the only thing being said. */
+.watch-ceremony {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(8, 10, 10, 0.86) 0%, rgba(8, 10, 10, 0.96) 100%);
+  animation: watch-ceremony-in 220ms ease-out both;
+}
+
+/* The block carries its own ground so the board behind it cannot read through
+ * the words. Same border and radius as the winner pill it replaces. */
+.watch-ceremony__block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 18px 22px;
+  max-width: 92%;
+  border-radius: 14px;
+  background: rgba(8, 10, 10, 0.94);
+  border: 1px solid rgba(205, 179, 128, 0.22);
+  text-align: center;
+}
+.watch-ceremony[data-outcome='lost'] .watch-ceremony__block {
+  border-color: rgba(255, 77, 79, 0.22);
+}
+
+.watch-ceremony__head {
+  font-family: var(--sys-font-display, 'Playfair Display', Georgia, serif);
+  font-size: clamp(20px, 6.6vw, 27px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--sys-gold, #CDB380);
+  text-shadow: 0 0 22px rgba(205, 179, 128, 0.28);
+}
+.watch-ceremony[data-outcome='lost'] .watch-ceremony__head {
+  color: var(--sys-red, #FF4D4F);
+  text-shadow: 0 0 22px rgba(255, 77, 79, 0.22);
+}
+
+.watch-ceremony__sub {
+  font-family: var(--sys-font-label, 'Oswald', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sys-dim, #C3C3C6);
+}
+
+.watch-ceremony__talk {
+  margin-top: 9px;
+  padding: 8px 15px;
+  border-radius: 16px;
+  background: rgba(0, 212, 170, 0.10);
+  border: 1px solid rgba(0, 212, 170, 0.32);
+  color: var(--sys-teal, #00D4AA);
+  font-family: var(--sys-font-label, 'Oswald', sans-serif);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+@keyframes watch-ceremony-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-ceremony { animation: none; }
+}
+
+/* W5-4: the attribute cost, collapsed into the record it belongs to. */
+.table-row--attr .table-row__who { color: var(--sys-gold, #CDB380); }
+.table-row--attr .table-row__text { font-size: 11.5px; color: var(--sys-muted, #9E9EA2); }
+.table-row__attr-key {
+  font-family: 'Oswald', 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+}
