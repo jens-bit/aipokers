@@ -35,6 +35,10 @@ import {
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
+import {
+  recordOwnerEvent, tickOwnerMemorySession, ownerMemoryContext,
+  isAskingAboutOwner, whatDoYouThinkOfMe, ownerToneScore,
+} from '../agent/ownerMemory.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import {
@@ -752,6 +756,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   }
   // Append to session log (cap 10)
   ensureStats(agent);
+  // RELATE-1a: the owner ledger compresses on the session cadence, the same
+  // way the opponent ring is trimmed — duplicates fold into one line with a
+  // count rather than twelve copies of the same grievance.
+  try { tickOwnerMemorySession(agent); } catch (err) { console.error('[relate] compress failed:', err.message); }
+
   if (!Array.isArray(agent.sessionLog)) agent.sessionLog = [];
   agent.sessionLog.push({
     endedAt: Date.now(),
@@ -1166,6 +1175,19 @@ export function applyOwnerMessageToMood(agentId, userId, text) {
   return { moved: true, mood: agent.mood, kind: result.kind, reason: result.reason };
 }
 
+// RELATE-1a: one place the routes call to write an owner-ledger line and
+// persist it. Every caller is an owner ACT — a message he sent or a button he
+// pressed. There is deliberately no timer, no cron and no "hasn't been back"
+// path into this function; see the guardrail note in src/agent/ownerMemory.js.
+export function noteOwnerEvent(agentId, userId, type, ctx = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const entry = recordOwnerEvent(agent, type, ctx);
+  if (entry) saveStore(userId ?? 'anon');
+  return entry;
+}
+
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
 // Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
 // Persists on soothed=true.
@@ -1434,6 +1456,12 @@ export function installAgentProfileRoutes(app) {
     });
     if (!result.ok) return res.status(400).json({ error: result.reason, available: result.available });
 
+    // RELATE-1a: staking him and cutting him off are both things he remembers.
+    if (pocket.mode === 'cut') {
+      recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
+    } else if (result.moved > 0) {
+      recordOwnerEvent(agent, 'funded', { amount: result.moved });
+    }
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
@@ -1464,6 +1492,7 @@ export function installAgentProfileRoutes(app) {
     if (!result.ok) return res.status(400).json({ error: result.reason });
 
     recordCollectMoment(agent, result.moved);
+    recordOwnerEvent(agent, 'collected', { amount: result.moved });
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
@@ -1783,6 +1812,9 @@ export function installAgentProfileRoutes(app) {
 
   // GET /api/agents/:agentId/flagged?userId=...
   // Returns this session's flagged hands for the floor's hand-review sheet.
+  // RELATE-1a: opening the review is an owner ACT and he remembers it —
+  // "read back the Q3o hand". Only the proven owner writes a line; a
+  // spectator looking at the sheet is not his backer.
   // holeCards are owner-gated: only the authenticated owner sees their agent's
   // hole cards — the same law AGE-33 applied to the DECISION broadcast.
   // opponentShowdownCards are public (revealed at showdown) and always returned.
@@ -1798,6 +1830,10 @@ export function installAgentProfileRoutes(app) {
       holeCards: owner ? (h.holeCards ?? []) : [],
       // opponentShowdownCards exposed as-is — public information from the showdown
     }));
+    if (owner && hands.length > 0) {
+      const wrote = recordOwnerEvent(agent, 'review_opened', { holeCards: hands[0].holeCards ?? [] });
+      if (wrote) saveStore(userId);
+    }
     res.json({ flaggedHands: hands, count: hands.length });
   });
 
@@ -1851,6 +1887,7 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     if (!agent.proposal) return res.status(400).json({ error: 'no active proposal' });
+    recordOwnerEvent(agent, 'proposal_accepted', { what: agent.proposal.text });
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
@@ -1865,6 +1902,7 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (agent.proposal) recordOwnerEvent(agent, 'proposal_rejected', { what: agent.proposal.text });
     agent.proposal = null;
     saveStore(userId);
     clearProposalPending(userId);
@@ -1945,8 +1983,44 @@ export function installAgentProfileRoutes(app) {
       const pepResult = said.moved && said.kind === 'care'
         ? { soothed: true, mood: said.mood, reason: 'ok' }
         : { soothed: false, mood: existingAgent.mood, reason: said.reason };
+
+      // RELATE-1a: the message he just received goes in the owner ledger. Only
+      // a needle or a real question writes a line — small talk is not a fact
+      // about the owner, and silence writes nothing because there is no
+      // message to write from.
+      if (said.kind === 'needle') {
+        recordOwnerEvent(existingAgent, 'needle', {
+          text: content,
+          losing: (existingAgent.recentHands?.[0]?.won === false) || (existingAgent.mood?.heat ?? 0) > 40,
+        });
+      } else if (said.kind === 'care') {
+        recordOwnerEvent(existingAgent, pepResult.soothed ? 'pep_talk' : 'care', {
+          aboutHand: /hand|why|what (did|were) you/i.test(content),
+          holeCards: existingAgent.recentHands?.[0]?.holeCards ?? [],
+        });
+      }
+
       if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
       const recentChat = existingAgent.chatHistory.slice(-6);
+
+      // RELATE-1b: "what do you think of me?" is answered from the ledger, by
+      // template, with no model call. It is the one question where a generated
+      // answer would be worse than a written one — he is describing a real
+      // record and the record is right there. It also costs nothing.
+      if (isAskingAboutOwner(content)) {
+        const msg = whatDoYouThinkOfMe(existingAgent);
+        existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+        if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+        saveStore(userId);
+        return res.json({
+          chat: [{ role: 'assistant', content: msg }],
+          fromOwnerMemory: true,
+          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+                  moved: said.moved, kind: said.kind },
+        });
+      }
+
       const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
       try {
         const reply = await callClaude([{ role: 'user', content }], systemText, 100);
