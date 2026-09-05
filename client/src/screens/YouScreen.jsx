@@ -3,6 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
+import { collectFrom, fetchWallet, hasPocket } from '../lib/wallet.js';
+import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
+import { PocketList } from '../components/wallet/PocketRow.jsx';
+import { presenceOf } from '../components/floor/agentView.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -199,6 +203,16 @@ export function YouScreen() {
   const [agents, setAgents]   = useState([]);
   const [replays, setReplays] = useState([]);
   const [loading, setLoading] = useState(true);
+  // WUI-1: null until asked, and null again when this deployment has no
+  // wallet. Absence is a first-class answer — the screen then shows exactly
+  // what it showed before the wallet existed.
+  const [wallet, setWallet]   = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWallet().then((w) => { if (!cancelled) setWallet(w); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
@@ -245,6 +259,33 @@ export function YouScreen() {
     return max > 0 ? max : null;
   })();
 
+  // WUI-1 — pockets only exist for agents the backend has given one. On a
+  // deployment without the wallet this list is empty and nothing renders.
+  const pocketAgents = agents.filter(hasPocket);
+  const playingCount = agents.filter((a) => presenceOf(a) === 'playing').length;
+
+  const [fundTarget, setFundTarget] = useState(null);
+  const [busyAgentId, setBusyAgentId] = useState(null);
+
+  async function refreshMoney() {
+    const [w, res] = await Promise.all([
+      fetchWallet(),
+      fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
+    setWallet(w);
+    if (res?.agents) setAgents(res.agents);
+  }
+
+  async function handleCollect(agent) {
+    if (busyAgentId) return;
+    setBusyAgentId(agent.id);
+    try { await collectFrom(agent.id); await refreshMoney(); }
+    catch { /* the row simply stays as it was */ }
+    finally { setBusyAgentId(null); }
+  }
+
   function formatHands(n) {
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     return String(n);
@@ -286,6 +327,9 @@ export function YouScreen() {
             Add chips
           </button>
         </div>
+        {/* WUI-1: superseded by the wallet block when there is a wallet. Two
+            balance figures on one screen is two answers to one question. */}
+        {!wallet && (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
           <ChipGlyph />
           <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: M_TEXT }}>
@@ -294,7 +338,12 @@ export function YouScreen() {
           <div style={{ flex: 1 }} />
           <Lbl size={9}>Balance</Lbl>
         </div>
+        )}
       </div>
+
+      {/* ── WUI-1 · the wallet and the pockets ────────────────────── */}
+      <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agentCount} />
+      <PocketList agents={pocketAgents} onFund={setFundTarget} onCollect={handleCollect} />
 
       {/* ── Lifetime stats ────────────────────────────────────────── */}
       <div style={{ padding: '0 14px', marginBottom: 7, flexShrink: 0 }}>
