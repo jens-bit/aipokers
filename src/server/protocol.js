@@ -38,6 +38,21 @@ export const ServerMsg = Object.freeze({
   // TABLE_CLOSED instead, so a client that predates this message behaves
   // exactly as before.
   SEAT_LEFT: 'seat_left',   // { type, seat, displayName, reason }
+  // PACE-1 (additive): the pacing ladder, server-authoritative. Sent to every
+  // socket at the table whenever the state advances within a hand, and once at
+  // each deal to reset it to 'calm'. `pace` is one of calm | heating | allin |
+  // showdown; `potBb` is the pot in big blinds at the moment it changed.
+  // During a spectator-only all-in hold the runout arrives here card by card,
+  // as `board` (the cards visible so far) and `card` (the one just turned) —
+  // the STATE snapshot already holds the finished board, so a client that
+  // ignores PACE sees exactly what it saw before this message existed.
+  PACE: 'pace',             // { type, tableId, pace, potBb, board?, card? }
+  // PACE-1 (additive): the agent's read on one opponent, for the owner's
+  // spectator only. Never sent to a seated player or to a spectator watching
+  // someone else's agent.
+  READ: 'read',             // { type, tableId, seat, reads: [{ playerId,
+                            //   displayName, handsObserved, formed, line,
+                            //   rows: [{ k, label, value, confidence, formed }] }] }
   // AGE-38 floor channel (server → subscriber).
   FLOOR_STATE: 'floor_state', // { type, userId, agents: [{ id, name, presence, mood,
                               //   lastMoment, sessionRecap, unseenRecap, proposal,

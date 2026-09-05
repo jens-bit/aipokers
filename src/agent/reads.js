@@ -170,5 +170,115 @@ export function formatOpponentRead(read, { minHands = 10, reads = null, deceptio
   return lines;
 }
 
+// ── PACE-1: the READ panel ──────────────────────────────────────────────────
+// The opponent model has existed since AGE-30 and nothing ever surfaced it. The
+// watch panel (design-refs/mood-watch3.jsx, ReadPanel/ReadBar) draws five bars
+// that fill as evidence arrives, with a confidence bracket that narrows — "the
+// READS attribute decides how fast that happens, which is the first place an
+// attribute is felt rather than read".
+//
+// The rows and their labels are the ref's, in the ref's order. Nothing here
+// invents a statistic: every row is a number opponentStats already keeps, and a
+// row with no evidence behind it reports `null` rather than a plausible-looking
+// zero. Before evidence he says so — never "waiting for the first action".
+
+export const READ_ROWS = Object.freeze([
+  { k: 'vpip', label: 'PLAYS' },
+  { k: 'pfr',  label: 'RAISES FIRST' },
+  { k: 'aggr', label: 'AGGRESSION' },
+  { k: 'fold', label: 'FOLDS TO HEAT' },
+  { k: 'sd',   label: 'GOES TO SHOWDOWN' },
+]);
+
+// An aggression factor is a ratio, not a percentage: 0 is a pure caller and
+// anything at or above 3 is as aggressive as the bar can show.
+export const AF_FULL_SCALE = 3;
+
+function afToBar(af) {
+  if (af === Infinity) return 100;
+  if (!Number.isFinite(af)) return null;
+  return Math.max(0, Math.min(100, Math.round((af / AF_FULL_SCALE) * 100)));
+}
+
+function pct(v) {
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null;
+}
+
+// Confidence is evidence, nothing else. It reaches 1 at three times the number
+// of hands this hero needs before he will act on a read at all — so a sharp
+// reader is confident sooner, and the bracket on the bar is his certainty
+// rather than the statistic's.
+export function readConfidence(handsObserved, gate) {
+  const n = Number(handsObserved);
+  const need = Math.max(1, Number(gate) || 10) * 3;
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Number(Math.min(1, n / need).toFixed(2));
+}
+
+// One short line, in HIS voice, for the shape classifyOpponent already
+// recognises. The classifier and its four shapes are the reused part; the
+// EXPLOIT text itself is a second-person directive written for a model prompt
+// and would read as a lecture on a watch panel.
+const READ_VOICE = Object.freeze({
+  station: 'He calls everything. I stop bluffing and start charging him.',
+  maniac:  'He never stops firing. I let him bet my good hands for me.',
+  nit:     'He folds far too often. That is where the money is.',
+  tag:     'He is a real player. No heroics against this one.',
+});
+
+export const _READ_VOICE = READ_VOICE;
+
+/**
+ * The panel for one opponent, as the watch screen renders it.
+ *
+ * Gated by exactly the same evidence bar the briefing uses — readMinHands with
+ * the hero's READS and the subject's DECEPTION — so the panel can never show a
+ * read the agent is not yet playing with. That equality is the point: the bars
+ * are the receipt for a decision, not a separate opinion.
+ *
+ * @returns {{ playerId, displayName, handsObserved, gate, formed, line, rows }}
+ */
+export function readPanel(read, { reads = null, deception = null, minHands = 10 } = {}) {
+  const gate = readMinHands({ reads, deception, base: minHands });
+  const handsObserved = Number.isFinite(read?.handsObserved) ? read.handsObserved : 0;
+  const formed = !!read && handsObserved >= gate;
+  const confidence = readConfidence(handsObserved, gate);
+
+  const values = {
+    vpip: pct(read?.vpip),
+    pfr:  pct(read?.pfr),
+    aggr: afToBar(read?.af),
+    fold: pct(read?.foldToRaise),
+    sd:   pct(read?.wentToShowdown),
+  };
+
+  const rows = READ_ROWS.map(({ k, label }) => {
+    const value = values[k] ?? null;
+    return {
+      k,
+      label,
+      value,
+      // A row with no evidence behind it is honest about that: null, zero
+      // confidence, and no claim to be formed.
+      confidence: value == null ? 0 : confidence,
+      formed: formed && value != null,
+    };
+  });
+
+  const shape = formed ? classifyOpponent(read) : null;
+  const line = shape && exploitsAllowed(reads) ? (READ_VOICE[shape] ?? null) : null;
+
+  return {
+    playerId: read?.playerId ?? null,
+    displayName: read?.displayName ?? read?.playerId ?? null,
+    handsObserved,
+    gate: Number(gate.toFixed(1)),
+    formed,
+    shape: shape ?? null,
+    line,
+    rows,
+  };
+}
+
 // Exposed for tests.
 export const _EXPLOITS = EXPLOITS;

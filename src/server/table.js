@@ -15,6 +15,7 @@ import {
   addFlaggedHand,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
+import { PACE, paceFor, advancePace, potInBb, holdPlan, seedFor } from './pace.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -28,6 +29,7 @@ import {
   handEvidence,
 } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
+import { readPanel } from '../agent/reads.js';
 import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
@@ -178,7 +180,22 @@ export class Table {
     // Per-street raise counter, keyed by `${handNumber}:${street}`. Reset at
     // maybeStartHand and mutated in _incrementRaiseCountIfAggressive after
     // every applied bet/raise. Consumed by _buildAiGameState.
+    // PACE-1: the pacing ladder for the hand in progress. Reset to CALM at each
+    // deal; only ever advances within a hand.
+    this.pace = PACE.CALM;
+    // The board as it stood before the action that closed the hand — the cards
+    // the client has actually been shown. The engine runs the rest of the board
+    // out synchronously, so without this snapshot there is nothing left to
+    // reveal one card at a time.
+    this._boardBeforeAct = [];
     this._raiseCounts = {};
+    this._paceTimers = [];                         // PACE-1 staged-hold timers
+    // PACE-1b: hero equity is Monte Carlo and the felt asks for it on every
+    // snapshot, so it is computed once per (hand, board, seat) and reused.
+    this._heroEquity = new Map();
+    // The formed-read fingerprint per seat, so a READ message is sent when the
+    // picture actually changes rather than on every broadcast.
+    this._readFingerprint = new Map();
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
     this._houseFallbackTimer = null;               // 5s delay before auto-seating House
     this.sessionBiggestPot = 0;                    // session high-water pot; flaggedHands tracks it
@@ -604,6 +621,8 @@ export class Table {
   }
 
   _clearTimers() {
+    for (const t of this._paceTimers ?? []) clearTimeout(t);
+    this._paceTimers = [];
     if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
     if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
     if (this._nextHandTimer) { clearTimeout(this._nextHandTimer); this._nextHandTimer = null; }
@@ -879,11 +898,18 @@ export class Table {
   // of view. A watcher joining mid-hand gets the hand in progress rather than
   // an empty board and a "Waiting…" placeholder. No-op when no hand has been
   // dealt yet — there is nothing to show.
+  // AGE-36: hand a watcher the hand already in progress. PACE-1b: including
+  // his agent's equity and read, because this snapshot IS the mid-hand case —
+  // a watcher who attaches on the turn saw a dash until somebody acted, which
+  // on a checked-down street could be the rest of the hand.
   sendSnapshot(ws, seat) {
     if (!ws || ws.readyState !== ws.OPEN) return;
     if (!this.game) return;
     if (seat < 0 || seat >= this.game.seats.length) return;
     const state = this._augmentState(this.game.getPublicState(seat));
+    state.heroEquity = this._heroEquityFor(seat);
+    const reads = this._readsFor(seat);
+    if (reads) state.reads = reads;
     ws.send(JSON.stringify({
       type: ServerMsg.STATE,
       state,
@@ -1094,8 +1120,12 @@ export class Table {
     this.currentHandStartStacks = this.game.seats.map((s) => s.stack);
     this._raiseCounts = {};
     this._streetAtActionCapture = null;
+    this.pace = PACE.CALM;
+    this._boardBeforeAct = [];
+    this._heroEquity.clear();
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
+    this._broadcastPace({ force: true });
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -1106,10 +1136,12 @@ export class Table {
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
     const streetBefore = this.game.street;
+    this._boardBeforeAct = [...this.game.community];
     this.game.act(seat, action);
     this._incrementRaiseCountIfAggressive(action);
     this._logAction(seat, streetBefore, action);
     this._resetAiInactivityTimer();
+    this._broadcastPace();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
   }
@@ -1139,7 +1171,15 @@ export class Table {
   _handCompleted() {
     this.handsThisSession++;
     this.actionDeadline = null;
-    this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
+    // PACE-1: with a spectator attached and a stack committed, the pot does not
+    // move yet — the runout is revealed a card at a time and the finished board
+    // is held first. Unwatched, this returns 0 and the hand resolves exactly as
+    // it always did: a five-second pause nobody sees is a worse win rate.
+    const holdMs = this._paceHold(this.game.result);
+    if (holdMs === 0) {
+      this._broadcastPace({ pace: PACE.SHOWDOWN });
+      this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
+    }
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
     this._reportHandResults(this.game.result);
@@ -1189,7 +1229,7 @@ export class Table {
     // the session loop; a legacy spectator-created AI table keeps its old
     // 2.5s tempo until startSessionLoop takes it over.
     if (this.isAiOnly()) {
-      this._scheduleNextHand(this.autoPlay ? this.handPauseMs : 2500);
+      this._scheduleNextHand((this.autoPlay ? this.handPauseMs : 2500) + holdMs);
     }
   }
 
@@ -1589,13 +1629,20 @@ export class Table {
       const legal = this.game.legalActions(seat);
       ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
     }
-    // Send read-only state to spectators (no legal actions).
+    // Send read-only state to spectators (no legal actions). PACE-1b: the seat
+    // a spectator is attached to is his own, so it carries his agent's live
+    // equity and his agent's read on the table — the same scoping
+    // _broadcastDecision uses for reasoning.
     for (const s of this.spectators) {
       if (!s.ws || s.ws.readyState !== s.ws.OPEN) continue;
       if (s.spectatorSeat >= nGameSeats) continue;
       const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
+      state.heroEquity = this._heroEquityFor(s.spectatorSeat);
+      const reads = this._readsFor(s.spectatorSeat);
+      if (reads) state.reads = reads;
       s.ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: [], yourSeat: s.spectatorSeat }));
     }
+    this._maybeBroadcastReads();
     this._resetStallWatchdog();
     this._notifyStateChange();
     // Schedule AI turn if applicable ÔÇö async, fire-and-forget.
@@ -1616,6 +1663,10 @@ export class Table {
       ...s,
       displayName: this.pending[i]?.displayName || s.playerId,
     }));
+    // PACE-1: the ladder rides every snapshot as well as its own message, so a
+    // client that joins mid-hand is not calm until the next transition.
+    state.pace = this.pace ?? PACE.CALM;
+    state.potBb = potInBb(state.pot ?? this.game?.pot ?? 0, this.bigBlind);
     return state;
   }
 
@@ -1627,6 +1678,163 @@ export class Table {
     for (const s of this.spectators) {
       if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(payload);
     }
+  }
+
+  // ── PACE-1b: what the owner's spectator sees ───────────────────────────
+  // The seat a spectator is attached to is his own — the same rule
+  // _broadcastDecision has always used to decide who may see reasoning and
+  // equity. Neither of the two payloads below goes anywhere else.
+
+  // Hero equity, from the deal rather than from the first decision. The felt
+  // shows a live percentage; before this it showed a dash until the agent
+  // acted, which on a folded-round street could be the whole hand.
+  //
+  // Cached per (hand, board, seat): equity only moves when a card lands, and
+  // 800 iterations on every broadcast for every watcher is a real cost.
+  _heroEquityFor(seat) {
+    const g = this.game;
+    if (!g || seat == null || seat < 0 || seat >= g.seats.length) return null;
+    const me = g.seats[seat];
+    if (!me || me.folded || !Array.isArray(me.holeCards) || me.holeCards.length < 2) return null;
+    if (g.street === Streets.WAITING) return null;
+
+    const key = `${g.handNumber}:${g.community.length}:${seat}`;
+    if (this._heroEquity.has(key)) return this._heroEquity.get(key);
+
+    const activeOpponents = g.seats.filter((s, i) => i !== seat && !s.folded).length;
+    let equity = null;
+    try {
+      equity = estimateEquity({
+        holeCards: me.holeCards,
+        community: g.community,
+        nOpponents: Math.max(1, activeOpponents),
+        iterations: 800,
+      }).equity;
+    } catch (err) {
+      console.warn(`[table:${this.tableId}] hero equity failed:`, err.message);
+    }
+    this._heroEquity.set(key, equity);
+    return equity;
+  }
+
+  // His picture of everyone else at the table, gated by exactly the evidence
+  // bar the briefing uses — so the panel can never show a read he is not
+  // already playing with.
+  _readsFor(seat) {
+    // An AI seat, not necessarily a STORED agent: a watcher who arrives with no
+    // agentId still gets a seat and still forms reads, and gating this on a
+    // saved record would leave that panel permanently blank. Without a record
+    // there are no attributes either, so the evidence bar falls back to the
+    // same default the briefing uses.
+    if (!this.aiSeats[seat]) return null;
+    const attrs = this._seatAttrs(seat);
+    const out = [];
+    for (let i = 0; i < this.maxSeats; i++) {
+      if (i === seat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      const panel = readPanel(getOpponentRead(pid), {
+        reads: attrs?.READS ?? null,
+        deception: this._seatAttrs(i)?.DECEPTION ?? null,
+      });
+      out.push({ ...panel, seat: i, displayName: panel.displayName ?? this.pending[i]?.displayName ?? pid });
+    }
+    return out.length > 0 ? out : null;
+  }
+
+  // A READ message when the picture changes — a read forming is an event, and
+  // the panel animates on it. Silent otherwise, however often state is pushed.
+  _maybeBroadcastReads() {
+    for (const spec of this.spectators) {
+      if (!spec.ws || spec.ws.readyState !== spec.ws.OPEN) continue;
+      const seat = spec.spectatorSeat;
+      const reads = this._readsFor(seat);
+      if (!reads) continue;
+      const fingerprint = reads.map((r) => `${r.playerId}:${r.formed ? 1 : 0}:${r.shape ?? ''}`).join('|');
+      if (this._readFingerprint.get(seat) === fingerprint) continue;
+      this._readFingerprint.set(seat, fingerprint);
+      spec.ws.send(JSON.stringify({ type: ServerMsg.READ, tableId: this.tableId, seat, reads }));
+    }
+  }
+
+  // ── PACE-1 ──────────────────────────────────────────────────────────────
+  // Is a seat that is still in the hand all-in, and can anyone still act?
+  _allInState() {
+    const g = this.game;
+    if (!g) return { anyAllIn: false, actionClosed: false };
+    const live = g.seats.filter((s) => !s.folded);
+    const anyAllIn = live.some((s) => s.allIn);
+    const canAct = live.filter((s) => !s.allIn);
+    return { anyAllIn, actionClosed: canAct.length <= 1 };
+  }
+
+  // Recompute the ladder and broadcast it if it advanced. The client is TOLD
+  // the state — it never derives it from the pot, so two watchers warm the felt
+  // on the same hand.
+  _broadcastPace({ force = false, pace = null, board = null, card = null } = {}) {
+    const g = this.game;
+    const potChips = g?.pot ?? 0;
+    const { anyAllIn, actionClosed } = this._allInState();
+    const next = pace ?? paceFor({
+      potChips,
+      bigBlind: this.bigBlind,
+      anyAllIn,
+      actionClosed,
+      revealed: g?.street === Streets.SHOWDOWN,
+    });
+    const advanced = advancePace(this.pace, next);
+    if (!force && advanced === this.pace && !card) return this.pace;
+    this.pace = advanced;
+    const msg = {
+      type: ServerMsg.PACE,
+      tableId: this.tableId,
+      pace: this.pace,
+      potBb: potInBb(potChips, this.bigBlind),
+    };
+    if (board) msg.board = [...board];
+    if (card) msg.card = card;
+    this._broadcast(msg);
+    return this.pace;
+  }
+
+  // The staged beat: his line lands, three to five seconds of nothing, the
+  // runout a card at a time, the finished board held, and only then the pot.
+  // Returns 0 when there is nothing to stage, so the caller carries on as before.
+  _paceHold(result) {
+    if (!result) return 0;
+    const watched = this.spectators.length > 0;
+    const { anyAllIn } = this._allInState();
+    if (!watched || !anyAllIn) return 0;
+
+    const finalBoard = [...(this.game?.community ?? [])];
+    const heldBoard = this._boardBeforeAct.slice(0, finalBoard.length);
+    const runout = finalBoard.slice(heldBoard.length);
+
+    const plan = holdPlan({
+      heldBoard,
+      runout,
+      seed: seedFor(this.tableId, this.game?.handNumber ?? 0),
+      watched: true,
+    });
+    if (plan.frames.length === 0) return 0;
+
+    for (const f of plan.frames) {
+      const t = setTimeout(() => {
+        if (this.closed) return;
+        this._broadcastPace({ pace: f.pace, board: f.board, card: f.card });
+      }, f.at);
+      t.unref?.();
+      this._paceTimers.push(t);
+    }
+    const award = setTimeout(() => {
+      if (this.closed) return;
+      this._broadcast({ type: ServerMsg.HAND_RESULT, result });
+    }, plan.awardAt);
+    award.unref?.();
+    this._paceTimers.push(award);
+
+    console.log(`[table:${this.tableId}] pace hold ${plan.holdMs}ms + ${runout.length} card(s) → award at ${plan.awardAt}ms`);
+    return plan.totalMs;
   }
 
   // BUG-12 / BUG-15: an AI seat's reasoning/equity are secret from every
@@ -2122,10 +2330,12 @@ export class Table {
     });
 
     const streetBefore = this.game.street;
+    this._boardBeforeAct = [...this.game.community];
     try {
       this.game.act(aiSeat, action);
       this._incrementRaiseCountIfAggressive(action);
       this._logAction(aiSeat, streetBefore, action);
+      this._broadcastPace();
       this._broadcastDecision({
         seat: aiSeat,
         action,

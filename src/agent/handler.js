@@ -19,6 +19,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
+import { voiceLine, VOICE_MAX_WORDS } from './voice.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -43,8 +44,22 @@ JSON format (the "amount" key is required for bet/raise, omit otherwise):
 For bet/raise, "amount" is the TOTAL chips you want committed this street
 (your existing contribution plus any additional you're putting in now).
 
-The "reasoning" field is required for every decision: one punchy sentence,
-max 12 words, why you made this specific decision right now.`;
+The "reasoning" field is what you SAY, out loud, at the table — it is printed
+under your face while your owner watches you play, and it is the only thing he
+hears from you during a hand.
+
+Say it the way a player at the table would, in your own character:
+  "Ace-ten. Fine. Let's see who's home."
+  "He's missed this flop twice already."
+  "Nothing here. Away it goes."
+
+NEVER write poker theory. No bet sizes in blinds, no percentages, no "range",
+no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
+"line", no "villain", no "hero". A sentence like "tight aggressive line—open
+3bb standard" is exactly wrong: that is a solver talking, and nobody wants to
+watch a solver. Talk about the hand, the opponent, or the moment.
+
+Maximum ${VOICE_MAX_WORDS} words. One sentence or two short ones.`;
 }
 
 // Short in-prompt hint tied to a mood state. Kept bounded per Mood Design
@@ -251,9 +266,20 @@ function parseDecision(text, gs) {
       actionType = parsed.action;
       amount = parsed.amount;
     }
-    const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : '';
+    const rawReasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : '';
+    const action = validateAction(actionType, amount, gs);
 
-    return { action: validateAction(actionType, amount, gs), reasoning };
+    // PACE-1c: the prompt asks for his voice; this guarantees it. A line that
+    // reads as solver output is replaced with a template one in his register
+    // rather than shown, and everything is capped at twelve words. The
+    // structured fields (equity, potOdds) are untouched — this is only the
+    // sentence a person reads.
+    const spoken = voiceLine(rawReasoning, { holeCards: gs.holeCards, action });
+    if (spoken.reason === 'solver speak') {
+      console.log(`[agent] solver speak rejected: "${rawReasoning.slice(0, 60)}"`);
+    }
+
+    return { action, reasoning: spoken.line };
   } catch (err) {
     console.warn('[agent] parse failed:', err.message, '| raw:', text.slice(0, 80));
     return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action' };

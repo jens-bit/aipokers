@@ -309,8 +309,22 @@ console.log('\n' + CONTRACT_BANNER);
     natureHintFor('a grinder who plays all night and sticks to the system')?.name === 'Grinder');
   check('the hint names the signals it read',
     (natureHintFor('tight and disciplined')?.signals ?? []).length === 2);
-  check('the hint is only ever a NAME — never a nature record',
-    Object.keys(natureHintFor('tight and disciplined')).sort().join(',') === 'name,signals');
+  // The rule: a GUESS must never be mistakeable for a BIRTH. PACE-1d added the
+  // dials the guess was made from, so the birth screen's temperament chip and
+  // its profile strip cannot disagree — that is still a guess, not a nature.
+  // What must never appear is the nature record's own fields.
+  check('the hint is a guess, never a nature record', (() => {
+    const hint = natureHintFor('tight and disciplined');
+    const forbidden = ['up', 'down', 'line', 'builtFor', 'struggle'];
+    return typeof hint.name === 'string'
+      && Array.isArray(hint.signals)
+      && forbidden.every((k) => hint[k] === undefined);
+  })());
+  check('the hint carries the dials it was made from, and nothing else', (() => {
+    const hint = natureHintFor('tight and disciplined');
+    return Object.keys(hint).sort().join(',') === 'name,profile,signals'
+      && Object.keys(hint.profile).sort().join(',') === 'aggression,bluffFreq,discipline,tightness';
+  })());
   check('a hint agrees with the birth the same words would produce', (() => {
     const text = 'I want a patient tight player who folds a lot';
     const hint = natureHintFor(text).name;

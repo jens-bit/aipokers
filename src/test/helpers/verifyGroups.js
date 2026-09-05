@@ -33,6 +33,10 @@ export const EXCLUDED = new Map([
 // Required before every merge to main.
 export const E2E = new Set([
   'verify-multi-seat.js',
+  // PACE-1: the staged all-in beat is a real ~11s wall-clock hold (3-5s on the
+  // line, 700ms a card, 2s on the finished board). Asserting it means waiting
+  // it out, and that belongs in the slow group by definition.
+  'verify-pace.js',
   'verify-personality-layer.js',
   'verify-server-life.js',
   'verify-watch-v2.js',
