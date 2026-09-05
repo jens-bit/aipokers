@@ -1,11 +1,22 @@
 // NAV-1d — birth/create flow ported from design-refs/mood-birth.jsx.
 // FormingGhost · DraftBand · DraftStrip · BirthScreen (chat-first draft)
 // MaterializingOccupant — exported for App.jsx to overlay on the CASINO floor.
+//
+// ATTR-2c — the nature reveal from design-refs/char-birth.jsx.
+// VOICE LAW: before birth the drafting voice is the RECRUITER — system
+// furniture, neutral border, no mood, no pip. Nobody speaks for the agent
+// before he exists, and his first words are his nature. The recruiter may show
+// a nature FORMING but never commits: the client never picks one, it only
+// renders what the server assigned.
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { M_TEAL } from '../components/floor/atoms.jsx';
 import { MoodBand } from '../components/system/MoodBand.jsx';
+import { MoodGhost } from '../components/system/MoodGhost.jsx';
+import { AttrCluster } from '../components/system/AttrCluster.jsx';
+import { NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
+import { normalizeAttrs } from '../lib/attributes.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -17,6 +28,8 @@ const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
 const M_FAINT   = '#3A3A3F';
 const M_GOLD    = '#CDB380';
+const M_SURF    = '#2F2F37';
+const M_BORDER_2 = 'rgba(255,255,255,0.18)';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -269,6 +282,174 @@ function SysLine({ children }) {
   );
 }
 
+// Clock label for the recruiter's meta line and the birth card's timestamp.
+function hhmm(d = new Date()) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+
+// ── RecruiterBubble ───────────────────────────────────────────────────────
+// Port of RecruiterBubble from char-birth.jsx. System furniture: neutral border,
+// no mood, no pip — because there is nobody to have a mood yet. Replaces the
+// forming-ghost bubble in create mode, where the speaker is the recruiter.
+function RecruiterBubble({ time, children }) {
+  return (
+    <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+        background: M_SURF, border: `1px solid ${M_BORDER_2}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, color: M_MUTED }}>R</span>
+      </div>
+      <div style={{ maxWidth: 258 }}>
+        <div style={{
+          background: M_PANEL_2, border: `1px solid ${M_BORDER_2}`,
+          borderRadius: 12, borderBottomLeftRadius: 4, padding: '9px 12px',
+        }}>
+          <div style={{ fontSize: 13.5, color: M_TEXT, lineHeight: 1.5 }}>{children}</div>
+        </div>
+        {time && (
+          <div style={{ marginTop: 3, paddingLeft: 2 }}>
+            <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>RECRUITER · {time}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ── The nature reveal ─────────────────────────────────────────────────────
+// Port of NatureRevealOccupant from char-birth.jsx. Order is the whole beat:
+// his line, then the ghost, then the name chip, then the nature chip last — the
+// chip is the label the room puts on him, so it cannot arrive before he does.
+function NatureReveal({ name, first, nature }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      {first && (
+        <div style={{
+          width: 218, marginBottom: 2,
+          background: 'rgba(17,23,32,0.94)', border: `1px solid ${M_TEAL}55`,
+          borderRadius: 10, borderBottomLeftRadius: 3, padding: '8px 11px',
+          boxShadow: `0 0 18px ${M_TEAL}22`, animation: 'birth-rise 0.5s ease-out both',
+        }}>
+          <div style={{ fontSize: 12, color: M_TEXT, lineHeight: 1.45 }}>{first}</div>
+        </div>
+      )}
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          position: 'absolute', left: '50%', top: '48%', width: 64, height: 64,
+          transform: 'translate(-50%, -50%)', pointerEvents: 'none',
+          background: `radial-gradient(circle, ${M_TEAL}26, transparent 72%)`,
+          animation: 'birth-fadein 0.8s ease-out both',
+        }} />
+        <FormingGhost size={54} phase={0.72} />
+      </div>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        height: 17, padding: '0 7px', borderRadius: 4,
+        background: 'rgba(19,19,22,0.7)', border: `1px dashed ${M_TEAL}66`,
+        opacity: 0.75, animation: 'birth-fadein 1.6s ease-out both',
+      }}>
+        <span style={{ width: 4.5, height: 4.5, borderRadius: '50%', border: `1px dashed ${M_TEAL}` }} />
+        <span style={{ fontSize: 10, color: M_TEXT, fontWeight: 500 }}>{name}</span>
+      </div>
+      <div style={{ animation: 'birth-rise 0.6s ease-out 0.2s both', marginTop: 2 }}>
+        <NatureChip nature={nature} />
+      </div>
+    </div>
+  );
+}
+
+
+// ── BirthCardSheet ────────────────────────────────────────────────────────
+// Port of BirthCardSheet from char-birth.jsx. Every number is exact and every
+// ceiling is a guess: the bands are at their widest here and close as he plays.
+// Nothing on this sheet is bought and none of it is re-rolled.
+function BirthCardSheet({ name, nature, character, time, onDealIn }) {
+  return (
+    <div style={{
+      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 7,
+      maxHeight: '78%', overflowY: 'auto',
+      background: M_PANEL, borderTop: `1px solid ${M_GOLD}44`,
+      borderTopLeftRadius: 18, borderTopRightRadius: 18,
+      boxShadow: '0 -18px 40px rgba(0,0,0,0.5)',
+      padding: '9px 14px 16px', animation: 'birth-sheetup 0.45s ease-out both',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+        <div style={{ width: 34, height: 4, borderRadius: 2, background: M_FAINT }} />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_GOLD }}>
+          The card he was born with
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>{time}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+          background: '#0A0F17', border: `1px solid ${M_TEAL}44`,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
+        }}>
+          <MoodGhost mood="neutral" accent={M_TEAL} size={46} ring={false} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: PLAYFAIR, fontSize: 19, fontWeight: 600, color: M_TEXT, letterSpacing: '-0.01em' }}>{name}</div>
+          <div style={{ marginTop: 6 }}><NatureChip nature={nature} /></div>
+        </div>
+      </div>
+
+      {/* The +/− in words. Two rows, no icons, no scores — and only when the
+          server authored them: the client never writes his biography. */}
+      {(nature?.builtFor || nature?.struggle) && (
+        <div style={{ padding: '11px 12px', borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {nature.builtFor && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ width: 74, flexShrink: 0, fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.13em', color: M_TEAL, paddingTop: 1 }}>BUILT FOR</span>
+                <span style={{ flex: 1, fontSize: 12.5, color: M_DIM, lineHeight: 1.45 }}>{nature.builtFor}</span>
+              </div>
+            )}
+            {nature.struggle && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ width: 74, flexShrink: 0, fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.13em', color: M_MUTED, paddingTop: 1 }}>WILL<br />STRUGGLE</span>
+                <span style={{ flex: 1, fontSize: 12.5, color: M_MUTED, lineHeight: 1.45 }}>{nature.struggle}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_MUTED }}>Attributes</span>
+        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>CEILING NOT YET SCOUTED</span>
+      </div>
+      <div style={{ padding: '12px 12px 13px', borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, marginBottom: 13 }}>
+        <AttrCluster rows={character.rows} />
+      </div>
+
+      <button
+        type="button"
+        onClick={onDealIn}
+        style={{
+          width: '100%', height: 46, padding: '0 14px', borderRadius: 8,
+          border: 'none', background: M_TEAL, color: '#0A0A0A',
+          boxShadow: `0 0 14px ${M_TEAL}44`, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: OSWALD, fontSize: 11, fontWeight: 600,
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+        }}
+      >
+        Deal him in
+      </button>
+    </div>
+  );
+}
+
+
 // ── MaterializingOccupant ─────────────────────────────────────────────────
 // Exported: rendered as an absolute overlay on the CASINO floor after birth.
 export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
@@ -346,11 +527,18 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   const [phase, setPhase]     = useState(isEdit ? 0.72 : 0);
   const [agentName, setAgentName] = useState(isEdit ? agent.name : null);
   const [pendingDiff, setPendingDiff] = useState(null);
+  // The nature reveal. `born` holds the newborn once the server has assigned
+  // him a nature; `beat` walks the two moments — the reveal on the floor, then
+  // the card he was born with. Both stay null when the server sends no nature,
+  // and the flow falls back to the shipped straight-to-floor birth.
+  const [born, setBorn] = useState(null);
+  const [beat, setBeat] = useState(null);
 
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
   const msgIdRef  = useRef(0);
-  const mkMsg = (role, content, diff = null) => ({ role, content, diff, _id: ++msgIdRef.current });
+  const mkMsg = (role, content, diff = null) => ({ role, content, diff, at: hhmm(), _id: ++msgIdRef.current });
+  const openedAt = useRef(hhmm());
 
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
@@ -372,6 +560,31 @@ export function BirthScreen({ onBack, onBirth, agent }) {
     if (atBottom) el.scrollTop = el.scrollHeight;
   }, [chat, loading]);
 
+  // He exists. If the server gave him a nature, play the two beats from
+  // char-birth.jsx — the reveal, then the card he was born with — and hand off
+  // when the owner deals him in. If it did not, the nature is still forming and
+  // there is nothing to announce: go straight to the floor, as before. A nature
+  // is never invented here.
+  async function revealOrDeal(newborn) {
+    let record = null;
+    try {
+      const res = await fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, {
+        headers: { 'x-telegram-init-data': getTelegramInitData() },
+      });
+      const data = await res.json();
+      record = (data.agents || []).find((a) => a.id === newborn.id) ?? null;
+    } catch { /* no record — treat him as still forming */ }
+
+    const character = normalizeAttrs(record);
+    if (!character.nature) {
+      setTimeout(() => onBirth(newborn), 1200);
+      return;
+    }
+    setBorn({ ...newborn, first: record?.firstWords ?? character.nature.line, character });
+    setBeat('reveal');
+    setTimeout(() => setBeat('card'), 2200);
+  }
+
   async function send(content = draft) {
     const text = content.trim();
     if (!text || loading) return;
@@ -392,7 +605,13 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       const allAi = (data.chat || []).filter((m) => m.role === 'assistant');
       const reply = allAi[allAi.length - 1];
       const diff = data.diff || null;
-      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content, diff)]);
+      if (reply) {
+        const m = mkMsg('assistant', reply.content, diff);
+        // A nature the recruiter is only guessing at. Server-authored or absent —
+        // the chip renders a neutral "Temperament?" when nothing is hinted.
+        if (data.natureHint) m.natureHint = data.natureHint;
+        setChat((prev) => [...prev, m]);
+      }
 
       aiCount.current += 1;
       const newPhase = data.agentId ? 1.0 : Math.min(0.98, isEdit ? 0.72 + aiCount.current * 0.09 : aiCount.current * 0.28);
@@ -401,7 +620,7 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       if (data.agentId) {
         const name = data.agentName || agentName || 'New agent';
         setAgentName(name);
-        setTimeout(() => onBirth({ id: data.agentId, name, strategy: data.strategy || '' }), 1200);
+        revealOrDeal({ id: data.agentId, name, strategy: data.strategy || '' });
       }
     } catch {
       setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — try again.')]);
@@ -424,9 +643,16 @@ export function BirthScreen({ onBack, onBirth, agent }) {
     ? null
     : 'Plain words work. "Patient, hates bluffing, folds when it smells wrong."';
 
+  // Voice law: the RECRUITER drafts; the agent speaks only once he exists.
+  // Rebuild mode is an existing agent talking, so it keeps his own bubble.
+  const Voice = isEdit ? AgentBubble : RecruiterBubble;
+
   return (
-    <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
+    <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG, position: 'relative' }}>
       <style>{`
+        @keyframes birth-rise   { from { opacity: 0; transform: translateY(7px); }  to { opacity: 1; transform: none; } }
+        @keyframes birth-fadein { from { opacity: 0; }                              to { opacity: 1; } }
+        @keyframes birth-sheetup{ from { opacity: 0; transform: translateY(38px); } to { opacity: 1; transform: none; } }
         @keyframes drift {
           0%   { transform: translateY(0px); }
           50%  { transform: translateY(-5px); }
@@ -485,14 +711,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
             </div>
             <div style={{ flexShrink: 0, paddingBottom: 4 }}>
               <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
-              <AgentBubble>
+              <Voice time={openedAt.current}>
                 <>
                   {openingLine}
                   {openingNote && (
                     <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
                   )}
                 </>
-              </AgentBubble>
+              </Voice>
             </div>
           </div>
         ) : (
@@ -507,15 +733,15 @@ export function BirthScreen({ onBack, onBirth, agent }) {
             <div style={{ position: 'relative', zIndex: 1, paddingTop: 10 }}>
               <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
 
-              {/* Opening AI prompt always shown */}
-              <AgentBubble>
+              {/* Opening prompt always shown */}
+              <Voice time={openedAt.current}>
                 <>
                   {openingLine}
                   {openingNote && (
                     <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
                   )}
                 </>
-              </AgentBubble>
+              </Voice>
 
               {/* Conversation */}
               {chat.map((msg, i) => (
@@ -523,7 +749,7 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                   ? <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
                   : (
                     <span key={msg._id}>
-                      <AgentBubble>{msg.content}</AgentBubble>
+                      <Voice time={msg.at}>{msg.content}</Voice>
                       {/* DiffCard after agent message if a rebuild proposal is present */}
                       {msg.diff && (
                         <div style={{ padding: '0 14px', marginBottom: 9 }}>
@@ -544,18 +770,27 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                       )}
                       {/* DraftStrip after each AI reply while still forming (create mode only) */}
                       {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
-                        <div style={{ padding: '0 14px', marginBottom: 9 }}>
-                          <DraftStrip />
-                        </div>
+                        <>
+                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                            <DraftStrip />
+                          </div>
+                          {/* His temperament is not something you set, and nothing
+                              is fixed until he exists — so the chip is a dashed
+                              guess with no zero-sum pair. It prints a name only
+                              if the server hinted one. */}
+                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                            <NatureFormingChip guess={msg.natureHint} />
+                          </div>
+                        </>
                       )}
                     </span>
                   )
               ))}
 
               {loading && (
-                <AgentBubble>
+                <Voice>
                   <span className="dr-typing"><i /><i /><i /></span>
-                </AgentBubble>
+                </Voice>
               )}
             </div>
           </>
@@ -622,6 +857,40 @@ export function BirthScreen({ onBack, onBirth, agent }) {
           </button>
         </form>
       </div>
+
+      {/* The nature reveal — two beats, then he is the owner's to deal in.
+          BirthNatureFloorScreenM: his line, the ghost, the name chip, the badge.
+          BirthCardScreenM: the room dims and the card he was born with rises. */}
+      {born && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 20, overflow: 'hidden' }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: beat === 'card' ? 'rgba(8,8,10,0.62)' : 'rgba(8,8,10,0.32)',
+            transition: 'background 0.4s ease-out',
+          }} />
+          <div style={{
+            position: 'absolute', left: 0, right: 0,
+            top: beat === 'card' ? '6%' : '22%',
+            display: 'flex', justifyContent: 'center',
+            transition: 'top 0.45s ease-out', pointerEvents: 'none',
+          }}>
+            <NatureReveal
+              name={born.name}
+              first={beat === 'card' ? null : born.first}
+              nature={born.character.nature}
+            />
+          </div>
+          {beat === 'card' && (
+            <BirthCardSheet
+              name={born.name}
+              nature={born.character.nature}
+              character={born.character}
+              time={hhmm()}
+              onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
