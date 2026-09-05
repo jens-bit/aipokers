@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { seedOwner } from './wallet.js';
 
 const SCHEMA_VERSION = '1';
 
@@ -100,9 +101,30 @@ function applySchema(d) {
       data       TEXT    NOT NULL,
       updated_at INTEGER NOT NULL DEFAULT 0
     );
+
+    -- WALLET-1: the owner's money, separate from the roll each agent carries.
+    CREATE TABLE IF NOT EXISTS wallets (
+      owner_id   TEXT PRIMARY KEY,
+      balance    INTEGER NOT NULL DEFAULT 0,
+      ledger     TEXT    NOT NULL DEFAULT '[]',
+      updated_at INTEGER NOT NULL DEFAULT 0
+    );
   `);
+
+  // WALLET-1: pockets live inside the agent record, but the wallet screen asks
+  // for one aggregate over them ("in pockets"), so that one field is lifted to
+  // a column and answered with SUM() instead of walking every agent record.
+  // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
+  addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
+
   d.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)')
     .run('schema_version', SCHEMA_VERSION);
+}
+
+function addColumnIfMissing(d, table, column, decl) {
+  const cols = d.prepare(`PRAGMA table_info(${table})`).all();
+  if (cols.some((c) => c.name === column)) return;
+  d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
 }
 
 function metaGet(d, key) {
@@ -130,6 +152,7 @@ function migrateFromJson(d) {
   migrateHands(d);
   migrateOpponents(d);
   migrateNotifications(d);
+  seedWallets(d);
 }
 
 function retire(file) {
@@ -250,14 +273,15 @@ function putProfileRow(d, ownerId, chat) {
 function putAgentRow(d, ownerId, agent, ordinal = 0) {
   const createdAt = Number.isFinite(agent?.createdAt) ? agent.createdAt : ordinal;
   d.prepare(`
-    INSERT INTO agents (owner_id, id, name, status, active_table_id, created_at, updated_at, data)
-    VALUES (@owner_id, @id, @name, @status, @active_table_id, @created_at, @updated_at, @data)
+    INSERT INTO agents (owner_id, id, name, status, active_table_id, created_at, updated_at, pocket_balance, data)
+    VALUES (@owner_id, @id, @name, @status, @active_table_id, @created_at, @updated_at, @pocket_balance, @data)
     ON CONFLICT(owner_id, id) DO UPDATE SET
       name            = excluded.name,
       status          = excluded.status,
       active_table_id = excluded.active_table_id,
       created_at      = excluded.created_at,
       updated_at      = excluded.updated_at,
+      pocket_balance  = excluded.pocket_balance,
       data            = excluded.data
   `).run({
     owner_id: String(ownerId),
@@ -267,6 +291,7 @@ function putAgentRow(d, ownerId, agent, ordinal = 0) {
     active_table_id: agent?.activeTableId ?? null,
     created_at: createdAt,
     updated_at: Date.now(),
+    pocket_balance: Number.isFinite(agent?.pocket?.balance) ? agent.pocket.balance : 0,
     data: JSON.stringify(agent ?? {}),
   });
 }
@@ -416,6 +441,87 @@ export function saveNotificationState(state) {
       if (!keep.has(row.owner_id)) d.prepare('DELETE FROM notification_state WHERE owner_id = ?').run(row.owner_id);
     }
   })();
+}
+
+// ── Wallets (WALLET-1) ───────────────────────────────────────────────────────
+
+export function loadWallet(ownerId) {
+  const row = conn().prepare('SELECT owner_id, balance, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
+  if (!row) return null;
+  return { ownerId: row.owner_id, balance: row.balance ?? 0, ledger: jsonParse(row.ledger, []) };
+}
+
+export function saveWallet(ownerId, wallet) {
+  putWalletRow(conn(), ownerId, wallet);
+}
+
+function putWalletRow(d, ownerId, wallet) {
+  d.prepare(`
+    INSERT INTO wallets (owner_id, balance, ledger, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(owner_id) DO UPDATE SET
+      balance = excluded.balance, ledger = excluded.ledger, updated_at = excluded.updated_at
+  `).run(String(ownerId), Math.max(0, Math.floor(wallet?.balance ?? 0)), JSON.stringify(wallet?.ledger ?? []), Date.now());
+}
+
+// Total chips sitting in this owner's pockets — the wallet screen's "in
+// pockets" tile. This is the query the lifted pocket_balance column exists for.
+export function stakedTotal(ownerId) {
+  const row = conn().prepare('SELECT COALESCE(SUM(pocket_balance), 0) AS total FROM agents WHERE owner_id = ?').get(String(ownerId));
+  return row?.total ?? 0;
+}
+
+// Every owner that has a wallet or an agent — used by the offline conservation
+// check, which has to see owners whose agents are all retired.
+export function listOwners() {
+  return conn().prepare(`
+    SELECT owner_id FROM profiles
+    UNION SELECT owner_id FROM wallets
+    ORDER BY owner_id
+  `).all().map((r) => r.owner_id);
+}
+
+// SEED-1: one-time seed of every owner's wallet from the per-agent bankrolls
+// that existed before this feature. The rule and its justification are in
+// docs/WALLET_DESIGN.md; seedOwner() in wallet.js is the rule itself, kept
+// there so it can be tested without a database.
+//
+// Idempotent via the meta stamp, and again via seedOwner skipping any agent
+// that already has a pocket. Runs in one transaction: a partial seed would
+// break chip conservation, which is the one thing this must never do.
+function seedWallets(d) {
+  if (metaGet(d, 'migrated_wallets_at')) return;
+
+  const owners = d.prepare('SELECT owner_id FROM profiles').all().map((r) => r.owner_id);
+  let seededAgents = 0;
+  let swept = 0;
+
+  d.transaction(() => {
+    for (const ownerId of owners) {
+      const rows = d.prepare('SELECT id, data FROM agents WHERE owner_id = ? ORDER BY created_at, id').all(ownerId);
+      const agents = rows.map((r) => jsonParse(r.data, {}));
+      const result = seedOwner({ userId: ownerId, agents });
+      if (result.seeded === 0 && result.swept === 0) continue;
+
+      for (let i = 0; i < agents.length; i++) putAgentRow(d, ownerId, agents[i], i);
+
+      const existing = d.prepare('SELECT balance, ledger FROM wallets WHERE owner_id = ?').get(ownerId);
+      if (existing) {
+        // A wallet already here means a partly-seeded owner; add rather than
+        // replace so nothing already credited is lost.
+        result.wallet.balance += existing.balance ?? 0;
+        result.wallet.ledger = [...jsonParse(existing.ledger, []), ...result.wallet.ledger];
+      }
+      putWalletRow(d, ownerId, result.wallet);
+
+      seededAgents += result.seeded;
+      swept += result.swept;
+    }
+    metaSet(d, 'migrated_wallets_at', Date.now());
+  })();
+
+  if (seededAgents > 0) {
+    console.log(`[store] seeded wallets — ${seededAgents} pocket(s) from existing bankrolls, ${swept} chip(s) swept to owner wallets`);
+  }
 }
 
 // ── Test / tooling hooks ─────────────────────────────────────────────────────
