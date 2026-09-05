@@ -19,6 +19,7 @@ import {
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import { PACE, paceFor, advancePace, potInBb, holdPlan, seedFor } from './pace.js';
+import { classifyCooler } from './cooler.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -37,6 +38,10 @@ import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
   decisionEffects as moodDecisionEffects,
+  clampHeat,
+  heatForState,
+  HEAT_MIDPOINT,
+  MOOD_STATES,
   EVENT_DELTAS,
 } from '../agent/mood.js';
 import { notifyMoodAlert } from './notifications/telegram.js';
@@ -826,6 +831,51 @@ export class Table {
     return free;
   }
 
+  // SEAT-1a: the posture a seat is holding, for the felt.
+  //
+  // W4-2's law is "seats as characters": an opponent is somebody sitting there,
+  // not a chip with a number on it. The client has drawn the posture since the
+  // WATCH v4 port — SeatGhost takes a mood and bobs faster when it is tilted —
+  // but the wire never carried one, so every opponent on every table stood
+  // neutral. This is the field that was missing.
+  //
+  // It is the SAME value the owner's own watch header reads (agentView.moodOf →
+  // agent.mood.state), taken straight off mood.js with no second mapping. One
+  // vocabulary or the felt and the header will drift: confident | neutral |
+  // frustrated | tilted | sulking, with heat 0–100 alongside it so a client can
+  // tell a 62 from a 94 inside the same band.
+  //
+  // It is PUBLIC on purpose and carries nothing private: mood is the one thing
+  // about an opponent that a person at a real table can see, and the whole
+  // point of the layer is that it is visible. What stays owner-scoped is
+  // `history` — who he has a grudge against is his business, not the room's.
+  //
+  // A seat with no agent record — a House regular, a human — has no mood.js
+  // state to read, because nothing runs the machine for it. It gets the
+  // machine's own resting value rather than an invented one, so the felt shows
+  // a level player instead of a hole. (SEAT-1 asked for heat 20; that is inside
+  // the CONFIDENT band, which would have made every House bot look pleased with
+  // itself. HEAT_MIDPOINT.neutral is the heat that actually reads as neutral,
+  // and state and heat agreeing is the invariant worth keeping.)
+  _seatMood(seat) {
+    const agentId = this.agentIds[seat];
+    if (agentId) {
+      try {
+        const m = getAgentMood(agentId, this.agentUserIds[seat]);
+        if (m) {
+          const state = MOOD_STATES.includes(m.state) ? m.state : 'neutral';
+          return {
+            state,
+            heat: clampHeat(Number.isFinite(m.heat) ? m.heat : heatForState(state)),
+          };
+        }
+      } catch (err) {
+        console.error(`[table:${this.tableId}] seat mood read failed:`, err.message);
+      }
+    }
+    return { state: 'neutral', heat: HEAT_MIDPOINT.neutral };
+  }
+
   // ATTR-1: the seat's six attributes after within-session fatigue. Read from
   // the stored agent record rather than plumbed through every seating path, so
   // House seats and player seats (which have no agent) simply get null and
@@ -997,6 +1047,8 @@ export class Table {
         displayName: this.pending[i]?.displayName ?? s.playerId ?? '',
         stack:       s.stack ?? 0,
         accentColor: this.seatAccentColors[i] ?? null,
+        // SEAT-1a: { state, heat } — see _seatMood.
+        mood:        this._seatMood(i),
         history: includeHole && i !== seat && this.pending[i]?.playerId
           ? getAgentBioRole(agentId, this.agentUserIds[seat], this.pending[i].playerId)
           : null,
@@ -1456,6 +1508,20 @@ export class Table {
     }));
     const winners = Array.isArray(result.winners) ? result.winners : [];
 
+    // SEAT-1b: a cooler is a fact about the HAND, so it is classified once and
+    // both sides are told — the winner dealt it, the loser took it. Read off the
+    // showdown rather than off one seat's equity, which is what used to leave
+    // `coolersDealt` structurally stuck at 0.
+    const coolerHand = classifyCooler({
+      result,
+      seats: this.game.seats,
+      community: this.game.community,
+      bigBlind: this.bigBlind,
+    });
+    if (coolerHand.cooler) {
+      console.log(`[table:${this.tableId}] cooler (${coolerHand.reason}): seat(s) ${coolerHand.winners.join(',')} dealt it to ${coolerHand.losers.join(',')}`);
+    }
+
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
@@ -1464,7 +1530,7 @@ export class Table {
       if (!this._seatIsInGame(seat)) continue;
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
       this._collectHandEvidence(seat, decisions, { won, resultType: result.type });
-      this._recordBiographyHand(seat, decisions, { won, result });
+      this._recordBiographyHand(seat, decisions, { won, result, coolerHand });
       const handSummary = {
         handNumber,
         won,
@@ -1544,18 +1610,29 @@ export class Table {
   // Voice only — nothing here can reach an attribute, a band or the strategy,
   // and the ledger is stored on the agent rather than in opponentStats because
   // it is HIS history with them, not the table's record of them.
-  _recordBiographyHand(seat, decisions, { won, result }) {
+  _recordBiographyHand(seat, decisions, { won, result, coolerHand = null }) {
     const agentId = this.agentIds[seat];
     if (!agentId) return;
     const g = this.game;
     if (!g) return;
+
+    // SEAT-1b: which side of the cooler this seat was on, if any. Marked
+    // PER OPPONENT rather than per hand: in a three-way pot the man who folded
+    // the flop did not cooler anybody and does not get the row.
+    const dealtCooler = !!coolerHand?.cooler && coolerHand.winners.includes(seat);
+    const tookCooler  = !!coolerHand?.cooler && coolerHand.losers.includes(seat);
+    const otherSide   = dealtCooler ? coolerHand.losers : tookCooler ? coolerHand.winners : [];
 
     const opponents = [];
     for (let i = 0; i < g.seats.length; i++) {
       if (i === seat) continue;
       const pid = this.pending[i]?.playerId;
       if (!pid) continue;
-      opponents.push({ playerId: pid, displayName: this.pending[i]?.displayName ?? pid });
+      opponents.push({
+        playerId: pid,
+        displayName: this.pending[i]?.displayName ?? pid,
+        cooler: otherSide.includes(i),
+      });
     }
     if (opponents.length === 0) return;
 
@@ -1564,13 +1641,6 @@ export class Table {
     const net = Number.isFinite(start) && Number.isFinite(end) ? end - start : 0;
     const showdown = result?.type === 'showdown';
 
-    // A cooler is a showdown he lost holding a hand that was well ahead at some
-    // point — the same shape flaggedHands classifies, read off his own
-    // decisions rather than the opponent's, which the server cannot see.
-    const bestEquity = decisions.reduce(
-      (m, d) => (Number.isFinite(d.equity) && d.equity > m ? d.equity : m), 0,
-    );
-    const cooler = showdown && !won && bestEquity > THRESHOLDS.COOLER_MIN_EQUITY;
     // A bluff that got caught: he fired with a hand that could not win, and it
     // went to showdown anyway.
     const bluffCaught = showdown && !won && decisions.some(
@@ -1584,7 +1654,9 @@ export class Table {
         net,
         pot: result?.pot ?? 0,
         won,
-        cooler,
+        // Per-opponent now; this is the hand-level fallback for a caller that
+        // does not classify (nothing in-tree, but the signature keeps it).
+        cooler: false,
         bluffCaught,
         showdown,
         handNumber: g.handNumber,
@@ -1804,6 +1876,10 @@ export class Table {
     state.seats = state.seats.map((s, i) => ({
       ...s,
       displayName: this.pending[i]?.displayName || s.playerId,
+      // SEAT-1a: the posture the felt draws. On the STATE snapshot as well as
+      // on liveGameView, because WatchScreen builds its seat ring from STATE —
+      // a mood that only rode the poll would never reach a SeatGhost.
+      mood: this._seatMood(i),
     }));
     // PACE-1: the ladder rides every snapshot as well as its own message, so a
     // client that joins mid-hand is not calm until the next transition.

@@ -618,6 +618,12 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
 // the ledger's claim is "how these hands went when he was at the table", not a
 // per-seat settlement, and inventing an attribution would be worse than the
 // honest coarse one.
+//
+// SEAT-1b: `cooler` is the exception to that coarseness, and it has to be. An
+// opponent entry may carry its own `cooler` flag, and when it does it wins over
+// the hand-level one — a cooler is a thing that happened between two specific
+// players, and marking it against a third who folded preflop would put a grudge
+// in the ledger that nobody at the table remembers.
 export function recordOpponentHand(agentId, userId, { opponents = [], net = 0, pot = 0, won = false, cooler = false, bluffCaught = false, showdown = false, handNumber = 0 } = {}) {
   if (!Array.isArray(opponents) || opponents.length === 0) return null;
   const profile = getOrCreate(userId ?? 'anon');
@@ -630,7 +636,7 @@ export function recordOpponentHand(agentId, userId, { opponents = [], net = 0, p
     recordLedgerHand(agent.bioLedger, {
       playerId: opp.playerId,
       displayName: opp.displayName ?? opp.playerId,
-      net, pot, won, cooler, bluffCaught, showdown, handNumber,
+      net, pot, won, cooler: opp.cooler ?? cooler, bluffCaught, showdown, handNumber,
     });
   }
   saveStore(userId ?? 'anon');
@@ -655,6 +661,18 @@ export function getAgentBio(agentId, userId) {
   if (!agent) return null;
   ensureBio(agent);
   return agent.bio;
+}
+
+// The raw ledger the three roles are derived from — one row per opponent, with
+// the cooler counters on it. Never sent to a client (presentAgent projects
+// `bio`, the derived roles, and nothing else); this is for the server and for
+// tests that need to see what a hand actually wrote.
+export function getAgentBioLedger(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureBio(agent);
+  return agent.bioLedger;
 }
 
 // The role an opponent holds for this agent right now, or null. Used by the

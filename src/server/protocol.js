@@ -27,6 +27,14 @@ export const ClientMsg = Object.freeze({
 export const ServerMsg = Object.freeze({
   JOINED: 'joined',         // { type, tableId, seat }
   WATCHING: 'watching',     // { type, tableId, spectatorSeat }
+  // SEAT-1a (additive): every seat in `state.seats` carries `mood`
+  // { state, heat } — state is one of confident | neutral | frustrated |
+  // tilted | sulking, heat is 0-100 within it. It is the same value the
+  // owner's own mood header reads, so the felt and the header never disagree.
+  // A seat with no agent behind it (a House regular, a human) reports a
+  // resting { state: 'neutral', heat: 30 }. Mood is public: it is the one
+  // thing about an opponent a person at a real table can see. A client that
+  // ignores the field sees exactly what it saw before it existed.
   STATE: 'state',           // { type, state }   (filtered for this seat)
   HAND_START: 'hand_start', // { type, handNumber }
   HAND_RESULT: 'hand_result', // { type, result }

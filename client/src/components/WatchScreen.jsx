@@ -550,11 +550,13 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     if (!s) continue;
     opponentSeats.push({
       seat: si,
-      // accentColor is served per seat; mood is NOT on the wire yet, so every
-      // opponent stands neutral until it is. The posture slot is here so the
-      // day it ships nothing else has to move.
+      // SEAT-1a: mood is on the wire now, as { state, heat }. The string form
+      // is the pre-SEAT-1 shape and is still accepted, so a client talking to
+      // an older server (or a fixture written before the field existed) draws
+      // exactly what it drew before.
       accent: s.accentColor || '#00D4AA',
-      mood: s.mood || 'neutral',
+      mood: moodStateOf(s),
+      heat: moodHeatOf(s),
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
       pos: posLabel(si, game),
@@ -1015,8 +1017,23 @@ function seatSummary(game, seat) {
     name: s.displayName || ('Seat ' + (seat + 1)),
     stack: s.stack != null ? s.stack.toLocaleString() : null,
     accent: s.accentColor || '#00D4AA',
-    mood: s.mood || 'neutral',
+    mood: moodStateOf(s),
+    heat: moodHeatOf(s),
   };
+}
+
+// SEAT-1a: the server sends `mood: { state, heat }`. Both readers go through
+// here so there is one place that knows the shape — and one place that keeps
+// accepting the bare string the field used to be.
+function moodStateOf(seat) {
+  var m = seat && seat.mood;
+  if (typeof m === 'string') return m || 'neutral';
+  return (m && m.state) || 'neutral';
+}
+
+function moodHeatOf(seat) {
+  var m = seat && seat.mood;
+  return (m && typeof m === 'object' && Number.isFinite(m.heat)) ? m.heat : null;
 }
 
 // ---- WatchScreen (export) --------------------------------------------------
