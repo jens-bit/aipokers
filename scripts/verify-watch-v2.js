@@ -13,6 +13,8 @@
 //      result.showdown and on the terminal STATE, folded seats absent from
 //      both, winners named. This is what the felt renders the reveal from.
 //   4. WV2-5 — a pot won without a showdown reveals nothing at all.
+//   5. SEAT-1a — every seat on the wire carries a mood posture, on the STATE
+//      snapshot the felt renders from and on the liveGameView the floor polls.
 //
 // Runs with NO ANTHROPIC_API_KEY, and refuses to run with one (see the guard
 // below). The agent handler returns its safe check/fold fallback, so hands
@@ -189,6 +191,14 @@ console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (
   check('liveGameView reports a real street, not WAITING', !!live && live.street !== Streets.WAITING,
         `street=${live?.street ?? 'null'}`);
   check('liveGameView reports both seats', (live?.seatCount ?? 0) === 2, `seatCount=${live?.seatCount}`);
+  // SEAT-1a: the floor polls this projection, so the posture rides it too.
+  check('liveGameView seats carry a mood posture',
+        (live?.seats ?? []).length > 0 &&
+        (live?.seats ?? []).every((s) => s.mood && typeof s.mood.state === 'string' && Number.isInteger(s.mood.heat)),
+        JSON.stringify((live?.seats ?? []).map((s) => s.mood)));
+  check('and it is a real agent mood, read off the same record the header reads',
+        (live?.seats ?? []).every((s) => ['confident', 'neutral', 'frustrated', 'tilted', 'sulking'].includes(s.mood.state)),
+        JSON.stringify((live?.seats ?? []).map((s) => s.mood.state)));
 
   wsA.close();
   wsB.close();
@@ -300,6 +310,57 @@ console.log('\n[verify] 4) WV2-5 — a hand won without a showdown reveals nothi
   check("and no seat but the spectator\'s own shows cards",
         (terminal?.seats ?? []).slice(1).every((s) => s.holeCards.length === 0),
         JSON.stringify((terminal?.seats ?? []).map((s) => s.holeCards)));
+
+  table.closeTable('verify done');
+}
+
+// ── 5) SEAT-1a: the mood posture rides every seat ────────────────────────────
+// W4-2 draws opponents as characters and SeatGhost has taken a mood since the
+// WATCH v4 port, but the wire never carried one, so every opponent at every
+// table stood neutral. This asserts the shape the felt reads: `mood` on each
+// seat, with a state from the mood.js vocabulary and a heat inside it.
+console.log('\n[verify] 5) SEAT-1a — seat.mood on the wire');
+{
+  const MOOD_STATES = ['confident', 'neutral', 'frustrated', 'tilted', 'sulking'];
+  const wellFormed = (m) =>
+    !!m && typeof m === 'object' &&
+    MOOD_STATES.includes(m.state) &&
+    Number.isInteger(m.heat) && m.heat >= 0 && m.heat <= 100;
+
+  const fakeWs = () => ({
+    readyState: 1, OPEN: 1, received: [],
+    send(payload) { this.received.push(JSON.parse(payload)); },
+    ofType(type) { return this.received.filter((m) => m.type === type); },
+  });
+
+  const table = new Table({ tableId: 'seat-1a-mood', smallBlind: 10, bigBlind: 20, maxSeats: 6 });
+  for (const id of ['m0', 'm1', 'm2']) {
+    table.seatPlayer(fakeWs(), { playerId: id, buyIn: 1000, displayName: id.toUpperCase() });
+  }
+  const spectator = fakeWs();
+  table.spectators.push({ ws: spectator, spectatorSeat: 0 });
+  table.maybeStartHand({ clientDriven: true });
+
+  const snapshot = spectator.ofType(ServerMsg.STATE).slice(-1)[0]?.state ?? null;
+  check('the spectator received a STATE', !!snapshot);
+  const seats = snapshot?.seats ?? [];
+  check('every seat carries a mood', seats.length === 3 && seats.every((s) => wellFormed(s.mood)),
+        JSON.stringify(seats.map((s) => s.mood)));
+  check('a seat with no agent behind it rests at neutral',
+        seats.every((s) => s.mood.state === 'neutral'),
+        JSON.stringify(seats.map((s) => s.mood)));
+  check('and its heat agrees with its state — not a number from another band',
+        seats.every((s) => s.mood.heat > 20 && s.mood.heat <= 40),
+        JSON.stringify(seats.map((s) => s.mood.heat)));
+  // The seated players get the same field, not just the spectator.
+  const seatedState = table.connections[1]?.ofType(ServerMsg.STATE).slice(-1)[0]?.state ?? null;
+  check('a seated player sees it too',
+        (seatedState?.seats ?? []).every((s) => wellFormed(s.mood)),
+        JSON.stringify((seatedState?.seats ?? []).map((s) => s.mood)));
+  // Nothing private leaked in with it.
+  check('mood carries state and heat and nothing else',
+        seats.every((s) => Object.keys(s.mood).sort().join(',') === 'heat,state'),
+        JSON.stringify(seats.map((s) => Object.keys(s.mood))));
 
   table.closeTable('verify done');
 }

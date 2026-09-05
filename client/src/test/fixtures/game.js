@@ -6,6 +6,11 @@
 // seat. Both objects below were dumped from the real engine (3-handed, blinds
 // 10/20, dealer seat 0) rather than written by hand, so a shape change in the
 // engine shows up here as a failing client test.
+//
+// SEAT-1a adds `mood: { state, heat }` per seat — _augmentState's second
+// addition, and what SeatGhost draws its posture from. Every seat here rests at
+// the mood machine's own neutral, which is what a seat with no agent behind it
+// reports.
 
 // Hero is seat 0 — the owner watching their own agent. Public state hides the
 // other two seats' hole cards; the hero's are present, which is the fish-tank
@@ -33,6 +38,7 @@ export const midHandGame = {
       allIn: false,
       actedThisStreet: true,
       displayName: 'The Grinder',
+      mood: { state: 'neutral', heat: 30 },
     },
     {
       playerId: 'p_villain',
@@ -44,6 +50,7 @@ export const midHandGame = {
       allIn: false,
       actedThisStreet: false,
       displayName: 'Doyle_v3',
+      mood: { state: 'neutral', heat: 30 },
     },
     {
       playerId: 'p_house',
@@ -55,6 +62,7 @@ export const midHandGame = {
       allIn: false,
       actedThisStreet: false,
       displayName: 'Granite',
+      mood: { state: 'neutral', heat: 30 },
     },
   ],
   result: null,
@@ -85,6 +93,7 @@ export const betweenHandsGame = {
       allIn: false,
       actedThisStreet: false,
       displayName: 'The Grinder',
+      mood: { state: 'neutral', heat: 30 },
     },
     {
       playerId: 'p_villain',
@@ -96,6 +105,7 @@ export const betweenHandsGame = {
       allIn: false,
       actedThisStreet: false,
       displayName: 'Doyle_v3',
+      mood: { state: 'neutral', heat: 30 },
     },
     {
       playerId: 'p_house',
@@ -107,6 +117,7 @@ export const betweenHandsGame = {
       allIn: false,
       actedThisStreet: false,
       displayName: 'Granite',
+      mood: { state: 'neutral', heat: 30 },
     },
   ],
   result: null,

@@ -1213,3 +1213,53 @@ describe('WatchScreen controls', () => {
     expect(onSitOut).not.toHaveBeenCalled();
   });
 });
+
+// ── SEAT-1a · the posture the wire now carries ───────────────────────────────
+// W4-2's law is "seats as characters", and SeatGhost has taken a mood since the
+// v4 port — but until SEAT-1 the server sent none, so every opponent at every
+// table stood neutral. These assert the felt actually reads the field, in the
+// object shape the server sends and in the bare string it used to be.
+describe('SEAT-1a seat mood', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  // Only a tilted posture draws the shimmer ring (POSTURE.tilted.shimmer).
+  const tiltedGhosts = (container) =>
+    container.querySelectorAll('.seat-ghost .floor-ghost__shimmer');
+
+  const withVillainMood = (mood) => ({
+    ...midHandGame,
+    seats: midHandGame.seats.map((s, i) => (i === 1 ? { ...s, mood } : s)),
+  });
+
+  it('SEAT-1a: draws a tilted opponent tilted, from mood: { state, heat }', async () => {
+    const { container } = renderWatch(withVillainMood({ state: 'tilted', heat: 88 }));
+    await screen.findByText('The Grinder');
+    expect(tiltedGhosts(container).length).toBe(1);
+  });
+
+  it('SEAT-1a: a resting seat is not tilted', async () => {
+    const { container } = renderWatch(midHandGame);
+    await screen.findByText('The Grinder');
+    expect(tiltedGhosts(container).length).toBe(0);
+  });
+
+  it('SEAT-1a: the pre-SEAT-1 bare string still works', async () => {
+    const { container } = renderWatch(withVillainMood('tilted'));
+    await screen.findByText('The Grinder');
+    expect(tiltedGhosts(container).length).toBe(1);
+  });
+
+  it('SEAT-1a: a seat with no mood at all falls back to neutral, not a crash', async () => {
+    const noMood = {
+      ...midHandGame,
+      seats: midHandGame.seats.map(({ mood, ...rest }) => rest),
+    };
+    const { container } = renderWatch(noMood);
+    await screen.findByText('The Grinder');
+    expect(container.querySelectorAll('.seat-ghost').length).toBeGreaterThan(0);
+    expect(tiltedGhosts(container).length).toBe(0);
+  });
+});
