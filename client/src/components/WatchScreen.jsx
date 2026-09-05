@@ -14,6 +14,7 @@ import { accentFor } from './floor/atoms.jsx';
 import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
+import { ReadPanel } from './system/ReadPanel.jsx';
 import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -75,142 +76,16 @@ function posLabel(seat, game) {
   return '';
 }
 
-// ---- DecisionBand ----------------------------------------------------------
-// One decision row in the append-only feed. Never re-mounts once rendered.
+// ---- ReadTab ---------------------------------------------------------------
+// W3-2: the READ tab. His picture of the opponent, plus — between hands only —
+// the attribute panel ATTR-2e put on the hand just played. Nothing here says
+// "waiting for the first action": before there is evidence he says so himself.
 
-function DecisionBand({ street, action, equity, reasoning }) {
-  const actionLabel = formatAction(action);
-  const equityNum   = equityPct(equity);
-  const hasEquity   = equityNum !== null;
-
+function ReadTab({ game, between, agent, lastHand }) {
   return (
-    <div style={{
-      padding: '10px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.12)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{
-          fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-          fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
-          padding: '2px 7px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.12)',
-          color: 'var(--sys-muted,#6B6B6B)',
-          textTransform: 'uppercase', flexShrink: 0,
-        }}>{(street || 'PREFLOP').toUpperCase()}</span>
-
-        <span style={{
-          padding: '3px 9px', borderRadius: 5,
-          background: 'var(--sys-teal,#00D4AA)', color: '#0A0A0A',
-          fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-          fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em',
-          textTransform: 'uppercase', flexShrink: 0,
-        }}>{actionLabel}</span>
-
-        <div style={{ flex: 1 }} />
-
-        {hasEquity && (
-          <span style={{
-            fontFamily: 'var(--sys-font-mono,"JetBrains Mono",monospace)',
-            fontSize: 12.5, fontWeight: 700,
-            color: 'var(--sys-teal,#00D4AA)',
-            fontVariantNumeric: 'tabular-nums',
-          }}>{equityNum.toFixed(1)}%</span>
-        )}
-      </div>
-
-      {hasEquity && (
-        <div style={{
-          height: 3, borderRadius: 2,
-          background: 'rgba(255,255,255,0.07)', overflow: 'hidden',
-          margin: '6px 0 5px',
-        }}>
-          <div style={{
-            width: Math.min(100, equityNum) + '%',
-            height: '100%',
-            background: 'var(--sys-teal,#00D4AA)',
-            borderRadius: 2,
-          }} />
-        </div>
-      )}
-
-      {reasoning && (
-        <div style={{
-          fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)', lineHeight: 1.4,
-          fontStyle: 'italic',
-          marginTop: hasEquity ? 0 : 5,
-          display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
-          overflow: 'hidden',
-        }}>"{reasoning}"</div>
-      )}
-    </div>
-  );
-}
-
-// ---- HandDivider -----------------------------------------------------------
-
-function HandDivider({ handNumber }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 9,
-      padding: '8px 14px',
-    }}>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
-      <span style={{
-        fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-        fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
-        textTransform: 'uppercase',
-        color: 'var(--sys-muted,#6B6B6B)',
-      }}>HAND #{handNumber}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
-    </div>
-  );
-}
-
-// ---- LiveAnalysisTab -------------------------------------------------------
-// Receives the stable feed array; never clears it.
-
-function LiveAnalysisTab({ feed, between, agent, lastHand }) {
-  var river = (between && agent && lastHand)
-    ? <RiverAttrPanel agent={agent} hand={lastHand} />
-    : null;
-
-  if (feed.length === 0) {
-    return (
-      <div className="watch-panel__empty">
-        {!between && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="1.4" strokeLinecap="round" aria-hidden
-            style={{ marginBottom: 6, opacity: 0.35 }}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-        )}
-        <span style={{ opacity: between ? 0.4 : 1, fontSize: between ? 11 : 12 }}>
-          {between ? 'Watching…' : 'Waiting for first action…'}
-        </span>
-        {river}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {river}
-      {feed.map(function(item) {
-        if (item.type === 'hand') {
-          return <HandDivider key={item.id} handNumber={item.handNumber} />;
-        }
-        return (
-          <DecisionBand
-            key={item.id}
-            street={item.street}
-            action={item.action}
-            equity={item.equity}
-            potOdds={item.potOdds}
-            reasoning={item.reasoning}
-          />
-        );
-      })}
+    <div className="watch-panel__read">
+      <ReadPanel reads={game ? game.reads : null} />
+      {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
     </div>
   );
 }
@@ -801,8 +676,13 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 }
 
 // ---- WatchTabs -------------------------------------------------------------
+// W3-2 (Tabs3): four tabs were three too many. LIVE ANALYSIS, RANGE and HISTORY
+// are gone — the first was the solver speaking over him, the other two never
+// had content — and READ and CHAT remain.
 
-var TABS = ['Live analysis', 'Range', 'History', 'Chat'];
+var TABS = ['Read', 'Chat'];
+var TAB_READ = 0;
+var TAB_CHAT = 1;
 
 // WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
 // click. Selection and dragging are one gesture, resolved by the sheet: a tap
@@ -819,21 +699,6 @@ function WatchTabs({ active }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ---- EmptyTab --------------------------------------------------------------
-
-function EmptyTab({ text }) {
-  return (
-    <div className="watch-panel__empty">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" aria-hidden style={{ marginBottom: 8, opacity: 0.4 }}>
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 8v4M12 16h.01" />
-      </svg>
-      {text}
     </div>
   );
 }
@@ -1161,7 +1026,7 @@ export function WatchScreen({
         cause={cause || (state === 'live' ? 'at the table' : 'resting')}
         state={state}
         action="Chat"
-        onAction={function() { setActiveTab(3); }}
+        onAction={function() { setActiveTab(TAB_CHAT); }}
       />
 
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
@@ -1190,26 +1055,24 @@ export function WatchScreen({
 
           {sheet.detent === 'peek' && (
             <div className="watch-sheet__peek">
-              <span className="watch-sheet__peek-line">
-                {peekLine || 'Waiting for first action...'}
-              </span>
+              {/* W3-2: no "waiting for first action" anywhere. The peek either
+                  has his line or it has nothing to say and stays quiet. */}
+              {peekLine && <span className="watch-sheet__peek-line">{peekLine}</span>}
               {peekEquity && <span className="watch-sheet__peek-eq">{peekEquity}</span>}
             </div>
           )}
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === 0 && (
-                <LiveAnalysisTab
-                  feed={decisionFeed}
+              {activeTab === TAB_READ && (
+                <ReadTab
+                  game={game}
                   between={between}
                   agent={agent}
                   lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
                 />
               )}
-              {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
-              {activeTab === 2 && <EmptyTab text="No hands played yet." />}
-              {activeTab === 3 && (
+              {activeTab === TAB_CHAT && (
                 <ChatTab
                   agentThread={agentThread}
                   tableSpeech={tableSpeech}

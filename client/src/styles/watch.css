@@ -940,3 +940,154 @@
 
 .watch-felt__hero-num.is-gold { color: var(--sys-gold, #CDB380); }
 .watch-felt__hero-num.is-dim  { color: var(--sys-dim, #A1A1A1); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * WATCH v3 (W3-2) — two tabs, and READ.
+ * Ported from design-refs/mood-watch3.jsx: Tabs3, ReadBar, ReadPanel.
+ *
+ * Four tabs were three too many: LIVE ANALYSIS, RANGE and HISTORY are gone and
+ * READ and CHAT remain. The ww-ref's header budget puts the tab row at 36px,
+ * because two tabs need less reach than four.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* Tabs3's own padding — 11/9 rather than 12/10, which is the ww-ref's 36px
+   tab row: two tabs need less reach than four. */
+.watch-tabs__tab { padding: 11px 0 9px; }
+
+/* ── ReadPanel ────────────────────────────────────────────────────────────── */
+
+.read-panel { padding: 10px 14px 0; }
+
+.read-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 2px;
+}
+
+.read-panel__who {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.read-panel__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+
+.read-panel__meta {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #6B6B6B);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── ReadBar ──────────────────────────────────────────────────────────────── */
+
+.read-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.read-bar__label {
+  width: 96px;
+  flex-shrink: 0;
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.read-bar--formed .read-bar__label { color: var(--sys-teal, #00D4AA); }
+
+.read-bar__track {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--sys-surf, #2F2F37);
+}
+
+/* The bracket is the confidence, and it narrows with hands. */
+.read-bar__band {
+  position: absolute;
+  top: -3px;
+  height: 12px;
+  background: rgba(0, 212, 170, 0.08);
+  border-left: 1px solid rgba(0, 212, 170, 0.33);
+  border-right: 1px solid rgba(0, 212, 170, 0.33);
+}
+
+.read-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: rgba(161, 161, 161, 0.6);
+  transition: width 500ms ease-out;
+}
+
+.read-bar--formed .read-bar__fill { background: #D6D6DA; }
+
+.read-bar__value {
+  width: 26px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  /* Unanswered: the faintest thing in the panel. */
+  color: var(--sys-faint, #3A3A3F);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Known but still filling, then known and formed. */
+.read-bar__value.is-known { color: var(--sys-dim, #A1A1A1); }
+.read-bar--formed .read-bar__value.is-known { color: var(--sys-text, #EDEDED); }
+
+/* ── his sentence about them ──────────────────────────────────────────────── */
+
+.read-panel__line {
+  margin-top: 9px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: transparent;
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  font-size: 12.5px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.45;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* A read that just formed announces itself once, then settles. */
+.read-panel__line.is-forming {
+  background: rgba(0, 212, 170, 0.05);
+  border-color: rgba(0, 212, 170, 0.20);
+  color: var(--sys-text, #EDEDED);
+  animation: read-form 500ms ease-out both;
+}
+
+@keyframes read-form {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .read-panel__line.is-forming { animation: none; }
+  .read-bar__fill { transition: none; }
+}

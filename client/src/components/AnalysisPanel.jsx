@@ -462,7 +462,9 @@ export function AnalysisPanel({
             <ActionRow />
           </>
         ) : (
-          <EmptyState text="Waiting for first action…" />
+          /* W3-2: "waiting for the first action" is the product narrating its
+             own latency. He says it instead, in his own voice. */
+          <EmptyState text="Nothing to say yet. Deal me in." />
         )
       )}
       {activeTab === 1 && (

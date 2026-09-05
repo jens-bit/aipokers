@@ -6,6 +6,7 @@
 // swapping itself out for a spinner.
 
 import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WatchScreen } from './WatchScreen.jsx';
@@ -221,15 +222,18 @@ describe('WatchScreen mid-hand', () => {
     });
   });
 
-  it('appends the agent\'s decision to the feed with its equity as a percentage', async () => {
-    renderWatch(midHandGame, {
+  // Replaces "appends the agent's decision to the feed with its equity as a
+  // percentage". W3-2 removes the LIVE ANALYSIS tab, which was the decision
+  // feed's only home and the only place that printed 67.4% — the solver stack
+  // finding 3 kills. What a decision still owes the screen is unchanged and
+  // asserted here: his sentence, and his equity on the rope.
+  it('W3-2: a decision reaches the felt as his line and his equity', async () => {
+    const { container } = renderWatch(midHandGame, {
       lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674, reasoning: 'Set. Charging the draws.' },
     });
+    expect(await screen.findByText(/Charging the draws/)).toBeInTheDocument();
     // WV2-2: the wire carries equity as a 0..1 fraction, not a percent.
-    expect(await screen.findAllByText('67.4%')).not.toHaveLength(0);
-    // W3-1: his line is on the felt as well as in the sheet — finding 3 gives
-    // the felt one sentence in his voice, so the text appears more than once.
-    expect(screen.getAllByText(/Charging the draws/).length).toBeGreaterThan(0);
+    expect(container.querySelector('.tug__value').textContent).toBe('67%');
   });
 });
 
@@ -355,6 +359,131 @@ describe('W3-1 the rope', () => {
 
     const calm = renderWatch(paced('calm', { heroEquity: 0.71 }));
     expect(calm.container.querySelector('.tug').className).not.toContain('tug--big');
+  });
+});
+
+// ── W3-2 · two tabs, and READ ───────────────────────────────────────────────
+
+describe('W3-2 the panel', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const tabLabels = (container) =>
+    [...container.querySelectorAll('.watch-tabs__tab')].map((el) => el.textContent);
+
+  it('W3-2: offers exactly READ and CHAT', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(tabLabels(container)).toEqual(['Read', 'Chat']);
+  });
+
+  it('W3-2: RANGE and HISTORY are gone, not hidden', () => {
+    const { container } = renderWatch(midHandGame);
+    const labels = tabLabels(container).join(' ').toLowerCase();
+    expect(labels).not.toContain('range');
+    expect(labels).not.toContain('history');
+    expect(labels).not.toContain('analysis');
+    expect(screen.queryByText('Range analysis coming soon.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No hands played yet.')).not.toBeInTheDocument();
+  });
+
+  it('W3-2: READ is what the panel opens on', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(container.querySelector('.read-panel')).toBeTruthy();
+    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Read');
+  });
+
+  it('W3-2: nothing anywhere says it is waiting for the first action', () => {
+    renderWatch(midHandGame);
+    expect(screen.queryByText(/waiting for (the )?first action/i)).not.toBeInTheDocument();
+  });
+
+  it('W3-2: the Chat action still reaches the chat tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(container.querySelector('.dr-chat-tab')).toBeTruthy();
+    expect(container.querySelector('.read-panel')).toBeNull();
+  });
+});
+
+describe('W3-2 ReadPanel', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const withReads = (reads) => ({ ...midHandGame, reads });
+
+  const rowFor = (container, label) =>
+    [...container.querySelectorAll('.read-bar')]
+      .find((el) => el.querySelector('.read-bar__label').textContent === label);
+
+  it('W3-2: draws the five rows in canon order even with no reads at all', () => {
+    const { container } = renderWatch(midHandGame);
+    expect([...container.querySelectorAll('.read-bar__label')].map((el) => el.textContent))
+      .toEqual(['PLAYS', 'RAISES FIRST', 'AGGRESSION', 'FOLDS TO HEAT', 'GOES TO SHOWDOWN']);
+  });
+
+  it('W3-2: with no evidence he says so himself, and no bar claims a number', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(screen.getByText('NO EVIDENCE YET')).toBeInTheDocument();
+    expect(screen.getByText(/Give me a few hands/)).toBeInTheDocument();
+    // An unanswered question is not an answer of nothing: "··", never 0.
+    expect([...container.querySelectorAll('.read-bar__value')].map((el) => el.textContent))
+      .toEqual(['··', '··', '··', '··', '··']);
+    expect(container.querySelector('.read-bar__fill')).toBeNull();
+  });
+
+  it('W3-2: fills the bars from the server model', () => {
+    const { container } = renderWatch(withReads({
+      name: 'Granite',
+      hands: 142,
+      line: 'He never folds, so I stop bluffing him.',
+      stats: { vpip: { v: 19, conf: 3 }, pfr: { v: 14, conf: 4 }, aggr: { v: 31, conf: 6 } },
+    }));
+
+    // "Granite" is also a seat chip on the felt, so scope to the panel.
+    expect(container.querySelector('.read-panel__who').textContent).toBe('Granite');
+    expect(screen.getByText('142 HANDS SEEN')).toBeInTheDocument();
+    expect(screen.getByText(/He never folds/)).toBeInTheDocument();
+
+    const plays = rowFor(container, 'PLAYS');
+    expect(plays.querySelector('.read-bar__value').textContent).toBe('19');
+    expect(plays.querySelector('.read-bar__fill').style.width).toBe('19%');
+    // The bracket is the confidence: 19 ± 3.
+    expect(plays.querySelector('.read-bar__band').style.left).toBe('16%');
+    expect(plays.querySelector('.read-bar__band').style.width).toBe('6%');
+
+    // A stat the server has not sent stays unanswered rather than reading zero.
+    expect(rowFor(container, 'GOES TO SHOWDOWN').querySelector('.read-bar__value').textContent).toBe('··');
+  });
+
+  it('W3-2: a plain number is accepted as well as a value/confidence pair', () => {
+    const { container } = renderWatch(withReads({ hands: 90, stats: { vpip: 24 } }));
+    const plays = rowFor(container, 'PLAYS');
+    expect(plays.querySelector('.read-bar__value').textContent).toBe('24');
+    expect(plays.querySelector('.read-bar__band')).toBeNull();
+  });
+
+  it('W3-2: a read is not formed until there is evidence behind it', () => {
+    const thin = renderWatch(withReads({ hands: 4, stats: { vpip: 19 } }));
+    expect(rowFor(thin.container, 'PLAYS').className).not.toContain('read-bar--formed');
+
+    const thick = renderWatch(withReads({ hands: 142, stats: { vpip: 19 } }));
+    expect(rowFor(thick.container, 'PLAYS').className).toContain('read-bar--formed');
+  });
+
+  it('W3-2: a read that just formed announces itself once', () => {
+    const { container } = renderWatch(withReads({
+      hands: 143, forming: true, line: "He'll call a big one with nothing. Noted.",
+      stats: { vpip: 19 },
+    }));
+    expect(container.querySelector('.read-panel__line').className).toContain('is-forming');
+
+    const settled = renderWatch(withReads({ hands: 143, line: 'Still the same.', stats: { vpip: 19 } }));
+    expect(settled.container.querySelector('.read-panel__line').className).not.toContain('is-forming');
   });
 });
 
