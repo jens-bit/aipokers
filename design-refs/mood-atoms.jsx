@@ -54,23 +54,28 @@ const MOODS = {
 // mitten, ~22% of body width (the body spans 44 of the 80 viewBox, so ~9.6 units).
 // Fingers are separate circles unioned into a palm — the same construction the club
 // glyph uses, because overlapping fills have no seams.
-const HAND_INK = '#1E2732';
-const HAND_W = 9.6;
+const HAND_INK = '#3B4D60';        // two tones lighter than the body
+const HAND_RIM = '#1d2e2c';        // the felt's own colour, 1px, so it separates from both
+// SIZE: 22% of BODY WIDTH means 22% of the 80-unit sprite, not of the 44-unit torso —
+// the first cut measured against the torso and rendered 11.5px at size 96 instead of
+// the 21px intended. 17.6 units = 22% of 80 = 21px at 96.
+const HAND_W = 17.6;
+const HAND_F = 17.6 / 9.6;         // the poses were authored at 9.6; scale them up
 
 // detail drops with size exactly as the face's does: below seat scale the fingers
 // are sub-pixel, so the hand becomes a plain mitten rather than a smudge
 const handDetail = size => (size >= 72 ? 2 : size >= 34 ? 1 : 0);
 
 const Mitten = ({ x, y, r = 0, s = 1, d = 1, clenched, ink = HAND_INK }) => (
-  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s * HAND_F})`}>
     {clenched
-      ? <circle cx="0" cy="0" r={HAND_W * 0.46} fill={ink}/>
+      ? <circle cx="0" cy="0" r="4.4" fill={ink} stroke={HAND_RIM} strokeWidth="0.55"/>
       : (
         <>
           {d > 0 && [-2.9, 0, 2.9].map(fx => (
-            <circle key={fx} cx={fx} cy={-2.4} r={d > 1 ? 2.0 : 2.3} fill={ink}/>
+            <circle key={fx} cx={fx} cy={-2.4} r={d > 1 ? 2.0 : 2.3} fill={ink} stroke={HAND_RIM} strokeWidth="0.5"/>
           ))}
-          <rect x={-HAND_W / 2} y={-2.6} width={HAND_W} height="6.4" rx="2.8" fill={ink}/>
+          <rect x="-4.8" y="-2.6" width="9.6" height="6.4" rx="2.8" fill={ink} stroke={HAND_RIM} strokeWidth="0.5"/>
         </>
       )}
   </g>
@@ -79,8 +84,8 @@ const Mitten = ({ x, y, r = 0, s = 1, d = 1, clenched, ink = HAND_INK }) => (
 const Chips = ({ x, y, n = 4, ink = HAND_INK }) => (
   <g>
     {Array.from({ length: n }).map((_, i) => (
-      <ellipse key={i} cx={x} cy={y - i * 1.5} rx="4.2" ry="1.6" fill={i === n - 1 ? '#2A3542' : ink}
-        stroke="rgba(255,255,255,0.07)" strokeWidth="0.4"/>
+      <ellipse key={i} cx={x} cy={y - i * 1.9} rx="5.4" ry="2.1" fill={i === n - 1 ? '#4A5E73' : '#33424F'}
+        stroke={HAND_RIM} strokeWidth="0.5"/>
     ))}
   </g>
 );
@@ -113,9 +118,9 @@ const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
 
   if (pose === 'hold') return (
     <g>
-      <MiniBack x="35" y="63" r={-7}/><MiniBack x="45" y="63" r={7}/>
-      <Mitten x="27.5" y="65" r={-12} d={d}/>
-      <Mitten x="52.5" y="65" r={12} d={d}/>
+      <MiniBack x="35.5" y="64" r={-8} s={0.92}/><MiniBack x="44.5" y="64" r={8} s={0.92}/>
+      <Mitten x="24" y="66" r={-14} d={d}/>
+      <Mitten x="56" y="66" r={14} d={d}/>
     </g>
   );
   if (pose === 'peek') return (
@@ -129,8 +134,8 @@ const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
   if (pose === 'push') return (
     <g>
       <Chips x="40" y="55" n={n}/>
-      <Mitten x="31" y="60" r={-20} d={d}/>
-      <Mitten x="49" y="60" r={20} d={d}/>
+      <Mitten x="28" y="62" r={-22} d={d}/>
+      <Mitten x="52" y="62" r={22} d={d}/>
     </g>
   );
   if (pose === 'toss') return (
@@ -171,8 +176,8 @@ const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
   // rest
   return (
     <g style={drift}>
-      <Mitten x="20" y="60" r={-8} d={d}/>
-      <Mitten x="60" y="60" r={8} d={d}/>
+      <Mitten x="17" y="60" r={-10} d={d}/>
+      <Mitten x="63" y="60" r={10} d={d}/>
     </g>
   );
 };
@@ -793,7 +798,7 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
-  HAND_INK, HAND_W, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
+  HAND_INK, HAND_RIM, HAND_W, HAND_F, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
   BROW_TRIGGERS, ghostBrow,
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,

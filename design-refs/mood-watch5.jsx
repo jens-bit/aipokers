@@ -43,13 +43,13 @@ const V5_BOARD_TOP = 243; // board spans x75–315, so it clears them horizontal
 // neighbours instead of landing on them — the lesson v4b paid eleven defects for.
 const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 'hold',
                   hole = [['A', 's'], ['K', 'h']], equity = 87, stack = '1,847',
-                  street = 'TURN', toCall, action, timer, cost, event, bet }) => (
+                  street = 'TURN', toCall, action, timer, cost, event, bet, won, over }) => (
   <div style={{
-    position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 5,
+    position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: over ? 10 : 5,
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
   }}>
     {/* his bubble, above his head — band reserved whether or not he speaks */}
-    <div style={{ minHeight: says ? 0 : 0, display: 'flex', justifyContent: 'center', width: '100%' }}>
+    <div style={{ minHeight: 0, display: 'flex', justifyContent: 'center', width: '100%', opacity: over ? 0.4 : 1 }}>
       {says && (
         <div style={{ position: 'relative', maxWidth: 300, animation: 'bubblein 0.22s ease-out both' }}>
           <div style={{
@@ -66,7 +66,7 @@ const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 
     {/* him. Twice an opponent, facing the viewer, cards face up in front. */}
     <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: '100%' }}>
       <div style={{ position: 'absolute', left: '50%', top: '46%', width: 190, height: 190, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${MOODS[mood].color}${heat > 66 ? '2E' : '1A'}, transparent 68%)`, pointerEvents: 'none' }}/>
-      <MoodGhost mood={mood} accent={accent} size={96} heat={heat} hands={hands} bet={bet} event={event} ring={false}/>
+      <MoodGhost mood={mood} accent={accent} size={96} heat={heat} event={event} ring={false}/>
       <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, zIndex: 6 }}>
         {hole.map((c, i) => (
           <div key={i} style={{ transform: `rotate(${i ? 6 : -6}deg)`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))' }}>
@@ -74,6 +74,11 @@ const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 
           </div>
         ))}
       </div>
+      {/* the hand layer, OVER the cards — he is holding them, not standing behind
+          them. Inside the ghost's own svg it sat under the z-index-6 card pair. */}
+      <svg width={96} height={96} viewBox="0 0 80 80" style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)', overflow: 'visible', pointerEvents: 'none', zIndex: 7 }}>
+        {ghostHands({ pose: hands, size: 96, bet, won })}
+      </svg>
     </div>
 
     <div style={{ height: 26 }}/>
@@ -207,10 +212,10 @@ const V5Row = ({ r }) => {
 
 const V5ThreadSheet = ({ rows = V5_THREAD }) => (
   <div style={{
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%', zIndex: 8,
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%', zIndex: 8,
     background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur,
     borderTop: `1px solid ${V5GLASS.edgeUp}`, borderTopLeftRadius: 18, borderTopRightRadius: 18,
-    padding: '9px 14px 12px', display: 'flex', flexDirection: 'column',
+    padding: '9px 14px 128px', display: 'flex', flexDirection: 'column',
     animation: 'bubblein 0.28s ease-out both',
   }}>
     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
@@ -232,10 +237,10 @@ const V5ReadSheet = ({ id = 'granite' }) => {
   const r = READ_BOOK[id];
   return (
     <div style={{
-      position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%', zIndex: 8,
+      position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%', zIndex: 8,
       background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur,
       borderTop: `1px solid ${V5GLASS.edgeUp}`, borderTopLeftRadius: 18, borderTopRightRadius: 18,
-      padding: '9px 14px 12px', animation: 'bubblein 0.28s ease-out both',
+      padding: '9px 14px 128px', animation: 'bubblein 0.28s ease-out both',
     }}>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 11 }}>
         <div style={{ width: 34, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }}/>
@@ -377,7 +382,7 @@ const V5WhisperScreenM = () => (
 
 const V5ThreadScreenM = () => (
   <V5Shell>
-    <V5Felt acting="granite" hero={<V5Hero street="TURN" hands="hold" equity={87}/>}>
+    <V5Felt acting="granite" hero={<V5Hero street="TURN" hands="hold" equity={87} over/>}>
       <V5ThreadSheet/>
     </V5Felt>
   </V5Shell>
@@ -385,7 +390,7 @@ const V5ThreadScreenM = () => (
 
 const V5ReadScreenM = () => (
   <V5Shell>
-    <V5Felt selected="granite" hero={<V5Hero street="TURN" hands="hold" equity={87}/>}>
+    <V5Felt selected="granite" hero={<V5Hero street="TURN" hands="hold" equity={87} over/>}>
       <V5ReadSheet id="granite"/>
     </V5Felt>
   </V5Shell>

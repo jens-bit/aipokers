@@ -146,6 +146,11 @@ const SeatGhost = ({ s, acting, selected, dealt, reveal, size = 34, timer = 9, o
         )}
         <div style={{ opacity: s.folded ? 0.34 : 1, filter: s.folded ? 'saturate(0.4)' : 'none' }}>
           <FloorGhost mood={s.mood} accent={s.accent} size={size} speed={s.mood === 'tilted' ? 3.2 : 5.6}/>
+          {/* SeatGhost draws FloorGhost, which takes no hands prop — so the seat
+              overlays the hand layer itself, at the four poses an opponent gets. */}
+          <svg width={size} height={size} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: size * 0.16, overflow: 'visible', pointerEvents: 'none', zIndex: 3 }}>
+            {ghostHands({ pose: s.folded ? 'rest' : dealt ? 'hold' : 'rest', size })}
+          </svg>
         </div>
         {s.history && (
           <span style={{ position: 'absolute', top: -2, left: -6, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 7, background: 'rgba(19,19,22,0.95)', border: `1px solid ${M_GOLD}`, color: M_GOLD, fontFamily: MONO, fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 6px ${M_GOLD}44` }}>{s.history}</span>

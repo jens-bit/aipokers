@@ -187,7 +187,7 @@ const W4GlassCostScreenM = () => (
 // Three seconds, on the felt, and heat colours it: the same loss is a shrug at
 // heat 20 and a red-rimmed silence at heat 88. One action out, and it goes where
 // every other moment in this product goes — into the conversation.
-const HandEnd = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Granite', mood = 'confident', heat = 40 }) => {
+const HandEnd = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Granite', mood = 'confident', heat = 40, delta, stack }) => {
   const s = wStyle(heat, mood);
   const hot = heat > 66;
   const key = won ? M_TEAL : hot ? M_RED : MOODS[mood].color;
@@ -201,17 +201,20 @@ const HandEnd = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Granite
       <div style={{ fontFamily: PLAYFAIR, fontSize: 38, fontWeight: 600, color: won ? M_TEAL : key, letterSpacing: '-0.015em', lineHeight: 1.05, marginTop: 4 }}>
         {won ? 'WON' : 'LOST'}
       </div>
-      {won
-        ? <div style={{ marginTop: 8 }}><Amt size={30}>${pot}</Amt></div>
-        : (
-          <div style={{ marginTop: 9, display: 'flex', alignItems: 'baseline', gap: 7 }}>
-            <span style={{ fontSize: 13, color: M_DIM }}>{winner} takes</span>
-            <Num size={19} weight={700} color={M_DIM}>${pot}</Num>
-          </div>
-        )}
+      {/* the delta AND where he stands — the pot's fate is context, his stack is
+          the point. Same line on both states. */}
+      <div style={{ marginTop: 9, display: 'flex', alignItems: 'baseline', gap: 9 }}>
+        <Num size={24} weight={700} color={won ? M_TEAL : M_RED}>{delta || (won ? `+$${pot}` : '−$1,250')}</Num>
+        <span style={{ fontSize: 12, color: M_MUTED }}>·</span>
+        <span style={{ fontSize: 13, color: M_DIM }}>stack</span>
+        <Num size={19} weight={700} color={M_TEXT}>${stack || (won ? '5,541' : '1,847')}</Num>
+      </div>
+      {!won && <div style={{ marginTop: 5 }}><Num size={9} color={M_MUTED} weight={500}>{winner.toUpperCase()} TOOK THE POT</Num></div>}
       <div style={{ marginTop: 7 }}><Num size={9} color={M_MUTED} weight={500}>{won ? 'HAND #4188 · 3s' : `HEAT ${heat} · ${wBand(heat).toUpperCase()}`}</Num></div>
-      <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16 }}>
-        <Btn kind="primary" h={46} full>Talk to {name.split(' ')[0]} about this hand</Btn>
+      {/* the next hand starts in 3s anyway; the button only makes it now */}
+      <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Btn kind="primary" h={46} full>Deal him in</Btn>
+        <Btn kind="ghost" h={42} full>Talk to {name.split(' ')[0]} about this hand</Btn>
       </div>
     </div>
   );
@@ -337,9 +340,17 @@ const D8HandEndScreenM = () => (
           </div>
           <div style={{ fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.24em', textTransform: 'uppercase', color: M_MUTED }}>Balanced v2.1</div>
           <div style={{ fontFamily: PLAYFAIR, fontSize: 56, fontWeight: 600, color: M_TEAL, letterSpacing: '-0.02em', lineHeight: 1.02, marginTop: 6 }}>WON</div>
-          <div style={{ marginTop: 10 }}><Amt size={44}>$3,694</Amt></div>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 11 }}>
+            <Num size={34} weight={700} color={M_TEAL}>+$3,694</Num>
+            <span style={{ fontSize: 15, color: M_MUTED }}>&middot;</span>
+            <span style={{ fontSize: 15, color: M_DIM }}>stack</span>
+            <Num size={26} weight={700} color={M_TEXT}>$5,541</Num>
+          </div>
           <div style={{ marginTop: 9 }}><Num size={10} color={M_MUTED} weight={500}>HAND #4188 &middot; 3s</Num></div>
-          <div style={{ marginTop: 26, width: 320 }}><Btn kind="primary" h={46} full>Talk to Balanced about this hand</Btn></div>
+          <div style={{ marginTop: 26, width: 320, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <Btn kind="primary" h={46} full>Deal him in</Btn>
+            <Btn kind="ghost" h={42} full>Talk to Balanced about this hand</Btn>
+          </div>
         </div>
       </div>
       {/* glass, not a Panel: PanelHead over black was the last flat grey surface on
