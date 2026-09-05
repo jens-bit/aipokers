@@ -287,9 +287,13 @@ export default function App() {
     if (agentProfileTarget) {
       return (
         <div className="app">
+          {/* WUI-4: onFund is what makes the pocket line's action render. The
+              funding sheet lives on the YOU screen with the rest of the money,
+              so Fund goes there rather than opening a second copy of it here. */}
           <AgentProfileScreen
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
+            onFund={() => { setAgentProfileTarget(null); navigateTo('you'); }}
             onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
             onWatch={async (ag) => {
               if (!ag?.activeTableId) return;

@@ -11,6 +11,7 @@ import {
   aggressiveAgent,
   balancedAgent,
   brokeAgent,
+  legacyPocketAgent,
   noPocketAgent,
 } from '../test/fixtures/wallet.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -42,9 +43,9 @@ describe('WUI-3 — the pocket line', () => {
     renderProfile(balancedAgent);
 
     const row = within(line());
-    expect(row.getByText('$640')).toBeInTheDocument();
+    expect(row.getByText('$6,400')).toBeInTheDocument();
     expect(row.getByText('AUTO')).toBeInTheDocument();
-    expect(row.getByText(/plays \$10\/\$20/)).toBeInTheDocument();
+    expect(row.getByText(/plays \$25\/\$50/)).toBeInTheDocument();
 
     // No attribute, no band, no mood on this row: the pocket decides which
     // tables he sits at and nothing about how well he plays at them.
@@ -54,12 +55,12 @@ describe('WUI-3 — the pocket line', () => {
 
   it('says how the money behaves, per mode', () => {
     renderProfile(balancedAgent);
-    expect(within(line()).getByText(/refills up to \$1,000/)).toBeInTheDocument();
+    expect(within(line()).getByText(/refills to \$2,000/)).toBeInTheDocument();
   });
 
   it('names the allowance for an agent on one', () => {
     renderProfile(aggressiveAgent);
-    expect(within(line()).getByText(/\$500 allowance/)).toBeInTheDocument();
+    expect(within(line()).getByText(/\$5,000 allowance/)).toBeInTheDocument();
   });
 
   it('draws the bar against the roll he was given', () => {
@@ -118,7 +119,7 @@ describe('WUI-3 — the collect receipt', () => {
 
   it('appears after a collect, drawn as a transfer', async () => {
     const user = userEvent.setup();
-    fetchMock.route('/collect', { collected: 340, float: 300, at: '02:14' }, { method: 'POST' });
+    fetchMock.route('/collect', { moved: 4400, float: 2000, at: '02:14' }, { method: 'POST' });
     const { container } = renderProfile(balancedAgent);
 
     await user.click(within(line()).getByRole('button', { name: 'Collect' }));
@@ -132,16 +133,16 @@ describe('WUI-3 — the collect receipt', () => {
     const receipt = within(card);
     expect(receipt.getByText('Brought home')).toBeInTheDocument();
     expect(receipt.getByText('His pocket')).toBeInTheDocument();
-    expect(receipt.getByText('$640')).toBeInTheDocument();
-    expect(receipt.getByText('→ $300')).toBeInTheDocument();
+    expect(receipt.getByText('$6,400')).toBeInTheDocument();
+    expect(receipt.getByText('→ $2,000')).toBeInTheDocument();
     expect(receipt.getByText('Your wallet')).toBeInTheDocument();
-    expect(receipt.getByText('+$340')).toBeInTheDocument();
-    expect(receipt.getByText('Pocket back to its $300 float')).toBeInTheDocument();
+    expect(receipt.getByText('+$4,400')).toBeInTheDocument();
+    expect(receipt.getByText('Pocket back to its $2,000 float')).toBeInTheDocument();
   });
 
   it('POSTs the collect for the right agent', async () => {
     const user = userEvent.setup();
-    fetchMock.route('/collect', { collected: 340, float: 300 }, { method: 'POST' });
+    fetchMock.route('/collect', { moved: 4400, float: 2000 }, { method: 'POST' });
     renderProfile(balancedAgent);
 
     await user.click(within(line()).getByRole('button', { name: 'Collect' }));
@@ -211,5 +212,49 @@ describe('WUI-3 — no dead buttons', () => {
     // The state is still reported in full.
     expect(within(line()).getByText('CUT OFF')).toBeInTheDocument();
     expect(within(line()).getByText('cut off · nothing pending')).toBeInTheDocument();
+  });
+});
+
+describe('WUI-4 — float and pnl from the contract', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+  });
+
+  it('an auto pocket names the float it refills to, not its cap', () => {
+    renderProfile(balancedAgent);
+    // cap 10,000 is the ceiling; 2,000 is where collect leaves him and where
+    // auto tops him back up to. The sentence is about the float.
+    expect(within(line()).getByText(/refills to \$2,000/)).toBeInTheDocument();
+    expect(within(line()).queryByText(/refills to \$10,000/)).toBeNull();
+  });
+
+  it('the receipt leaves him at his float, taking only what is above it', async () => {
+    const user = userEvent.setup();
+    // No float in the response: it still comes out right, from the pocket.
+    fetchMock.route('/collect', {}, { method: 'POST' });
+    const { container } = renderProfile(balancedAgent);
+
+    await user.click(within(line()).getByRole('button', { name: 'Collect' }));
+
+    const receipt = within(await waitFor(() => {
+      const el = container.querySelector('.wal-collect');
+      expect(el).toBeTruthy();
+      return el;
+    }));
+    expect(receipt.getByText('→ $2,000')).toBeInTheDocument();
+    expect(receipt.getByText('+$4,400')).toBeInTheDocument();
+  });
+
+  it('an older projection with no float or pnl still renders, quietly', () => {
+    renderProfile(legacyPocketAgent);
+    const row = within(line());
+    expect(row.getByText('$3,000')).toBeInTheDocument();
+    // No stakes label and no float to key the fallback ladder off — the cap
+    // answers instead, and nothing is invented.
+    expect(row.getByText(/plays \$10\/\$20/)).toBeInTheDocument();
+    expect(row.queryByText(/refills to/)).toBeNull();
   });
 });

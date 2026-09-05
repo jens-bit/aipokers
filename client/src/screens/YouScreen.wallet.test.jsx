@@ -113,13 +113,13 @@ describe('WUI-1 — pocket rows', () => {
     await screen.findByText('Balanced v2.1');
 
     const balanced = row('Balanced v2.1');
-    expect(within(balanced).getByText('$640')).toBeInTheDocument();
+    expect(within(balanced).getByText('$6,400')).toBeInTheDocument();
     expect(within(balanced).getByText('+$340')).toBeInTheDocument();
 
-    // The ref's law: the roll he was given sets the stakes, not today's
-    // balance. $500 allowance seats him at $10/$20 on $210 left.
+    // The rung the server seated him at, sent as pocket.stakes.label — the
+    // client never runs a second ladder of its own.
     const aggressive = row('Aggressive v1.3');
-    expect(within(aggressive).getByText('$210')).toBeInTheDocument();
+    expect(within(aggressive).getByText('$2,100')).toBeInTheDocument();
     expect(within(aggressive).getByText('$10/$20')).toBeInTheDocument();
     expect(within(aggressive).getByText('−$90')).toBeInTheDocument();
   });
@@ -170,10 +170,10 @@ describe('WUI-1 — pocket rows', () => {
     // Empty bar, in grey.
     expect(broke.querySelector('.wal-bar__fill')).toHaveClass('wal-bar__fill--broke');
     expect(broke.querySelector('.wal-bar__fill').style.width).toBe('0%');
-    // Two em dashes and no invented numbers: no stakes because he is not
-    // sitting anywhere, and no P&L because there is nothing to report.
-    expect(within(broke).getAllByText('—')).toHaveLength(2);
-    expect(within(broke).getByText('$0')).toBeInTheDocument();
+    // One em dash and no invented numbers: no stakes, because he is not
+    // sitting anywhere. The pocket and the P&L are both a real, computed zero.
+    expect(within(broke).getAllByText('—')).toHaveLength(1);
+    expect(within(broke).getAllByText('$0')).toHaveLength(2);
   });
 });
 
@@ -209,7 +209,7 @@ describe('WUI-1 — the row actions', () => {
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
-    expect(within(row('Balanced v2.1')).getByText('$640')).toBeInTheDocument();
+    expect(within(row('Balanced v2.1')).getByText('$6,400')).toBeInTheDocument();
     expect(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
   });
 
@@ -257,7 +257,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     const [req] = fetchMock.requestsMatching('/fund');
     expect(req.url).toContain('agent_value');
-    expect(req.body).toMatchObject({ mode: 'allowance', amount: 500, cap: null });
+    expect(req.body).toMatchObject({ mode: 'allowance', amount: 5000, cap: null });
 
     // Back to the list, with the wallet re-read rather than guessed at.
     await waitFor(() => expect(screen.getByText('Balanced v2.1')).toBeInTheDocument());

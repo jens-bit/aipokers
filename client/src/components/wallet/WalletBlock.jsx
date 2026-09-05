@@ -13,6 +13,11 @@ const M_MUTED = '#6B6B6B';
 export function WalletBlock({ wallet, playingCount = 0, agentCount = 0 }) {
   if (!wallet) return null;
 
+  // The server counts who is at a table; the props are the fallback for a
+  // projection that predates the playing tile.
+  const live = wallet.playing?.live ?? playingCount;
+  const total = wallet.playing?.total ?? agentCount;
+
   const tone = pnlTone(wallet.session);
   const sessionColor = tone === 'down' ? M_RED : tone === 'flat' ? M_MUTED : M_TEAL;
 
@@ -41,7 +46,7 @@ export function WalletBlock({ wallet, playingCount = 0, agentCount = 0 }) {
         <div className="wal-block__cell">
           <Lbl size={8.5}>Playing</Lbl>
           <div style={{ marginTop: 2 }}>
-            <Num size={13} weight={700}>{playingCount} of {agentCount}</Num>
+            <Num size={13} weight={700}>{live} of {total}</Num>
           </div>
         </div>
       </div>
