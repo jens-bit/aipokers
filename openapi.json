@@ -28,6 +28,32 @@
         }
       }
     },
+    "/api/events": {
+      "get": {
+        "summary": "Casino floor ticker",
+        "operationId": "getEvents",
+        "description": "The last 200 notable moments from anywhere in the casino, oldest first. Headlines only \u2014 names, a type and a pot size, never hole cards or reasoning. Pass the previous response's `lastId` back as `since` to poll for what is new. The same events are pushed over the WebSocket as EVENT to any connection subscribed with FLOOR_SUB, and `id` is monotonic across both, so the two can be reconciled.",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Return only events with an id greater than this. Omit for the whole ring.",
+            "schema": { "type": "integer", "minimum": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events newer than `since`, oldest first",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EventsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "summary": "List agents for a user",
@@ -451,6 +477,34 @@
   },
   "components": {
     "schemas": {
+      "CasinoEvent": {
+        "type": "object",
+        "description": "One line of the floor ticker.",
+        "properties": {
+          "id": { "type": "integer", "description": "Monotonic; send the highest one back as `since`." },
+          "ts": { "type": "integer", "description": "Unix milliseconds." },
+          "type": {
+            "type": "string",
+            "enum": ["bigPot", "cooler", "heater", "bust", "nemesisSeated", "hot"],
+            "description": "bigPot: a finished pot of at least 3x PACE_HEAT_BB big blinds (default 75bb). cooler: a strong hand ran into a stronger one and the money went in. heater: an agent has won 5 of his last 6 hands, fired once on the hand that crosses. bust: a seat reached zero chips. nemesisSeated: an agent sat down with his nemesis. hot: a pot of at least PACE_HEAT_BB big blinds reached the river with two or more players still live \u2014 emitted BEFORE the showdown, so there is still time to watch it."
+          },
+          "tableId": { "type": "string", "nullable": true },
+          "agentIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "The agents the event is about. Empty when no agent was involved."
+          },
+          "headline": { "type": "string", "description": "Short, plain words. Safe to render as-is." },
+          "pot": { "type": "integer", "description": "The pot in chips when it fired; 0 when the event is not about a pot." }
+        }
+      },
+      "EventsResponse": {
+        "type": "object",
+        "properties": {
+          "events": { "type": "array", "items": { "$ref": "#/components/schemas/CasinoEvent" } },
+          "lastId": { "type": "integer", "description": "The id to pass as `since` on the next poll." }
+        }
+      },
       "StatsResponse": {
         "type": "object",
         "properties": {

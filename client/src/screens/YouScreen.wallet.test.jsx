@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { YouScreen } from './YouScreen.jsx';
 import {
+  cutPlayingAgent,
   noWalletAgentsResponse,
+  toppedUpAgent,
   wallet,
   walletAgentsResponse,
 } from '../test/fixtures/wallet.js';
@@ -145,19 +147,32 @@ describe('WUI-1 — pocket rows', () => {
       .toHaveAttribute('aria-valuenow', '64');
   });
 
-  it('offers exactly one action per row, and it is the right one', async () => {
+  // WALLET-5 — this used to assert "exactly one action per row, and Collect
+  // wins". The playtest showed what that costs: funding an agent past his
+  // float removed Fund, so there was no way left to add more or to change how
+  // he gets money. Fund is unconditional now; Collect joins it when he is up,
+  // or when he is cut off and still holding a roll.
+  it('always offers Fund, whatever else the row offers', async () => {
     render(<YouScreen />);
     await screen.findByText('Balanced v2.1');
 
-    for (const [name, action, absent] of [
-      ['Balanced v2.1', 'Collect', 'Fund'],
-      ['Aggressive v1.3', 'Collect', 'Fund'],
-      ['Bluff Master', 'Collect', 'Fund'],
-      ['Value Bot', 'Fund', 'Collect'],
+    for (const name of ['Balanced v2.1', 'Aggressive v1.3', 'Bluff Master', 'Value Bot']) {
+      expect(within(row(name)).getByRole('button', { name: 'Fund' }), name).toBeInTheDocument();
+    }
+  });
+
+  it('offers Collect beside it only for the ones carrying something home', async () => {
+    render(<YouScreen />);
+    await screen.findByText('Balanced v2.1');
+
+    for (const [name, collect] of [
+      ['Balanced v2.1', true],    // up $340
+      ['Aggressive v1.3', false], // down $90, whatever sits above his float
+      ['Bluff Master', true],     // up $236
+      ['Value Bot', false],       // cut off, and empty
     ]) {
-      const r = within(row(name));
-      expect(r.getByRole('button', { name: action })).toBeInTheDocument();
-      expect(r.queryByRole('button', { name: absent })).not.toBeInTheDocument();
+      const q = within(row(name)).queryByRole('button', { name: 'Collect' });
+      expect(Boolean(q), name).toBe(collect);
     }
   });
 
@@ -252,12 +267,17 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
     await screen.findByRole('dialog');
+    // WALLET-5: he was cut off, so the sheet opens on the cut — putting him
+    // back on an allowance is a choice the owner makes here.
+    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     const [req] = fetchMock.requestsMatching('/fund');
     expect(req.url).toContain('agent_value');
-    expect(req.body).toMatchObject({ mode: 'allowance', amount: 5000, cap: null });
+    // WALLET-5: the size rides along for every mode that has one, so the sheet
+    // can reopen on what was set rather than on a default.
+    expect(req.body).toMatchObject({ mode: 'allowance', amount: 5000, cap: 5000 });
 
     // Back to the list, with the wallet re-read rather than guessed at.
     await waitFor(() => expect(screen.getByText('Balanced v2.1')).toBeInTheDocument());
@@ -285,9 +305,158 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
     await screen.findByRole('dialog');
+    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     expect(screen.getByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
+  });
+});
+
+// ── WALLET-5 · the four playtest bugs on this screen ────────────────────────
+
+// A roster of our own, so the ref's four stay the ref's four.
+function withAgents(list) {
+  fetchMock.route('/api/wallet', wallet);
+  fetchMock.route('/api/agents?', { agents: list });
+  fetchMock.route('/hands', { recentHands: [] });
+}
+
+describe('WALLET-5 — funding him past his float does not take Fund away', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('keeps Fund on a topped-up row, and calls none of it winnings', async () => {
+    // Seeded on auto at a 2,000 cap, then funded to 4,000. Half of it sits
+    // "above the float" without his having won a chip.
+    withAgents([toppedUpAgent]);
+    render(<YouScreen />);
+    await screen.findByText('Topped Up');
+
+    const r = within(row('Topped Up'));
+    expect(r.getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+    expect(r.queryByRole('button', { name: 'Collect' })).not.toBeInTheDocument();
+  });
+
+  it('draws both actions when he really is up', async () => {
+    withWallet();
+    render(<YouScreen />);
+    await screen.findByText('Balanced v2.1');
+
+    const r = within(row('Balanced v2.1'));
+    expect(r.getByRole('button', { name: 'Collect' })).toBeInTheDocument();
+    expect(r.getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+  });
+});
+
+describe('WALLET-5 — cutting him off is visible on the row', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    withAgents([cutPlayingAgent]);
+  });
+
+  it('badges him CUT OFF and greys the stakes he is not going to play', async () => {
+    const { container } = render(<YouScreen />);
+    await screen.findByText('Loose Cannon');
+
+    const r = row('Loose Cannon');
+    expect(within(r).getByText('CUT OFF')).toBeInTheDocument();
+    expect(r).toHaveClass('wal-row--cut');
+    // The rung is still stated — he can afford it — but drawn as something he
+    // is not going to sit at.
+    expect(within(r).getByText('$10/$20')).toBeInTheDocument();
+    expect(r.querySelector('.wal-row__stakes')).toHaveClass('is-greyed');
+    // Quieter, never redder: no warning colour anywhere on the row.
+    expect(r.innerHTML).not.toContain('#FF4D4F');
+  });
+
+  it("says what happens next, in the funding sheet's own words", async () => {
+    render(<YouScreen />);
+    await screen.findByText('Loose Cannon');
+    expect(within(row('Loose Cannon')).getByText('finishes this hand then sits at the bar'))
+      .toBeInTheDocument();
+  });
+
+  it('stops promising it once he is off the table', async () => {
+    // The same pocket, at the bar. The promise was about the next few minutes
+    // and would be a lie a day later.
+    withAgents([{ ...cutPlayingAgent, presence: 'resting', activeTableId: null }]);
+    render(<YouScreen />);
+    await screen.findByText('Loose Cannon');
+
+    const r = within(row('Loose Cannon'));
+    expect(r.queryByText('finishes this hand then sits at the bar')).not.toBeInTheDocument();
+    expect(r.getByText('at the bar · nothing pending')).toBeInTheDocument();
+  });
+
+  it('collects all of it — the float he would be left with buys him no seat', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/collect', { collected: 4000 }, { method: 'POST' });
+    render(<YouScreen />);
+    await screen.findByText('Loose Cannon');
+
+    await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Collect' }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
+    expect(fetchMock.requestsMatching('/collect')[0].body).toMatchObject({ leaveFloat: false });
+  });
+});
+
+describe('WALLET-5 — the sheet opens on where he actually stands', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    withAgents([cutPlayingAgent]);
+  });
+
+  it('reopens on the cut he was put on, not on a default', async () => {
+    const user = userEvent.setup();
+    render(<YouScreen />);
+    await screen.findByText('Loose Cannon');
+
+    await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Fund' }));
+    await screen.findByRole('dialog');
+
+    const body = within(document.querySelector('.wal-sheet__body'));
+    expect(body.getByRole('button', { name: /Cut him off/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(body.getByRole('button', { name: /Allowance/i })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('WALLET-5 — his face opens his profile', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    withWallet();
+  });
+
+  it('taps through from a pocket row', async () => {
+    const user = userEvent.setup();
+    const onOpenProfile = vi.fn();
+    render(<YouScreen onOpenProfile={onOpenProfile} />);
+    await screen.findByText('Bluff Master');
+
+    await user.click(within(row('Bluff Master')).getByRole('button', { name: /profile/i }));
+    expect(onOpenProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'agent_bluff', name: 'Bluff Master' }),
+    );
+  });
+
+  it("taps through from the sheet's header row too", async () => {
+    const user = userEvent.setup();
+    const onOpenProfile = vi.fn();
+    render(<YouScreen onOpenProfile={onOpenProfile} />);
+    await screen.findByText('Bluff Master');
+
+    await user.click(within(row('Bluff Master')).getByRole('button', { name: 'Fund' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: /profile/i }));
+
+    expect(onOpenProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'agent_bluff' }),
+    );
+  });
+
+  it('leaves the face inert when no host owns that navigation', async () => {
+    render(<YouScreen />);
+    await screen.findByText('Bluff Master');
+    expect(screen.queryByRole('button', { name: /profile/i })).toBeNull();
   });
 });

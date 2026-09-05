@@ -119,11 +119,15 @@ describe('DP-2 — funding from the rail', () => {
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
     await screen.findByRole('dialog');
+    // WALLET-5: he was cut off, so the sheet opens on the cut. Putting him back
+    // on an allowance is a choice the owner makes here, and the size he is put
+    // on rides along so the sheet can reopen on it.
+    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
 
     await waitFor(() => expect(onFund).toHaveBeenCalled());
     expect(onFund.mock.calls[0][0].id).toBe('agent_value');
-    expect(onFund.mock.calls[0][1]).toMatchObject({ mode: 'allowance', cap: null });
+    expect(onFund.mock.calls[0][1]).toMatchObject({ mode: 'allowance', cap: 5000 });
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getByText('Balanced v2.1')).toBeInTheDocument();

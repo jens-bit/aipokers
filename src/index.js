@@ -10,6 +10,7 @@ import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } fr
 import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
 import { attachNotify } from './server/notify.js';
+import { installEventRoutes } from './server/events.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -34,6 +35,9 @@ const rlWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE_LIMIT_MAX ?? 60) }));
 
 installAgentProfileRoutes(app);
+// EVENT-1: GET /api/events?since=<id> - the floor ticker's poll. Public
+// headlines only, no model call, already inside the /api rate limiter above.
+installEventRoutes(app);
 
 // Build the HTTP server and attach WebSocket before registering the remaining
 // routes so that the tables Map is in scope for /api/stats.

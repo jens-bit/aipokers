@@ -237,6 +237,31 @@ function realisedFromLedger(ledger) {
   return n;
 }
 
+// ── WALLET-5: cutting him off, at a table already running ────────────────────
+//
+// 'cut' is the one mode with a consequence that cannot wait for the next
+// deploy. He is playing on a roll the owner has just stopped backing, so the
+// funding sheet's own promise has to come true: "He finishes the hand he is in
+// and takes a seat at the bar."
+//
+// This is the only function in this file that touches anything but a wallet and
+// a pocket, and it does the smallest possible thing: it queues the seat on the
+// table's own pending sit-out set, which is the path SIT_OUT already walks. The
+// hand in progress completes, the between-hands reconcile frees the seat, the
+// session is reported, and the floor draws him at the bar because he is no
+// longer at a table. One mechanism, not two.
+//
+// The table is duck-typed on purpose — this module still knows nothing about
+// table.js, and the test drives it with a plain object.
+export function benchCutSeat(table, agentId) {
+  const seats = table?.agentIds;
+  const seat = Array.isArray(seats) ? seats.indexOf(agentId) : -1;
+  if (seat < 0 || !table?.pending?.[seat]) return { seat: -1, benched: false };
+  if (typeof table?._pendingSitOut?.add !== 'function') return { seat, benched: false };
+  table._pendingSitOut.add(seat);
+  return { seat, benched: true };
+}
+
 // ── Migration (SEED-1) ───────────────────────────────────────────────────────
 
 // Seed one owner's wallet and every pocket from today's per-agent bankrolls.

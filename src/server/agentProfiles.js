@@ -58,7 +58,7 @@ import {
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
   debitBuyIn, creditCashOut,
-  walletProjection, pocketProjection,
+  walletProjection, pocketProjection, benchCutSeat,
   collectMoment, brokeMoment, appendEntry,
 } from './wallet.js';
 import {
@@ -1684,6 +1684,14 @@ export function installAgentProfileRoutes(app) {
     // RELATE-1a: staking him and cutting him off are both things he remembers.
     if (pocket.mode === 'cut') {
       recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
+      // WALLET-5: and it is the one mode that acts on a table already running.
+      // The sheet promises "he finishes the hand he is in and takes a seat at
+      // the bar", and until now nothing made that true — the row changed a tag
+      // and he kept playing on money the owner had stopped backing.
+      if (agent.activeTableId) {
+        const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
+        if (table) benchCutSeat(table, agent.id);
+      }
     } else if (result.moved > 0) {
       recordOwnerEvent(agent, 'funded', { amount: result.moved });
     }

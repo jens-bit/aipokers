@@ -105,6 +105,37 @@ export const brokeAgent = agent({
   },
 });
 
+// WALLET-5 · cut off mid-session: still at a table, still holding a roll, and
+// nothing lost. Deliberately not in `pocketAgents` — the four above are the
+// design ref's own cast and the row-count assertions read them.
+export const cutPlayingAgent = agent({
+  id: 'agent_cannon',
+  name: 'Loose Cannon',
+  presence: 'playing',
+  activeTableId: 'tbl-1',
+  mood: { state: 'confident', cause: null, updatedAt: null },
+  pocket: {
+    balance: 4000, mode: 'cut', cap: null,
+    have: 4000, capBar: 5000,
+    stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
+    broke: false, collectable: 2000, funded: 4000, collected: 0, pnl: 0,
+  },
+});
+
+// WALLET-5 · the reported shape: seeded on auto at a 2,000 cap, then topped up
+// to 4,000. He has won nothing, so 2,000 of it reads as "above the float"
+// without being winnings — the row must still offer Fund.
+export const toppedUpAgent = agent({
+  id: 'agent_topped',
+  name: 'Topped Up',
+  pocket: {
+    balance: 4000, mode: 'auto', cap: 2000,
+    have: 4000, capBar: 2000,
+    stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
+    broke: false, collectable: 2000, funded: 4000, collected: 0, pnl: 0,
+  },
+});
+
 export const pocketAgents = [balancedAgent, aggressiveAgent, bluffAgent, brokeAgent];
 
 export const walletAgentsResponse = { agents: pocketAgents };
