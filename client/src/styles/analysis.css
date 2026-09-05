@@ -504,6 +504,15 @@
   flex-shrink: 0;
 }
 
+/* FIX-3b: in the watch sheet the composer is the last thing on the screen, so
+   it lands under the iOS home indicator and, with the keyboard up, under the
+   keyboard itself. The sheet is already sized off --tg-h (Telegram shrinks the
+   viewport and KEY-1 tracks it), so all the composer owes is the safe area —
+   and a floor under it, because env() is 0 on a device with no inset. */
+.dr-chat-tab--fill .dr-chat-tab__form {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+}
+
 .dr-chat-tab__input {
   flex: 1;
   height: 32px;

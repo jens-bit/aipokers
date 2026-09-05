@@ -9,7 +9,11 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WatchScreen } from './WatchScreen.jsx';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { WatchScreen, feltGeometry } from './WatchScreen.jsx';
 import { betweenHandsGame, midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -17,6 +21,16 @@ import { FLIP_MS } from '../lib/pace.js';
 import { resetHaptics } from '../lib/haptics.js';
 import { isMuted, play, resetAudio } from '../lib/audio.js';
 import { GUESSES, resetPredict } from '../lib/predict.js';
+
+// FIX-3b asserts on rules rather than on layout: jsdom computes neither
+// env(safe-area-inset-bottom) nor any height.
+const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const readCss = (rel) => readFileSync(resolve(clientRoot, rel), 'utf8');
+const cssRule = (sheet, selector) => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = new RegExp(`(?:^|[},])\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(sheet);
+  return found ? found[1] : '';
+};
 
 function renderWatch(game, props = {}) {
   return render(
@@ -230,11 +244,15 @@ describe('WatchScreen mid-hand', () => {
   // feed's only home and the only place that printed 67.4% — the solver stack
   // finding 3 kills. What a decision still owes the screen is unchanged and
   // asserted here: his sentence, and his equity on the rope.
-  it('W3-2: a decision reaches the felt as his line and his equity', async () => {
+  // FIX-3a retunes this. His equity is unconditional — it is the rope. His line
+  // is not: on a short felt the geometry has no room for it between the board
+  // and the rope, and it is suppressed there rather than drawn through the rope.
+  // It still reaches the owner in the sheet's peek row and in the thread.
+  it('W3-2: a decision reaches the felt as his equity, always', async () => {
     const { container } = renderWatch(midHandGame, {
       lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674, reasoning: 'Set. Charging the draws.' },
     });
-    expect(await screen.findByText(/Charging the draws/)).toBeInTheDocument();
+    await screen.findByText('The Grinder');
     // WV2-2: the wire carries equity as a 0..1 fraction, not a percent.
     expect(container.querySelector('.tug__value').textContent).toBe('67%');
   });
@@ -885,6 +903,167 @@ describe('W3-4 the prediction beat', () => {
     for (const banned of ['coin', 'chips left', 'claim', 'reward', 'bonus', 'x2']) {
       expect(text).not.toContain(banned);
     }
+  });
+});
+
+// ── FIX-3 · watch layout ────────────────────────────────────────────────────
+
+describe('FIX-3a line and rope never overlap', () => {
+  // jsdom measures nothing, so the stacking is asserted on the geometry that
+  // produces it, at the real pixel sizes a phone gives the stage.
+  const STAGES = [598, 674, 520, 760, 420];
+  const FRACS = [306 / 639, 400 / 639, 508 / 639, 620 / 639];
+
+  const BOARD_CARD_H = 64;
+  const TUG_H = 30;
+  const LINE_H = 19;
+  const HERO_BAND = 78;
+
+  it('FIX-3a: at every detent and stage, the stack is board → line → rope → hero', () => {
+    for (const stage of STAGES) {
+      for (const frac of FRACS) {
+        const g = feltGeometry(frac, stage);
+        const boardBottom = g.board + BOARD_CARD_H;
+        const heroTop = g.felt - HERO_BAND;
+
+        // The rope is under the board and above the hero row, always.
+        expect(g.tug, `stage ${stage} frac ${frac}: rope over the board`)
+          .toBeGreaterThanOrEqual(boardBottom);
+        expect(g.tug + TUG_H, `stage ${stage} frac ${frac}: rope into the hero row`)
+          .toBeLessThanOrEqual(heroTop);
+
+        // And his line, when it is drawn at all, sits between them without
+        // touching either.
+        if (g.line != null) {
+          expect(g.line, `stage ${stage} frac ${frac}: line over the board`)
+            .toBeGreaterThanOrEqual(boardBottom);
+          expect(g.line + LINE_H, `stage ${stage} frac ${frac}: line into the rope`)
+            .toBeLessThanOrEqual(g.tug);
+        }
+      }
+    }
+  });
+
+  it('FIX-3a: the line is drawn when the felt is tall enough for it', () => {
+    // The hidden detent gives the felt almost the whole stage.
+    const g = feltGeometry(620 / 639, 760);
+    expect(g.line).not.toBeNull();
+    expect(g.line + 19).toBeLessThanOrEqual(g.tug);
+  });
+
+  it('FIX-3a: and suppressed rather than drawn through the rope when it is not', () => {
+    // The expanded detent on a short stage: board, rope, hero row and the seat
+    // ring already use every pixel. His line is in the peek row and the thread.
+    const g = feltGeometry(306 / 639, 560);
+    expect(g.line).toBeNull();
+  });
+
+  it('FIX-3a: the detent geometry itself is unchanged', () => {
+    // SHEET_LAY, verbatim: at the ref's own region the three tops reproduce it.
+    const region = 639;
+    expect(feltGeometry(306 / region, region)).toMatchObject({ felt: 306, pot: 60, board: 108, tug: 184 });
+    expect(feltGeometry(508 / region, region)).toMatchObject({ felt: 508, pot: 128, board: 196, tug: 286 });
+    expect(feltGeometry(620 / region, region)).toMatchObject({ felt: 620, pot: 168, board: 244, tug: 336 });
+  });
+
+  it('FIX-3a: the rope and the line read the same geometry, not two anchors', () => {
+    const { container } = renderWatch(midHandGame, {
+      lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.5, reasoning: 'He is done.' },
+    });
+    const felt = container.querySelector('.watch-felt');
+    // Both tops come off the felt's own custom properties; neither is anchored
+    // to the opposite edge, which is what let them cross.
+    expect(felt.style.getPropertyValue('--wv-tug')).toMatch(/^\d+px$/);
+    expect(felt.style.getPropertyValue('--wv-line')).toMatch(/^\d+px$/);
+  });
+});
+
+describe('FIX-3b the chat composer clears the bottom of the screen', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('FIX-3b: the screen follows the Telegram viewport, so the keyboard cannot cover it', () => {
+    const css = readCss('src/styles/watch.css');
+    const rule = cssRule(css, '.watch-screen');
+    // --tg-h shrinks when the iOS keyboard opens (KEY-1 tracks it). Following
+    // it is what keeps the sheet, and the composer at the foot of it, above the
+    // keyboard rather than behind it.
+    expect(rule).toMatch(/height:\s*var\(--tg-h/);
+  });
+
+  it('FIX-3b: the sheet composer clears the home indicator', () => {
+    const css = readCss('src/styles/analysis.css');
+    const rule = cssRule(css, '.dr-chat-tab--fill .dr-chat-tab__form');
+    expect(rule).toMatch(/padding-bottom:\s*max\(env\(safe-area-inset-bottom/);
+    // A floor under it, because env() is 0 on a device with no inset.
+    expect(rule).toMatch(/8px\)/);
+  });
+
+  it('FIX-3b: and the composer is still reachable on the chat tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+
+    const chat = container.querySelector('.dr-chat-tab--fill');
+    expect(chat).toBeTruthy();
+    expect(chat.querySelector('.dr-chat-tab__form')).toBeTruthy();
+    expect(chat.querySelector('.dr-chat-tab__input')).toBeTruthy();
+  });
+});
+
+describe('FIX-3c the collapsed header', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('FIX-3c: one row carries back, name, mood, state and chat', async () => {
+    const { container } = renderWatch(midHandGame);
+    await screen.findByText('The Grinder');
+
+    const header = container.querySelector('.watch-screen__header');
+    expect(header.querySelector('.watch-screen__back')).toBeTruthy();
+    expect(header.querySelector('.watch-screen__title').textContent).toBe('The Grinder');
+    expect(header.querySelector('.mood-chip, [class*="mood"]')).toBeTruthy();
+    expect(header.querySelector('.watch-screen__chat').textContent).toBe('Chat');
+  });
+
+  it('FIX-3c: the header is the ww-ref\'s 40px, and the mood band is gone', () => {
+    const { container } = renderWatch(midHandGame);
+    const css = readCss('src/styles/watch.css');
+    expect(cssRule(css, '.watch-screen__header')).toMatch(/height:\s*40px/);
+    // The band was a second 56px row above the felt. It is not there any more.
+    expect(container.querySelector('.mood-band')).toBeNull();
+  });
+
+  it('FIX-3c: the chat control still reaches the chat tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+    await user.click(container.querySelector('.watch-screen__chat'));
+    expect(container.querySelector('.dr-chat-tab')).toBeTruthy();
+  });
+
+  it('FIX-3c: his cause line moves to the between-hands strip', () => {
+    const { container } = renderWatch(betweenHandsGame);
+    const strip = container.querySelector('.watch-sitout-strip');
+    expect(strip).toBeTruthy();
+    expect(within(strip).getByText('Between hands')).toBeInTheDocument();
+    // The strip's second line is his cause when there is one, and the old
+    // default when there is not.
+    expect(strip.querySelector('.watch-sitout-strip__meta').textContent).toBeTruthy();
+  });
+
+  it('FIX-3c: leaving still leaves, not sits out', async () => {
+    const user = userEvent.setup();
+    const onLeave = vi.fn();
+    const onSitOut = vi.fn();
+    const { container } = renderWatch(midHandGame, { onLeave, onSitOut });
+
+    await user.click(container.querySelector('.watch-screen__back'));
+    expect(onLeave).toHaveBeenCalled();
+    expect(onSitOut).not.toHaveBeenCalled();
   });
 });
 

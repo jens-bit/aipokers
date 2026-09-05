@@ -4,20 +4,61 @@
 .watch-screen {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* FIX-3b: --tg-h is the Telegram viewport and shrinks when the iOS keyboard
+     opens (KEY-1 tracks it). Following it here is what keeps the sheet — and
+     the chat composer at the bottom of it — above the keyboard rather than
+     behind it. 100% is the fallback outside Telegram. */
+  height: var(--tg-h, 100%);
+  max-height: 100%;
   background: var(--sys-bg, #1A1A1E);
   color: var(--sys-text, #EDEDED);
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
   overflow: hidden;
 }
 
+/* FIX-3c: one 40px row instead of a header plus a 56px mood band — back, his
+   name, his mood, whether he is at a table, and the way into the chat. The
+   ww-ref S4 budget gives the header 40px; the band's 56 goes to the felt, which
+   is what the rope and his line are short of. */
 .watch-screen__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px 10px;
+  height: 40px;
+  padding: 0 14px;
   background: var(--sys-panel, #232329);
+  border-bottom: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
   flex-shrink: 0;
+}
+
+.watch-screen__header > .watch-screen__title { min-width: 0; }
+
+.watch-screen__chat {
+  flex-shrink: 0;
+  height: 28px;
+  min-height: 0;
+  padding: 0 11px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, #00D4AA);
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* The strip now carries his cause line, which can be a whole sentence. */
+.watch-sitout-strip__text { min-width: 0; }
+
+.watch-sitout-strip__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .watch-screen__back {
@@ -44,7 +85,7 @@
 
 /* ── the stage: felt above, draggable sheet below ─────────────────────── */
 /* WV2-3: the felt no longer has a fixed height. WatchScreen writes its height
-   and the three interior tops (--wv-pot / --wv-board / --wv-meta) as inline
+   and the interior tops (--wv-pot / --wv-board / --wv-tug / --wv-line) as inline
    custom properties, interpolated from mood-watch2.jsx's SHEET_LAY, so the
    felt scales fluidly as the sheet is dragged between its detents. */
 .watch-stage {
@@ -150,7 +191,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: 2px;
-  height: max(0px, calc(var(--wv-meta, 236px) - var(--wv-board, 128px) - 62px));
+  height: max(0px, calc(var(--wv-tug, 236px) - var(--wv-board, 128px) - 62px));
   z-index: 1;
   background: linear-gradient(180deg, transparent, rgba(205,179,128,0.33));
   pointer-events: none;
@@ -158,7 +199,7 @@
 
 .watch-felt__won {
   position: absolute;
-  top: var(--wv-meta, 236px);
+  top: var(--wv-tug, 236px);
   left: 0;
   right: 0;
   display: flex;
@@ -237,7 +278,7 @@
 
 .watch-felt__street {
   position: absolute;
-  top: var(--wv-meta, 184px);
+  top: var(--wv-tug, 184px);
   left: 0;
   right: 0;
   text-align: center;
@@ -799,7 +840,7 @@
 
 .watch-felt__tug {
   position: absolute;
-  top: var(--wv-meta, 184px);
+  top: var(--wv-tug, 184px);
   left: 44px;
   right: 44px;
   z-index: 3;
@@ -875,11 +916,14 @@
 /* Finding 3: the decision line read like a solver. One line, thread voice,
    and at ALL-IN it is the loudest sentence in the product. */
 
+/* FIX-3a: his line is anchored ABOVE the rope, from the same geometry the rope
+   uses, so the two can never be drawn through each other. It was bottom-anchored
+   off the hero row before, which on a short felt put it straight over the rope. */
 .watch-felt__line {
   position: absolute;
   left: 16px;
   right: 16px;
-  bottom: calc(var(--wv-hero-band, 90px) + 12px);
+  top: var(--wv-line, 176px);
   z-index: 3;
   text-align: center;
 }
@@ -922,7 +966,7 @@
 
 /* Between hands the calm "SHUFFLING" line owns the slot under the board, so the
    rope steps below it rather than through it. */
-.watch-felt--metaline .watch-felt__tug { top: calc(var(--wv-meta, 184px) + 22px); }
+.watch-felt--metaline .watch-felt__tug { top: calc(var(--wv-tug, 184px) + 22px); }
 
 .watch-felt__hero-tag {
   padding: 5px 8px;
