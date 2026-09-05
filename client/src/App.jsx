@@ -438,7 +438,7 @@ export default function App() {
               }}
             />
           )}
-          {activeTab === 'you' && <YouScreen />}
+          {activeTab === 'you' && <YouScreen onOpenProfile={openAgentProfile} />}
 
           {/* WIRE-1: the newborn's arrival is CasinoFloor's own (FLOOR-2 FL-3) —
               it notices an id that was not in the roster it first saw and walks

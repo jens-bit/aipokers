@@ -75,10 +75,14 @@ describe('WUI-3 — the pocket line', () => {
     expect(text.indexOf('Pocket')).toBeLessThan(text.indexOf('Career'));
   });
 
-  it('offers one action: Collect while he is carrying money home', () => {
+  // WALLET-5 — the pocket line follows the pocket row: Fund is always offered
+  // (it is the only way into the mode) and Collect joins it while he is
+  // carrying something home. The old "one action, never two" rule is what made
+  // a topped-up agent unfundable.
+  it('offers Collect beside Fund while he is carrying money home', () => {
     renderProfile(balancedAgent);
     expect(within(line()).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
-    expect(within(line()).queryByRole('button', { name: 'Fund' })).toBeNull();
+    expect(within(line()).getByRole('button', { name: 'Fund' })).toBeInTheDocument();
   });
 
   it('offers Fund when he is broke, and says so without guilt', () => {

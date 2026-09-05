@@ -18,7 +18,7 @@ import {
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund, collect, autoRefill, debitBuyIn, creditCashOut, floatFor,
-  seedOwner, walletProjection, pocketProjection,
+  seedOwner, walletProjection, pocketProjection, benchCutSeat,
   collectMoment, brokeMoment,
 } from './wallet.js';
 
@@ -679,4 +679,45 @@ test('WALLET-1e: the projection keys are the documented contract', () => {
     'balance', 'broke', 'cap', 'capBar', 'collectable', 'collected',
     'float', 'funded', 'have', 'mode', 'pnl', 'stakes',
   ]);
+});
+
+// ── WALLET-5: cutting him off reaches the table he is sitting at ─────────────
+// The funding sheet promises "he finishes the hand he is in and takes a seat at
+// the bar". Before this the promise was decoration: the mode changed and he
+// played on. benchCutSeat queues the seat on the table's own pending sit-out
+// set — the SIT_OUT path — so the hand completes, the reconcile frees the seat
+// and the floor draws him at the bar because he is no longer at a table.
+
+// The smallest table this needs to know about, in the shape table.js has.
+function fakeTable(agentIds) {
+  return {
+    agentIds,
+    pending: agentIds.map((id) => (id ? { playerId: `agent_${id}` } : null)),
+    _pendingSitOut: new Set(),
+  };
+}
+
+test('WALLET-5: cutting him off queues his seat to leave after the hand', () => {
+  const table = fakeTable([null, 'a1', 'a2']);
+  const r = benchCutSeat(table, 'a2');
+  assert.deepEqual(r, { seat: 2, benched: true });
+  assert.deepEqual([...table._pendingSitOut], [2], "his seat, and nobody else's");
+});
+
+test('WALLET-5: benching an agent who is not at this table touches nothing', () => {
+  const table = fakeTable([null, 'a1']);
+  assert.deepEqual(benchCutSeat(table, 'ghost'), { seat: -1, benched: false });
+  assert.equal(table._pendingSitOut.size, 0);
+  // A seat that emptied between the read and the write is the same non-event.
+  const emptied = fakeTable([null, 'a1']);
+  emptied.pending[1] = null;
+  assert.deepEqual(benchCutSeat(emptied, 'a1'), { seat: -1, benched: false });
+  assert.equal(emptied._pendingSitOut.size, 0);
+});
+
+test('WALLET-5: benching twice is idempotent — one seat, queued once', () => {
+  const table = fakeTable(['a1']);
+  benchCutSeat(table, 'a1');
+  benchCutSeat(table, 'a1');
+  assert.deepEqual([...table._pendingSitOut], [0]);
 });

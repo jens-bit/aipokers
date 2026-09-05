@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '../../styles/wallet.css';
 
 import { FundSheet } from './FundSheet.jsx';
-import { aggressiveAgent, brokeAgent, wallet } from '../../test/fixtures/wallet.js';
+import { aggressiveAgent, brokeAgent, cutPlayingAgent, wallet } from '../../test/fixtures/wallet.js';
 import { telegram } from '../../test/harness.js';
 
 function renderSheet(props = {}) {
@@ -55,6 +55,24 @@ describe('WUI-2 — where he stands', () => {
   });
 });
 
+describe('WALLET-5 — his face opens his profile', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('taps through to the profile, the same navigation the floor uses', async () => {
+    const user = userEvent.setup();
+    const onOpenProfile = vi.fn();
+    renderSheet({ onOpenProfile });
+
+    await user.click(screen.getByRole('button', { name: "Open Aggressive v1.3's profile" }));
+    expect(onOpenProfile).toHaveBeenCalledWith(aggressiveAgent);
+  });
+
+  it('is inert when no host owns that navigation', () => {
+    renderSheet();
+    expect(screen.queryByRole('button', { name: /profile/i })).toBeNull();
+  });
+});
+
 describe('WUI-2 — the four ways he gets money', () => {
   beforeEach(() => { telegram.signIn(); });
 
@@ -89,10 +107,22 @@ describe('WUI-2 — the four ways he gets money', () => {
     expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1);
   });
 
-  it('opens on allowance for an agent who was cut off, rather than re-proposing the cut', () => {
+  // WALLET-5 — this used to open on Allowance for a cut-off agent, on the
+  // reasoning that the sheet should not re-propose the cut. The playtest read
+  // it the other way and was right: the owner reopens the sheet to check what
+  // he set, and being shown Allowance says the cut never happened. A decision
+  // the owner took is not a state the sheet gets to forget.
+  it('opens on the cut for an agent who was cut off, because that is where he stands', () => {
     renderSheet({ agent: brokeAgent });
-    expect(option('Allowance')).toHaveAttribute('aria-pressed', 'true');
-    expect(option('Cut him off')).toHaveAttribute('aria-pressed', 'false');
+    expect(option('Cut him off')).toHaveAttribute('aria-pressed', 'true');
+    expect(option('Allowance')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('opens on the cut with no amount to size, and keeps his money on show', () => {
+    renderSheet({ agent: cutPlayingAgent });
+    expect(option('Cut him off')).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('input')).toBeNull();
+    expect(screen.getByText('$4,000')).toBeInTheDocument();
   });
 });
 
@@ -191,13 +221,25 @@ describe('WUI-2 — cutting him off, without guilt', () => {
 describe('WUI-2 — confirming', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('sends the allowance in the contract shape', async () => {
+  // WALLET-5 — `cap` used to be sent only for auto-refill, so an allowance's
+  // size was never stored and the sheet reopened on the default rather than on
+  // what the owner set. Every mode that HAS a size now carries it: it is what
+  // the sheet reopens on and what the pocket bar fills against.
+  it('sends the allowance with its size, so the sheet can reopen on it', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     renderSheet({ onConfirm });
 
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 5000, cap: null });
+    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 5000, cap: 5000 });
+  });
+
+  it("reopens on the amount the server holds, not the mode's default", () => {
+    // aggressiveAgent is on a 5,000 allowance; bump the stored size and the
+    // field has to follow it.
+    const on7500 = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, cap: 7500 } };
+    renderSheet({ agent: on7500 });
+    expect(screen.getByLabelText(/Amount/i)).toHaveValue(7500);
   });
 
   it('sends auto-refill with its cap on the cap field', async () => {
@@ -220,7 +262,7 @@ describe('WUI-2 — confirming', () => {
     await user.type(field, '7500');
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
 
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 7500, cap: null });
+    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 7500, cap: 7500 });
   });
 
   it('cancels without funding anything', async () => {

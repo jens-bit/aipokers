@@ -76,9 +76,14 @@ function FundOption({ mode, amount, selected, onSelect }) {
   );
 }
 
-export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0 }) {
+export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile }) {
   const pocket = pocketOf(agent);
-  const [mode, setMode] = useState(pocket?.mode && pocket.mode !== 'cut' ? pocket.mode : 'allowance');
+  // WALLET-5: the sheet opens on where he actually stands — the mode the
+  // server holds and the amount it was set with. 'cut' used to be excluded
+  // here, so cutting him off and reopening the sheet proposed an allowance as
+  // if the decision had never been made. A decision the owner took is not a
+  // state the UI gets to forget.
+  const [mode, setMode] = useState(pocket?.mode ?? 'allowance');
   const [amounts, setAmounts] = useState({ ...DEFAULT_AMOUNT, ...(pocket?.cap ? { [pocket.mode]: pocket.cap } : {}) });
   const [busy, setBusy] = useState(false);
 
@@ -98,7 +103,10 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0 }) {
       await onConfirm({
         mode,
         amount: isCut ? null : amount,
-        cap: mode === 'auto' ? amount : null,
+        // WALLET-5: the size he was set at is stored for every mode that has
+        // one, not just auto — it is what the sheet has to reopen on, and
+        // what the pocket bar fills against. Cutting him off sizes nothing.
+        cap: isCut ? null : amount,
       });
     } finally {
       setBusy(false);
@@ -122,13 +130,26 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0 }) {
           display: 'flex', alignItems: 'center', gap: 12, padding: '12px 13px',
           borderRadius: 12, background: '#1b1b1b', border: `1px solid ${accent}3D`, marginBottom: 14,
         }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: '#0A0F17',
-            border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end',
-            justifyContent: 'center', overflow: 'hidden',
-          }}>
-            <MoodGhost mood={moodOf(agent)} accent={accent} size={42} ring={false} />
-          </div>
+          {/* WALLET-5: his face opens his profile here too, the same
+              navigation the floor uses. Inert when no host owns it. */}
+          {(() => {
+            const frame = {
+              width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: '#0A0F17',
+              border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end',
+              justifyContent: 'center', overflow: 'hidden',
+            };
+            const face = <MoodGhost mood={moodOf(agent)} accent={accent} size={42} ring={false} />;
+            return onOpenProfile ? (
+              <button
+                type="button"
+                style={{ ...frame, padding: 0, cursor: 'pointer' }}
+                onClick={() => onOpenProfile(agent)}
+                aria-label={`Open ${agent.name}'s profile`}
+              >
+                {face}
+              </button>
+            ) : <div style={frame}>{face}</div>;
+          })()}
           <div style={{ flex: 1, minWidth: 0 }}>
             <Lbl size={8.5}>Pocket now</Lbl>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
