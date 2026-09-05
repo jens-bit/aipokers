@@ -6,6 +6,13 @@ Last updated: 2026-08-29 late night (post Tree 3.5 + FLR-9/10 deploy)
 
 ## OPEN
 
+### BUG-18 — Flagged hand review never shows the opponent's showdown cards
+**Severity:** Medium (the review is unreadable without them)
+**Where:** client/src/components/floor/FlaggedHandsSheet.jsx — `HandReview`
+**What:** The server records `opponentShowdownCards` on every flagged entry (`buildFlaggedEntry` in src/server/flaggedHands.js, populated from the showdown in table.js) and GET /api/agents/:id/flagged returns it unscoped, because cards turned over at showdown are public. The sheet renders the hero's `holeCards` and the board and drops the field on the floor. A BAD BEAT review therefore shows the equity collapsing with no sight of the hand that caused it.
+**Found by:** TEST-1. Regression test exists and is deliberately red: `it.todo('BUG-18: shows the opponent's showdown cards …')` in client/src/components/floor/FlaggedHandsSheet.test.jsx. Un-todo it when the fix lands.
+**Fix:** Render an opponent-showdown row in `HandReview` next to `HoleCardsRow` (seat name + the two cards), shown only when `opponentShowdownCards` is non-empty.
+
 ### BUG-16 — Presence lies: agent shown seated/"playing" while his table is frozen
 **Severity:** High (product identity)
 **Where:** server table lifecycle + floor presence; observed 2026-08-29 on prod
