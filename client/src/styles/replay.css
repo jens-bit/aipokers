@@ -443,3 +443,12 @@
 @media (prefers-reduced-motion: reduce) {
   .replay-scrub__fill { transition: none; }
 }
+
+/* The theatre opened from inside the flagged sheet, which is an absolute
+   overlay on the floor rather than a screen of its own. */
+.watch-sheet-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background: var(--sys-bg, #1A1A1E);
+}

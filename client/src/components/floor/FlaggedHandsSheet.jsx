@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
+import { ReplayCard } from '../replay/ReplayCard.jsx';
+import { ReplayTheatre } from '../replay/ReplayTheatre.jsx';
 
 // ── Design tokens (verbatim from mood-screens-f) ──────────────────────────────
 const M_TEAL   = '#00D4AA';
@@ -88,7 +90,7 @@ function BackBtn({ onClick }) {
   );
 }
 
-function SheetHeader({ title, onBack }) {
+function SheetHeader({ title, onBack, action }) {
   return (
     <div style={{
       flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center',
@@ -100,6 +102,14 @@ function SheetHeader({ title, onBack }) {
         fontFamily: OSWALD, fontSize: 13, fontWeight: 600,
         letterSpacing: '0.12em', color: M_TEXT, textTransform: 'uppercase',
       }}>{title}</span>
+      {action && (
+        <button
+          type="button"
+          className="replay-scrub__open"
+          onClick={action.onClick}
+          style={{ position: 'absolute', top: 11, right: 12, zIndex: 3 }}
+        >{action.label}</button>
+      )}
     </div>
   );
 }
@@ -136,7 +146,7 @@ function HandListRow({ hand, onClick }) {
   );
 }
 
-function ListView({ agentName, hands, onSelect, onBack }) {
+function ListView({ agentName, hands, onSelect, onReplay, onBack }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 9,
@@ -150,13 +160,20 @@ function ListView({ agentName, hands, onSelect, onBack }) {
             Nothing flagged this session.
           </div>
         ) : (
-          hands.map((hand, i) => (
-            <HandListRow
-              key={`${hand.handNumber ?? i}-${hand.flagType}`}
-              hand={hand}
-              onClick={() => onSelect(hand)}
-            />
-          ))
+          <>
+            {/* R-3: the newest flagged hand gets the poster. The rest are rows —
+                one theatre at a time, or the list becomes a feed. */}
+            <div style={{ paddingTop: 10 }}>
+              <ReplayCard hand={hands[0]} onOpen={() => onReplay?.(hands[0])} />
+            </div>
+            {hands.map((hand, i) => (
+              <HandListRow
+                key={`${hand.handNumber ?? i}-${hand.flagType}`}
+                hand={hand}
+                onClick={() => onSelect(hand)}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>
@@ -404,7 +421,7 @@ function OpponentShowdownRow({ opponents }) {
   );
 }
 
-function HandReview({ hand, agentName, agentMood, onBack }) {
+function HandReview({ hand, agentName, agentMood, onBack, onReplay }) {
   const streets = hand.streets ?? [];
   const { byStreet: attrByStreet, loose: looseAttrs } = splitAttrCosts(hand);
 
@@ -417,6 +434,7 @@ function HandReview({ hand, agentName, agentMood, onBack }) {
       <SheetHeader
         title={hand.handNumber != null ? `Hand #${hand.handNumber}` : 'Hand Review'}
         onBack={onBack}
+        action={onReplay ? { label: 'Watch it', onClick: onReplay } : null}
       />
       <VerdictBand hand={hand} agentName={agentName} mood={agentMood} />
 
@@ -548,6 +566,9 @@ function LoadingState({ onBack }) {
 export function FlaggedHandsSheet({ agent, onBack }) {
   const [hands, setHands] = useState(null); // null = loading
   const [selectedHand, setSelectedHand] = useState(null);
+  // R-3: the same hand, watched rather than read. The review is the transcript;
+  // the theatre is the twenty-eight seconds it took.
+  const [replayHand, setReplayHand] = useState(null);
 
   useEffect(() => {
     if (!agent?.id) return;
@@ -568,6 +589,18 @@ export function FlaggedHandsSheet({ agent, onBack }) {
 
   if (hands === null) return <LoadingState onBack={onBack} />;
 
+  if (replayHand) {
+    return (
+      <div className="watch-sheet-overlay">
+        <ReplayTheatre
+          hand={{ ...replayHand, agentName }}
+          onBack={() => setReplayHand(null)}
+          onOpenHand={() => { setSelectedHand(replayHand); setReplayHand(null); }}
+        />
+      </div>
+    );
+  }
+
   if (selectedHand) {
     return (
       <HandReview
@@ -575,6 +608,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
         agentName={agentName}
         agentMood={agentMood}
         onBack={() => setSelectedHand(null)}
+        onReplay={() => setReplayHand(selectedHand)}
       />
     );
   }
@@ -584,6 +618,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
       agentName={agentName}
       hands={hands}
       onSelect={setSelectedHand}
+      onReplay={setReplayHand}
       onBack={onBack}
     />
   );
