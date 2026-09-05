@@ -679,3 +679,264 @@
   box-shadow: 0 0 14px rgba(0,212,170,0.30);
 }
 
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * WATCH v3 (W3-1) — the pacing ladder, the rope, the hero row.
+ * Ported from design-refs/mood-watch3.jsx: PaceFelt, TugBar, HeroRow3.
+ *
+ * Finding 1 was "everything appears at once, at machine speed": the felt had
+ * one state, and a $60 pot and a $3,694 pot were drawn identically. CALM is
+ * that felt, unchanged — the other three earn their difference.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the four states ──────────────────────────────────────────────────────── */
+
+/* Warm ground for the two heated states. Nothing else about CALM moves. */
+.watch-felt[data-pace='heating'],
+.watch-felt[data-pace='allin'] {
+  background: radial-gradient(ellipse at 50% 38%, #3b4a3f 0%, #24302c 58%, #17211f 100%);
+}
+
+.watch-felt[data-pace='heating'] { border-bottom-color: rgba(205, 179, 128, 0.40); }
+.watch-felt[data-pace='allin']   { border-bottom-color: rgba(255, 77, 79, 0.40); }
+.watch-felt[data-pace='showdown']{ border-bottom-color: rgba(0, 212, 170, 0.22); }
+
+/* The glow is an overlay rather than a shadow on the felt itself, so it can
+   cross-fade between states without the gradient underneath repainting. */
+.watch-felt__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 600ms ease-out, box-shadow 600ms ease-out;
+}
+
+.watch-felt[data-pace='heating'] .watch-felt__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 35px rgba(205, 179, 128, 0.20);
+}
+
+.watch-felt[data-pace='allin'] .watch-felt__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 70px rgba(255, 77, 79, 0.30);
+  animation: watch-breathe 1.4s ease-in-out infinite;
+}
+
+.watch-felt[data-pace='showdown'] .watch-felt__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 49px rgba(0, 212, 170, 0.20);
+}
+
+/* ALL-IN breathes. The loudest thing the felt does, and only here. */
+@keyframes watch-breathe {
+  0%, 100% { opacity: 0.2; }
+  50%      { opacity: 0.55; }
+}
+
+/* ── the pot ticker grows with the state ──────────────────────────────────── */
+
+.watch-felt__pot-pill {
+  transition: padding 400ms ease-out, background 400ms ease-out, border-color 400ms ease-out;
+}
+
+.watch-felt__pot-amt { transition: font-size 400ms ease-out; }
+
+.watch-felt[data-pace='heating'] .watch-felt__pot-pill,
+.watch-felt[data-pace='allin'] .watch-felt__pot-pill {
+  padding: 5px 17px;
+}
+
+.watch-felt[data-pace='heating'] .watch-felt__pot-pill {
+  background: rgba(205, 179, 128, 0.12);
+  border-color: rgba(205, 179, 128, 0.40);
+}
+.watch-felt[data-pace='heating'] .watch-felt__pot-label { color: var(--sys-gold, #CDB380); }
+
+.watch-felt[data-pace='allin'] .watch-felt__pot-pill {
+  background: rgba(255, 77, 79, 0.12);
+  border-color: rgba(255, 77, 79, 0.40);
+}
+.watch-felt[data-pace='allin'] .watch-felt__pot-label { color: var(--sys-red, #FF4D4F); }
+
+.watch-felt[data-pace='heating'] .watch-felt__pot-amt,
+.watch-felt[data-pace='allin'] .watch-felt__pot-amt {
+  font-size: 30px;
+}
+
+/* SHOWDOWN: the pot has been won, so the ticker steps aside for the result. */
+.watch-felt[data-pace='showdown'] .watch-felt__pot {
+  transform: translateY(-30px) scale(0.82);
+  opacity: 0.5;
+  transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1), opacity 700ms;
+}
+
+/* ── the runout, one card at a time ───────────────────────────────────────── */
+
+/* Every board slot animates in as it lands; only the newest one is running,
+   because only the newest one has just changed. */
+.watch-felt__card--landing {
+  animation: watch-card-land 400ms ease-out both;
+}
+
+@keyframes watch-card-land {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-felt__card--landing,
+  .watch-felt[data-pace='allin'] .watch-felt__glow { animation: none; }
+  .watch-felt__glow,
+  .watch-felt__pot-pill,
+  .watch-felt__pot-amt,
+  .tug__fill { transition: none; }
+}
+
+/* ── the rope ─────────────────────────────────────────────────────────────── */
+/* Sits in the slot the table-id meta line used to occupy (FIX-1f emptied it),
+   which is exactly "directly under the board". */
+
+.watch-felt__tug {
+  position: absolute;
+  top: var(--wv-meta, 184px);
+  left: 44px;
+  right: 44px;
+  z-index: 3;
+}
+
+.tug__track {
+  position: relative;
+  height: 9px;
+  border-radius: 4.5px;
+  overflow: hidden;
+  background: rgba(255, 107, 109, 0.22);
+  border: 1px solid rgba(255, 107, 109, 0.35);
+}
+
+.tug--big .tug__track { height: 12px; border-radius: 6px; }
+
+.tug--dead .tug__track {
+  background: var(--sys-surf, #2F2F37);
+  border-color: var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+
+.tug__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, rgba(0, 212, 170, 0.8), #00D4AA);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+  /* The seam is the only moving part, and it moves on every street. */
+  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tug--dead .tug__fill {
+  background: rgba(107, 107, 107, 0.33);
+  box-shadow: none;
+}
+
+.tug__seam {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #EDEDED;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  transition: left 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tug__legend {
+  display: flex;
+  align-items: baseline;
+  margin-top: 4px;
+}
+
+.tug__spacer { flex: 1; }
+
+.tug__value {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sys-teal, #00D4AA);
+  font-variant-numeric: tabular-nums;
+}
+
+.tug--big .tug__value { font-size: 15px; }
+.tug--dead .tug__value { color: var(--sys-muted, #6B6B6B); }
+
+.tug__villain {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+/* ── his line, on the felt ────────────────────────────────────────────────── */
+/* Finding 3: the decision line read like a solver. One line, thread voice,
+   and at ALL-IN it is the loudest sentence in the product. */
+
+.watch-felt__line {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--wv-hero-band, 90px) + 12px);
+  z-index: 3;
+  text-align: center;
+}
+
+.watch-felt__line-text {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.4;
+}
+
+.watch-felt[data-pace='allin'] .watch-felt__line-text {
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.6);
+  border: 1px solid rgba(255, 77, 79, 0.27);
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 17px;
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* ── the hero row (HeroRow3) ──────────────────────────────────────────────── */
+/* LiveBar's own anatomy, now carrying street and to-call — the two facts the
+   removed meta line was holding. */
+
+.watch-felt__hero {
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  padding: 8px 9px;
+  gap: 7px;
+  background: rgba(23, 27, 27, 0.78);
+}
+
+.watch-felt__hero-divider { height: 20px; }
+.watch-felt__hero-num { font-size: 12.5px; }
+
+/* Between hands the calm "SHUFFLING" line owns the slot under the board, so the
+   rope steps below it rather than through it. */
+.watch-felt--metaline .watch-felt__tug { top: calc(var(--wv-meta, 184px) + 22px); }
+
+.watch-felt__hero-tag {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(255, 77, 79, 0.12);
+  border: 1px solid rgba(255, 77, 79, 0.40);
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--sys-red, #FF4D4F);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.watch-felt__hero-num.is-gold { color: var(--sys-gold, #CDB380); }
+.watch-felt__hero-num.is-dim  { color: var(--sys-dim, #A1A1A1); }

@@ -13,6 +13,8 @@ import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { accentFor } from './floor/atoms.jsx';
 import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
+import { TugBar } from './system/TugBar.jsx';
+import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -464,7 +466,13 @@ function compactFor(slot, opponentCount) {
 
 // ---- WatchFelt -------------------------------------------------------------
 
-function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
+// W3-1: PaceFelt. The felt is now told which of the four pacing states it is in
+// and dresses itself accordingly — warm ground and a fat ticker while a pot is
+// heating, a breathing red glow on an all-in, the ticker sliding away on a
+// showdown. CALM is the felt that shipped, unchanged.
+function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom }) {
+  var pace = paceOf(game);
+  var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
   // screen -- board, reveals and the pot going to its winner -- and it holds
   // until the next deal clears it.
@@ -494,24 +502,35 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  // FIX-1g: the readout showed an em dash for the whole of the hero's turn,
-  // which is the one moment the owner is actually watching it. The server knows
-  // his equity before he acts -- it computes it for the briefing -- and the last
-  // number it sent for THIS hand is the honest answer until a newer one lands.
-  // `handEquity` is that value, remembered by the parent and cleared on the
-  // next deal, so a dash now means only one thing: nothing has been dealt yet.
-  var equityText  = between ? null : formatEquity(handEquity);
-  var hasEquity   = equityText !== null;
+  // How many board cards are face up right now. (`flipped`, not `revealed` —
+  // that name already belongs to the showdown's per-seat reveal map below.)
+  var landed = landedCount(game, flipped);
+
+  // The rope's far end is labelled with whoever is still contesting the pot;
+  // with more than one live opponent it stays unlabelled rather than picking a
+  // favourite. The owner is watching his agent, not refereeing.
+  var liveOpponents = (game && game.seats ? game.seats : [])
+    .map(function(seat, i) { return { seat: seat, i: i }; })
+    .filter(function(x) { return x.i !== heroSeat && x.seat && !x.seat.folded; });
+  var villainName = liveOpponents.length === 1
+    ? (liveOpponents[0].seat.displayName || ('Seat ' + (liveOpponents[0].i + 1)))
+    : null;
+
+  // FIX-1g held the last decision's equity so the readout never dashed while he
+  // was on the clock. W3-1 adds the better source in front of it: feature/pace
+  // puts hero equity on every snapshot, which is what finding 2 needs for the
+  // rope to move on every street rather than only when he acts.
+  var heroEquity  = between ? null : heroEquityOf(game, handEquity, heroSeat);
+  var hasEquity   = heroEquity !== null;
   // At showdown the readout stops reporting the hero's last action and says
   // how the hand ended -- the ref's `note` slot.
-  // FIX-1f: when it is the hero's turn the chip names the price, which is the
-  // one fact the removed meta line was carrying that nothing else shows.
+  // FIX-1f moved the price out of the deleted meta line and into the action
+  // chip. W3-1 gives it its own column in the hero row (HeroRow3), which is
+  // where the ref puts it, so the chip goes back to naming the action alone.
   var toCall = (live && heroData && game.currentBet != null)
     ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
     : 0;
-  var toActLabel = (game && game.toAct === heroSeat && live)
-    ? (toCall > 0 ? 'TO CALL $' + toCall.toLocaleString() : 'TO ACT')
-    : null;
+  var toActLabel = (game && game.toAct === heroSeat && live) ? 'TO ACT' : null;
   var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
     : toActLabel);
@@ -576,10 +595,15 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
     '--wv-pot':   geom.pot + 'px',
     '--wv-board': geom.board + 'px',
     '--wv-meta':  geom.meta + 'px',
+    // W3-1: his line sits directly above the hero row, so it needs the same
+    // band the geometry already reserves for it.
+    '--wv-hero-band': HERO_BAND + 'px',
   } : undefined;
 
   return (
-    <div className="watch-felt" style={feltStyle}>
+    <div className={'watch-felt' + (metaLine ? ' watch-felt--metaline' : '')}
+      style={feltStyle} data-pace={pace}>
+      {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
@@ -627,13 +651,36 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         </div>
       )}
 
+      {/* W3-1: `landed` is how many cards have been turned over. Off a showdown
+          that is simply how many the server has dealt; on one the parent walks
+          it up a card at a time and the newest slot animates in. */}
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
         {boardSlots.map(function(c, i) {
-          return c
-            ? <PlayingCard key={i} rank={c[0]} suit={c[1]} w={46} h={64} />
-            : <CardBack key={i} w={46} h={64} branded />;
+          var isLanding = pace === 'showdown' && i === landed - 1;
+          var cls = 'watch-felt__card' + (isLanding ? ' watch-felt__card--landing' : '');
+          return (
+            <div key={i} className={cls}>
+              {(c && i < landed)
+                ? <PlayingCard rank={c[0]} suit={c[1]} w={46} h={64} />
+                : <CardBack w={46} h={64} branded />}
+            </div>
+          );
         })}
       </div>
+
+      {/* The rope — finding 2. It takes the slot the table-id meta line used to
+          hold, which is exactly "directly under the board". */}
+      <div className="watch-felt__tug">
+        <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
+      </div>
+
+      {/* His line — one sentence, thread voice, and the loudest thing on the
+          screen at ALL-IN. Long voice lives in the thread; the felt gets one. */}
+      {line && (
+        <div className="watch-felt__line">
+          <span className="watch-felt__line-text">{line}</span>
+        </div>
+      )}
 
       {settled ? (
         <>
@@ -660,8 +707,8 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
                 filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
               }}>
                 {(c && !between)
-                  ? <PlayingCard rank={c[0]} suit={c[1]} w={40} h={56} />
-                  : <CardBack w={40} h={56} branded />}
+                  ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
+                  : <CardBack w={36} h={50} branded />}
               </div>
             );
           })}
@@ -679,11 +726,14 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         </div>
         <div className="watch-felt__hero-divider" />
 
+        {/* W3-1 HeroRow3: equity has moved to the rope under the board, so this
+            column now carries the two facts the removed meta line was holding —
+            the street, or the price when there is one to pay. */}
         <div>
-          <span className={'watch-felt__hero-lbl' + (hasEquity ? ' is-live' : '')}>Equity</span>
+          <span className="watch-felt__hero-lbl">{toCall > 0 ? 'To call' : 'Street'}</span>
           <div>
-            <span className={'watch-felt__hero-num' + (hasEquity ? ' is-live' : ' is-muted')}>
-              {equityText || '--'}
+            <span className={'watch-felt__hero-num ' + (toCall > 0 ? 'is-gold' : 'is-dim')}>
+              {toCall > 0 ? '$' + toCall.toLocaleString() : (street || '—')}
             </span>
           </div>
         </div>
@@ -692,6 +742,9 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
           : <span className="watch-felt__waiting">{heroNote}</span>}
+        {pace === 'allin' && !settled && (
+          <span className="watch-felt__hero-tag">HOLDING</span>
+        )}
       </div>
     </div>
   );
@@ -1035,6 +1088,29 @@ export function WatchScreen({
   }
 
   var between = !handActive(game);
+  var pace = paceOf(game);
+
+  // W3-1: the showdown runout, one card at a time. The server says SHOWDOWN and
+  // the client walks the reveal up on a timer — 450ms a card, five cards in
+  // 2.0s, which is the ww-ref's "≈ 2s reveal + 1s hold". Off a showdown there
+  // is nothing to walk: `null` means "however many the server has dealt".
+  var [flipped, setFlipped] = useState(null);
+  var dealtCount = (game && game.community) ? game.community.length : 0;
+  useEffect(function() {
+    if (pace !== 'showdown') { setFlipped(null); return undefined; }
+    setFlipped(0);
+    var n = 0;
+    var id = setInterval(function() {
+      n += 1;
+      setFlipped(n);
+      if (n >= dealtCount) clearInterval(id);
+    }, FLIP_MS);
+    return function() { clearInterval(id); };
+  }, [pace, dealtCount, game && game.handNumber]);
+
+  // His one line on the felt: the newest decision's reasoning, in his voice.
+  // Finding 3 — long voice lives in the thread, the felt gets one sentence.
+  var feltLine = (lastDecision && lastDecision.reasoning) ? lastDecision.reasoning : null;
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
@@ -1092,7 +1168,7 @@ export function WatchScreen({
         ref={sheet.stageRef}>
 
         <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} geom={sheet.geom} />
+          handEquity={handEquity} flipped={flipped} line={feltLine} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that

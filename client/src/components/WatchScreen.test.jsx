@@ -5,13 +5,14 @@
 // cards face up. Between hands the felt holds a calm state rather than
 // swapping itself out for a spinner.
 
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WatchScreen } from './WatchScreen.jsx';
 import { betweenHandsGame, midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
+import { FLIP_MS } from '../lib/pace.js';
 
 function renderWatch(game, props = {}) {
   return render(
@@ -36,6 +37,18 @@ function faceUpRanks(scope) {
     .map((el) => (el.children.length === 0 ? el.textContent.trim() : ''))
     .filter((t) => /^(10|[2-9]|[AKQJ])$/.test(t));
 }
+
+// Hero on the clock with $40 still to call.
+const toActGame = () => ({
+  ...midHandGame,
+  toAct: 0,
+  currentBet: 80,
+  seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, contribThisStreet: 40 } : s)),
+});
+
+// W3-1 pace fixtures. feature/pace puts `pace` and `heroEquity` on the snapshot;
+// everything else about the table is the shipped mid-hand fixture.
+const paced = (pace, extra = {}) => ({ ...midHandGame, pace, ...extra });
 
 describe('WatchScreen mid-hand', () => {
   beforeEach(() => {
@@ -111,17 +124,23 @@ describe('WatchScreen mid-hand', () => {
     expect(meta.textContent).not.toContain('HANDED');
   });
 
-  it('FIX-1f: the readout carries the price when it is the hero\'s turn', () => {
-    // Hero is seat 0 and owes 40 - 40 = 0 in the fixture; move the action to
-    // them with something still to call.
-    const toActGame = {
-      ...midHandGame,
-      toAct: 0,
-      currentBet: 80,
-      seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, contribThisStreet: 40 } : s)),
-    };
-    const { container } = renderWatch(toActGame);
-    expect(container.querySelector('.watch-felt__action-chip').textContent).toBe('TO CALL $40');
+  // W3-1 moves the price once more, out of the action chip and into its own
+  // column of the hero row — HeroRow3's "To call" slot, which is where the ref
+  // puts it. FIX-1f's rule holds: when there is a price to pay, it is on screen.
+  it('W3-1: the hero row names the price when it is the hero\'s turn', () => {
+    const { container } = renderWatch(toActGame());
+    const labels = [...container.querySelectorAll('.watch-felt__hero-lbl')].map((el) => el.textContent);
+    expect(labels).toContain('To call');
+    expect(container.querySelector('.watch-felt__hero-num.is-gold').textContent).toBe('$40');
+    // The chip names the action; the arithmetic has its own column now.
+    expect(container.querySelector('.watch-felt__action-chip').textContent).toBe('TO ACT');
+  });
+
+  it('W3-1: the same column shows the street when nothing is owed', () => {
+    const { container } = renderWatch(midHandGame);
+    const labels = [...container.querySelectorAll('.watch-felt__hero-lbl')].map((el) => el.textContent);
+    expect(labels).toContain('Street');
+    expect(container.querySelector('.watch-felt__hero-num.is-dim').textContent).toBe('FLOP');
   });
 
   // FIX-1g. The readout showed an em dash for the whole of the hero's turn —
@@ -129,14 +148,16 @@ describe('WatchScreen mid-hand', () => {
   // he acts, so the last number it sent for this hand stands until a newer one
   // lands, and a dash now means only "nothing dealt yet".
   describe('FIX-1g hero equity', () => {
-    const equityText = (container) =>
-      container.querySelector('.watch-felt__hero-num.is-live, .watch-felt__hero-num.is-muted').textContent;
+    // W3-1: equity is no longer a column in the hero row — finding 2 moved it
+    // onto the rope under the board, where a non-poker player can read it.
+    // FIX-1g's rule is unchanged and follows it there.
+    const equityText = (container) => container.querySelector('.tug__value').textContent;
 
     it('FIX-1g: shows the equity the server sent with the last decision', () => {
       const { container } = renderWatch(midHandGame, {
         lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
       });
-      expect(equityText(container)).toBe('67.4%');
+      expect(equityText(container)).toBe('67%');
     });
 
     it('FIX-1g: holds that number while the hero is asked to act again', () => {
@@ -162,7 +183,7 @@ describe('WatchScreen mid-hand', () => {
       );
 
       expect(container.querySelector('.watch-felt__action-chip')).toBeTruthy();
-      expect(equityText(container)).toBe('67.4%');
+      expect(equityText(container)).toBe('67%');
     });
 
     it('FIX-1g: forgets the read when the next hand is dealt', () => {
@@ -184,19 +205,19 @@ describe('WatchScreen mid-hand', () => {
         />,
       );
 
-      expect(equityText(container)).toBe('--');
+      expect(equityText(container)).toBe('—');
     });
 
     it('FIX-1g: dashes before the deal, and only there', () => {
       const { container } = renderWatch(betweenHandsGame, {
         lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
       });
-      expect(equityText(container)).toBe('--');
+      expect(equityText(container)).toBe('—');
     });
 
     it('FIX-1g: dashes on a hand that has produced no read yet', () => {
       const { container } = renderWatch(midHandGame);
-      expect(equityText(container)).toBe('--');
+      expect(equityText(container)).toBe('—');
     });
   });
 
@@ -204,10 +225,136 @@ describe('WatchScreen mid-hand', () => {
     renderWatch(midHandGame, {
       lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674, reasoning: 'Set. Charging the draws.' },
     });
-    // WV2-2: the wire carries equity as a 0..1 fraction, not a percent. The
-    // number appears twice — once in the sheet's peek line, once in the band.
+    // WV2-2: the wire carries equity as a 0..1 fraction, not a percent.
     expect(await screen.findAllByText('67.4%')).not.toHaveLength(0);
-    expect(screen.getByText(/Charging the draws/)).toBeInTheDocument();
+    // W3-1: his line is on the felt as well as in the sheet — finding 3 gives
+    // the felt one sentence in his voice, so the text appears more than once.
+    expect(screen.getAllByText(/Charging the draws/).length).toBeGreaterThan(0);
+  });
+});
+
+// ── W3-1 · the pacing ladder and the rope ───────────────────────────────────
+// Playtest 2026-09-05: "a simulation, not a game." The felt had one state — a
+// $60 pot and a $3,694 pot were drawn identically — and the money on the line
+// was a 12.5px number in a corner. Four server-driven states and a rope.
+
+describe('W3-1 pacing states', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const felt = (container) => container.querySelector('.watch-felt');
+
+  it('W3-1: a snapshot with no pace field reads as calm', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(felt(container).dataset.pace).toBe('calm');
+    // CALM is the felt that shipped: no glow overlay at all.
+    expect(container.querySelector('.watch-felt__glow')).toBeNull();
+  });
+
+  it('W3-1: an unrecognised pace still reads as calm', () => {
+    const { container } = renderWatch(paced('on-fire'));
+    expect(felt(container).dataset.pace).toBe('calm');
+  });
+
+  for (const state of ['heating', 'allin', 'showdown']) {
+    it(`W3-1: the felt carries the ${state} state and its glow`, () => {
+      const { container } = renderWatch(paced(state));
+      expect(felt(container).dataset.pace).toBe(state);
+      expect(container.querySelector('.watch-felt__glow')).toBeTruthy();
+    });
+  }
+
+  it('W3-1: only ALL-IN puts the holding tag on the hero row', () => {
+    const { container } = renderWatch(paced('allin'));
+    expect(container.querySelector('.watch-felt__hero-tag')).toBeTruthy();
+
+    const calm = renderWatch(paced('calm'));
+    expect(calm.container.querySelector('.watch-felt__hero-tag')).toBeNull();
+  });
+
+  it('W3-1: the runout is dealt one card at a time on a showdown', () => {
+    vi.useFakeTimers();
+    try {
+      const river = { ...paced('showdown'), community: ['5c', '4h', '8c', 'Kd', '2s'] };
+      const { container } = renderWatch(river);
+      const board = () => container.querySelector('.watch-felt__board');
+
+      // The reveal starts closed — nothing has flipped yet.
+      expect(faceUpRanks(board())).toEqual([]);
+
+      act(() => { vi.advanceTimersByTime(FLIP_MS); });
+      expect(faceUpRanks(board())).toEqual(['5']);
+
+      act(() => { vi.advanceTimersByTime(FLIP_MS * 2); });
+      expect(faceUpRanks(board())).toEqual(['5', '4', '8']);
+
+      act(() => { vi.advanceTimersByTime(FLIP_MS * 2); });
+      expect(faceUpRanks(board())).toEqual(['5', '4', '8', 'K', '2']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('W3-1: every dealt card is face up when the pace is not a showdown', () => {
+    const { container } = renderWatch({ ...midHandGame, community: ['5c', '4h', '8c', 'Kd'] });
+    expect(faceUpRanks(container.querySelector('.watch-felt__board'))).toEqual(['5', '4', '8', 'K']);
+  });
+});
+
+describe('W3-1 the rope', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('W3-1: draws hero equity from the snapshot, on every frame', () => {
+    const { container } = renderWatch(paced('calm', { heroEquity: 0.71 }));
+    expect(container.querySelector('.tug__value').textContent).toBe('71%');
+  });
+
+  it('W3-1: the snapshot beats the last decision', () => {
+    const { container } = renderWatch(paced('calm', { heroEquity: 0.71 }), {
+      lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.30 },
+    });
+    expect(container.querySelector('.tug__value').textContent).toBe('71%');
+  });
+
+  it('W3-1: the seam sits where his equity is', () => {
+    const { container } = renderWatch(paced('calm', { heroEquity: 0.71 }));
+    expect(container.querySelector('.tug__fill').style.width).toBe('71%');
+  });
+
+  it('W3-1: before the deal the rope sits dead centre rather than empty', () => {
+    const { container } = renderWatch(betweenHandsGame);
+    const tug = container.querySelector('.tug');
+    expect(tug.className).toContain('tug--dead');
+    expect(container.querySelector('.tug__fill').style.width).toBe('50%');
+    expect(container.querySelector('.tug__value').textContent).toBe('—');
+  });
+
+  it('W3-1: names the one live opponent and nobody else', () => {
+    const heads = {
+      ...midHandGame,
+      seats: midHandGame.seats.map((s, i) => (i === 2 ? { ...s, folded: true } : s)),
+      heroEquity: 0.64,
+    };
+    const { container } = renderWatch(heads);
+    expect(container.querySelector('.tug__villain').textContent).toBe('DOYLE_V3');
+
+    // Three-handed and both still in: the owner is watching his agent, not
+    // refereeing, so the far end stays unlabelled.
+    const multi = renderWatch(paced('calm', { heroEquity: 0.64 }));
+    expect(multi.container.querySelector('.tug__villain')).toBeNull();
+  });
+
+  it('W3-1: the rope goes fat while the pot is heated', () => {
+    const { container } = renderWatch(paced('heating', { heroEquity: 0.71 }));
+    expect(container.querySelector('.tug').className).toContain('tug--big');
+
+    const calm = renderWatch(paced('calm', { heroEquity: 0.71 }));
+    expect(calm.container.querySelector('.tug').className).not.toContain('tug--big');
   });
 });
 
