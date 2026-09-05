@@ -1401,7 +1401,8 @@
  * that holds text carries min-width:0, so the page never scrolls sideways. */
 
 @media (max-width: 1365px) {
-  .dsk-panel { width: 440px; }
+  /* ww-ref S5, 1280x800: rail 68, panel 460, stage takes the rest (752). */
+  .dsk-panel { width: 460px; }
   .dsk-roster { margin: 0 -14px; }
   .dtb__center { top: 150px; }
   .dtb__hero { bottom: 26px; }
@@ -1568,5 +1569,79 @@
 
 /* The draft panel's guess, dressed as a guess. */
 .dsk-draft__forming { display: flex; justify-content: center; margin-bottom: 10px; }
+
+/* ── Collapsed roster strip (FIX-2c) ─────────────────────────────────────
+ * mood-desktop3.jsx RosterStrip — ThreadRosterRail's `collapsed` form. 68px,
+ * so 68 + stage + 520 is exactly 1440 and 68 + stage + 460 is exactly 1280.
+ * Name, state tag and last line drop out; the mood rim and the live dot stay,
+ * because the who-is-playing glance is the reason desktop exists. */
+
+.dsk-strip {
+  width: 68px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--dsk-border);
+  background: var(--dsk-panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+}
+.dsk-strip__head {
+  height: 46px;
+  flex-shrink: 0;
+  width: 100%;
+  border-bottom: 1px solid var(--dsk-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dsk-strip__count {
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dsk-muted);
+}
+.dsk-strip__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  width: 100%;
+  align-items: center;
+  overflow-y: auto;
+  scrollbar-width: none;
+  min-height: 0;
+}
+.dsk-strip__rows::-webkit-scrollbar { display: none; }
+.dsk-strip__row {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.dsk-strip__row:hover { background: rgba(255, 255, 255, 0.04); }
+.dsk-strip__row.is-active {
+  background: rgba(0, 212, 170, 0.06);
+  border-left-color: var(--dsk-teal);
+}
+.dsk-strip__dot { position: absolute; top: 6px; right: 7px; }
+.dsk-strip__dot--recap {
+  top: 7px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dsk-gold);
+}
 
 }

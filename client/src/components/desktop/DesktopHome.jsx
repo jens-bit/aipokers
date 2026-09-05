@@ -11,6 +11,7 @@ import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
 import { BirthCardRail } from './PlayerCardRail.jsx';
 import { PanelHead } from './panelParts.jsx';
+import { RosterStrip } from './RosterStrip.jsx';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -128,6 +129,7 @@ export function DesktopHome({
   }, [watchedId, onWatchAgent]);
 
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
+  const panelOpen = !!born || !!selected;
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -160,6 +162,16 @@ export function DesktopHome({
     <div className="dsk-root">
       {topBar}
       <div className="dsk-body">
+        {/* FIX-2c: a panel is open, so StandupPanel (which holds the roster) is
+            gone. The ref's collapsed rail gives the who-is-playing glance back
+            at 68px, which is what keeps 68 + stage + 520 inside 1440. */}
+        {panelOpen && (
+          <RosterStrip
+            agents={agents}
+            activeId={selectedId ?? bornId}
+            onSelect={(agent) => { setBornId(null); setSelectedId(agent.id); }}
+          />
+        )}
         <div className="dsk-stage">
           {flaggedAgent && (
             <div className="dsk-sheet">

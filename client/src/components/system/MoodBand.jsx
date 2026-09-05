@@ -1,4 +1,6 @@
 // Port of MoodBand from design-refs/mood-atoms.jsx.
+// FIX-2a: the ww-ref header budget puts this band at 56px, not 64 — ghost
+// 42->38, bottom pad 11->8, cause line unchanged at 11.5px.
 // Thread context band — sits under the global header, carries mood + state + action.
 // Props: accent, mood, cause, state, action (label for the right button)
 
@@ -18,16 +20,16 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', cause, state = 
   return (
     <div style={{
       flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11,
-      padding: '9px 14px 11px', borderBottom: '1px solid rgba(255,255,255,0.12)',
+      padding: '9px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.12)',
       background: '#232329',
     }}>
       <div style={{
-        width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+        width: 38, height: 38, borderRadius: 12, flexShrink: 0,
         background: '#0A0F17', border: `1px solid ${accent}55`,
         boxShadow: `0 0 14px ${mColor}33`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} accent={accent} size={40} ring={false} />
+        <MoodGhost mood={mood} accent={accent} size={36} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

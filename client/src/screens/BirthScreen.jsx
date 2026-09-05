@@ -88,15 +88,16 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
   return (
     <div style={{
       flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11,
-      padding: '9px 14px 11px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
+      padding: '9px 14px 8px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
     }}>
-      {/* Forming ghost well */}
+      {/* FIX-2a: ghost 42->38 and bottom pad 11->8 put the band at the ww-ref's
+          56px: 9 + 38 + 8 + the 1px rule. */}
       <div style={{
-        width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+        width: 38, height: 38, borderRadius: 12, flexShrink: 0,
         background: '#0A0F17', border, boxShadow: shadow,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <FormingGhost size={40} phase={phase} />
+        <FormingGhost size={36} phase={phase} />
       </div>
 
       {/* Text area */}
@@ -668,14 +669,15 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       `}</style>
 
       {/* Back header */}
-      {/* FIX-1d: GlobalHeader's row from mood-atoms — 2px/10px padding around a
-          29px control row and no bottom rule, so the chrome is 41px instead of
-          the 63px it had grown to. The back control needs an explicit
+      {/* FIX-2a: the ww-ref header budget — 40px, from 2px/9px padding around
+          a 29px control row and no bottom rule. (The ref's note reads "padding
+          2/8", which totals 39; its own table says 40. The table is the number
+          the port has to hit, so the extra pixel goes on the bottom pad.) The back control needs an explicit
           minHeight because base.css floors every button at --tap (44px), which
           is what was inflating this row and the band below it. */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 9,
-        padding: '2px 14px 10px',
+        padding: '2px 14px 9px',
         background: M_PANEL, flexShrink: 0,
       }}>
         <button
