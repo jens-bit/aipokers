@@ -71,14 +71,60 @@ const TILTED_LINES = {
   ],
 };
 
-// Pick a random line for the trigger and mood state. Tilted/sulking agents
-// draw from the louder pool. Returns null for unknown triggers.
-export function pickTalkLine(trigger, moodState = 'neutral') {
-  const useTilted = moodState === 'tilted' || moodState === 'sulking';
-  const pool = (useTilted && TILTED_LINES[trigger]) ? TILTED_LINES[trigger] : TALK_LINES[trigger];
+// MOOD-2d: past boiling he stops performing and starts snapping. Three lines
+// each, deliberately shorter than the tilted pool — a player this far gone does
+// not compose a sentence.
+const BOILING_LINES = {
+  wonBigPot: [
+    'About time.',
+    'One. Finally.',
+    'Took long enough.',
+  ],
+  lostAsFavorite: [
+    'Of course.',
+    'This game is rigged.',
+    'Deal.',
+  ],
+  shownBluff: [
+    'Whatever.',
+    'Take it.',
+    'Fine.',
+  ],
+  cardDead: [
+    'Nothing. Again.',
+    'Deal me something.',
+    'This deck hates me.',
+  ],
+};
+
+// How hot he has to be before the louder pools open. The tilted band starts at
+// 60, so the middle pool matches the band exactly; boiling is the top quarter.
+export const TALK_TILTED_HEAT = 60;
+export const TALK_BOILING_HEAT = 80;
+
+// Pick a line for the trigger and the mood. MOOD-2d: sharpness is chosen by
+// HEAT, so a 62 and a 94 do not say the same thing at the table — which is the
+// only place a watcher can hear the difference without opening a panel.
+//
+// Backwards compatible: called with just a state, a tilted or sulking agent
+// still draws from the tilted pool exactly as before.
+export function pickTalkLine(trigger, moodState = 'neutral', { heat = null } = {}) {
+  // Heat wins when it is given; the band is only the fallback for a caller
+  // that predates it. Otherwise a record whose state and heat disagree would
+  // be read two ways at once.
+  const banded = moodState === 'tilted' || moodState === 'sulking';
+  const hot = Number.isFinite(heat) ? heat : (banded ? TALK_TILTED_HEAT : 0);
+
+  let pool = null;
+  if (hot >= TALK_BOILING_HEAT) pool = BOILING_LINES[trigger];
+  if (!pool && hot >= TALK_TILTED_HEAT) pool = TILTED_LINES[trigger];
+  if (!pool) pool = TALK_LINES[trigger];
   if (!pool || pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+// Exposed so a test can assert the pools stay distinct.
+export const _TALK_POOLS = { TALK_LINES, TILTED_LINES, BOILING_LINES };
 
 // Susceptibility score 0..100 derived from the agent's numeric profile.
 // High aggression + low discipline = volatile; tight + stoic = immune.

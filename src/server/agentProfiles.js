@@ -9,7 +9,11 @@ import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
   applyPepTalk as applyMoodPepTalk,
-  isSoothable as isMoodSoothable,
+  heatForState,
+  applyOwnerMessage,
+  classifyOwnerMessage,
+  moodPromptLine,
+  restAtBar,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -30,7 +34,7 @@ import {
   firstWordsFor,
   applySessionGrowth,
 } from '../agent/attributes.js';
-import { formatMoment } from '../agent/moment.js';
+import { formatMoment, formatOpener } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import {
@@ -735,7 +739,15 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       ? ` · ${flagCount} hand${flagCount === 1 ? '' : 's'} flagged`
       : '';
     const text = (recap.trim() + flagSuffix).slice(0, 240);
-    agent.sessionRecap = { text, at: Date.now() };
+    // MOOD-2c: the first line of the thread, in his voice, chosen by how hot he
+    // is and by the hand he cannot stop thinking about. The counts that used to
+    // be the opener are on the profile, where numbers belong.
+    const opener = formatOpener({
+      mood: agent.mood,
+      flagged: agent.sessionFlagged ?? [],
+      seed: sessionHands || 0,
+    });
+    agent.sessionRecap = { text, opener, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   }
   // Append to session log (cap 10)
@@ -791,6 +803,21 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       console.error('[agents] growth failed:', err.message);
     }
   }
+  // MOOD-2a: time at the bar between sessions. Hours are computed from the
+  // session log rather than read off a clock inside mood.js, and the bar only
+  // ever cools — an agent left alone comes back level, never resentful.
+  const previousSession = (agent.sessionLog ?? []).at(-2);
+  if (previousSession?.endedAt) {
+    const hours = Math.max(0, (Date.now() - previousSession.endedAt) / 3_600_000);
+    if (hours > 0) {
+      agent.mood = restAtBar(agent.mood, {
+        hours,
+        composure: agent.attrs?.COMPOSURE ?? null,
+        profile: agent.profile ?? null,
+      });
+    }
+  }
+
   // Fatigue is a within-session STATE and the session is over. He is fresh
   // again by the time the owner next looks at him — the bar did its job.
   agent.fatigue = 'fresh';
@@ -1059,9 +1086,20 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
     pocket: pocketProjection(agent.pocket),
-    mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
+    // MOOD-2: heat rides with the state. The floor draws posture intensity from
+    // it, the thread reads it for tone, and it is the only way two tilted
+    // agents can look like different players.
+    mood: agent.mood ? {
+      state: agent.mood.state,
+      heat: Number.isFinite(agent.mood.heat) ? agent.mood.heat : heatForState(agent.mood.state),
+      cause: agent.mood.cause ?? null,
+      updatedAt: agent.mood.updatedAt ?? null,
+    } : null,
     lastMoment: agent.lastMoment ?? null,
     sessionRecap: agent.sessionRecap ?? null,
+    // MOOD-2c: the thread's first line. Present whenever a session has ended;
+    // the client should open with this instead of building its own greeting.
+    opener: agent.sessionRecap?.opener ?? null,
     unseenRecap: !!agent.unseenRecap,
     proposal: agent.proposal ?? null,
     presence,
@@ -1100,6 +1138,34 @@ export function floorSnapshot(userId, { owner = false } = {}) {
   });
 }
 
+// MOOD-2b: what the owner just said, applied to his heat. This replaces the
+// blanket "any message from the owner soothes him" behaviour: an owner who
+// types "you punted that" is not soothing anybody, and pretending otherwise
+// made the thread a button rather than a conversation.
+//
+// Bounded (±15), rate-limited by the pep talk's own 10-hand cooldown, and
+// scaled by COMPOSURE on the way in. Returns the same shape tryApplyPepTalk
+// does so the chat route can treat them alike.
+export function applyOwnerMessageToMood(agentId, userId, text) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { moved: false, mood: null, kind: 'neutral', reason: 'agent not found' };
+  ensureMood(agent);
+  ensureStats(agent);
+  ensureAttributes(agent);
+
+  const result = applyOwnerMessage(agent.mood, text, {
+    handsPlayed: agent.stats?.handsPlayed ?? 0,
+    composure: agent.attrs?.COMPOSURE ?? null,
+  });
+  if (!result.moved) return { moved: false, mood: agent.mood, kind: result.kind, reason: result.reason };
+
+  agent.mood = result.mood;
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return { moved: true, mood: agent.mood, kind: result.kind, reason: result.reason };
+}
+
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
 // Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
 // Persists on soothed=true.
@@ -1136,7 +1202,7 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -1148,10 +1214,11 @@ function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
 
-  let moodLine = '';
-  if (agent.mood && agent.mood.state && agent.mood.state !== 'neutral') {
-    moodLine = `\nMood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''} — let it colour your voice.`;
-  }
+  // MOOD-2c: heat, not just the band. A 40-heat tilt and a 90-heat tilt are
+  // different players and have to answer differently; the old line said
+  // "tilted" for both and said nothing at all when he was level, which is
+  // exactly when the model reached for a customer-service voice.
+  const moodLine = `\n${moodPromptLine(agent.mood)}`;
   let pepLine = '';
   if (pepTalk?.soothed) {
     pepLine = `\nOwner just talked you down — mood eased to ${pepTalk.mood.state}. Acknowledge briefly, in character.`;
@@ -1871,10 +1938,13 @@ export function installAgentProfileRoutes(app) {
       // any incoming owner message soothes it one step. The chat reply is
       // then generated with the pep-talk context so the agent acknowledges
       // it in character.
-      let pepResult = { soothed: false, mood: existingAgent.mood, reason: 'not attempted' };
-      if (isMoodSoothable(existingAgent.mood)) {
-        pepResult = tryApplyPepTalk(existingAgent.id, userId);
-      }
+      // MOOD-2b: the message itself decides. A needle heats him, a question
+      // about a hand cools him, and small talk does neither — the thread stops
+      // being a soothe button that fires on any keystroke.
+      const said = applyOwnerMessageToMood(existingAgent.id, userId, content);
+      const pepResult = said.moved && said.kind === 'care'
+        ? { soothed: true, mood: said.mood, reason: 'ok' }
+        : { soothed: false, mood: existingAgent.mood, reason: said.reason };
       if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
       const recentChat = existingAgent.chatHistory.slice(-6);
       const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
@@ -1887,6 +1957,11 @@ export function installAgentProfileRoutes(app) {
         return res.json({
           chat: [{ role: 'assistant', content: msg }],
           pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+          // MOOD-2b: what his mood did with what you said. `kind` is needle |
+          // care | neutral; heat is where he ended up.
+          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+                  moved: said.moved, kind: said.kind },
         });
       } catch (err) {
         console.error('[agentProfiles] agent-chat error:', err.message);

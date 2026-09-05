@@ -114,21 +114,51 @@ console.log('\n[verify] 2) simulate a mood-shifting bad-beat hand + set mood →
   const a = list.body.agents.find((x) => x.id === agentIdActual);
   check('lastMoment written for the hand', !!a?.lastMoment?.text);
   check('mood.state is tilted after set',   a?.mood?.state === 'tilted');
+  // MOOD-2a: heat rides the projection, and a record stored without one is
+  // backfilled to the midpoint of its band rather than reset to neutral.
+  check('mood.heat rides GET /api/agents', Number.isFinite(a?.mood?.heat));
+  check('a stored tilted agent reads back as tilted heat', a?.mood?.heat >= 60);
   check('presence resting (not deployed yet)', a?.presence === 'resting');
 }
 
-// ── 3) pep talk via /api/agents/chat soothes ONE step ────────────────────────
-console.log('\n[verify] 3) pep talk soothes mood one step (tilted → frustrated)');
+// ── 3) what the owner says moves heat — and only what he says ───────────────
+console.log('\n[verify] 3) susceptibility: care cools, a needle heats, small talk does neither');
 {
+  const before = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  const heatBefore = before?.mood?.heat;
+
+  // Care: sympathy about a hand. This is the pep talk's job, now earned by the
+  // content of the message rather than by any message at all.
   const r = await j('POST', '/api/agents/chat', {
-    userId, content: 'You got this. Shake it off.', existingAgentId: agentIdActual,
+    userId, content: 'Shake it off — nothing you could do there.', existingAgentId: agentIdActual,
   });
   check('chat responds 200',              r.status === 200);
+  check('the message registered as care', r.body?.mood?.kind === 'care');
   check('pepTalk soothed: true',          r.body?.pepTalk?.soothed === true);
   check('new state is frustrated',        r.body?.pepTalk?.newState === 'frustrated');
+
   const after = await j('GET', `/api/agents?userId=${userId}`);
   const a = after.body.agents.find((x) => x.id === agentIdActual);
   check('mood persisted as frustrated',   a?.mood?.state === 'frustrated');
+  check('and his heat actually came down', a?.mood?.heat < heatBefore);
+
+  // Small talk moves nothing. The thread is not a button.
+  const chit = await j('POST', '/api/agents/chat', {
+    userId, content: 'ok', existingAgentId: agentIdActual,
+  });
+  check('small talk is neutral',          chit.body?.mood?.kind === 'neutral');
+  check('small talk moved nothing',       chit.body?.mood?.moved === false);
+  const stillThere = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  check('heat unchanged by small talk',   stillThere?.mood?.heat === a?.mood?.heat);
+
+  // A needle is not a pep talk, whatever the old code thought.
+  const jab = await j('POST', '/api/agents/chat', {
+    userId, content: 'what were you thinking there?', existingAgentId: agentIdActual,
+  });
+  check('an insult registers as a needle', jab.body?.mood?.kind === 'needle');
+  check('and never reports itself as soothing', jab.body?.pepTalk === undefined);
 }
 
 // ── 4) build a leak, create a proposal, finish session ────────────────────────
@@ -236,6 +266,22 @@ console.log('\n[verify] 7) sample GET /api/agents response for report:');
 }
 
 // ── cleanup ──────────────────────────────────────────────────────────────────
+// ── the opener ──────────────────────────────────────────────────────────────
+console.log('\n[verify] the thread opens in his voice, not with a form letter');
+{
+  const a = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  check('an opener is served after a session', typeof a?.opener === 'string' && a.opener.length > 0);
+  if (typeof a?.opener === 'string') {
+    const words = a.opener.trim().split(/\s+/).length;
+    check(`the opener is at most 15 words (${words})`, words <= 15, a.opener);
+    check('it is not the form letter', !/just finished|want to review/i.test(a.opener));
+    check('it carries no counts', !/\b\d+\s*(hands?|chips?)\b/i.test(a.opener));
+    console.log(`         opener: "${a.opener}"`);
+  }
+  check('the recap still carries its own text', typeof a?.sessionRecap?.text === 'string');
+}
+
 console.log('\n[verify] cleanup: delete the e2e agent');
 await j('DELETE', `/api/agents/${agentIdActual}?userId=${userId}`);
 wss.close();

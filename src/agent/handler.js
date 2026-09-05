@@ -20,6 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
 import { voiceLine, VOICE_MAX_WORDS } from './voice.js';
+import { moodBriefingHint } from './mood.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -60,18 +61,6 @@ no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
 watch a solver. Talk about the hand, the opponent, or the moment.
 
 Maximum ${VOICE_MAX_WORDS} words. One sentence or two short ones.`;
-}
-
-// Short in-prompt hint tied to a mood state. Kept bounded per Mood Design
-// Law — flavor/voice cue for the model, not a rule change.
-function moodPromptHint(state) {
-  switch (state) {
-    case 'confident':  return ' You are running well — stay assertive.';
-    case 'frustrated': return ' You may play a touch looser and defend more aggressively — do NOT abandon your range.';
-    case 'tilted':     return ' You are steaming — size a hair larger and be quicker to deviate, but keep your range intact.';
-    case 'sulking':    return ' You have shut down a little — tighten sizings and stick close to the script.';
-    default:           return '';
-  }
 }
 
 // What he THINKS the maths are, as opposed to what they are.
@@ -161,8 +150,11 @@ function buildUserPrompt(gs) {
   let moodLine = '';
   if (gs.mood && gs.mood.state && gs.mood.state !== 'neutral') {
     const cause = gs.mood.cause ? ` — ${gs.mood.cause}` : '';
-    const hint = moodPromptHint(gs.mood.state);
-    moodLine = `\nSTATE: ${gs.mood.state}${cause}.${hint}`;
+    // MOOD-2d: the briefing reads heat, not just the band. A 62 and a 94 are
+    // both "tilted" and should not be told the same thing.
+    const hint = moodBriefingHint(gs.mood);
+    const heat = Number.isFinite(gs.mood.heat) ? ` (heat ${gs.mood.heat})` : '';
+    moodLine = `\nSTATE: ${gs.mood.state}${heat}${cause}.${hint}`;
   }
 
   // TLK-1: table talk needle — queued by _maybeSendAgentTalk when an opponent's
