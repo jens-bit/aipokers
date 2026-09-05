@@ -1,0 +1,412 @@
+// src/agent/attributes.js
+// The attribute engine — the GROWN half of the character system.
+//
+// Design source: design-refs/char-system.jsx (ATTRS, NATURES, ATTR_STEP),
+// char-system2.jsx (potential band, growth vs fatigue), char-close.jsx (state
+// matrix + the seam rule), and the "Character System — design LOCKED" section
+// of CORE_GAME_PLAN.md. Port, don't reinvent.
+//
+// The split this module implements:
+//   STRATEGY  (chosen)  — aggression, tightness, bluffFreq, discipline slider.
+//                         Lives in policy.js. NOT touched here, ever.
+//   ATTRIBUTES (grown)  — six 0–100 values that change how WELL he executes
+//                         the strategy he was given, never WHAT he is told to do.
+//
+// Laws, binding (char-system.jsx S0):
+//   1. Attributes affect execution within a bounded band.
+//   2. No purchase path. Earned at the table or not at all.
+//   3. Fixed birth budget — no build is strictly better, only different.
+//   4. Nothing here gates whether he can play. Fatigue degrades execution
+//      late in a session; it never locks a table.
+//   5. Every attribute names the thing it moves. A stat that changes nothing
+//      is an adjective, and adjectives are banned.
+//
+// And the law this module enforces mechanically: with ATTRIBUTE_IMPACT at 0
+// the game is bit-identical to the pre-attribute build. Every hook either
+// blends back to its neutral value through `at()`, or is skipped outright
+// when the knob is 0 (the ones carrying a boolean gate or a clamp, which
+// cannot be interpolated).
+
+// Canon order. Six bars, fixed sequence, on every surface — "order is law".
+export const ATTR_KEYS = Object.freeze(['READS', 'FOCUS', 'DISCIPLINE', 'COMPOSURE', 'DECEPTION', 'STAMINA']);
+
+// The value at which an attribute does nothing distinctive.
+export const NEUTRAL_ATTR = 50;
+
+// attrLog ring buffer size — ~90 days of ticks at the design's rate (single
+// points over weeks), which is what the profile sparkline draws.
+export const ATTR_LOG_CAP = 200;
+
+// Day-one band width when a band has to be invented (char-system2.jsx S3:
+// "born. The ceiling is a rumour: a 30-point band"). ATTR-1 does not generate
+// birth bands — that is ATTR-3's job, with the nature shift applied. This is
+// only the neutral backfill for agents that pre-date the system.
+const DEFAULT_BAND_WIDTH = 30;
+
+// STAMINA: max points of FOCUS/DISCIPLINE erosion, reached at 2× onset.
+export const MAX_FATIGUE_DROP = 20;
+
+// FOCUS: below this the equity he is shown is also rounded to the nearest 5%
+// — he stops counting to the decimal, not just to the point.
+export const FOCUS_ROUNDING_BELOW = 35;
+
+// READS: below this he does not get the EXPLOIT directive at all — he sees
+// the raw stat line and has to work it out himself.
+export const EXPLOIT_MIN_READS = 40;
+
+// ── The knob ─────────────────────────────────────────────────────────────────
+// Read live from the environment rather than frozen at import, so a harness
+// (arena --attributes off, the tests) can set it without controlling module
+// load order.
+export function attributeImpact() {
+  const raw = Number(process.env.ATTRIBUTE_IMPACT ?? 1);
+  if (!Number.isFinite(raw)) return 1;
+  return Math.max(0, Math.min(1, raw));
+}
+
+// The value at import, for callers that want the setting rather than the
+// live reading.
+export const ATTRIBUTE_IMPACT = attributeImpact();
+
+// A strict numeric test. `Number(null)` is 0 and `Number('')` is 0, which
+// would quietly turn "this agent has no attributes" into "this agent has a 0"
+// — the difference between the hook standing down and the hook firing at full
+// strength in the wrong direction.
+function isNum(v) {
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string') return v.trim() !== '' && Number.isFinite(Number(v));
+  return false;
+}
+
+function clampAttr(v) {
+  if (!isNum(v)) return NEUTRAL_ATTR;
+  return Math.max(0, Math.min(100, Number(v)));
+}
+
+// ── at() — the one interpolation every hook goes through ────────────────────
+// PIECEWISE, in two segments hinged on 50: 0..50 runs low→neutral and 50..100
+// runs neutral→high. Then the result blends back toward `neutral` by
+// (1 − ATTRIBUTE_IMPACT).
+//
+// The hinge is the point (ATTR-1d). A single low→high line made 50 land on the
+// midpoint of the band, so a neutral agent was NOT today's agent: his read gate
+// was 13.5 hands instead of 10, opponents needed ×1.5 the evidence on him, and
+// his equity carried σ 0.04 of noise. Every backfilled agent in prod sits at
+// 50, so that gap was a silent live-play change dressed up as a no-op. With the
+// hinge, 50 is exactly `neutral` at every impact setting, and the endpoints are
+// unchanged: 0 still gives `low`, 100 still gives `high`.
+//
+// The two halves have different slopes whenever neutral is off-centre, which is
+// correct: the distance from "today" to "as good as it gets" is not obliged to
+// equal the distance from "today" down to "as bad as it gets".
+export function at(value, neutral, low, high) {
+  const v = clampAttr(value);
+  const full = v <= 50
+    ? low + (v / 50) * (neutral - low)
+    : neutral + ((v - 50) / 50) * (high - neutral);
+  const k = attributeImpact();
+  return neutral + (full - neutral) * k;
+}
+
+// True when a hook should engage at all. Hooks that carry a boolean gate or a
+// clamp (which have no interpolated form) check this and otherwise fall
+// through to the pre-attribute code path exactly.
+export function attrsActive(value) {
+  return isNum(value) && attributeImpact() > 0;
+}
+
+// ── Records ──────────────────────────────────────────────────────────────────
+
+export function defaultAttributes() {
+  const out = {};
+  for (const k of ATTR_KEYS) out[k] = NEUTRAL_ATTR;
+  return out;
+}
+
+function defaultBand(current) {
+  const lo = clampAttr(current);
+  return { lo, hi: Math.min(100, lo + DEFAULT_BAND_WIDTH) };
+}
+
+export function defaultPotential(attrs = defaultAttributes()) {
+  const out = {};
+  for (const k of ATTR_KEYS) out[k] = defaultBand(attrs[k]);
+  return out;
+}
+
+// Idempotent backfill, mirroring ensureMood/ensureStats in agentProfiles.js.
+// Attaches { attrs, potential, nature, attrLog } and repairs partial records.
+export function ensureAttributes(agent) {
+  if (!agent || typeof agent !== 'object') return agent;
+
+  if (!agent.attrs || typeof agent.attrs !== 'object') {
+    agent.attrs = defaultAttributes();
+  } else {
+    for (const k of ATTR_KEYS) {
+      if (!isNum(agent.attrs[k])) agent.attrs[k] = NEUTRAL_ATTR;
+      else agent.attrs[k] = clampAttr(agent.attrs[k]);
+    }
+  }
+
+  if (!agent.potential || typeof agent.potential !== 'object') agent.potential = {};
+  for (const k of ATTR_KEYS) {
+    const band = agent.potential[k];
+    if (!band || !isNum(band.lo) || !isNum(band.hi)) {
+      agent.potential[k] = defaultBand(agent.attrs[k]);
+    }
+  }
+
+  // Assigned at birth in ATTR-3; null until then, never re-rolled after.
+  if (agent.nature === undefined) agent.nature = null;
+
+  if (!Array.isArray(agent.attrLog)) agent.attrLog = [];
+  if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
+
+  return agent;
+}
+
+// Every attribute change is an EVENT WITH A CAUSE, never a silent number
+// change (char-system2.jsx S4: "no tick without a named cause"). Nothing in
+// ATTR-1 calls this — growth is ATTR-3 — but the shape and the cap are fixed
+// here so the log the client draws is the same log from the first tick on.
+export function logAttrChange(agent, { key, from, to, cause = null, ts = Date.now() } = {}) {
+  if (!agent || !ATTR_KEYS.includes(key)) return null;
+  ensureAttributes(agent);
+  const entry = { ts, key, from: clampAttr(from), to: clampAttr(to), cause: cause ?? null };
+  agent.attrLog.push(entry);
+  if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
+  return entry;
+}
+
+// ── Birth ────────────────────────────────────────────────────────────────────
+// Ported verbatim from design-refs/char-system.jsx (NATURES, ATTR_STEP). Eight
+// natures, zero-sum: +1 step to one attribute, −1 to another, where a step is
+// ±8 points and the SAME shift lands on the potential band. Announced at birth
+// in his own voice — never hidden, never re-rolled, never changed again.
+
+// One nature step, on the 0–100 scale.
+export const ATTR_STEP = 8;
+
+export const NATURES = Object.freeze([
+  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.' },
+  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.' },
+  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.' },
+  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.' },
+  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.' },
+  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.' },
+  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.' },
+  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.' },
+]);
+
+const NATURE_BY_NAME = Object.fromEntries(NATURES.map((n) => [n.name, n]));
+
+// The nature is READ OUT OF THE DRAFT CONVERSATION, not rolled: the same
+// strategy always produces the same character, so a nature is never something
+// an owner can re-roll for by deleting and recreating. A priority ladder rather
+// than a score, because every rung has to be explainable in one clause when the
+// birth card says why he is what he is. Total by construction — the last rung
+// has no condition.
+const NATURE_LADDER = [
+  // Aggressive AND off the leash. The combustible one.
+  { name: 'Hothead',   when: (p) => p.aggression >= 70 && p.discipline < 50 },
+  // Bluffs constantly and means to be seen doing it.
+  { name: 'Showman',   when: (p) => p.bluffFreq >= 45 && p.aggression >= 60 },
+  // Treats his own rules as a suggestion.
+  { name: 'Gambler',   when: (p) => p.discipline < 45 && p.bluffFreq >= 30 },
+  // Very tight, not violent. Folds for a living.
+  { name: 'Rock',      when: (p) => p.tightness >= 75 && p.aggression < 60 },
+  // Disciplined and genuinely aggressive — the reg.
+  { name: 'Shark',     when: (p) => p.discipline >= 70 && p.aggression >= 60 },
+  // Disciplined and tight, without the aggression. The analyst.
+  { name: 'Professor', when: (p) => p.discipline >= 70 && p.tightness >= 60 },
+  // Steady and almost never bluffing. Nothing moves in his face.
+  { name: 'Sphinx',    when: (p) => p.discipline >= 55 && p.bluffFreq < 20 },
+  // Everyone else endures.
+  { name: 'Grinder',   when: () => true },
+];
+
+export function natureForProfile(profile) {
+  const p = {
+    tightness:  clampAttr(profile?.tightness),
+    aggression: clampAttr(profile?.aggression),
+    bluffFreq:  clampAttr(profile?.bluffFreq),
+    discipline: clampAttr(profile?.discipline),
+  };
+  const hit = NATURE_LADDER.find((rung) => rung.when(p)) ?? NATURE_LADDER[NATURE_LADDER.length - 1];
+  const nature = NATURE_BY_NAME[hit.name];
+  return { name: nature.name, up: nature.up, down: nature.down, line: nature.line };
+}
+
+// Day one. Per design 32: a 30-point potential band, and a current sitting at
+// 55–65% of the band's low edge so a newborn has somewhere to grow. The bands
+// are drawn; only the nature is deterministic.
+const BIRTH_BAND_LO_MIN = 50;
+const BIRTH_BAND_LO_MAX = 65;
+const BIRTH_BAND_WIDTH = 30;
+const BIRTH_CURRENT_MIN = 0.55;
+const BIRTH_CURRENT_MAX = 0.65;
+
+export function birthAttributes({ profile = null, rand = Math.random } = {}) {
+  const uniform = (lo, hi) => lo + rand() * (hi - lo);
+
+  const attrs = {};
+  const potential = {};
+  for (const k of ATTR_KEYS) {
+    const lo = Math.round(uniform(BIRTH_BAND_LO_MIN, BIRTH_BAND_LO_MAX));
+    potential[k] = { lo, hi: Math.min(100, lo + BIRTH_BAND_WIDTH) };
+    attrs[k] = clampAttr(Math.round(lo * uniform(BIRTH_CURRENT_MIN, BIRTH_CURRENT_MAX)));
+  }
+
+  // Zero-sum: the same ±step on the current AND on both ends of the band, so a
+  // nature moves where he can end up, not just where he starts.
+  const nature = natureForProfile(profile);
+  const shift = (key, delta) => {
+    attrs[key] = clampAttr(attrs[key] + delta);
+    potential[key] = {
+      lo: clampAttr(potential[key].lo + delta),
+      hi: clampAttr(potential[key].hi + delta),
+    };
+  };
+  shift(nature.up, +ATTR_STEP);
+  shift(nature.down, -ATTR_STEP);
+
+  return { attrs, potential, nature };
+}
+
+// ── STAMINA / fatigue ────────────────────────────────────────────────────────
+// The only attribute that acts on other attributes. Onset is a hand number,
+// not an outcome; after onset FOCUS and DISCIPLINE erode linearly, reaching
+// −MAX_FATIGUE_DROP at 2× onset. Nothing else degrades, and the potential
+// band never moves — fatigue is not a lower ceiling.
+
+export function fatigueOnset(stamina) {
+  return at(stamina, 100, 40, 160);
+}
+
+// Pure. Returns the six values after fatigue plus the fatigue stage.
+export function effectiveAttrs(agent, { sessionHands = 0 } = {}) {
+  const src = agent && typeof agent === 'object'
+    ? (agent.attrs && typeof agent.attrs === 'object' ? agent.attrs : agent)
+    : null;
+
+  const base = {};
+  for (const k of ATTR_KEYS) base[k] = isNum(src?.[k]) ? clampAttr(src[k]) : NEUTRAL_ATTR;
+
+  const hands = isNum(sessionHands) ? Math.max(0, Number(sessionHands)) : 0;
+  const onset = fatigueOnset(base.STAMINA);
+
+  let stage = 'fresh';
+  let drop = 0;
+  if (onset > 0 && hands >= onset) {
+    stage = hands > onset * 1.5 ? 'worn' : 'settled';
+    drop = MAX_FATIGUE_DROP * Math.min(1, (hands - onset) / onset);
+  }
+
+  return {
+    ...base,
+    FOCUS: clampAttr(base.FOCUS - drop),
+    DISCIPLINE: clampAttr(base.DISCIPLINE - drop),
+    fatigue: stage,
+    fatigueOnset: onset,
+    fatigueDrop: drop,
+    sessionHands: hands,
+  };
+}
+
+// ── READS / DECEPTION — the two sides of the same table ─────────────────────
+// How many observed hands the hero needs before a read on an opponent is
+// briefed at all. READS pulls it down (he solves them faster); the SUBJECT's
+// DECEPTION pushes it up (they solve him slower). Same number, both ends.
+
+export function readMinHands({ reads = null, deception = null, base = 10 } = {}) {
+  let gate = base;
+  if (attrsActive(reads)) gate = at(reads, base, 22, 5);
+  if (attrsActive(deception)) gate *= at(deception, 1.0, 0.6, 2.4);
+  return gate;
+}
+
+export function deceptionMinHandsMultiplier(deception) {
+  return attrsActive(deception) ? at(deception, 1.0, 0.6, 2.4) : 1;
+}
+
+// He only gets the explicit counter-strategy once he can read the table.
+export function exploitsAllowed(reads) {
+  if (!attrsActive(reads)) return true;
+  return clampAttr(reads) >= EXPLOIT_MIN_READS;
+}
+
+// ── FOCUS — math precision ───────────────────────────────────────────────────
+// The equity and pot-odds lines the briefing shows him are his PERCEPTION of
+// the number, not the number. Low FOCUS misjudges a spot now and then; this
+// is the honest place a low attribute costs money ("he misjudged equity by
+// 7% · Focus" in the hand review).
+//
+// The noise is deterministic in the seed, which is built from the hand, the
+// seat and the cards — so the duplicate-deck mirror in the arena draws the
+// SAME misperception on both halves and the measurement stays a clean A/B.
+
+function hashSeed(str) {
+  const s = String(str);
+  let h = 1779033703 ^ s.length;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^= h >>> 16) >>> 0;
+}
+
+function mulberry32(a) {
+  let x = a | 0;
+  return function next() {
+    x = (x + 0x6D2B79F5) | 0;
+    let t = Math.imul(x ^ (x >>> 15), 1 | x);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Standard normal from a string seed, clamped to ±3σ so a tail draw can never
+// turn a 20% equity into a 60% one.
+export function seededNormal(seed) {
+  const rnd = mulberry32(hashSeed(seed));
+  const u = Math.max(1e-9, rnd());
+  const v = rnd();
+  const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return Math.max(-3, Math.min(3, z));
+}
+
+export function focusSigma(focus) {
+  return attrsActive(focus) ? at(focus, 0, 0.08, 0) : 0;
+}
+
+// `value` and the return are equity units (0..1). Non-finite passes through.
+export function perceiveEquity(value, focus, seed) {
+  if (!Number.isFinite(value)) return value;
+  if (!attrsActive(focus)) return value;
+  const sigma = focusSigma(focus);
+  let v = value + seededNormal(seed) * sigma;
+  if (clampAttr(focus) < FOCUS_ROUNDING_BELOW) v = Math.round(v * 20) / 20;
+  return Math.max(0, Math.min(1, v));
+}
+
+// ── COMPOSURE — tilt resistance and recovery ─────────────────────────────────
+// How hard a bad beat lands, and how many hands he needs to come back.
+
+export function composureTiltBonus(composure) {
+  return attrsActive(composure) ? at(composure, 0, -20, +20) : 0;
+}
+
+export function composureDecayHands(composure, base) {
+  if (!attrsActive(composure)) return base;
+  return Math.max(1, Math.round(at(composure, base, 6, 2)));
+}
+
+// ── DISCIPLINE — rule-following ──────────────────────────────────────────────
+// Multiplies the profile's own deviation frequency. The profile still decides
+// how loose the leash is; DISCIPLINE decides how hard he pulls on it.
+
+export function disciplineDeviationMultiplier(discipline) {
+  return attrsActive(discipline) ? at(discipline, 1.0, 1.6, 0.4) : 1;
+}

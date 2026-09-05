@@ -12,6 +12,7 @@
 // toward neutral. Mood is applied by the caller after each hand.
 
 import { normalizeProfile } from './policy.js';
+import { composureTiltBonus, composureDecayHands } from './attributes.js';
 
 export const MOOD_STATES = Object.freeze(['sulking', 'tilted', 'frustrated', 'neutral', 'confident']);
 const NEUTRAL_INDEX = MOOD_STATES.indexOf('neutral');
@@ -62,11 +63,15 @@ export const SIZING_NUDGE = Object.freeze({
 
 // tiltResistance ∈ [0..100] — a TRAIT derived from the profile, no slider.
 // High discipline + tightness = stoic; high aggression + low discipline = volatile.
-export function tiltResistance(profile) {
+// ATTR-1 hook — COMPOSURE shifts the trait by up to ±20 points: how hard a bad
+// beat lands. Absent (or ATTRIBUTE_IMPACT 0) it contributes exactly 0, which
+// is the pre-attribute expression.
+export function tiltResistance(profile, { composure = null } = {}) {
   const p = normalizeProfile(profile);
   // Center around ~50 for a neutral profile; pushed up by discipline+tightness,
   // pulled down by aggression.
-  const raw = p.discipline * 0.55 + p.tightness * 0.30 - p.aggression * 0.30 + 30;
+  const raw = p.discipline * 0.55 + p.tightness * 0.30 - p.aggression * 0.30 + 30
+            + composureTiltBonus(composure);
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
@@ -113,10 +118,10 @@ export function ensureMood(agent) {
 // Movement chance is derived from tilt resistance:
 //   negative events → resistance can block movement up to 75% of the time
 //   positive events → resistance blocks up to 30% of the time (good feelings stick)
-export function applyEvent(currentMood, event, profile, { context = {}, rand = Math.random } = {}) {
+export function applyEvent(currentMood, event, profile, { context = {}, rand = Math.random, composure = null } = {}) {
   const delta = EVENT_DELTAS[event];
   if (delta === undefined) return currentMood;
-  const resistance = tiltResistance(profile);
+  const resistance = tiltResistance(profile, { composure });
   const moveChance = delta < 0
     ? 1 - (resistance / 100) * 0.75
     : 1 - (resistance / 100) * 0.30;
@@ -140,11 +145,13 @@ export function applyEvent(currentMood, event, profile, { context = {}, rand = M
 
 // One step toward neutral. Bumps uneventfulHands otherwise. Callers only
 // invoke this when NO event fired this hand.
-export function tickDecay(currentMood) {
+// ATTR-1 hook — COMPOSURE is also RECOVERY: how many uneventful hands he needs
+// to come back. 6 hands at attribute 0, DECAY_HANDS at 50, 2 at 100.
+export function tickDecay(currentMood, { composure = null } = {}) {
   const next = { ...currentMood };
   next.uneventfulHands = (next.uneventfulHands ?? 0) + 1;
   if (next.state === 'neutral') return next;
-  if (next.uneventfulHands < DECAY_HANDS) return next;
+  if (next.uneventfulHands < composureDecayHands(composure, DECAY_HANDS)) return next;
   const cur = moodIndex(next.state);
   const dir = cur < NEUTRAL_INDEX ? 1 : -1;
   next.state = MOOD_STATES[cur + dir];

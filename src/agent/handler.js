@@ -18,6 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { formatOpponentRead } from './reads.js';
+import { perceiveEquity } from './attributes.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -72,12 +73,23 @@ function buildUserPrompt(gs) {
   }
   actions.unshift('fold');
 
+  // ATTR-1 hook — FOCUS is math precision. What goes in the briefing is his
+  // PERCEPTION of the equity, not the equity: σ = 0.08 at FOCUS 0, 0 at 100,
+  // and below FOCUS 35 the number is rounded to the nearest 5% as well. The
+  // noise is deterministic in a seed built from the hand, the seat and the
+  // cards, so the arena's mirrored deck draws the same misjudgment on both
+  // halves and the A/B stays clean. Inert without gs.attrs or at IMPACT 0.
+  const seed = `${gs.handNumber ?? 0}:${gs.seat ?? 0}:${gs.street}:${(gs.holeCards ?? []).join('')}:${(gs.community ?? []).join('')}`;
+  const focus = gs.attrs?.FOCUS ?? null;
+  const seenEquity  = perceiveEquity(gs.equity,  focus, `${seed}:eq`);
+  const seenPotOdds = perceiveEquity(gs.potOdds, focus, `${seed}:po`);
+
   const mathLines = [];
-  if (Number.isFinite(gs.equity)) {
-    mathLines.push(`EQUITY: ~${(gs.equity * 100).toFixed(1)}% vs random hand`);
+  if (Number.isFinite(seenEquity)) {
+    mathLines.push(`EQUITY: ~${(seenEquity * 100).toFixed(1)}% vs random hand`);
   }
-  if (Number.isFinite(gs.potOdds)) {
-    mathLines.push(`POT ODDS: need ${(gs.potOdds * 100).toFixed(1)}% to call`);
+  if (Number.isFinite(seenPotOdds)) {
+    mathLines.push(`POT ODDS: need ${(seenPotOdds * 100).toFixed(1)}% to call`);
   }
   if (Number.isFinite(gs.spr)) {
     mathLines.push(`SPR: ${gs.spr.toFixed(1)}`);
@@ -134,10 +146,14 @@ function buildUserPrompt(gs) {
   // it derives the counter-strategy produced the opposite of one: reads-on
   // TAG folded 57% against a Calling Station versus 31% with reads off, and
   // gave up two thirds of its edge. See reads.js for the full autopsy.
+  //
+  // ATTR-1 hook — READS decides how thin a sample he will act on and whether
+  // he gets the EXPLOIT directive at all; the subject's own DECEPTION (carried
+  // on the read as subjectDeception) pushes that sample back up.
   const readLines = [];
   if (Array.isArray(gs.opponentReads)) {
     for (const r of gs.opponentReads) {
-      readLines.push(...formatOpponentRead(r));
+      readLines.push(...formatOpponentRead(r, { reads: gs.attrs?.READS ?? null, deception: r.subjectDeception ?? null }));
     }
   }
   const readsBlock = readLines.length > 0 ? `\n${readLines.join('\n')}` : '';

@@ -24,6 +24,8 @@
 //      Handing a model statistics and hoping it derives the counter-strategy
 //      is what failed; the counter-strategy is stated.
 
+import { readMinHands, exploitsAllowed } from './attributes.js';
+
 // Coarse VPIP → label bucket, shown alongside the raw number.
 export function vpipLabel(vpip) {
   if (!Number.isFinite(vpip)) return 'unknown';
@@ -139,8 +141,16 @@ function showdownPhrase(wtsd) {
 
 // Render one read as the briefing lines for it. Returns an array of 0–2
 // strings: the stat line, and the EXPLOIT directive when the shape is clear.
-export function formatOpponentRead(read, { minHands = 10 } = {}) {
-  if (!read || !Number.isFinite(read.handsObserved) || read.handsObserved < minHands) return [];
+// ATTR-1 hook — READS (the hero's) and DECEPTION (the SUBJECT's). READS pulls
+// the evidence bar down: he solves opponents faster and acts on a thinner
+// sample. The subject's DECEPTION pushes it back up: he is the one being
+// solved, slowly. Below READS 40 the explicit EXPLOIT directive is withheld
+// entirely — he sees the numbers and has to work the counter-strategy out
+// himself, which is exactly the failure mode reads.js was written to fix.
+// Both are inert when the values are absent or ATTRIBUTE_IMPACT is 0.
+export function formatOpponentRead(read, { minHands = 10, reads = null, deception = null } = {}) {
+  const gate = readMinHands({ reads, deception, base: minHands });
+  if (!read || !Number.isFinite(read.handsObserved) || read.handsObserved < gate) return [];
   if (!Number.isFinite(read.vpip)) return [];
 
   const who = read.displayName || read.playerId;
@@ -156,7 +166,7 @@ export function formatOpponentRead(read, { minHands = 10 } = {}) {
   const lines = [`OPPONENT READ (${who}, ${read.handsObserved} hands): ${parts.join(', ')}.`];
 
   const shape = classifyOpponent(read);
-  if (shape && EXPLOITS[shape]) lines.push(`EXPLOIT: ${EXPLOITS[shape]}`);
+  if (shape && EXPLOITS[shape] && exploitsAllowed(reads)) lines.push(`EXPLOIT: ${EXPLOITS[shape]}`);
   return lines;
 }
 
