@@ -10,7 +10,13 @@
 //
 // Styles in styles/watch.css.
 
-import { normalizeReads, noEvidenceLine } from '../../lib/reads.js';
+import { useEffect, useRef, useState } from 'react';
+
+import { normalizeReads, noEvidenceLine, pickOpponent } from '../../lib/reads.js';
+
+// How long the "a read just formed" treatment stays up. Long enough to be the
+// event the ww-ref calls for, short enough that it is not a badge.
+const FORMING_MS = 4000;
 
 export function ReadBar({ label, v, conf, formed }) {
   const known = v != null;
@@ -38,9 +44,33 @@ export function ReadBar({ label, v, conf, formed }) {
   );
 }
 
-export function ReadPanel({ reads }) {
-  const model = normalizeReads(reads);
-  const line = model.line || (model.known ? null : noEvidenceLine());
+// W3-5: `reads` is the server's array, one entry per opponent. `game` decides
+// which of them the panel is about — see pickOpponent.
+export function ReadPanel({ reads, game }) {
+  const entry = Array.isArray(reads) ? pickOpponent(reads, game) : reads;
+  const model = normalizeReads(entry);
+
+  // Until he has formed an opinion he says so, whether or not there are numbers
+  // on the bars yet. Numbers without a read are him still counting.
+  const line = model.line || (model.formed ? null : noEvidenceLine());
+
+  // The server has no `forming` flag — it simply stops sending a READ message
+  // once nothing has changed — so the transition is noticed here: this
+  // opponent's read going from unformed to formed, once, for a few seconds.
+  const [justFormed, setJustFormed] = useState(false);
+  const wasFormed = useRef(new Map());
+  const who = model.playerId;
+  useEffect(() => {
+    if (!who) return undefined;
+    const before = wasFormed.current.get(who);
+    wasFormed.current.set(who, model.formed);
+    if (before === false && model.formed) {
+      setJustFormed(true);
+      const id = setTimeout(() => setJustFormed(false), FORMING_MS);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+  }, [who, model.formed]);
 
   return (
     <div className="read-panel">
@@ -55,7 +85,7 @@ export function ReadPanel({ reads }) {
       {model.rows.map((row) => <ReadBar key={row.key} {...row} />)}
 
       {line && (
-        <div className={'read-panel__line' + (model.forming ? ' is-forming' : '')}>
+        <div className={'read-panel__line' + (justFormed ? ' is-forming' : '')}>
           “{line}”
         </div>
       )}

@@ -6,10 +6,14 @@
 //
 // Server contract (all fields optional today):
 //   game.pace       = 'calm' | 'heating' | 'allin' | 'showdown'   absent → calm
-//   game.heroEquity = 0..1 or 0..100, on every snapshot           absent → the
+//   game.potBb      = the pot in big blinds at the moment it changed
+//   game.heroEquity = a probability, 0..1, on every snapshot       absent → the
 //                     client's last-known read for the hand (FIX-1g)
-//   game.reads      = the opponent model                          absent → the
-//                     "no read yet" panel
+//   game.reads      = an array, one entry per opponent             absent → the
+//                     "no read yet" panel. See lib/reads.js.
+//
+// And, off the PACE message rather than the snapshot:
+//   { pace, potBb, board?, card? }   the staged runout during an all-in hold
 //
 // CALM → HEATING → ALL-IN → SHOWDOWN is a server-driven ladder, not a UI mode:
 // the client is told which state it is in and never infers one. The ALL-IN hold
@@ -86,8 +90,8 @@ export function heroEquityOf(game, fallback = null, heroSeat = 0) {
  * How many board cards have landed.
  *
  * Everywhere but a showdown this is simply how many the server has dealt. On a
- * showdown the runout is revealed one card at a time, so the caller drives
- * `revealed` up on a timer and this clamps it to what actually exists.
+ * showdown the runout is revealed one card at a time, so the caller says how
+ * many are face up and this clamps it to what actually exists.
  */
 export function landedCount(game, revealed = null) {
   const dealt = Array.isArray(game?.community) ? game.community.length : 0;
@@ -95,6 +99,26 @@ export function landedCount(game, revealed = null) {
   return Math.max(0, Math.min(dealt, revealed));
 }
 
-// One card every 450ms, then the reveal is held. From the ww-ref pace sheet:
-// "≈ 2s reveal + 1s hold" — five cards at 450ms is 2.0s exactly.
+/**
+ * W3-5: the runout, as the server stages it.
+ *
+ * During a spectator-only all-in hold the PACE message carries the runout card
+ * by card — `board` is what is visible so far and `card` is the one just turned
+ * — while the STATE snapshot already holds the finished board. So the frame is
+ * the truth about what is face up, and the client's own timer is only the
+ * fallback for a server that is not staging (or a client whose container does
+ * not forward the frames yet).
+ *
+ * Returns the number of cards face up, or null for "no frame, use the fallback".
+ */
+export function stagedCount(frame) {
+  if (!frame) return null;
+  if (Array.isArray(frame.board)) return frame.board.length;
+  // A frame with a card but no board still means one more has landed; without
+  // a board to count there is nothing to say, so defer to the fallback.
+  return null;
+}
+
+// The fallback cadence, used only when the server is not staging the runout.
+// One card every 450ms: five cards in 2.0s, the ww-ref's "≈ 2s reveal".
 export const FLIP_MS = 450;

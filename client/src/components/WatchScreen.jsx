@@ -6,11 +6,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { MoodBand } from './system/MoodBand.jsx';
+import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
-import { accentFor } from './floor/atoms.jsx';
 import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
@@ -19,7 +18,8 @@ import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
-import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
+import { paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS } from '../lib/pace.js';
+import { pickOpponent } from '../lib/reads.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -88,7 +88,7 @@ function posLabel(seat, game) {
 function ReadTab({ game, between, agent, lastHand, predict }) {
   return (
     <div className="watch-panel__read">
-      <ReadPanel reads={game ? game.reads : null} />
+      <ReadPanel reads={game ? game.reads : null} game={game} />
       {predict}
       {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
       <MuteToggle />
@@ -293,14 +293,19 @@ function detentPos(frac) {
 // shorter than the ref's: the meta line above the readout, the board above the
 // meta line, the pot above the board. Inert at every SHEET_LAY detent -- they
 // only bite below roughly 250px of felt.
-var HERO_BAND = 90;   // readout height + its bottom offset
-var META_H    = 19;   // meta line plus its breathing room
+// FIX-3a: the band under the board is now the rope, not the one-line meta text
+// W3-1 deleted, and the hero row shrank when it became HeroRow3 (36x50 cards in
+// 8px padding, not 40x56 in 9px). Both constants follow those changes.
+var HERO_BAND = 78;   // HeroRow3's height (66) plus its 12px bottom offset
+var TUG_H     = 30;   // the rope: 9px track + 4px gap + its legend
 var BOARD_H   = 70;   // a 64px card plus its gap
 var POT_H     = 36;   // the pot pill plus its gap
 var SEAT_BAND = 44;   // the seat chips own the top of the felt
+var LINE_H    = 19;   // his line at 13px/1.4
+var LINE_GAP  = 8;    // and the air it needs on each side
 
 // The felt's height and interior tops for a stage of `stagePx` at position `p`.
-function feltGeometry(frac, stagePx) {
+export function feltGeometry(frac, stagePx) {
   var p    = detentPos(frac);
   var i    = clamp(Math.floor(p), 0, 1);
   var t    = clamp(p - i, 0, 1);
@@ -316,7 +321,7 @@ function feltGeometry(frac, stagePx) {
   // ratios and are rescaled into the band between the seat chips and the
   // readout. On any stage the ref's own detents fit, this is a no-op.
   var floor   = SEAT_BAND;
-  var ceiling = felt - HERO_BAND - META_H;
+  var ceiling = felt - HERO_BAND - TUG_H;
   if (meta > ceiling && meta > floor) {
     var k = (ceiling - floor) / (meta - floor);
     pot   = floor + (pot - floor) * k;
@@ -324,11 +329,50 @@ function feltGeometry(frac, stagePx) {
     meta  = ceiling;
   }
 
+  pot   = Math.round(Math.max(floor, pot));
+  board = Math.round(Math.max(floor, board));
+  meta  = Math.round(Math.max(floor, meta));
+
+
+  // FIX-3a: the line and the rope shared no arithmetic, so on a short felt the
+  // bottom-anchored line was drawn straight through the top-anchored rope. They
+  // are now one stack with one source of truth: the rope keeps its slot under
+  // the board — that is the law finding 2 exists for — and his line takes the
+  // gap ABOVE it, but only when the gap is genuinely big enough to hold it.
+  //
+  // At the expanded detent it is not: 64px of board ends at `board + 64` and
+  // the rope starts at `meta`, twelve pixels later. Rather than overlap, or
+  // shove the board around and lose the detent geometry this file exists to
+  // preserve, the line is simply not drawn there — it is still in the sheet's
+  // peek row and in the thread, which is where long voice lives anyway.
+  // The squeeze scales the three tops toward the floor independently, so on some
+  // stages it pulled the rope's slot ABOVE the board's bottom edge — the board
+  // drawn straight through the rope. Whatever the squeeze decided, the rope sits
+  // under the board; if that leaves it inside the hero row, the board and the
+  // pot give way, because the rope's position is the law and theirs is not.
+  var tug = Math.max(meta, board + 64 + LINE_GAP);
+  var overflow = (tug + TUG_H) - (felt - HERO_BAND);
+  if (overflow > 0) {
+    // On a felt this short the seat band is the least load-bearing thing on it,
+    // so the board is allowed to climb past it rather than let the rope run
+    // into the hero row. Below roughly 210px of felt there is no arrangement
+    // that fits, and this is the one that degrades most quietly.
+    var lift = Math.min(overflow, Math.max(0, board));
+    board -= lift;
+    pot = Math.max(0, pot - lift);
+    tug -= lift;
+  }
+
+  var boardBottom = board + 64;
+  var room = tug - boardBottom;
+  var line = room >= LINE_H + LINE_GAP * 2 ? Math.round(boardBottom + LINE_GAP) : null;
+
   return {
     felt:  felt,
-    pot:   Math.round(Math.max(floor, pot)),
-    board: Math.round(Math.max(floor, board)),
-    meta:  Math.round(Math.max(floor, meta)),
+    pot:   Math.round(pot),
+    board: Math.round(board),
+    tug:   Math.round(tug),
+    line:  line,
   };
 }
 
@@ -501,9 +545,10 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom
     height: geom.felt + 'px',
     '--wv-pot':   geom.pot + 'px',
     '--wv-board': geom.board + 'px',
-    '--wv-meta':  geom.meta + 'px',
-    // W3-1: his line sits directly above the hero row, so it needs the same
-    // band the geometry already reserves for it.
+    // FIX-3a: one stack, one source of truth. The rope's top, and his line's
+    // top when the geometry says there is room for one.
+    '--wv-tug':   geom.tug + 'px',
+    '--wv-line':  (geom.line == null ? 0 : geom.line) + 'px',
     '--wv-hero-band': HERO_BAND + 'px',
   } : undefined;
 
@@ -583,7 +628,7 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom
 
       {/* His line — one sentence, thread voice, and the loudest thing on the
           screen at ALL-IN. Long voice lives in the thread; the felt gets one. */}
-      {line && (
+      {line && (!geom || !geom.felt || geom.line != null) && (
         <div className="watch-felt__line">
           <span className="watch-felt__line-text">{line}</span>
         </div>
@@ -659,12 +704,14 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom
 
 // ---- SitOutStrip / SitOutSheet ---------------------------------------------
 
-function SitOutStrip({ visible, onRequest }) {
+function SitOutStrip({ visible, onRequest, cause }) {
   return (
     <div className={'watch-sitout-strip' + (visible ? '' : ' is-hidden')} aria-hidden={!visible}>
-      <div>
+      <div className="watch-sitout-strip__text">
         <div className="watch-sitout-strip__title">Between hands</div>
-        <div className="watch-sitout-strip__meta">READY FOR NEXT DEAL</div>
+        {/* FIX-3c: the collapsed header has no room for his cause line, and
+            between hands is when there is time to read it anyway. */}
+        <div className="watch-sitout-strip__meta">{cause || 'READY FOR NEXT DEAL'}</div>
       </div>
       <div style={{ flex: 1 }} />
       <button type="button" className="watch-sitout-strip__btn" onClick={onRequest} tabIndex={visible ? 0 : -1}>
@@ -857,6 +904,10 @@ function detentName(frac) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // W3-5: the newest PACE frame, { pace, potBb, board?, card? }. During a
+  // spectator-only all-in hold the server stages the runout here card by card;
+  // without it the flip falls back to the client's own timer.
+  paceFrame,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -870,7 +921,7 @@ export function WatchScreen({
   var [agentThread,   setAgentThread]   = useState([]);
   var [agentLoading,  setAgentLoading]  = useState(false);
 
-  // ---- Agent mood polling (for MoodBand) ----
+  // ---- Agent mood polling (for the collapsed header) ----
   var agentId = config ? config.agentId : null;
   useEffect(function() {
     if (!agentId) return;
@@ -893,7 +944,6 @@ export function WatchScreen({
   var mood   = agent ? moodOf(agent)   : 'neutral';
   var cause  = agent ? causeOf(agent)  : null;
   var state  = agent ? stateOf(agent)  : 'live';
-  var accent = agent ? accentFor(agent) : '#00D4AA';
 
   // ---- Append-only decision feed (Bug-5 fix) ----
   var [decisionFeed, setDecisionFeed] = useState([]);
@@ -987,13 +1037,18 @@ export function WatchScreen({
   var between = !handActive(game);
   var pace = paceOf(game);
 
-  // W3-1: the showdown runout, one card at a time. The server says SHOWDOWN and
-  // the client walks the reveal up on a timer — 450ms a card, five cards in
-  // 2.0s, which is the ww-ref's "≈ 2s reveal + 1s hold". Off a showdown there
-  // is nothing to walk: `null` means "however many the server has dealt".
+  // The showdown runout, one card at a time.
+  //
+  // W3-5: the server stages it. During a spectator-only all-in hold each PACE
+  // message carries the board as it stands, so the frame — not a local clock —
+  // says what is face up, and every watcher sees the same card at the same
+  // moment. The timer below is the fallback for a server that is not staging,
+  // and it is not started when a frame is present.
+  var staged = stagedCount(paceFrame);
   var [flipped, setFlipped] = useState(null);
   var dealtCount = (game && game.community) ? game.community.length : 0;
   useEffect(function() {
+    if (staged != null) return undefined;               // the server is driving
     if (pace !== 'showdown') { setFlipped(null); return undefined; }
     setFlipped(0);
     var n = 0;
@@ -1003,7 +1058,9 @@ export function WatchScreen({
       if (n >= dealtCount) clearInterval(id);
     }, FLIP_MS);
     return function() { clearInterval(id); };
-  }, [pace, dealtCount, game && game.handNumber]);
+  }, [staged != null, pace, dealtCount, game && game.handNumber]);
+
+  var faceUp = staged != null ? staged : flipped;
 
   // His one line on the felt: the newest decision's reasoning, in his voice.
   // Finding 3 — long voice lives in the thread, the felt gets one sentence.
@@ -1036,9 +1093,9 @@ export function WatchScreen({
 
   // Each card of the runout, during the hold.
   useEffect(function() {
-    if (pace !== 'showdown' || !flipped) return;
+    if (pace !== 'showdown' || !faceUp) return;
     beat('runoutCard', fireHaptic);
-  }, [pace, flipped]);
+  }, [pace, faceUp]);
 
   // The pot, once it is settled. Winning is a notification; losing is quiet.
   var resultSeenRef = useRef(null);
@@ -1077,12 +1134,20 @@ export function WatchScreen({
   }, [predictOn, game && game.handNumber]);
 
   // A read forming. The panel animates; the device only nudges.
-  var formingRef = useRef(false);
-  var readsForming = !!(game && game.reads && game.reads.forming);
+  //
+  // W3-5: there is no `forming` flag on the wire — the server stops sending a
+  // READ once nothing has changed — so the event is this opponent's `formed`
+  // going true, which is what the panel watches for too.
+  var formedRef = useRef(new Map());
+  var shownRead = pickOpponent(game && game.reads, game);
+  var shownWho = shownRead ? shownRead.playerId : null;
+  var shownFormed = !!(shownRead && shownRead.formed);
   useEffect(function() {
-    if (readsForming && !formingRef.current) beat('readForms', fireHaptic);
-    formingRef.current = readsForming;
-  }, [readsForming]);
+    if (!shownWho) return;
+    var before = formedRef.current.get(shownWho);
+    formedRef.current.set(shownWho, shownFormed);
+    if (before === false && shownFormed) beat('readForms', fireHaptic);
+  }, [shownWho, shownFormed]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
@@ -1115,6 +1180,11 @@ export function WatchScreen({
   return (
     <div className="watch-screen">
 
+      {/* FIX-3c: on the watch screen the mood band collapses into the header —
+          one 40px row carrying back, his name, his mood, whether he is at a
+          table, and the way into the chat. The band's ghost and its 56px are
+          the felt's now. His cause line is not lost: it moves to the
+          between-hands strip, which is the moment there is room to read it. */}
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1125,22 +1195,21 @@ export function WatchScreen({
         <span className="watch-screen__title">
           {config ? (config.displayName || 'Watching') : 'Watching'}
         </span>
+        <MoodChip mood={mood} small />
+        <StateTag state={state} compact />
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          className="watch-screen__chat"
+          onClick={function() { setActiveTab(TAB_CHAT); }}
+        >Chat</button>
       </div>
-
-      <MoodBand
-        accent={accent}
-        mood={mood}
-        cause={cause || (state === 'live' ? 'at the table' : 'resting')}
-        state={state}
-        action="Chat"
-        onAction={function() { setActiveTab(TAB_CHAT); }}
-      />
 
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
 
         <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} flipped={flipped} line={feltLine} geom={sheet.geom} />
+          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
@@ -1153,6 +1222,7 @@ export function WatchScreen({
           <SitOutStrip
             key="sitout"
             visible={between && sheet.detent === 'expanded'}
+            cause={cause}
             onRequest={function() { setSitOutPending(true); }}
           />
 

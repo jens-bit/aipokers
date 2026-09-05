@@ -9,7 +9,11 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WatchScreen } from './WatchScreen.jsx';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { WatchScreen, feltGeometry } from './WatchScreen.jsx';
 import { betweenHandsGame, midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -17,6 +21,16 @@ import { FLIP_MS } from '../lib/pace.js';
 import { resetHaptics } from '../lib/haptics.js';
 import { isMuted, play, resetAudio } from '../lib/audio.js';
 import { GUESSES, resetPredict } from '../lib/predict.js';
+
+// FIX-3b asserts on rules rather than on layout: jsdom computes neither
+// env(safe-area-inset-bottom) nor any height.
+const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const readCss = (rel) => readFileSync(resolve(clientRoot, rel), 'utf8');
+const cssRule = (sheet, selector) => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = new RegExp(`(?:^|[},])\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(sheet);
+  return found ? found[1] : '';
+};
 
 function renderWatch(game, props = {}) {
   return render(
@@ -230,11 +244,15 @@ describe('WatchScreen mid-hand', () => {
   // feed's only home and the only place that printed 67.4% — the solver stack
   // finding 3 kills. What a decision still owes the screen is unchanged and
   // asserted here: his sentence, and his equity on the rope.
-  it('W3-2: a decision reaches the felt as his line and his equity', async () => {
+  // FIX-3a retunes this. His equity is unconditional — it is the rope. His line
+  // is not: on a short felt the geometry has no room for it between the board
+  // and the rope, and it is suppressed there rather than drawn through the rope.
+  // It still reaches the owner in the sheet's peek row and in the thread.
+  it('W3-2: a decision reaches the felt as his equity, always', async () => {
     const { container } = renderWatch(midHandGame, {
       lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674, reasoning: 'Set. Charging the draws.' },
     });
-    expect(await screen.findByText(/Charging the draws/)).toBeInTheDocument();
+    await screen.findByText('The Grinder');
     // WV2-2: the wire carries equity as a 0..1 fraction, not a percent.
     expect(container.querySelector('.tug__value').textContent).toBe('67%');
   });
@@ -411,7 +429,90 @@ describe('W3-2 the panel', () => {
   });
 });
 
-describe('W3-2 ReadPanel', () => {
+// ── W3-5 · the shape the server actually sends ──────────────────────────────
+//
+// W3-2 was written against a guessed contract: one opponent, stats in a map,
+// `conf` as a ± half-width in points. All three were wrong. The fixtures below
+// are readPanel() output from feature/pace @ 5a7832d — the same function
+// src/server/table.js _readsFor() calls — dumped once per classifyOpponent
+// shape, plus the two evidence states.
+
+const READ_FIXTURE = {
+  station: {
+    playerId: 'p_house', displayName: 'House', seat: 1, handsObserved: 63,
+    gate: 8.8, formed: true, shape: 'station',
+    line: 'He calls everything. I stop bluffing and start charging him.',
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: 96, confidence: 1, formed: true },
+      { k: 'pfr', label: 'RAISES FIRST', value: 4, confidence: 1, formed: true },
+      { k: 'aggr', label: 'AGGRESSION', value: 7, confidence: 1, formed: true },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: 6, confidence: 1, formed: true },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: 71, confidence: 1, formed: true },
+    ],
+  },
+  maniac: {
+    playerId: 'p_doyle', displayName: 'doyle_v3', seat: 1, handsObserved: 48,
+    gate: 8.8, formed: true, shape: 'maniac',
+    line: 'He never stops firing. I let him bet my good hands for me.',
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: 61, confidence: 1, formed: true },
+      { k: 'pfr', label: 'RAISES FIRST', value: 44, confidence: 1, formed: true },
+      { k: 'aggr', label: 'AGGRESSION', value: 100, confidence: 1, formed: true },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: 22, confidence: 1, formed: true },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: 38, confidence: 1, formed: true },
+    ],
+  },
+  nit: {
+    playerId: 'p_granite', displayName: 'Granite', seat: 2, handsObserved: 142,
+    gate: 8.8, formed: true, shape: 'nit',
+    line: 'He folds far too often. That is where the money is.',
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: 14, confidence: 1, formed: true },
+      { k: 'pfr', label: 'RAISES FIRST', value: 9, confidence: 1, formed: true },
+      { k: 'aggr', label: 'AGGRESSION', value: 37, confidence: 1, formed: true },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: 62, confidence: 1, formed: true },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: 21, confidence: 1, formed: true },
+    ],
+  },
+  tag: {
+    playerId: 'p_nash', displayName: 'Nash_EQ', seat: 2, handsObserved: 210,
+    gate: 8.8, formed: true, shape: 'tag',
+    line: 'He is a real player. No heroics against this one.',
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: 24, confidence: 1, formed: true },
+      { k: 'pfr', label: 'RAISES FIRST', value: 19, confidence: 1, formed: true },
+      { k: 'aggr', label: 'AGGRESSION', value: 87, confidence: 1, formed: true },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: 41, confidence: 1, formed: true },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: 29, confidence: 1, formed: true },
+    ],
+  },
+  // Seen, but under the gate: numbers on the bars, nothing claimed.
+  filling: {
+    playerId: 'p_new', displayName: 'newcomer', seat: 1, handsObserved: 4,
+    gate: 8.8, formed: false, shape: null, line: null,
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: 33, confidence: 0.15, formed: false },
+      { k: 'pfr', label: 'RAISES FIRST', value: 12, confidence: 0.15, formed: false },
+      { k: 'aggr', label: 'AGGRESSION', value: 47, confidence: 0.15, formed: false },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: 38, confidence: 0.15, formed: false },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: 30, confidence: 0.15, formed: false },
+    ],
+  },
+  // Nobody has sat down with him yet.
+  fresh: {
+    playerId: null, displayName: null, seat: 1, handsObserved: 0,
+    gate: 8.8, formed: false, shape: null, line: null,
+    rows: [
+      { k: 'vpip', label: 'PLAYS', value: null, confidence: 0, formed: false },
+      { k: 'pfr', label: 'RAISES FIRST', value: null, confidence: 0, formed: false },
+      { k: 'aggr', label: 'AGGRESSION', value: null, confidence: 0, formed: false },
+      { k: 'fold', label: 'FOLDS TO HEAT', value: null, confidence: 0, formed: false },
+      { k: 'sd', label: 'GOES TO SHOWDOWN', value: null, confidence: 0, formed: false },
+    ],
+  },
+};
+
+describe('W3-5 ReadPanel reads the served shape', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
@@ -423,74 +524,224 @@ describe('W3-2 ReadPanel', () => {
     [...container.querySelectorAll('.read-bar')]
       .find((el) => el.querySelector('.read-bar__label').textContent === label);
 
-  it('W3-2: draws the five rows in canon order even with no reads at all', () => {
+  it('W3-5: draws the five rows in canon order with no reads at all', () => {
     const { container } = renderWatch(midHandGame);
     expect([...container.querySelectorAll('.read-bar__label')].map((el) => el.textContent))
       .toEqual(['PLAYS', 'RAISES FIRST', 'AGGRESSION', 'FOLDS TO HEAT', 'GOES TO SHOWDOWN']);
   });
 
-  it('W3-2: with no evidence he says so himself, and no bar claims a number', () => {
-    const { container } = renderWatch(midHandGame);
+  it('W3-5: with no evidence he says so himself, and no bar claims a number', () => {
+    const { container } = renderWatch(withReads([READ_FIXTURE.fresh]));
     expect(screen.getByText('NO EVIDENCE YET')).toBeInTheDocument();
     expect(screen.getByText(/Give me a few hands/)).toBeInTheDocument();
-    // An unanswered question is not an answer of nothing: "··", never 0.
     expect([...container.querySelectorAll('.read-bar__value')].map((el) => el.textContent))
       .toEqual(['··', '··', '··', '··', '··']);
     expect(container.querySelector('.read-bar__fill')).toBeNull();
+    // No evidence, no bracket: the bar does not draw a range around a number it
+    // does not have.
+    expect(container.querySelector('.read-bar__band')).toBeNull();
   });
 
-  it('W3-2: fills the bars from the server model', () => {
-    const { container } = renderWatch(withReads({
-      name: 'Granite',
-      hands: 142,
-      line: 'He never folds, so I stop bluffing him.',
-      stats: { vpip: { v: 19, conf: 3 }, pfr: { v: 14, conf: 4 }, aggr: { v: 31, conf: 6 } },
-    }));
+  // One case per classifyOpponent shape, on the server's own output.
+  for (const shape of ['station', 'maniac', 'nit', 'tag']) {
+    it(`W3-5: renders the ${shape} panel the server sent`, () => {
+      const entry = READ_FIXTURE[shape];
+      const { container } = renderWatch(withReads([entry]));
 
-    // "Granite" is also a seat chip on the felt, so scope to the panel.
-    expect(container.querySelector('.read-panel__who').textContent).toBe('Granite');
-    expect(screen.getByText('142 HANDS SEEN')).toBeInTheDocument();
-    expect(screen.getByText(/He never folds/)).toBeInTheDocument();
+      expect(container.querySelector('.read-panel__who').textContent).toBe(entry.displayName);
+      expect(screen.getByText(`${entry.handsObserved} HANDS SEEN`)).toBeInTheDocument();
+      // The line is his, and it is the server's — never composed here.
+      expect(container.querySelector('.read-panel__line').textContent).toContain(entry.line);
 
+      for (const row of entry.rows) {
+        const el = rowFor(container, row.label);
+        expect(el.querySelector('.read-bar__value').textContent).toBe(String(row.value));
+        expect(el.querySelector('.read-bar__fill').style.width).toBe(`${row.value}%`);
+        expect(el.className).toContain('read-bar--formed');
+      }
+    });
+  }
+
+  // The one value the client has to interpret rather than echo.
+  it('W3-5: confidence is a certainty, so a full read draws no bracket', () => {
+    const { container } = renderWatch(withReads([READ_FIXTURE.nit]));
+    // confidence 1 — as sure as the model gets. The bracket has closed to a
+    // number, which is where "narrows with hands" ends.
+    expect(container.querySelector('.read-bar__band')).toBeNull();
+  });
+
+  it('W3-5: a thin read draws a wide bracket around its number', () => {
+    const { container } = renderWatch(withReads([READ_FIXTURE.filling]));
     const plays = rowFor(container, 'PLAYS');
-    expect(plays.querySelector('.read-bar__value').textContent).toBe('19');
-    expect(plays.querySelector('.read-bar__fill').style.width).toBe('19%');
-    // The bracket is the confidence: 19 ± 3.
-    expect(plays.querySelector('.read-bar__band').style.left).toBe('16%');
-    expect(plays.querySelector('.read-bar__band').style.width).toBe('6%');
-
-    // A stat the server has not sent stays unanswered rather than reading zero.
-    expect(rowFor(container, 'GOES TO SHOWDOWN').querySelector('.read-bar__value').textContent).toBe('··');
+    // confidence 0.15 → 12 * 0.85 ≈ 10 points either side of 33.
+    expect(plays.querySelector('.read-bar__band').style.left).toBe('23%');
+    expect(plays.querySelector('.read-bar__band').style.width).toBe('20%');
   });
 
-  it('W3-2: a plain number is accepted as well as a value/confidence pair', () => {
-    const { container } = renderWatch(withReads({ hands: 90, stats: { vpip: 24 } }));
-    const plays = rowFor(container, 'PLAYS');
-    expect(plays.querySelector('.read-bar__value').textContent).toBe('24');
-    expect(plays.querySelector('.read-bar__band')).toBeNull();
-  });
-
-  it('W3-2: a read is not formed until there is evidence behind it', () => {
-    const thin = renderWatch(withReads({ hands: 4, stats: { vpip: 19 } }));
+  it('W3-5: the gate decides formed, and the gate is the server\'s', () => {
+    // 4 hands against a gate of 8.8: numbers on the bars, nothing claimed.
+    const thin = renderWatch(withReads([READ_FIXTURE.filling]));
     expect(rowFor(thin.container, 'PLAYS').className).not.toContain('read-bar--formed');
+    expect(thin.container.querySelector('.read-panel__line').textContent).toContain('Give me a few hands');
 
-    const thick = renderWatch(withReads({ hands: 142, stats: { vpip: 19 } }));
-    expect(rowFor(thick.container, 'PLAYS').className).toContain('read-bar--formed');
+    const formed = renderWatch(withReads([READ_FIXTURE.station]));
+    expect(rowFor(formed.container, 'PLAYS').className).toContain('read-bar--formed');
   });
 
-  it('W3-2: a read that just formed announces itself once', () => {
-    const { container } = renderWatch(withReads({
-      hands: 143, forming: true, line: "He'll call a big one with nothing. Noted.",
-      stats: { vpip: 19 },
-    }));
-    expect(container.querySelector('.read-panel__line').className).toContain('is-forming');
+  // The server has no `forming` flag — _maybeBroadcastReads() simply stops
+  // sending once nothing has changed — so the client notices the transition.
+  it('W3-5: a read announces itself when it forms, and settles after', () => {
+    vi.useFakeTimers();
+    try {
+      // He is still counting: unformed, so nothing is announced.
+      const unformed = { ...READ_FIXTURE.station, formed: false, line: null, handsObserved: 4 };
+      const { container, rerender } = renderWatch(withReads([unformed]));
+      expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
 
-    const settled = renderWatch(withReads({ hands: 143, line: 'Still the same.', stats: { vpip: 19 } }));
-    expect(settled.container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+      // The next snapshot has it formed. That is the event.
+      const rerenderWith = (reads) => rerender(
+        <WatchScreen game={withReads(reads)} mySeat={0} config={spectatorConfig}
+          displayNames={{}} chatMessages={[]} sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}} />,
+      );
+      act(() => { rerenderWith([READ_FIXTURE.station]); });
+      expect(container.querySelector('.read-panel__line').className).toContain('is-forming');
+
+      // And then it is just his read, not a badge.
+      act(() => { vi.advanceTimersByTime(5000); });
+      expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('W3-5: a read that was already formed when the screen opened is not an event', () => {
+    const { container } = renderWatch(withReads([READ_FIXTURE.station]));
+    expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+  });
+
+  it('W3-5: a short or reordered rows array still draws five in canon order', () => {
+    const { container } = renderWatch(withReads([{
+      ...READ_FIXTURE.station,
+      rows: [
+        { k: 'sd', label: 'GOES TO SHOWDOWN', value: 71, confidence: 1, formed: true },
+        { k: 'vpip', label: 'PLAYS', value: 96, confidence: 1, formed: true },
+      ],
+    }]));
+    expect([...container.querySelectorAll('.read-bar__label')].map((el) => el.textContent))
+      .toEqual(['PLAYS', 'RAISES FIRST', 'AGGRESSION', 'FOLDS TO HEAT', 'GOES TO SHOWDOWN']);
+    expect(rowFor(container, 'AGGRESSION').querySelector('.read-bar__value').textContent).toBe('··');
   });
 });
 
-// ── W3-3 · haptics and the sound switch ─────────────────────────────────────
+describe('W3-5 picking the opponent', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const who = (container) => container.querySelector('.read-panel__who').textContent;
+
+  it('W3-5: shows the one still live in the hand, not the most observed', () => {
+    // Nash has 210 hands of evidence behind him and Doyle 48 — but Nash has
+    // folded, and the read that is costing money right now is the live one.
+    const game = {
+      ...midHandGame,
+      seats: midHandGame.seats.map((s, i) => (i === 2 ? { ...s, folded: true } : s)),
+      reads: [
+        { ...READ_FIXTURE.maniac, seat: 1 },
+        { ...READ_FIXTURE.tag, seat: 2 },
+      ],
+    };
+    expect(who(renderWatch(game).container)).toBe('doyle_v3');
+  });
+
+  it('W3-5: falls back to the most observed when nobody is left in', () => {
+    const game = {
+      ...midHandGame,
+      seats: midHandGame.seats.map((s, i) => (i === 0 ? s : { ...s, folded: true })),
+      reads: [
+        { ...READ_FIXTURE.maniac, seat: 1 },
+        { ...READ_FIXTURE.tag, seat: 2 },
+      ],
+    };
+    expect(who(renderWatch(game).container)).toBe('Nash_EQ');
+  });
+
+  it('W3-5: with several live, the one he knows best', () => {
+    const game = {
+      ...midHandGame,
+      reads: [
+        { ...READ_FIXTURE.maniac, seat: 1 },
+        { ...READ_FIXTURE.tag, seat: 2 },
+      ],
+    };
+    expect(who(renderWatch(game).container)).toBe('Nash_EQ');
+  });
+
+  it('W3-5: an empty array is the no-evidence panel, not a crash', () => {
+    const { container } = renderWatch({ ...midHandGame, reads: [] });
+    expect(container.querySelector('.read-panel')).toBeTruthy();
+    expect(screen.getByText('NO EVIDENCE YET')).toBeInTheDocument();
+  });
+});
+
+describe('W3-5 the staged runout', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const river = { ...midHandGame, pace: 'showdown', community: ['5c', '4h', '8c', 'Kd', '2s'] };
+  const board = (container) => container.querySelector('.watch-felt__board');
+
+  it('W3-5: the PACE frame decides what is face up, not a local clock', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = renderWatch(river, {
+        paceFrame: { pace: 'showdown', board: ['5c', '4h', '8c'], card: '8c' },
+      });
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8']);
+
+      // Nothing moves on its own: the server is driving, so every watcher sees
+      // the same card at the same moment.
+      act(() => { vi.advanceTimersByTime(FLIP_MS * 5); });
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8']);
+
+      // The next frame turns the next card.
+      rerender(
+        <WatchScreen game={river} mySeat={0} config={spectatorConfig} displayNames={{}}
+          chatMessages={[]} sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}}
+          paceFrame={{ pace: 'showdown', board: ['5c', '4h', '8c', 'Kd'], card: 'Kd' }} />,
+      );
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8', 'K']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('W3-5: falls back to the local flip when no frame arrives', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(river);
+      expect(faceUpRanks(board(container))).toEqual([]);
+      act(() => { vi.advanceTimersByTime(FLIP_MS * 3); });
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('W3-5: a frame with no board defers to the fallback', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(river, { paceFrame: { pace: 'showdown', card: '2s' } });
+      act(() => { vi.advanceTimersByTime(FLIP_MS); });
+      expect(faceUpRanks(board(container))).toEqual(['5']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe('W3-3 the beats', () => {
   let haptics;
@@ -652,6 +903,167 @@ describe('W3-4 the prediction beat', () => {
     for (const banned of ['coin', 'chips left', 'claim', 'reward', 'bonus', 'x2']) {
       expect(text).not.toContain(banned);
     }
+  });
+});
+
+// ── FIX-3 · watch layout ────────────────────────────────────────────────────
+
+describe('FIX-3a line and rope never overlap', () => {
+  // jsdom measures nothing, so the stacking is asserted on the geometry that
+  // produces it, at the real pixel sizes a phone gives the stage.
+  const STAGES = [598, 674, 520, 760, 420];
+  const FRACS = [306 / 639, 400 / 639, 508 / 639, 620 / 639];
+
+  const BOARD_CARD_H = 64;
+  const TUG_H = 30;
+  const LINE_H = 19;
+  const HERO_BAND = 78;
+
+  it('FIX-3a: at every detent and stage, the stack is board → line → rope → hero', () => {
+    for (const stage of STAGES) {
+      for (const frac of FRACS) {
+        const g = feltGeometry(frac, stage);
+        const boardBottom = g.board + BOARD_CARD_H;
+        const heroTop = g.felt - HERO_BAND;
+
+        // The rope is under the board and above the hero row, always.
+        expect(g.tug, `stage ${stage} frac ${frac}: rope over the board`)
+          .toBeGreaterThanOrEqual(boardBottom);
+        expect(g.tug + TUG_H, `stage ${stage} frac ${frac}: rope into the hero row`)
+          .toBeLessThanOrEqual(heroTop);
+
+        // And his line, when it is drawn at all, sits between them without
+        // touching either.
+        if (g.line != null) {
+          expect(g.line, `stage ${stage} frac ${frac}: line over the board`)
+            .toBeGreaterThanOrEqual(boardBottom);
+          expect(g.line + LINE_H, `stage ${stage} frac ${frac}: line into the rope`)
+            .toBeLessThanOrEqual(g.tug);
+        }
+      }
+    }
+  });
+
+  it('FIX-3a: the line is drawn when the felt is tall enough for it', () => {
+    // The hidden detent gives the felt almost the whole stage.
+    const g = feltGeometry(620 / 639, 760);
+    expect(g.line).not.toBeNull();
+    expect(g.line + 19).toBeLessThanOrEqual(g.tug);
+  });
+
+  it('FIX-3a: and suppressed rather than drawn through the rope when it is not', () => {
+    // The expanded detent on a short stage: board, rope, hero row and the seat
+    // ring already use every pixel. His line is in the peek row and the thread.
+    const g = feltGeometry(306 / 639, 560);
+    expect(g.line).toBeNull();
+  });
+
+  it('FIX-3a: the detent geometry itself is unchanged', () => {
+    // SHEET_LAY, verbatim: at the ref's own region the three tops reproduce it.
+    const region = 639;
+    expect(feltGeometry(306 / region, region)).toMatchObject({ felt: 306, pot: 60, board: 108, tug: 184 });
+    expect(feltGeometry(508 / region, region)).toMatchObject({ felt: 508, pot: 128, board: 196, tug: 286 });
+    expect(feltGeometry(620 / region, region)).toMatchObject({ felt: 620, pot: 168, board: 244, tug: 336 });
+  });
+
+  it('FIX-3a: the rope and the line read the same geometry, not two anchors', () => {
+    const { container } = renderWatch(midHandGame, {
+      lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.5, reasoning: 'He is done.' },
+    });
+    const felt = container.querySelector('.watch-felt');
+    // Both tops come off the felt's own custom properties; neither is anchored
+    // to the opposite edge, which is what let them cross.
+    expect(felt.style.getPropertyValue('--wv-tug')).toMatch(/^\d+px$/);
+    expect(felt.style.getPropertyValue('--wv-line')).toMatch(/^\d+px$/);
+  });
+});
+
+describe('FIX-3b the chat composer clears the bottom of the screen', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('FIX-3b: the screen follows the Telegram viewport, so the keyboard cannot cover it', () => {
+    const css = readCss('src/styles/watch.css');
+    const rule = cssRule(css, '.watch-screen');
+    // --tg-h shrinks when the iOS keyboard opens (KEY-1 tracks it). Following
+    // it is what keeps the sheet, and the composer at the foot of it, above the
+    // keyboard rather than behind it.
+    expect(rule).toMatch(/height:\s*var\(--tg-h/);
+  });
+
+  it('FIX-3b: the sheet composer clears the home indicator', () => {
+    const css = readCss('src/styles/analysis.css');
+    const rule = cssRule(css, '.dr-chat-tab--fill .dr-chat-tab__form');
+    expect(rule).toMatch(/padding-bottom:\s*max\(env\(safe-area-inset-bottom/);
+    // A floor under it, because env() is 0 on a device with no inset.
+    expect(rule).toMatch(/8px\)/);
+  });
+
+  it('FIX-3b: and the composer is still reachable on the chat tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+
+    const chat = container.querySelector('.dr-chat-tab--fill');
+    expect(chat).toBeTruthy();
+    expect(chat.querySelector('.dr-chat-tab__form')).toBeTruthy();
+    expect(chat.querySelector('.dr-chat-tab__input')).toBeTruthy();
+  });
+});
+
+describe('FIX-3c the collapsed header', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('FIX-3c: one row carries back, name, mood, state and chat', async () => {
+    const { container } = renderWatch(midHandGame);
+    await screen.findByText('The Grinder');
+
+    const header = container.querySelector('.watch-screen__header');
+    expect(header.querySelector('.watch-screen__back')).toBeTruthy();
+    expect(header.querySelector('.watch-screen__title').textContent).toBe('The Grinder');
+    expect(header.querySelector('.mood-chip, [class*="mood"]')).toBeTruthy();
+    expect(header.querySelector('.watch-screen__chat').textContent).toBe('Chat');
+  });
+
+  it('FIX-3c: the header is the ww-ref\'s 40px, and the mood band is gone', () => {
+    const { container } = renderWatch(midHandGame);
+    const css = readCss('src/styles/watch.css');
+    expect(cssRule(css, '.watch-screen__header')).toMatch(/height:\s*40px/);
+    // The band was a second 56px row above the felt. It is not there any more.
+    expect(container.querySelector('.mood-band')).toBeNull();
+  });
+
+  it('FIX-3c: the chat control still reaches the chat tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+    await user.click(container.querySelector('.watch-screen__chat'));
+    expect(container.querySelector('.dr-chat-tab')).toBeTruthy();
+  });
+
+  it('FIX-3c: his cause line moves to the between-hands strip', () => {
+    const { container } = renderWatch(betweenHandsGame);
+    const strip = container.querySelector('.watch-sitout-strip');
+    expect(strip).toBeTruthy();
+    expect(within(strip).getByText('Between hands')).toBeInTheDocument();
+    // The strip's second line is his cause when there is one, and the old
+    // default when there is not.
+    expect(strip.querySelector('.watch-sitout-strip__meta').textContent).toBeTruthy();
+  });
+
+  it('FIX-3c: leaving still leaves, not sits out', async () => {
+    const user = userEvent.setup();
+    const onLeave = vi.fn();
+    const onSitOut = vi.fn();
+    const { container } = renderWatch(midHandGame, { onLeave, onSitOut });
+
+    await user.click(container.querySelector('.watch-screen__back'));
+    expect(onLeave).toHaveBeenCalled();
+    expect(onSitOut).not.toHaveBeenCalled();
   });
 });
 
