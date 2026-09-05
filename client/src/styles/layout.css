@@ -663,10 +663,25 @@
   bottom: calc(160px + var(--nav-h, 0px));
 }
 
+/* FIX-2b: a flex COLUMN, not a block box.
+   The screens it holds (the chat thread, the floor, the profile) all declare
+   `flex: 1` on their own root and size their feed and composer from it. In a
+   block parent that `flex: 1` is inert, so the thread sized to its content:
+   with one message the composer sat mid-screen with dead space beneath it.
+   Children that do not ask to grow keep their natural height and the column
+   scrolls, which is what `flex-shrink: 0` below preserves. */
 .pre-game {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   min-height: 0;
+}
+
+/* Content-sized panes must not be squashed to fit; they scroll the column
+   instead. A child that declares `flex: 1` inline overrides this and fills. */
+.pre-game > * {
+  flex-shrink: 0;
 }
 
 /* When AgentChat is open in the shell, it must fill the pre-game area
