@@ -44,6 +44,170 @@ const MOODS = {
   sulking:    { label: 'SULKING',    color: M_MUTED, glow: 0.07, pip: '▾', cause: 'got shown a bluff, wants to sit out' },
 };
 
+// ── THE HANDS ──────────────────────────────────────────────────────────────
+// Two small detached hands, no arms, hovering where a wrist would be. They are
+// BODY LANGUAGE AT TABLE SCALE — what he is doing with the hand — while the face
+// stays the emotional readout. The split matters: a face can only be read at 34px
+// and above, but a hand pushing a stack forward reads at 20.
+//
+// Same ink as the body, one step lighter so they separate against it. Three-fingered
+// mitten, ~22% of body width (the body spans 44 of the 80 viewBox, so ~9.6 units).
+// Fingers are separate circles unioned into a palm — the same construction the club
+// glyph uses, because overlapping fills have no seams.
+const HAND_INK = '#1E2732';
+const HAND_W = 9.6;
+
+// detail drops with size exactly as the face's does: below seat scale the fingers
+// are sub-pixel, so the hand becomes a plain mitten rather than a smudge
+const handDetail = size => (size >= 72 ? 2 : size >= 34 ? 1 : 0);
+
+const Mitten = ({ x, y, r = 0, s = 1, d = 1, clenched, ink = HAND_INK }) => (
+  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+    {clenched
+      ? <circle cx="0" cy="0" r={HAND_W * 0.46} fill={ink}/>
+      : (
+        <>
+          {d > 0 && [-2.9, 0, 2.9].map(fx => (
+            <circle key={fx} cx={fx} cy={-2.4} r={d > 1 ? 2.0 : 2.3} fill={ink}/>
+          ))}
+          <rect x={-HAND_W / 2} y={-2.6} width={HAND_W} height="6.4" rx="2.8" fill={ink}/>
+        </>
+      )}
+  </g>
+);
+
+const Chips = ({ x, y, n = 4, ink = HAND_INK }) => (
+  <g>
+    {Array.from({ length: n }).map((_, i) => (
+      <ellipse key={i} cx={x} cy={y - i * 1.5} rx="4.2" ry="1.6" fill={i === n - 1 ? '#2A3542' : ink}
+        stroke="rgba(255,255,255,0.07)" strokeWidth="0.4"/>
+    ))}
+  </g>
+);
+
+const MiniBack = ({ x, y, r = 0, s = 1 }) => (
+  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+    <rect x="-3.4" y="-4.8" width="6.8" height="9.6" rx="1.2" fill="#16202B" stroke="rgba(0,212,170,0.28)" strokeWidth="0.5"/>
+  </g>
+);
+
+// EIGHT POSES AND NO MORE. Each is a fixed arrangement; nothing is procedural, so
+// nothing can drift into a ninth pose by accident.
+const HAND_POSES = {
+  rest:   { label: 'Rest',   note: 'hovering at the sides, 2s idle drift', when: 'between hands, at the bar, on the floor' },
+  hold:   { label: 'Hold',   note: 'both hands on the card backs, low and in front', when: 'the default while he is in a hand' },
+  peek:   { label: 'Peek',   note: 'one hand lifts a corner toward the face', when: 'dealt, and once when heat rises' },
+  push:   { label: 'Push',   note: 'both hands slide a stack forward; stack height IS the bet band', when: 'bet or raise' },
+  toss:   { label: 'Toss',   note: 'one hand flicks both cards away', when: 'fold — pairs with the wave-42 toss strip' },
+  drum:   { label: 'Drum',   note: 'fingers tap the felt twice', when: 'check' },
+  clench: { label: 'Clench', note: 'both hands ball up', when: 'all-in, or heat ≥ 70' },
+  cover:  { label: 'Cover',  note: 'both hands over the face — on a win, one rakes instead', when: 'lost a big pot' },
+};
+
+const OPP_POSES = ['rest', 'hold', 'toss', 'push'];   // an opponent gets four
+
+const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
+  const d = handDetail(size);
+  const n = bet === 'small' ? 2 : bet === 'big' ? 7 : 4;
+  const drift = { animation: 'drift 2s ease-in-out infinite' };
+
+  if (pose === 'hold') return (
+    <g>
+      <MiniBack x="35" y="63" r={-7}/><MiniBack x="45" y="63" r={7}/>
+      <Mitten x="27.5" y="65" r={-12} d={d}/>
+      <Mitten x="52.5" y="65" r={12} d={d}/>
+    </g>
+  );
+  if (pose === 'peek') return (
+    <g>
+      <MiniBack x="34" y="63" r={-6}/>
+      <MiniBack x="45" y="55" r={26} s={0.95}/>
+      <Mitten x="26.5" y="65" r={-12} d={d}/>
+      <Mitten x="50" y="50" r={38} d={d}/>
+    </g>
+  );
+  if (pose === 'push') return (
+    <g>
+      <Chips x="40" y="55" n={n}/>
+      <Mitten x="31" y="60" r={-20} d={d}/>
+      <Mitten x="49" y="60" r={20} d={d}/>
+    </g>
+  );
+  if (pose === 'toss') return (
+    <g>
+      <MiniBack x="60" y="46" r={-38} s={0.9}/>
+      <MiniBack x="66" y="42" r={-52} s={0.86}/>
+      <Mitten x="27" y="64" r={-10} d={d}/>
+      <Mitten x="54" y="52" r={-42} d={d}/>
+    </g>
+  );
+  if (pose === 'drum') return (
+    <g>
+      <Mitten x="24" y="66" r={-6} d={d}/>
+      <Mitten x="56" y="63" r={8} d={d}/>
+      {d > 0 && [50, 58].map((tx, i) => (
+        <ellipse key={tx} cx={tx} cy="70" rx="2.2" ry="0.7" fill="rgba(255,255,255,0.10)" opacity={i ? 0.5 : 1}/>
+      ))}
+    </g>
+  );
+  if (pose === 'clench') return (
+    <g>
+      <Mitten x="24" y="62" clenched/>
+      <Mitten x="56" y="62" clenched/>
+    </g>
+  );
+  if (pose === 'cover') return won ? (
+    <g>
+      <Chips x="46" y="58" n={5}/>
+      <Mitten x="52" y="62" r={26} d={d}/>
+      <Mitten x="24" y="65" r={-8} d={d}/>
+    </g>
+  ) : (
+    <g>
+      <Mitten x="32" y="43" r={-16} s={1.05} d={d}/>
+      <Mitten x="48" y="43" r={16} s={1.05} d={d}/>
+    </g>
+  );
+  // rest
+  return (
+    <g style={drift}>
+      <Mitten x="20" y="60" r={-8} d={d}/>
+      <Mitten x="60" y="60" r={8} d={d}/>
+    </g>
+  );
+};
+
+// ── BROW TRIGGERS ─────────────────────────────────────────────────────────
+// The wave-41 faces own the resting brow; these three are momentary overrides,
+// drawn on top and gone within a second. Each has exactly one trigger.
+const BROW_TRIGGERS = {
+  twitch: { label: 'Twitch', trigger: 'a raise lands against him', hold: '400ms', note: 'one brow only — asymmetry is what makes it read as involuntary' },
+  lift:   { label: 'Lift',   trigger: 'peek, and the hand is strong',  hold: '700ms', note: 'both, and it is the only friendly brow the resting set never draws' },
+  knit:   { label: 'Knit',   trigger: 'heat reaches 55',               hold: 'until heat drops', note: 'the one that persists, because the cause persists' },
+};
+
+const ghostBrow = ({ brow, eye, cy }) => {
+  if (brow === 'twitch') return (
+    <g>
+      <path d={`M30.2 ${cy - 7.6} L37 ${cy - 7.6}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+      <path d={`M49.8 ${cy - 10.2} L43 ${cy - 8.6}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round"/>
+    </g>
+  );
+  if (brow === 'lift') return (
+    <g>
+      <path d={`M30.2 ${cy - 10} L37 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/>
+      <path d={`M49.8 ${cy - 10} L43 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round"/>
+    </g>
+  );
+  if (brow === 'knit') return (
+    <g>
+      <path d={`M30.6 ${cy - 8.2} L37.4 ${cy - 5.6}`} stroke={eye} strokeWidth="1.6" strokeLinecap="round"/>
+      <path d={`M49.4 ${cy - 8.2} L42.6 ${cy - 5.6}`} stroke={eye} strokeWidth="1.6" strokeLinecap="round"/>
+    </g>
+  );
+  return null;
+};
+
 // ── The expression vehicle ──
 // ── THE FACES ──────────────────────────────────────────────────────────────
 // One face per state was never enough and the confident one was actively wrong:
@@ -258,7 +422,7 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
 // `size` decides how much of the face survives. Existing callers pass none of the
 // three and get the mid tier at full detail, which is the face this atom always
 // drew — minus the inner-raised confident brow.
-const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event }) => {
+const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event, hands, bet, won, brow }) => {
   const uid = React.useId().replace(/:/g, '');
   const m = MOODS[mood];
   const mc = tone || m.color;
@@ -286,6 +450,8 @@ const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, 
         : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill={`url(#h${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4"/>}
       <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C"/>
       {ghostFace({ mood, heat, size, event, eye, cy })}
+      {brow && ghostBrow({ brow, eye, cy })}
+      {hands && ghostHands({ pose: hands, size, bet, won })}
     </svg>
   );
 };
@@ -627,6 +793,8 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
+  HAND_INK, HAND_W, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
+  BROW_TRIGGERS, ghostBrow,
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
   MOODS, MoodGhost, MoodPip, MoodAvatar, MoodChip,
