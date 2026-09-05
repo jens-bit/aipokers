@@ -208,11 +208,11 @@ const D4BirthCardScreenM = () => (
   <DesktopShell>
     <DeskTopBar net="+$340" flagged="4 flagged"/>
     <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', display: 'flex' }}>
         <DeskFloor layout="one"
           seats={{ 0: { ...CAST.balanced, pot: '480' } }}
           bar={[{ ...CAST.bluff, x: 300, state: 'recap', speed: 6 }]}/>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 62% 72%, rgba(0,212,170,0.10) 0%, rgba(8,8,10,0.45) 60%, rgba(8,8,10,0.7) 100%)', pointerEvents: 'none' }}/>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 62% 74%, rgba(0,212,170,0.12) 0%, rgba(8,8,10,0.12) 52%, rgba(8,8,10,0.34) 100%)', pointerEvents: 'none' }}/>
         <div style={{ position: 'absolute', left: 560, bottom: 96, transform: 'translateX(-50%)', textAlign: 'center', zIndex: 4 }}>
           <div style={{ position: 'absolute', left: '50%', top: '46%', width: 190, height: 190, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${M_TEAL}26, transparent 70%)` }}/>
           <MoodGhost mood="neutral" accent={M_TEAL} size={96} ring={false}/>

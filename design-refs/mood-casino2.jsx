@@ -176,9 +176,9 @@ const D4Floor2ScreenM = () => (
   <DesktopShell>
     <DeskTopBar net="+$340" flagged="1 flagged"/>
     <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', display: 'flex' }}>
         <DeskFloor layout="one" seats={{ 0: { ...CAST.balanced, pot: '480' } }}/>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 30% 34%, rgba(8,9,11,0) 0%, rgba(8,9,11,0.5) 52%, rgba(8,9,11,0.72) 100%)', pointerEvents: 'none' }}/>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 30% 34%, rgba(8,9,11,0) 0%, rgba(8,9,11,0.14) 52%, rgba(8,9,11,0.4) 100%)', pointerEvents: 'none' }}/>
         <div style={{ position: 'absolute', left: 640, bottom: 150, zIndex: 4 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <GhostChip name="Hothead v1.0" accent={M_TEAL} state="resting"/>
