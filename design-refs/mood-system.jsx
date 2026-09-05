@@ -459,6 +459,28 @@ const GhostAnatomyM = () => (
       ))}
     </Row>
 
+    <SyLbl>New atom &middot; AttrBar</SyLbl>
+    <Row gap={22} mb={22}>
+      <div style={{ width: 260 }}>
+        <AttrBar name="FOCUS" cur={54} lo={60} hi={90} w={260} narrowed/>
+        <div style={{ marginTop: 16 }}>
+          <AttrBar row name="READS" cur={82} lo={80} hi={84} w={260}/>
+          <div style={{ height: 12 }}/>
+          <AttrBar row name="COMPOSURE" cur={44} lo={46} hi={52} w={260}/>
+        </div>
+      </div>
+      <Callout>
+        The character system&rsquo;s only new atom. <b style={{ color: M_TEXT }}>Two layouts, one component</b>:
+        <b style={{ color: M_TEXT }}>stacked</b> (name above, band printed in gold) for reference sheets
+        and the birth reveal; <b style={{ color: M_TEXT }}>row</b> (<span style={{ color: M_TEAL }}>row</span> prop —
+        name 78 / track flex / value 22, 20px pitch) for the six-bar cluster on the player card and in
+        the desktop rail. Teal fill + white cap is the current value; the gold band is the
+        <b style={{ color: M_TEXT }}> scouted ceiling</b> and its width is the confidence — a potential
+        number is never printed. The gold caret marks a band that narrowed this session and is the
+        only animation on the bar. Full anatomy on the Character System board, S3.
+      </Callout>
+    </Row>
+
     <Row gap={14} mb={0}>
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: 'rgba(0,212,170,0.05)', border: `1px solid ${M_TEAL}33` }}>
         <SyLbl color={M_TEAL}>Do</SyLbl>

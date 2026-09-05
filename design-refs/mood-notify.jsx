@@ -206,10 +206,12 @@ const BudgetBoard = () => {
     { p: 3, type: 'Mood alert', note: 'money is moving now', color: M_GOLD },
     { p: 4, type: 'Milestone', note: 'keeps until tomorrow', color: M_DIM },
     { p: 5, type: 'Quiet win', note: 'optional; the first to be dropped', color: M_MUTED },
+    { p: 6, type: 'He grew', note: 'an attribute ticked — rides the recap, or waits a day', color: M_MUTED },
   ];
   // derived, not chosen: window opens 08:00, minimum gap 4h, budget 2
   const day = [
     { t: '02:14', ev: 'Session ended unwatched', type: 'Session recap', sent: 'HELD → SENT 08:00', ok: true },
+    { t: '02:14', ev: 'Reads 61 → 62', type: 'He grew', sent: 'RODE THE RECAP', ok: true },
     { t: '09:40', ev: 'Self-change proposal created', type: 'Proposal', sent: 'HELD → SENT 12:00', ok: true },
     { t: '15:02', ev: 'Entered tilted', type: 'Mood alert', sent: 'DROPPED — budget spent', ok: false },
     { t: '22:10', ev: 'Third winning night', type: 'Quiet win', sent: 'DROPPED — budget spent', ok: false },
@@ -238,7 +240,7 @@ const BudgetBoard = () => {
       </div>
 
       <div style={{ padding: '12px 16px 6px', borderTop: `1px solid ${M_BORDER}` }}>
-        <Lbl size={8.5}>One real day — four eligible events, two delivered</Lbl>
+        <Lbl size={8.5}>One real day — five eligible events, two pings delivered</Lbl>
       </div>
       <div style={{ padding: '0 16px 14px' }}>
         {day.map((d, i) => (
@@ -381,7 +383,20 @@ const Notif5 = () => (
     ]}/>
 );
 
+const Notif6 = () => (
+  <NotifCard n="06" name="He grew" badge="NO BUTTON" badgeColor={M_MUTED}
+    primary={<>Aggressive v1.3 is reading Granite now. <b>Reads 61 &rarr; 62</b> — he called out the sizing tell three times tonight.</>}
+    trigger="An attribute ticked during a session that has already closed. Batched into the recap where one is due; sent alone only on a day with budget to spare."
+    cap="Once per day per owner, whatever grew. Priority 6 — the lowest rung; dropped before the quiet win."
+    why="The hand that caused it is named. A number that moved for no stated reason is a game notification, and this product does not send those."
+    alternates={[
+      { text: <>Balanced v2.1 made three big folds tonight and got them all right. <b>Discipline 74 &rarr; 75</b>.</> },
+      { text: <>Bluff Master got two bluffs through uncalled. <b>Deception 71 &rarr; 72</b> — he would like the room to know.</> },
+      { text: <>Value Bot sat through 240 hands without a dip. <b>Stamina 66 &rarr; 67</b>.</> },
+    ]}/>
+);
+
 Object.assign(window, {
   TgHeader, TgMsg, TgDay, TgBar, NotifCard, BudgetBoard, ViolationsBoard,
-  NotifyDayScreenM, Notif1, Notif2, Notif3, Notif4, Notif5,
+  NotifyDayScreenM, Notif1, Notif2, Notif3, Notif4, Notif5, Notif6,
 });
