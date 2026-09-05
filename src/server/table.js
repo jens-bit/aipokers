@@ -9,12 +9,14 @@ import {
   updateComputedMemory,
   getAgentMood,
   setAgentMood,
+  getAgentAttributes,
   finishAgentSession,
   addFlaggedHand,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry } from './flaggedHands.js';
 import { estimateEquity } from '../engine/equity.js';
-import { compilePolicy, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
+import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
+import { effectiveAttrs, readMinHands } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 import {
   applyEvent as applyMoodEvent,
@@ -766,6 +768,19 @@ export class Table {
     return free;
   }
 
+  // ATTR-1: the seat's six attributes after within-session fatigue. Read from
+  // the stored agent record rather than plumbed through every seating path, so
+  // House seats and player seats (which have no agent) simply get null and
+  // every hook falls through to its pre-attribute behaviour.
+  _seatAttrs(seat) {
+    const agentId = this.agentIds[seat];
+    if (!agentId) return null;
+    const rec = getAgentAttributes(agentId, this.agentUserIds[seat]);
+    if (!rec?.attrs) return null;
+    const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+    return effectiveAttrs(rec, { sessionHands });
+  }
+
   hasHumanPlayer() {
     return this.connections.some((c, i) => c !== null && !this.aiSeats[i]);
   }
@@ -1175,6 +1190,8 @@ export class Table {
       const currentMood = getAgentMood(agentId, this.agentUserIds[seat]);
       if (!currentMood) continue;
       const profile = this.agentProfiles[seat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+      // ATTR-1 hook — COMPOSURE: how hard the beat lands, and how fast he comes back.
+      const composure = this._seatAttrs(seat)?.COMPOSURE ?? null;
 
       const won = winners.some((w) => w.seat === seat);
       const pot = result.pot ?? 0;
@@ -1235,10 +1252,10 @@ export class Table {
       // apply sequentially; each roll is independent.
       let mood = { ...next };
       for (const ev of events) {
-        mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx });
+        mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx, composure });
       }
       if (events.length === 0) {
-        mood = tickMoodDecay(mood);
+        mood = tickMoodDecay(mood, { composure });
       } else {
         // Any event resets the decay clock.
         mood.uneventfulHands = 0;
@@ -1842,9 +1859,12 @@ export class Table {
     // (the seat may have been created before this feature); an inferred one
     // is passed in via seatAI when available.
     const seatProfile = this.agentProfiles[aiSeat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+    // ATTR-1: the six values this decision is made with, after fatigue.
+    const attrs = this._seatAttrs(aiSeat);
     const policy = compilePolicy(seatProfile, {
       holeCards: me.holeCards,
       position,
+      attrs,
     });
 
     // Mood-derived bounded effects: nudge the deviation die probability and
@@ -1855,7 +1875,9 @@ export class Table {
       : null;
     if (mood && mood.state !== 'neutral') {
       const eff = moodDecisionEffects(mood);
-      const baseDeviation = (100 - seatProfile.discipline) / 100;
+      // deviationPercent, not the raw expression: mood must nudge the number
+      // the DISCIPLINE hook already produced, not overwrite it.
+      const baseDeviation = deviationPercent(seatProfile, { discipline: attrs?.DISCIPLINE ?? null }) / 100;
       const boosted = Math.max(0, Math.min(1, baseDeviation + eff.deviationBoost));
       policy.dice.deviationDie = Math.random() < boosted;
     }
@@ -1865,13 +1887,20 @@ export class Table {
     // Read summaries for every OTHER seat with ≥10 observed hands. Handed
     // to the briefing so the LLM can adapt sizing/fold decisions to how
     // this specific opponent has been playing.
+    //
+    // ATTR-1: the 10-hand prefilter becomes the attribute-aware gate — READS
+    // pulls it down, the SUBJECT's DECEPTION pushes it up — and each read
+    // carries that subject's DECEPTION so reads.js can apply the same rule.
     const opponentReads = [];
     for (let i = 0; i < N; i++) {
       if (i === aiSeat) continue;
       const pid = this.pending[i]?.playerId;
       if (!pid) continue;
       const read = getOpponentRead(pid);
-      if (read && read.handsObserved >= 10) opponentReads.push(read);
+      if (!read) continue;
+      const subjectDeception = this._seatAttrs(i)?.DECEPTION ?? null;
+      const gate = readMinHands({ reads: attrs?.READS ?? null, deception: subjectDeception });
+      if (read.handsObserved >= gate) opponentReads.push({ ...read, subjectDeception });
     }
 
     return {
@@ -1900,6 +1929,10 @@ export class Table {
       raisesThisStreet,
       opponentReads,
       mood,
+      attrs,                                          // ATTR-1: FOCUS/READS read these
+      fatigue:    attrs?.fatigue ?? null,
+      seat:       aiSeat,                             // seeds the FOCUS noise
+      handNumber: g.handNumber,
       tableTalk:  this.pendingNeedle[aiSeat] ?? null,   // TLK-1
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })

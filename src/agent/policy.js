@@ -9,6 +9,8 @@
 //
 // Profile shape: { tightness, aggression, bluffFreq, discipline } each 0-100.
 
+import { disciplineDeviationMultiplier, attrsActive } from './attributes.js';
+
 const RANKS = '23456789TJQKA';
 const TOTAL_COMBOS = 1326;
 
@@ -182,12 +184,28 @@ export function rangeVerdict(holeCards, position, profile) {
 // The LLM cannot randomize. The server rolls the dice from the profile and
 // states the outcome as fact.
 
-export function rollDice(profile, rand = Math.random) {
+// How often, in percent, this agent is allowed to deviate from the briefing.
+// The profile's discipline slider sets the leash; the DISCIPLINE attribute
+// (ATTR-1 hook) decides how hard he pulls on it — ×1.6 at attribute 0, ×1.0 at
+// 50, ×0.4 at 100. The clamp and the multiplier only engage when an attribute
+// is present and ATTRIBUTE_IMPACT > 0, so the knob-0 path is the old
+// expression exactly, clamp included.
+//
+// Exported because table.js recomputes this number when mood nudges the
+// deviation die, and the two must not disagree.
+export function deviationPercent(profile, { discipline = null } = {}) {
+  const p = normalizeProfile(profile);
+  const base = 100 - p.discipline;
+  if (!attrsActive(discipline)) return base;
+  return Math.max(0, Math.min(95, base * disciplineDeviationMultiplier(discipline)));
+}
+
+export function rollDice(profile, rand = Math.random, { discipline = null } = {}) {
   const p = normalizeProfile(profile);
   const bluffDie     = rand() * 100 < p.bluffFreq;
   // deviationDie = 1 means "you may deviate from the briefing this decision".
   // Frequency = 100 - discipline (a highly disciplined agent almost never deviates).
-  const deviationDie = rand() * 100 < (100 - p.discipline);
+  const deviationDie = rand() * 100 < deviationPercent(p, { discipline });
   return { bluffDie, deviationDie };
 }
 
@@ -222,9 +240,9 @@ export function sizingDirectives(profile) {
 // Bundles profile normalization + range verdict + dice roll + sizing text
 // into a single object handed to the briefing builder.
 
-export function compilePolicy(profile, { holeCards = null, position = null, rand = Math.random } = {}) {
+export function compilePolicy(profile, { holeCards = null, position = null, rand = Math.random, attrs = null } = {}) {
   const p = normalizeProfile(profile);
-  const dice = rollDice(p, rand);
+  const dice = rollDice(p, rand, { discipline: attrs?.DISCIPLINE ?? null });
   const sizing = sizingDirectives(p);
   const range = (holeCards && position) ? rangeVerdict(holeCards, position, p) : null;
   return { profile: p, dice, sizing, range };

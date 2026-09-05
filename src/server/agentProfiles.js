@@ -21,6 +21,7 @@ import {
   recordSessionOutcome,
   clearProposalPending,
 } from './notifications/telegram.js';
+import { ensureAttributes } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
 
@@ -672,6 +673,22 @@ export function getAgentMood(agentId, userId) {
   return agent.mood;
 }
 
+// Return the agent's attribute record (backfilled). Never null when the agent
+// exists — a fresh record is all six at neutral 50. Persistence rides the
+// same store as everything else: ensureAttributes mutates the agent in place
+// and the next saveStore writes it.
+//
+// The values here are the STORED ones. Fatigue is a within-session state, so
+// the caller (table.js) runs them through effectiveAttrs with its own session
+// hand count before handing them to a decision.
+export function getAgentAttributes(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureAttributes(agent);
+  return { attrs: agent.attrs, potential: agent.potential, nature: agent.nature, attrLog: agent.attrLog };
+}
+
 // Set the agent's mood record wholesale (used by table.js after applying
 // events / decay). Persists.
 export function setAgentMood(agentId, userId, newMood) {
@@ -772,6 +789,10 @@ export function presentAgent(agent, { owner = false } = {}) {
   ensureMood(agent);
   ensureStats(agent);
   ensureProfile(agent);
+  // ATTR-1: attrs / potential / nature / attrLog ride the spread below, so the
+  // player card and the 90-day sparkline have their data on the same call the
+  // floor already makes.
+  ensureAttributes(agent);
   const liveGame = agent.activeTableId
     ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
     : null;
@@ -1003,6 +1024,20 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner })) });
+  });
+
+  // GET /api/agents/:agentId?userId=... — one agent, including the ATTR-1
+  // character record: attrs, the scouted potential bands, the nature, and the
+  // attrLog ring buffer the profile draws 90 days of history from. The log is
+  // empty until ATTR-3 starts ticking; the field is here from the start so the
+  // client never has to branch on its absence.
+  app.get('/api/agents/:agentId', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 
   // DELETE /api/agents/:agentId?userId=...

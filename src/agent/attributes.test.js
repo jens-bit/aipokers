@@ -33,6 +33,9 @@ import {
   disciplineDeviationMultiplier,
 } from './attributes.js';
 
+import { formatOpponentRead } from './reads.js';
+import { rollDice, deviationPercent } from './policy.js';
+import { tiltResistance, tickDecay, DECAY_HANDS } from './mood.js';
 
 let failures = 0;
 function check(label, cond) {
@@ -226,7 +229,71 @@ withImpact(1, () => {
     }));
   check('non-finite input passes through', perceiveEquity(null, 20, seed) === null);
 });
+console.log('\n— hooks: absent attrs behave exactly like today —');
+withImpact(1, () => {
+  // READS + DECEPTION → reads.js
+  const read = { playerId: 'p1', displayName: 'House', handsObserved: 12, vpip: 96, pfr: 4, af: 0.2, foldToRaise: 6, wentToShowdown: 71 };
+  const today = formatOpponentRead(read);
+  check('read with no attrs briefs at 12 hands (gate 10)', today.length === 2);
+  check('read with no attrs still gets its EXPLOIT line', /^EXPLOIT:/.test(today[1]));
+  check('a 9-hand read is still withheld', formatOpponentRead({ ...read, handsObserved: 9 }).length === 0);
 
+  // DISCIPLINE → policy.js
+  check('deviation with no attrs is 100 − discipline',
+    deviationPercent({ discipline: 72 }) === 28 && deviationPercent({ discipline: 0 }) === 100);
+  const alwaysHigh = () => 0.999;
+  const alwaysLow = () => 0.0;
+  check('rollDice with no attrs is unchanged',
+    rollDice({ discipline: 100, bluffFreq: 0 }, alwaysLow).deviationDie === false &&
+    rollDice({ discipline: 0, bluffFreq: 100 }, alwaysHigh).deviationDie === true);
+
+  // COMPOSURE → mood.js
+  const stoic = { tightness: 88, aggression: 45, bluffFreq: 8, discipline: 90 };
+  check('tiltResistance with no attrs is the trait alone', tiltResistance(stoic) === tiltResistance(stoic, {}));
+  const moody = { state: 'tilted', uneventfulHands: DECAY_HANDS - 1 };
+  check('tickDecay with no attrs still fires at DECAY_HANDS', tickDecay(moody).state === 'frustrated');
+});
+
+console.log('\n— hooks: knob 0 is bit-identical to today —');
+{
+  const read = { playerId: 'p1', displayName: 'House', handsObserved: 12, vpip: 96, pfr: 4, af: 0.2, foldToRaise: 6, wentToShowdown: 71 };
+  const baseline = withImpact(1, () => formatOpponentRead(read));
+
+  withImpact(0, () => {
+    // READS 0 would push the gate to 22 hands and kill the exploit line at
+    // full impact; at knob 0 it must do neither.
+    const off = formatOpponentRead(read, { reads: 0, deception: 100 });
+    check('READS/DECEPTION hooks are inert', JSON.stringify(off) === JSON.stringify(baseline));
+
+    check('FOCUS hook is inert', perceiveEquity(0.412, 0, 'any seed') === 0.412);
+
+    check('DISCIPLINE hook is inert',
+      deviationPercent({ discipline: 72 }, { discipline: 0 }) === 28 &&
+      deviationPercent({ discipline: 0 }, { discipline: 0 }) === 100);
+
+    const stoic = { tightness: 88, aggression: 45, bluffFreq: 8, discipline: 90 };
+    check('COMPOSURE tilt hook is inert',
+      tiltResistance(stoic, { composure: 0 }) === tiltResistance(stoic) &&
+      tiltResistance(stoic, { composure: 100 }) === tiltResistance(stoic));
+    check('COMPOSURE decay hook is inert',
+      tickDecay({ state: 'tilted', uneventfulHands: DECAY_HANDS - 1 }, { composure: 0 }).state === 'frustrated');
+
+    const agent = { attrs: { ...defaultAttributes(), FOCUS: 70, DISCIPLINE: 80, STAMINA: 0 } };
+    const worn = effectiveAttrs(agent, { sessionHands: 300 });
+    check('STAMINA onset falls back to hand 100', near(worn.fatigueOnset, 100));
+  });
+
+  // The fatigue stage still moves at knob 0 (it is derived, not gated), but
+  // the values it moves are neutralized by every downstream hook — which is
+  // what "bit-identical" actually requires.
+  withImpact(0, () => {
+    const eff = effectiveAttrs({ attrs: { ...defaultAttributes(), FOCUS: 70 } }, { sessionHands: 300 });
+    check('a worn agent at knob 0 still perceives the true equity',
+      perceiveEquity(0.412, eff.FOCUS, 'seed') === 0.412);
+    check('a worn agent at knob 0 still deviates at 100 − discipline',
+      deviationPercent({ discipline: 72 }, { discipline: eff.DISCIPLINE }) === 28);
+  });
+}
 console.log('\n— summary —');
 if (failures === 0) {
   console.log('all attribute checks passed');

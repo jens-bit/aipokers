@@ -8,7 +8,7 @@
     "start": "npm run build:client && node src/index.js",
     "dev": "node --watch src/index.js",
     "build:client": "cd client && npm install && npm run build",
-    "test": "node src/engine/game.test.js && node src/engine/equity.test.js && node src/agent/policy.test.js && node src/agent/mood.test.js && node src/server/opponentStats.test.js && node src/server/table.seats.test.js",
+    "test": "node src/engine/game.test.js && node src/engine/equity.test.js && node src/agent/policy.test.js && node src/agent/mood.test.js && node src/agent/attributes.test.js && node src/server/opponentStats.test.js && node src/server/table.seats.test.js",
     "smoke": "node scripts/smoke-hand.js",
     "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"
