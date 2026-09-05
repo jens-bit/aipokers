@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
-import { collectFrom, fetchWallet, fundAgent, hasPocket } from '../lib/wallet.js';
+import { collectFrom, collectLeavesFloat, fetchWallet, fundAgent, hasPocket, pocketOf } from '../lib/wallet.js';
 import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
 import { PocketList } from '../components/wallet/PocketRow.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
@@ -196,7 +196,7 @@ function ReplayRow({ cards, label, meta, amount, color }) {
 }
 
 // ── YouScreen ────────────────────────────────────────────────────────────
-export function YouScreen() {
+export function YouScreen({ onOpenProfile }) {
   const userId  = getUserId();
   const name    = getTelegramDisplayName() || 'Player';
   const initials = name.slice(0, 2).toUpperCase();
@@ -294,7 +294,10 @@ export function YouScreen() {
   async function handleCollect(agent) {
     if (busyAgentId) return;
     setBusyAgentId(agent.id);
-    try { await collectFrom(agent.id); await refreshMoney(); }
+    // WALLET-5: a cut-off pocket hands back all of it. He is not sitting down
+    // again, so the float that normally stays behind buys him nothing.
+    const leaveFloat = collectLeavesFloat(pocketOf(agent));
+    try { await collectFrom(agent.id, { leaveFloat }); await refreshMoney(); }
     catch { /* the row simply stays as it was */ }
     finally { setBusyAgentId(null); }
   }
@@ -315,6 +318,7 @@ export function YouScreen() {
           index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
           onCancel={() => setFundTarget(null)}
           onConfirm={handleFund}
+          onOpenProfile={onOpenProfile}
         />
       </div>
     );
@@ -372,7 +376,7 @@ export function YouScreen() {
 
       {/* ── WUI-1 · the wallet and the pockets ────────────────────── */}
       <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agentCount} />
-      <PocketList agents={pocketAgents} onFund={setFundTarget} onCollect={handleCollect} />
+      <PocketList agents={pocketAgents} onFund={setFundTarget} onCollect={handleCollect} onOpenProfile={onOpenProfile} />
 
       {/* FTU-4: one session in, the only honest number on this screen is the
           balance. Saying so is better than four em dashes in a grid. */}

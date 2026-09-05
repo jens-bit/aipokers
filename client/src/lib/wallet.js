@@ -184,18 +184,40 @@ export function pocketFill(pocket) {
   return Math.max(0, Math.min(100, (have / ceiling) * 100));
 }
 
-// The one action a pocket row offers. Collect when he is carrying money home,
-// Fund when he is not. Never both — one primary action per row.
-export function primaryAction(pocket) {
-  if (!pocket) return 'fund';
-  // Collect is only an action when there is something above the float to
-  // collect. The projection answers that directly; without it, any balance
-  // counts.
-  if (pocket.collectable !== null && pocket.collectable !== undefined) {
-    return pocket.collectable > 0 ? 'collect' : 'fund';
-  }
-  if (pocket.broke || pocket.balance <= 0) return 'fund';
-  return 'collect';
+// WALLET-5 — what a pocket row offers, and it is not one button.
+//
+// FUND IS ALWAYS THERE. It is not only how chips are added: it is the only way
+// into the mode, so a row that hides it leaves the owner with no way to change
+// his mind. The old rule drew exactly one action and let Collect win, which is
+// how funding Loose Cannon to $4,000 made Fund disappear.
+//
+// COLLECT IS THE SECOND ACTION, and it is only honest when there is money worth
+// bringing home:
+//
+//   - he is up at the tables (pnl > 0), or
+//   - he is cut off and still holding a roll — he is not going to play it.
+//
+// "Balance above the float" is NOT enough on its own. A seeded pocket carries
+// an auto cap of one buy-in, so a $4,000 top-up sits $2,000 "above the float"
+// without his having won a chip; reading that as winnings to collect is what
+// flipped the row. Both actions can be present at once.
+export function rowActions(pocket) {
+  if (!pocket || pocket.balance <= 0) return { fund: true, collect: false };
+  // Cut off with chips in hand: all of it is the owner's to take back, and the
+  // float he would normally be left to sit down with buys him nothing.
+  if (pocket.mode === 'cut') return { fund: true, collect: true };
+  // The projection says how much is above the float; without it, any balance
+  // counts. Winnings still have to be there for Collect to mean anything.
+  const surplus = pocket.collectable === null || pocket.collectable === undefined
+    ? true
+    : pocket.collectable > 0;
+  return { fund: true, collect: surplus && (pocket.pnl ?? 0) > 0 };
+}
+
+// Collecting from a cut pocket takes all of it. Every other mode leaves the
+// float behind, so collecting is never the thing that stops him sitting down.
+export function collectLeavesFloat(pocket) {
+  return pocket?.mode !== 'cut';
 }
 
 // ── api ─────────────────────────────────────────────────────────────────────
@@ -242,11 +264,11 @@ export async function fundAgent(agentId, { mode, amount = null, cap = null }) {
   return res.json();
 }
 
-export async function collectFrom(agentId) {
+export async function collectFrom(agentId, { leaveFloat = true } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/collect`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ userId: getUserId() }),
+    body: JSON.stringify({ userId: getUserId(), leaveFloat }),
   });
   if (!res.ok) throw new Error(`collect failed (${res.status})`);
   return res.json();

@@ -5,7 +5,7 @@
 // and stakes only — no attribute, no band, no mood — because the pocket decides
 // which tables he sits at and nothing about how well he plays at them.
 
-import { modeMeta, money, pocketOf, primaryAction, stakesFor } from '../../lib/wallet.js';
+import { modeMeta, money, pocketOf, rowActions, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
 const M_MUTED = '#6B6B6B';
@@ -30,7 +30,7 @@ export function PocketLine({ agent, onFund, onCollect }) {
   // Graceful absence: no pocket, no row. The profile card is what it is today.
   if (!pocket) return null;
 
-  const action = primaryAction(pocket);
+  const actions = rowActions(pocket);
 
   return (
     <>
@@ -51,12 +51,12 @@ export function PocketLine({ agent, onFund, onCollect }) {
           {/* An action is only drawn when a host can act on it. The profile
               card is reachable from screens that do not own the funding sheet,
               and a button that does nothing is worse than no button. */}
-          {action === 'collect' && onCollect && (
+          {actions.collect && onCollect && (
             <button type="button" className="wal-btn wal-btn--outline" style={{ height: 28 }} onClick={() => onCollect(agent)}>
               Collect
             </button>
           )}
-          {action === 'fund' && onFund && (
+          {actions.fund && onFund && (
             <button type="button" className="wal-btn wal-btn--primary" style={{ height: 28 }} onClick={() => onFund(agent)}>
               Fund
             </button>

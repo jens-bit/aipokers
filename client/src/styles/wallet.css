@@ -86,7 +86,34 @@
 /* Broke is drawn quieter, never redder. There is no guilt in this design. */
 .wal-row--broke .wal-row__ghost { opacity: 0.55; }
 
+/* WALLET-5: the face is the way into his profile, so it is a real button —
+   the frame keeps the ref's geometry and gains nothing else. */
+.wal-row__ghost--tap {
+  padding: 0;
+  cursor: pointer;
+}
+
 .wal-row__body { flex: 1; min-width: 0; }
+
+/* WALLET-5: two actions can stand on one row — Collect when he is carrying
+   something home, and Fund, which is always offered. */
+.wal-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+/* Cut off is drawn quieter, never redder: the rung his money would buy is
+   greyed because he is not going to sit at it. */
+.wal-row__stakes.is-greyed { opacity: 0.6; }
+
+.wal-row__sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--wal-muted);
+  line-height: 1.35;
+}
 
 .wal-row__name {
   font-size: 12.5px;

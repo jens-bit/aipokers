@@ -15,13 +15,14 @@ import {
   pnlTone,
   pocketFill,
   pocketOf,
-  primaryAction,
+  rowActions,
+  collectLeavesFloat,
   signedMoney,
   stakesFor,
 } from './wallet.js';
 import {
-  aggressiveAgent, balancedAgent, brokeAgent, legacyPocketAgent,
-  noPocketAgent, shortAgent, wallet,
+  aggressiveAgent, balancedAgent, brokeAgent, cutPlayingAgent, legacyPocketAgent,
+  noPocketAgent, shortAgent, toppedUpAgent, wallet,
 } from '../test/fixtures/wallet.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -147,16 +148,49 @@ describe('pocketFill', () => {
   });
 });
 
-describe('primaryAction — one action per row, never two', () => {
-  it('offers Collect while there is something above the float to collect', () => {
-    expect(primaryAction(pocketOf(balancedAgent))).toBe('collect');
-    expect(primaryAction(pocketOf(aggressiveAgent))).toBe('collect');
+// WALLET-5 replaces the old "one primary action per row, never two" rule. That
+// rule is what the playtest reported: funding an agent past his float removed
+// the Fund button, leaving no way to change his mode or add more. Fund is now
+// unconditional and Collect is the second, optional action.
+describe('rowActions — Fund is always offered, Collect only when it is honest', () => {
+  it('always offers Fund — it is the only way into the mode', () => {
+    for (const a of [balancedAgent, aggressiveAgent, brokeAgent, shortAgent, toppedUpAgent, cutPlayingAgent]) {
+      expect(rowActions(pocketOf(a)).fund, a.name).toBe(true);
+    }
+    expect(rowActions(null).fund).toBe(true);
   });
 
-  it('offers Fund when collectable is zero, even on a pocket holding chips', () => {
-    // shortAgent still has 900, but none of it is above his float.
-    expect(primaryAction(pocketOf(shortAgent))).toBe('fund');
-    expect(primaryAction(pocketOf(brokeAgent))).toBe('fund');
+  it('offers Collect beside it when he is up at the tables', () => {
+    expect(rowActions(pocketOf(balancedAgent))).toEqual({ fund: true, collect: true });
+  });
+
+  it('does not call a top-up winnings — the reported bug', () => {
+    // 4,000 in the pocket against a 2,000 seeded cap: 2,000 of it is "above
+    // the float" without his having won a chip.
+    expect(rowActions(pocketOf(toppedUpAgent))).toEqual({ fund: true, collect: false });
+  });
+
+  it('offers no Collect while he is down, however much he still holds', () => {
+    expect(rowActions(pocketOf(aggressiveAgent))).toEqual({ fund: true, collect: false });
+    expect(rowActions(pocketOf(shortAgent))).toEqual({ fund: true, collect: false });
+  });
+
+  it('offers Collect on a cut-off pocket that still holds a roll', () => {
+    // He is not going to play it, so all of it is the owner's to take back.
+    expect(rowActions(pocketOf(cutPlayingAgent))).toEqual({ fund: true, collect: true });
+    // Cut off and empty is Fund alone: there is nothing to bring home.
+    expect(rowActions(pocketOf(brokeAgent))).toEqual({ fund: true, collect: false });
+  });
+});
+
+describe('collectLeavesFloat — cutting him off hands back all of it', () => {
+  it('leaves the float behind for every mode that still plays', () => {
+    expect(collectLeavesFloat(pocketOf(balancedAgent))).toBe(true);
+    expect(collectLeavesFloat(pocketOf(aggressiveAgent))).toBe(true);
+  });
+
+  it('leaves nothing behind when he is cut off — the float buys him no seat', () => {
+    expect(collectLeavesFloat(pocketOf(cutPlayingAgent))).toBe(false);
   });
 });
 

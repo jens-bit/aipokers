@@ -1,35 +1,65 @@
-// client/src/components/wallet/PocketRow.jsx — WUI-1
+// client/src/components/wallet/PocketRow.jsx — WUI-1, WALLET-5
 // One agent's pocket. Ported from PocketRow in design-refs/mood-wallet.jsx.
 //
-// One primary action per row and never two: Collect when he is carrying money
-// home, Fund when he is not. The row states a fact and offers the single thing
-// the owner can do about it.
+// WALLET-5: Fund is always on the row — it is the way into the mode as well as
+// the way chips get in. Collect joins it only when he is carrying something
+// home. Both at once is a legitimate row; no action at all is not.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { moodOf } from '../floor/agentView.js';
+import { moodOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { money, pnlTone, pocketOf, primaryAction, signedMoney, stakesFor } from '../../lib/wallet.js';
+import { money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
 const M_TEXT = '#EDEDED';
 const M_MUTED = '#6B6B6B';
+const M_FAINT = '#3F3F3F';
 const M_TEAL = '#00D4AA';
 const M_RED = '#FF4D4F';
 
-export function PocketRow({ agent, index = 0, onFund, onCollect }) {
+// WALLET-5 · what a cut-off row says about itself, in the funding sheet's own
+// register. While he is still at a table it is a promise about the next few
+// minutes; once he is at the bar it would be a lie, so it stops being said.
+function cutLine(agent) {
+  return presenceOf(agent) === 'playing'
+    ? 'finishes this hand then sits at the bar'
+    : 'at the bar · nothing pending';
+}
+
+export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }) {
   const pocket = pocketOf(agent);
   if (!pocket) return null;
 
   const accent = accentFor(agent, index);
-  const action = primaryAction(pocket);
+  const actions = rowActions(pocket);
+  const isCut = pocket.mode === 'cut';
   const tone = pnlTone(pocket.pnl);
   const pnlColor = pocket.pnl === null ? M_MUTED : tone === 'down' ? M_RED : tone === 'flat' ? M_MUTED : M_TEAL;
 
+  // The face is the way into his profile — the same navigation the floor uses.
+  // Without a host that owns that navigation it stays a plain, inert frame
+  // rather than a button that does nothing.
+  const ghost = <MoodGhost mood={moodOf(agent)} accent={accent} size={36} ring={false} />;
+  const ghostStyle = { border: `1px solid ${accent}44` };
+
   return (
-    <div className={`wal-row${pocket.broke ? ' wal-row--broke' : ''}`} data-agent={agent.id}>
-      <div className="wal-row__ghost" style={{ border: `1px solid ${accent}44` }}>
-        <MoodGhost mood={moodOf(agent)} accent={accent} size={36} ring={false} />
-      </div>
+    <div
+      className={`wal-row${pocket.broke ? ' wal-row--broke' : ''}${isCut ? ' wal-row--cut' : ''}`}
+      data-agent={agent.id}
+    >
+      {onOpenProfile ? (
+        <button
+          type="button"
+          className="wal-row__ghost wal-row__ghost--tap"
+          style={ghostStyle}
+          onClick={() => onOpenProfile(agent)}
+          aria-label={`Open ${agent.name}'s profile`}
+        >
+          {ghost}
+        </button>
+      ) : (
+        <div className="wal-row__ghost" style={ghostStyle}>{ghost}</div>
+      )}
 
       <div className="wal-row__body">
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -41,41 +71,50 @@ export function PocketRow({ agent, index = 0, onFund, onCollect }) {
           <Num size={13} weight={700} color={pocket.broke ? M_MUTED : M_TEXT}>
             {money(pocket.balance)}
           </Num>
-          <Num size={9} color={M_MUTED} weight={500}>{stakesFor(pocket)}</Num>
+          {/* Cut off buys no stakes: the rung he could afford is greyed rather
+              than removed, so the row still says what the money would seat. */}
+          <span className={`wal-row__stakes${isCut ? ' is-greyed' : ''}`}>
+            <Num size={9} color={isCut ? M_FAINT : M_MUTED} weight={500}>{stakesFor(pocket)}</Num>
+          </span>
           <div style={{ flex: 1 }} />
           <Num size={11.5} weight={700} color={pnlColor}>
             {pocket.pnl === null ? '—' : signedMoney(pocket.pnl)}
           </Num>
         </div>
 
+        {isCut && <div className="wal-row__sub">{cutLine(agent)}</div>}
+
         <div style={{ marginTop: 5 }}>
           <PocketBar pocket={pocket} />
         </div>
       </div>
 
-      {action === 'collect' ? (
-        <button
-          type="button"
-          className="wal-btn wal-btn--outline"
-          onClick={() => onCollect?.(agent)}
-        >
-          Collect
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="wal-btn wal-btn--primary"
-          onClick={() => onFund?.(agent)}
-        >
-          Fund
-        </button>
-      )}
+      <div className="wal-row__actions">
+        {actions.collect && (
+          <button
+            type="button"
+            className="wal-btn wal-btn--outline"
+            onClick={() => onCollect?.(agent)}
+          >
+            Collect
+          </button>
+        )}
+        {actions.fund && (
+          <button
+            type="button"
+            className="wal-btn wal-btn--primary"
+            onClick={() => onFund?.(agent)}
+          >
+            Fund
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 // The pockets list, with the ref's own header line above it.
-export function PocketList({ agents, onFund, onCollect }) {
+export function PocketList({ agents, onFund, onCollect, onOpenProfile }) {
   if (!agents.length) return null;
   return (
     <>
@@ -91,6 +130,7 @@ export function PocketList({ agents, onFund, onCollect }) {
             index={i}
             onFund={onFund}
             onCollect={onCollect}
+            onOpenProfile={onOpenProfile}
           />
         ))}
       </div>
