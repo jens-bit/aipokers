@@ -16,6 +16,7 @@ import {
   restAtBar,
   restingHeat,
   ownerDriftCause,
+  isSoothable as isMoodSoothable,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -26,6 +27,7 @@ import {
   clearProposalPending,
   notifyCollected,
   notifyBroke,
+  notifyWant,
 } from './notifications/telegram.js';
 import {
   ATTR_KEYS,
@@ -41,6 +43,8 @@ import {
   recordOwnerEvent, tickOwnerMemorySession, ownerMemoryContext,
   isAskingAboutOwner, whatDoYouThinkOfMe, ownerToneScore,
 } from '../agent/ownerMemory.js';
+import { ITEMS, isItem, priceOf, wantTrigger, buildWant } from '../agent/wants.js';
+import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import {
@@ -1184,6 +1188,37 @@ export function applyOwnerMessageToMood(agentId, userId, text) {
   return { moved: true, mood: agent.mood, kind: result.kind, reason: result.reason };
 }
 
+// RELATE-1d: he raises a want. At most one pending — a second is not raised
+// while the first is unanswered, because asking twice is nagging and this
+// product does not nag. Returns the moment, or null.
+//
+// Nothing here reads a clock: the trigger takes the heat and the losing run
+// from the hand that just finished, so a want cannot be produced by absence.
+export function maybeRaiseWant(agent, { ownerId = null } = {}) {
+  ensureMood(agent);
+  ensureStats(agent);
+  if (agent.want && !agent.want.answered) return null;    // one pending, always
+
+  const trigger = wantTrigger({
+    heat: agent.mood?.heat ?? 0,
+    losingRun: agent.mood?.losingRun ?? 0,
+    handsPlayed: agent.stats?.handsPlayed ?? 0,
+    lastWantAtHand: agent.lastWantAtHand ?? null,
+  });
+  if (!trigger) return null;
+
+  agent.want = buildWant(trigger, { moodState: agent.mood?.state ?? 'frustrated' });
+  agent.lastWantAtHand = agent.stats?.handsPlayed ?? 0;
+  // The want IS his moment — it is what he would say if you looked at him now.
+  agent.lastMoment = { text: agent.want.text, mood: agent.want.mood, at: agent.want.at, kind: 'want' };
+
+  if (ownerId) {
+    notifyWant(ownerId, ownerId, agent.id, agent.name || 'Your agent', { line: agent.want.text })
+      .catch((e) => console.error('[notify] want failed:', e.message));
+  }
+  return agent.want;
+}
+
 // RELATE-1a: one place the routes call to write an owner-ledger line and
 // persist it. Every caller is an owner ACT — a message he sent or a button he
 // pressed. There is deliberately no timer, no cron and no "hasn't been back"
@@ -1529,6 +1564,94 @@ export function installAgentProfileRoutes(app) {
       pocket: view,
       moment: agent.lastMoment,
     });
+  });
+
+  // RELATE-1d — POST /api/agents/:agentId/give?userId=...  { item }
+  //
+  // The one item (design 29). §7.1: bought from the WALLET, never from a
+  // pocket — a pocket that can buy things is a purchase path into the
+  // character system. Items touch STATE, never SKILL: one snack, one effect
+  // (soothe one mood step, sharing the pep-talk cooldown), one button.
+  app.post('/api/agents/:agentId/give', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const item = String(req.body?.item || agent.want?.item || 'snack');
+    if (!isItem(item)) {
+      return res.status(400).json({ error: `item must be one of ${Object.keys(ITEMS).join(', ')}` });
+    }
+
+    ensureMood(agent);
+    ensureStats(agent);
+
+    // "He's fine. Save it." — the ref's own line. Giving a snack to a level
+    // agent spends nothing, because there is no mood to soothe.
+    if (!isMoodSoothable(agent.mood)) {
+      return res.status(400).json({ error: "He's fine. Save it.", spent: 0, soothed: false });
+    }
+
+    const wallet = walletFor(userId);
+    const price = priceOf(item);
+    if (wallet.balance < price) {
+      return res.status(400).json({ error: 'wallet does not cover that', available: wallet.balance });
+    }
+
+    // The effect is the pep talk's, and it shares the pep talk's cooldown —
+    // an item is not a way around a rate limit.
+    const result = applyMoodPepTalk(agent.mood, agent.stats?.handsPlayed ?? 0);
+    if (!result.soothed) {
+      return res.status(400).json({ error: 'Snacked recently — shared with the pep talk.', spent: 0, soothed: false, reason: result.reason });
+    }
+
+    wallet.balance -= price;
+    wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -price, agentId: agent.id, item });
+    agent.mood = result.mood;
+
+    // The answer becomes a ledger line either way; this is the "given" half.
+    recordOwnerEvent(agent, 'item_given', { item });
+    if (agent.want && !agent.want.answered) {
+      agent.want.answered = 'given';
+      agent.want.answeredAt = Date.now();
+    }
+    agent.lastMoment = {
+      text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
+      mood: agent.mood?.state ?? 'neutral',
+      at: Date.now(),
+    };
+
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    res.json({
+      given: item,
+      spent: price,
+      soothed: true,
+      mood: { state: agent.mood.state, heat: agent.mood.heat },
+      moment: agent.lastMoment,
+      wallet: walletProjection(wallet, profile.agents),
+    });
+  });
+
+  // RELATE-1d — POST /api/agents/:agentId/want/dismiss?userId=...
+  // "No" is a complete answer. It costs him the line in his ledger and
+  // nothing else: he drops it, and he does not ask again this cooldown.
+  app.post('/api/agents/:agentId/want/dismiss', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.want || agent.want.answered) return res.status(400).json({ error: 'nothing pending' });
+
+    agent.want.answered = 'ignored';
+    agent.want.answeredAt = Date.now();
+    recordOwnerEvent(agent, 'want_ignored', { item: agent.want.item });
+    saveStore(userId);
+    emitAgentChange(userId);
+    res.json({ dismissed: true, want: agent.want });
   });
 
   // GET /api/agents/:agentId?userId=... — one agent, including the ATTR-1

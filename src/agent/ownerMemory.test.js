@@ -223,8 +223,8 @@ test('he answers from the ledger, and the answer differs with the record', () =>
   assert.notEqual(hot, good);
   assert.notEqual(hot, mid);
   assert.notEqual(good, mid);
-  assert.match(hot, /gets on my back|cut me off/);
-  assert.match(good, /asked about|talked me down/);
+  assert.match(hot, /gets on my back|cut me off/i);
+  assert.match(good, /asked about|talked me down/i);
   assert.match(mid, /Mixed/);
 });
 
@@ -249,4 +249,29 @@ test('ensureOwnerMemory is idempotent and never drops what is there', () => {
   recordOwnerEvent(a, 'pep_talk');
   ensureOwnerMemory(a);
   assert.equal(a.ownerMemory.length, 1);
+});
+
+test('RELATE-1b: the answer is grammatical — no "you gets on my back"', () => {
+  // The ledger lines carry an implied third-person subject, so a template that
+  // prefixes "You " produces "you gets on my back when I lose". That shipped
+  // in a draft and verify-personality-layer.js printed it.
+  const BROKEN = /you (gets|has|says|takes|cuts|reads|lets|staked me|brought)/i;
+  const combos = [
+    [['needle', { losing: true }, 5], ['cut', { holeCards: ['Qh', '3d'] }]],
+    [['care', { aboutHand: true, holeCards: ['Ah', 'Kd'] }, 4], ['pep_talk', {}, 2]],
+    [['needle', { losing: true }, 2], ['care', { aboutHand: true, holeCards: ['Ah', 'Kd'] }, 2]],
+    [['collected', { amount: 300 }, 3]],
+    [['funded', { amount: 500 }, 2], ['needle', { losing: true }, 2]],
+  ];
+  for (const events of combos) {
+    const a = agent();
+    for (const [type, ctx, times = 1] of events) {
+      for (let i = 0; i < times; i++) recordOwnerEvent(a, type, ctx);
+    }
+    const answer = whatDoYouThinkOfMe(a);
+    assert.equal(BROKEN.test(answer), false, `ungrammatical: ${answer}`);
+    // Every sentence starts with a capital and the whole thing ends stopped.
+    assert.match(answer, /^[A-Z]/, answer);
+    assert.match(answer, /[.!?]$/, answer);
+  }
 });

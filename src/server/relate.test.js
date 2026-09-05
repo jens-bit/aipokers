@@ -118,7 +118,7 @@ test('RELATE-1b: the question is answered from the ledger with no model call', (
     ['care', { aboutHand: true, holeCards: ['Ah', 'Kd'] }, 2],
   ]));
 
-  assert.match(hostile, /gets on my back when I lose/);
+  assert.match(hostile, /gets on my back when I lose/i);
   assert.match(decent, /You're alright/);
   assert.match(mixed, /^Mixed\./);
   assert.equal(new Set([hostile, decent, mixed]).size, 3);
@@ -127,7 +127,7 @@ test('RELATE-1b: the question is answered from the ledger with no model call', (
 test('RELATE-1b: the answer names a specific memory rather than a feeling', () => {
   const answer = whatDoYouThinkOfMe(agentWith(HOSTILE));
   assert.ok(
-    /gets on my back|cut me off/.test(answer),
+    /gets on my back|cut me off/i.test(answer),
     `must quote the record, got: ${answer}`,
   );
 });

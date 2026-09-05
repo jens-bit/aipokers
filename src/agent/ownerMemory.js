@@ -292,15 +292,29 @@ export function whatDoYouThinkOfMe(agent) {
   const best = ledger.filter((e) => e.tone === TONE.DECENT)
     .sort((a, b) => (b.count ?? 1) - (a.count ?? 1))[0];
 
-  if (score <= -0.34) {
-    return `Honestly? You ${worst?.text ?? loudest.text}. I still sit down, but I've noticed.`;
-  }
-  if (score >= 0.34) {
-    return `You're alright. You ${best?.text ?? loudest.text}. That's more than most of them get.`;
-  }
+  // The lines carry an implied third-person subject ("gets on my back when I
+  // lose"), so they cannot be prefixed with "You " — an earlier draft did and
+  // produced "you gets on my back", which verify-personality-layer.js printed
+  // straight into the report. They stand on their own as clipped observations,
+  // which is how someone actually talks about their backer.
   const a = best?.text ?? loudest.text;
   const b = worst?.text ?? null;
+
+  if (score <= -0.34) {
+    return `Honestly? ${sentence(worst?.text ?? loudest.text)} I still sit down, but I've noticed.`;
+  }
+  if (score >= 0.34) {
+    return `You're alright. ${sentence(best?.text ?? loudest.text)} That's more than most of them get.`;
+  }
   return b
-    ? `Mixed. You ${a}, and you ${b}. I take the good nights.`
-    : `You ${a}. That's about the size of it so far.`;
+    ? `Mixed. ${sentence(a)} But also: ${b}. I take the good nights.`
+    : `${sentence(a)} That's about the size of it so far.`;
+}
+
+// A ledger line as a standalone sentence: capitalised, full-stopped once.
+function sentence(line) {
+  const t = String(line ?? '').trim();
+  if (!t) return '';
+  const capped = t[0].toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(capped) ? capped : `${capped}.`;
 }
