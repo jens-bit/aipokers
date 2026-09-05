@@ -15,6 +15,9 @@ import {
   NATURES,
   natureForProfile,
   birthAttributes,
+  firstWordsFor,
+  natureHintFor,
+  NATURE_HINT_MIN_SIGNALS,
   NEUTRAL_ATTR,
   MAX_FATIGUE_DROP,
   at,
@@ -48,6 +51,7 @@ function check(label, cond) {
 }
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 const NEUTRAL_BANNER = '\u2014 NEUTRAL IS NEUTRAL: 50 is today at every impact \u2014';
+const CONTRACT_BANNER = '\u2014 the contract the UI reads: nature words, first words, forming hint \u2014';
 const BIRTH_BANNER = '\u2014 birth: natures, bands, day-one currents \u2014';
 
 // Run `fn` with the knob forced to `value`, then restore the environment.
@@ -246,6 +250,72 @@ console.log('\n' + BIRTH_BANNER);
   ensureAttributes(legacy);
   check('ensureAttributes still backfills neutral, never births',
     ATTR_KEYS.every((k) => legacy.attrs[k] === 50) && legacy.nature === null);
+}
+
+
+console.log('\n' + CONTRACT_BANNER);
+{
+  // Everything client/src/lib/attributes.js and BirthScreen.jsx read off a
+  // nature. The client renders what it is given and never invents any of it,
+  // so a missing field here is a blank panel there.
+  check('every nature carries builtFor and struggle, one clause each',
+    NATURES.every((n) =>
+      typeof n.builtFor === 'string' && n.builtFor.length > 20 && n.builtFor.length < 90 &&
+      typeof n.struggle === 'string' && n.struggle.length > 20 && n.struggle.length < 90));
+  check('builtFor and struggle differ for every nature',
+    NATURES.every((n) => n.builtFor !== n.struggle));
+  check('natureForProfile hands the words out too', (() => {
+    const n = natureForProfile({ tightness: 88, aggression: 50, bluffFreq: 8, discipline: 85 });
+    return n.name === 'Rock' && !!n.builtFor && !!n.struggle && !!n.line;
+  })());
+
+  check('every nature has firstWords in his own voice',
+    NATURES.every((n) => typeof firstWordsFor(n.name) === 'string' && firstWordsFor(n.name).length > 15));
+  check('firstWords takes a nature record as well as a name',
+    firstWordsFor({ name: 'Rock' }) === firstWordsFor('Rock'));
+  check('firstWords for an unknown nature is null, never invented',
+    firstWordsFor('Wizard') === null && firstWordsFor(null) === null);
+  check('the Rock says the line from the brief',
+    firstWordsFor('Rock') === 'Patient, you said. Good. I am a Rock.');
+
+  // The forming chip. A guess, and honest about not being one yet.
+  check('one signal is not enough to guess', natureHintFor('aggressive') === null);
+  check('no words, no guess', natureHintFor('') === null && natureHintFor(null) === null);
+  check('a draft with nothing about play gets no guess',
+    natureHintFor('call him Steve and give him a hat') === null);
+  check(`${NATURE_HINT_MIN_SIGNALS} signals is the bar`, NATURE_HINT_MIN_SIGNALS === 2);
+  check('tight + folds reads as a Rock',
+    natureHintFor('I want a patient tight player who folds a lot')?.name === 'Rock');
+  check('aggressive + bluffs reads as a Showman',
+    natureHintFor('aggressive, and he should bluff constantly')?.name === 'Showman');
+  check('grinding all night reads as a Grinder',
+    natureHintFor('a grinder who plays all night and sticks to the system')?.name === 'Grinder');
+  check('the hint names the signals it read',
+    (natureHintFor('tight and disciplined')?.signals ?? []).length === 2);
+  check('the hint is only ever a NAME — never a nature record',
+    Object.keys(natureHintFor('tight and disciplined')).sort().join(',') === 'name,signals');
+  check('a hint agrees with the birth the same words would produce', (() => {
+    const text = 'I want a patient tight player who folds a lot';
+    const hint = natureHintFor(text).name;
+    // The ladder is the single authority: whatever the hint says, a profile of
+    // that shape must be born the same thing.
+    return hint === natureForProfile({ tightness: 82, aggression: 45, bluffFreq: 25, discipline: 85 }).name;
+  })());
+
+  // The backfill for agents born before the words existed.
+  const legacy = { nature: { name: 'Sphinx', up: 'COMPOSURE', down: 'FOCUS' } };
+  ensureAttributes(legacy);
+  check('a pre-ATTR-3 nature gains its words without changing',
+    legacy.nature.name === 'Sphinx' && legacy.nature.up === 'COMPOSURE' &&
+    !!legacy.nature.builtFor && !!legacy.nature.struggle && !!legacy.nature.line);
+  check('a pre-ATTR-3 agent gains firstWords', legacy.firstWords === firstWordsFor('Sphinx'));
+  const natureless = {};
+  ensureAttributes(natureless);
+  check('an agent with no nature is never given one by the backfill',
+    natureless.nature === null && !natureless.firstWords);
+  const born = birthAttributes({ profile: { tightness: 88, aggression: 50, bluffFreq: 8, discipline: 85 } });
+  check('a newborn carries the words from the start',
+    !!born.nature.builtFor && !!born.nature.struggle);
 }
 
 

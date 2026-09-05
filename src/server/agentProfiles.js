@@ -27,6 +27,8 @@ import {
   birthAttributes,
   effectiveAttrs,
   logAttrChange,
+  firstWordsFor,
+  natureHintFor,
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
@@ -221,6 +223,13 @@ function commitAgent(profile, existingAgentId, agentData) {
   agent.attrs = born.attrs;
   agent.potential = born.potential;
   agent.nature = born.nature;
+  // ATTR-3a: his first sentence, spoken once at the reveal. A template in his
+  // own voice, chosen by nature — no model call on the birth path.
+  agent.firstWords = firstWordsFor(born.nature.name);
+  // The bands he was born with. Narrowing (ATTR-3b) shrinks `potential` toward
+  // a point inside THIS band and may never step outside it, so the day-one
+  // rumour has to survive as its own record.
+  agent.potentialBirth = JSON.parse(JSON.stringify(born.potential));
   // One entry per key so the profile sparkline has a starting point to draw
   // from. from === to on purpose: birth is an anchor, not a tick, and a chart
   // must not render a phantom jump for it.
@@ -833,9 +842,19 @@ export function presentAgent(agent, { owner = false } = {}) {
   // actually at a table — an agent at rest is fresh by definition, and the bar
   // is what restores him. heroSessionHands is this seat's own count, not the
   // table's, so a late joiner is not reported as worn on someone else's hands.
-  const fatigue = presence === 'playing'
-    ? effectiveAttrs(agent, { sessionHands: liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0 }).fatigue
-    : 'fresh';
+  // ATTR-3a: sessionHands is this seat's own count (0 whenever he is not at a
+  // table), and `effectiveAttrs` is the post-fatigue six the decisions are
+  // actually being made with. `attrs` stays the stored, permanent values — the
+  // card draws those and dips the two that fatigue touches, so the client can
+  // show the cost without the record ever appearing to lose a point.
+  const sessionHands = presence === 'playing'
+    ? (liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0)
+    : 0;
+  const live = effectiveAttrs(agent, { sessionHands });
+  const fatigue = presence === 'playing' ? live.fatigue : 'fresh';
+  const effective = presence === 'playing'
+    ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
+    : null;
   const careerStats = {
     hands: agent.stats?.handsPlayed ?? 0,
     sessions: sessionLog.length,
@@ -854,6 +873,8 @@ export function presentAgent(agent, { owner = false } = {}) {
     presence,
     liveGame,
     fatigue,
+    sessionHands,
+    effectiveAttrs: effective,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),
     sessionLog,
     careerStats,
@@ -1065,13 +1086,21 @@ export function installAgentProfileRoutes(app) {
   // attrLog ring buffer the profile draws 90 days of history from. The log is
   // empty until ATTR-3 starts ticking; the field is here from the start so the
   // client never has to branch on its absence.
-  app.get('/api/agents/:agentId', (req, res) => {
+  app.get('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || 'anon');
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const owner = isOwner(req, userId);
+    const view = presentAgent(agent, { owner });
+    // Owner-scoped exactly like /:agentId/flagged: hole cards are the owner's
+    // alone, and the same rule has to hold on every route that can carry them,
+    // not just the one written first.
+    if (!owner && Array.isArray(view.sessionFlagged)) {
+      view.sessionFlagged = view.sessionFlagged.map((h) => ({ ...h, holeCards: [] }));
+    }
     res.setHeader('Cache-Control', 'no-store');
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(view);
   });
 
   // DELETE /api/agents/:agentId?userId=...
@@ -1484,18 +1513,27 @@ export function installAgentProfileRoutes(app) {
     // ── Creation-flow chat (unchanged) ───────────────────────────────────────
     profile.chat.push({ role: 'user', content });
 
+    // ATTR-3a: the nature the ladder would pick from the draft SO FAR. Only the
+    // owner's own words count — the recruiter's questions would otherwise vote
+    // for a temperament nobody asked for. Null until the draft has actually
+    // said something, so the chip can stay honestly blank.
+    const draftHint = () => {
+      const said = profile.chat.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
+      return natureHintFor(said)?.name ?? null;
+    };
+
     try {
       const reply = await callClaude(profile.chat, SYSTEM_CONV, 150);
       const msg = reply || "How aggressive do you like to play, and how often do you bluff?";
       profile.chat.push({ role: 'assistant', content: msg });
       saveStore(userId);
-      return res.json({ chat: profile.chat });
+      return res.json({ chat: profile.chat, natureHint: draftHint() });
     } catch (err) {
       console.error('[agentProfiles] chat error:', err.message);
       const fallback = "Could you tell me more about your preferred style?";
       profile.chat.push({ role: 'assistant', content: fallback });
       saveStore(userId);
-      return res.json({ chat: profile.chat });
+      return res.json({ chat: profile.chat, natureHint: draftHint() });
     }
   });
 

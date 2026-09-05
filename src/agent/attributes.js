@@ -156,8 +156,22 @@ export function ensureAttributes(agent) {
     }
   }
 
-  // Assigned at birth in ATTR-3; null until then, never re-rolled after.
+  // Assigned at birth, never re-rolled after. Agents that pre-date the birth
+  // generator stay null — a null nature reads as "still forming" and that is
+  // the truth about them.
   if (agent.nature === undefined) agent.nature = null;
+  // ATTR-3: an agent born before builtFor/struggle existed keeps his nature and
+  // gains its words. Same nature, same pair, only the prose is new — this is a
+  // backfill, not a re-roll.
+  if (agent.nature && typeof agent.nature === 'object' && agent.nature.name) {
+    const canon = NATURE_BY_NAME[agent.nature.name];
+    if (canon) {
+      if (!agent.nature.builtFor) agent.nature.builtFor = canon.builtFor;
+      if (!agent.nature.struggle) agent.nature.struggle = canon.struggle;
+      if (!agent.nature.line) agent.nature.line = canon.line;
+    }
+    if (!agent.firstWords) agent.firstWords = firstWordsFor(agent.nature.name);
+  }
 
   if (!Array.isArray(agent.attrLog)) agent.attrLog = [];
   if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
@@ -187,16 +201,57 @@ export function logAttrChange(agent, { key, from, to, cause = null, ts = Date.no
 // One nature step, on the 0–100 scale.
 export const ATTR_STEP = 8;
 
+// `sig` is his signature quote and `line` is the birth announcement, both
+// verbatim from the ref. ATTR-3 adds `builtFor` / `struggle` — the zero-sum pair
+// said in words rather than as +8/-8, which is what the birth card renders under
+// BUILT FOR / WILL STRUGGLE. Each is one clause, written from that attribute's
+// "moves in his play" line in char-system.jsx, so both halves of a nature can be
+// read by someone who has never seen a bar.
 export const NATURES = Object.freeze([
-  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.' },
-  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.' },
-  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.' },
-  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.' },
-  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.' },
-  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.' },
-  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.' },
-  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.' },
+  { name: 'Grinder',   up: 'STAMINA',    down: 'DECEPTION',  sig: 'I do not need to be clever. I need to still be here at hand four hundred.', line: 'This one settles in like he is paying rent. He is a Grinder.',
+    builtFor: 'Long sessions. He is still counting straight at hand four hundred.',
+    struggle: 'Opponents work him out early — his sizing tells hold still.' },
+  { name: 'Hothead',   up: 'DECEPTION',  down: 'COMPOSURE',  sig: 'You will never know what I have. Some hands, neither will I.',              line: 'There is something combustible in this one. He is a Hothead.',
+    builtFor: 'Nobody puts him on a hand. He is read late, if at all.',
+    struggle: 'A bad beat lands hard, and he is a long time coming back.' },
+  { name: 'Professor', up: 'FOCUS',      down: 'STAMINA',    sig: 'Give me the numbers and an hour. Not two hours.',                          line: 'This one arrived already reading. He is a Professor.',
+    builtFor: 'The arithmetic is exact. He rarely misjudges a spot.',
+    struggle: 'He fades early. The second hour is not his.' },
+  { name: 'Rock',      up: 'DISCIPLINE', down: 'READS',      sig: 'I do not need to know what you have. I know what I fold.',                 line: 'There is something stubborn in this one. He is a Rock.',
+    builtFor: 'He plays the strategy you gave him, almost to the letter.',
+    struggle: 'He is slow to work an opponent out, and later still to act on it.' },
+  { name: 'Gambler',   up: 'DECEPTION',  down: 'DISCIPLINE', sig: 'The line says fold. The line is a suggestion.',                            line: 'This one came out grinning. He is a Gambler.',
+    builtFor: 'Unreadable. His sizing tells you nothing that is true.',
+    struggle: 'He leaves your strategy behind more often than most.' },
+  { name: 'Shark',     up: 'READS',      down: 'COMPOSURE',  sig: 'I had you on that from the flop. Do not do it again.',                     line: 'This one is watching you already. He is a Shark.',
+    builtFor: 'He has an opponent solved a beat before anyone else does.',
+    struggle: 'When it turns against him, it turns loudly.' },
+  { name: 'Sphinx',    up: 'COMPOSURE',  down: 'FOCUS',      sig: 'It happened. It is over. Deal.',                                           line: 'Nothing moves in this one’s face. He is a Sphinx.',
+    builtFor: 'Beats slide off him. He is level again within a hand or two.',
+    struggle: 'The arithmetic slips now and then — a point here, a point there.' },
+  { name: 'Showman',   up: 'DECEPTION',  down: 'READS',      sig: 'Did you enjoy that one? There is more.',                                   line: 'This one plays to the room. He is a Showman.',
+    builtFor: 'He shows you nothing. The same bet, a different hand, every time.',
+    struggle: 'He is watching the room, not the player across the table.' },
 ]);
+
+// His first sentence, spoken once at the birth reveal. A template per nature,
+// never a model call: it answers the draft back in his own voice, so the owner
+// hears the character the conversation just produced rather than a stat block.
+const FIRST_WORDS = Object.freeze({
+  Grinder:   'Steady, you said. Good. I will still be here at hand four hundred.',
+  Hothead:   'Aggressive, you said. You will get it. Every hand of it.',
+  Professor: 'Numbers, then. Give me the maths and I will give you the spot.',
+  Rock:      'Patient, you said. Good. I am a Rock.',
+  Gambler:   'Loose, you said. The line was only ever a suggestion anyway.',
+  Shark:     'Tight and mean. I will have them read by the flop.',
+  Sphinx:    'Quiet, then. It happens, it is over, we deal again.',
+  Showman:   'Bluffs, you said. Sit back. Watch this.',
+});
+
+export function firstWordsFor(nature) {
+  const name = typeof nature === 'string' ? nature : nature?.name;
+  return FIRST_WORDS[name] ?? null;
+}
 
 const NATURE_BY_NAME = Object.fromEntries(NATURES.map((n) => [n.name, n]));
 
@@ -234,7 +289,54 @@ export function natureForProfile(profile) {
   };
   const hit = NATURE_LADDER.find((rung) => rung.when(p)) ?? NATURE_LADDER[NATURE_LADDER.length - 1];
   const nature = NATURE_BY_NAME[hit.name];
-  return { name: nature.name, up: nature.up, down: nature.down, line: nature.line };
+  return {
+    name: nature.name,
+    up: nature.up,
+    down: nature.down,
+    line: nature.line,
+    builtFor: nature.builtFor,
+    struggle: nature.struggle,
+  };
+}
+
+// ── The nature the ladder WOULD pick, from a half-finished draft ─────────────
+// The birth screen shows a "Forming — Rock?" chip while the conversation is
+// still running. That guess has to come from the server, because the ladder is
+// the only thing entitled to name a nature, and it has to be honest about not
+// knowing yet: null until the draft has actually said something about how he
+// should play. No model call — the same keyword reading the build fallback uses.
+//
+// Each group moves one axis. Two distinct groups is the bar for guessing at all:
+// one word ("aggressive") is a mood, two ("aggressive", "bluffs a lot") is a
+// style.
+const DRAFT_SIGNALS = [
+  { axis: 'aggression', re: /aggress|relentless|pressure|attack|pushy|punish/i,          profile: { aggression: 85, tightness: 35 } },
+  { axis: 'bluff',      re: /bluff|deceiv|unreadab|mix it up|unpredictab|trick/i,        profile: { bluffFreq: 55, aggression: 65 } },
+  { axis: 'tight',      re: /tight|patien|conservat|careful|selectiv|nitty|\bwait/i,     profile: { tightness: 82, aggression: 45 } },
+  { axis: 'discipline', re: /disciplin|stick to|by the book|rules|system|methodic|fold/i, profile: { discipline: 85 } },
+  { axis: 'loose',      re: /loose|gambl|wild|reckless|swing|degen|yolo/i,               profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
+  { axis: 'grind',      re: /grind|all night|long session|marathon|endur|steady/i,       profile: { discipline: 68, tightness: 55 } },
+  { axis: 'maths',      re: /math|equity|pot odds|calculat|precis|solver|\bgto\b/i,      profile: { discipline: 75, tightness: 65 } },
+];
+
+export const NATURE_HINT_MIN_SIGNALS = 2;
+
+// Returns { name, signals } or null. `name` is a nature NAME and nothing else,
+// which is all the forming chip renders: he does not have a nature yet, and the
+// client must never be able to mistake a guess for a birth.
+export function natureHintFor(text, { minSignals = NATURE_HINT_MIN_SIGNALS } = {}) {
+  const body = String(text ?? '');
+  if (!body.trim()) return null;
+
+  const hits = DRAFT_SIGNALS.filter((g) => g.re.test(body));
+  if (hits.length < minSignals) return null;
+
+  // Later signals win on a shared axis — the draft's most recent word about a
+  // dimension is the one the recruiter would be going on.
+  const partial = { tightness: 55, aggression: 55, bluffFreq: 25, discipline: 60 };
+  for (const h of hits) Object.assign(partial, h.profile);
+
+  return { name: natureForProfile(partial).name, signals: hits.map((h) => h.axis) };
 }
 
 // Day one. Per design 32: a 30-point potential band, and a current sitting at
