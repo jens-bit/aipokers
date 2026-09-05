@@ -1645,3 +1645,353 @@
 }
 
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-1 — the desk stage catches up to watch v3.
+ * Ported from D3Watch3ScreenM in design-refs/mood-watch3.jsx. The mobile felt
+ * already had all of this (watch.css); these are the desk's own sizes for the
+ * same three things: the pacing ladder, the rope, and his one line.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the four states ──────────────────────────────────────────────────────── */
+/* CALM is the stage that shipped, unchanged. The other three earn it. */
+
+.dtb[data-pace='heating'],
+.dtb[data-pace='allin'] {
+  background: radial-gradient(ellipse at 48% 40%, #3b4a3f 0%, #202c28 58%, #131c1a 100%);
+}
+
+.dtb__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 600ms ease-out, box-shadow 600ms ease-out;
+}
+
+.dtb[data-pace='heating'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 90px rgba(205, 179, 128, 0.18);
+}
+
+.dtb[data-pace='allin'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 130px rgba(255, 77, 79, 0.26);
+  animation: dtb-breathe 1.4s ease-in-out infinite;
+}
+
+.dtb[data-pace='showdown'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 100px rgba(0, 212, 170, 0.18);
+}
+
+@keyframes dtb-breathe {
+  0%, 100% { box-shadow: inset 0 0 110px rgba(255, 77, 79, 0.20); }
+  50%      { box-shadow: inset 0 0 150px rgba(255, 77, 79, 0.32); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dtb[data-pace='allin'] .dtb__glow { animation: none; }
+}
+
+/* ── the rope ─────────────────────────────────────────────────────────────── */
+/* 26% inset each side, the ref's own figure. It is the widest the rope gets
+   before the seam stops reading as a single moving thing. */
+
+.dtb__tug {
+  width: 48%;
+  min-width: 260px;
+  margin-top: 4px;
+}
+
+/* ── his one line ─────────────────────────────────────────────────────────── */
+
+.dtb__line {
+  margin: 2px 0 0;
+  max-width: 620px;
+  text-align: center;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--dsk-text, #ededed);
+}
+
+/* At ALL-IN his line is the loudest thing on the stage — the same law the
+   phone applies, at the desk's size. */
+.dtb[data-pace='allin'] .dtb__line { color: #fff; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-2 — the wallet, as a rail panel. D3WalletScreenM.
+ * The components are the mobile ones; what is here is the width they sit in.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-top__wallet {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* The mobile block carries its own 14px page margins. In a 520px rail those
+   are the panel's job, so they are taken back here rather than by forking the
+   component for the desk. */
+.dsk-wallet .wal-block,
+.dsk-wallet .wal-pockets {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dsk-wallet .wal-block { margin-top: 0; }
+
+/* Room enough for the figure the ref sets at 44px on desktop. */
+.dsk-wallet .wal-block__amount { font-size: 42px; }
+
+/* The Fund sheet takes the panel the way it takes the screen on the phone:
+   it is a decision, not a popover over a list. */
+.dsk-wallet__sheet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Its own head is the panel's, so the sheet's is dropped rather than stacked. */
+.dsk-wallet__sheet .wal-sheet__head { display: none; }
+.dsk-wallet__sheet .wal-sheet { background: transparent; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-3 — a replay on the desk stage. D3ReplayScreenM.
+ * The felt is DeskTableStage, unchanged: it is handed the same shape the
+ * server sends and does not know it is being replayed, which is why DP-1's
+ * ladder and rope work here for nothing.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-replay {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dsk-replay__stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
+.dsk-replay__stage .dtb { flex: 1; }
+
+/* The scrubber owns the space below the felt, the way it does in the phone's
+   theatre. 24px gutters are the ref's. */
+.dsk-replay__scrub {
+  flex-shrink: 0;
+  padding: 0 24px 14px;
+  background: var(--dsk-bg, #0b0d0e);
+}
+
+/* ── his line, street by street ───────────────────────────────────────────── */
+
+.dsk-beat {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.dsk-beat__label {
+  flex-shrink: 0;
+  width: 58px;
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-beat__line {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--dsk-dim, #a1a1a1);
+}
+
+/* The all-in beat is the one the hand turned on, so it is the one that reads. */
+.dsk-beat[data-loud] .dsk-beat__label { color: var(--dsk-red, #ff4d4f); }
+.dsk-beat[data-loud] .dsk-beat__line { color: var(--dsk-text, #ededed); font-style: normal; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-4 — the draft panel, taking shape. D4FlowScreenM.
+ * NatureFormed and AttrTrack are the mobile components; these are the rail's
+ * own spacings around them.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-shape {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.dsk-shape__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dsk-shape__pct {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-shape__meter {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.dsk-shape__fill {
+  height: 100%;
+  background: var(--dsk-teal, #00d4aa);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.4);
+  transition: width 400ms ease-out;
+}
+
+.dsk-shape__nature { display: flex; }
+
+.dsk-shape__dials {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-shape__dial {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dsk-shape__dial-label {
+  flex-shrink: 0;
+  width: 74px;
+  font-family: 'Oswald', 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-shape__dial .attr-track { flex: 1; }
+
+.dsk-shape__dial-val {
+  flex-shrink: 0;
+  width: 24px;
+  text-align: right;
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dsk-text, #ededed);
+}
+
+.dsk-shape__note {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-shape__note p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--dsk-dim, #a1a1a1);
+}
+
+.dsk-shape__note b { color: var(--dsk-text, #ededed); font-weight: 600; }
+
+.dsk-shape__deal { width: 100%; height: 44px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-5 — floor v2 at the desk. D4Floor2ScreenM.
+ *
+ * The four rules were built for the floor itself (FL-1..3) and the desk uses
+ * that same CasinoFloor, so rules 1 and 2 — one ghost per agent, and a name
+ * only when seated or selected — already hold here. What the desk adds is the
+ * rail's own reading of rule 4, and the sizes the ref draws the resting bodies
+ * at along the bottom of a wide stage.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-room {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-room__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dsk-room__census {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dsk-muted, #6b6b6b);
+  white-space: nowrap;
+}
+
+.dsk-room__rows {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dsk-room__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.dsk-room__row:disabled { cursor: default; }
+.dsk-room__row:hover:not(:disabled) .dsk-room__name { color: var(--dsk-teal, #00d4aa); }
+
+.dsk-room__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--dsk-text, #ededed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── the resting bodies on a wide stage ───────────────────────────────────── */
+/* The ref draws the pip a half-point larger at the desk's scale, where it sits
+   further from the eye. The ghost sizes themselves come from the floor's own
+   layout, which the desk shares — nothing is re-scaled here, because a second
+   set of sizes is a second thing to keep in step. */
+
+.floor.is-desktop .floor-pip { font-size: 8.5px; }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { collectFrom, fetchWallet, fundAgent, money } from '../../lib/wallet.js';
 import { CasinoFloor } from '../floor/CasinoFloor.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { StandupPanel } from './StandupPanel.jsx';
@@ -10,6 +11,9 @@ import { useAgentThread } from './useAgentThread.js';
 import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
 import { BirthCardRail } from './PlayerCardRail.jsx';
+import { DeskWalletPanel } from './DeskWalletPanel.jsx';
+import { DeskReplayStage } from './DeskReplayStage.jsx';
+import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
 import { RosterStrip } from './RosterStrip.jsx';
 
@@ -32,6 +36,20 @@ export function DesktopHome({
   // desktop shell (DSK2-3). Null means the floor is on stage.
   const [deskTableId, setDeskTableId] = useState(null);
   const [flaggedAgent, setFlaggedAgent] = useState(null);
+  // DP-2: the wallet is a rail panel, reached from the net figure in the top
+  // bar — the same number it is about.
+  const [walletOpen, setWalletOpen] = useState(false);
+  // DP-3: a flagged hand opens on the stage, with its beats in the rail —
+  // D3ReplayScreenM's own split.
+  const [replay, setReplay] = useState(null);
+  const [wallet, setWallet] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWallet().then((w) => { if (!cancelled) setWallet(w); });
+    return () => { cancelled = true; };
+  }, []);
+
   // ATTR-2e-1: the card he was born with. App owns BirthScreen and is out of
   // this slice's scope, so the arrival is observed here instead — an id that
   // was not in the previous roster is a newborn, and it is shown once.
@@ -49,6 +67,13 @@ export function DesktopHome({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // DP-2: after a fund or a collect, re-read both sides of the transfer rather
+  // than guessing at either locally.
+  const refreshWallet = useCallback(async () => {
+    setWallet(await fetchWallet());
+    load();
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -118,6 +143,8 @@ export function DesktopHome({
       net={topNet}
       flagged={topFlagged}
       onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
+      onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
+      walletLabel={wallet ? money(wallet.balance) : null}
     />
   );
 
@@ -129,7 +156,7 @@ export function DesktopHome({
   }, [watchedId, onWatchAgent]);
 
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
-  const panelOpen = !!born || !!selected;
+  const panelOpen = !!born || !!selected || walletOpen;
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -138,6 +165,27 @@ export function DesktopHome({
   useEffect(() => {
     if (deskTableId && !loading && deskIndex < 0) setDeskTableId(null);
   }, [deskTableId, deskIndex, loading]);
+
+  if (replay) {
+    return (
+      <div className="dsk-root">
+        {topBar}
+        <div className="dsk-body">
+          <div className="dsk-stage">
+            <DeskReplayStage
+              hand={replay.hand}
+              agentName={replay.agent?.name}
+              onBack={() => setReplay(null)}
+            />
+          </div>
+          <DeskReplayPanel
+            hand={replay.hand}
+            onClose={() => setReplay(null)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (deskAgent) {
     return (
@@ -169,7 +217,7 @@ export function DesktopHome({
           <RosterStrip
             agents={agents}
             activeId={selectedId ?? bornId}
-            onSelect={(agent) => { setBornId(null); setSelectedId(agent.id); }}
+            onSelect={(agent) => { setBornId(null); setWalletOpen(false); setSelectedId(agent.id); }}
           />
         )}
         <div className="dsk-stage">
@@ -190,7 +238,21 @@ export function DesktopHome({
           />
         </div>
 
-        {born ? (
+        {walletOpen ? (
+          <DeskWalletPanel
+            wallet={wallet}
+            agents={agents}
+            onClose={() => setWalletOpen(false)}
+            onFund={async (agent, decision) => {
+              try { await fundAgent(agent.id, decision); await refreshWallet(); }
+              catch { /* the panel stays where it is */ }
+            }}
+            onCollect={async (agent) => {
+              try { await collectFrom(agent.id); await refreshWallet(); }
+              catch { /* the row stays as it was */ }
+            }}
+          />
+        ) : born ? (
           <div className="dsk-panel">
             <PanelHead
               title="The card he was born with"
@@ -227,7 +289,12 @@ export function DesktopHome({
             onSelect={(agent) => setSelectedId(agent.id)}
             onOpenTable={openTable}
             onDraftAgent={onCreateAgent}
-            onOpenFlagged={(agent) => setFlaggedAgent(agent)}
+            onOpenFlagged={(agent, hand) => {
+              // A row names its hand: that one goes to the theatre. VIEW ALL
+              // has no hand, so it opens the sheet with the whole list.
+              if (hand) setReplay({ agent, hand });
+              else setFlaggedAgent(agent);
+            }}
           />
         )}
       </div>

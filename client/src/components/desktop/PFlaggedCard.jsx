@@ -79,7 +79,7 @@ export function PFlaggedCard({ agents = [], onOpen }) {
             type="button"
             key={k}
             className="dsk-flagged__row"
-            onClick={() => onOpen?.(agent)}
+            onClick={() => onOpen?.(agent, hand)}
           >
             <PHood size={20} accent={accentFor(agent, accentIndex)} mood={moodOf(agent)} />
             <div className="dsk-flagged__cards">
