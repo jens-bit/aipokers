@@ -1,23 +1,43 @@
-// WatchScreen -- PORT-2/3, fixed PORT-5.
-// Bug fixes (PORT-5):
-//   1. Decision feed: append-only list that persists across hands; no re-renders on ticks.
-//   2. Chat identity: owner messages render as "You" (isAI:false + seat=mySeat), not the
-//      agent name. Distinguishing signal from server: isAI=false for human-typed chat.
+// WatchScreen — WATCH v6.
+// Ported from design-refs/mood-watch5.jsx (layout), design-refs/mood-watch4c.jsx
+// (glass material and the ceremony) and design-refs/mood-atoms.jsx (GLASS
+// tokens, the faces and the hands).
+//
+// What changed, and why:
+//   1. HE IS SEATED AT THE BOTTOM. v4b put him in a hero row — a strip of chrome
+//      at the foot of the felt — which made the one character you own the least
+//      present thing on his own table. He now faces the viewer at the bottom
+//      edge at twice an opponent's size, cards face up in front of him, bubble
+//      above his head, rope and strip directly under him.
+//   2. THE FELT IS THE SCREEN. Header → felt → composer, and nothing else. The
+//      TABLE tab, the transcript strip and the three-detent sheet are gone; the
+//      felt never resizes, because resizing was the tell that a sheet was a
+//      different screen rather than a layer.
+//   3. CHAT IS A WHISPER. What you send rises from the bottom edge as a pale
+//      bubble and fades in four seconds. His reply is his normal bubble.
+//   4. HISTORY IS A LAYER. The thread — and an opponent's read — come over the
+//      lower 70% of the felt in the same glass, with the game still running
+//      behind them.
+//
+// WATCH-5's pacing queue, fold toss and ceremony timing are untouched; only
+// their markup is replaced.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
-import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
+import { BetPill } from './system/SeatChip.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { Streets } from '../lib/protocol.js';
-import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
-import { ReadPanel } from './system/ReadPanel.jsx';
 import { SeatGhost } from './system/SeatGhost.jsx';
 import { ReadSheet } from './system/ReadSheet.jsx';
 import { Bubble } from './system/Bubble.jsx';
-import { onFelt, record, BUBBLE_MS } from '../lib/bubbles.js';
+import { MoodGhost } from './system/MoodGhost.jsx';
+import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
+import { ThreadSheet } from './system/ThreadSheet.jsx';
+import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
+import { onFelt, record } from '../lib/bubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
@@ -76,11 +96,6 @@ function equityPct(equity) {
   return n <= 1 ? n * 100 : n;
 }
 
-function formatEquity(equity) {
-  var pct = equityPct(equity);
-  return pct === null ? null : pct.toFixed(1) + '%';
-}
-
 function posLabel(seat, game) {
   if (!game) return '';
   if (game.bigBlindSeat === seat)   return 'BB';
@@ -89,28 +104,16 @@ function posLabel(seat, game) {
   return '';
 }
 
-// ---- ReadTab ---------------------------------------------------------------
-// W3-2: the READ tab. His picture of the opponent, plus — between hands only —
-// the attribute panel ATTR-2e put on the hand just played. Nothing here says
-// "waiting for the first action": before there is evidence he says so himself.
-
-function ReadTab({ game, between, agent, lastHand, predict }) {
-  return (
-    <div className="watch-panel__read">
-      <ReadPanel reads={game ? game.reads : null} game={game} />
-      {predict}
-      {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
-      <MuteToggle />
-    </div>
-  );
-}
-
 // ---- MuteToggle ------------------------------------------------------------
 // W3-3: sound is a second layer to the haptics, and it has to be switchable —
 // the phone is on silent in a bar, and every beat is built to land on haptics
-// alone. The sounds themselves ship later; the switch ships now.
+// alone.
+//
+// WATCH-6: the felt is the screen, so the switch moved into the thread sheet's
+// head. It is still one tap from anywhere on the watch screen, and it is no
+// longer a grey row on a green table.
 
-function MuteToggle() {
+export function MuteToggle() {
   var [muted, setMuted] = useState(function() { return isMuted(); });
   return (
     <button
@@ -131,174 +134,16 @@ function MuteToggle() {
   );
 }
 
-// ---- ChatTab ---------------------------------------------------------------
-// PORT-6: owner↔agent private thread. Messages route through /api/agents/chat
-// so the agent replies in-voice. AI table-speech (trash talk from the WS) appears
-// as ambient rows, visually distinct from the DM thread.
-
-function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName, attrRecord }) {
-  var [text, setText] = useState('');
-  var listRef    = useRef(null);
-  var chatInputRef = useRef(null);
-
-  useEffect(function() {
-    var el = chatInputRef.current;
-    if (!el) return;
-    function onFocus() { setTimeout(function() { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150); }
-    el.addEventListener('focus', onFocus);
-    return function() { el.removeEventListener('focus', onFocus); };
-  }, []);
-
-  // W4-4: the ordered record of everything said at this table — his lines
-  // (including the ones that were only ever bubbles), theirs, and yours. A
-  // bubble that was withheld from the felt because it would not fit is still
-  // here: that is the last clause of the bubble law.
-  var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
-    .concat(tableSpeech.map(function(m) { return Object.assign({}, m, { _type: 'ambient' }); }))
-    .concat((said || []).map(function(u) {
-      return { _type: u.mine ? 'his' : 'ambient', text: u.text, t: u.at, _id: u.id };
-    }))
-    // W5-4: the attribute-cost card, collapsed. It was pinned over the felt for
-    // a hand and a half; once it stands down it lives here, on the hand it is
-    // about, so it can be found again instead of being gone.
-    .concat((attrRecord || []).map(function(a) {
-      return { _type: 'attr', _id: a.id, t: a.t, handNumber: a.handNumber, attrKey: a.key,
-        street: a.street, text: a.line };
-    }))
-    .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
-
-  useEffect(function() {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [merged.length, loading]);
-
-  function submit(e) {
-    if (e) e.preventDefault();
-    var t = text.trim();
-    if (!t) return;
-    onSend(t);
-    setText('');
-  }
-
-  var isEmpty = merged.length === 0 && !loading;
-
-  return (
-    // FIX-1e: --fill, so the between-hands strip above cannot squeeze the list
-    // and the composer out of the sheet.
-    <div className="dr-chat-tab dr-chat-tab--fill">
-      <div ref={listRef} className="dr-chat-tab__list">
-        {isEmpty && (
-          <div className="dr-chat-tab__empty">
-            Talk to {agentName || 'your agent'} mid-game...
-          </div>
-        )}
-        {merged.map(function(m, i) {
-          if (m._type === 'ambient') {
-            return (
-              <div key={'ambient-' + i} style={{
-                padding: '4px 14px',
-                display: 'flex', alignItems: 'baseline', gap: 6,
-              }}>
-                <span style={{
-                  fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-                  fontSize: 8, fontWeight: 600, letterSpacing: '0.12em',
-                  color: 'var(--sys-muted,#6B6B6B)', textTransform: 'uppercase', flexShrink: 0,
-                }}>TABLE</span>
-                <span style={{
-                  fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)',
-                  fontStyle: 'italic', lineHeight: 1.4,
-                }}>{m.text}</span>
-              </div>
-            );
-          }
-          if (m._type === 'attr') {
-            return (
-              <div key={'attr-' + (m._id || i)} className="table-row table-row--attr">
-                <span className="table-row__who">
-                  {'HAND #' + (m.handNumber == null ? '--' : m.handNumber)}
-                </span>
-                <span className="table-row__text">
-                  <b className="table-row__attr-key">
-                    {[m.attrKey, m.street].filter(Boolean).join(' · ')}
-                  </b>
-                  {m.text ? ' ' + m.text : ''}
-                </span>
-              </div>
-            );
-          }
-          // W4-4: a line he said out loud at the table. His register in the
-          // record: his own voice, not italicised like theirs, and not a
-          // bubble — the felt already had that and let it go.
-          if (m._type === 'his') {
-            return (
-              <div key={'his-' + (m._id || i)} className="table-row table-row--his">
-                <span className="table-row__who">HIM</span>
-                <span className="table-row__text">{m.text}</span>
-              </div>
-            );
-          }
-          var isUser = m.role === 'user';
-          if (isUser) {
-            return (
-              <div key={'msg-' + i} style={{
-                display: 'flex', justifyContent: 'flex-end',
-                padding: '0 14px', marginBottom: 9,
-              }}>
-                <div style={{ maxWidth: '72%' }}>
-                  <div style={{
-                    background: 'rgba(0,212,170,0.10)',
-                    border: '1px solid rgba(0,212,170,0.28)',
-                    borderRadius: 12, borderBottomRightRadius: 4,
-                    padding: '9px 12px',
-                    fontSize: 13, color: 'var(--sys-text,#EDEDED)', lineHeight: 1.5,
-                  }}>{m.content}</div>
-                  <div style={{
-                    marginTop: 3, textAlign: 'right',
-                    fontFamily: 'var(--sys-font-mono,"JetBrains Mono",monospace)',
-                    fontSize: 9.5, color: 'var(--sys-muted,#6B6B6B)',
-                  }}>You</div>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div key={'msg-' + i} className="dr-chat-tab__row" style={{ marginBottom: 9 }}>
-              <span className="dr-chat-tab__name">
-                {agentName || 'Agent'}
-                <span className="dr-chat-tab__ai-pill">AI</span>
-              </span>
-              <span className="dr-chat-tab__bubble">{m.content}</span>
-            </div>
-          );
-        })}
-        {loading && (
-          <div className="dr-chat-tab__row" style={{ marginBottom: 9 }}>
-            <span className="dr-chat-tab__name">{agentName || 'Agent'}</span>
-            <span className="dr-chat-tab__bubble">
-              <span className="dr-typing"><i /><i /><i /></span>
-            </span>
-          </div>
-        )}
-      </div>
-      <form className="dr-chat-tab__form" onSubmit={submit}>
-        <input ref={chatInputRef} className="dr-chat-tab__input" value={text}
-          onChange={function(e) { setText(e.target.value); }}
-          placeholder={'Message ' + (agentName || 'your agent') + '...'}
-          maxLength={280} disabled={loading} aria-label="Chat message" />
-        <button className="dr-chat-tab__send" type="submit" disabled={!text.trim() || loading}>SEND</button>
-      </form>
-    </div>
-  );
-}
-
-
-// ---- the sheet: three detents of one screen ---------------------------------
-// WV2-3, ported from design-refs/mood-watch2.jsx (PART 1 · THE SHEET).
+// ---- the felt's fixed geometry (the replay theatre's seam) ------------------
+// WATCH-6 deletes the three-detent sheet from the watch screen: the felt fills
+// header→composer and never resizes. The REPLAY THEATRE still draws a felt of a
+// measured height, with a scrubber and a panel below it, so the geometry the
+// sheet used to drive lives on here for that one caller. Nothing on the watch
+// screen reads it any more.
 //
-// The analysis tab bar is the grab handle. The screen has three vertical
-// states and the felt scales fluidly between them as the sheet is dragged.
-
-// SHEET_LAY, verbatim from the ref: the felt's height at each detent, and the
-// absolute tops of the pot ticker, the board and the meta line inside it.
+// SHEET_LAY, verbatim from design-refs/mood-watch2.jsx: the felt's height at
+// each detent, and the absolute tops of the pot ticker, the board and the meta
+// line inside it.
 var SHEET_LAY = {
   expanded: { felt: 306, pot: 60,  board: 108, meta: 184 },
   peek:     { felt: 508, pot: 128, board: 196, meta: 286 },
@@ -307,19 +152,10 @@ var SHEET_LAY = {
 
 var DETENTS = ['expanded', 'peek', 'hidden'];
 
-// The ref's HIDDEN detent leaves exactly the thin grab handle below the felt
-// (7 + 4 + 7 of padding and bar, plus the 1px border), so the region those
-// three felt heights are measured against is 620 + 19 = 639. Reading them as
-// fractions of that is what lets a 390x844 mock scale to a real phone --
-// and it lands on the brief's own numbers: PEEK's felt is 508/639 = 79.5%.
 var SHEET_REGION = SHEET_LAY.hidden.felt + 19;
 
-// Felt height at each detent, as a fraction of the stage.
 var FELT_FRAC = DETENTS.map(function(d) { return SHEET_LAY[d].felt / SHEET_REGION; });
 
-// The three interior tops as fractions of the felt's own height, so they hold
-// their proportions on a stage taller or shorter than the ref's. At the ref's
-// region these reproduce SHEET_LAY exactly.
 var INNER_FRAC = DETENTS.map(function(d) {
   var L = SHEET_LAY[d];
   return { pot: L.pot / L.felt, board: L.board / L.felt, meta: L.meta / L.felt };
@@ -328,7 +164,6 @@ var INNER_FRAC = DETENTS.map(function(d) {
 function clamp(n, lo, hi) { return n < lo ? lo : n > hi ? hi : n; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-// Where a continuous felt fraction sits on the 0(expanded)..2(hidden) scale.
 function detentPos(frac) {
   if (frac <= FELT_FRAC[0]) return 0;
   if (frac >= FELT_FRAC[2]) return 2;
@@ -336,23 +171,12 @@ function detentPos(frac) {
   return i + (frac - FELT_FRAC[i]) / (FELT_FRAC[i + 1] - FELT_FRAC[i]);
 }
 
-// The hero readout is 74px tall and sits 16px off the bottom, so the felt's
-// last 90px belong to it. These three keep the stack clear of it on a phone
-// shorter than the ref's: the meta line above the readout, the board above the
-// meta line, the pot above the board. Inert at every SHEET_LAY detent -- they
-// only bite below roughly 250px of felt.
-// FIX-3a: the band under the board is now the rope, not the one-line meta text
-// W3-1 deleted, and the hero row shrank when it became HeroRow3 (36x50 cards in
-// 8px padding, not 40x56 in 9px). Both constants follow those changes.
-var HERO_BAND = 78;   // HeroRow3's height (66) plus its 12px bottom offset
+var HERO_BAND = 78;   // the compact hero row's height plus its 12px bottom offset
 var TUG_H     = 30;   // the rope: 9px track + 4px gap + its legend
-var BOARD_H   = 70;   // a 64px card plus its gap
-var POT_H     = 36;   // the pot pill plus its gap
 var SEAT_BAND = 44;   // the seat chips own the top of the felt
 var LINE_H    = 19;   // his line at 13px/1.4
 var LINE_GAP  = 8;    // and the air it needs on each side
 
-// The felt's height and interior tops for a stage of `stagePx` at position `p`.
 export function feltGeometry(frac, stagePx) {
   var p    = detentPos(frac);
   var i    = clamp(Math.floor(p), 0, 1);
@@ -364,10 +188,6 @@ export function feltGeometry(frac, stagePx) {
   var board = lerp(a.board, b.board, t) * felt;
   var pot   = lerp(a.pot,   b.pot,   t) * felt;
 
-  // A felt too short to hold the stack squeezes it rather than letting the
-  // meta line slide under the hero readout: the three keep their spacing
-  // ratios and are rescaled into the band between the seat chips and the
-  // readout. On any stage the ref's own detents fit, this is a no-op.
   var floor   = SEAT_BAND;
   var ceiling = felt - HERO_BAND - TUG_H;
   if (meta > ceiling && meta > floor) {
@@ -381,30 +201,9 @@ export function feltGeometry(frac, stagePx) {
   board = Math.round(Math.max(floor, board));
   meta  = Math.round(Math.max(floor, meta));
 
-
-  // FIX-3a: the line and the rope shared no arithmetic, so on a short felt the
-  // bottom-anchored line was drawn straight through the top-anchored rope. They
-  // are now one stack with one source of truth: the rope keeps its slot under
-  // the board — that is the law finding 2 exists for — and his line takes the
-  // gap ABOVE it, but only when the gap is genuinely big enough to hold it.
-  //
-  // At the expanded detent it is not: 64px of board ends at `board + 64` and
-  // the rope starts at `meta`, twelve pixels later. Rather than overlap, or
-  // shove the board around and lose the detent geometry this file exists to
-  // preserve, the line is simply not drawn there — it is still in the sheet's
-  // peek row and in the thread, which is where long voice lives anyway.
-  // The squeeze scales the three tops toward the floor independently, so on some
-  // stages it pulled the rope's slot ABOVE the board's bottom edge — the board
-  // drawn straight through the rope. Whatever the squeeze decided, the rope sits
-  // under the board; if that leaves it inside the hero row, the board and the
-  // pot give way, because the rope's position is the law and theirs is not.
   var tug = Math.max(meta, board + 64 + LINE_GAP);
   var overflow = (tug + TUG_H) - (felt - HERO_BAND);
   if (overflow > 0) {
-    // On a felt this short the seat band is the least load-bearing thing on it,
-    // so the board is allowed to climb past it rather than let the rope run
-    // into the hero row. Below roughly 210px of felt there is no arrangement
-    // that fits, and this is the one that degrades most quietly.
     var lift = Math.min(overflow, Math.max(0, board));
     board -= lift;
     pot = Math.max(0, pot - lift);
@@ -424,23 +223,11 @@ export function feltGeometry(frac, stagePx) {
   };
 }
 
-// ---- SheetHandle -----------------------------------------------------------
-
-function SheetHandle({ thin }) {
-  return (
-    <div className={'watch-sheet__handle' + (thin ? ' is-thin' : '')}>
-      <i />
-    </div>
-  );
-}
-
 // ---- seat ring -------------------------------------------------------------
 // WV2-4, per design-refs/mood-watch2.jsx (PART 2 · MULTIWAY). The engine seats
 // 2..6, so the ring holds one to five opponents with the hero anchored at the
 // bottom. Slots come into play in the order the brief sets -- top corners,
-// then top centre, then the side rails -- and each row below lists them in
-// ring order (up the left, across the top, down the right) so the opponent
-// sitting in each is the one the action actually reaches next.
+// then top centre, then the side rails.
 var SEAT_SLOTS = {
   1: ['tl'],
   2: ['tl', 'tr'],
@@ -457,8 +244,6 @@ function alignFor(slot) {
   return (slot === 'tr' || slot === 'mr') ? 'right' : 'left';
 }
 
-// "Full SeatChip through 4-handed; the rails and 6-handed use SeatChipSm."
-// A rail seat is always compact; at six-handed every seat is.
 function compactFor(slot, opponentCount) {
   return slot === 'ml' || slot === 'mr' || opponentCount >= 5;
 }
@@ -468,28 +253,18 @@ function compactFor(slot, opponentCount) {
 // on `!folded`, so the instant the server said folded the cards ceased to have
 // existed and the ghost dimmed. Nobody threw anything away.
 //
-// Now the cards are thrown at the muck — the centre of the felt — over 350ms
-// with a slight arc and a turn, and the seat dims only once they have landed.
-// Transforms and opacity only, so it is one composited layer per card and the
-// felt never reflows mid-hand.
+// An opponent's cards are thrown at the muck — one fixed spot beside the pot,
+// per OppMuckStripM in design-refs/mood-watch5.jsx, so a table of six folds
+// resolves to one pile instead of six directions — and the seat dims only once
+// they have landed. His own toss keeps the 350ms hero arc.
 
 export var MUCK_MS = 350;
 
 var NO_MUCK = {};
 
-/**
- * Which seats are mid-throw right now, keyed by seat index.
- *
- * The fold is read off the snapshot rather than off a DECISION, because an
- * opponent's fold is exactly the one this has to catch: DECISION only ever
- * carries the hero. A new hand clears everything — a re-deal must not replay
- * the last hand's mucks.
- */
 export function useMuck(game) {
   var handNo = game ? game.handNumber : null;
   var seats  = (game && game.seats) ? game.seats : [];
-  // A string, so the effect's dependency is the folded pattern itself and not
-  // the identity of an array the server rebuilds on every frame.
   var foldKey = seats.map(function (s) { return (s && s.folded) ? '1' : '0'; }).join('');
 
   var [mucking, setMucking] = useState(NO_MUCK);
@@ -534,53 +309,145 @@ export function useMuck(game) {
   return mucking;
 }
 
-// ---- W5-3 · the hand-end ceremony ------------------------------------------
-// A hand used to end by the felt quietly changing state and the next one being
-// dealt over it. A spectator who looked away for two seconds could not tell
-// whether his agent had just won or lost.
+// ---- the hand-end ceremony -------------------------------------------------
+// W5-3 called the hand; WATCH-6 gives it the ref's own block (V5Ceremony).
 //
-// So the hand is called. One centred block over the felt, in the display font
-// the winner pill already uses, in the gold/red the mood system already owns —
-// no new visual language, because a design ref for this is coming. When it
-// lands, only the markup inside this component changes: WHEN it runs is
-// lib/pace.js's business (SHOWDOWN_HOLD_MS then CEREMONY_MS, which together are
-// exactly the showdown dwell, so the next deal arrives as the block leaves).
-export function HandCeremony({ won, agentName, amount, winnerName, onTalk, talkLabel }) {
-  var money = '$' + (Number.isFinite(amount) ? amount : 0).toLocaleString();
+// "Granite took $1,250" tells the owner what happened to the pot; it does not
+// tell him what happened to his guy. So the ceremony leads with the DELTA and
+// where he now stands, and offers the two things there are to do: deal him in
+// now (the next hand is coming in three seconds anyway, so this only makes it
+// now), or talk to him about the hand.
+//
+// WHEN it runs is still lib/pace.js's business — SHOWDOWN_HOLD_MS then
+// CEREMONY_MS — which WATCH-5 settled and this wave does not touch.
+export function HandCeremony({
+  won, agentName, amount, winnerName, delta, stack, mood, heat, accent,
+  onTalk, talkLabel, onDeal, nextInS,
+}) {
+  var hot = Number.isFinite(heat) && heat > 66;
+  var money = function (n) {
+    var sign = n < 0 ? '−' : '+';
+    return sign + '$' + Math.abs(n).toLocaleString();
+  };
+  var deltaText = Number.isFinite(delta)
+    ? money(delta)
+    : (won ? '+$' + (amount || 0).toLocaleString() : '−$' + (amount || 0).toLocaleString());
+
   return (
-    <div className="watch-ceremony" data-outcome={won ? 'won' : 'lost'} role="status">
+    <div className="watch-ceremony" data-outcome={won ? 'won' : 'lost'}
+      data-heat={hot ? 'hot' : 'calm'} role="status">
       <div className="watch-ceremony__block">
-        <div className="watch-ceremony__head">
-          {(agentName || 'YOUR AGENT').toUpperCase() + (won ? ' WON' : ' LOST')}
+        <div className="watch-ceremony__name">{(agentName || 'YOUR AGENT').toUpperCase()}</div>
+        <div className="watch-ceremony__head">{won ? 'WON' : 'LOST'}</div>
+
+        {/* THE DELTA AND WHERE HE STANDS. */}
+        <div className="watch-ceremony__delta">
+          <span className={'watch-ceremony__delta-amt' + (won ? ' is-won' : ' is-lost')}>{deltaText}</span>
+          <span className="watch-ceremony__dot">·</span>
+          <span className="watch-ceremony__stack-lbl">stack</span>
+          <span className="watch-ceremony__stack">
+            {'$' + (Number.isFinite(stack) ? stack.toLocaleString() : '—')}
+          </span>
         </div>
-        <div className="watch-ceremony__sub">
-          {won ? money : ('— ' + (winnerName || 'the table') + ' takes ' + money)}
-        </div>
-        {onTalk && (
-          <button type="button" className="watch-ceremony__talk" onClick={onTalk}>
-            {talkLabel}
-          </button>
+        {!won && winnerName && (
+          <div className="watch-ceremony__took">{winnerName.toUpperCase() + ' TOOK THE POT'}</div>
         )}
+
+        <div className="watch-ceremony__ghost">
+          <span className="watch-ceremony__aura" aria-hidden />
+          <MoodGhost mood={mood || (won ? 'confident' : 'frustrated')}
+            accent={accent || '#00D4AA'} size={76} heat={Number.isFinite(heat) ? heat : 45}
+            event={won ? 'smug' : 'stunned'} hands="cover" won={won} ring={false} />
+        </div>
+
+        <div className="watch-ceremony__acts">
+          <button type="button" className="watch-btn watch-btn--primary" onClick={onDeal}>
+            Deal him in
+          </button>
+          {onTalk && (
+            <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__talk" onClick={onTalk}>
+              {talkLabel}
+            </button>
+          )}
+          <div className="watch-ceremony__next">
+            {'NEXT HAND IN ' + (Number.isFinite(nextInS) ? nextInS : 3) + 's'}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ---- WatchFelt -------------------------------------------------------------
+// ---- the compact hero row (replay theatre only) ----------------------------
+// The seated hero is a column ~200px tall. The replay theatre draws a 306px felt
+// with a scrubber and a panel under it, so it keeps the row v4b used. It is
+// reached only through `geom`, which nothing on the watch screen passes.
+function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, action, warm, note, tag }) {
+  return (
+    <div className={'watch-felt__hero is-row' + (action ? ' is-active' : '') + (warm ? ' is-warm' : '')}>
+      <div className="watch-felt__hero-cards">
+        {(hole || [null, null]).map(function(c, i) {
+          var down = i < landed;
+          return (
+            <div key={i}
+              className={'watch-felt__hero-card' + (down ? ' is-down' : '') + (mucking ? ' is-mucking' : '')}
+              data-landed={down ? 'yes' : 'no'} data-mucking={mucking ? 'yes' : 'no'}
+              style={{
+                transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)',
+                '--muck-base': 'rotate(' + (i ? 3 : -3) + 'deg)',
+                '--muck-turn': (i ? 22 : -18) + 'deg',
+              }}
+            >
+              {(c && !between)
+                ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
+                : <CardBack w={36} h={50} branded />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="watch-felt__hero-divider" />
+      <div>
+        <span className="watch-felt__hero-lbl">Stack</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <span className="watch-felt__hero-num">{stack}</span>
+          <span className="watch-felt__hero-pos">{pos}</span>
+        </div>
+      </div>
+      <div className="watch-felt__hero-divider" />
+      <div>
+        <span className="watch-felt__hero-lbl">{toCall > 0 ? 'To call' : 'Street'}</span>
+        <div>
+          <span className={'watch-felt__hero-num ' + (toCall > 0 ? 'is-gold' : 'is-dim')}>
+            {toCall > 0 ? '$' + toCall.toLocaleString() : (street || '—')}
+          </span>
+        </div>
+      </div>
+      <div style={{ flex: 1 }} />
+      {warm && !action && <span className="watch-felt__premium">PREMIUM</span>}
+      {action
+        ? <span className="watch-felt__action-chip">{action}</span>
+        : (!warm && <span className="watch-felt__waiting">{note}</span>)}
+      {tag && <span className="watch-felt__hero-tag">{tag}</span>}
+    </div>
+  );
+}
 
-// W3-1: PaceFelt. The felt is now told which of the four pacing states it is in
-// and dresses itself accordingly — warm ground and a fat ticker while a pot is
-// heating, a breathing red glow on an all-in, the ticker sliding away on a
-// showdown. CALM is the felt that shipped, unchanged.
-// R-2 exports this: the replay theatre plays the same felt, driven by an
-// authored timeline instead of by the server. Reuse, not a second felt — the
-// pacing states, the rope and the hero row are all here already.
-export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat, bubbles = [], ceremony = null }) {
+// ---- WatchFelt -------------------------------------------------------------
+//
+// W3-1: the felt is told which of the four pacing states it is in and dresses
+// itself accordingly. WATCH-6 changes what is drawn on it, not that.
+//
+// `geom` is the replay theatre's seam: with it the felt takes a measured height
+// and the interior tops the sheet used to drive. Without it — the watch screen —
+// the felt FILLS its parent and the interior tops are proportions of it, because
+// the felt never resizes any more.
+export function WatchFelt({
+  game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
+  bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
+  agentMood, agentHeat, agentAccent,
+}) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
-  // WV2-5: three phases, not two. `settled` is a finished hand still on
-  // screen -- board, reveals and the pot going to its winner -- and it holds
-  // until the next deal clears it.
   var live      = handActive(game);
   var settled   = !live && handSettled(game);
   var between   = !live && !settled;
@@ -589,7 +456,6 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
   var community = game ? (game.community || []) : [];
   var result    = settled ? game.result : null;
 
-  // Which seats showed, and what they showed. Everyone else mucked.
   var revealed = {};
   if (result && result.showdown) {
     result.showdown.forEach(function(sd) { revealed[sd.seat] = sd.holeCards || []; });
@@ -607,16 +473,8 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
   // ── W4-1 · the DEAL beat ─────────────────────────────────────────────────
   // The hand is dealt, not shown. His two cards land 90ms apart and the table's
   // backs then sweep out as one gesture with no haptic — their cards are not
-  // his event.
-  //
-  // CLEAN-1: one tap, on the first card. HAPTIC4 asked for a tap per card, but
-  // the wave-33 floor — never two inside 120ms — makes the second unreachable,
-  // and a call that is written down only to be swallowed is a lie about what
-  // the device is doing. The cards still land 90ms apart; the device speaks
-  // once, at the beat that starts the hand.
-  //
-  // Keyed on the hand number, so a re-render, a reconnect or a late snapshot
-  // cannot re-deal a hand that is already on the table.
+  // his event. Keyed on the hand number, so a re-render, a reconnect or a late
+  // snapshot cannot re-deal a hand that is already on the table.
   var handNo = game ? game.handNumber : null;
   var dealRef = useRef({ hand: null, t0: 0 });
   var [dealT, setDealT] = useState(DEAL_TOTAL_MS);
@@ -631,29 +489,28 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
       setTimeout(function() { setDealT(CARD_GAP_MS * 2); }, CARD_GAP_MS * 2),
       setTimeout(function() { setDealT(DEAL_TOTAL_MS); }, BACKS_DELAY_MS),
     ];
-    return function() { timers.forEach(clearTimeout); };
+    // Torn down mid-deal, the beat gives the hand back. Without this the ref
+    // outlived the timers it was guarding: React's development double-invoke
+    // cancelled the run, the second pass saw a hand it had already claimed and
+    // skipped it, and his cards stayed at `landed: 0` — face down, at opacity
+    // zero, for the whole hand. Playwright, 390x844: no hole cards on the felt.
+    return function() {
+      timers.forEach(clearTimeout);
+      dealRef.current = { hand: null, t0: 0 };
+    };
   }, [handNo, live]);
 
-  // W5-2: who is mid-throw. A seat that has just folded keeps its cards for
-  // MUCK_MS so they can be thrown, and keeps its full strength until they land.
   var mucking = useMuck(game);
 
-  var beat = live ? dealBeat(dealT) : { landed: 2, backs: true };
-  var heroLanded = between ? 2 : beat.landed;
-  // Owner-only by construction: warming needs heroHole, which the server only
-  // ships to a viewer who proved ownership. A spectator gets no glow, no tap.
+  var beatNow = live ? dealBeat(dealT) : { landed: 2, backs: true };
+  var heroLanded = between ? 2 : beatNow.landed;
   var warm = live && isWarm(heroHole, heroEquityOf(game, handEquity, heroSeat));
 
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  // How many board cards are face up right now. (`flipped`, not `revealed` —
-  // that name already belongs to the showdown's per-seat reveal map below.)
   var landed = landedCount(game, flipped);
 
-  // The rope's far end is labelled with whoever is still contesting the pot;
-  // with more than one live opponent it stays unlabelled rather than picking a
-  // favourite. The owner is watching his agent, not refereeing.
   var liveOpponents = (game && game.seats ? game.seats : [])
     .map(function(seat, i) { return { seat: seat, i: i }; })
     .filter(function(x) { return x.i !== heroSeat && x.seat && !x.seat.folded; });
@@ -661,17 +518,8 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     ? (liveOpponents[0].seat.displayName || ('Seat ' + (liveOpponents[0].i + 1)))
     : null;
 
-  // FIX-1g held the last decision's equity so the readout never dashed while he
-  // was on the clock. W3-1 adds the better source in front of it: feature/pace
-  // puts hero equity on every snapshot, which is what finding 2 needs for the
-  // rope to move on every street rather than only when he acts.
   var heroEquity  = between ? null : heroEquityOf(game, handEquity, heroSeat);
   var hasEquity   = heroEquity !== null;
-  // At showdown the readout stops reporting the hero's last action and says
-  // how the hand ended -- the ref's `note` slot.
-  // FIX-1f moved the price out of the deleted meta line and into the action
-  // chip. W3-1 gives it its own column in the hero row (HeroRow3), which is
-  // where the ref puts it, so the chip goes back to naming the action alone.
   var toCall = (live && heroData && game.currentBet != null)
     ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
     : 0;
@@ -680,8 +528,6 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     ? formatAction(lastDecision.action)
     : toActLabel);
 
-  // Opponents in seat order clockwise from the hero, so the ring on screen
-  // matches the order the action actually moves in.
   var opponentSeats = [];
   for (var step = 1; step < seatCount; step++) {
     var si = (heroSeat + step) % seatCount;
@@ -689,10 +535,6 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     if (!s) continue;
     opponentSeats.push({
       seat: si,
-      // SEAT-1a: mood is on the wire now, as { state, heat }. The string form
-      // is the pre-SEAT-1 shape and is still accepted, so a client talking to
-      // an older server (or a fixture written before the field existed) draws
-      // exactly what it drew before.
       accent: s.accentColor || '#00D4AA',
       mood: moodStateOf(s),
       heat: moodHeatOf(s),
@@ -702,13 +544,7 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
       acting: game.toAct === si,
       folded: !!s.folded,
       dealer: game.dealerSeat === si,
-      // WV2-4: what this seat has put in on the current street, shown in front
-      // of it. Zero and between hands both mean no pill.
       bet: (live && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
-      // WV2-5: at showdown a seat either shows its hand or it does not. A seat
-      // that FOLDED and did not show is mucked -- face down and dim, because
-      // folds keep their secrets. A seat that won uncontested never had to
-      // show either, but it did not muck, so its backs stay at full strength.
       reveal: (settled && revealed[si] && revealed[si].length)
         ? revealed[si].map(pc).filter(Boolean)
         : null,
@@ -732,45 +568,40 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     ? ('$' + game.smallBlind + '/$' + game.bigBlind)
     : '';
   var tableLabel = '#' + (game && game.tableId ? game.tableId : '--');
-  // FIX-1f: the felt no longer carries a meta line during a hand. It had grown
-  // to "#tbl · $10/$20 · PREFLOP · 2-HANDED · TO CALL $40" — five facts, four of
-  // them already on screen: the board shows the street, the seat ring shows how
-  // many are in, and the amount belongs in the readout. Between hands the line
-  // stays, because that is the ref's calm state and there is no board to read.
   var metaLine = between
     ? [tableLabel, blinds, 'SHUFFLING'].filter(Boolean).join(' · ')
     : null;
 
-  // WV2-3: the felt's height and its three interior tops come from the sheet's
-  // current detent, so it grows and shrinks with the drag.
+  // With `geom` the felt is a measured box (the replay theatre). Without it the
+  // felt fills the stage and its interior tops are the ref's own proportions of
+  // V5_FELT_H: the pot at 196/648 and the board at 243/648.
   var feltStyle = geom ? {
     height: geom.felt + 'px',
     '--wv-pot':   geom.pot + 'px',
     '--wv-board': geom.board + 'px',
-    // FIX-3a: one stack, one source of truth. The rope's top, and his line's
-    // top when the geometry says there is room for one.
     '--wv-tug':   geom.tug + 'px',
     '--wv-line':  (geom.line == null ? 0 : geom.line) + 'px',
     '--wv-hero-band': HERO_BAND + 'px',
   } : undefined;
 
+  var heroStack = '$' + (heroData && heroData.stack != null ? heroData.stack.toLocaleString() : '--');
+  var heroMuck  = !!mucking[heroSeat];
+  var mine = bubbles.filter(function(b) { return b.mine; });
+  var heroSays = mine.length ? mine[mine.length - 1].text : null;
+
   return (
-    <div className={'watch-felt' + (metaLine ? ' watch-felt--metaline' : '')}
+    <div className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
+        + (metaLine ? ' watch-felt--metaline' : '')}
       style={feltStyle} data-pace={pace}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
         var slot    = slots[i];
-        var align   = alignFor(slot);
         var compact = compactFor(slot, opponentSeats.length);
-        var showCards = !!o.reveal;
-        var showBacks = live ? !o.folded : (settled && !showCards);
         return (
-          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
-            {/* W4-2: he is somebody sitting there, not a chip with a number on
-                it. Same FloorGhost the casino floor draws, same accent, so a
-                House regular looks the same at the felt as in the room. */}
+          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}
+            data-align={alignFor(slot)}>
             <SeatGhost
               name={o.name}
               stack={o.stack}
@@ -780,13 +611,13 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
               acting={o.acting}
               selected={selectedSeat === o.seat}
               mucking={!!mucking[o.seat]}
-              dealt={beat.backs}
+              dealt={beatNow.backs}
               reveal={!!o.reveal}
               show={o.reveal}
-              side={slot === 'left' || slot === 'right'}
+              side={slot === 'ml' || slot === 'mr'}
               order={i}
               size={compact ? 30 : 34}
-              onSelect={function() { onSelectSeat(o.seat); }}
+              onSelect={function() { if (onSelectSeat) onSelectSeat(o.seat); }}
             />
             {o.bet && (
               <div className="watch-felt__seat-row">
@@ -799,16 +630,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
 
       {/* W4-3 · speech. At most two on the felt, one per seat, and a bubble
           that would be cut off is not shown at all — the record has it either
-          way. His is centred in the band above the hero row; an opponent's
-          sits over their own ghost, and its tail points back at them. */}
-      {bubbles.map(function(b) {
-        if (b.mine) {
-          return (
-            <div key={b.id} className="watch-felt__band">
-              <Bubble mine flow text={b.text} />
-            </div>
-          );
-        }
+          way. HIS is now part of the hero column below (above his head, so it
+          moves him rather than landing on him); an opponent's sits over their
+          own ghost and its tail points back at them. */}
+      {bubbles.filter(function(b) { return !b.mine; }).map(function(b) {
         var idx = opponentSeats.findIndex(function(o) { return o.seat === b.seat; });
         if (idx < 0) return null;
         return (
@@ -818,10 +643,6 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         );
       })}
 
-      {/* The pot ticker is an outer positioning row with the pill inside it --
-          without the inner element the pill spanned the whole felt. At
-          showdown the pot has already moved, so it steps aside for the
-          winner pill below the board. */}
       {!settled && (
         <div className="watch-felt__pot">
           <div className="watch-felt__pot-pill">
@@ -833,9 +654,6 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         </div>
       )}
 
-      {/* W3-1: `landed` is how many cards have been turned over. Off a showdown
-          that is simply how many the server has dealt; on one the parent walks
-          it up a card at a time and the newest slot animates in. */}
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
         {boardSlots.map(function(c, i) {
           var isLanding = pace === 'showdown' && i === landed - 1;
@@ -843,23 +661,12 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
           return (
             <div key={i} className={cls}>
               {(c && i < landed)
-                ? <PlayingCard rank={c[0]} suit={c[1]} w={46} h={64} />
-                : <CardBack w={46} h={64} branded />}
+                ? <PlayingCard rank={c[0]} suit={c[1]} w={geom ? 46 : 44} h={geom ? 64 : 61} />
+                : <CardBack w={geom ? 46 : 44} h={geom ? 64 : 61} branded />}
             </div>
           );
         })}
       </div>
-
-      {/* The rope — finding 2. It takes the slot the table-id meta line used to
-          hold, which is exactly "directly under the board". */}
-      <div className="watch-felt__tug">
-        <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
-      </div>
-
-      {/* W4-3: there is no line under the board any more. The felt is where
-          speech happens — as bubbles over whoever is speaking — and the TABLE
-          tab is where speech is kept. The height that line held goes back to
-          the felt. */}
 
       {settled ? (
         <>
@@ -877,98 +684,78 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         metaLine && <div className="watch-felt__street">{metaLine}</div>
       )}
 
-      <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '') + (warm ? ' is-warm' : '')}>
-        <div className="watch-felt__hero-cards">
-          {(heroHole || [null, null]).map(function(c, i) {
-            // W4-1: each card slides in from the right and lands. `landed` is
-            // the beat's own count, so card two is never on the felt before
-            // card one — "never simultaneous" is a layout fact, not a timing hope.
-            var down = i < heroLanded;
-            // W5-2: his own fold throws the cards he can see, face up, at the
-            // muck — the same 350ms as theirs, the other way up the felt.
-            var heroMuck = !!mucking[heroSeat];
-            return (
-              <div
-                key={i}
-                className={'watch-felt__hero-card' + (down ? ' is-down' : '') + (heroMuck ? ' is-mucking' : '')}
-                data-landed={down ? 'yes' : 'no'}
-                data-mucking={heroMuck ? 'yes' : 'no'}
-                style={{
-                  transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)',
-                  // The fan he is already wearing, so the throw composes with
-                  // it instead of snapping the card upright first.
-                  '--muck-base': 'rotate(' + (i ? 3 : -3) + 'deg)',
-                  '--muck-turn': (i ? 22 : -18) + 'deg',
-                }}
-              >
-                {(c && !between)
-                  ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
-                  : <CardBack w={36} h={50} branded />}
-              </div>
-            );
+      {geom ? (
+        <>
+          {/* The rope keeps its own slot on a boxed felt, because the compact
+              hero row has nowhere to carry it. */}
+          <div className="watch-felt__tug">
+            <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
+          </div>
+          {/* W4-3: no line under the board. The felt is where speech happens —
+              as bubbles over whoever is speaking — and the thread is where
+              speech is kept. `line` is still accepted so the replay theatre's
+              call site does not have to change; it draws it in its own panel. */}
+          <HeroRow
+            hole={heroHole} landed={heroLanded} between={between} mucking={heroMuck}
+            stack={heroStack} pos={posLabel(heroSeat, game)} street={street}
+            toCall={toCall} action={actionLabel} warm={warm} note={heroNote}
+            tag={pace === 'allin' && !settled ? 'HOLDING' : null}
+          />
+        </>
+      ) : (
+        <WatchHero
+          says={heroSays}
+          mood={agentMood || 'neutral'}
+          accent={agentAccent || '#00D4AA'}
+          heat={Number.isFinite(agentHeat) ? agentHeat : 45}
+          pose={heroPose({
+            between: between,
+            action: lastDecision ? lastDecision.action : null,
+            pace: pace,
+            heat: agentHeat,
+            mucking: heroMuck,
           })}
-        </div>
-        <div className="watch-felt__hero-divider" />
+          bet={betBand(lastDecision && lastDecision.action ? lastDecision.action.amount : null, pot)}
+          hole={heroHole}
+          landed={heroLanded}
+          mucking={heroMuck}
+          between={between}
+          equity={heroEquity}
+          villain={villainName}
+          bigRope={pMeta.heat}
+          deadRope={!hasEquity}
+          stack={heroStack}
+          pos={posLabel(heroSeat, game)}
+          street={street}
+          toCall={toCall}
+          action={actionLabel}
+          tag={pace === 'allin' && !settled ? 'HOLDING' : null}
+          warm={warm}
+          // "waiting for the deal" is a between-hands line. On the v4b row it
+          // was small and off to one side; in his strip it is the loudest thing
+          // he owns, and printing it over a live preflop hand reads as him not
+          // being in it. While the hand is live the strip says nothing there —
+          // TO ACT and his action chip are the live registers.
+          note={live ? null : heroNote}
+          cost={cost}
+          onTapFace={onTapHero}
+        />
+      )}
 
-        <div>
-          <span className="watch-felt__hero-lbl">Stack</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span className="watch-felt__hero-num">
-              {'$' + (heroData && heroData.stack != null ? heroData.stack.toLocaleString() : '--')}
-            </span>
-            <span className="watch-felt__hero-pos">{posLabel(heroSeat, game)}</span>
-          </div>
-        </div>
-        <div className="watch-felt__hero-divider" />
+      {/* A sent whisper: pale, small, rising from the bottom edge, gone in 4s. */}
+      {whispers.map(function(w) { return <Whisper key={w.id} text={w.text} />; })}
 
-        {/* W3-1 HeroRow3: equity has moved to the rope under the board, so this
-            column now carries the two facts the removed meta line was holding —
-            the street, or the price when there is one to pay. */}
-        <div>
-          <span className="watch-felt__hero-lbl">{toCall > 0 ? 'To call' : 'Street'}</span>
-          <div>
-            <span className={'watch-felt__hero-num ' + (toCall > 0 ? 'is-gold' : 'is-dim')}>
-              {toCall > 0 ? '$' + toCall.toLocaleString() : (street || '—')}
-            </span>
-          </div>
-        </div>
-        <div style={{ flex: 1 }} />
+      {/* The thread, or an opponent's read — the same glass over the lower 70%,
+          with the hand still playing behind it. The felt does not resize. */}
+      {overlay}
 
-        {warm && !actionLabel && <span className="watch-felt__premium">PREMIUM</span>}
-        {actionLabel
-          ? <span className="watch-felt__action-chip">{actionLabel}</span>
-          : (!warm && <span className="watch-felt__waiting">{heroNote}</span>)}
-        {pace === 'allin' && !settled && (
-          <span className="watch-felt__hero-tag">HOLDING</span>
-        )}
-      </div>
-
-      {/* W5-3: the hand is called. Last in the felt so it is over everything,
-          and a node rather than a flag so the screen owns the copy, the clock
-          and the one tap it offers. */}
+      {/* W5-3: the hand is called. Last in the felt so it is over everything. */}
       {ceremony}
     </div>
   );
 }
 
-// ---- SitOutStrip / SitOutSheet ---------------------------------------------
-
-function SitOutStrip({ visible, onRequest, cause }) {
-  return (
-    <div className={'watch-sitout-strip' + (visible ? '' : ' is-hidden')} aria-hidden={!visible}>
-      <div className="watch-sitout-strip__text">
-        <div className="watch-sitout-strip__title">Between hands</div>
-        {/* FIX-3c: the collapsed header has no room for his cause line, and
-            between hands is when there is time to read it anyway. */}
-        <div className="watch-sitout-strip__meta">{cause || 'READY FOR NEXT DEAL'}</div>
-      </div>
-      <div style={{ flex: 1 }} />
-      <button type="button" className="watch-sitout-strip__btn" onClick={onRequest} tabIndex={visible ? 0 : -1}>
-        Sit out after this hand
-      </button>
-    </div>
-  );
-}
+// ---- SitOutSheet -----------------------------------------------------------
 
 function SitOutSheet({ game, onConfirm, onCancel }) {
   var tableNum  = (game && game.tableId) ? game.tableId : '--';
@@ -1003,170 +790,33 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
   );
 }
 
-// ---- WatchTabs -------------------------------------------------------------
-// W3-2 (Tabs3): four tabs were three too many. LIVE ANALYSIS, RANGE and HISTORY
-// are gone — the first was the solver speaking over him, the other two never
-// had content — and READ and CHAT remain.
+// ---- SitOutStrip -----------------------------------------------------------
+// WATCH-6: the strip is no longer a grey row under the felt — there is nothing
+// under the felt. It is the thread sheet's footer, which is where the owner
+// already is when he is between hands and thinking about pulling him out.
 
-// W4-2: READ is gone. A read was never a tab — it is about ONE person, and the
-// way you ask for it is to tap them. The rows moved into ReadSheet, which opens
-// over the felt on a seat tap. CHAT stays, and W4-4 renames it TABLE.
-// W4-4: one tab, because there is only one thing under the felt now —
-// everything said at this table, in order, whoever said it. The felt is the
-// performance and it never scrolls; this is the transcript and it always does.
+function SitOutStrip({ visible, onRequest, cause }) {
+  return (
+    <div className={'watch-sitout-strip' + (visible ? '' : ' is-hidden')} aria-hidden={!visible}>
+      <div className="watch-sitout-strip__text">
+        <div className="watch-sitout-strip__title">Between hands</div>
+        <div className="watch-sitout-strip__meta">{cause || 'READY FOR NEXT DEAL'}</div>
+      </div>
+      <div style={{ flex: 1 }} />
+      <button type="button" className="watch-sitout-strip__btn" onClick={onRequest} tabIndex={visible ? 0 : -1}>
+        Sit out after this hand
+      </button>
+    </div>
+  );
+}
+
 // CLEAN-1 (HAPTIC4): the reveal's own interval — "one per revealing seat, in
 // seat order, 140ms apart". It is the one number in the table deliberately set
 // above the 120ms floor, so it is what the reveal tap waits for.
 var REVEAL_TAP_MS = 140;
 
-var TABS = ['Table'];
-var TAB_CHAT = 0;
-
-// WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
-// click. Selection and dragging are one gesture, resolved by the sheet: a tap
-// that lands on a tab selects it, a drag moves the sheet.
-function WatchTabs({ active }) {
-  return (
-    <div className="watch-tabs">
-      {TABS.map(function(t, i) {
-        return (
-          <div key={t}
-            data-watch-tab={i}
-            className={'watch-tabs__tab' + (active === i ? ' is-active' : '')}>
-            {t}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ---- useSheetDrag ----------------------------------------------------------
-// One gesture on the grab surface (handle + tab bar) does everything the ref
-// asks of it: drag moves the sheet fluidly, release snaps to the nearest
-// detent, and a tap either selects the tab under the finger or -- on the
-// handle itself -- cycles EXPANDED -> PEEK -> HIDDEN -> EXPANDED.
-var TAP_SLOP_PX = 6;
-var TAP_MAX_MS  = 400;
-
-function useSheetDrag({ onSelectTab }) {
-  // Measured height of the stage the felt and the sheet share.
-  var [stagePx, setStagePx] = useState(function() {
-    return typeof window === 'undefined' ? SHEET_REGION : Math.max(320, window.innerHeight - 170);
-  });
-  var [frac,     setFrac]     = useState(FELT_FRAC[0]);
-  var [dragging, setDragging] = useState(false);
-
-  var stageRef = useRef(null);
-  var gesture  = useRef(null);
-
-  useEffect(function() {
-    var el = stageRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    var ro = new ResizeObserver(function(entries) {
-      var h = entries[0] && entries[0].contentRect ? entries[0].contentRect.height : 0;
-      if (h > 0) setStagePx(h);
-    });
-    ro.observe(el);
-    return function() { ro.disconnect(); };
-  }, []);
-
-  function snap(nextFrac) {
-    var best = 0;
-    for (var i = 1; i < FELT_FRAC.length; i++) {
-      if (Math.abs(FELT_FRAC[i] - nextFrac) < Math.abs(FELT_FRAC[best] - nextFrac)) best = i;
-    }
-    setFrac(FELT_FRAC[best]);
-  }
-
-  function goTo(index) {
-    setFrac(FELT_FRAC[clamp(index, 0, FELT_FRAC.length - 1)]);
-  }
-
-  // FIX-4: the detents are a gesture's business, but the header's CHAT button
-  // has to be able to say "open" without knowing the ladder. FELT_FRAC[0] is
-  // EXPANDED -- the same detent a tap on a tab restores.
-  var openSheet = useCallback(function() { setFrac(FELT_FRAC[0]); }, []);
-
-  function onPointerDown(e) {
-    if (e.button !== undefined && e.button !== 0) return;
-    var tabAttr = e.target && e.target.closest ? e.target.closest('[data-watch-tab]') : null;
-    gesture.current = {
-      id: e.pointerId,
-      y: e.clientY,
-      frac: frac,
-      t: Date.now(),
-      moved: false,
-      tab: tabAttr ? Number(tabAttr.getAttribute('data-watch-tab')) : null,
-    };
-    if (e.currentTarget.setPointerCapture) {
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not captureable */ }
-    }
-    setDragging(true);
-  }
-
-  function onPointerMove(e) {
-    var g = gesture.current;
-    if (!g || g.id !== e.pointerId) return;
-    var dy = e.clientY - g.y;
-    if (Math.abs(dy) > TAP_SLOP_PX) g.moved = true;
-    // Dragging DOWN shrinks the sheet, which grows the felt.
-    setFrac(clamp(g.frac + dy / Math.max(1, stagePx), FELT_FRAC[0], FELT_FRAC[FELT_FRAC.length - 1]));
-  }
-
-  function onPointerUp(e) {
-    var g = gesture.current;
-    if (!g || g.id !== e.pointerId) return;
-    gesture.current = null;
-    setDragging(false);
-    var isTap = !g.moved && (Date.now() - g.t) < TAP_MAX_MS;
-    if (!isTap) { snap(frac); return; }
-    setFrac(g.frac);
-    if (g.tab !== null && !isNaN(g.tab)) {
-      // A tap on a tab selects it, and opens the sheet if it was not open.
-      onSelectTab(g.tab);
-      if (g.frac !== FELT_FRAC[0]) goTo(0);
-      return;
-    }
-    // A tap on the handle cycles the detents.
-    goTo((DETENTS.indexOf(detentName(g.frac)) + 1) % DETENTS.length);
-  }
-
-  function onPointerCancel() {
-    if (!gesture.current) return;
-    gesture.current = null;
-    setDragging(false);
-    snap(frac);
-  }
-
-  return {
-    stageRef: stageRef,
-    dragging: dragging,
-    detent: detentName(frac),
-    openSheet: openSheet,
-    geom: feltGeometry(frac, stagePx),
-    handlers: {
-      onPointerDown: onPointerDown,
-      onPointerMove: onPointerMove,
-      onPointerUp: onPointerUp,
-      onPointerCancel: onPointerCancel,
-    },
-  };
-}
-
-// The detent a felt fraction reads as -- the nearest one, so a sheet mid-drag
-// still reports something the render tree can key off.
-function detentName(frac) {
-  var best = 0;
-  for (var i = 1; i < FELT_FRAC.length; i++) {
-    if (Math.abs(FELT_FRAC[i] - frac) < Math.abs(FELT_FRAC[best] - frac)) best = i;
-  }
-  return DETENTS[best];
-}
-
 // W4-2: one seat's read out of the served `state.reads` array, and the facts
-// the sheet's header needs about that seat. Both return null rather than guess,
-// so a seat the server has no read for opens a sheet that says so.
+// the sheet's header needs about that seat.
 function readFor(game, seat) {
   var list = (game && Array.isArray(game.reads)) ? game.reads : null;
   if (!list) return null;
@@ -1207,27 +857,14 @@ function moodHeatOf(seat) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
-  // W4-5: where "Chat" goes. When the shell can route to his thread it hands
-  // this in and the control leaves the watch screen entirely; without it the
-  // conversation stays in the sheet, which is the only behaviour that existed
-  // before. Optional on purpose — WatchScreen is mounted from more than one
-  // place and must not require a router.
   onOpenThread,
-  // W3-5/W3-6: the newest PACE frame, { pace, potBb, board?, card? }. During a
-  // spectator-only all-in hold the server stages the runout card by card;
-  // without it the flip falls back to the client's own timer.
   paceFrame,
-  // W5-1: how far behind live the pacing queue is running, in ms. Diagnostic
-  // only — it is written onto the root as data-pace-lag so a playtest or a
-  // Playwright run can read the queue's depth without a devtools session.
-  // Absent everywhere the stream is not paced, which reads as zero.
   paceLag,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
   if (!displayNames)  displayNames  = {};
 
-  var [activeTab,     setActiveTab]     = useState(0);
   var [sitOutPending, setSitOutPending] = useState(false);
   var [agent,         setAgent]         = useState(null);
 
@@ -1235,7 +872,7 @@ export function WatchScreen({
   var [agentThread,   setAgentThread]   = useState([]);
   var [agentLoading,  setAgentLoading]  = useState(false);
 
-  // ---- Agent mood polling (for the collapsed header) ----
+  // ---- Agent mood polling (the header chip, and now his face on the felt) ----
   var agentId = config ? config.agentId : null;
   useEffect(function() {
     if (!agentId) return;
@@ -1258,17 +895,16 @@ export function WatchScreen({
   var mood   = agent ? moodOf(agent)   : 'neutral';
   var cause  = agent ? causeOf(agent)  : null;
   var state  = agent ? stateOf(agent)  : 'live';
+  // His own seat carries the mood the server computed for this table; the agent
+  // record is the fallback for the moment before the first snapshot lands.
+  var heroSeatIdx = Number.isInteger(mySeat) ? mySeat : 0;
+  var heroSeatRow = (game && game.seats) ? game.seats[heroSeatIdx] : null;
+  var heroMood = heroSeatRow ? moodStateOf(heroSeatRow) : mood;
+  var heroHeat = heroSeatRow && Number.isFinite(moodHeatOf(heroSeatRow))
+    ? moodHeatOf(heroSeatRow) : 45;
+  var heroAccent = (heroSeatRow && heroSeatRow.accentColor) || '#00D4AA';
 
-  // ---- Append-only decision feed (Bug-5 fix) ----
-  var [decisionFeed, setDecisionFeed] = useState([]);
-  var feedIdRef      = useRef(0);
-  var handNumberRef  = useRef(null);
-  var streetRef      = useRef('');
-
-  // FIX-1g: the hero's last known equity for the hand in progress. Decisions
-  // arrive one at a time and the readout has to say something in between, so
-  // the newest number is held until the next deal replaces it. Derived from
-  // props on every render and idempotent, so it is safe to keep in a ref.
+  // FIX-1g: the hero's last known equity for the hand in progress.
   var handEquityRef = useRef({ hand: null, equity: null });
   var currentHand   = game ? game.handNumber : null;
   if (handEquityRef.current.hand !== currentHand) {
@@ -1279,54 +915,14 @@ export function WatchScreen({
   }
   var handEquity = handEquityRef.current.equity;
 
-  // Track current street so we can stamp each decision band with it.
-  // Runs every render — always up-to-date before the decision effect fires.
-  useEffect(function() {
-    if (game && game.street) streetRef.current = game.street;
-  });
-
-  // New hand -> prepend a divider (skip the very first hand so feed starts clean).
-  useEffect(function() {
-    var hn = game ? game.handNumber : null;
-    if (!hn) return;
-    if (handNumberRef.current === hn) return;
-    var hadPrev = handNumberRef.current !== null;
-    handNumberRef.current = hn;
-    if (hadPrev) {
-      var entry = { id: ++feedIdRef.current, type: 'hand', handNumber: hn };
-      setDecisionFeed(function(prev) { return [entry].concat(prev); });
-    }
-  }, [game && game.handNumber]);
-
-  // New decision -> prepend a band.
-  useEffect(function() {
-    if (!lastDecision) return;
-    var band = {
-      id: ++feedIdRef.current,
-      type: 'decision',
-      street: streetRef.current || 'preflop',
-      action: lastDecision.action,
-      equity: lastDecision.equity,
-      potOdds: lastDecision.potOdds,
-      reasoning: lastDecision.reasoning,
-    };
-    setDecisionFeed(function(prev) { return [band].concat(prev); });
-  }, [lastDecision]);
-
-  // AI trash-talk from the WS — shown as ambient rows in the agent DM thread.
-  // W4-3 keeps the seat: it is what puts the bubble over the right ghost.
+  // AI trash-talk from the WS — the felt takes what fits, the thread takes all.
   var tableSpeech = chatMessages.filter(function(m) { return m.isAI; })
     .map(function(m) { return { text: m.text, t: m.t || 0, seat: m.seat }; });
 
   // ── W4-3 · everything said at this table, in order ──────────────────────
-  // One stream, two consumers: the felt takes what fits and is still fresh,
-  // the TABLE tab takes all of it. They are allowed to disagree — that is the
-  // last clause of the bubble law.
   var [said, setSaid] = useState([]);
   var saidIdRef = useRef(0);
 
-  // His decision line. DECISION carries the seat it came from, so a table where
-  // both seats think out loud cannot attribute one to the other.
   useEffect(function() {
     if (!lastDecision || !lastDecision.reasoning) return;
     var seat = Number.isInteger(lastDecision.seat) ? lastDecision.seat : mySeat;
@@ -1343,7 +939,6 @@ export function WatchScreen({
     });
   }, [lastDecision, mySeat]);
 
-  // Table talk. chatMessages is append-only, so the count is the cursor.
   var talkSeenRef = useRef(0);
   useEffect(function() {
     var fresh = tableSpeech.slice(talkSeenRef.current);
@@ -1363,7 +958,7 @@ export function WatchScreen({
   }, [tableSpeech.length]);
 
   // A bubble is 3–4 seconds, so the felt has to re-read the clock even when
-  // nothing new is said — otherwise the last one would sit there for ever.
+  // nothing new is said.
   var [bubbleTick, setBubbleTick] = useState(0);
   useEffect(function() {
     if (said.length === 0) return undefined;
@@ -1374,9 +969,26 @@ export function WatchScreen({
   var bubbles = onFelt(said, Date.now());
   var tableRecord = record(said);
 
+  // ── WATCH-6 · the whisper ───────────────────────────────────────────────
+  // What you send him is not a row in a log. It rises from the bottom edge as a
+  // pale bubble and is gone in four seconds; his reply is his own bubble, over
+  // his head. Both are still kept, in the thread.
+  var [whispers, setWhispers] = useState([]);
+  var whisperIdRef = useRef(0);
+  var whisperTimers = useRef([]);
+  useEffect(function() {
+    return function() { whisperTimers.current.forEach(clearTimeout); };
+  }, []);
+
   function sendToAgent(text) {
-    if (!agentId || agentLoading) return;
     var now = Date.now();
+    var id = 'w' + (++whisperIdRef.current);
+    setWhispers(function(prev) { return prev.concat([{ id: id, text: text }]); });
+    whisperTimers.current.push(setTimeout(function() {
+      setWhispers(function(prev) { return prev.filter(function(w) { return w.id !== id; }); });
+    }, WHISPER_MS));
+
+    if (!agentId || agentLoading) return;
     setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now }]); });
     setAgentLoading(true);
     fetch('/api/agents/chat', {
@@ -1410,10 +1022,7 @@ export function WatchScreen({
 
   // ── W5-3 · the hand-end ceremony ────────────────────────────────────────
   // The showdown is held for SHOWDOWN_HOLD_MS so the reveal can be read, then
-  // the hand is called for CEREMONY_MS. The two are the showdown's whole dwell
-  // in lib/pace.js, so the next deal lands as the block leaves rather than over
-  // it. Latched per hand: a re-render, or a second terminal snapshot, does not
-  // call the same hand twice.
+  // the hand is called for CEREMONY_MS. Latched per hand.
   var [ceremonyHand, setCeremonyHand] = useState(null);
   var ceremonySeenRef = useRef(null);
   var settledNow = handSettled(game);
@@ -1427,23 +1036,27 @@ export function WatchScreen({
     return function () { clearTimeout(open); clearTimeout(close); };
   }, [settledNow, settledHand]);
 
+  // WATCH-6: what the hand did to HIM. The wire carries the pot and who took it,
+  // never a per-hand net for a seat, so the delta is the one thing the screen has
+  // to work out for itself: his stack when the hand was dealt against his stack
+  // now. Without a baseline (joining mid-hand) the ceremony falls back to the pot.
+  var heroStackNow = heroSeatRow && Number.isFinite(heroSeatRow.stack) ? heroSeatRow.stack : null;
+  var stackAtDealRef = useRef({ hand: null, stack: null });
+  if (!settledNow && currentHand != null && stackAtDealRef.current.hand !== currentHand) {
+    stackAtDealRef.current = { hand: currentHand, stack: heroStackNow };
+  }
+  var handDelta = (stackAtDealRef.current.hand === currentHand
+    && Number.isFinite(stackAtDealRef.current.stack) && Number.isFinite(heroStackNow))
+    ? heroStackNow - stackAtDealRef.current.stack
+    : null;
+
   // ── W5-4 · "why the hand went wrong", pinned ────────────────────────────
-  // The card used to be rendered on `between` alone, which meant it appeared
-  // when the hand ended and was gone the moment the next one was dealt — a
-  // couple of seconds, in a panel the owner may not even have open. The one
-  // thing in the product that explains a loss scrolled away before it could be
-  // read.
-  //
-  // So it is pinned: it stays through the next deal and only stands down when
+  // Pinned under his strip: it survives the next deal and only stands down when
   // that hand reaches its flop, which is the first moment the owner is properly
-  // watching something else. Then it collapses into the TABLE tab as a row on
-  // the hand it belongs to, where it can be found again.
-  //
-  // No cost, no card. RiverAttrPanel returns null now, and nothing here
-  // manufactures a pin for a hand that had nothing to answer for.
+  // watching something else. Then it becomes a TABLE entry in the thread.
   var lastPlayedHand = (agent && Array.isArray(agent.recentHands)) ? agent.recentHands[0] : null;
   var [attrPin, setAttrPin] = useState(null);          // { hand, atHand, at }
-  var [attrRecord, setAttrRecord] = useState([]);      // collapsed, for the TABLE tab
+  var [attrRecord, setAttrRecord] = useState([]);      // collapsed, for the thread
   var attrIdRef = useRef(0);
   var liveHandNo = game ? game.handNumber : null;
   var liveHandRef = useRef(liveHandNo);
@@ -1475,16 +1088,9 @@ export function WatchScreen({
     setAttrPin(null);
   }, [attrPin, liveHandNo, boardLen]);
 
+  var pinnedCost = attrPin ? attrCostOf(attrPin.hand) : null;
+
   // The showdown runout, one card at a time.
-  //
-  // W3-5: the server stages it. During a spectator-only all-in hold each PACE
-  // message carries the board as it stands, so the frame — not a local clock —
-  // says what is face up, and every watcher sees the same card at the same
-  // moment. The timer below is the fallback for a server that is not staging,
-  // and it is not started when a frame is present.
-  // W3-6: an explicit prop wins; otherwise useTable has merged the frame onto
-  // the view model, so the felt follows the server without every container in
-  // between forwarding a prop.
   var frame = paceFrame || (game ? game.paceFrame : null);
   var staged = stagedCount(frame);
   var [flipped, setFlipped] = useState(null);
@@ -1504,18 +1110,10 @@ export function WatchScreen({
 
   var faceUp = staged != null ? staged : flipped;
 
-  // His one line on the felt: the newest decision's reasoning, in his voice.
-  // Finding 3 — long voice lives in the thread, the felt gets one sentence.
   var feltLine = (lastDecision && lastDecision.reasoning) ? lastDecision.reasoning : null;
 
   // ---- W3-3: the beats -----------------------------------------------------
-  // One entry per row of the ww-ref's haptics table, fired from the state the
-  // server put us in. Every rule the table sets — his events only, never two
-  // inside 120ms, nothing while backgrounded — is enforced inside lib/haptics,
-  // so these are plain "this happened" calls.
 
-  // Climbing the ladder. Latched per hand: HEATING taps once and never repeats,
-  // and stepping back down (a new hand) re-arms it.
   var paceSeenRef = useRef({ hand: null, seen: {} });
   useEffect(function() {
     var hand = game ? game.handNumber : null;
@@ -1526,20 +1124,16 @@ export function WatchScreen({
     else if (pace === 'allin') beat('allin', fireHaptic);
   }, [pace, game && game.handNumber]);
 
-  // His action posting. Only ever his: lastDecision is the hero's decision, and
-  // an opponent's action must never reach the device.
   useEffect(function() {
     if (!lastDecision) return;
     beat('hisAction', fireHaptic);
   }, [lastDecision]);
 
-  // Each card of the runout, during the hold.
   useEffect(function() {
     if (pace !== 'showdown' || !faceUp) return;
     beat('runoutCard', fireHaptic);
   }, [pace, faceUp]);
 
-  // The pot, once it is settled. Winning is a notification; losing is quiet.
   var resultSeenRef = useRef(null);
   useEffect(function() {
     var result = game && game.result ? game.result : null;
@@ -1551,10 +1145,6 @@ export function WatchScreen({
     beat(won ? 'wonPot' : 'lostPot', fireHaptic);
   }, [game && game.handNumber, game && game.result, mySeat]);
 
-  // CLEAN-1 (HAPTIC4) · his cards warm. Owner-only by construction: warming
-  // needs the hole cards, and the server only ships those to a viewer who
-  // proved ownership — a spectator computes `null` here and feels nothing.
-  // Once per hand: a premium hand does not warm twice.
   var heroSeatNo = Number.isInteger(mySeat) ? mySeat : 0;
   var heroSeatData = game && game.seats ? game.seats[heroSeatNo] : null;
   var heroHoleCards = (heroSeatData && heroSeatData.holeCards)
@@ -1569,13 +1159,7 @@ export function WatchScreen({
     beat('heroCardWarms', fireHaptic);
   }, [isWarmNow, game && game.handNumber]);
 
-  // CLEAN-1 (HAPTIC4) · a bubble reaches the felt. His and theirs alike — the
-  // one row in the table that is not his event, and it is the lightest thing
-  // in the product because of it. Keyed on the newest bubble's id, so a felt
-  // that re-reads its own clock every 500ms does not re-tap.
   var newestBubbleId = bubbles.length ? bubbles[bubbles.length - 1].id : null;
-  // Seeded with what was already on screen when this screen opened, so joining
-  // a table mid-sentence does not tap for a bubble nobody watched arrive.
   var bubbleSeenRef = useRef(newestBubbleId);
   useEffect(function() {
     if (!newestBubbleId || bubbleSeenRef.current === newestBubbleId) return;
@@ -1583,15 +1167,6 @@ export function WatchScreen({
     beat('bubbleAppears', fireHaptic);
   }, [newestBubbleId]);
 
-  // CLEAN-1 (HAPTIC4) · the cards turn over.
-  //
-  // One tap, and it is late on purpose. The terminal STATE carries the reveal
-  // and the result in the same commit, so the pot beat above is already using
-  // the 120ms window — the pot is the news, and "losing is quiet" is a law of
-  // the older table that a medium tap on the reveal would break. HAPTIC4 spaced
-  // the reveal 140ms from the tap before it precisely so it clears that floor,
-  // which is the interval used here; the shelves are still turning over at that
-  // point, so the tap lands on the cards rather than after them.
   var revealSeenRef = useRef(null);
   var showdownSeats = (game && game.result && game.result.showdown) ? game.result.showdown.length : 0;
   useEffect(function() {
@@ -1603,9 +1178,6 @@ export function WatchScreen({
   }, [showdownSeats, game && game.handNumber]);
 
   // ---- W3-4: the prediction beat -------------------------------------------
-  // Off unless the ap_predict flag says otherwise. The pick locks the moment he
-  // acts and settles against what he actually did; the streak lives in memory
-  // for as long as the tab does and is never written down.
   var predictOn = predictEnabled();
   var [pick, setPick] = useState(null);
   var settledForRef = useRef(null);
@@ -1621,16 +1193,10 @@ export function WatchScreen({
     if (outcome.right) beat('predictionRight', fireHaptic);
   }, [predictOn, lastDecision, pick]);
 
-  // A new hand clears the board for the next guess.
   useEffect(function() {
     if (predictOn) setPick(null);
   }, [predictOn, game && game.handNumber]);
 
-  // A read forming. The panel animates; the device only nudges.
-  //
-  // W3-5: there is no `forming` flag on the wire — the server stops sending a
-  // READ once nothing has changed — so the event is this opponent's `formed`
-  // going true, which is what the panel watches for too.
   var formedRef = useRef(new Map());
   var shownRead = pickOpponent(game && game.reads, game);
   var shownWho = shownRead ? shownRead.playerId : null;
@@ -1642,64 +1208,48 @@ export function WatchScreen({
     if (before === false && shownFormed) beat('readForms', fireHaptic);
   }, [shownWho, shownFormed]);
 
-  // W4-2: which seat's read is open, by seat index. Null is the felt with
-  // nothing over it.
+  // ── WATCH-6 · one layer slot over the lower felt ────────────────────────
+  // The thread and a read are the same gesture in the same glass: they occupy
+  // the lower 70% of the felt, the game keeps running behind them, and opening
+  // one closes the other. The felt itself never moves.
   var [selectedSeat, setSelectedSeat] = useState(null);
+  var [threadOpen, setThreadOpen] = useState(false);
+
   var toggleSeat = useCallback(function(seat) {
+    setThreadOpen(false);
     setSelectedSeat(function(prev) {
       if (prev !== seat) fireHaptic('readForms');
       return prev === seat ? null : seat;
     });
   }, []);
 
-  var sheet     = useSheetDrag({
-    onSelectTab: function(i) {
-      if (i === TAB_CHAT) { openChat(); return; }
-      setActiveTab(i);
-    },
-  });
-
-  // WV2-3: the sheet owns the vertical layout of the whole screen.
-  // W4-5: one decision, both entry points. The header button and the sheet's
-  // own CHAT tab are the same control and must not disagree about where
-  // talking to him happens.
-  //
-  // W5-5: the ceremony's one tap comes through here with the hand it is about,
-  // so the thread opens knowing which hand is being asked about. The header
-  // button and the tab bar still call it with nothing, which is the behaviour
-  // that existed before -- and they call it wrapped, so a click event never
-  // arrives as the context.
-  //
-  // FIX-4: with the sheet dragged to HIDDEN, selecting its TABLE tab selected
-  // a tab nobody could see, so the header's CHAT button read as dead. Where
-  // there is no thread to open, the button now does the whole gesture: pick
-  // the tab AND bring the sheet back up. Declared after the sheet because it
-  // drives it; `var` hoists, so the tap handler above still resolves it.
-  var openSheet = sheet.openSheet;
   var openChat = useCallback(function(ctx) {
     if (onOpenThread) { onOpenThread(ctx || null); return; }
-    setActiveTab(TAB_CHAT);
-    openSheet();
-  }, [onOpenThread, openSheet]);
+    setSelectedSeat(null);
+    setThreadOpen(true);
+  }, [onOpenThread]);
 
-  // Belt-and-braces: non-passive touchmove on the sheet container so that a
-  // drag starting on the grab handle cannot bubble up to Telegram's webview
-  // and trigger the native "minimize Mini App" gesture. disableVerticalSwipes()
-  // in initTelegram() is the primary fix; this is the fallback.
-  var sheetElRef = useRef(null);
-  useEffect(function() {
-    var el = sheetElRef.current;
-    if (!el) return;
-    function block(e) { if (e.cancelable) e.preventDefault(); }
-    el.addEventListener('touchmove', block, { passive: false });
-    return function() { el.removeEventListener('touchmove', block); };
-  }, []);
-  var hidden    = sheet.detent === 'hidden';
-  // PEEK shows the latest one-line voice row -- the newest decision's reasoning
-  // and its equity, the same pair the expanded body leads with.
-  var latest    = decisionFeed.find(function(item) { return item.type === 'decision'; }) || null;
-  var peekLine  = latest && latest.reasoning ? '“' + latest.reasoning + '”' : null;
-  var peekEquity = latest ? formatEquity(latest.equity) : null;
+  // ── the thread, in one ordered list ─────────────────────────────────────
+  // HIM / YOU / TABLE, plus an opponent under their own name. Everything the
+  // felt showed and everything it had to let go, in the order it happened.
+  var threadRows = tableRecord.map(function(u) {
+    var who = u.mine
+      ? 'HIM'
+      : (Number.isInteger(u.seat) && game && game.seats && game.seats[u.seat]
+        ? (game.seats[u.seat].displayName || displayNames[u.seat] || 'TABLE')
+        : 'TABLE').toUpperCase();
+    return { id: u.id, who: who, text: u.text, t: u.at };
+  })
+    .concat(agentThread.map(function(m, i) {
+      return { id: 'c' + i, who: m.role === 'user' ? 'YOU' : 'HIM', text: m.content, t: m.t };
+    }))
+    .concat(attrRecord.map(function(a) {
+      return {
+        id: a.id, who: 'TABLE', cost: true, t: a.t,
+        text: [a.line, a.key].filter(Boolean).join(' · '),
+      };
+    }))
+    .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
 
   function handleSitOutConfirm() {
     setSitOutPending(false);
@@ -1707,7 +1257,7 @@ export function WatchScreen({
     if (onLeave)  onLeave();
   }
 
-  // W5-3/W5-5: the block that calls the hand, and the single tap it offers.
+  // W5-3/W5-5: the block that calls the hand, and the two taps it offers.
   var agentName = (config && config.displayName) ? config.displayName : null;
   var ceremonyNode = null;
   if (ceremonyHand != null && game && game.result) {
@@ -1723,9 +1273,58 @@ export function WatchScreen({
         won={heroTook}
         agentName={agentName}
         amount={res.pot || 0}
+        delta={handDelta}
+        stack={heroStackNow}
         winnerName={championName}
+        mood={heroMood}
+        heat={heroHeat}
+        accent={heroAccent}
         talkLabel={'Talk to ' + (agentName || 'your agent') + ' about this hand'}
         onTalk={function () { openChat({ handId: ceremonyHand }); }}
+        onDeal={function () { setCeremonyHand(null); }}
+      />
+    );
+  }
+
+  var overlay = null;
+  if (selectedSeat != null) {
+    overlay = (
+      <ReadSheet
+        entry={readFor(game, selectedSeat)}
+        seat={seatSummary(game, selectedSeat)}
+        onClose={function() { setSelectedSeat(null); }}
+      />
+    );
+  } else if (threadOpen) {
+    // Everything the felt has no room for lives in the sheet's own furniture:
+    // the sound switch, the prediction beat behind its flag, and — between
+    // hands — the way to pull him out. None of them is a grey panel on a green
+    // table any more.
+    overlay = (
+      <ThreadSheet
+        rows={threadRows}
+        live={!between}
+        pending={agentLoading}
+        onClose={function() { setThreadOpen(false); }}
+        head={<MuteToggle />}
+        foot={(
+          <>
+            {predictOn && (
+              <PredictBeat
+                picked={pick ? pick.guess : null}
+                locked={!!(pick && pick.locked)}
+                right={pick ? pick.right : undefined}
+                streak={pick && pick.locked ? pick.streak : getStreak()}
+                onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
+              />
+            )}
+            <SitOutStrip
+              visible={between}
+              cause={cause}
+              onRequest={function() { setSitOutPending(true); }}
+            />
+          </>
+        )}
       />
     );
   }
@@ -1734,11 +1333,6 @@ export function WatchScreen({
     <div className="watch-screen"
       data-pace-lag={Number.isFinite(paceLag) ? Math.round(paceLag) : 0}>
 
-      {/* FIX-3c: on the watch screen the mood band collapses into the header —
-          one 40px row carrying back, his name, his mood, whether he is at a
-          table, and the way into the chat. The band's ghost and its 56px are
-          the felt's now. His cause line is not lost: it moves to the
-          between-hands strip, which is the moment there is room to read it. */}
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1755,94 +1349,28 @@ export function WatchScreen({
         <button
           type="button"
           className="watch-screen__chat"
-          // Called with nothing, deliberately: the header asks to talk, not to
-          // talk about a hand, and a click event is not a context.
           onClick={function() { openChat(); }}
         >Chat</button>
       </div>
 
-      <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
-        ref={sheet.stageRef}>
-        {selectedSeat != null && (
-          <ReadSheet
-            entry={readFor(game, selectedSeat)}
-            seat={seatSummary(game, selectedSeat)}
-            onClose={function() { setSelectedSeat(null); }}
-          />
-        )}
+      {/* THE FELT IS THE SCREEN: header → felt → composer, nothing between. */}
+      <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
+        game={game} mySeat={mySeat} lastDecision={lastDecision}
+        handEquity={handEquity} flipped={faceUp} line={feltLine}
+        agentMood={heroMood} agentHeat={heroHeat} agentAccent={heroAccent}
+        cost={pinnedCost}
+        whispers={whispers}
+        onTapHero={function() { openChat(); }}
+        overlay={overlay}
+        // W5-3: no speech over the ceremony. For its three seconds the hand is
+        // the only thing being said; the line is in the record either way.
+        bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
 
-        <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
-          game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom}
-          // W5-3: no speech over the ceremony. For its three seconds the hand
-          // is the only thing being said; the line is in the record either way,
-          // which is the bubble law's own clause.
-          bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
-
-        {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
-            always mounted (the tab one merely hidden at HIDDEN) so a drag that
-            crosses a detent never loses its pointer capture mid-gesture. */}
-        <div className="watch-sheet" data-detent={sheet.detent} ref={sheetElRef}>
-          <div key="grab-handle" className="watch-sheet__grab" {...sheet.handlers}>
-            <SheetHandle thin={hidden} />
-          </div>
-
-          <SitOutStrip
-            key="sitout"
-            visible={between && sheet.detent === 'expanded'}
-            cause={cause}
-            onRequest={function() { setSitOutPending(true); }}
-          />
-
-          <div key="grab-tabs" className="watch-sheet__grab" hidden={hidden} {...sheet.handlers}>
-            <WatchTabs active={activeTab} />
-          </div>
-
-          {sheet.detent === 'peek' && (
-            <div className="watch-sheet__peek">
-              {/* W3-2: no "waiting for first action" anywhere. The peek either
-                  has his line or it has nothing to say and stays quiet. */}
-              {peekLine && <span className="watch-sheet__peek-line">{peekLine}</span>}
-              {peekEquity && <span className="watch-sheet__peek-eq">{peekEquity}</span>}
-            </div>
-          )}
-
-          {sheet.detent === 'expanded' && (
-            <div className="watch-panel">
-              {/* W4-2: the READ tab is gone — a read is about one person and you
-                  ask for it by tapping them, so the rows live in ReadSheet now.
-                  These three were only ever sharing that tab with the reads and
-                  are not reads themselves, so they stay in the panel rather than
-                  being deleted with it. v4 gives none of them a home of its own;
-                  they want a decision, not a silent removal. */}
-              {predictOn && (
-                <PredictBeat
-                  picked={pick ? pick.guess : null}
-                  locked={!!(pick && pick.locked)}
-                  right={pick ? pick.right : undefined}
-                  streak={pick && pick.locked ? pick.streak : getStreak()}
-                  onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
-                />
-              )}
-              {/* W5-4: pinned, not "between hands". It survives the next deal
-                  and stands down at that hand's flop. */}
-              {attrPin && agent && <RiverAttrPanel agent={agent} hand={attrPin.hand} />}
-              <MuteToggle />
-              {activeTab === TAB_CHAT && (
-                <ChatTab
-                  agentThread={agentThread}
-                  tableSpeech={tableSpeech}
-                  said={tableRecord}
-                  attrRecord={attrRecord}
-                  onSend={sendToAgent}
-                  loading={agentLoading}
-                  agentName={config ? config.displayName : null}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      <WhisperComposer
+        onSend={sendToAgent}
+        onOpenThread={function() { openChat(); }}
+        agentName={agentName}
+      />
 
       {sitOutPending && (
         <SitOutSheet

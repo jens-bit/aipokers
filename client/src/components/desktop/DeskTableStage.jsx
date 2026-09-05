@@ -7,10 +7,12 @@
 // mobile modules rather than a desktop copy — lib/pace.js owns the ladder and
 // system/TugBar.jsx owns the rope, so the two surfaces cannot drift.
 //
-// SEAM for feature/watch-4: D6W4WatchScreenM replaces the two SeatChips with
-// DeskSeat (a seated body with a speech bubble) and the centre with DeskFelt4.
-// Those land when that branch merges; the pace attribute, the rope slot and
-// the voice line below are where they plug in.
+// WATCH-6 brings the desk stage to board 31's D9V5ScreenM: the same seating as
+// the phone, at desk scale. He is at the bottom of the felt facing the room —
+// bubble over his head, his cards face up IN FRONT of him, the rope and his
+// strip directly under him — rather than a row of chrome with an avatar in it.
+// The rope and the price move into that column with him, so the centre of the
+// felt is the pot and the board and nothing else.
 //
 // Three phases, the same law WatchScreen applies on mobile (WCM-1): a hand is
 // live, or settled-but-still-on-screen, or genuinely between. Between hands
@@ -20,12 +22,24 @@
 // server only ships holeCards to the authenticated owner, so a face-up card
 // here is always one the viewer is entitled to.
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
-import { SeatChip, AgentAvatar } from '../system/SeatChip.jsx';
+import { SeatChip } from '../system/SeatChip.jsx';
 import { TugBar } from '../system/TugBar.jsx';
+import { MoodGhost } from '../system/MoodGhost.jsx';
+import { heroPose, betBand } from '../system/WatchHero.jsx';
 import { Streets } from '../../lib/protocol.js';
 import { heroEquityOf, paceMeta, paceOf } from '../../lib/pace.js';
 
 const LIVE_STREETS = [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN];
+
+// The same ring WatchScreen's SEAT_SLOTS lays out, so a table looks like the
+// same table on both surfaces: top corners, then top centre, then the rails.
+const DESK_SLOTS = {
+  1: ['tl'],
+  2: ['tl', 'tr'],
+  3: ['tl', 'tc', 'tr'],
+  4: ['ml', 'tl', 'tc', 'tr'],
+  5: ['ml', 'tl', 'tc', 'tr', 'mr'],
+};
 
 export function handActive(game) {
   return !!game && LIVE_STREETS.includes(game.street);
@@ -102,6 +116,14 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
   const eq = live ? equityPct(heroDecision?.equity) : null;
 
+  // His face is the server's mood for this seat, in the shape SEAT-1a settled.
+  const heroMoodRaw = hero?.mood;
+  const heroMood = typeof heroMoodRaw === 'string'
+    ? (heroMoodRaw || 'neutral')
+    : (heroMoodRaw?.state ?? 'neutral');
+  const heroHeat = Number.isFinite(heroMoodRaw?.heat) ? heroMoodRaw.heat : 45;
+  const heroAccent = hero?.accentColor ?? '#00D4AA';
+
   // The rope reads the snapshot first — that is the point of finding 2 — and
   // falls back to whatever the last decision taught us. Before the deal there
   // is nothing to know, so it sits dead centre rather than empty.
@@ -130,18 +152,24 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         BACK TO THE FLOOR
       </button>
 
-      {opponents.slice(0, 2).map((o, i) => (
-        <div key={o.index} className={`dtb__seat dtb__seat--${i === 0 ? 'left' : 'right'}`}>
-          <SeatChip
-            name={o.seat.displayName || `Seat ${o.index + 1}`}
-            stack={(o.seat.stack ?? 0).toLocaleString()}
-            pos={posLabel(o.index, game)}
-            acting={live && game?.toAct === o.index}
-            folded={!!o.seat.folded}
-            align={i === 0 ? 'left' : 'right'}
-          />
-        </div>
-      ))}
+      {/* The ring is the phone's, at desk scale: top corners first, then top
+          centre, then the rails. The desk drew two seats and dropped the rest
+          on the floor — a six-handed table showed four players nowhere. */}
+      {opponents.slice(0, 5).map((o, i) => {
+        const slot = DESK_SLOTS[Math.max(1, Math.min(5, opponents.length))][i];
+        return (
+          <div key={o.index} className={`dtb__seat dtb__seat--${slot}`}>
+            <SeatChip
+              name={o.seat.displayName || `Seat ${o.index + 1}`}
+              stack={(o.seat.stack ?? 0).toLocaleString()}
+              pos={posLabel(o.index, game)}
+              acting={live && game?.toAct === o.index}
+              folded={!!o.seat.folded}
+              align={slot === 'tr' || slot === 'mr' ? 'right' : 'left'}
+            />
+          </div>
+        );
+      })}
 
       <div className="dtb__center">
         <div className="dtb__pot">
@@ -153,55 +181,66 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
 
         <Board cards={board} between={between} />
 
-        {/* The rope, directly under the board — the ref puts it at 26% inset
-            and the stylesheet holds that width. */}
+        {between && <span className="dtb__shuffling">SHUFFLING UP…</span>}
+      </div>
+
+      {/* Him, at the bottom, twice a seat and facing the room. A flowed column:
+          bubble, him, rope, strip — the same order as the phone. */}
+      <div className="dtb__hero">
+        {feltLine && (
+          <div className="dtb__hero-bubble">
+            <div className="dtb__hero-bubble-box">{feltLine}</div>
+            <div className="dtb__hero-bubble-tail" aria-hidden />
+          </div>
+        )}
+
+        <div className="dtb__hero-body">
+          <span className="dtb__hero-aura" aria-hidden
+            style={{ background: `radial-gradient(circle, ${heroAccent}1F, transparent 68%)` }} />
+          <MoodGhost mood={heroMood} accent={heroAccent} size={132} heat={heroHeat}
+            hands={heroPose({ between, action: heroDecision?.action ?? null, pace, heat: heroHeat })}
+            bet={betBand(heroDecision?.action?.amount ?? null, game?.pot ?? 0)} ring={false} />
+          {/* Fish-tank law: your own agent plays face up, in front of him. */}
+          <span className="dtb__hero-cards">
+            {[0, 1].map((i) => {
+              const parsed = between ? null : parseCard(hero?.holeCards?.[i]);
+              return (
+                <span key={i} className="dtb__hero-card"
+                  style={{ transform: `rotate(${i ? 6 : -6}deg)` }}>
+                  {parsed
+                    ? <PlayingCard rank={parsed.rank} suit={parsed.suit} w={52} h={72} />
+                    : <CardBack w={52} h={72} branded />}
+                </span>
+              );
+            })}
+          </span>
+        </div>
+
         <div className="dtb__tug">
           <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
         </div>
 
-        {feltLine && <p className="dtb__line">{feltLine}</p>}
-
-        {between ? (
-          <span className="dtb__shuffling">SHUFFLING UP…</span>
-        ) : toCall > 0 ? (
-          <div className="dtb__tocall">
-            <span className="dtb__chip" aria-hidden />
-            <span className="dtb__tocall-amt">${toCall.toLocaleString()}</span>
-            <span className="dtb__tocall-label">TO CALL</span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="dtb__hero">
-        <div className="dtb__hero-cards">
-          {[0, 1].map((i) => {
-            // Fish-tank law: your own agent plays face up.
-            const parsed = between ? null : parseCard(hero?.holeCards?.[i]);
-            return parsed
-              ? <PlayingCard key={i} rank={parsed.rank} suit={parsed.suit} w={62} h={85} />
-              : <CardBack key={i} w={62} h={85} branded />;
-          })}
-        </div>
-
-        <div className="dtb__hero-row">
-          <AgentAvatar size={40} />
+        <div className="dtb__strip">
           <div>
-            <div className="dtb__hero-name">{agentName || 'Agent'}</div>
-            <div className="dtb__hero-meta">
-              <span className="dtb__hero-stack">${(hero?.stack ?? 0).toLocaleString()}</span>
-              <span className="dtb__hero-pos">{posLabel(heroSeat, game)}</span>
+            <span className="dsk-label" style={{ fontSize: 8.5 }}>Stack</span>
+            <div className="dtb__hero-stack">${(hero?.stack ?? 0).toLocaleString()}</div>
+          </div>
+          <div className="dtb__strip-rule" aria-hidden />
+          <div>
+            <span className="dsk-label" style={{ fontSize: 8.5 }}>{toCall > 0 ? 'To call' : 'Street'}</span>
+            <div className={`dtb__hero-num${toCall > 0 ? ' is-gold' : ' is-dim'}`}>
+              {toCall > 0 ? `$${toCall.toLocaleString()}` : ((game?.street ?? '').toUpperCase() || '—')}
             </div>
           </div>
-          <div className="dtb__rule" aria-hidden />
-          {between ? (
-            <span className="dtb__waiting">waiting for the deal</span>
-          ) : (
-            <div className="dtb__equity">
-              <span className="dsk-label dsk-label--teal" style={{ fontSize: 9 }}>Equity</span>
-              <span className="dtb__equity-val">{eq === null ? '—' : `${eq.toFixed(1)}%`}</span>
-              {action && <span className="dtb__equity-action">{action}</span>}
-            </div>
-          )}
+          <div className="dtb__strip-rule" aria-hidden />
+          <div>
+            <span className="dsk-label dsk-label--teal" style={{ fontSize: 8.5 }}>Equity</span>
+            <div className="dtb__equity-val">{eq === null ? '—' : `${eq.toFixed(1)}%`}</div>
+          </div>
+          <div style={{ flex: 1 }} />
+          {between
+            ? <span className="dtb__waiting">waiting for the deal</span>
+            : (action && <span className="dtb__equity-action">{action}</span>)}
         </div>
       </div>
 

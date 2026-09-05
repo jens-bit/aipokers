@@ -96,26 +96,37 @@
    and the interior tops (--wv-pot / --wv-board / --wv-tug / --wv-line) as inline
    custom properties, interpolated from mood-watch2.jsx's SHEET_LAY, so the
    felt scales fluidly as the sheet is dragged between its detents. */
-.watch-stage {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
 
 /* ── felt ─────────────────────────────────────────────────────────────── */
 .watch-felt {
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 40%, #2f4d48 0%, #1d2e2c 62%, #162423 100%);
+  background: radial-gradient(ellipse at 50% 40%, #2f4d48 0%, #1d2e2c 58%, #131f1e 100%);
   border-bottom: 1px solid rgba(0,212,170,0.22);
+}
+
+/* WATCH-6 · THE FELT IS THE SCREEN. It fills header -> composer and NEVER
+   resizes: a sheet is a layer over it, not a different screen. Its interior
+   tops are the ref's own proportions of V5_FELT_H (648) rather than the pixel
+   offsets the sheet used to interpolate -- pot 196/648, board 243/648 -- so a
+   taller or shorter phone keeps the ref's composition. */
+.watch-felt--fill {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  border-bottom: none;
+  --wv-pot: 30.25%;
+  --wv-board: 37.5%;
+  --wv-tug: 46%;
+}
+
+/* The replay theatre still draws a felt of a measured height with a scrubber
+   under it, and it is the only caller that does. */
+.watch-felt--boxed {
   transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.watch-stage.is-dragging .watch-felt,
-.watch-stage.is-dragging .watch-sheet { transition: none; }
 
 /* FIX-4: on a wide viewport the felt filled the window edge to edge. The seat
    ring is absolutely positioned inside the felt (left: 12px, right: 12px), so
@@ -444,160 +455,31 @@
 }
 
 /* ── tabs ─────────────────────────────────────────────────────────────── */
-.watch-tabs {
-  flex-shrink: 0;
-  display: flex;
-  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.12));
-  background: var(--sys-panel, #232329);
-  padding: 0 8px;
-}
 
-.watch-tabs__tab {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0 10px;
-  cursor: pointer;
-  font-family: var(--sys-font-label, "Oswald", sans-serif);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  user-select: none;
-}
 
-.watch-tabs__tab.is-active {
-  color: var(--sys-teal, #00D4AA);
-  border-bottom-color: var(--sys-teal, #00D4AA);
-}
 
 /* ── the sheet ────────────────────────────────────────────────────────── */
 /* WV2-3, ported from design-refs/mood-watch2.jsx (PART 1 · THE SHEET).
    Three detents of one screen; the tab bar wears the grab handle and the
    sheet is dragged by its tabs. */
-.watch-sheet {
-  flex: 1;
-  min-height: 18px;
-  display: flex;
-  flex-direction: column;
-  background: var(--sys-panel, #232329);
-  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.12));
-  overflow: hidden;
-  overscroll-behavior: contain;
-  transition: height 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
 
 /* Everything the sheet can be dragged by. touch-action:none so a vertical
    drag never turns into a page scroll mid-gesture. */
-.watch-sheet__grab {
-  flex-shrink: 0;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  cursor: grab;
-}
-.watch-sheet__grab:active { cursor: grabbing; }
 
-.watch-sheet__handle {
-  display: flex;
-  justify-content: center;
-  padding: 7px 0 2px;
-  flex-shrink: 0;
-}
-.watch-sheet__handle.is-thin { padding: 7px 0; }
 
-.watch-sheet__handle i {
-  display: block;
-  width: 38px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--sys-border-2, rgba(255,255,255,0.10));
-}
 
 /* PEEK: the tab bar plus the latest one-line voice row. */
-.watch-sheet__peek {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px 14px;
-  flex-shrink: 0;
-}
 
-.watch-sheet__peek-line {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--sys-text, #EDEDED);
-  font-style: italic;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
-.watch-sheet__peek-eq {
-  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--sys-teal, #00D4AA);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
 
 /* ── panel ────────────────────────────────────────────────────────────── */
 /* FIX-1e: a flex column, so a tab that wants the whole panel (the chat) can
    take it and scroll inside itself rather than overflowing the sheet. */
-.watch-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  background: var(--sys-bg, #1A1A1E);
-  -webkit-overflow-scrolling: touch;
-}
 
-.watch-panel__live {
-  padding: 11px 14px;
-}
 
-.watch-panel__voice {
-  font-size: 13px;
-  color: var(--sys-text, #EDEDED);
-  line-height: 1.5;
-  font-style: italic;
-  margin-bottom: 9px;
-}
 
-.watch-panel__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-  color: var(--sys-muted, #6B6B6B);
-  font-size: 11px;
-  text-align: center;
-  line-height: 1.5;
-}
 
-.watch-panel__bullets {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
 
-.watch-panel__bullet {
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-  font-size: 11.5px;
-  color: var(--sys-text, #EDEDED);
-  line-height: 1.35;
-}
 
 /* ── analysis row ─────────────────────────────────────────────────────── */
 .watch-analysis-row {
@@ -1019,7 +901,6 @@
 
 /* Tabs3's own padding — 11/9 rather than 12/10, which is the ww-ref's 36px
    tab row: two tabs need less reach than four. */
-.watch-tabs__tab { padding: 11px 0 9px; }
 
 /* ── ReadPanel ────────────────────────────────────────────────────────────── */
 
@@ -1596,11 +1477,16 @@
   pointer-events: none;
   max-width: 150px;
 }
-.watch-felt__bubble--top { left: 50%; transform: translateX(-50%); top: 4px; }
-.watch-felt__bubble--left { left: 6px; top: 74px; }
-.watch-felt__bubble--right { right: 6px; top: 74px; }
-.watch-felt__bubble--topleft { left: 6px; top: 4px; }
-.watch-felt__bubble--topright { right: 6px; top: 4px; }
+/* The slots are named by slotsFor(): tl / tc / tr across the top, ml / mr on
+   the rails. They were spelled out longhand here and matched nothing the felt
+   rendered, so every opponent bubble fell back to the felt's top-left corner
+   and was clipped by it — whoever was speaking, wherever they sat. Playwright,
+   390x844, "Again?" half off the left edge. */
+.watch-felt__bubble--tc { left: 50%; transform: translateX(-50%); top: 4px; }
+.watch-felt__bubble--ml { left: 6px; top: 74px; }
+.watch-felt__bubble--mr { right: 6px; top: 74px; }
+.watch-felt__bubble--tl { left: 6px; top: 62px; }
+.watch-felt__bubble--tr { right: 6px; top: 62px; }
 
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation: none; }

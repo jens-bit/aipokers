@@ -178,8 +178,14 @@ describe('W5-3: the hand is called', () => {
       const block = container.querySelector('.watch-ceremony');
       expect(block).toBeTruthy();
       expect(block.getAttribute('data-outcome')).toBe('won');
-      expect(block.textContent).toContain('THE GRINDER WON');
-      expect(block.textContent).toContain('$400');
+      // WATCH-6 re-expressed: v5 splits the head. His name sits above WON in
+      // the label face, and the money line leads with what the hand did to HIM
+      // — the delta and where he now stands — rather than with the pot.
+      expect(block.textContent).toContain('THE GRINDER');
+      expect(block.textContent).toContain('WON');
+      expect(block.querySelector('.watch-ceremony__delta-amt').className)
+        .toContain('is-won');
+      expect(block.textContent).toContain('stack');
     } finally {
       vi.useRealTimers();
     }
@@ -194,8 +200,11 @@ describe('W5-3: the hand is called', () => {
       act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
       const block = container.querySelector('.watch-ceremony');
       expect(block.getAttribute('data-outcome')).toBe('lost');
-      expect(block.textContent).toContain('THE GRINDER LOST');
-      expect(block.textContent).toContain('Doyle_v3 takes $400');
+      expect(block.textContent).toContain('THE GRINDER');
+      expect(block.textContent).toContain('LOST');
+      // Who took it is still said — under the delta, where v5 puts it.
+      expect(block.querySelector('.watch-ceremony__took').textContent)
+        .toBe('DOYLE_V3 TOOK THE POT');
     } finally {
       vi.useRealTimers();
     }
@@ -267,17 +276,34 @@ describe('W5-5: one tap out of the ceremony', () => {
     expect(opened).toEqual([null]);
   });
 
-  // Without a thread to open the control must still do something, and what it
-  // did before W4-5 is open the TABLE tab. A selected tab in a closed sheet is
-  // nothing, so the sheet opens with it.
-  it('falls back to the TABLE tab when there is no thread to open', () => {
+  // Without a thread to open the control must still do something. WATCH-6
+  // re-expressed: what it opens is the record, as a layer over the felt.
+  it('falls back to the record over the felt when there is no thread to open', () => {
     vi.useFakeTimers();
     try {
       const { container } = renderWatch(settledGame());
       act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
       act(() => { container.querySelector('.watch-ceremony__talk').click(); });
-      expect(container.querySelector('.watch-sheet').getAttribute('data-detent')).toBe('expanded');
-      expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Table');
+      expect(container.querySelector('.thread-sheet')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // v5's primary action. The next hand is coming in three seconds anyway, so
+  // this only makes it now — which is why it is the primary and the
+  // conversation is the secondary.
+  it('WATCH-6: Deal him in takes the block off the felt', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(settledGame());
+      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
+      const deal = [...container.querySelectorAll('.watch-ceremony__acts .watch-btn')]
+        .find((b) => b.textContent === 'Deal him in');
+      expect(deal).toBeTruthy();
+      expect(deal.className).toContain('watch-btn--primary');
+      act(() => { deal.click(); });
+      expect(container.querySelector('.watch-ceremony')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -295,45 +321,59 @@ describe('W5-4: why the hand went wrong, pinned', () => {
 
   const routeAgent = (agent) => fetchMock.route('/api/agents', { agents: [agent] });
 
+  // WATCH-6 re-expressed: the pin is no longer a panel card in a sheet nobody
+  // may have open. It is ONE LINE under his strip, in the hero column, where
+  // the owner is already looking — and it still stands down at the next flop
+  // and still collapses into the thread as a TABLE entry.
+  const pin = (c) => c.querySelector('.watch-hero__cost');
+
   it('is not shown at all when the hand had nothing to answer for', async () => {
     routeAgent({ ...playingAgent, recentHands: [{ handNumber: 1, attrCosts: [] }] });
     const { container } = renderWatch(settledGame());
     await waitFor(() => expect(fetchMock.calls.length).toBeGreaterThan(0));
+    expect(pin(container)).toBeNull();
     // And the old copy is gone with it — an explanation that explains nothing
-    // teaches the owner to stop reading the panel.
+    // teaches the owner to stop reading it.
     expect(container.textContent).not.toContain('Nothing in this hand traced back');
-    expect(container.textContent).not.toContain('Why the');
   });
 
   it('stays up through the next deal, and stands down at that hand’s flop', async () => {
     routeAgent(withCost);
     const { container, rerender } = renderWatch(settledGame());
-    await screen.findByText(/Why the river went wrong/);
+    await screen.findByText(/He called a river jam/);
+    expect(pin(container)).toBeTruthy();
+    // It is under his strip, in his column — not floating over the felt.
+    expect(container.querySelector('.watch-hero').contains(pin(container))).toBe(true);
+    expect(pin(container).querySelector('.watch-hero__cost-key').textContent).toBe('DISCIPLINE');
 
-    // The next hand is dealt. The card is still there — this is exactly the
+    // The next hand is dealt. The line is still there — this is exactly the
     // moment it used to disappear.
     act(() => { rerenderWatch(rerender, { ...midHandGame, handNumber: 2, street: 'preflop', community: [] }); });
-    expect(container.textContent).toContain('Why the river went wrong');
+    expect(pin(container)).toBeTruthy();
 
-    // That hand reaches its flop, and the card stands down.
+    // That hand reaches its flop, and it stands down.
     act(() => { rerenderWatch(rerender, { ...midHandGame, handNumber: 2, street: 'flop' }); });
-    await waitFor(() => expect(container.textContent).not.toContain('Why the river went wrong'));
+    await waitFor(() => expect(pin(container)).toBeNull());
   });
 
-  it('collapses into the hand’s own row in the TABLE record', async () => {
+  it('collapses into a TABLE row in the thread', async () => {
     routeAgent(withCost);
     const { container, rerender } = renderWatch(settledGame());
-    await screen.findByText(/Why the river went wrong/);
+    await screen.findByText(/He called a river jam/);
     act(() => { rerenderWatch(rerender, { ...midHandGame, handNumber: 2, street: 'preflop', community: [] }); });
     act(() => { rerenderWatch(rerender, { ...midHandGame, handNumber: 2, street: 'flop' }); });
+    await waitFor(() => expect(pin(container)).toBeNull());
 
+    act(() => { screen.getByRole('button', { name: 'Chat' }).click(); });
     const row = await waitFor(() => {
-      const found = container.querySelector('.table-row--attr');
+      const found = [...container.querySelectorAll('.thread-row')]
+        .find((el) => el.textContent.includes('He called a river jam'));
       expect(found).toBeTruthy();
       return found;
     });
-    expect(row.textContent).toContain('HAND #1');
+    // TABLE attribution, in the gold the cost already owns.
+    expect(row.querySelector('.thread-row__who').textContent).toBe('TABLE');
+    expect(row.className).toContain('is-cost');
     expect(row.textContent).toContain('DISCIPLINE');
-    expect(row.textContent).toContain('He called a river jam');
   });
 });
