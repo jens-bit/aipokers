@@ -15,6 +15,8 @@ import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
+import { collectFrom, pocketOf } from '../lib/wallet.js';
+import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
@@ -226,7 +228,22 @@ function IdentityBlock({ agent, accent, mood, nature, compact }) {
 }
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch }) {
+export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund }) {
+  // WUI-3: the receipt for a collect that just happened. Drawn as a transfer,
+  // pocket -> wallet, and only while it is the freshest thing on the card.
+  const [collected, setCollected] = useState(null);
+
+  async function handleCollect(target) {
+    const before = pocketOf(target);
+    if (!before) return;
+    try {
+      const res = await collectFrom(target.id);
+      const float = Number.isFinite(Number(res?.float)) ? Number(res.float) : (before.cap ?? 0);
+      const amount = Number.isFinite(Number(res?.collected)) ? Number(res.collected) : before.balance - float;
+      setCollected({ pocketBefore: before.balance, float, amount, at: res?.at ?? null });
+    } catch { /* the row stays as it was */ }
+  }
+
   // Which bar is tapped open. Null = the cluster reads as one silhouette.
   const [expand, setExpand] = useState(null);
   // attrLog is promised on GET /api/agents/:id; the list projection may carry it
@@ -348,6 +365,19 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch }) {
             </div>
           )}
         </div>
+
+        {/* WUI-3 — the pocket line. Money and stakes only: the pocket decides
+            which tables he sits at and nothing about how well he plays at
+            them, so no attribute, no band and no mood belong on this row. */}
+        {collected && (
+          <CollectCard
+            pocketBefore={collected.pocketBefore}
+            float={collected.float}
+            collected={collected.amount}
+            at={collected.at}
+          />
+        )}
+        <PocketLine agent={agent} onFund={onFund} onCollect={handleCollect} />
 
         {/* Career */}
         <div style={{ padding: '11px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

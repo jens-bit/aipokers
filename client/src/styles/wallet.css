@@ -1,0 +1,350 @@
+/* wallet.css — WALLET-UI-1
+   Ported from design-refs/mood-wallet.jsx. Only the structure that repeats
+   lives here; the ref's one-off inline values stay inline in the components,
+   the same convention the rest of the mood wave uses.
+
+   Palette note: the ref's M_PANEL_2 is #1b1b1b on the You screen and the
+   surface behind a pocket bar is M_SURF. Both are named here so a future
+   token pass has one place to change. */
+
+.wal {
+  --wal-panel: #232329;
+  --wal-panel-2: #1b1b1b;
+  --wal-surf: rgba(255, 255, 255, 0.07);
+  --wal-border: rgba(255, 255, 255, 0.12);
+  --wal-border-2: rgba(255, 255, 255, 0.2);
+  --wal-text: #ededed;
+  --wal-dim: #a1a1a1;
+  --wal-muted: #6b6b6b;
+  --wal-teal: #00d4aa;
+  --wal-gold: #cdb380;
+  --wal-red: #ff4d4f;
+}
+
+/* ── the wallet block ─────────────────────────────────────────────────── */
+
+.wal-block {
+  margin: 2px 14px 12px;
+  padding: 14px 15px 15px;
+  border-radius: 14px;
+  background: var(--wal-panel-2);
+  /* teal at 24% — the wallet is the only card on the screen with a live edge */
+  border: 1px solid rgba(0, 212, 170, 0.24);
+}
+
+.wal-block__amount {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 38px;
+  font-weight: 600;
+  color: var(--wal-text);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.wal-block__split {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--wal-border);
+}
+
+.wal-block__cell { flex: 1; min-width: 0; }
+.wal-block__rule { width: 1px; height: 26px; background: var(--wal-border); flex-shrink: 0; }
+
+/* ── pocket rows ──────────────────────────────────────────────────────── */
+
+.wal-pockets {
+  margin: 0 14px 12px;
+  padding: 2px 13px;
+  border-radius: 12px;
+  background: var(--wal-panel-2);
+  border: 1px solid var(--wal-border);
+}
+
+.wal-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--wal-border);
+}
+.wal-row:last-child { border-bottom: none; }
+
+.wal-row__ghost {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  background: #0a0f17;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+/* Broke is drawn quieter, never redder. There is no guilt in this design. */
+.wal-row--broke .wal-row__ghost { opacity: 0.55; }
+
+.wal-row__body { flex: 1; min-width: 0; }
+
+.wal-row__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wal-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wal-row--broke .wal-row__name { color: var(--wal-dim); }
+
+.wal-row__figures {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+/* ── the pocket bar ───────────────────────────────────────────────────── */
+/* Teal is money he has; the bar is the roll he was given. */
+
+.wal-bar {
+  position: relative;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--wal-surf);
+  overflow: hidden;
+}
+
+.wal-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--wal-teal);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.33);
+}
+
+.wal-bar__fill--broke {
+  background: var(--wal-muted);
+  box-shadow: none;
+}
+
+/* ── mode tag ─────────────────────────────────────────────────────────── */
+
+.wal-tag {
+  font-family: 'Oswald', 'Helvetica Neue', sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  border-radius: 3px;
+  padding: 2px 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── buttons ──────────────────────────────────────────────────────────── */
+
+.wal-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wal-btn--primary {
+  background: var(--wal-teal);
+  border: 1px solid var(--wal-teal);
+  color: #0a0a0a;
+}
+
+.wal-btn--outline {
+  background: transparent;
+  border: 1px solid var(--wal-border-2);
+  color: var(--wal-text);
+}
+
+.wal-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--wal-border);
+  color: var(--wal-dim);
+}
+
+.wal-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ── the funding sheet ────────────────────────────────────────────────── */
+
+.wal-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  background: var(--wal-panel);
+}
+
+.wal-sheet__head {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 40px, per the header-height contract in mood-ww-ref.jsx S4 */
+  height: 40px;
+  border-bottom: 1px solid var(--wal-border);
+  background: var(--wal-panel);
+}
+
+.wal-sheet__title {
+  font-family: 'Oswald', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--wal-text);
+  text-transform: uppercase;
+  padding: 0 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wal-sheet__back {
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--wal-text);
+  cursor: pointer;
+  padding: 0;
+}
+
+.wal-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 14px 0;
+}
+
+.wal-sheet__foot {
+  flex-shrink: 0;
+  display: flex;
+  gap: 9px;
+  padding: 10px 14px 22px;
+  border-top: 1px solid var(--wal-border);
+  background: var(--wal-panel);
+}
+
+.wal-option {
+  padding: 11px 13px;
+  border-radius: 11px;
+  margin-bottom: 8px;
+  width: 100%;
+  text-align: left;
+  background: var(--wal-panel-2);
+  border: 1px solid var(--wal-border);
+  cursor: pointer;
+  font: inherit;
+  display: block;
+}
+
+.wal-option__radio {
+  width: 15px;
+  height: 15px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: 1px solid var(--wal-border-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wal-option__line {
+  font-size: 11.5px;
+  color: var(--wal-muted);
+  line-height: 1.45;
+  margin-top: 6px;
+  padding-left: 24px;
+}
+
+.wal-cap {
+  height: 38px;
+  width: 100%;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--wal-border);
+  background: var(--wal-panel-2);
+  color: var(--wal-text);
+  /* 16px is not a style choice — anything smaller auto-zooms iOS (BUG-02). */
+  font-size: 16px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  outline: none;
+}
+.wal-cap:focus { border-color: var(--wal-teal); }
+
+/* ── the collect card ─────────────────────────────────────────────────── */
+/* pocket -> wallet, drawn as a transfer and not a reward: no burst, no coin,
+   no sound of a slot machine. */
+
+.wal-collect {
+  margin: 0 14px 9px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: rgba(0, 212, 170, 0.04);
+  border: 1px solid rgba(0, 212, 170, 0.27);
+}
+
+.wal-collect__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 11px;
+}
+
+.wal-collect__rule { flex: 1; height: 1px; background: var(--wal-border); }
+
+.wal-collect__flow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.wal-collect__foot {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wal-border);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* ── the profile pocket line ──────────────────────────────────────────── */
+
+.wal-line {
+  margin: 0 14px 12px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--wal-panel-2);
+  border: 1px solid var(--wal-border);
+}
+
+.wal-line__top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.wal-line__rule { width: 1px; height: 26px; background: var(--wal-border); flex-shrink: 0; }
+
+.wal-line__note {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--wal-muted);
+  line-height: 1.4;
+}
