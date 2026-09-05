@@ -1821,3 +1821,103 @@
 /* The all-in beat is the one the hand turned on, so it is the one that reads. */
 .dsk-beat[data-loud] .dsk-beat__label { color: var(--dsk-red, #ff4d4f); }
 .dsk-beat[data-loud] .dsk-beat__line { color: var(--dsk-text, #ededed); font-style: normal; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-4 — the draft panel, taking shape. D4FlowScreenM.
+ * NatureFormed and AttrTrack are the mobile components; these are the rail's
+ * own spacings around them.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-shape {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.dsk-shape__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dsk-shape__pct {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-shape__meter {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.dsk-shape__fill {
+  height: 100%;
+  background: var(--dsk-teal, #00d4aa);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.4);
+  transition: width 400ms ease-out;
+}
+
+.dsk-shape__nature { display: flex; }
+
+.dsk-shape__dials {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-shape__dial {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dsk-shape__dial-label {
+  flex-shrink: 0;
+  width: 74px;
+  font-family: 'Oswald', 'Helvetica Neue', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-shape__dial .attr-track { flex: 1; }
+
+.dsk-shape__dial-val {
+  flex-shrink: 0;
+  width: 24px;
+  text-align: right;
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dsk-text, #ededed);
+}
+
+.dsk-shape__note {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-shape__note p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--dsk-dim, #a1a1a1);
+}
+
+.dsk-shape__note b { color: var(--dsk-text, #ededed); font-weight: 600; }
+
+.dsk-shape__deal { width: 100%; height: 44px; }
