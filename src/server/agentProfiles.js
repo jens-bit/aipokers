@@ -41,7 +41,7 @@ import {
   fund as walletFund, collect as walletCollect, autoRefill,
   debitBuyIn, creditCashOut,
   walletProjection, pocketProjection,
-  collectMoment, brokeMoment,
+  collectMoment, brokeMoment, appendEntry,
 } from './wallet.js';
 import {
   DRAFT_MAX_WORDS,
@@ -300,6 +300,20 @@ function commitAgent(profile, existingAgentId, agentData) {
   }
   agent.bankroll = STARTING_GRANT;
   agent.ledger = [{ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null }];
+  // WALLET-1: a new agent is funded exactly the way SEED-1 funds a migrated
+  // one — he carries one buy-in and the rest of the grant lands in the owner's
+  // wallet, so the first funding decision is available from day one.
+  agent.pocket = emptyPocket({ mode: 'auto', cap: POCKET_FLOAT, balance: Math.min(STARTING_GRANT, POCKET_FLOAT) });
+  agent.pocket.agentId = agent.id;
+  agent.pocket.ledger = appendEntry(agent.pocket.ledger, { type: 'seed', amount: agent.pocket.balance });
+  agent.bankroll = agent.pocket.balance;
+  const grantRemainder = STARTING_GRANT - agent.pocket.balance;
+  if (grantRemainder > 0) {
+    const w = walletFor(profile.userId);
+    w.balance += grantRemainder;
+    w.ledger = appendEntry(w.ledger, { type: 'seed', amount: grantRemainder, agentId: agent.id });
+    saveWalletFor(profile.userId);
+  }
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
               ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
@@ -740,9 +754,13 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // debited on deploy, so adding sessionPnl restores net movement correctly.
   if (typeof sessionPnl === 'number') {
     ensureBankroll(agent);
-    agent.bankroll += sessionPnl;
     const creditAmount = typeof finalStack === 'number' ? finalStack
       : typeof buyInAmount === 'number' ? buyInAmount + sessionPnl : sessionPnl;
+    // WALLET-1: the chips he walked away with come back to the POCKET — the
+    // buy-in left it on deploy, so this restores net movement exactly. Money
+    // stays in the pocket until the owner collects (§7.1).
+    creditCashOut(ensurePocket(agent), creditAmount, tableId ?? null);
+    mirrorBankroll(agent);
     appendLedger(agent, {
       ts: Date.now(),
       type: 'cashout',
@@ -973,7 +991,7 @@ function applyProposalPatch(agent, patch) {
 //
 // `owner` must only be true when the caller has proven ownership; it is what
 // gates heroHole in liveGame.
-export function presentAgent(agent, { owner = false } = {}) {
+export function presentAgent(agent, { owner = false, walletBalance = null } = {}) {
   if (!agent) return agent;
   ensureMood(agent);
   ensureStats(agent);
@@ -987,11 +1005,12 @@ export function presentAgent(agent, { owner = false } = {}) {
     : null;
   // Without an injected registry (routes installed with no WebSocket server)
   // there is nothing to consult, so fall back to the stored flags.
-  const presence = liveTables
+  let presence = liveTables
     ? (liveGame ? 'playing' : 'resting')
     : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
   const sessionLog = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
   ensureBankroll(agent);
+  ensurePocket(agent);
   // ATTR-1d: fatigue is a within-session STATE, so it only exists while he is
   // actually at a table — an agent at rest is fresh by definition, and the bar
   // is what restores him. heroSessionHands is this seat's own count, not the
@@ -1001,6 +1020,22 @@ export function presentAgent(agent, { owner = false } = {}) {
   // actually being made with. `attrs` stays the stored, permanent values — the
   // card draws those and dips the two that fatigue touches, so the client can
   // show the cost without the record ever appearing to lose a point.
+  // WALLET-1: an agent who cannot cover a buy-in rests at the bar. 'broke' is
+  // a presence, not a status — he is idle AND out of money, and the floor
+  // draws him with a drink he is not enjoying rather than in a seat.
+  //
+  // An agent on auto-refill with money in the wallet is NOT broke: he is one
+  // automatic collection away and the deploy path makes it before the gate, so
+  // drawing him at the bar between sessions would be a lie. Broke is for the
+  // agent who has no way back without the owner — cut off, or an allowance
+  // that ran out. When the wallet is unknown (a caller with no owner in
+  // scope), auto is assumed to be coverable, which is the optimistic read.
+  if (presence !== 'playing' && isBroke(agent.pocket?.balance)) {
+    const canRefill = agent.pocket?.mode === 'auto'
+      && (walletBalance === null || walletBalance > 0);
+    if (!canRefill) presence = 'broke';
+  }
+
   const sessionHands = presence === 'playing'
     ? (liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0)
     : 0;
@@ -1047,7 +1082,7 @@ export function presentAgent(agent, { owner = false } = {}) {
 export function floorSnapshot(userId, { owner = false } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   return profile.agents.map((agent) => {
-    const p = presentAgent(agent, { owner });
+    const p = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
     return {
       id: p.id,
       name: p.name,
@@ -1262,7 +1297,7 @@ export function installAgentProfileRoutes(app) {
     res.json({
       userId: profile.userId,
       hasAgents: profile.agents.length > 0,
-      agents: profile.agents.map((a) => presentAgent(a, { owner })),
+      agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
       chat: profile.chat,
     });
   });
@@ -1279,7 +1314,8 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner })) });
+    const walletBalance = walletFor(userId).balance;
+    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance })) });
   });
 
   // ── WALLET-1 (spec v11 §7.1) ───────────────────────────────────────────────
@@ -1384,7 +1420,7 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     const owner = isOwner(req, userId);
-    const view = presentAgent(agent, { owner });
+    const view = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
     // Owner-scoped exactly like /:agentId/flagged: hole cards are the owner's
     // alone, and the same rule has to hold on every route that can carry them,
     // not just the one written first.
@@ -1455,24 +1491,61 @@ export function installAgentProfileRoutes(app) {
     let joinedExisting = false;
     let sessionStarted = false;
 
-    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id, userId });
+    let candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id, userId });
 
-    // ── Bankroll gate ─────────────────────────────────────────────────────────
-    // Only enforce when the server manages sessions (liveTables present).
+    // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
+    // The pocket picks the stakes and decides whether he sits down at all.
+    // Only enforced when the server manages sessions (liveTables present).
+    const wallet = walletFor(userId);
+    const pocket = ensurePocket(agent);
+    pocket.agentId = agent.id;
     let deployBuyIn = 0;
+    let stakes = null;
+
     if (liveTables) {
-      const defaultBB = liveTables.getDefaultBlinds?.()?.bigBlind ?? 20;
-      deployBuyIn = candidate?.table
-        ? (candidate.table.bigBlind ?? defaultBB) * 100
-        : defaultBB * 100;
-      if (agent.bankroll < deployBuyIn) {
+      // Cut off is cut off — he finishes nothing and starts nothing. Not a
+      // punishment, and nothing he has learned is lost.
+      if (pocket.mode === 'cut') {
         return res.status(402).json({
-          error: "He's felted. Grant a reload?",
-          felted: true,
-          bankroll: agent.bankroll,
-          required: deployBuyIn,
+          error: 'He is cut off. Fund him to put him back in a seat.',
+          broke: true, cut: true,
+          pocket: pocketProjection(pocket),
         });
       }
+
+      // Auto-refill happens here, before the gate: he comes to the wallet and
+      // collects when he is short. allowance and topup deliberately do not.
+      if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
+
+      if (isBroke(pocket.balance)) {
+        // Broke: he rests at the bar. One moment, one notification a day.
+        recordBrokeMoment(agent);
+        agent.status = 'idle';
+        agent.activeTableId = null;
+        mirrorBankroll(agent);
+        saveStore(userId);
+        saveWalletFor(userId);
+        emitAgentChange(userId);
+        notifyBrokeOnce(userId, agent);
+        return res.status(402).json({
+          error: "His pocket is empty. He's at the bar — your call.",
+          broke: true,
+          pocket: pocketProjection(pocket),
+          required: ENTRY_BUYIN,
+          moment: agent.lastMoment,
+        });
+      }
+
+      stakes = stakesFor(pocket.balance);
+      // A table stays at the lowest rung any seated agent could afford, so he
+      // may only join one whose buy-in his pocket already covers.
+      if (candidate?.table && !canAffordTable(pocket.balance, candidate.table.bigBlind)) {
+        console.log(`[wallet] ${agent.name} cannot cover table ${candidate.table.tableId} (${candidate.table.bigBlind} BB) — opening one at ${stakes.label}`);
+        candidate = null;
+      }
+      deployBuyIn = candidate?.table
+        ? buyInFor(candidate.table.bigBlind)
+        : stakes.buyIn;
     }
 
     if (candidate?.table) {
@@ -1514,7 +1587,11 @@ export function installAgentProfileRoutes(app) {
       // agent could show as "playing" while its game was frozen (BUG-16/17).
       if (liveTables) {
         try {
-          const table = liveTables.getOrCreateTable(tableId);
+          // WALLET-1: pocket size sets the stakes. getOrCreateTable already
+          // takes blinds, so this needs no change in table.js.
+          const table = liveTables.getOrCreateTable(tableId, stakes
+            ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind }
+            : {});
           seat = table.startAgentSession({
             agentId: agent.id,
             userId,
@@ -1535,10 +1612,14 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
-    // Debit the buy-in from bankroll; credited back (as finalStack) when session ends.
+    // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
+    // when the session ends. The old agent ledger keeps its entry too while
+    // agent.bankroll is still mirrored.
     if (deployBuyIn > 0 && sessionStarted) {
-      agent.bankroll -= deployBuyIn;
+      debitBuyIn(pocket, deployBuyIn, tableId);
+      mirrorBankroll(agent);
       appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: deployBuyIn, tableId });
+      saveWalletFor(userId);
     }
     saveStore(userId);
     console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
@@ -1680,7 +1761,7 @@ export function installAgentProfileRoutes(app) {
         proposalText: agent.proposal.text || '',
       }).catch((e) => console.error('[notify] proposal failed:', e.message));
     }
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
   // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
@@ -1696,7 +1777,7 @@ export function installAgentProfileRoutes(app) {
     agent.proposal = null;
     saveStore(userId);
     clearProposalPending(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
   // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
@@ -1709,7 +1790,7 @@ export function installAgentProfileRoutes(app) {
     agent.proposal = null;
     saveStore(userId);
     clearProposalPending(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
   // POST /api/agents/:agentId/reload — free play-money reload for felted agents.
@@ -1729,7 +1810,7 @@ export function installAgentProfileRoutes(app) {
     appendLedger(agent, { ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
     saveStore(userId);
     emitAgentChange(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
   // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
@@ -1743,7 +1824,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.unseenRecap = false;
     saveStore(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message

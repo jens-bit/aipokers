@@ -422,6 +422,46 @@ test('ensurePocket backfills without inventing chips', () => {
   assert.equal(agent.pocket.balance, 0, 'idempotent');
 });
 
+// ── Broke presence ───────────────────────────────────────────────────────────
+// The rule this encodes was wrong on first write: every agent read as broke
+// between sessions, because a 2 000 pocket minus a 2 000 buy-in plus a losing
+// session is under the next buy-in. An agent on auto-refill with money in the
+// wallet is one automatic collection away and the deploy path makes it before
+// the gate — drawing him at the bar would be a lie. verify-server-life.js
+// caught it.
+test('WALLET-1: auto-refill with a funded wallet is not broke', async () => {
+  const { presentAgent } = await import('./agentProfiles.js');
+  const agent = {
+    id: 'a1', name: 'Auto', status: 'idle', activeTableId: null,
+    pocket: emptyPocket({ mode: 'auto', cap: 2_000, balance: 1_800 }),
+  };
+  assert.equal(presentAgent(agent, { walletBalance: 8_000 }).presence, 'resting');
+});
+
+test('WALLET-1: broke is for the agent with no way back without the owner', async () => {
+  const { presentAgent } = await import('./agentProfiles.js');
+  const broke = (over) => presentAgent({
+    id: 'a', name: 'A', status: 'idle', activeTableId: null,
+    pocket: emptyPocket({ balance: 1_800, ...over }),
+  }, { walletBalance: over.wallet ?? 8_000 }).presence;
+
+  assert.equal(broke({ mode: 'cut' }), 'broke', 'cut off');
+  assert.equal(broke({ mode: 'allowance', cap: 5_000 }), 'broke', 'allowance ran out');
+  assert.equal(broke({ mode: 'topup' }), 'broke', 'one-time money spent');
+  assert.equal(broke({ mode: 'auto', cap: 2_000, wallet: 0 }), 'broke', 'auto, but the wallet is empty too');
+});
+
+test('WALLET-1: a solvent pocket is never broke whatever the mode', async () => {
+  const { presentAgent } = await import('./agentProfiles.js');
+  for (const mode of MODES) {
+    const p = presentAgent({
+      id: 'a', name: 'A', status: 'idle', activeTableId: null,
+      pocket: emptyPocket({ mode, balance: 6_000 }),
+    }, { walletBalance: 0 }).presence;
+    assert.equal(p, 'resting', mode);
+  }
+});
+
 test('floatFor never drops below one buy-in', () => {
   assert.equal(floatFor({ cap: 0 }), ENTRY_BUYIN);
   assert.equal(floatFor({ cap: null }), POCKET_FLOAT);
