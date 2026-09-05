@@ -14,6 +14,8 @@ import { betweenHandsGame, midHandGame, spectatorConfig } from '../test/fixtures
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
 import { FLIP_MS } from '../lib/pace.js';
+import { resetHaptics } from '../lib/haptics.js';
+import { isMuted, play, resetAudio } from '../lib/audio.js';
 
 function renderWatch(game, props = {}) {
   return render(
@@ -484,6 +486,84 @@ describe('W3-2 ReadPanel', () => {
 
     const settled = renderWatch(withReads({ hands: 143, line: 'Still the same.', stats: { vpip: 19 } }));
     expect(settled.container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+  });
+});
+
+// ── W3-3 · haptics and the sound switch ─────────────────────────────────────
+
+describe('W3-3 the beats', () => {
+  let haptics;
+
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    resetHaptics();
+    resetAudio();
+    haptics = [];
+    window.Telegram.WebApp.HapticFeedback = {
+      impactOccurred: (style) => haptics.push(['impact', style]),
+      notificationOccurred: (style) => haptics.push(['notification', style]),
+      selectionChanged: () => haptics.push(['selection', null]),
+    };
+  });
+
+  it('W3-3: a calm hand is silent', () => {
+    renderWatch(midHandGame);
+    expect(haptics).toEqual([]);
+  });
+
+  it('W3-3: entering HEATING taps once, and never again for the same hand', () => {
+    const { rerender } = renderWatch(paced('heating'));
+    expect(haptics).toEqual([['impact', 'rigid']]);
+
+    // Same hand, another snapshot: the ladder does not re-announce itself.
+    rerender(
+      <WatchScreen game={paced('heating', { pot: 1400 })} mySeat={0} config={spectatorConfig}
+        displayNames={{}} chatMessages={[]} sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}} />,
+    );
+    expect(haptics).toEqual([['impact', 'rigid']]);
+  });
+
+  it('W3-3: ALL-IN is the loudest thing on the screen', () => {
+    renderWatch(paced('allin'));
+    expect(haptics).toEqual([['notification', 'warning']]);
+  });
+
+  it('W3-3: winning the pot is a success, losing it is quiet', () => {
+    const won = {
+      ...midHandGame, street: 'complete',
+      result: { pot: 400, winners: [{ seat: 0 }] },
+    };
+    renderWatch(won);
+    expect(haptics).toEqual([['notification', 'success']]);
+
+    haptics.length = 0;
+    resetHaptics();
+    const lost = { ...won, handNumber: 2, result: { pot: 400, winners: [{ seat: 1 }] } };
+    renderWatch(lost);
+    // A soft tap, and — per lib/audio — no sound at all.
+    expect(haptics).toEqual([['impact', 'soft']]);
+    expect(play('lostPot')).toBeNull();
+  });
+
+  it('W3-3: an opponent acting never reaches the device', () => {
+    // The screen is only ever handed the hero's decision; there is no code path
+    // and no table entry for anyone else's.
+    renderWatch({ ...midHandGame, toAct: 1 });
+    expect(haptics).toEqual([]);
+  });
+
+  it('W3-3: the panel carries a sound switch, and it remembers', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+
+    const toggle = screen.getByRole('button', { name: /sound on/i });
+    expect(isMuted()).toBe(false);
+
+    await user.click(toggle);
+    expect(isMuted()).toBe(true);
+    expect(screen.getByRole('button', { name: /sound off/i })).toBeInTheDocument();
+    expect(container.querySelector('.watch-mute').className).toContain('is-muted');
   });
 });
 

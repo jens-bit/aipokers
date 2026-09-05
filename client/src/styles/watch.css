@@ -1091,3 +1091,29 @@
   .read-panel__line.is-forming { animation: none; }
   .read-bar__fill { transition: none; }
 }
+
+/* ── W3-3 · the sound switch ──────────────────────────────────────────────── */
+/* Sound is a second layer to the haptics and has to be switchable: the phone is
+   on silent in a bar, so every beat is built to land on haptics alone. */
+
+.watch-mute {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  min-height: 0;
+  margin: 12px 0 4px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  color: var(--sys-dim, #A1A1A1);
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.watch-mute.is-muted { color: var(--sys-muted, #6B6B6B); }

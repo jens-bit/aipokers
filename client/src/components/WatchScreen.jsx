@@ -15,6 +15,8 @@ import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
 import { ReadPanel } from './system/ReadPanel.jsx';
+import { fire as fireHaptic } from '../lib/haptics.js';
+import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -86,7 +88,34 @@ function ReadTab({ game, between, agent, lastHand }) {
     <div className="watch-panel__read">
       <ReadPanel reads={game ? game.reads : null} />
       {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
+      <MuteToggle />
     </div>
+  );
+}
+
+// ---- MuteToggle ------------------------------------------------------------
+// W3-3: sound is a second layer to the haptics, and it has to be switchable —
+// the phone is on silent in a bar, and every beat is built to land on haptics
+// alone. The sounds themselves ship later; the switch ships now.
+
+function MuteToggle() {
+  var [muted, setMuted] = useState(function() { return isMuted(); });
+  return (
+    <button
+      type="button"
+      className={'watch-mute' + (muted ? ' is-muted' : '')}
+      aria-pressed={muted}
+      onClick={function() { setMuted(toggleMuted()); }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        {muted
+          ? <path d="M23 9l-6 6M17 9l6 6" />
+          : <path d="M15.5 8.5a5 5 0 010 7" />}
+      </svg>
+      <span>{muted ? 'Sound off' : 'Sound on'}</span>
+    </button>
   );
 }
 
@@ -976,6 +1005,57 @@ export function WatchScreen({
   // His one line on the felt: the newest decision's reasoning, in his voice.
   // Finding 3 — long voice lives in the thread, the felt gets one sentence.
   var feltLine = (lastDecision && lastDecision.reasoning) ? lastDecision.reasoning : null;
+
+  // ---- W3-3: the beats -----------------------------------------------------
+  // One entry per row of the ww-ref's haptics table, fired from the state the
+  // server put us in. Every rule the table sets — his events only, never two
+  // inside 120ms, nothing while backgrounded — is enforced inside lib/haptics,
+  // so these are plain "this happened" calls.
+
+  // Climbing the ladder. Latched per hand: HEATING taps once and never repeats,
+  // and stepping back down (a new hand) re-arms it.
+  var paceSeenRef = useRef({ hand: null, seen: {} });
+  useEffect(function() {
+    var hand = game ? game.handNumber : null;
+    if (paceSeenRef.current.hand !== hand) paceSeenRef.current = { hand: hand, seen: {} };
+    if (pace === 'calm' || paceSeenRef.current.seen[pace]) return;
+    paceSeenRef.current.seen[pace] = true;
+    if (pace === 'heating') beat('heating', fireHaptic);
+    else if (pace === 'allin') beat('allin', fireHaptic);
+  }, [pace, game && game.handNumber]);
+
+  // His action posting. Only ever his: lastDecision is the hero's decision, and
+  // an opponent's action must never reach the device.
+  useEffect(function() {
+    if (!lastDecision) return;
+    beat('hisAction', fireHaptic);
+  }, [lastDecision]);
+
+  // Each card of the runout, during the hold.
+  useEffect(function() {
+    if (pace !== 'showdown' || !flipped) return;
+    beat('runoutCard', fireHaptic);
+  }, [pace, flipped]);
+
+  // The pot, once it is settled. Winning is a notification; losing is quiet.
+  var resultSeenRef = useRef(null);
+  useEffect(function() {
+    var result = game && game.result ? game.result : null;
+    var hand = game ? game.handNumber : null;
+    if (!result || resultSeenRef.current === hand) return;
+    resultSeenRef.current = hand;
+    var heroSeat = Number.isInteger(mySeat) ? mySeat : 0;
+    var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
+    beat(won ? 'wonPot' : 'lostPot', fireHaptic);
+  }, [game && game.handNumber, game && game.result, mySeat]);
+
+  // A read forming. The panel animates; the device only nudges.
+  var formingRef = useRef(false);
+  var readsForming = !!(game && game.reads && game.reads.forming);
+  useEffect(function() {
+    if (readsForming && !formingRef.current) beat('readForms', fireHaptic);
+    formingRef.current = readsForming;
+  }, [readsForming]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
