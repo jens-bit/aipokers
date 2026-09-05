@@ -97,7 +97,11 @@ export function classifyHand({ won, resultType, decisions, pot, sessionBiggestPo
 //   holeCards             — agent's two hole-card strings e.g. ['Ah', 'Kd']
 //   won                   — agent won the hand
 //   opponentShowdownCards — [{ seat, holeCards }] for opponents revealed at showdown
-export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [] }) {
+//   attrCosts             — ATTR-3 [{ key, line, street?, cost? }]: where an
+//                             attribute shaped this hand, in his voice. Built by
+//                             attrCostsForHand; passed in rather than computed
+//                             here so this module stays free of character logic.
+export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [], attrCosts = [] }) {
   const streets = (decisions ?? []).map((d) => ({
     street:    d.street    ?? 'preflop',
     board:     Array.isArray(d.community) ? [...d.community] : [],
@@ -120,6 +124,7 @@ export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCa
       : [],
     won:        !!won,
     streets,
+    attrCosts:  Array.isArray(attrCosts) ? attrCosts : [],
     flaggedAt:  Date.now(),
   };
 }
