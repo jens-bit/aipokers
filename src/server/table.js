@@ -248,6 +248,14 @@ export class Table {
     // it with fewer than MIN_TO_DEAL seats.
     this._pendingSitOut = new Set();
 
+    // WALLET-6: the other way off the table. Seats in this set PLAY the current
+    // hand out normally -- no fold, no shortcut -- and are benched by
+    // _handCompleted the moment it ends. That is the promise the funding sheet
+    // makes when an owner cuts his agent off ("he finishes the hand he is in
+    // and takes a seat at the bar"), and it is why it cannot reuse
+    // _pendingSitOut, which folds out of the hand as soon as the seat acts.
+    this._benchAfterHand = new Set();
+
     // ── AGE-35: autonomous session loop ──────────────────────────────────
     // autoPlay tables deal themselves. Nothing a client does — connecting,
     // watching, leaving — advances or stops them; only the loop, a bust, the
@@ -325,6 +333,7 @@ export class Table {
     for (let i = 0; i < this.maxSeats; i++) {
       if (!this.pending[i]) continue;
       if (this.seatLeaving[i] || this._pendingSitOut.has(i)) continue;
+      if (this._benchAfterHand.has(i)) continue;
       if (this.seatStack(i) <= 0) continue;
       out.push(i);
     }
@@ -394,6 +403,11 @@ export class Table {
       if (remap.has(seat)) movedSitOuts.add(remap.get(seat));
     }
     this._pendingSitOut = movedSitOuts;
+    const movedBench = new Set();
+    for (const seat of this._benchAfterHand) {
+      if (remap.has(seat)) movedBench.add(remap.get(seat));
+    }
+    this._benchAfterHand = movedBench;
     // Seat indices moved, so whatever the Game was built from is stale.
     this._gameRoster = null;
   }
@@ -502,6 +516,7 @@ export class Table {
 
     const displayName = occupant.displayName ?? occupant.playerId;
     this._pendingSitOut.delete(seat);
+    this._benchAfterHand.delete(seat);
     this._clearSeat(seat);
     console.log(`[table:${this.tableId}] seat ${seat} freed -- ${displayName} (${recap})`);
     this._broadcast({ type: ServerMsg.SEAT_LEFT, seat, displayName, reason: recap });
@@ -755,12 +770,36 @@ export class Table {
     const spectator = this.spectators.find((s) => s.ws === ws);
     const seat = seated !== -1 ? seated : (spectator ? spectator.spectatorSeat : -1);
     if (seat === -1 || !this.pending[seat]) throw new Error('not at this table');
+    return this.sitOutSeat(seat);
+  }
+
+  // WALLET-6: the same departure, addressed by seat instead of by socket, for
+  // callers that have no WebSocket to speak through -- the wallet benching an
+  // agent whose owner just cut him off.
+  //
+  // The two modes differ only in what happens to the hand in progress:
+  //
+  //   afterHand: false (the WS SIT_OUT path)  -- a STOP. The seat folds as soon
+  //     as it is its turn and is freed when the hand ends. Unchanged.
+  //   afterHand: true  (the wallet's bench)   -- he finishes the hand he is in.
+  //     No fold, no forfeited chips; the seat is freed the moment the hand
+  //     completes and the floor draws him at the bar from there.
+  //
+  // Between hands the two are the same thing, and both take the immediate path.
+  //
+  // Returns { pending, seat } while a hand is running, else
+  // { pending: false, seat, tableClosed }. Throws if the seat is empty.
+  sitOutSeat(seat, { afterHand = false } = {}) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= this.maxSeats || !this.pending[seat]) {
+      throw new Error('not at this table');
+    }
 
     const inHand = !!this.game &&
       this.game.street !== Streets.COMPLETE &&
       this.game.street !== Streets.WAITING;
     if (inHand) {
-      this._pendingSitOut.add(seat);
+      if (afterHand) this._benchAfterHand.add(seat);
+      else this._pendingSitOut.add(seat);
       return { pending: true, seat };
     }
 
@@ -772,6 +811,13 @@ export class Table {
     this._reconcileSeats();
     this._notifyStateChange();
     return { pending: false, seat, tableClosed: false };
+  }
+
+  // WALLET-6: whether an AI seat should fold out of the hand in progress rather
+  // than spend a model call on it. A seat benched *after* the hand is not on
+  // this list -- that is the whole point of it.
+  _foldsOutOfHand(seat) {
+    return this._pendingSitOut.has(seat) || this.seatLeaving[seat];
   }
 
 
@@ -1410,10 +1456,16 @@ export class Table {
     this._captureStacks();
     this._recordButton();
 
-    // Seats that asked to sit out during the hand are released now.
+    // Seats that asked to sit out during the hand are released now. Both ways
+    // off the table land here: the one that folded out of the hand and the one
+    // (WALLET-6) that was allowed to play it to the end.
     if (this._pendingSitOut.size > 0) {
       for (const seat of [...this._pendingSitOut]) this.seatLeaving[seat] = true;
       this._pendingSitOut.clear();
+    }
+    if (this._benchAfterHand.size > 0) {
+      for (const seat of [...this._benchAfterHand]) this.seatLeaving[seat] = true;
+      this._benchAfterHand.clear();
     }
 
     // A departure or a bust only ends the TABLE when it can no longer be
@@ -2804,7 +2856,7 @@ export class Table {
     // MST-1: a seat that asked to sit out mid-hand folds out of it rather than
     // burning a model call. The seat itself is freed by the reconcile once the
     // hand completes.
-    if (this._pendingSitOut.has(aiSeat) || this.seatLeaving[aiSeat]) {
+    if (this._foldsOutOfHand(aiSeat)) {
       const streetBefore = g.street;
       try {
         this.game.act(aiSeat, { type: 'fold' });

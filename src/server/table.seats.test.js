@@ -13,6 +13,7 @@ import assert from 'node:assert';
 import { Table, MIN_TO_DEAL, SEAT_LIMIT } from './table.js';
 import { Streets, Actions } from '../engine/game.js';
 import { setPersistEnabled } from './opponentStats.js';
+import { benchCutSeat } from './wallet.js';
 
 setPersistEnabled(false);
 
@@ -49,12 +50,16 @@ function seatPlayers(table, n, buyIn = 1000, offset = 0) {
 // Check/call the hand down to completion. Completion is measured by the hand
 // counter rather than the street, because a hand that ends with a departure is
 // immediately followed by a rebuild that puts the new Game back in WAITING.
+// Returns the set of seats that got to act, which is how a caller can tell a
+// seat that played the hand out from one that was folded out of it.
 function playDown(table) {
   const before = table.handsThisSession;
+  const acted = new Set();
   let safety = 400;
   while (table.game && table.handsThisSession === before && safety-- > 0) {
     const seat = table.game.toAct;
     if (seat === null || seat === undefined) break;
+    acted.add(seat);
     const legal = table.game.legalActions(seat);
     const pick = legal.find((a) => a.type === Actions.CHECK)
       ?? legal.find((a) => a.type === Actions.CALL)
@@ -62,6 +67,7 @@ function playDown(table) {
     table.applyAction(table.connections[seat], { type: pick.type });
   }
   assert.strictEqual(table.handsThisSession, before + 1, 'hand played to completion');
+  return acted;
 }
 
 function chipsAtTable(table) {
@@ -279,6 +285,73 @@ header('Test 9: WV2-1 — adoption never touches a table with a human seat');
   assert.strictEqual(table.autoPlay, false, 'humans keep their own tempo');
   assert.ok(table.game && table.game.street !== Streets.WAITING, 'and JOIN still deals');
   ok('human tables still deal client-driven and are never adopted');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 10: WALLET-6 - a cut agent finishes his hand, then sits at the bar');
+{
+  // The funding sheet's promise, end to end: the owner cuts him off mid-hand,
+  // and the wallet reaches the table through the one public door.
+  //
+  // Plain seats, so every action is explicit and no model is ever called. What
+  // makes the seat a cut AGENT is agentIds -- the only thing benchCutSeat looks
+  // at to find him.
+  const table = newTable();
+  const sockets = seatPlayers(table, 4);
+  table.agentIds[1] = 'cannon';
+  table.maybeStartHand({ clientDriven: true });
+  const chipsBefore = chipsAtTable(table);
+
+  const r = benchCutSeat(table, 'cannon');
+  assert.deepStrictEqual(r, { seat: 1, benched: true }, 'the wallet found his seat');
+  assert.strictEqual(table.game.seats.length, 4, 'he is not yanked out of the live hand');
+
+  // The distinction WALLET-6 exists for: an explicit SIT_OUT folds the seat out
+  // of the hand in progress, a cut does not. This is the exact test the AI turn
+  // loop runs before it decides to fold instead of think.
+  assert.strictEqual(table._foldsOutOfHand(1), false,
+    'a cut seat plays its hand -- it does not fold out of it');
+  table.sitOut(sockets[2]);
+  assert.strictEqual(table._foldsOutOfHand(2), true, 'but an explicit SIT_OUT still folds');
+
+  // He acts for himself, all the way to the end of the hand.
+  assert.strictEqual(table.game.seats[1].folded, false, 'still live in the hand');
+  const acted = playDown(table);
+  assert.ok(acted.has(1), 'the cut seat was dealt in and acting until the hand ended');
+
+  // Hand over: both seats are freed, the other two play on.
+  assert.strictEqual(table.seatedCount(), 2, 'the cut seat and the sat-out seat are gone');
+  assert.deepStrictEqual(table.pending.slice(0, 2).map((pl) => pl.playerId), ['p0', 'p3'],
+    'seats compacted down over both departures');
+  assert.ok(sockets[1].typesSeen().includes('table_closed'),
+    'the cut agent is told his session ended -- he is at the bar now');
+  assert.strictEqual(table.closed, false, 'the table itself plays on');
+  assert.ok(chipsAtTable(table) <= chipsBefore, 'he took his chips, he did not mint any');
+  assert.strictEqual(table._benchAfterHand.size, 0, 'the queue is drained by the hand end');
+
+  table.maybeStartHand({ clientDriven: true });
+  assert.deepStrictEqual(table.game.seats.map((st) => st.playerId), ['p0', 'p3'],
+    'and it deals on without him');
+  ok('a cut agent plays the hand to completion, then leaves');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 11: WALLET-6 - sitOutSeat between hands benches immediately');
+{
+  const table = newTable();
+  seatPlayers(table, 3);
+  table.agentIds[0] = 'cannon';
+  table.maybeStartHand({ clientDriven: true });
+  playDown(table);
+  // No hand in progress: there is nothing to finish, so afterHand is the same
+  // immediate departure the WS path takes between hands.
+  const r = table.sitOutSeat(0, { afterHand: true });
+  assert.deepStrictEqual(r, { pending: false, seat: 0, tableClosed: false });
+  assert.strictEqual(table.seatedCount(), 2, 'freed on the spot');
+  assert.strictEqual(table._benchAfterHand.size, 0, 'nothing left queued');
+  assert.throws(() => table.sitOutSeat(5, { afterHand: true }), /not at this table/,
+    'an empty seat is not a departure');
+  ok('between hands the bench is immediate, and an empty seat throws');
 }
 
 console.log(`\n${passed} test(s) passed`);

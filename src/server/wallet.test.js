@@ -684,16 +684,26 @@ test('WALLET-1e: the projection keys are the documented contract', () => {
 // ── WALLET-5: cutting him off reaches the table he is sitting at ─────────────
 // The funding sheet promises "he finishes the hand he is in and takes a seat at
 // the bar". Before this the promise was decoration: the mode changed and he
-// played on. benchCutSeat queues the seat on the table's own pending sit-out
-// set — the SIT_OUT path — so the hand completes, the reconcile frees the seat
-// and the floor draws him at the bar because he is no longer at a table.
+// played on. benchCutSeat sits the seat out after the hand (WALLET-6:
+// table.sitOutSeat(seat, { afterHand: true })), so the hand completes, the
+// reconcile frees the seat and the floor draws him at the bar because he is no
+// longer at a table.
 
-// The smallest table this needs to know about, in the shape table.js has.
+// The smallest table this needs to know about, in the shape table.js has:
+// which agent sits where, which seats are occupied, and the public door off the
+// table. The two destinations are kept apart on purpose -- WALLET-6 is entirely
+// about which one a cut agent goes through.
 function fakeTable(agentIds) {
   return {
     agentIds,
     pending: agentIds.map((id) => (id ? { playerId: `agent_${id}` } : null)),
-    _pendingSitOut: new Set(),
+    benchedAfterHand: new Set(),   // played the hand out, then benched
+    foldedOut: new Set(),          // folded out of the hand in progress
+    sitOutSeat(seat, { afterHand = false } = {}) {
+      if (!this.pending[seat]) throw new Error('not at this table');
+      (afterHand ? this.benchedAfterHand : this.foldedOut).add(seat);
+      return { pending: true, seat };
+    },
   };
 }
 
@@ -701,23 +711,45 @@ test('WALLET-5: cutting him off queues his seat to leave after the hand', () => 
   const table = fakeTable([null, 'a1', 'a2']);
   const r = benchCutSeat(table, 'a2');
   assert.deepEqual(r, { seat: 2, benched: true });
-  assert.deepEqual([...table._pendingSitOut], [2], "his seat, and nobody else's");
+  assert.deepEqual([...table.benchedAfterHand], [2], "his seat, and nobody else's");
+});
+
+// WALLET-6: the promise is "he FINISHES the hand he is in". The set this used
+// to write to folds the seat out of that hand the moment it is its turn, which
+// is the opposite. It has to go through the after-hand door.
+test('WALLET-6: the cut lets him play the hand out, it does not fold him out', () => {
+  const table = fakeTable(['a1', 'a2']);
+  benchCutSeat(table, 'a2');
+  assert.deepEqual([...table.benchedAfterHand], [1], 'benched when the hand ends');
+  assert.equal(table.foldedOut.size, 0, 'and never folded out of the hand in progress');
+});
+
+// The wallet knows nothing about table.js and must survive a table that cannot
+// bench (an older shape, or a seat that emptied under it).
+test('WALLET-6: a table that cannot sit a seat out is reported, not thrown', () => {
+  const noDoor = fakeTable(['a1']);
+  delete noDoor.sitOutSeat;
+  assert.deepEqual(benchCutSeat(noDoor, 'a1'), { seat: 0, benched: false });
+
+  const racing = fakeTable(['a1']);
+  racing.sitOutSeat = () => { throw new Error('not at this table'); };
+  assert.deepEqual(benchCutSeat(racing, 'a1'), { seat: 0, benched: false });
 });
 
 test('WALLET-5: benching an agent who is not at this table touches nothing', () => {
   const table = fakeTable([null, 'a1']);
   assert.deepEqual(benchCutSeat(table, 'ghost'), { seat: -1, benched: false });
-  assert.equal(table._pendingSitOut.size, 0);
+  assert.equal(table.benchedAfterHand.size, 0);
   // A seat that emptied between the read and the write is the same non-event.
   const emptied = fakeTable([null, 'a1']);
   emptied.pending[1] = null;
   assert.deepEqual(benchCutSeat(emptied, 'a1'), { seat: -1, benched: false });
-  assert.equal(emptied._pendingSitOut.size, 0);
+  assert.equal(emptied.benchedAfterHand.size, 0);
 });
 
 test('WALLET-5: benching twice is idempotent — one seat, queued once', () => {
   const table = fakeTable(['a1']);
   benchCutSeat(table, 'a1');
   benchCutSeat(table, 'a1');
-  assert.deepEqual([...table._pendingSitOut], [0]);
+  assert.deepEqual([...table.benchedAfterHand], [0]);
 });
