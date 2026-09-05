@@ -23,6 +23,9 @@ import {
   raiseFloor, raisesCapped, raiseCapPerStreet,
 } from './pace.js';
 import { classifyCooler } from './cooler.js';
+import {
+  emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
+} from './events.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -176,6 +179,10 @@ export class Table {
     this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
     // BIO-2c: whether this seat has already noticed his nemesis this session.
     this._nemesisNoted = Array(maxSeats).fill(false);
+    // EVENT-1: the hand this table has already shouted `hot` about. A hand
+    // reaches the river once, but every river action calls _broadcastPace, and
+    // a ticker that repeats itself is a ticker nobody reads.
+    this._hotNotedHand = null;
 
     // The roster (playerIds in seat order) the current Game was built from.
     // Any mismatch against the live roster triggers a rebuild.
@@ -1624,6 +1631,137 @@ export class Table {
         console.error('[table] result report failed:', err.message);
       }
     }
+
+    // EVENT-1: the hand-end hook. It lives here rather than in _handCompleted
+    // because the cooler has already been classified once, a few lines up, and
+    // classifying it twice is how two definitions of a cooler get born.
+    this._emitCasinoEvents(result, coolerHand);
+  }
+
+  // ── EVENT-1 · the floor ticker ─────────────────────────────────
+  //
+  // Everything a table shouts into the casino-wide bus. Headlines only: names,
+  // a type, a pot size. Nothing here may carry a hole card or a reasoning
+  // string, because the ticker fans out to every floor subscriber and not just
+  // to the owner of the agents in it.
+  //
+  // Best-effort by construction: the whole thing is wrapped, because a ticker
+  // that can break a hand is worse than no ticker.
+
+  _seatLabel(seat) {
+    return this.pending[seat]?.displayName ?? this.game?.seats?.[seat]?.playerId ?? `seat ${seat}`;
+  }
+
+  _nameList(seats) {
+    const names = seats.map((s) => this._seatLabel(s));
+    if (names.length <= 1) return names[0] ?? 'someone';
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  }
+
+  _agentIdsAt(seats) {
+    return seats.map((s) => this.agentIds[s]).filter(Boolean);
+  }
+
+  // The hand is over: what, if anything, was worth shouting about it.
+  _emitCasinoEvents(result, coolerHand) {
+    const g = this.game;
+    if (!g || !result) return;
+    try {
+      const pot = result.pot ?? 0;
+      const potBb = potInBb(pot, this.bigBlind);
+      const inHand = [];
+      for (let seat = 0; seat < g.seats.length; seat++) {
+        if (this._seatIsInGame(seat)) inHand.push(seat);
+      }
+
+      // bigPot — three times the pot the felt already calls warm.
+      if (potBb >= bigPotThresholdBb() && inHand.length > 0) {
+        emitCasinoEvent({
+          type: EventType.BIG_POT,
+          tableId: this.tableId,
+          agentIds: this._agentIdsAt(inHand),
+          headline: `${this._nameList(inHand)} played a ${Math.round(potBb)}bb pot`,
+          pot,
+        });
+      }
+
+      // cooler — classified once for the whole server, in cooler.js. The
+      // winner dealt it, the loser took it, and the headline says so in that
+      // order because that is the sentence a person says out loud.
+      if (coolerHand?.cooler) {
+        emitCasinoEvent({
+          type: EventType.COOLER,
+          tableId: this.tableId,
+          agentIds: this._agentIdsAt([...coolerHand.winners, ...coolerHand.losers]),
+          headline: `${this._nameList(coolerHand.winners)} coolered `
+            + `${this._nameList(coolerHand.losers)} for ${Math.round(potBb)}bb`,
+          pot,
+        });
+      }
+
+      // heater — five of his last six, counted per agent and casino-wide, so
+      // it follows him when he changes seats. Fires only on the hand that
+      // crossed the line (see noteHandWin).
+      const winnerSeats = new Set((result.winners ?? []).map((w) => w.seat));
+      for (const seat of inHand) {
+        const agentId = this.agentIds[seat];
+        if (!agentId) continue;
+        const streak = noteHandWin(agentId, winnerSeats.has(seat));
+        if (!streak?.crossed) continue;
+        emitCasinoEvent({
+          type: EventType.HEATER,
+          tableId: this.tableId,
+          agentIds: [agentId],
+          headline: `${this._seatLabel(seat)} has won ${streak.wins} of the last ${streak.hands}`,
+          pot,
+        });
+      }
+
+      // bust — a seat with nothing left. The table closes on the next deal,
+      // so this fires exactly once per seat by construction.
+      for (const seat of inHand) {
+        if ((g.seats[seat]?.stack ?? 1) > 0) continue;
+        emitCasinoEvent({
+          type: EventType.BUST,
+          tableId: this.tableId,
+          agentIds: this._agentIdsAt([seat]),
+          headline: `${this._seatLabel(seat)} is out of chips`,
+          pot,
+        });
+      }
+    } catch (err) {
+      console.error('[table] casino event failed:', err.message);
+    }
+  }
+
+  // A big pot has reached the river and is still open. Emitted BEFORE the
+  // showdown, which is the whole point: a spectator who reads this line has
+  // time to open the table and watch the last bet go in.
+  _maybeEmitHot() {
+    const g = this.game;
+    if (!g || g.street !== Streets.RIVER) return;
+    if (this._hotNotedHand === g.handNumber) return;
+    const potBb = potInBb(g.pot ?? 0, this.bigBlind);
+    if (potBb < hotThresholdBb()) return;
+
+    const live = [];
+    for (let seat = 0; seat < g.seats.length; seat++) {
+      if (!g.seats[seat].folded) live.push(seat);
+    }
+    if (live.length < 2) return;
+
+    this._hotNotedHand = g.handNumber;
+    try {
+      emitCasinoEvent({
+        type: EventType.HOT,
+        tableId: this.tableId,
+        agentIds: this._agentIdsAt(live),
+        headline: `${Math.round(potBb)}bb on the river, ${this._nameList(live)} still live`,
+        pot: g.pot ?? 0,
+      });
+    } catch (err) {
+      console.error('[table] hot event failed:', err.message);
+    }
   }
 
   // BIO-2c: the strongest relationship at this table right now, from this
@@ -1658,6 +1796,22 @@ export class Table {
     if (!here) return;
 
     this._nemesisNoted[seat] = true;
+
+    // EVENT-1: the floor hears about it whether or not the mood update below
+    // finds a mood to move — the news is that the man sat down.
+    try {
+      const nemesisSeat = this.pending.findIndex((p, i) => i !== seat && p?.playerId === nemesis.playerId);
+      emitCasinoEvent({
+        type: EventType.NEMESIS_SEATED,
+        tableId: this.tableId,
+        agentIds: this._agentIdsAt([seat, nemesisSeat].filter((i) => i >= 0)),
+        headline: `${this._seatLabel(seat)} sits down across from ${nemesis.displayName}`,
+        pot: 0,
+      });
+    } catch (err) {
+      console.error('[table] nemesis event failed:', err.message);
+    }
+
     try {
       const current = getAgentMood(agentId, this.agentUserIds[seat]);
       if (!current) return;
@@ -2057,6 +2211,13 @@ export class Table {
   // the state — it never derives it from the pot, so two watchers warm the felt
   // on the same hand.
   _broadcastPace({ force = false, pace = null, board = null, card = null } = {}) {
+    // EVENT-1: the action-time hook. _broadcastPace already runs after every
+    // applied action (and once at each deal) on both the human and the AI
+    // path, so hanging the live event off it costs one call and no new
+    // plumbing. It sits above the "did the ladder advance" early return: a
+    // river bet that does not move the ladder can still be the bet that makes
+    // the pot worth walking over to.
+    this._maybeEmitHot();
     const g = this.game;
     const potChips = g?.pot ?? 0;
     const { anyAllIn, actionClosed } = this._allInState();
