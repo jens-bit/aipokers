@@ -12,6 +12,7 @@ import { MoodGhost } from '../system/MoodGhost.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 import { ReplayCard } from '../replay/ReplayCard.jsx';
 import { ReplayTheatre } from '../replay/ReplayTheatre.jsx';
+import { ShareButton } from '../share/ShareButton.jsx';
 
 // ── Design tokens (verbatim from mood-screens-f) ──────────────────────────────
 const M_TEAL   = '#00D4AA';
@@ -116,37 +117,46 @@ function SheetHeader({ title, onBack, action }) {
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function HandListRow({ hand, onClick }) {
+// SHARE-1 puts a ghost Share beside the row, so the row itself is no longer
+// one button — a button inside a button is not a thing the DOM allows. The tap
+// target is unchanged: everything but the Share still opens the review.
+function HandListRow({ hand, agentName, agentMood, onClick }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-        padding: `11px ${PAD}px`, borderBottom: `1px solid ${M_BORDER}`,
-        background: 'transparent', border: 'none',
-        cursor: 'pointer', textAlign: 'left',
-      }}
-    >
-      <TypeBadge flagType={hand.flagType} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: M_TEXT, fontWeight: 500, lineHeight: 1.3 }}>
-          {summaryFor(hand)}
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      paddingRight: PAD, borderBottom: `1px solid ${M_BORDER}`,
+    }}>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10,
+          padding: `11px ${PAD}px`,
+          background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <TypeBadge flagType={hand.flagType} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: M_TEXT, fontWeight: 500, lineHeight: 1.3 }}>
+            {summaryFor(hand)}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 11, color: M_MUTED }}>
+            {hand.handNumber != null ? `Hand #${hand.handNumber}` : 'Unknown hand'}
+            {Number.isFinite(hand.pot) && hand.pot > 0 ? ` · Pot ${hand.pot}` : ''}
+          </div>
         </div>
-        <div style={{ marginTop: 2, fontSize: 11, color: M_MUTED }}>
-          {hand.handNumber != null ? `Hand #${hand.handNumber}` : 'Unknown hand'}
-          {Number.isFinite(hand.pot) && hand.pot > 0 ? ` · Pot ${hand.pot}` : ''}
-        </div>
-      </div>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_MUTED}
-        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M9 18l6-6-6-6" />
-      </svg>
-    </button>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_MUTED}
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+      <ShareButton hand={hand} agentName={agentName} mood={agentMood} />
+    </div>
   );
 }
 
-function ListView({ agentName, hands, onSelect, onReplay, onBack }) {
+function ListView({ agentName, agentMood, hands, onSelect, onReplay, onBack }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 9,
@@ -170,6 +180,8 @@ function ListView({ agentName, hands, onSelect, onReplay, onBack }) {
               <HandListRow
                 key={`${hand.handNumber ?? i}-${hand.flagType}`}
                 hand={hand}
+                agentName={agentName}
+                agentMood={agentMood}
                 onClick={() => onSelect(hand)}
               />
             ))}
@@ -616,6 +628,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
   return (
     <ListView
       agentName={agentName}
+      agentMood={agentMood}
       hands={hands}
       onSelect={setSelectedHand}
       onReplay={setReplayHand}
