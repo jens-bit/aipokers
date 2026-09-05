@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
-import { collectFrom, fetchWallet, hasPocket } from '../lib/wallet.js';
+import { collectFrom, fetchWallet, fundAgent, hasPocket } from '../lib/wallet.js';
 import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
 import { PocketList } from '../components/wallet/PocketRow.jsx';
+import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { presenceOf } from '../components/floor/agentView.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
@@ -278,6 +279,12 @@ export function YouScreen() {
     if (res?.agents) setAgents(res.agents);
   }
 
+  async function handleFund(decision) {
+    if (!fundTarget) return;
+    try { await fundAgent(fundTarget.id, decision); await refreshMoney(); setFundTarget(null); }
+    catch { /* the sheet stays open, the choice is not lost */ }
+  }
+
   async function handleCollect(agent) {
     if (busyAgentId) return;
     setBusyAgentId(agent.id);
@@ -291,9 +298,25 @@ export function YouScreen() {
     return String(n);
   }
 
+  // WUI-2: the funding sheet takes the whole screen, the way the floor zoom
+  // does. It is a decision, not a popover on top of a scrolling list.
+  if (fundTarget) {
+    return (
+      <div className="wal dr-app" style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
+        <FundSheet
+          agent={fundTarget}
+          wallet={wallet}
+          index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
+          onCancel={() => setFundTarget(null)}
+          onConfirm={handleFund}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
-      className="dr-app"
+      className="wal dr-app"
       style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG }}
     >
       {/* ── Balance card ─────────────────────────────────────────── */}

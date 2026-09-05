@@ -225,3 +225,69 @@ describe('WUI-1 — the row actions', () => {
     expect(fetchMock.posts).toHaveLength(0);
   });
 });
+
+describe('WUI-2 — the funding sheet on the You screen', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    withWallet();
+  });
+
+  it('Fund opens the sheet for that agent', async () => {
+    const user = userEvent.setup();
+    render(<YouScreen />);
+    await screen.findByText('Value Bot');
+
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
+    // It is a decision, not a popover: the pockets list is not behind it.
+    expect(screen.queryByText('Balanced v2.1')).not.toBeInTheDocument();
+  });
+
+  it('confirming funds him and re-reads the money', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/fund', { ok: true }, { method: 'POST' });
+    render(<YouScreen />);
+    await screen.findByText('Value Bot');
+
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    const [req] = fetchMock.requestsMatching('/fund');
+    expect(req.url).toContain('agent_value');
+    expect(req.body).toMatchObject({ mode: 'allowance', amount: 500, cap: null });
+
+    // Back to the list, with the wallet re-read rather than guessed at.
+    await waitFor(() => expect(screen.getByText('Balanced v2.1')).toBeInTheDocument());
+    expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1);
+  });
+
+  it('cancelling funds nothing and returns to the pockets', async () => {
+    const user = userEvent.setup();
+    render(<YouScreen />);
+    await screen.findByText('Value Bot');
+
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(await screen.findByText('Balanced v2.1')).toBeInTheDocument();
+    expect(fetchMock.requestsMatching('/fund')).toHaveLength(0);
+  });
+
+  it('a refused fund keeps the sheet open so the choice is not lost', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/fund', () => ({ status: 402, body: {} }), { method: 'POST' });
+    render(<YouScreen />);
+    await screen.findByText('Value Bot');
+
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    expect(screen.getByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
+  });
+});
