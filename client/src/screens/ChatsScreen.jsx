@@ -13,6 +13,7 @@ import { moodOf, stateOf, causeOf, lastMomentOf } from '../components/floor/agen
 import { recentEntries, gainsWithin, grewWithin, normalizeAttrs, ATTR_KEYS } from '../lib/attributes.js';
 import { openerFor } from '../components/desktop/useAgentThread.js';
 import { ReplayCard } from '../components/replay/ReplayCard.jsx';
+import { NotYet } from '../components/ftu/NotYet.jsx';
 import { ReplayTheatre } from '../components/replay/ReplayTheatre.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
@@ -278,11 +279,25 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
     );
   }
 
+  // FTU-3: nobody to talk to yet. Not "no chats" — a thread is a person, and
+  // he has not hired one. The recruiter says so, because the recruiter is who
+  // would know, and the one action names the next thing that happens.
   if (!agents.length) {
     return (
-      <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto' }}>
-        <SectionLbl mt={18}>Start here</SectionLbl>
-        <DraftCard onCreateAgent={onCreateAgent} />
+      <div className="dr-app ftu-roster">
+        <NotYet
+          tone="teal"
+          fact="NOBODY TO TALK TO YET"
+          voice="Every thread in here is somebody who works for you. You have not hired anyone."
+          fills="Hire one and this is where he tells you how the night went."
+        />
+        <div className="ftu-roster__line">
+          A minute of conversation, then he is born with a temperament of his own
+          and takes a seat.
+        </div>
+        <button type="button" className="ftu-primary" onClick={onCreateAgent}>
+          Draft your first agent
+        </button>
       </div>
     );
   }
@@ -620,6 +635,11 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
         // only: a poster per hand would make the thread a feed.
         if (flagged.length > 0) {
           msgs.push({ role: 'replay', hand: flagged[0], _id: ++msgIdRef.current });
+        } else if (hands.length > 0) {
+          // FTU-3: his first quiet shift. Nothing was worth flagging, and that
+          // is the news rather than a gap — the thread says which thing has not
+          // happened and what would put something here.
+          msgs.push({ role: 'noflags', _id: ++msgIdRef.current });
         }
         // F-3: the first time each attribute cost him something. The line is
         // his misjudgment, and the label beside it is tappable exactly once.
@@ -812,6 +832,17 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
                   setExplained((prev) => new Set(prev).add(msg.cost.key));
                 }}
               />
+            );
+          }
+          if (msg.role === 'noflags') {
+            return (
+              <div className="ftu-thread-note" key={msg._id}>
+                <NotYet
+                  fact="NOTHING WORTH FLAGGING"
+                  voice="No big bluffs, no bad beats. It was a quiet shift."
+                  fills="When a hand is worth watching, it arrives here as a replay you can scrub."
+                />
+              </div>
             );
           }
           if (msg.role === 'replay') {

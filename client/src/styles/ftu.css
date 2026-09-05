@@ -1,0 +1,229 @@
+/* ftu.css — THE FIRST FIVE MINUTES.
+ * Ported from design-refs/mood-ftu2.jsx (wave 36).
+ *
+ * The rule that governs every empty state here: AN EMPTY STATE IS A ROOM THAT
+ * BREATHES, NOT A PLACEHOLDER SENTENCE. No "No agents yet", no "No hands to
+ * show", no illustrated void with a caption. Nothing is missing — something has
+ * simply not happened yet, and the screen says which thing, in the voice of
+ * whoever would know. */
+
+/* ── NotYet ───────────────────────────────────────────────────────────────── */
+/* Dashed, because dashed is this product's word for "reserved, not broken" —
+ * the same language the forming ghost and the draft chips use. */
+
+.not-yet {
+  padding: 12px 13px;
+  border-radius: 11px;
+  border: 1px dashed rgba(107, 107, 107, 0.33);
+  background: transparent;
+}
+
+.not-yet--teal { border-color: rgba(0, 212, 170, 0.33); }
+
+.not-yet__fact {
+  display: block;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.not-yet--teal .not-yet__fact { color: var(--sys-teal, #00D4AA); }
+
+.not-yet__voice {
+  font-size: 12.5px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.45;
+  margin-top: 7px;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.not-yet__fills {
+  font-size: 11.5px;
+  color: var(--sys-muted, #6B6B6B);
+  line-height: 1.45;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+
+/* ── the one primary action ───────────────────────────────────────────────── */
+/* Every screen on this path has exactly one, and it names the next thing that
+ * happens rather than the button's own function. */
+
+.ftu-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 46px;
+  min-height: 0;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--sys-teal, #00D4AA);
+  color: #0A0A0A;
+  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── 2 · the empty floor ──────────────────────────────────────────────────── */
+/* The room is LIT. Bottles behind the bar, felts dressed, the light pools on.
+ * What is missing is one body, and the room shows that as an empty stool with a
+ * dashed rim — reserved, not broken. */
+
+.floor-ftu__dock {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── 8 · the first recap, and the empty roster ────────────────────────────── */
+
+.ftu-thread-note { margin: 0 14px 9px; }
+
+.ftu-roster {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 14px 14px;
+  overflow: hidden auto;
+}
+
+.ftu-roster__line {
+  font-size: 12.5px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.5;
+}
+
+/* ── 9 · You, with one session behind it ──────────────────────────────────── */
+
+.ftu-you-note { margin: 0 14px 12px; }
+
+/* ── 1 · the door ─────────────────────────────────────────────────────────── */
+/* D5FtuLoginScreenM: the room on one side, the proposition on the other, and a
+ * single way in. */
+
+.ftu-login {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--tg-h, 100dvh);
+  background: var(--sys-bg, #1A1A1E);
+  color: var(--sys-text, #EDEDED);
+  font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
+}
+
+.ftu-login__room {
+  flex: 1;
+  min-height: 180px;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 60%, #2f4d48 0%, #1d2e2c 55%, #141a1c 100%);
+  border-bottom: 1px solid rgba(0, 212, 170, 0.22);
+}
+
+/* The one open seat, lit. Same dashed rim as the floor's own stool. */
+.ftu-login__seat {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ftu-login__stool {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 1px dashed rgba(0, 212, 170, 0.40);
+  animation: ftu-drift 3.4s ease-in-out infinite;
+}
+
+.ftu-login__glow {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+.ftu-login__seat-label {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-teal, #00D4AA);
+  letter-spacing: 0.06em;
+}
+
+@keyframes ftu-drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+.ftu-login__pitch {
+  flex-shrink: 0;
+  padding: 22px 22px calc(22px + env(safe-area-inset-bottom, 0px));
+  background: var(--sys-panel, #232329);
+}
+
+.ftu-login__head {
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--sys-text, #EDEDED);
+  margin: 0;
+}
+
+.ftu-login__body {
+  font-size: 14px;
+  color: var(--sys-dim, #A1A1A1);
+  line-height: 1.6;
+  margin-top: 16px;
+}
+
+.ftu-login__action { margin-top: 22px; }
+.ftu-login__action .ftu-primary { height: 48px; }
+
+.ftu-login__foot {
+  margin-top: 14px;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #6B6B6B);
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+}
+
+.ftu-login__error {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--sys-red, #FF4D4F);
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ftu-login__stool { animation: none; }
+}
