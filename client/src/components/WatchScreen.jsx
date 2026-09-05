@@ -494,9 +494,17 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
   var hasEquity   = equityText !== null;
   // At showdown the readout stops reporting the hero's last action and says
   // how the hand ended -- the ref's `note` slot.
+  // FIX-1f: when it is the hero's turn the chip names the price, which is the
+  // one fact the removed meta line was carrying that nothing else shows.
+  var toCall = (live && heroData && game.currentBet != null)
+    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
+    : 0;
+  var toActLabel = (game && game.toAct === heroSeat && live)
+    ? (toCall > 0 ? 'TO CALL $' + toCall.toLocaleString() : 'TO ACT')
+    : null;
   var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
-    : (game && game.toAct === heroSeat && live ? 'TO ACT' : null));
+    : toActLabel);
 
   // Opponents in seat order clockwise from the hero, so the ring on screen
   // matches the order the action actually moves in.
@@ -538,19 +546,18 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
     ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
     : null;
 
-  // WV2-5: the street and what the hero is being asked for, on the meta line.
   var blinds = (game && game.smallBlind != null && game.bigBlind != null)
     ? ('$' + game.smallBlind + '/$' + game.bigBlind)
     : '';
-  var toCall = (live && heroData && game.currentBet != null)
-    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
-    : 0;
   var tableLabel = '#' + (game && game.tableId ? game.tableId : '--');
+  // FIX-1f: the felt no longer carries a meta line during a hand. It had grown
+  // to "#tbl · $10/$20 · PREFLOP · 2-HANDED · TO CALL $40" — five facts, four of
+  // them already on screen: the board shows the street, the seat ring shows how
+  // many are in, and the amount belongs in the readout. Between hands the line
+  // stays, because that is the ref's calm state and there is no board to read.
   var metaLine = between
     ? [tableLabel, blinds, 'SHUFFLING'].filter(Boolean).join(' · ')
-    : [tableLabel, blinds, street, seatCount + '-HANDED']
-        .concat(toCall > 0 ? ['TO CALL $' + toCall.toLocaleString()] : [])
-        .filter(Boolean).join(' · ');
+    : null;
 
   // WV2-3: the felt's height and its three interior tops come from the sheet's
   // current detent, so it grows and shrinks with the drag.
@@ -631,7 +638,7 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
           </div>
         </>
       ) : (
-        <div className="watch-felt__street">{metaLine}</div>
+        metaLine && <div className="watch-felt__street">{metaLine}</div>
       )}
 
       <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>

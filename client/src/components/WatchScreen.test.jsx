@@ -90,12 +90,38 @@ describe('WatchScreen mid-hand', () => {
     }
   });
 
-  it('shows the street and the blinds on the meta line', () => {
+  // FIX-1f replaces the old "shows the street and the blinds on the meta line"
+  // case. That test encoded a rule the 2026-09-05 playtest reversed: the felt
+  // carried "#tbl · $10/$20 · FLOP · 3-HANDED · TO CALL $40" while a hand was
+  // live, five facts of which four are already on screen. The line is gone
+  // during a hand; the board reports the street, the seat ring reports how many
+  // are in, and the price is in the readout. It survives between hands, which
+  // is the reference's calm state (design-refs/mood-watch.jsx).
+  it('FIX-1f: shows no meta line on the felt while a hand is live', () => {
     const { container } = renderWatch(midHandGame);
-    const meta = container.querySelector('.watch-felt__street').textContent;
-    expect(meta).toContain('FLOP');
-    expect(meta).toContain('$10/$20');
-    expect(meta).toContain('3-HANDED');
+    expect(container.querySelector('.watch-felt__street')).toBeNull();
+  });
+
+  it('FIX-1f: keeps the calm meta line between hands', () => {
+    const { container } = renderWatch(betweenHandsGame);
+    const meta = container.querySelector('.watch-felt__street');
+    expect(meta).toBeTruthy();
+    expect(meta.textContent).toContain('$10/$20');
+    expect(meta.textContent).toContain('SHUFFLING');
+    expect(meta.textContent).not.toContain('HANDED');
+  });
+
+  it('FIX-1f: the readout carries the price when it is the hero\'s turn', () => {
+    // Hero is seat 0 and owes 40 - 40 = 0 in the fixture; move the action to
+    // them with something still to call.
+    const toActGame = {
+      ...midHandGame,
+      toAct: 0,
+      currentBet: 80,
+      seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, contribThisStreet: 40 } : s)),
+    };
+    const { container } = renderWatch(toActGame);
+    expect(container.querySelector('.watch-felt__action-chip').textContent).toBe('TO CALL $40');
   });
 
   it('appends the agent\'s decision to the feed with its equity as a percentage', async () => {
