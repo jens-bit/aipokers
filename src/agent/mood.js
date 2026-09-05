@@ -354,6 +354,41 @@ export function applyPepTalk(currentMood, handsPlayed) {
   };
 }
 
+// ── Heat, in words ──────────────────────────────────────────────────────────
+// One vocabulary, used by the thread, the briefing and the felt, so a 92 reads
+// the same way everywhere. Bands are not enough on their own: "tilted" covers
+// a player who is annoyed and a player who has stopped playing poker, and the
+// two should not get the same sentence.
+
+export const HEAT_WORDS = Object.freeze([
+  { upTo: 10,  word: 'ice cold',  tone: 'quiet, certain, nothing to prove' },
+  { upTo: 20,  word: 'running well', tone: 'warm and a little pleased with yourself' },
+  { upTo: 40,  word: 'level',     tone: 'even and matter of fact' },
+  { upTo: 55,  word: 'irritated', tone: 'clipped, a shade impatient' },
+  { upTo: 60,  word: 'simmering', tone: 'short sentences, less patience, no jokes' },
+  { upTo: 80,  word: 'tilted',    tone: 'blunt and unhappy; you are not hiding it' },
+  { upTo: 100, word: 'boiling',   tone: 'barely civil, five words at a time, do not pretend to be fine' },
+]);
+
+export function heatWord(heat) {
+  const h = clampHeat(heat);
+  return (HEAT_WORDS.find((w) => h <= w.upTo) ?? HEAT_WORDS[HEAT_WORDS.length - 1]);
+}
+
+/**
+ * The one line that goes into a prompt. Present for every mood including a
+ * level one, because "level" is information too — the old code sent nothing at
+ * neutral and the model filled the silence with a customer-service voice.
+ */
+export function moodPromptLine(mood) {
+  const state = mood?.state ?? 'neutral';
+  const heat = Number.isFinite(mood?.heat) ? mood.heat : heatForState(state);
+  const w = heatWord(heat);
+  const because = mood?.cause ? ` after ${mood.cause}` : '';
+  const shut = state === 'sulking' ? ' You have stopped expecting it to turn around.' : '';
+  return `STATE: ${state}, heat ${heat}/100 — ${w.word}${because}. Voice: ${w.tone}.${shut}`;
+}
+
 // ── Susceptibility: what the owner says ─────────────────────────────────────
 // MOOD-2b. The thread is not a support line; it is a person talking to a poker
 // player about poker. Being told he punted lands, and being asked what he was

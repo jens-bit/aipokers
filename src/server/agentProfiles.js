@@ -12,6 +12,8 @@ import {
   heatForState,
   applyOwnerMessage,
   classifyOwnerMessage,
+  moodPromptLine,
+  restAtBar,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -32,7 +34,7 @@ import {
   firstWordsFor,
   applySessionGrowth,
 } from '../agent/attributes.js';
-import { formatMoment } from '../agent/moment.js';
+import { formatMoment, formatOpener } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import {
@@ -737,7 +739,15 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       ? ` · ${flagCount} hand${flagCount === 1 ? '' : 's'} flagged`
       : '';
     const text = (recap.trim() + flagSuffix).slice(0, 240);
-    agent.sessionRecap = { text, at: Date.now() };
+    // MOOD-2c: the first line of the thread, in his voice, chosen by how hot he
+    // is and by the hand he cannot stop thinking about. The counts that used to
+    // be the opener are on the profile, where numbers belong.
+    const opener = formatOpener({
+      mood: agent.mood,
+      flagged: agent.sessionFlagged ?? [],
+      seed: sessionHands || 0,
+    });
+    agent.sessionRecap = { text, opener, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   }
   // Append to session log (cap 10)
@@ -793,6 +803,21 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       console.error('[agents] growth failed:', err.message);
     }
   }
+  // MOOD-2a: time at the bar between sessions. Hours are computed from the
+  // session log rather than read off a clock inside mood.js, and the bar only
+  // ever cools — an agent left alone comes back level, never resentful.
+  const previousSession = (agent.sessionLog ?? []).at(-2);
+  if (previousSession?.endedAt) {
+    const hours = Math.max(0, (Date.now() - previousSession.endedAt) / 3_600_000);
+    if (hours > 0) {
+      agent.mood = restAtBar(agent.mood, {
+        hours,
+        composure: agent.attrs?.COMPOSURE ?? null,
+        profile: agent.profile ?? null,
+      });
+    }
+  }
+
   // Fatigue is a within-session STATE and the session is over. He is fresh
   // again by the time the owner next looks at him — the bar did its job.
   agent.fatigue = 'fresh';
@@ -1072,6 +1097,9 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     } : null,
     lastMoment: agent.lastMoment ?? null,
     sessionRecap: agent.sessionRecap ?? null,
+    // MOOD-2c: the thread's first line. Present whenever a session has ended;
+    // the client should open with this instead of building its own greeting.
+    opener: agent.sessionRecap?.opener ?? null,
     unseenRecap: !!agent.unseenRecap,
     proposal: agent.proposal ?? null,
     presence,
@@ -1174,7 +1202,7 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -1186,10 +1214,11 @@ function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
 
-  let moodLine = '';
-  if (agent.mood && agent.mood.state && agent.mood.state !== 'neutral') {
-    moodLine = `\nMood: ${agent.mood.state}${agent.mood.cause ? ` (${agent.mood.cause})` : ''} — let it colour your voice.`;
-  }
+  // MOOD-2c: heat, not just the band. A 40-heat tilt and a 90-heat tilt are
+  // different players and have to answer differently; the old line said
+  // "tilted" for both and said nothing at all when he was level, which is
+  // exactly when the model reached for a customer-service voice.
+  const moodLine = `\n${moodPromptLine(agent.mood)}`;
   let pepLine = '';
   if (pepTalk?.soothed) {
     pepLine = `\nOwner just talked you down — mood eased to ${pepTalk.mood.state}. Acknowledge briefly, in character.`;
