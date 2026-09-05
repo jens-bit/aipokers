@@ -245,11 +245,17 @@ function realisedFromLedger(ledger) {
 // and takes a seat at the bar."
 //
 // This is the only function in this file that touches anything but a wallet and
-// a pocket, and it does the smallest possible thing: it queues the seat on the
-// table's own pending sit-out set, which is the path SIT_OUT already walks. The
-// hand in progress completes, the between-hands reconcile frees the seat, the
-// session is reported, and the floor draws him at the bar because he is no
-// longer at a table. One mechanism, not two.
+// a pocket, and it does the smallest possible thing: it asks the table to sit
+// the seat out AFTER the hand. The hand in progress completes, the
+// between-hands reconcile frees the seat, the session is reported, and the
+// floor draws him at the bar because he is no longer at a table. One
+// mechanism, not two.
+//
+// WALLET-6: it used to reach into table._pendingSitOut directly, which is the
+// wrong set - that one makes the seat FOLD as soon as it is its turn, so the
+// promise "he finishes the hand he is in" was broken by the very line meant to
+// keep it. table.sitOutSeat(seat, { afterHand: true }) is the public door, and
+// it lets him play the hand out.
 //
 // The table is duck-typed on purpose — this module still knows nothing about
 // table.js, and the test drives it with a plain object.
@@ -257,8 +263,14 @@ export function benchCutSeat(table, agentId) {
   const seats = table?.agentIds;
   const seat = Array.isArray(seats) ? seats.indexOf(agentId) : -1;
   if (seat < 0 || !table?.pending?.[seat]) return { seat: -1, benched: false };
-  if (typeof table?._pendingSitOut?.add !== 'function') return { seat, benched: false };
-  table._pendingSitOut.add(seat);
+  if (typeof table?.sitOutSeat !== 'function') return { seat, benched: false };
+  try {
+    table.sitOutSeat(seat, { afterHand: true });
+  } catch {
+    // A seat that emptied between the read and the write is a non-event, not a
+    // failed cut: the mode change has already been persisted by the caller.
+    return { seat, benched: false };
+  }
   return { seat, benched: true };
 }
 
