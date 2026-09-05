@@ -4,7 +4,7 @@
 //   2. Chat identity: owner messages render as "You" (isAI:false + seat=mySeat), not the
 //      agent name. Distinguishing signal from server: isAI=false for human-typed chat.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
@@ -14,11 +14,16 @@ import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
 import { ReadPanel } from './system/ReadPanel.jsx';
+import { SeatGhost } from './system/SeatGhost.jsx';
+import { ReadSheet } from './system/ReadSheet.jsx';
+import { Bubble } from './system/Bubble.jsx';
+import { onFelt, record, BUBBLE_MS } from '../lib/bubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
 import { paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS } from '../lib/pace.js';
+import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -127,7 +132,7 @@ function MuteToggle() {
 // so the agent replies in-voice. AI table-speech (trash talk from the WS) appears
 // as ambient rows, visually distinct from the DM thread.
 
-function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
+function ChatTab({ agentThread, tableSpeech, said, onSend, loading, agentName }) {
   var [text, setText] = useState('');
   var listRef    = useRef(null);
   var chatInputRef = useRef(null);
@@ -140,9 +145,15 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
     return function() { el.removeEventListener('focus', onFocus); };
   }, []);
 
-  // Merge thread messages and ambient table speech sorted by timestamp.
+  // W4-4: the ordered record of everything said at this table — his lines
+  // (including the ones that were only ever bubbles), theirs, and yours. A
+  // bubble that was withheld from the felt because it would not fit is still
+  // here: that is the last clause of the bubble law.
   var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
     .concat(tableSpeech.map(function(m) { return Object.assign({}, m, { _type: 'ambient' }); }))
+    .concat((said || []).map(function(u) {
+      return { _type: u.mine ? 'his' : 'ambient', text: u.text, t: u.at, _id: u.id };
+    }))
     .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
 
   useEffect(function() {
@@ -185,6 +196,17 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
                   fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)',
                   fontStyle: 'italic', lineHeight: 1.4,
                 }}>{m.text}</span>
+              </div>
+            );
+          }
+          // W4-4: a line he said out loud at the table. His register in the
+          // record: his own voice, not italicised like theirs, and not a
+          // bubble — the felt already had that and let it go.
+          if (m._type === 'his') {
+            return (
+              <div key={'his-' + (m._id || i)} className="table-row table-row--his">
+                <span className="table-row__who">HIM</span>
+                <span className="table-row__text">{m.text}</span>
               </div>
             );
           }
@@ -424,7 +446,7 @@ function compactFor(slot, opponentCount) {
 // R-2 exports this: the replay theatre plays the same felt, driven by an
 // authored timeline instead of by the server. Reuse, not a second felt — the
 // pacing states, the rope and the hero row are all here already.
-export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom }) {
+export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat, bubbles = [] }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
@@ -452,6 +474,36 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
   var heroHole  = (heroData && heroData.holeCards)
     ? heroData.holeCards.map(pc).filter(Boolean)
     : null;
+
+  // ── W4-1 · the DEAL beat ─────────────────────────────────────────────────
+  // The hand is dealt, not shown. His two cards land 90ms apart, each with its
+  // own light tap, then the table's backs sweep out as one gesture with no
+  // haptic — their cards are not his event.
+  //
+  // Keyed on the hand number, so a re-render, a reconnect or a late snapshot
+  // cannot re-deal a hand that is already on the table.
+  var handNo = game ? game.handNumber : null;
+  var dealRef = useRef({ hand: null, t0: 0 });
+  var [dealT, setDealT] = useState(DEAL_TOTAL_MS);
+
+  useEffect(function() {
+    if (!live || !isNewDeal(handNo, dealRef.current.hand)) return undefined;
+    dealRef.current = { hand: handNo, t0: Date.now() };
+    setDealT(0);
+
+    var timers = [
+      setTimeout(function() { setDealT(CARD_GAP_MS); fireHaptic('cardDealt'); }, CARD_GAP_MS),
+      setTimeout(function() { setDealT(CARD_GAP_MS * 2); fireHaptic('cardDealt'); }, CARD_GAP_MS * 2),
+      setTimeout(function() { setDealT(DEAL_TOTAL_MS); }, BACKS_DELAY_MS),
+    ];
+    return function() { timers.forEach(clearTimeout); };
+  }, [handNo, live]);
+
+  var beat = live ? dealBeat(dealT) : { landed: 2, backs: true };
+  var heroLanded = between ? 2 : beat.landed;
+  // Owner-only by construction: warming needs heroHole, which the server only
+  // ships to a viewer who proved ownership. A spectator gets no glow, no tap.
+  var warm = live && isWarm(heroHole, heroEquityOf(game, handEquity, heroSeat));
 
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
@@ -497,6 +549,12 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     var s = game && game.seats ? game.seats[si] : null;
     if (!s) continue;
     opponentSeats.push({
+      seat: si,
+      // accentColor is served per seat; mood is NOT on the wire yet, so every
+      // opponent stands neutral until it is. The posture slot is here so the
+      // day it ships nothing else has to move.
+      accent: s.accentColor || '#00D4AA',
+      mood: s.mood || 'neutral',
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
       pos: posLabel(si, game),
@@ -569,24 +627,51 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         var showBacks = live ? !o.folded : (settled && !showCards);
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
-            {compact
-              ? <SeatChipSm name={o.name} stack={o.stack} acting={o.acting}
-                  folded={o.folded} dealer={o.dealer} />
-              : <SeatChip name={o.name} stack={o.stack} pos={o.pos} acting={o.acting}
-                  folded={o.folded} align={align} dealer={o.dealer} />}
-            {(showBacks || showCards || o.bet) && (
+            {/* W4-2: he is somebody sitting there, not a chip with a number on
+                it. Same FloorGhost the casino floor draws, same accent, so a
+                House regular looks the same at the felt as in the room. */}
+            <SeatGhost
+              name={o.name}
+              stack={o.stack}
+              accent={o.accent}
+              mood={o.mood}
+              folded={o.folded}
+              acting={o.acting}
+              selected={selectedSeat === o.seat}
+              dealt={beat.backs}
+              reveal={!!o.reveal}
+              show={o.reveal}
+              side={slot === 'left' || slot === 'right'}
+              order={i}
+              size={compact ? 30 : 34}
+              onSelect={function() { onSelectSeat(o.seat); }}
+            />
+            {o.bet && (
               <div className="watch-felt__seat-row">
-                {showCards && (
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    {o.reveal.map(function(c, k) {
-                      return <PlayingCard key={k} rank={c[0]} suit={c[1]} w={22} h={31} />;
-                    })}
-                  </div>
-                )}
-                {showBacks && <SeatCardBacks mucked={o.mucked} />}
-                {o.bet && <BetPill amount={o.bet} />}
+                <BetPill amount={o.bet} />
               </div>
             )}
+          </div>
+        );
+      })}
+
+      {/* W4-3 · speech. At most two on the felt, one per seat, and a bubble
+          that would be cut off is not shown at all — the record has it either
+          way. His is centred in the band above the hero row; an opponent's
+          sits over their own ghost, and its tail points back at them. */}
+      {bubbles.map(function(b) {
+        if (b.mine) {
+          return (
+            <div key={b.id} className="watch-felt__band">
+              <Bubble mine flow text={b.text} />
+            </div>
+          );
+        }
+        var idx = opponentSeats.findIndex(function(o) { return o.seat === b.seat; });
+        if (idx < 0) return null;
+        return (
+          <div key={b.id} className={'watch-felt__bubble watch-felt__bubble--' + slots[idx]}>
+            <Bubble text={b.text} at={0} w={142} flow />
           </div>
         );
       })}
@@ -629,13 +714,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
       </div>
 
-      {/* His line — one sentence, thread voice, and the loudest thing on the
-          screen at ALL-IN. Long voice lives in the thread; the felt gets one. */}
-      {line && (!geom || !geom.felt || geom.line != null) && (
-        <div className="watch-felt__line">
-          <span className="watch-felt__line-text">{line}</span>
-        </div>
-      )}
+      {/* W4-3: there is no line under the board any more. The felt is where
+          speech happens — as bubbles over whoever is speaking — and the TABLE
+          tab is where speech is kept. The height that line held goes back to
+          the felt. */}
 
       {settled ? (
         <>
@@ -653,14 +735,20 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         metaLine && <div className="watch-felt__street">{metaLine}</div>
       )}
 
-      <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+      <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '') + (warm ? ' is-warm' : '')}>
+        <div className="watch-felt__hero-cards">
           {(heroHole || [null, null]).map(function(c, i) {
+            // W4-1: each card slides in from the right and lands. `landed` is
+            // the beat's own count, so card two is never on the felt before
+            // card one — "never simultaneous" is a layout fact, not a timing hope.
+            var down = i < heroLanded;
             return (
-              <div key={i} style={{
-                transform: 'rotate(' + (i ? 3 : -3) + 'deg)',
-                filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
-              }}>
+              <div
+                key={i}
+                className={'watch-felt__hero-card' + (down ? ' is-down' : '')}
+                data-landed={down ? 'yes' : 'no'}
+                style={{ transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)' }}
+              >
                 {(c && !between)
                   ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
                   : <CardBack w={36} h={50} branded />}
@@ -694,9 +782,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         </div>
         <div style={{ flex: 1 }} />
 
+        {warm && !actionLabel && <span className="watch-felt__premium">PREMIUM</span>}
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
-          : <span className="watch-felt__waiting">{heroNote}</span>}
+          : (!warm && <span className="watch-felt__waiting">{heroNote}</span>)}
         {pace === 'allin' && !settled && (
           <span className="watch-felt__hero-tag">HOLDING</span>
         )}
@@ -762,9 +851,14 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 // are gone — the first was the solver speaking over him, the other two never
 // had content — and READ and CHAT remain.
 
-var TABS = ['Read', 'Chat'];
-var TAB_READ = 0;
-var TAB_CHAT = 1;
+// W4-2: READ is gone. A read was never a tab — it is about ONE person, and the
+// way you ask for it is to tap them. The rows moved into ReadSheet, which opens
+// over the felt on a seat tap. CHAT stays, and W4-4 renames it TABLE.
+// W4-4: one tab, because there is only one thing under the felt now —
+// everything said at this table, in order, whoever said it. The felt is the
+// performance and it never scrolls; this is the transcript and it always does.
+var TABS = ['Table'];
+var TAB_CHAT = 0;
 
 // WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
 // click. Selection and dragging are one gesture, resolved by the sheet: a tap
@@ -902,11 +996,40 @@ function detentName(frac) {
   return DETENTS[best];
 }
 
+// W4-2: one seat's read out of the served `state.reads` array, and the facts
+// the sheet's header needs about that seat. Both return null rather than guess,
+// so a seat the server has no read for opens a sheet that says so.
+function readFor(game, seat) {
+  var list = (game && Array.isArray(game.reads)) ? game.reads : null;
+  if (!list) return null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].seat === seat) return list[i];
+  }
+  return null;
+}
+
+function seatSummary(game, seat) {
+  var s = (game && game.seats) ? game.seats[seat] : null;
+  if (!s) return null;
+  return {
+    name: s.displayName || ('Seat ' + (seat + 1)),
+    stack: s.stack != null ? s.stack.toLocaleString() : null,
+    accent: s.accentColor || '#00D4AA',
+    mood: s.mood || 'neutral',
+  };
+}
+
 // ---- WatchScreen (export) --------------------------------------------------
 
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // W4-5: where "Chat" goes. When the shell can route to his thread it hands
+  // this in and the control leaves the watch screen entirely; without it the
+  // conversation stays in the sheet, which is the only behaviour that existed
+  // before. Optional on purpose — WatchScreen is mounted from more than one
+  // place and must not require a router.
+  onOpenThread,
   // W3-5/W3-6: the newest PACE frame, { pace, potBb, board?, card? }. During a
   // spectator-only all-in hold the server stages the runout card by card;
   // without it the flip falls back to the client's own timer.
@@ -1003,8 +1126,65 @@ export function WatchScreen({
   }, [lastDecision]);
 
   // AI trash-talk from the WS — shown as ambient rows in the agent DM thread.
+  // W4-3 keeps the seat: it is what puts the bubble over the right ghost.
   var tableSpeech = chatMessages.filter(function(m) { return m.isAI; })
-    .map(function(m) { return { text: m.text, t: m.t || 0 }; });
+    .map(function(m) { return { text: m.text, t: m.t || 0, seat: m.seat }; });
+
+  // ── W4-3 · everything said at this table, in order ──────────────────────
+  // One stream, two consumers: the felt takes what fits and is still fresh,
+  // the TABLE tab takes all of it. They are allowed to disagree — that is the
+  // last clause of the bubble law.
+  var [said, setSaid] = useState([]);
+  var saidIdRef = useRef(0);
+
+  // His decision line. DECISION carries the seat it came from, so a table where
+  // both seats think out loud cannot attribute one to the other.
+  useEffect(function() {
+    if (!lastDecision || !lastDecision.reasoning) return;
+    var seat = Number.isInteger(lastDecision.seat) ? lastDecision.seat : mySeat;
+    setSaid(function(prev) {
+      var last = prev[prev.length - 1];
+      if (last && last.mine && last.text === lastDecision.reasoning) return prev;
+      return prev.concat([{
+        id: 'd' + (++saidIdRef.current),
+        seat: seat,
+        text: lastDecision.reasoning,
+        mine: seat === mySeat,
+        at: Date.now(),
+      }]);
+    });
+  }, [lastDecision, mySeat]);
+
+  // Table talk. chatMessages is append-only, so the count is the cursor.
+  var talkSeenRef = useRef(0);
+  useEffect(function() {
+    var fresh = tableSpeech.slice(talkSeenRef.current);
+    if (fresh.length === 0) return;
+    talkSeenRef.current = tableSpeech.length;
+    setSaid(function(prev) {
+      return prev.concat(fresh.map(function(m) {
+        return {
+          id: 't' + (++saidIdRef.current),
+          seat: Number.isInteger(m.seat) ? m.seat : null,
+          text: m.text,
+          mine: Number.isInteger(m.seat) && m.seat === mySeat,
+          at: m.t || Date.now(),
+        };
+      }));
+    });
+  }, [tableSpeech.length]);
+
+  // A bubble is 3–4 seconds, so the felt has to re-read the clock even when
+  // nothing new is said — otherwise the last one would sit there for ever.
+  var [bubbleTick, setBubbleTick] = useState(0);
+  useEffect(function() {
+    if (said.length === 0) return undefined;
+    var id = setInterval(function() { setBubbleTick(function(n) { return n + 1; }); }, 500);
+    return function() { clearInterval(id); };
+  }, [said.length]);
+
+  var bubbles = onFelt(said, Date.now());
+  var tableRecord = record(said);
 
   function sendToAgent(text) {
     if (!agentId || agentLoading) return;
@@ -1157,7 +1337,30 @@ export function WatchScreen({
   }, [shownWho, shownFormed]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
-  var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
+  // W4-5: one decision, both entry points. The header button and the sheet's
+  // own CHAT tab are the same control and must not disagree about where
+  // talking to him happens.
+  var openChat = useCallback(function() {
+    if (onOpenThread) { onOpenThread(); return; }
+    setActiveTab(TAB_CHAT);
+  }, [onOpenThread]);
+
+  // W4-2: which seat's read is open, by seat index. Null is the felt with
+  // nothing over it.
+  var [selectedSeat, setSelectedSeat] = useState(null);
+  var toggleSeat = useCallback(function(seat) {
+    setSelectedSeat(function(prev) {
+      if (prev !== seat) fireHaptic('readForms');
+      return prev === seat ? null : seat;
+    });
+  }, []);
+
+  var sheet     = useSheetDrag({
+    onSelectTab: function(i) {
+      if (i === TAB_CHAT) { openChat(); return; }
+      setActiveTab(i);
+    },
+  });
 
   // Belt-and-braces: non-passive touchmove on the sheet container so that a
   // drag starting on the grab handle cannot bubble up to Telegram's webview
@@ -1208,15 +1411,24 @@ export function WatchScreen({
         <button
           type="button"
           className="watch-screen__chat"
-          onClick={function() { setActiveTab(TAB_CHAT); }}
+          onClick={openChat}
         >Chat</button>
       </div>
 
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
+        {selectedSeat != null && (
+          <ReadSheet
+            entry={readFor(game, selectedSeat)}
+            seat={seatSummary(game, selectedSeat)}
+            onClose={function() { setSelectedSeat(null); }}
+          />
+        )}
 
-        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom} />
+        <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
+          game={game} mySeat={mySeat} lastDecision={lastDecision}
+          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom}
+          bubbles={bubbles} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
@@ -1248,27 +1460,30 @@ export function WatchScreen({
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === TAB_READ && (
-                <ReadTab
-                  game={game}
-                  between={between}
-                  agent={agent}
-                  lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
-                  predict={predictOn ? (
-                    <PredictBeat
-                      picked={pick ? pick.guess : null}
-                      locked={!!(pick && pick.locked)}
-                      right={pick ? pick.right : undefined}
-                      streak={pick && pick.locked ? pick.streak : getStreak()}
-                      onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
-                    />
-                  ) : null}
+              {/* W4-2: the READ tab is gone — a read is about one person and you
+                  ask for it by tapping them, so the rows live in ReadSheet now.
+                  These three were only ever sharing that tab with the reads and
+                  are not reads themselves, so they stay in the panel rather than
+                  being deleted with it. v4 gives none of them a home of its own;
+                  they want a decision, not a silent removal. */}
+              {predictOn && (
+                <PredictBeat
+                  picked={pick ? pick.guess : null}
+                  locked={!!(pick && pick.locked)}
+                  right={pick ? pick.right : undefined}
+                  streak={pick && pick.locked ? pick.streak : getStreak()}
+                  onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
                 />
               )}
+              {between && agent && agent.recentHands && agent.recentHands[0] && (
+                <RiverAttrPanel agent={agent} hand={agent.recentHands[0]} />
+              )}
+              <MuteToggle />
               {activeTab === TAB_CHAT && (
                 <ChatTab
                   agentThread={agentThread}
                   tableSpeech={tableSpeech}
+                  said={tableRecord}
                   onSend={sendToAgent}
                   loading={agentLoading}
                   agentName={config ? config.displayName : null}

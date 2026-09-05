@@ -5,7 +5,7 @@
 // cards face up. Between hands the felt holds a calm state rather than
 // swapping itself out for a spinner.
 
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,6 +95,10 @@ describe('WatchScreen mid-hand', () => {
     expect(within(pot).getByText('$100')).toBeInTheDocument();
   });
 
+  // W4-2 re-expressed the last line only. The seat is a SeatGhost now and its
+  // chip carries the bare stack, as the refs draw it — the felt is dense and
+  // every seat repeating a currency symbol was noise. The rule is unchanged:
+  // every opponent is on screen with its stack.
   it('renders every opponent seat with its stack', () => {
     const { container } = renderWatch(midHandGame);
     const seats = container.querySelectorAll('.watch-felt__seat');
@@ -103,7 +107,7 @@ describe('WatchScreen mid-hand', () => {
     expect(screen.getByText('Doyle_v3')).toBeInTheDocument();
     expect(screen.getByText('Granite')).toBeInTheDocument();
     // Both opponents are still on 980 after posting their blinds.
-    expect(screen.getAllByText('$980')).toHaveLength(2);
+    expect(screen.getAllByText('980')).toHaveLength(2);
   });
 
   // The fish-tank law: the owner watches their own agent play, so the hero's
@@ -394,9 +398,15 @@ describe('W3-2 the panel', () => {
   const tabLabels = (container) =>
     [...container.querySelectorAll('.watch-tabs__tab')].map((el) => el.textContent);
 
-  it('W3-2: offers exactly READ and CHAT', () => {
+  // W4-2 re-expressed: READ is gone. A read is about one person and you ask for
+  // it by tapping them, so its rows moved into ReadSheet and the panel is left
+  // with the one thing that is genuinely a list.
+  it('W4-2: offers exactly one tab, and READ is not it', () => {
     const { container } = renderWatch(midHandGame);
-    expect(tabLabels(container)).toEqual(['Read', 'Chat']);
+    // W4-4 named it TABLE: it is the ordered record of everything said here,
+    // not a chat window.
+    expect(tabLabels(container)).toEqual(['Table']);
+    expect(tabLabels(container).join(' ').toLowerCase()).not.toContain('read');
   });
 
   it('W3-2: RANGE and HISTORY are gone, not hidden', () => {
@@ -409,10 +419,11 @@ describe('W3-2 the panel', () => {
     expect(screen.queryByText('No hands played yet.')).not.toBeInTheDocument();
   });
 
-  it('W3-2: READ is what the panel opens on', () => {
+  it('W4-2: the panel opens on its only tab', () => {
     const { container } = renderWatch(midHandGame);
-    expect(container.querySelector('.read-panel')).toBeTruthy();
-    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Read');
+    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Table');
+    // The reads are not in the panel any more; they open over the felt.
+    expect(container.querySelector('.read-panel')).toBeNull();
   });
 
   it('W3-2: nothing anywhere says it is waiting for the first action', () => {
@@ -512,7 +523,14 @@ const READ_FIXTURE = {
   },
 };
 
-describe('W3-5 ReadPanel reads the served shape', () => {
+// W4-2 re-expressed these: the READ tab is gone, because a read is about ONE
+// person and the way you ask for it is to tap them. Every rule the block
+// encodes is unchanged — the five rows in canon order, the server's own values
+// and labels, the bracket that widens with a thin read, the gate deciding
+// `formed`, the no-evidence state that claims nothing. What changed is the
+// gesture that opens them and the two class names the sheet renamed
+// (.read-sheet__name/__line -> .read-sheet__name/__line).
+describe('W3-5 the served read shape, in the sheet', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
@@ -520,18 +538,29 @@ describe('W3-5 ReadPanel reads the served shape', () => {
 
   const withReads = (reads) => ({ ...midHandGame, reads });
 
+  // Tap the seat the read belongs to. Hero is seat 0 and the ghosts ring the
+  // table clockwise from him, so ghost n is seat n+1. `scope` matters: a case
+  // that renders twice would otherwise tap the first render's ghost.
+  const openRead = (seat = 1, scope = document) => {
+    const ghost = [...scope.querySelectorAll('.seat-ghost')][seat - 1];
+    if (ghost) fireEvent.click(ghost);
+  };
+  const openReadFor = (entry, scope) => openRead(entry.seat, scope);
+
   const rowFor = (container, label) =>
     [...container.querySelectorAll('.read-bar')]
       .find((el) => el.querySelector('.read-bar__label').textContent === label);
 
   it('W3-5: draws the five rows in canon order with no reads at all', () => {
     const { container } = renderWatch(midHandGame);
+    openRead();
     expect([...container.querySelectorAll('.read-bar__label')].map((el) => el.textContent))
       .toEqual(['PLAYS', 'RAISES FIRST', 'AGGRESSION', 'FOLDS TO HEAT', 'GOES TO SHOWDOWN']);
   });
 
   it('W3-5: with no evidence he says so himself, and no bar claims a number', () => {
     const { container } = renderWatch(withReads([READ_FIXTURE.fresh]));
+    openRead();
     expect(screen.getByText('NO EVIDENCE YET')).toBeInTheDocument();
     expect(screen.getByText(/Give me a few hands/)).toBeInTheDocument();
     expect([...container.querySelectorAll('.read-bar__value')].map((el) => el.textContent))
@@ -547,11 +576,12 @@ describe('W3-5 ReadPanel reads the served shape', () => {
     it(`W3-5: renders the ${shape} panel the server sent`, () => {
       const entry = READ_FIXTURE[shape];
       const { container } = renderWatch(withReads([entry]));
+      openReadFor(entry);
 
-      expect(container.querySelector('.read-panel__who').textContent).toBe(entry.displayName);
+      expect(container.querySelector('.read-sheet__name').textContent).toBe(entry.displayName);
       expect(screen.getByText(`${entry.handsObserved} HANDS SEEN`)).toBeInTheDocument();
       // The line is his, and it is the server's — never composed here.
-      expect(container.querySelector('.read-panel__line').textContent).toContain(entry.line);
+      expect(container.querySelector('.read-sheet__line').textContent).toContain(entry.line);
 
       for (const row of entry.rows) {
         const el = rowFor(container, row.label);
@@ -565,6 +595,7 @@ describe('W3-5 ReadPanel reads the served shape', () => {
   // The one value the client has to interpret rather than echo.
   it('W3-5: confidence is a certainty, so a full read draws no bracket', () => {
     const { container } = renderWatch(withReads([READ_FIXTURE.nit]));
+    openReadFor(READ_FIXTURE.nit);
     // confidence 1 — as sure as the model gets. The bracket has closed to a
     // number, which is where "narrows with hands" ends.
     expect(container.querySelector('.read-bar__band')).toBeNull();
@@ -572,6 +603,7 @@ describe('W3-5 ReadPanel reads the served shape', () => {
 
   it('W3-5: a thin read draws a wide bracket around its number', () => {
     const { container } = renderWatch(withReads([READ_FIXTURE.filling]));
+    openReadFor(READ_FIXTURE.filling);
     const plays = rowFor(container, 'PLAYS');
     // confidence 0.15 → 12 * 0.85 ≈ 10 points either side of 33.
     expect(plays.querySelector('.read-bar__band').style.left).toBe('23%');
@@ -581,10 +613,12 @@ describe('W3-5 ReadPanel reads the served shape', () => {
   it('W3-5: the gate decides formed, and the gate is the server\'s', () => {
     // 4 hands against a gate of 8.8: numbers on the bars, nothing claimed.
     const thin = renderWatch(withReads([READ_FIXTURE.filling]));
+    openReadFor(READ_FIXTURE.filling, thin.container);
     expect(rowFor(thin.container, 'PLAYS').className).not.toContain('read-bar--formed');
-    expect(thin.container.querySelector('.read-panel__line').textContent).toContain('Give me a few hands');
+    expect(thin.container.querySelector('.read-sheet__line').textContent).toContain('Give me a few hands');
 
     const formed = renderWatch(withReads([READ_FIXTURE.station]));
+    openReadFor(READ_FIXTURE.station, formed.container);
     expect(rowFor(formed.container, 'PLAYS').className).toContain('read-bar--formed');
   });
 
@@ -596,7 +630,9 @@ describe('W3-5 ReadPanel reads the served shape', () => {
       // He is still counting: unformed, so nothing is announced.
       const unformed = { ...READ_FIXTURE.station, formed: false, line: null, handsObserved: 4 };
       const { container, rerender } = renderWatch(withReads([unformed]));
-      expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+      // W4-2: the read lives in the sheet now, so the announcement does too.
+      openReadFor(unformed, container);
+      expect(container.querySelector('.read-sheet__line').className).not.toContain('is-forming');
 
       // The next snapshot has it formed. That is the event.
       const rerenderWith = (reads) => rerender(
@@ -604,11 +640,11 @@ describe('W3-5 ReadPanel reads the served shape', () => {
           displayNames={{}} chatMessages={[]} sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}} />,
       );
       act(() => { rerenderWith([READ_FIXTURE.station]); });
-      expect(container.querySelector('.read-panel__line').className).toContain('is-forming');
+      expect(container.querySelector('.read-sheet__line').className).toContain('is-forming');
 
       // And then it is just his read, not a badge.
       act(() => { vi.advanceTimersByTime(5000); });
-      expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+      expect(container.querySelector('.read-sheet__line').className).not.toContain('is-forming');
     } finally {
       vi.useRealTimers();
     }
@@ -616,7 +652,8 @@ describe('W3-5 ReadPanel reads the served shape', () => {
 
   it('W3-5: a read that was already formed when the screen opened is not an event', () => {
     const { container } = renderWatch(withReads([READ_FIXTURE.station]));
-    expect(container.querySelector('.read-panel__line').className).not.toContain('is-forming');
+    openReadFor(READ_FIXTURE.station);
+    expect(container.querySelector('.read-sheet__line').className).not.toContain('is-forming');
   });
 
   it('W3-5: a short or reordered rows array still draws five in canon order', () => {
@@ -627,60 +664,82 @@ describe('W3-5 ReadPanel reads the served shape', () => {
         { k: 'vpip', label: 'PLAYS', value: 96, confidence: 1, formed: true },
       ],
     }]));
+    openRead(READ_FIXTURE.station.seat);
     expect([...container.querySelectorAll('.read-bar__label')].map((el) => el.textContent))
       .toEqual(['PLAYS', 'RAISES FIRST', 'AGGRESSION', 'FOLDS TO HEAT', 'GOES TO SHOWDOWN']);
     expect(rowFor(container, 'AGGRESSION').querySelector('.read-bar__value').textContent).toBe('··');
   });
 });
 
-describe('W3-5 picking the opponent', () => {
+// W4-2 replaced the rule this block used to encode. The panel no longer PICKS
+// an opponent for you — it never had a good answer, and pickOpponent's own
+// heuristics (live before folded, then most observed) are still covered
+// directly in lib/reads.test.jsx. On the felt the choice is now the owner's:
+// you tap a seat and you get THAT seat's read, whoever the server would have
+// picked. These cases assert the replacement.
+describe('W4-2 choosing whose read to see', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
   });
 
-  const who = (container) => container.querySelector('.read-panel__who').textContent;
+  const who = (container) => container.querySelector('.read-sheet__name').textContent;
+  const tap = (container, seat) => {
+    const ghost = [...container.querySelectorAll('.seat-ghost')][seat - 1];
+    fireEvent.click(ghost);
+  };
 
-  it('W3-5: shows the one still live in the hand, not the most observed', () => {
-    // Nash has 210 hands of evidence behind him and Doyle 48 — but Nash has
-    // folded, and the read that is costing money right now is the live one.
+  const twoReads = {
+    ...midHandGame,
+    reads: [
+      { ...READ_FIXTURE.maniac, seat: 1 },
+      { ...READ_FIXTURE.tag, seat: 2 },
+    ],
+  };
+
+  it('W4-2: nothing is open until a seat is tapped', () => {
+    const { container } = renderWatch(twoReads);
+    expect(container.querySelector('.read-sheet')).toBeNull();
+  });
+
+  it(`W4-2: tapping a seat opens that seat's read, not the most observed`, () => {
+    // Nash has 210 hands behind him and would win any auto-pick. The owner
+    // asked about Doyle, so the sheet is about Doyle.
+    const { container } = renderWatch(twoReads);
+    tap(container, 1);
+    expect(who(container)).toBe('doyle_v3');
+  });
+
+  it('W4-2: tapping the other seat swaps the read', () => {
+    const { container } = renderWatch(twoReads);
+    tap(container, 1);
+    expect(who(container)).toBe('doyle_v3');
+    tap(container, 2);
+    expect(who(container)).toBe('Nash_EQ');
+  });
+
+  it('W4-2: a folded seat can still be read — folding does not hide him', () => {
     const game = {
-      ...midHandGame,
+      ...twoReads,
       seats: midHandGame.seats.map((s, i) => (i === 2 ? { ...s, folded: true } : s)),
-      reads: [
-        { ...READ_FIXTURE.maniac, seat: 1 },
-        { ...READ_FIXTURE.tag, seat: 2 },
-      ],
     };
-    expect(who(renderWatch(game).container)).toBe('doyle_v3');
+    const { container } = renderWatch(game);
+    tap(container, 2);
+    expect(who(container)).toBe('Nash_EQ');
   });
 
-  it('W3-5: falls back to the most observed when nobody is left in', () => {
-    const game = {
-      ...midHandGame,
-      seats: midHandGame.seats.map((s, i) => (i === 0 ? s : { ...s, folded: true })),
-      reads: [
-        { ...READ_FIXTURE.maniac, seat: 1 },
-        { ...READ_FIXTURE.tag, seat: 2 },
-      ],
-    };
-    expect(who(renderWatch(game).container)).toBe('Nash_EQ');
+  it('W4-2: tapping the same seat again closes it', () => {
+    const { container } = renderWatch(twoReads);
+    tap(container, 1);
+    expect(container.querySelector('.read-sheet')).toBeTruthy();
+    tap(container, 1);
+    expect(container.querySelector('.read-sheet')).toBeNull();
   });
 
-  it('W3-5: with several live, the one he knows best', () => {
-    const game = {
-      ...midHandGame,
-      reads: [
-        { ...READ_FIXTURE.maniac, seat: 1 },
-        { ...READ_FIXTURE.tag, seat: 2 },
-      ],
-    };
-    expect(who(renderWatch(game).container)).toBe('Nash_EQ');
-  });
-
-  it('W3-5: an empty array is the no-evidence panel, not a crash', () => {
+  it('W4-2: a seat the server sent no read for opens and says so, rather than crashing', () => {
     const { container } = renderWatch({ ...midHandGame, reads: [] });
-    expect(container.querySelector('.read-panel')).toBeTruthy();
+    tap(container, 1);
+    expect(container.querySelector('.read-sheet')).toBeTruthy();
     expect(screen.getByText('NO EVIDENCE YET')).toBeInTheDocument();
   });
 });
