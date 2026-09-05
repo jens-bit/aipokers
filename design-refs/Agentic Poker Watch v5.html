@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Watch v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Watch v5 · mobile</div>
+    <h1>He sits at<br/>the table.</h1>
+    <p>v4b put him in a <b>hero row</b> — a strip of chrome at the foot of the felt with his cards in it — which made the one character you own the least present thing on his own table. v5 seats him: facing the viewer at the bottom edge at <b>96px</b>, twice an opponent, cards face up in front, bubble above his head, rope and strip directly under him.</p>
+    <p><b>And the felt is the screen.</b> Nothing below it but the composer. The TABLE tab and its transcript are gone — chat is a <b>whisper</b>, and history is a <b>glass sheet</b> over the lower felt with the game still playing behind it.</p>
+
+    <div class="lbl">Two laws this board settles</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>You can always see your own cards.</b> When a sheet is open the hero rides over it — cards, rope and strip at full strength, his ghost and bubble at 40% behind the glass. Like holding your cards up over a conversation.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>The hands are in front of the cards.</b> He is holding them, not standing behind them — so the hand layer sits above the card pair rather than inside the ghost.</span></div>
+
+    <div class="lbl">Why this board exists separately</div>
+    <p style="margin-bottom:0">Board 22 carries v4b's pace states, the glass lower half and the first ceremony. Splitting v5 off keeps both boards light enough to screenshot — 30 frames of live SVG on one canvas was past what the renderer could capture.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr red">The seated hero</div>
+  <div class="groupsub">Six opponent seats unchanged from v4b. The pot and board keep v4b's proven offsets — 196 and 243 — which clears the side seats' chips by 13px and leaves the hero column 12px in its tallest state.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">52a</span><span class="ft">Seated · betting</span><span class="fb teal">hands: push</span></div>
+  <div id="v1"></div>
+  <div class="fa"><b>His hands are doing the betting.</b> The push pose slides a mid-band stack forward, so the size of the bet is legible on his body before <code>BET $240</code> reaches the strip. The hand layer sits <b>above</b> the card pair — he is holding them. Granite's bubble sits over Granite, his sits over him, and the rope and strip stack underneath.</div>
+</div>
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52b</span><span class="ft">Pre-flop</span><span class="fb">hands: hold</span></div>
+  <div id="v2"></div>
+  <div class="fa"><b>Hold is the default while he is in a hand</b> — both mittens gripping the pair, low and in front. Five backs, a $30 pot, and the rope near centre because there is almost nothing to weigh yet. This is the resting state of the whole screen.</div>
+</div>
+<div class="frame" style="left:1520px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52c</span><span class="ft">A whisper</span><span class="fb teal">4s, then gone</span></div>
+  <div id="v3"></div>
+  <div class="fa"><b>Chat is not a panel any more, it is a whisper.</b> The composer reads <i>Whisper to him…</i>, and a sent message rises from the bottom edge as a small pale bubble and fades in four seconds — <b>white glass rather than teal</b>, because it is yours and not his. Nothing about sending a message covers the game. He is drumming here: <b>check</b>.</div>
+</div>
+<div class="frame" style="left:1980px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52d</span><span class="ft">The thread</span><span class="fb gold">glass, and his cards on top</span></div>
+  <div id="v4"></div>
+  <div class="fa"><b>Swipe up from the composer, or tap his face.</b> The sheet carries the full thread — <b>HIM / YOU / TABLE</b>, opponents named — and the game keeps playing behind it. <b>His cards stay on top of the glass</b>: they are the one thing an owner can never be allowed to lose, so the hero rides at z-index 10 while his ghost drops to 40% behind. The felt never resizes, which is the difference between a layer and a different screen.</div>
+</div>
+<div class="frame" style="left:2440px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52e</span><span class="ft">A read</span><span class="fb gold">same glass</span></div>
+  <div id="v5"></div>
+  <div class="fa"><b>Tapping an opponent opens the existing read sheet in the same glass, at the same height, with the same cards-on-top rule.</b> One material, two contents — so the gesture teaches itself: anything that slides up from the bottom is history, and the hand carries on underneath either way.</div>
+</div>
+<div class="frame" style="left:2900px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52f</span><span class="ft">A cost, pinned</span><span class="fb red">until the next flop</span></div>
+  <div id="v6"></div>
+  <div class="fa"><b>The cost line is pinned directly under his strip rather than given a card of its own</b> — it belongs to him, so it sits on him. It holds until the next flop, then folds into the thread as a TABLE entry (52d), which is how it stops being a thing to dismiss. Hands clenched, heat 62: the hand cost him something and he knows it.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1300px">
+  <div class="grouphdr">The ceremony, around him</div>
+  <div class="groupsub">Three seconds at the bottom of the felt rather than the centre of an empty one. <b>Heat colours it</b>, and the money line carries the delta <i>and</i> the new stack — where the pot went is context; where his guy stands is the point.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">52g</span><span class="ft">WON</span><span class="fb teal">one hand rakes</span></div>
+  <div id="v7"></div>
+  <div class="fa"><b>The wash is a low ellipse anchored at 84% height</b>, the verb and the money stack above his head, and <b>one hand rakes the pot in</b> while the other stays at his side. Primary action is <b>Deal him in</b> — the next hand starts in three seconds anyway, the button only makes it now — with the conversation as the ghost-outline secondary.</div>
+</div>
+<div class="frame" style="left:1060px;top:1300px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52h</span><span class="ft">LOST · tilted</span><span class="fb red">heat 88</span></div>
+  <div id="v8"></div>
+  <div class="fa"><b>Both hands over the face, and the wash goes red.</b> The grammar of the pair reads at a glance: hands travel toward the body on a win and toward the face on a loss. At heat 88 the aura doubles and the eyes are red-rimmed — <b>nothing was added, heat drove all of it</b>. Same CTA pair, and <code>−$1,250 · stack $1,847</code>.</div>
+</div>
+<div class="frame" style="left:1520px;top:1300px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52i</span><span class="ft">An opponent mucks</span><span class="fb">250ms · 3 frames</span></div>
+  <div id="v9"></div>
+  <div class="fa"><b>A seat folding is not the hero folding.</b> 250ms rather than 350, a flatter arc, and it ends at <b>the muck — one fixed spot beside the pot</b>, so a table of six folds resolves to one pile instead of six directions. Never face up at any frame.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:1300px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52j</span><span class="ft">A bet, as objects</span><span class="fb gold">520ms · 4 frames</span></div>
+  <div id="v10"></div>
+  <div class="fa"><b>Chips were part of his body before this — drawn inside the push pose, so they moved when he did.</b> Now they are things on a felt: his stack stands to his left at a height set by his stack band, one hand picks 1–4 chips off the top (the count <i>is</i> the bet band), carries them in front of his cards, and the bet spot slides into the pot at street end. <b>The pot pill grows one step per band</b>, so a table that has been betting big looks different from one that has been limping before you read a figure. Opponents get the stack, spot and slide at seat scale without the hand.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-watch4.jsx"></script>
+<script type="text/babel" src="mood-watch4b.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="mood-watch4c.jsx"></script>
+<script type="text/babel" src="mood-watch5.jsx"></script>
+
+<script type="text/babel">
+[
+  ['v1', V5CalmScreenM],
+  ['v2', V5HoldScreenM],
+  ['v3', V5WhisperScreenM],
+  ['v4', V5ThreadScreenM],
+  ['v5', V5ReadScreenM],
+  ['v6', V5CostScreenM],
+  ['v7', V5CeremonyWonScreenM],
+  ['v8', V5CeremonyLostScreenM],
+  ['v9', OppMuckStripM],
+  ['v10', HeroBetStripM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

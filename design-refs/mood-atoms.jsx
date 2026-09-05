@@ -54,8 +54,9 @@ const MOODS = {
 // mitten, ~22% of body width (the body spans 44 of the 80 viewBox, so ~9.6 units).
 // Fingers are separate circles unioned into a palm — the same construction the club
 // glyph uses, because overlapping fills have no seams.
-const HAND_INK = '#3B4D60';        // two tones lighter than the body
-const HAND_RIM = '#1d2e2c';        // the felt's own colour, 1px, so it separates from both
+const HAND_INK = '#2E3B4A';        // the body ink, one step up so it reads on the body
+const HAND_LINE = '#04070B';       // the heavy outline that makes it a Madness hand
+const HAND_R = 4.6;                // one radius, every pose — a hand is not a scale
 // SIZE: 22% of BODY WIDTH means 22% of the 80-unit sprite, not of the 44-unit torso —
 // the first cut measured against the torso and rendered 11.5px at size 96 instead of
 // the 21px intended. 17.6 units = 22% of 80 = 21px at 96.
@@ -66,18 +67,16 @@ const HAND_F = 17.6 / 9.6;         // the poses were authored at 9.6; scale them
 // are sub-pixel, so the hand becomes a plain mitten rather than a smudge
 const handDetail = size => (size >= 72 ? 2 : size >= 34 ? 1 : 0);
 
-const Mitten = ({ x, y, r = 0, s = 1, d = 1, clenched, ink = HAND_INK }) => (
-  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s * HAND_F})`}>
-    {clenched
-      ? <circle cx="0" cy="0" r="4.4" fill={ink} stroke={HAND_RIM} strokeWidth="0.55"/>
-      : (
-        <>
-          {d > 0 && [-2.9, 0, 2.9].map(fx => (
-            <circle key={fx} cx={fx} cy={-2.4} r={d > 1 ? 2.0 : 2.3} fill={ink} stroke={HAND_RIM} strokeWidth="0.5"/>
-          ))}
-          <rect x="-4.8" y="-2.6" width="9.6" height="6.4" rx="2.8" fill={ink} stroke={HAND_RIM} strokeWidth="0.5"/>
-        </>
-      )}
+const Mitten = ({ x, y, r = 0, d = 1, clenched, ink = HAND_INK }) => (
+  <g transform={`translate(${x} ${y}) rotate(${r})`}>
+    {/* the two nubs go down first so the blob's outline closes over their roots */}
+    {d > 0 && !clenched && [-2.6, 1.4].map((fx, i) => (
+      <circle key={fx} cx={fx} cy={-3.5} r="1.9" fill={ink} stroke={HAND_LINE} strokeWidth="1.25" strokeLinejoin="round"/>
+    ))}
+    <circle cx="0" cy="0" r={HAND_R} fill={ink} stroke={HAND_LINE} strokeWidth="1.25"/>
+    {d > 0 && !clenched && [-2.6, 1.4].map(fx => (
+      <circle key={'f' + fx} cx={fx} cy={-3.5} r="1.9" fill={ink} stroke="none"/>
+    ))}
   </g>
 );
 
@@ -118,38 +117,34 @@ const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
 
   if (pose === 'hold') return (
     <g>
-      <MiniBack x="35.5" y="64" r={-8} s={0.92}/><MiniBack x="44.5" y="64" r={8} s={0.92}/>
-      <Mitten x="24" y="66" r={-14} d={d}/>
-      <Mitten x="56" y="66" r={14} d={d}/>
+      <Mitten x="29" y="79" r={-18} d={d}/>
+      <Mitten x="51" y="79" r={18} d={d}/>
     </g>
   );
   if (pose === 'peek') return (
     <g>
-      <MiniBack x="34" y="63" r={-6}/>
-      <MiniBack x="45" y="55" r={26} s={0.95}/>
-      <Mitten x="26.5" y="65" r={-12} d={d}/>
-      <Mitten x="50" y="50" r={38} d={d}/>
+      <Mitten x="29" y="79" r={-18} d={d}/>
+      <Mitten x="49" y="68" r={44} d={d}/>
     </g>
   );
   if (pose === 'push') return (
     <g>
-      <Chips x="40" y="55" n={n}/>
-      <Mitten x="28" y="62" r={-22} d={d}/>
-      <Mitten x="52" y="62" r={22} d={d}/>
+      <Mitten x="29" y="79" r={-18} d={d}/>
+      <Mitten x="47" y="70" r={30} d={d}/>
     </g>
   );
   if (pose === 'toss') return (
     <g>
-      <MiniBack x="60" y="46" r={-38} s={0.9}/>
-      <MiniBack x="66" y="42" r={-52} s={0.86}/>
-      <Mitten x="27" y="64" r={-10} d={d}/>
-      <Mitten x="54" y="52" r={-42} d={d}/>
+      <MiniBack x="62" y="52" r={-38} s={0.9}/>
+      <MiniBack x="68" y="47" r={-52} s={0.86}/>
+      <Mitten x="29" y="79" r={-18} d={d}/>
+      <Mitten x="55" y="63" r={-46} d={d}/>
     </g>
   );
   if (pose === 'drum') return (
     <g>
-      <Mitten x="24" y="66" r={-6} d={d}/>
-      <Mitten x="56" y="63" r={8} d={d}/>
+      <Mitten x="27" y="80" r={-8} d={d}/>
+      <Mitten x="53" y="76" r={10} d={d}/>
       {d > 0 && [50, 58].map((tx, i) => (
         <ellipse key={tx} cx={tx} cy="70" rx="2.2" ry="0.7" fill="rgba(255,255,255,0.10)" opacity={i ? 0.5 : 1}/>
       ))}
@@ -157,27 +152,26 @@ const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
   );
   if (pose === 'clench') return (
     <g>
-      <Mitten x="24" y="62" clenched/>
-      <Mitten x="56" y="62" clenched/>
+      <Mitten x="28" y="78" clenched/>
+      <Mitten x="52" y="78" clenched/>
     </g>
   );
   if (pose === 'cover') return won ? (
     <g>
-      <Chips x="46" y="58" n={5}/>
-      <Mitten x="52" y="62" r={26} d={d}/>
-      <Mitten x="24" y="65" r={-8} d={d}/>
+      <Mitten x="50" y="72" r={26} d={d}/>
+      <Mitten x="27" y="80" r={-8} d={d}/>
     </g>
   ) : (
     <g>
-      <Mitten x="32" y="43" r={-16} s={1.05} d={d}/>
-      <Mitten x="48" y="43" r={16} s={1.05} d={d}/>
+      <Mitten x="32" y="44" r={-16} d={d}/>
+      <Mitten x="48" y="44" r={16} d={d}/>
     </g>
   );
   // rest
   return (
     <g style={drift}>
-      <Mitten x="17" y="60" r={-10} d={d}/>
-      <Mitten x="63" y="60" r={10} d={d}/>
+      <Mitten x="20" y="70" r={-10} d={d}/>
+      <Mitten x="60" y="70" r={10} d={d}/>
     </g>
   );
 };
@@ -798,7 +792,7 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
-  HAND_INK, HAND_RIM, HAND_W, HAND_F, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
+  HAND_INK, HAND_LINE, HAND_R, HAND_W, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
   BROW_TRIGGERS, ghostBrow,
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
