@@ -17,6 +17,7 @@ import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
 import { NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { NextAction } from '../components/system/NextAction.jsx';
+import { SheetFold } from '../components/system/SheetFold.jsx';
 import { NatureFormed } from '../components/system/NatureFormed.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
 
@@ -384,88 +385,73 @@ function NatureReveal({ name, first, nature }) {
 }
 
 
-// ── BirthCardSheet ────────────────────────────────────────────────────────
-// Port of BirthCardSheet from char-birth.jsx. Every number is exact and every
-// ceiling is a guess: the bands are at their widest here and close as he plays.
-// Nothing on this sheet is bought and none of it is re-rolled.
-function BirthCardSheet({ name, nature, character, time, onDealIn }) {
+// ── BirthCardSheet · v3 ───────────────────────────────────────────────────
+// Port of design-refs/mood-birth3.jsx BirthCard3.
+//
+// F-2: the card led with six attribute bars, and READS / FOCUS / DISCIPLINE
+// mean nothing to someone who has owned an agent for four seconds. It is now
+// about HIM — his name, his nature, his first words, one line of what he is
+// built for — and the sheet lives behind a fold that says so. On the owner's
+// first agent the fold is never open.
+//
+// F-2 also gives the ghost a PLACE. The well sits half out of the sheet's top
+// edge and the card rises from it, so there is exactly one ghost on screen at
+// any moment rather than a reveal ghost being covered by a card ghost.
+function BirthCardSheet({ name, nature, firstWords, character, onDealIn, first = true }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div style={{
-      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 7,
-      maxHeight: '78%', overflowY: 'auto',
-      background: M_PANEL, borderTop: `1px solid ${M_GOLD}44`,
-      borderTopLeftRadius: 18, borderTopRightRadius: 18,
-      boxShadow: '0 -18px 40px rgba(0,0,0,0.5)',
-      padding: '9px 14px 16px', animation: 'birth-sheetup 0.45s ease-out both',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-        <div style={{ width: 34, height: 4, borderRadius: 2, background: M_FAINT }} />
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_GOLD }}>
-          The card he was born with
-        </span>
-        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>{time}</span>
-      </div>
-
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: 12, flexShrink: 0,
-          background: '#0A0F17', border: `1px solid ${M_TEAL}44`,
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
-        }}>
-          <MoodGhost mood="neutral" accent={M_TEAL} size={46} ring={false} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: PLAYFAIR, fontSize: 19, fontWeight: 600, color: M_TEXT, letterSpacing: '-0.01em' }}>{name}</div>
-          <div style={{ marginTop: 6 }}><NatureChip nature={nature} /></div>
+    <div className="birth-card3">
+      {/* his place: the header well, half out of the sheet */}
+      <div className="birth-card3__well-row">
+        <div className="birth-card3__well">
+          <MoodGhost mood="neutral" accent={M_TEAL} size={64} ring={false} />
         </div>
       </div>
 
-      {/* The +/− in words. Two rows, no icons, no scores — and only when the
-          server authored them: the client never writes his biography. */}
-      {(nature?.builtFor || nature?.struggle) && (
-        <div style={{ padding: '11px 12px', borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, marginBottom: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {nature.builtFor && (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <span style={{ width: 74, flexShrink: 0, fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.13em', color: M_TEAL, paddingTop: 1 }}>BUILT FOR</span>
-                <span style={{ flex: 1, fontSize: 12.5, color: M_DIM, lineHeight: 1.45 }}>{nature.builtFor}</span>
-              </div>
-            )}
-            {nature.struggle && (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <span style={{ width: 74, flexShrink: 0, fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.13em', color: M_MUTED, paddingTop: 1 }}>WILL<br />STRUGGLE</span>
-                <span style={{ flex: 1, fontSize: 12.5, color: M_MUTED, lineHeight: 1.45 }}>{nature.struggle}</span>
-              </div>
-            )}
-          </div>
+      <div className="birth-card3__head">
+        <div className="birth-card3__name">{name}</div>
+        {nature?.name && (
+          <div className="birth-card3__nature"><NatureChip nature={nature} size="l" /></div>
+        )}
+      </div>
+
+      {/* His first words. Server-authored (ATTR-3 firstWords) or the nature's
+          own line — the client never writes them. */}
+      {firstWords && <div className="birth-card3__first">&ldquo;{firstWords}&rdquo;</div>}
+
+      {/* One line of what he is for. The struggle half stays on the profile
+          card: this screen is four seconds old and owes him a welcome, not a
+          balance sheet. */}
+      {nature?.builtFor && (
+        <div className="birth-card3__built">
+          <span className="birth-card3__built-label">BUILT FOR</span>
+          <span className="birth-card3__built-text">{nature.builtFor}</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_MUTED }}>Attributes</span>
-        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>CEILING NOT YET SCOUTED</span>
-      </div>
-      <div style={{ padding: '12px 12px 13px', borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, marginBottom: 13 }}>
-        <AttrCluster rows={character.rows} />
+      <div className="birth-card3__fold">
+        <SheetFold open={open} onToggle={() => setOpen((v) => !v)} />
+        {open && (
+          <div className="birth-card3__sheet">
+            <AttrCluster rows={character.rows} />
+            <div className="birth-card3__sheet-note">
+              Every number is exact. The gold band is <b>how good he might get</b>
+              {' '}— it narrows as he plays. Nothing here is bought.
+            </div>
+          </div>
+        )}
       </div>
 
-      <button
-        type="button"
-        onClick={onDealIn}
-        style={{
-          width: '100%', height: 46, padding: '0 14px', borderRadius: 8,
-          border: 'none', background: M_TEAL, color: '#0A0A0A',
-          boxShadow: `0 0 14px ${M_TEAL}44`, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: OSWALD, fontSize: 11, fontWeight: 600,
-          letterSpacing: '0.12em', textTransform: 'uppercase',
-        }}
-      >
+      <button type="button" className="birth-card3__deal" onClick={onDealIn}>
         Deal him in
       </button>
+
+      {first && !open && (
+        <div className="birth-card3__later">
+          YOU CAN READ THE NUMBERS LATER · HE EXPLAINS THEM AS THEY MATTER
+        </div>
+      )}
     </div>
   );
 }
@@ -564,6 +550,9 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   // the card he was born with. Both stay null when the server sends no nature,
   // and the flow falls back to the shipped straight-to-floor birth.
   const [born, setBorn] = useState(null);
+  // F-2: on the owner's first agent the card carries the reassurance line under
+  // the button. The fold itself starts closed for everyone.
+  const [firstAgent, setFirstAgent] = useState(true);
   const [beat, setBeat] = useState(null);
 
   const feedRef   = useRef(null);
@@ -610,7 +599,9 @@ export function BirthScreen({ onBack, onBirth, agent }) {
         headers: { 'x-telegram-init-data': getTelegramInitData() },
       });
       const data = await res.json();
-      record = (data.agents || []).find((a) => a.id === newborn.id) ?? null;
+      const roster = data.agents || [];
+      record = roster.find((a) => a.id === newborn.id) ?? null;
+      setFirstAgent(roster.length <= 1);
     } catch { /* no record — treat him as still forming */ }
 
     const character = normalizeAttrs(record);
@@ -618,7 +609,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       setTimeout(() => onBirth(newborn), 1200);
       return;
     }
-    setBorn({ ...newborn, first: record?.firstWords ?? character.nature.line, character });
+    // normalizeAttrs keeps only {name, up, down, line}; ATTR-3's builtFor and
+    // firstWords live on the record, so the raw nature rides along too.
+    setBorn({
+      ...newborn,
+      first: record?.firstWords ?? character.nature.line,
+      nature: { ...character.nature, builtFor: record?.nature?.builtFor ?? null },
+      character,
+    });
     setBeat('reveal');
     setTimeout(() => setBeat('card'), 2200);
   }
@@ -943,24 +941,22 @@ export function BirthScreen({ onBack, onBirth, agent }) {
             background: beat === 'card' ? 'rgba(8,8,10,0.62)' : 'rgba(8,8,10,0.32)',
             transition: 'background 0.4s ease-out',
           }} />
-          <div style={{
-            position: 'absolute', left: 0, right: 0,
-            top: beat === 'card' ? '6%' : '22%',
-            display: 'flex', justifyContent: 'center',
-            transition: 'top 0.45s ease-out', pointerEvents: 'none',
-          }}>
-            <NatureReveal
-              name={born.name}
-              first={beat === 'card' ? null : born.first}
-              nature={born.character.nature}
-            />
-          </div>
+          {beat !== 'card' && (
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: '22%',
+              display: 'flex', justifyContent: 'center',
+              transition: 'top 0.45s ease-out', pointerEvents: 'none',
+            }}>
+              <NatureReveal name={born.name} first={born.first} nature={born.character.nature} />
+            </div>
+          )}
           {beat === 'card' && (
             <BirthCardSheet
               name={born.name}
-              nature={born.character.nature}
+              nature={born.nature}
+              firstWords={born.first}
               character={born.character}
-              time={hhmm()}
+              first={firstAgent}
               onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
             />
           )}
