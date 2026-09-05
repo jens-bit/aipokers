@@ -12,11 +12,23 @@
 //   6. GET /api/agents reports liveGame for every seated agent, with heroHole
 //      only for a caller that proved ownership
 //
-// ANTHROPIC_API_KEY is optional. Without one the agent handler returns its safe
-// check/fold fallback, so hands still complete and every mechanism under test
-// here (matchmaking, the reconcile, seat lifecycle, presence, scoping) is
-// exercised end to end. With a key, the same script runs against real model
-// decisions and simply takes longer.
+// Runs with NO ANTHROPIC_API_KEY, and refuses to run with one (see the guard
+// below). The agent handler returns its safe check/fold fallback, so hands
+// still complete and every mechanism under test here (matchmaking, the
+// reconcile, seat lifecycle, presence, scoping) is exercised end to end —
+// deterministically, which is the whole point.
+
+// TEST-2 — deterministic or it isn't a test. With a key present the agents
+// make real model decisions, every run deals a different hand, and this suite
+// failed intermittently on whichever machine had the key exported. The test
+// runner strips ANTHROPIC_API_KEY from the child environment; this is the
+// seatbelt for a hand-run. Live-model behaviour belongs in `npm run test:live`.
+if (process.env.ANTHROPIC_API_KEY) {
+  console.error('[verify] ANTHROPIC_API_KEY is set. This suite asserts on the deterministic');
+  console.error('[verify] check/fold fallback and is not reproducible against a live model.');
+  console.error('[verify] Unset it and re-run, or use `npm run test:e2e`, which strips it.');
+  process.exit(1);
+}
 
 // Timings are compressed so the run finishes quickly. These must be set BEFORE
 // table.js is evaluated, hence the dynamic imports below.
@@ -61,7 +73,7 @@ const port = httpServer.address().port;
 const base = `http://127.0.0.1:${port}`;
 const SECRET = process.env.DEV_API_SECRET;
 console.log(`[verify] server up on ${base}`);
-console.log(`[verify] SEAT_LIMIT=${SEAT_LIMIT} MIN_TO_DEAL=${MIN_TO_DEAL} HAND_PAUSE_MS=${process.env.HAND_PAUSE_MS} ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY ? 'set' : 'absent (safe-fallback decisions)'}`);
+console.log(`[verify] SEAT_LIMIT=${SEAT_LIMIT} MIN_TO_DEAL=${MIN_TO_DEAL} HAND_PAUSE_MS=${process.env.HAND_PAUSE_MS} decisions=safe-fallback (no API key)`);
 
 const j = async (method, path, body, { owner = true } = {}) => {
   const headers = {};

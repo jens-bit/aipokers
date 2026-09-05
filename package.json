@@ -11,6 +11,7 @@
     "test": "node --test src/test/legacy.test.js src/test/verifyScripts.test.js",
     "test:client": "cd client && npm test",
     "test:all": "npm test && npm run test:client",
+    "test:e2e": "node --test src/test/e2e.test.js",
     "test:live": "node src/server/agentChat.test.js",
     "test:data": "node scripts/verify-chips.js",
     "smoke": "node scripts/smoke-hand.js",
