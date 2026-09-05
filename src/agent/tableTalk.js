@@ -97,6 +97,108 @@ const BOILING_LINES = {
   ],
 };
 
+// ── BIO-2c: the relationship talks ─────────────────────────────────────────
+// Law 2 of the biography sheet: a relationship changes the line the strip shows
+// when they are seated together. A nemesis at the table sharpens him; a victim
+// gets the smug ones; a rival gets the needle you save for someone your own
+// size.
+//
+// Split by heat band exactly as the trigger pools are, because "Granite again."
+// and "GRANITE. Of course it is." are the same thought at two temperatures.
+const ROLE_LINES = {
+  nemesis: {
+    // {who} is the opponent's display name. The ref's line is "Granite again."
+    // — the NAME is the line, so it cannot be baked in.
+    seated: [
+      '{who} again.',
+      '{who}. Of course.',
+      'Of course {who} is here.',
+    ],
+    cool: [
+      'You and I have unfinished business.',
+      'I remember the last one.',
+      'Not this time.',
+      'I have been waiting for this seat.',
+      'We both know how the last three went.',
+    ],
+    hot: [
+      'Not you. Not again.',
+      'Every single time it is you.',
+      'I am not paying you tonight.',
+      'You have had enough of my chips.',
+      'This one is coming back.',
+    ],
+  },
+  rival: {
+    seated: [
+      '{who} again. Good.',
+      '{who}. Here we go.',
+      '{who} again. Still nothing between us.',
+    ],
+    cool: [
+      'We are still level. It bothers me too.',
+      'Four hundred hands and neither of us is ahead.',
+      'One of us has to win eventually.',
+      'You are the only one here I have to think about.',
+      'Same as always, then.',
+    ],
+    hot: [
+      'Not today. Today I am ahead of you.',
+      'I am tired of even.',
+      'Break the tie or get out of the way.',
+      'One of us is leaving with it.',
+      'Enough of this.',
+    ],
+  },
+  victim: {
+    seated: [
+      'Good. {who} is here.',
+      '{who}. My favourite seat at the table.',
+      '{who} again. This should go well.',
+    ],
+    cool: [
+      'You fold to the second barrel. Every time.',
+      'I know exactly how this ends.',
+      'Thank you, as always.',
+      'You have been paying for my week.',
+      'Do the thing you do.',
+    ],
+    hot: [
+      'Not you as well. Come on.',
+      'Even you are getting there tonight.',
+      'You do not get to win this one.',
+      'Today of all days.',
+      'Give it back.',
+    ],
+  },
+};
+
+export const _ROLE_LINES = ROLE_LINES;
+
+/**
+ * A line about the relationship rather than about the hand.
+ *
+ * `kind` is 'seated' for the moment they sit down together, or omitted for a
+ * needle chosen by heat band. Returns null for an unknown role, so a caller
+ * with no relationship falls through to the ordinary trigger pools.
+ */
+export function pickRoleLine(role, { heat = null, kind = null, who = null } = {}) {
+  const pools = ROLE_LINES[role];
+  if (!pools) return null;
+  const pool = kind === 'seated'
+    ? pools.seated
+    : (Number.isFinite(heat) && heat >= TALK_TILTED_HEAT ? pools.hot : pools.cool);
+  if (!pool || pool.length === 0) return null;
+  const line = pool[Math.floor(Math.random() * pool.length)];
+  // A seated line without a name to put in it is not a line. Fall back to the
+  // needle pool rather than saying "{who} again." out loud.
+  if (line.includes('{who}')) {
+    if (!who) return pickRoleLine(role, { heat, kind: null });
+    return line.replaceAll('{who}', who);
+  }
+  return line;
+}
+
 // How hot he has to be before the louder pools open. The tilted band starts at
 // 60, so the middle pool matches the band exactly; boiling is the top quarter.
 export const TALK_TILTED_HEAT = 60;
@@ -108,12 +210,19 @@ export const TALK_BOILING_HEAT = 80;
 //
 // Backwards compatible: called with just a state, a tilted or sulking agent
 // still draws from the tilted pool exactly as before.
-export function pickTalkLine(trigger, moodState = 'neutral', { heat = null } = {}) {
+export function pickTalkLine(trigger, moodState = 'neutral', { heat = null, role = null, who = null } = {}) {
   // Heat wins when it is given; the band is only the fallback for a caller
   // that predates it. Otherwise a record whose state and heat disagree would
   // be read two ways at once.
   const banded = moodState === 'tilted' || moodState === 'sulking';
   const hot = Number.isFinite(heat) ? heat : (banded ? TALK_TILTED_HEAT : 0);
+
+  // BIO-2c: when there IS a relationship it is the salient thing at the table,
+  // so it wins the line. "Granite again." says more than "That one was mine."
+  if (role) {
+    const relLine = pickRoleLine(role, { heat: hot, who });
+    if (relLine) return relLine;
+  }
 
   let pool = null;
   if (hot >= TALK_BOILING_HEAT) pool = BOILING_LINES[trigger];

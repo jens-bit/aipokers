@@ -3,6 +3,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { pickRoleLine, pickTalkLine, _ROLE_LINES } from './tableTalk.js';
+import { HEAT_EVENTS, applyEvent, initialMood } from './mood.js';
 import {
   ROLES,
   ROLE_MIN_HANDS,
@@ -234,6 +236,82 @@ describe('the recap mention', () => {
   });
 });
 
+
+// ── BIO-2c: voice ───────────────────────────────────────────────────────────
+describe('the relationship talks', () => {
+  it('has a seated line, a cool needle and a hot one for every role', () => {
+    for (const role of ROLES) {
+      const pools = _ROLE_LINES[role];
+      assert.ok(pools.seated.length >= 3, `${role} seated`);
+      assert.ok(pools.cool.length >= 5, `${role} cool`);
+      assert.ok(pools.hot.length >= 5, `${role} hot`);
+    }
+  });
+
+  it('puts the opponent’s NAME in the seated line — the name is the line', () => {
+    const line = pickRoleLine('nemesis', { kind: 'seated', who: 'Granite' });
+    assert.match(line, /Granite/);
+    assert.doesNotMatch(line, /\{who\}/);
+  });
+
+  it('never says the placeholder out loud when there is no name', () => {
+    for (let i = 0; i < 40; i++) {
+      const line = pickRoleLine('nemesis', { kind: 'seated', heat: 30 });
+      assert.doesNotMatch(line, /\{who\}/);
+    }
+  });
+
+  it('sharpens with heat', () => {
+    const cool = new Set();
+    const hot = new Set();
+    for (let i = 0; i < 60; i++) {
+      cool.add(pickRoleLine('nemesis', { heat: 30 }));
+      hot.add(pickRoleLine('nemesis', { heat: 80 }));
+    }
+    for (const line of hot) assert.ok(!cool.has(line), `pools overlap: ${line}`);
+  });
+
+  it('is null for someone he has no history with', () => {
+    assert.equal(pickRoleLine(null, { heat: 30 }), null);
+    assert.equal(pickRoleLine('stranger', { heat: 30 }), null);
+  });
+
+  it('the relationship wins the line at the table', () => {
+    const withRole = pickTalkLine('wonBigPot', 'neutral', { heat: 30, role: 'victim' });
+    const without = new Set();
+    for (let i = 0; i < 40; i++) without.add(pickTalkLine('wonBigPot', 'neutral', { heat: 30 }));
+    assert.ok(!without.has(withRole), 'a relationship line, not a trigger line');
+  });
+
+  it('falls back to the trigger pools when there is no relationship', () => {
+    const line = pickTalkLine('wonBigPot', 'neutral', { heat: 30, role: null });
+    assert.ok(typeof line === 'string' && line.length > 0);
+  });
+});
+
+describe('the nemesis sitting down', () => {
+  it('is a mood event, bounded like every other', () => {
+    assert.ok(HEAT_EVENTS.nemesisSeated > 0);
+    assert.ok(HEAT_EVENTS.nemesisSeated <= Math.abs(HEAT_EVENTS.lostAsEquityFavorite),
+      'never more than the beat that stings most');
+  });
+
+  it('heats him and names the man in the cause', () => {
+    const before = initialMood();
+    const after = applyEvent(before, 'nemesisSeated',
+      { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 },
+      { context: { opponent: 'Granite' } });
+    assert.ok(after.heat > before.heat);
+    assert.match(after.cause, /Granite/);
+  });
+
+  it('does not start a losing run — he has not lost anything yet', () => {
+    const after = applyEvent(initialMood(), 'nemesisSeated',
+      { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 }, {});
+    assert.equal(after.losingRun, 0);
+  });
+});
+
 // ── THE LAW ─────────────────────────────────────────────────────────────────
 describe('what the biography layer may touch', () => {
   it('exports nothing that returns a modifier', () => {
@@ -268,6 +346,10 @@ describe('what the biography layer may touch', () => {
     agent.bio = deriveRoles(agent.bioLedger);
     roleOf(agent.bio, 'g');
     recapMention(agent.bio, ['g']);
+    // The voice path too — every way the layer can speak.
+    pickRoleLine('nemesis', { kind: 'seated', who: 'Granite' });
+    pickRoleLine('nemesis', { heat: 90 });
+    pickTalkLine('lostAsFavorite', 'tilted', { heat: 90, role: 'nemesis', who: 'Granite' });
 
     const after = JSON.parse(JSON.stringify(agent));
     delete after.bio;
