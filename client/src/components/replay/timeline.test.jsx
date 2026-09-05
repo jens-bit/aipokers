@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { FLAGS, actionAmount, beatAt, beatIndexAt, buildTimeline, isAllIn } from './timeline.js';
+import { FLAGS, actionAmount, beatAt, beatIndexAt, buildTimeline, isAllIn, snapshotFor, streetForBeat } from './timeline.js';
 import { badBeatHand, bigBluffHand } from '../../test/fixtures/flagged.js';
 
 // Same shape as buildFlaggedEntry's output; set over set, four streets, a jam
@@ -181,5 +181,63 @@ describe('R-1 scrubbing', () => {
 
   it('R-1: every second of the reel has a beat', () => {
     for (let s = 0; s <= t.total; s += 0.5) expect(beatAt(t, s)).not.toBeNull();
+  });
+});
+
+// ── CLEAN-1 · the beat → snapshot adapter ─────────────────────────────────
+// It used to live in ReplayTheatre and lowercase `beat.label`, which gave the
+// felt 'pre' for the preflop beat — not a street at all, so the whole opening
+// of every replay read as a hand that was not running. The adapter now lives
+// next to the beats it reads, and the street comes off `beat.key`, which is
+// the street the server actually recorded.
+
+describe('CLEAN-1 the beat street', () => {
+  const timeline = buildTimeline(coolerHand);
+  const streetOf = (label) => streetForBeat(timeline.beats.find((b) => b.label === label));
+
+  it('CLEAN-1: PRE is preflop, not "pre"', () => {
+    expect(streetOf('PRE')).toBe('preflop');
+  });
+
+  it('CLEAN-1: every other street is itself', () => {
+    expect(streetOf('FLOP')).toBe('flop');
+    expect(streetOf('RIVER')).toBe('river');
+  });
+
+  it('CLEAN-1: ALL-IN names a moment, so the street is the one it happened on', () => {
+    // The jam is on the turn in this hand, and the label says nothing about it.
+    expect(streetOf('ALL-IN')).toBe('turn');
+  });
+
+  it('CLEAN-1: END is the finished hand', () => {
+    expect(streetOf('END')).toBe('complete');
+  });
+});
+
+describe('CLEAN-1 snapshotFor', () => {
+  const hand = coolerHand;
+  const timeline = buildTimeline(hand);
+  const beat = (label) => timeline.beats.find((b) => b.label === label);
+  const snap = (label) => snapshotFor(timeline, beat(label), hand);
+
+  it('CLEAN-1: hands the felt a running hand at the first beat', () => {
+    const s = snap('PRE');
+    expect(s.street).toBe('preflop');
+    expect(s.pot).toBe(beat('PRE').pot);
+    expect(s.community).toEqual([]);
+  });
+
+  it('CLEAN-1: his cards are his throughout', () => {
+    expect(snap('FLOP').seats[0].holeCards).toEqual(['Qs', 'Qd']);
+  });
+
+  it('CLEAN-1: nobody else shows until the end', () => {
+    // The turn beat in this hand is the jam, so it is labelled ALL-IN.
+    expect(snap('ALL-IN').seats[1].holeCards).toEqual([]);
+    expect(snap('END').seats[1].holeCards).toEqual(['Kh', 'Kc']);
+  });
+
+  it('CLEAN-1: equity is a fraction, the way the server sends it', () => {
+    expect(snap('FLOP').heroEquity).toBeCloseTo(0.92, 5);
   });
 });

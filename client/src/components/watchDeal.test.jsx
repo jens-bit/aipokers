@@ -125,13 +125,13 @@ describe('W4-1: the beat on the felt', () => {
     expect(down()).toBe(2);
   });
 
-  // HAPTIC4 asks for a light tap per hero card, 90ms apart. haptics.js enforces
-  // the wave-33 floor — "never two inside 120ms" — and HAPTIC4 says it is bound
-  // by those rules, so the second tap inside a 90ms gap is swallowed BY DESIGN.
-  // The cards still land 90ms apart; only the device is quieter than the row
-  // reads. haptics.js is outside this slice's file scope, so the two numbers are
-  // reconciled here by letting the stated law win over the stated cadence.
-  it('taps for the deal, and the 120ms floor swallows the second', () => {
+  // CLEAN-1: W4-1 asked for a tap per hero card 90ms apart and relied on the
+  // wave-33 floor — "never two inside 120ms" — to swallow the second. A call
+  // written down only to be thrown away is a lie about what the device is
+  // doing, so the deal now taps once, on the first card. The floor is not what
+  // makes this true any more, and this case proves it: the throttle is cleared
+  // between the two cards, so a second call would go straight through.
+  it('taps once for the deal, on the first card', () => {
     const calls = [];
     window.Telegram.WebApp.HapticFeedback = {
       impactOccurred: (style) => calls.push(style),
@@ -143,9 +143,106 @@ describe('W4-1: the beat on the felt', () => {
     tick(CARD_GAP_MS);
     expect(calls).toEqual(['light']);
 
+    resetHaptics();          // the floor is out of the way
     tick(CARD_GAP_MS);
-    // 90ms < MIN_GAP_MS, so nothing more reaches the device.
     expect(calls).toEqual(['light']);
+  });
+});
+
+// ── CLEAN-1 · the three HAPTIC4 rows that had nowhere to land ──────────────
+// They existed in mood-watch4b's table and nowhere in the code. Each is its own
+// row now, and the screen fires each from the state that names it.
+
+describe('CLEAN-1: the v4b beats, through the screen', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    telegram.signIn();
+    resetHaptics();
+    window.Telegram.WebApp.HapticFeedback = {
+      impactOccurred: (style) => impacts.push(style),
+      notificationOccurred: (style) => notifications.push(style),
+      selectionChanged: () => {},
+    };
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  let impacts = [];
+  let notifications = [];
+  beforeEach(() => { impacts = []; notifications = []; });
+
+  // The whole deal, out of the way: its timers run out, its tap is forgotten and
+  // the 120ms floor is cleared, so what follows is read on its own.
+  const settle = () => {
+    act(() => { vi.advanceTimersByTime(BACKS_DELAY_MS + 50); });
+    impacts.length = 0;
+    notifications.length = 0;
+    resetHaptics();
+  };
+
+  const cold = { ...midHandGame, heroEquity: 0.31 };
+  const warmGame = { ...midHandGame, heroEquity: 0.92 };
+
+  it('CLEAN-1: his cards warming is its own tap', () => {
+    const { rerender } = render(<WatchScreen {...props} game={cold} />);
+    settle();
+    // The equity arrives with his decision, after the cards are down.
+    act(() => { rerender(<WatchScreen {...props} game={warmGame} />); });
+    expect(impacts).toEqual(['light']);
+  });
+
+  it('CLEAN-1: once per hand — a premium hand does not warm twice', () => {
+    const { rerender } = render(<WatchScreen {...props} game={cold} />);
+    settle();
+    act(() => { rerender(<WatchScreen {...props} game={warmGame} />); });
+    resetHaptics();
+    act(() => { rerender(<WatchScreen {...props} game={{ ...warmGame, pot: 200 }} />); });
+    expect(impacts).toEqual(['light']);
+  });
+
+  it('CLEAN-1: and a hand that stays ordinary never warms', () => {
+    const { rerender } = render(<WatchScreen {...props} game={cold} />);
+    settle();
+    act(() => { rerender(<WatchScreen {...props} game={{ ...cold, pot: 200 }} />); });
+    expect(impacts).toEqual([]);
+  });
+
+  it('CLEAN-1: a spectator feels nothing, because he cannot see the cards', () => {
+    const blind = (g) => ({ ...g, seats: g.seats.map((s, i) => (i === 0 ? { ...s, holeCards: [] } : s)) });
+    const { rerender } = render(<WatchScreen {...props} game={blind(cold)} />);
+    settle();
+    act(() => { rerender(<WatchScreen {...props} game={blind(warmGame)} />); });
+    expect(impacts).toEqual([]);
+  });
+
+  it('CLEAN-1: a bubble reaching the felt is the lightest tap in the product', () => {
+    const said = { text: 'You are not calling that.', isAI: true, seat: 1, t: Date.now() };
+    const { rerender } = render(<WatchScreen {...props} />);
+    settle();
+    act(() => { rerender(<WatchScreen {...props} chatMessages={[said]} />); });
+
+    expect(impacts).toEqual(['light']);
+  });
+
+  it('CLEAN-1: the showdown reveal taps after the pot, not over it', () => {
+    const settled = {
+      ...midHandGame,
+      street: 'complete',
+      community: ['5c', '4h', '8c', 'Kd', '2s'],
+      result: {
+        pot: 300,
+        winners: [{ seat: 1, descr: 'two pair' }],
+        showdown: [{ seat: 1, holeCards: ['Kh', '9s'] }, { seat: 2, holeCards: ['Ac', 'Qd'] }],
+      },
+    };
+    act(() => { render(<WatchScreen {...props} game={settled} />); });
+
+    // The pot first — he lost this one, and losing is quiet.
+    expect(impacts).toEqual(['soft']);
+
+    // Then the cards, on HAPTIC4's own 140ms interval, which is the one number
+    // in that table set above the 120ms floor.
+    act(() => { vi.advanceTimersByTime(140); });
+    expect(impacts).toEqual(['soft', 'medium']);
   });
 });
 

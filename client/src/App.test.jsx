@@ -203,3 +203,84 @@ describe('WIRE-1 the app shell wiring', () => {
     expect(src).toMatch(/newbornId=\{newlyBornAgent\?\.id \?\? null\}/);
   });
 });
+
+// ── CLEAN-1 · the leftovers ─────────────────────────────────────────────────
+
+describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/memory', { memoryContext: '' });
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+  });
+
+  const watchTheGrinder = async (user) => {
+    await user.click(await screen.findByRole('button', { name: /^The Grinder — / }));
+    const zoom = await waitFor(() => {
+      const el = document.querySelector('.floor-zoom');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    await user.click(within(zoom).getByRole('button', { name: 'Watch the table' }));
+    await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
+  };
+
+  // W4-5 left WatchScreen's onOpenThread optional and nobody handed it in, so
+  // the button that says Chat opened a tab inside the same screen. It is the
+  // same navigation the floor and the roster use: his thread, by his id.
+  it('CLEAN-1: leaves the watch screen and opens the thread for that agent', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await watchTheGrinder(user);
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+
+    // Off the watch screen, and into CHATS with his thread open — the roster
+    // is not what we land on.
+    await waitFor(() => expect(document.querySelector('.watch-screen')).toBeNull());
+    expect(tab('CHATS')).toHaveClass('tab-bar__tab--active');
+    expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
+    expect(screen.getAllByText('The Grinder').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Loose Cannon')).not.toBeInTheDocument();
+  });
+});
+
+describe('CLEAN-1 the desk shell stays around the draft (DP-4)', () => {
+  const realMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/wallet', wallet);
+    window.matchMedia = (query) => ({
+      matches: query.includes('1100'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    });
+  });
+  afterEach(() => { window.matchMedia = realMatchMedia; });
+
+  it('CLEAN-1: drafting on desktop keeps the desk, rather than dropping to the phone flow', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    // The desk's own chrome, before the draft.
+    const topBar = await waitFor(() => {
+      const el = document.querySelector('.dsk-top');
+      expect(el).toBeTruthy();
+      return el;
+    });
+
+    await user.click(await screen.findByRole('button', { name: /Draft an agent/i }));
+
+    // BirthScreen is up...
+    expect(await screen.findByPlaceholderText(/Describe how it should play/i)).toBeInTheDocument();
+    // ...and it is standing on the desk, not instead of it.
+    expect(document.querySelector('.dsk-root')).toBeTruthy();
+    expect(document.querySelector('.dsk-top')).toBe(topBar);
+  });
+});

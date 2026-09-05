@@ -19,7 +19,12 @@
 // must never imply that he is.
 
 export const HAPTICS = {
-  cardDealt: { kind: 'impact', style: 'light', note: 'one per card, 90ms apart' },
+  // CLEAN-1: HAPTIC4 asks for a tap per hero card 90ms apart, and the 120ms
+  // floor above makes the second one unreachable. The floor is the older law
+  // and the stronger one, so the deal is one tap — on the first card landing,
+  // the beat that starts the hand — rather than a second call that is written
+  // down and then swallowed.
+  cardDealt: { kind: 'impact', style: 'light', note: 'once, as the first card lands' },
   hisAction: { kind: 'impact', style: 'medium', note: 'only his — never an opponent’s' },
   heating: { kind: 'impact', style: 'rigid', note: 'once per hand, never repeated' },
   allin: { kind: 'notification', style: 'warning', note: 'the loudest thing in the product' },
@@ -27,6 +32,12 @@ export const HAPTICS = {
   wonPot: { kind: 'notification', style: 'success', note: 'no fanfare, no jingle' },
   lostPot: { kind: 'impact', style: 'soft', note: 'losing is quiet on purpose' },
   readForms: { kind: 'selection', style: null, note: 'the panel animates instead' },
+  // CLEAN-1: the three v4b rows, as their own entries. Folding them onto
+  // cardDealt or runoutCard would have made the table lie about what the device
+  // is reporting, and a row nobody can name is a row nobody can change.
+  heroCardWarms: { kind: 'impact', style: 'light', note: 'owner-only — a spectator never feels it' },
+  bubbleAppears: { kind: 'impact', style: 'light', note: 'his and theirs alike, the lightest event here' },
+  showdownReveal: { kind: 'impact', style: 'medium', note: 'once, when the cards turn over' },
   predictionRight: { kind: 'impact', style: 'light', note: 'the streak number is the reward' },
   collectConfirmed: { kind: 'notification', style: 'success', note: 'a transfer, not a jackpot' },
 };

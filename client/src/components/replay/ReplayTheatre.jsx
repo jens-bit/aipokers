@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WatchFelt, feltGeometry } from '../WatchScreen.jsx';
 import { PlayingCard } from '../system/PlayingCard.jsx';
 import { Scrubber } from './Scrubber.jsx';
-import { beatAt, buildTimeline } from './timeline.js';
+import { beatAt, buildTimeline, snapshotFor } from './timeline.js';
 
 // The reel advances in real time; 100ms is smooth enough for a 28-second reel
 // and cheap enough to run on a phone.
@@ -30,43 +30,6 @@ function formatWhen(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-/**
- * One beat, as a table snapshot. The felt does not know it is being replayed —
- * it is handed the same shape the server sends and draws it the same way.
- */
-function snapshotFor(timeline, beat, hand) {
-  return {
-    tableId: hand?.tableId ?? 'replay',
-    handNumber: timeline.handNumber ?? 0,
-    street: beat.label === 'END' ? 'complete' : String(beat.label).toLowerCase(),
-    smallBlind: null,
-    bigBlind: null,
-    pot: beat.pot,
-    community: beat.board,
-    currentBet: 0,
-    toAct: null,
-    pace: beat.pace,
-    heroEquity: beat.equity == null ? null : beat.equity / 100,
-    seats: [
-      {
-        playerId: 'hero',
-        stack: null,
-        holeCards: timeline.holeCards,
-        folded: false,
-        displayName: hand?.agentName ?? 'Your agent',
-      },
-      ...timeline.opponentShowdownCards.map((o) => ({
-        playerId: `opp-${o.seat}`,
-        stack: null,
-        holeCards: beat.label === 'END' ? (o.holeCards ?? []) : [],
-        folded: false,
-        displayName: o.displayName ?? `Seat ${o.seat + 1}`,
-      })),
-    ],
-    result: null,
-  };
 }
 
 export function ReplayTheatre({ hand, onBack, onOpenHand, autoPlay = true }) {

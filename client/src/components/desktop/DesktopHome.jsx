@@ -23,6 +23,10 @@ const IDLE_KEY = '__standup__';
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
+  // DP-4: the draft, when one is under way. It runs on the stage as a sheet so
+  // the shell around it — top bar, roster, open panel — stays mounted; App
+  // returning it on its own would take the desk down for the duration.
+  draft = null,
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -226,6 +230,7 @@ export function DesktopHome({
               <FlaggedHandsSheet agent={flaggedAgent} onBack={() => setFlaggedAgent(null)} />
             </div>
           )}
+          {draft && <div className="dsk-sheet">{draft}</div>}
           <CasinoFloor
             desktopMode
             selectedAgentId={selectedId}

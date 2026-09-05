@@ -48,9 +48,37 @@ describe('W3-3 haptics', () => {
       ['notification', 'success'],  // won the pot
       ['impact', 'soft'],           // lost the pot
       ['selection', null],          // read forms
+      ['impact', 'light'],          // his cards warm
+      ['impact', 'light'],          // a bubble appears
+      ['impact', 'medium'],         // the showdown reveal
       ['impact', 'light'],          // prediction correct
       ['notification', 'success'],  // collect confirmed
     ]);
+  });
+
+  // CLEAN-1 — HAPTIC4's three new rows. The rule they are here to defend is
+  // that a row is a row: the deal, the warm and the reveal are different events
+  // and the device says something different for each. Folding them onto
+  // cardDealt or runoutCard would have made the table a lie about what is being
+  // reported, and left three events nobody could tune.
+  it('CLEAN-1: the v4b rows are their own entries, not aliases', () => {
+    for (const key of ['heroCardWarms', 'bubbleAppears', 'showdownReveal']) {
+      expect(HAPTICS[key], `${key} is missing from the table`).toBeTruthy();
+    }
+    expect(HAPTICS.heroCardWarms).not.toBe(HAPTICS.cardDealt);
+    expect(HAPTICS.showdownReveal.style).toBe('medium');
+    expect(HAPTICS.showdownReveal.style).not.toBe(HAPTICS.runoutCard.style);
+  });
+
+  // The deal asked for a tap per card 90ms apart; this floor makes the second
+  // unreachable. The floor is the older law and the stronger one, so the table
+  // no longer claims a cadence it cannot deliver.
+  it('CLEAN-1: the deal is one tap, and the table says so', () => {
+    const calls = installHaptics();
+    expect(fire('cardDealt', 1000)).toBe(true);
+    expect(fire('cardDealt', 1090)).toBe(false);   // 90ms later, as HAPTIC4 asked
+    expect(calls).toHaveLength(1);
+    expect(HAPTICS.cardDealt.note).not.toMatch(/per card/);
   });
 
   it('W3-3: never fires two inside 120ms', () => {

@@ -249,7 +249,10 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
   const arrivalSpot = { x: L.bar.x1 + (L.bar.x2 - L.bar.x1) * 0.62, y: L.bar.y - 102 };
 
   const liveFelt = tables.length > 0 ? litFelts[0] : null;
-  const roomIsLive = !!liveFelt && !desktopMode;
+  // CLEAN-1 (DSKP-1): the loudest object is the loudest object on every width.
+  // The desktop stage draws the same room, so it gets the same scrim and the
+  // same rim rather than a flat floor with a live hand hidden in it.
+  const roomIsLive = !!liveFelt;
 
   const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
 
@@ -296,8 +299,11 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
 
       {/* The scrim, and the two marks that make one felt loud: a soft pool of
           light around it and a rim on the felt itself. Both are decoration and
-          neither takes a pointer — the ghosts above stay tappable. */}
-      {roomIsLive && !zoomed && (
+          neither takes a pointer — the ghosts above stay tappable.
+          CLEAN-1: the mobile zoom replaces the room, so the scrim stands down
+          for it. Desktop never zooms — `zoomed` there is only which agent is
+          selected in the rail — so the scrim stays up under the selection. */}
+      {roomIsLive && (desktopMode || !zoomed) && (
         <>
           <div className="floor__scrim" aria-hidden />
           <div

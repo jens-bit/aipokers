@@ -163,7 +163,26 @@ function createSocket() {
       this.onmessage = null;
       this.onclose = null;
       this.onerror = null;
+      // CLEAN-1: the real WebSocket answers to both halves of the API, and so
+      // does this one — useTable listens with addEventListener while older
+      // callers assign onmessage. A stub that offered only the handlers made
+      // every socket-opening path throw the moment it was reached.
+      this.listeners = { open: [], message: [], close: [], error: [] };
       instances.push(this);
+    }
+
+    addEventListener(type, fn) {
+      (this.listeners[type] ??= []).push(fn);
+    }
+
+    removeEventListener(type, fn) {
+      const at = this.listeners[type]?.indexOf(fn) ?? -1;
+      if (at >= 0) this.listeners[type].splice(at, 1);
+    }
+
+    dispatch(type, event) {
+      this[`on${type}`]?.(event);
+      for (const fn of [...(this.listeners[type] ?? [])]) fn(event);
     }
 
     send(data) {
@@ -173,17 +192,17 @@ function createSocket() {
 
     close(code = 1000, reason = '') {
       this.readyState = MockWebSocket.CLOSED;
-      this.onclose?.({ code, reason });
+      this.dispatch('close', { code, reason });
     }
 
     // ── test controls ──
     open() {
       this.readyState = MockWebSocket.OPEN;
-      this.onopen?.({});
+      this.dispatch('open', {});
     }
 
     emit(msg) {
-      this.onmessage?.({ data: JSON.stringify(msg) });
+      this.dispatch('message', { data: JSON.stringify(msg) });
     }
   }
 

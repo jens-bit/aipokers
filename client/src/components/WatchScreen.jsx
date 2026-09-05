@@ -476,9 +476,15 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     : null;
 
   // ── W4-1 · the DEAL beat ─────────────────────────────────────────────────
-  // The hand is dealt, not shown. His two cards land 90ms apart, each with its
-  // own light tap, then the table's backs sweep out as one gesture with no
-  // haptic — their cards are not his event.
+  // The hand is dealt, not shown. His two cards land 90ms apart and the table's
+  // backs then sweep out as one gesture with no haptic — their cards are not
+  // his event.
+  //
+  // CLEAN-1: one tap, on the first card. HAPTIC4 asked for a tap per card, but
+  // the wave-33 floor — never two inside 120ms — makes the second unreachable,
+  // and a call that is written down only to be swallowed is a lie about what
+  // the device is doing. The cards still land 90ms apart; the device speaks
+  // once, at the beat that starts the hand.
   //
   // Keyed on the hand number, so a re-render, a reconnect or a late snapshot
   // cannot re-deal a hand that is already on the table.
@@ -493,7 +499,7 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
 
     var timers = [
       setTimeout(function() { setDealT(CARD_GAP_MS); fireHaptic('cardDealt'); }, CARD_GAP_MS),
-      setTimeout(function() { setDealT(CARD_GAP_MS * 2); fireHaptic('cardDealt'); }, CARD_GAP_MS * 2),
+      setTimeout(function() { setDealT(CARD_GAP_MS * 2); }, CARD_GAP_MS * 2),
       setTimeout(function() { setDealT(DEAL_TOTAL_MS); }, BACKS_DELAY_MS),
     ];
     return function() { timers.forEach(clearTimeout); };
@@ -859,6 +865,11 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 // W4-4: one tab, because there is only one thing under the felt now —
 // everything said at this table, in order, whoever said it. The felt is the
 // performance and it never scrolls; this is the transcript and it always does.
+// CLEAN-1 (HAPTIC4): the reveal's own interval — "one per revealing seat, in
+// seat order, 140ms apart". It is the one number in the table deliberately set
+// above the 120ms floor, so it is what the reveal tap waits for.
+var REVEAL_TAP_MS = 140;
+
 var TABS = ['Table'];
 var TAB_CHAT = 0;
 
@@ -1312,6 +1323,57 @@ export function WatchScreen({
     var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
     beat(won ? 'wonPot' : 'lostPot', fireHaptic);
   }, [game && game.handNumber, game && game.result, mySeat]);
+
+  // CLEAN-1 (HAPTIC4) · his cards warm. Owner-only by construction: warming
+  // needs the hole cards, and the server only ships those to a viewer who
+  // proved ownership — a spectator computes `null` here and feels nothing.
+  // Once per hand: a premium hand does not warm twice.
+  var heroSeatNo = Number.isInteger(mySeat) ? mySeat : 0;
+  var heroSeatData = game && game.seats ? game.seats[heroSeatNo] : null;
+  var heroHoleCards = (heroSeatData && heroSeatData.holeCards)
+    ? heroSeatData.holeCards.map(pc).filter(Boolean)
+    : null;
+  var isWarmNow = !between && isWarm(heroHoleCards, heroEquityOf(game, handEquity, heroSeatNo));
+  var warmSeenRef = useRef(null);
+  useEffect(function() {
+    var hand = game ? game.handNumber : null;
+    if (!isWarmNow || warmSeenRef.current === hand) return;
+    warmSeenRef.current = hand;
+    beat('heroCardWarms', fireHaptic);
+  }, [isWarmNow, game && game.handNumber]);
+
+  // CLEAN-1 (HAPTIC4) · a bubble reaches the felt. His and theirs alike — the
+  // one row in the table that is not his event, and it is the lightest thing
+  // in the product because of it. Keyed on the newest bubble's id, so a felt
+  // that re-reads its own clock every 500ms does not re-tap.
+  var newestBubbleId = bubbles.length ? bubbles[bubbles.length - 1].id : null;
+  // Seeded with what was already on screen when this screen opened, so joining
+  // a table mid-sentence does not tap for a bubble nobody watched arrive.
+  var bubbleSeenRef = useRef(newestBubbleId);
+  useEffect(function() {
+    if (!newestBubbleId || bubbleSeenRef.current === newestBubbleId) return;
+    bubbleSeenRef.current = newestBubbleId;
+    beat('bubbleAppears', fireHaptic);
+  }, [newestBubbleId]);
+
+  // CLEAN-1 (HAPTIC4) · the cards turn over.
+  //
+  // One tap, and it is late on purpose. The terminal STATE carries the reveal
+  // and the result in the same commit, so the pot beat above is already using
+  // the 120ms window — the pot is the news, and "losing is quiet" is a law of
+  // the older table that a medium tap on the reveal would break. HAPTIC4 spaced
+  // the reveal 140ms from the tap before it precisely so it clears that floor,
+  // which is the interval used here; the shelves are still turning over at that
+  // point, so the tap lands on the cards rather than after them.
+  var revealSeenRef = useRef(null);
+  var showdownSeats = (game && game.result && game.result.showdown) ? game.result.showdown.length : 0;
+  useEffect(function() {
+    var hand = game ? game.handNumber : null;
+    if (showdownSeats === 0 || revealSeenRef.current === hand) return;
+    revealSeenRef.current = hand;
+    var id = setTimeout(function() { beat('showdownReveal', fireHaptic); }, REVEAL_TAP_MS);
+    return function() { clearTimeout(id); };
+  }, [showdownSeats, game && game.handNumber]);
 
   // ---- W3-4: the prediction beat -------------------------------------------
   // Off unless the ap_predict flag says otherwise. The pick locks the moment he

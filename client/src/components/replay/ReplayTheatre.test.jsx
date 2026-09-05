@@ -55,6 +55,16 @@ describe('R-2 the theatre', () => {
     expect(within(scrubber(container)).getByText('COOLER')).toBeInTheDocument();
   });
 
+  // CLEAN-1: the adapter lowercased `beat.label`, so the opening beat handed the
+  // felt street 'pre' — not a street the felt knows, which made it read the
+  // whole preflop as between hands: no equity on the rope, no hand running.
+  it('CLEAN-1: the opening beat is a hand in progress, not the gap before one', () => {
+    const { container } = renderTheatre();
+    // 47% is the equity the server recorded on his preflop raise.
+    expect(container.querySelector('.tug__value').textContent).toBe('47%');
+    expect(container.querySelector('.tug')).not.toHaveClass('tug--dead');
+  });
+
   it('R-2: a tick per beat, and the flag', () => {
     const { container } = renderTheatre();
     const t = buildTimeline(coolerHand);
