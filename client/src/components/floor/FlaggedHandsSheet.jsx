@@ -194,32 +194,70 @@ function isMatched(street) {
   return eq >= 50;
 }
 
+// ATTR-2d — the character system showing through: one extra label under the
+// verdict, naming the attribute that shaped the decision. Gold when it cost
+// money, teal when it earned it. Never a grade on the hand; the verdict above
+// already did that, and the line reads as HIS misjudgment, not a scolding.
+function AttrCostLine({ item, stack }) {
+  const earned = item.cost === false;
+  const cls = ['attr-cost', earned ? 'attr-cost--earned' : '', stack ? 'attr-cost--stack' : '']
+    .filter(Boolean).join(' ');
+  return (
+    <div className={cls}>
+      <span className="attr-cost__note">{item.line}</span>
+      <span className="attr-cost__key">{item.key}</span>
+    </div>
+  );
+}
+
+// hand.attrCosts: [{ key, line, street?, cost? }] — supplied by ATTR-3, absent
+// today. Entries naming a street ride that street's verdict column; the rest
+// sit in one row above the streets. No field, no row.
+function splitAttrCosts(hand) {
+  const byStreet = new Map();
+  const loose = [];
+  for (const c of (Array.isArray(hand?.attrCosts) ? hand.attrCosts : [])) {
+    if (!c?.key || !c?.line) continue;
+    const s = typeof c.street === 'string' ? c.street.toUpperCase() : null;
+    if (s) {
+      if (!byStreet.has(s)) byStreet.set(s, []);
+      byStreet.get(s).push(c);
+    } else {
+      loose.push(c);
+    }
+  }
+  return { byStreet, loose };
+}
+
 // StreetRow — verbatim port from design-refs/mood-screens-f.jsx.
 // showStreetHeader: false for 2nd+ rows sharing the same street label (street grouping).
-function StreetRow({ street, board, action, equity, matched, reason, last, showStreetHeader = true }) {
+function StreetRow({ street, board, action, equity, matched, reason, attr, last, showStreetHeader = true }) {
   return (
     <div style={{ padding: `10px ${PAD}px`, borderBottom: last ? 'none' : `1px solid ${M_BORDER}` }}>
       {showStreetHeader && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 7 }}>
           <span style={{
             fontFamily: OSWALD, fontSize: 9, fontWeight: 600,
             letterSpacing: '0.14em', color: M_MUTED, textTransform: 'uppercase', flexShrink: 0,
           }}>{street}</span>
-          <div style={{ flex: 1, height: 1, background: M_BORDER }} />
-          {equity != null && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{
-                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                fontSize: 14, fontWeight: 700, color: matched ? M_TEAL : M_RED,
-              }}>{equity}%</span>
-              <span style={{
-                fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600,
-                letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED,
-              }}>
-                {matched ? 'WITH THE MATH' : 'AGAINST IT'}
-              </span>
-            </div>
-          )}
+          <div style={{ flex: 1, height: 1, background: M_BORDER, marginTop: 5 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+            {equity != null && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 14, fontWeight: 700, color: matched ? M_TEAL : M_RED,
+                }}>{equity}%</span>
+                <span style={{
+                  fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600,
+                  letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED,
+                }}>
+                  {matched ? 'WITH THE MATH' : 'AGAINST IT'}
+                </span>
+              </div>
+            )}
+            {(attr ?? []).map((item, i) => <AttrCostLine key={`${item.key}-${i}`} item={item} />)}
+          </div>
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -330,6 +368,7 @@ function HoleCardsRow({ holeCards }) {
 
 function HandReview({ hand, agentName, agentMood, onBack }) {
   const streets = hand.streets ?? [];
+  const { byStreet: attrByStreet, loose: looseAttrs } = splitAttrCosts(hand);
 
   return (
     <div style={{
@@ -345,6 +384,16 @@ function HandReview({ hand, agentName, agentMood, onBack }) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <HoleCardsRow holeCards={hand.holeCards} />
+
+        {/* Attribute cost lines the server did not pin to a street. */}
+        {looseAttrs.length > 0 && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 6,
+            padding: `10px ${PAD}px`, borderBottom: `1px solid ${M_BORDER}`,
+          }}>
+            {looseAttrs.map((item, i) => <AttrCostLine key={`${item.key}-${i}`} item={item} stack />)}
+          </div>
+        )}
 
         {streets.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: M_MUTED, fontSize: 13 }}>
@@ -376,6 +425,7 @@ function HandReview({ hand, agentName, agentMood, onBack }) {
                   equity={equity}
                   matched={matched}
                   reason={reasoning}
+                  attr={ri === 0 ? attrByStreet.get(group.street) : undefined}
                   last={globalIdx === totalRows - 1}
                   showStreetHeader={ri === 0}
                 />

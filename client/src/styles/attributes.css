@@ -1,0 +1,529 @@
+/* attributes.css — the character-system primitives (ATTR-2a).
+ * Ported from design-refs/char-system.jsx, char-system2.jsx, char-profile.jsx,
+ * char-play.jsx and char-birth.jsx. Geometry is verbatim; only the dynamic parts
+ * (percentages, per-row colour) arrive as inline custom properties.
+ *
+ * Law: the ceiling is never a number on a bar. It is a width — the gold band —
+ * and the only place an exact lo–hi is printed is inside a tapped bar, in gold. */
+
+/* ── AttrTrack ─────────────────────────────────────────────────────────────
+ * Three facts at once: where he IS (teal fill), where he could END (gold
+ * scouted band), and how sure the scouting is (band width). */
+
+.attr-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--sys-surf);
+}
+
+/* the scouted ceiling — hairline ends, no number */
+.attr-track__band {
+  position: absolute;
+  top: -4px;
+  height: 14px;
+  left: var(--band-lo);
+  width: var(--band-w);
+  background: rgba(205, 179, 128, 0.18);
+  border-left: 1px solid rgba(205, 179, 128, 0.60);
+  border-right: 1px solid rgba(205, 179, 128, 0.60);
+}
+
+.attr-track__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--cur);
+  border-radius: 3px;
+  background: var(--sys-teal);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.33);
+}
+
+.attr-track--dim .attr-track__fill {
+  background: rgba(0, 212, 170, 0.33);
+  box-shadow: none;
+}
+
+/* the cap is the only hard edge on the bar */
+.attr-track__cap {
+  position: absolute;
+  top: -3px;
+  left: calc(var(--cur) - 1px);
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: #EDEDED;
+}
+
+.attr-track--dim .attr-track__cap { background: rgba(0, 212, 170, 0.53); }
+
+/* the caret at the high end — one session after the band narrows, then it
+ * retires. The only animation on the bar. */
+.attr-track__caret {
+  position: absolute;
+  left: calc(var(--hi) - 4px);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  animation: attr-caret-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes attr-caret-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50%      { opacity: 1;    transform: scale(1.1); }
+}
+
+.attr-track__caret--above { top: -13px; border-top: 5px solid var(--sys-gold); }
+.attr-track__caret--below { top: 9px;   border-bottom: 5px solid var(--sys-gold); }
+
+/* ── AttrBar · row layout ──────────────────────────────────────────────────
+ * name · track · value on one line. Six of these read as one silhouette
+ * rather than six widgets: no row rules, no per-row fill, one number column. */
+
+.attr-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.attr-bar__name {
+  width: 78px;
+  flex-shrink: 0;
+  font-family: var(--sys-font-label);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--sys-dim);
+}
+
+.attr-bar--dim .attr-bar__name { color: var(--sys-muted); }
+.attr-bar--on .attr-bar__name { color: var(--sys-teal); }
+
+.attr-bar__track { flex: 1; min-width: 0; }
+
+.attr-bar__value {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--sys-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sys-text);
+}
+
+.attr-bar--on .attr-bar__value { color: var(--sys-teal); }
+.attr-bar--fatigued .attr-bar__value { color: var(--sys-gold); }
+
+/* ── AttrCluster ───────────────────────────────────────────────────────────
+ * Canon order, 12px pitch. Read as a shape, not a table. */
+
+.attr-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* ── AttrFocusPanel · the tapped bar ───────────────────────────────────────
+ * Show, don't tell: a sparkline, a big value, a five-word caption. His voice
+ * lives in the thread, not here. */
+
+.attr-focus {
+  border-radius: 10px;
+  background: var(--sys-panel);
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  padding: 11px 13px 12px;
+  margin-top: 1px;
+}
+
+.attr-focus__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.attr-focus__key {
+  flex: 1;
+  font-family: var(--sys-font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--sys-teal);
+}
+
+.attr-focus__gain {
+  font-family: var(--sys-font-mono);
+  font-size: 10px;
+  color: var(--sys-teal);
+}
+
+.attr-focus__window {
+  font-family: var(--sys-font-mono);
+  font-size: 9.5px;
+  color: var(--sys-muted);
+}
+
+.attr-focus__body {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.attr-focus__spark { flex: 1; min-width: 0; }
+
+.attr-focus__nums {
+  flex-shrink: 0;
+  text-align: right;
+  padding-bottom: 2px;
+}
+
+.attr-focus__cur {
+  font-family: var(--sys-font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--sys-text);
+}
+
+.attr-focus--fatigued .attr-focus__cur { color: var(--sys-gold); }
+
+/* the one place an exact ceiling is printed — the user asked for precision */
+.attr-focus__band {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--sys-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--sys-gold);
+}
+
+.attr-focus__caption {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sys-border);
+  font-family: var(--sys-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted);
+}
+
+.attr-spark { display: block; overflow: visible; }
+
+/* ── FatigueLine ───────────────────────────────────────────────────────────
+ * Fatigue explains itself in words; the blocks are the redundant channel. */
+
+.fatigue-line { display: flex; align-items: center; gap: 11px; }
+.fatigue-line--compact { display: block; }
+
+.fatigue-line__blocks {
+  display: flex;
+  gap: 3px;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.fatigue-line__block {
+  flex: 1;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--sys-surf);
+}
+
+.fatigue-line__block--on {
+  background: var(--sys-teal);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.27);
+}
+
+.fatigue-line--worn .fatigue-line__block--on {
+  background: var(--sys-gold);
+  box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
+}
+
+.fatigue-line__text {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--sys-dim);
+}
+
+.fatigue-line--worn .fatigue-line__text { color: var(--sys-gold); }
+
+.fatigue-line--compact .fatigue-line__text {
+  display: block;
+  margin-top: 7px;
+  font-size: 11.5px;
+}
+
+/* ── GrowthTick ────────────────────────────────────────────────────────────
+ * An EVENT with a cause, never a silent number change. */
+
+.growth-tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(0, 212, 170, 0.04);
+  border: 1px solid rgba(0, 212, 170, 0.20);
+}
+
+.growth-tick__delta {
+  font-family: var(--sys-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sys-teal);
+  white-space: nowrap;
+}
+
+.growth-tick__arrow { color: var(--sys-muted); }
+
+.growth-tick__cause {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--sys-muted);
+  line-height: 1.45;
+}
+
+/* ── GrowthLine · thread furniture, his voice ──────────────────────────────
+ * EventLine's anatomy with the tick in the well line and his sentence under it.
+ * Quiet on purpose: a point of Reads is not a trophy. */
+
+.growth-line {
+  margin: 0 var(--sys-pad) 9px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(0, 212, 170, 0.05);
+  border: 1px solid rgba(0, 212, 170, 0.20);
+}
+
+.growth-line__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.growth-line__well {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(0, 212, 170, 0.10);
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.growth-line__delta {
+  flex: 1;
+  font-family: var(--sys-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sys-teal);
+}
+
+.growth-line__time {
+  font-family: var(--sys-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted);
+}
+
+.growth-line__voice {
+  font-size: 12.5px;
+  color: var(--sys-dim);
+  line-height: 1.45;
+  margin-top: 7px;
+  padding-left: 31px;
+  font-style: italic;
+}
+
+/* ── TrainingLine · one row inside the recap bubble ────────────────────────*/
+
+.training-line {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sys-border);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.training-line__label {
+  font-family: var(--sys-font-label);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--sys-muted);
+}
+
+.training-line__item {
+  font-family: var(--sys-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sys-teal);
+}
+
+/* ── GrewBadge ─────────────────────────────────────────────────────────────
+ * The subtlest surface in the system: one mono chip, no icon. */
+
+.grew-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 15px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.24);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.grew-badge__n {
+  font-family: var(--sys-font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--sys-teal);
+}
+
+.grew-badge__word {
+  font-family: var(--sys-font-label);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sys-teal);
+  opacity: 0.8;
+}
+
+/* ── NatureChip ────────────────────────────────────────────────────────────
+ * Typographic and nothing else: the Oswald label in gold, a hairline rule, and
+ * the zero-sum pair in mono. No crest, no emblem — the ghost is his picture. */
+
+.nature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 4px;
+  background: rgba(205, 179, 128, 0.04);
+  border: 1px solid rgba(205, 179, 128, 0.24);
+  white-space: nowrap;
+}
+
+.nature-chip--l { gap: 10px; height: 30px; padding: 0 12px; }
+
+.nature-chip__name {
+  font-family: var(--sys-font-label);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-gold);
+}
+
+.nature-chip--l .nature-chip__name { font-size: 13px; }
+
+.nature-chip__rule {
+  width: 1px;
+  height: 12px;
+  background: rgba(205, 179, 128, 0.27);
+}
+
+.nature-chip--l .nature-chip__rule { height: 15px; }
+
+.nature-chip__up,
+.nature-chip__down {
+  font-family: var(--sys-font-mono);
+  font-size: 9px;
+}
+
+.nature-chip--l .nature-chip__up,
+.nature-chip--l .nature-chip__down { font-size: 10px; }
+
+.nature-chip__up { color: var(--sys-teal); }
+.nature-chip__down { color: var(--sys-muted); }
+
+/* The hint is a guess and dresses like one: dashed, a question mark, no pair. */
+.nature-forming {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px dashed rgba(205, 179, 128, 0.33);
+}
+
+.nature-forming__label {
+  font-family: var(--sys-font-label);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted);
+}
+
+.nature-forming__guess {
+  font-family: var(--sys-font-label);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-gold);
+  opacity: 0.75;
+}
+
+/* ── Hand review · the attribute cost line ─────────────────────────────────
+ * Gold when it cost money, teal when it earned it. Never a grade on the hand;
+ * the verdict above already did that. */
+
+.attr-cost {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.attr-cost--stack { justify-content: flex-start; }
+
+.attr-cost__note {
+  font-size: 11px;
+  color: var(--sys-gold);
+  opacity: 0.95;
+}
+
+.attr-cost--earned .attr-cost--stack { justify-content: flex-start; }
+
+.attr-cost__note { color: var(--sys-teal); }
+
+.attr-cost__key {
+  font-family: var(--sys-font-label);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--sys-gold);
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.27);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.attr-cost--earned .attr-cost__key {
+  color: var(--sys-teal);
+  background: rgba(0, 212, 170, 0.08);
+  border-color: rgba(0, 212, 170, 0.27);
+}
