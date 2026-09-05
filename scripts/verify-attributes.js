@@ -30,7 +30,7 @@ import { formatOpponentRead } from '../src/agent/reads.js';
 
 // The TAG profile from scripts/arena-profiles.json — the CHOSEN half, which
 // attributes never touch.
-const TAG = { tightness: 72, aggression: 68, bluffFreq: 22, discipline: 70 };
+const TAG = { tightness: 70, aggression: 70, bluffFreq: 30, discipline: 80 };
 
 const LEVELS = [
   { name: 'off',  value: 50, impact: '0' },

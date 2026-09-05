@@ -22,6 +22,7 @@ import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
 import { getAgentAction } from '../src/agent/handler.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
+import { ATTR_KEYS, effectiveAttrs, readMinHands, attributeImpact } from '../src/agent/attributes.js';
 import {
   recordHand as recordHandForOpponentStats,
   getRead as getOpponentRead,
@@ -35,8 +36,14 @@ resetOpponentStats();
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
+// ATTR-1: seat A's six attributes. Seat B always stays at neutral 50, so a
+// bb/100 delta between two runs of the SAME strategy is attribute impact and
+// nothing else. "off" additionally forces ATTRIBUTE_IMPACT=0, which is the
+// control: it must reproduce the pre-attribute baseline.
+const ATTRIBUTE_LEVELS = { off: 50, low: 25, mid: 50, high: 80 };
+
 function parseArgs(argv) {
-  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000, reads: true };
+  const out = { pairs: 100, profiles: 'scripts/arena-profiles.json', matchups: '*', sb: 10, bb: 20, buyIn: 2000, reads: true, attributes: 'mid' };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--pairs')     out.pairs    = parseInt(argv[++i], 10);
@@ -46,8 +53,17 @@ function parseArgs(argv) {
     else if (a === '--bb')   out.bb       = parseInt(argv[++i], 10);
     else if (a === '--buy-in') out.buyIn  = parseInt(argv[++i], 10);
     else if (a === '--no-reads') out.reads = false;
+    else if (a === '--attributes') {
+      out.attributes = String(argv[++i] ?? '').toLowerCase();
+      if (!(out.attributes in ATTRIBUTE_LEVELS)) {
+        console.error(`--attributes must be one of: ${Object.keys(ATTRIBUTE_LEVELS).join(' | ')}`);
+        process.exit(1);
+      }
+      // Set before anything reads the knob; attributes.js reads it live.
+      if (out.attributes === 'off') process.env.ATTRIBUTE_IMPACT = '0';
+    }
     else if (a === '--help' || a === '-h') {
-      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads]');
+      console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads] [--attributes off|low|mid|high]');
       process.exit(0);
     }
   }
@@ -106,7 +122,7 @@ function collectDecisionMetrics(stats, decisions) {
 // nameBySeat is [nameForSeat0, nameForSeat1] — used as the opponentStats
 // playerId so reads follow the archetype across mirrored deck swaps.
 
-async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0 }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -122,6 +138,13 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
   const decisionsBySeat = [[], []];
   const actionLog = [];  // { seat, street, actionType } in game order
   const bundles = [seat0Bundle, seat1Bundle];
+
+  // ATTR-1: the attributes each seat plays this hand with, after fatigue.
+  // `sessionHands` runs across the whole matchup rather than resetting every
+  // hand, so STAMINA is actually live over a 50-pair run — and because both
+  // halves of a mirrored pair are handed the same count, the mirror still
+  // cancels. Bundles without attributes give null and every hook stands down.
+  const effBySeat = bundles.map((b) => (b.attrs ? effectiveAttrs({ attrs: b.attrs }, { sessionHands }) : null));
 
   // Per-street raise counter — same shape/semantics as table.js.
   const raiseCounts = {};
@@ -160,9 +183,12 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
     } catch { /* leave null */ }
 
     const position = game.dealerSeat === seat ? 'BTN/SB' : 'BB';
+    const eff = effBySeat[seat];
+    const oppEff = effBySeat[(seat + 1) % 2];
     const policy = compilePolicy(bundles[seat].profile, {
       holeCards: me.holeCards,
       position,
+      attrs: eff,
     });
 
     // Fetch a read on the OTHER seat, if enabled and enough data.
@@ -170,7 +196,11 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
     if (readsEnabled) {
       const oppName = nameBySeat[(seat + 1) % 2];
       const read = getOpponentRead(oppName);
-      if (read && read.handsObserved >= 10) opponentReads.push(read);
+      // Same attribute-aware gate table.js uses: READS pulls it down, the
+      // subject's DECEPTION pushes it up.
+      const subjectDeception = oppEff?.DECEPTION ?? null;
+      const gate = readMinHands({ reads: eff?.READS ?? null, deception: subjectDeception });
+      if (read && read.handsObserved >= gate) opponentReads.push({ ...read, subjectDeception });
     }
 
     const gameState = {
@@ -198,6 +228,10 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       policy,
       raisesThisStreet: raiseCounts[streetKey()] ?? 0,
       opponentReads,
+      attrs: eff,                       // ATTR-1: FOCUS/READS read these
+      fatigue: eff?.fatigue ?? null,
+      seat,                             // seeds the FOCUS noise
+      handNumber: game.handNumber,
       opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
     };
 
@@ -263,10 +297,13 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
     const deck = freshShuffledDeck();
 
     // Hand 1: A in seat 0, B in seat 1
+    // Both halves of the pair are played at the same point in the session, so
+    // fatigue is symmetric across the mirror.
+    const sessionHands = p * 2;
     const h1 = await playHand({
       deck, seat0Bundle: bundleA, seat1Bundle: bundleB,
       nameBySeat: [nameA, nameB],
-      sb, bb, buyIn, readsEnabled,
+      sb, bb, buyIn, readsEnabled, sessionHands,
     });
     // Feed opponent-stats before the mirrored hand so hand 2's reads can
     // already benefit from hand 1's evidence.
@@ -281,7 +318,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
     const h2 = await playHand({
       deck, seat0Bundle: bundleB, seat1Bundle: bundleA,
       nameBySeat: [nameB, nameA],
-      sb, bb, buyIn, readsEnabled,
+      sb, bb, buyIn, readsEnabled, sessionHands,
     });
     recordHandForOpponentStats({
       playerIdsBySeat: [nameB, nameA],
@@ -325,6 +362,14 @@ function normalizeBundle(name, raw) {
     return { strategy, profile };
   }
   throw new Error(`profile "${name}" is neither a string nor an object`);
+}
+
+// ATTR-1: attach a flat six-attribute record to a bundle. Seat A gets the
+// requested level; seat B is always neutral, which is what makes a same-
+// strategy matchup a clean single-variable measurement.
+const NEUTRAL_LEVEL = 50;
+function withAttributes(bundle, value) {
+  return { ...bundle, attrs: Object.fromEntries(ATTR_KEYS.map((k) => [k, value])) };
 }
 
 // ── Summarization ────────────────────────────────────────────────────────────
@@ -374,6 +419,7 @@ function summarizeAgent(agentStats, bb) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  const attrLevel = ATTRIBUTE_LEVELS[args.attributes];
   if (!fs.existsSync(args.profiles)) {
     console.error(`profiles file not found: ${args.profiles}`);
     process.exit(1);
@@ -414,41 +460,65 @@ async function main() {
   console.log(`[arena] matchups: ${matchups.length}, pairs each: ${args.pairs} (${args.pairs * 2} hands per matchup)`);
   console.log(`[arena] blinds: ${args.sb}/${args.bb}, buy-in: ${args.buyIn}`);
   console.log(`[arena] opponent reads: ${args.reads ? 'ENABLED' : 'DISABLED (--no-reads)'}`);
+  console.log(`[arena] attributes: ${args.attributes.toUpperCase()} — seat A all six at ${attrLevel}, seat B at ${NEUTRAL_LEVEL}` +
+              ` (ATTRIBUTE_IMPACT=${attributeImpact()})`);
+  if (args.attributes === 'off') {
+    console.log('[arena]   "off" is the control: knob 0, so every hook returns its pre-attribute constant.');
+  }
+  console.log(`[arena] session hand counter runs across the matchup, so STAMINA/fatigue is live over ${args.pairs * 2} hands.`);
   console.log(`[arena] ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'set' : 'NOT SET (all decisions will fallback)'}\n`);
 
-  // Aggregate stats per profile name across all matchups it participates in.
-  const perAgent = Object.fromEntries(names.map((n) => [n, newStats()]));
+  // Aggregate stats per SIDE across all matchups it participates in. Keyed by
+  // side label, not by profile name: the attribute measurement runs the same
+  // profile against itself ("TAG,TAG"), and a name-keyed map would have both
+  // seats sharing one stats object and the second summary silently
+  // overwriting the first — exactly the number the measurement is about.
+  const perAgent = {};
+  const aggFor = (label) => (perAgent[label] ??= newStats());
   const matchupSummaries = [];
 
   const started = Date.now();
   for (const [a, b] of matchups) {
-    console.log(`— ${a} vs ${b} —`);
+    // Distinct labels when a profile plays itself. These are also the
+    // opponentStats playerIds, so the two seats build reads on each other
+    // rather than on one merged record.
+    const labelA = a === b ? `${a}#A` : a;
+    const labelB = a === b ? `${b}#B` : b;
+    console.log(`— ${labelA} vs ${labelB} —`);
     const { statsA, statsB } = await runMatchup({
-      nameA: a, bundleA: bundles[a],
-      nameB: b, bundleB: bundles[b],
+      nameA: labelA, bundleA: withAttributes(bundles[a], attrLevel),
+      nameB: labelB, bundleB: withAttributes(bundles[b], NEUTRAL_LEVEL),
       pairs: args.pairs,
       sb: args.sb, bb: args.bb, buyIn: args.buyIn,
       readsEnabled: args.reads,
     });
     matchupSummaries.push({
-      a, b,
-      [a]: summarizeAgent(statsA, args.bb),
-      [b]: summarizeAgent(statsB, args.bb),
+      a: labelA, b: labelB,
+      [labelA]: summarizeAgent(statsA, args.bb),
+      [labelB]: summarizeAgent(statsB, args.bb),
     });
-    // Fold matchup stats into the per-agent aggregate.
-    mergeStats(perAgent[a], statsA);
-    mergeStats(perAgent[b], statsB);
+    // Fold matchup stats into the per-side aggregate.
+    mergeStats(aggFor(labelA), statsA);
+    mergeStats(aggFor(labelB), statsB);
   }
   const elapsedSec = ((Date.now() - started) / 1000).toFixed(1);
 
-  const perAgentSummary = Object.fromEntries(names.map((n) => [n, summarizeAgent(perAgent[n], args.bb)]));
+  const perAgentSummary = Object.fromEntries(
+    Object.entries(perAgent).map(([label, st]) => [label, summarizeAgent(st, args.bb)]),
+  );
 
   console.log('\n═══ SUMMARY ═══');
+  console.log(`attributes: ${args.attributes} (seat A ${attrLevel} / seat B ${NEUTRAL_LEVEL}, impact ${attributeImpact()})`);
   console.log('\nPer-agent aggregate (all matchups):');
   console.table(perAgentSummary);
   console.log('\nPer-matchup detail:');
   for (const m of matchupSummaries) {
     console.log(`  ${m.a} vs ${m.b}: ${m.a} bb/100=${m[m.a].bb100}±${m[m.a].ci95}  ${m.b} bb/100=${m[m.b].bb100}±${m[m.b].ci95}`);
+    // Seat A carries the attributes; seat B is neutral. In a same-strategy
+    // matchup A's own bb/100 IS the attribute effect, so state it as one line.
+    const lo = (m[m.a].bb100 - m[m.a].ci95).toFixed(1);
+    const hi = (m[m.a].bb100 + m[m.a].ci95).toFixed(1);
+    console.log(`    seat A attributes=${attrLevel} vs seat B=${NEUTRAL_LEVEL} -> A bb/100 ${m[m.a].bb100}, 95% CI [${lo}, ${hi}]`);
   }
   console.log(`\ntotal time: ${elapsedSec}s`);
 
@@ -460,6 +530,12 @@ async function main() {
   const record = {
     timestamp: new Date().toISOString(),
     args,
+    attributes: {
+      setting: args.attributes,
+      seatAValue: attrLevel,
+      seatBValue: NEUTRAL_LEVEL,
+      impact: attributeImpact(),
+    },
     profiles: bundles,
     matchups: matchupSummaries,
     perAgent: perAgentSummary,
