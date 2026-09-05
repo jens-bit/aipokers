@@ -3,6 +3,10 @@
 // The shell: three tabs, and BirthScreen as the only way to make an agent.
 // These assert on what the user sees after a click, not on component internals.
 
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -159,5 +163,43 @@ describe('the profile card can reach the funding sheet', () => {
     // The YOU screen owns the wallet and the funding sheet.
     expect(await screen.findByText('Your wallet')).toBeInTheDocument();
     expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
+  });
+});
+
+// ── WIRE-1 · the glue ───────────────────────────────────────────────────────
+
+describe('WIRE-1 the app shell wiring', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  // Item 2. CasinoFloor works out a birth for itself (FLOOR-2 FL-3) and walks
+  // the newborn in; App used to draw a second body for the same agent on top of
+  // that one. One agent, one ghost.
+  it('WIRE-1: App draws no newborn overlay of its own', async () => {
+    render(<App />);
+    await screen.findByText('Standup');
+    // MaterializingOccupant's own line. It was App's overlay talking over the
+    // floor's walk-in; the floor never says this.
+    expect(screen.queryByText(/Deal me in whenever/)).not.toBeInTheDocument();
+
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'App.jsx'), 'utf8');
+    expect(src).not.toMatch(/MaterializingOccupant/);
+  });
+
+  // Item 4. useTable keeps the staged runout and merges it onto the view model
+  // as a fallback; the container hands it over explicitly.
+  it('WIRE-1: the container forwards paceFrame to the watch screen', () => {
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'App.jsx'), 'utf8');
+    // Destructured off useTable...
+    expect(src).toMatch(/paceFrame,/);
+    // ...and handed to WatchScreen rather than left to the merge.
+    expect(src).toMatch(/paceFrame=\{paceFrame\}/);
+  });
+
+  it('WIRE-1: and tells the floor which agent was just born', () => {
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'App.jsx'), 'utf8');
+    expect(src).toMatch(/newbornId=\{newlyBornAgent\?\.id \?\? null\}/);
   });
 });
