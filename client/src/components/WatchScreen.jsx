@@ -13,6 +13,13 @@ import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { accentFor } from './floor/atoms.jsx';
 import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
+import { TugBar } from './system/TugBar.jsx';
+import { ReadPanel } from './system/ReadPanel.jsx';
+import { fire as fireHaptic } from '../lib/haptics.js';
+import { beat, isMuted, toggleMuted } from '../lib/audio.js';
+import { PredictBeat } from './system/PredictBeat.jsx';
+import { predictEnabled, settle, getStreak } from '../lib/predict.js';
+import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -73,143 +80,45 @@ function posLabel(seat, game) {
   return '';
 }
 
-// ---- DecisionBand ----------------------------------------------------------
-// One decision row in the append-only feed. Never re-mounts once rendered.
+// ---- ReadTab ---------------------------------------------------------------
+// W3-2: the READ tab. His picture of the opponent, plus — between hands only —
+// the attribute panel ATTR-2e put on the hand just played. Nothing here says
+// "waiting for the first action": before there is evidence he says so himself.
 
-function DecisionBand({ street, action, equity, reasoning }) {
-  const actionLabel = formatAction(action);
-  const equityNum   = equityPct(equity);
-  const hasEquity   = equityNum !== null;
-
+function ReadTab({ game, between, agent, lastHand, predict }) {
   return (
-    <div style={{
-      padding: '10px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.12)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{
-          fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-          fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
-          padding: '2px 7px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.12)',
-          color: 'var(--sys-muted,#6B6B6B)',
-          textTransform: 'uppercase', flexShrink: 0,
-        }}>{(street || 'PREFLOP').toUpperCase()}</span>
-
-        <span style={{
-          padding: '3px 9px', borderRadius: 5,
-          background: 'var(--sys-teal,#00D4AA)', color: '#0A0A0A',
-          fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-          fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em',
-          textTransform: 'uppercase', flexShrink: 0,
-        }}>{actionLabel}</span>
-
-        <div style={{ flex: 1 }} />
-
-        {hasEquity && (
-          <span style={{
-            fontFamily: 'var(--sys-font-mono,"JetBrains Mono",monospace)',
-            fontSize: 12.5, fontWeight: 700,
-            color: 'var(--sys-teal,#00D4AA)',
-            fontVariantNumeric: 'tabular-nums',
-          }}>{equityNum.toFixed(1)}%</span>
-        )}
-      </div>
-
-      {hasEquity && (
-        <div style={{
-          height: 3, borderRadius: 2,
-          background: 'rgba(255,255,255,0.07)', overflow: 'hidden',
-          margin: '6px 0 5px',
-        }}>
-          <div style={{
-            width: Math.min(100, equityNum) + '%',
-            height: '100%',
-            background: 'var(--sys-teal,#00D4AA)',
-            borderRadius: 2,
-          }} />
-        </div>
-      )}
-
-      {reasoning && (
-        <div style={{
-          fontSize: 11.5, color: 'var(--sys-dim,#A1A1A1)', lineHeight: 1.4,
-          fontStyle: 'italic',
-          marginTop: hasEquity ? 0 : 5,
-          display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
-          overflow: 'hidden',
-        }}>"{reasoning}"</div>
-      )}
+    <div className="watch-panel__read">
+      <ReadPanel reads={game ? game.reads : null} />
+      {predict}
+      {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
+      <MuteToggle />
     </div>
   );
 }
 
-// ---- HandDivider -----------------------------------------------------------
+// ---- MuteToggle ------------------------------------------------------------
+// W3-3: sound is a second layer to the haptics, and it has to be switchable —
+// the phone is on silent in a bar, and every beat is built to land on haptics
+// alone. The sounds themselves ship later; the switch ships now.
 
-function HandDivider({ handNumber }) {
+function MuteToggle() {
+  var [muted, setMuted] = useState(function() { return isMuted(); });
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 9,
-      padding: '8px 14px',
-    }}>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
-      <span style={{
-        fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
-        fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
-        textTransform: 'uppercase',
-        color: 'var(--sys-muted,#6B6B6B)',
-      }}>HAND #{handNumber}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
-    </div>
-  );
-}
-
-// ---- LiveAnalysisTab -------------------------------------------------------
-// Receives the stable feed array; never clears it.
-
-function LiveAnalysisTab({ feed, between, agent, lastHand }) {
-  var river = (between && agent && lastHand)
-    ? <RiverAttrPanel agent={agent} hand={lastHand} />
-    : null;
-
-  if (feed.length === 0) {
-    return (
-      <div className="watch-panel__empty">
-        {!between && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="1.4" strokeLinecap="round" aria-hidden
-            style={{ marginBottom: 6, opacity: 0.35 }}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-        )}
-        <span style={{ opacity: between ? 0.4 : 1, fontSize: between ? 11 : 12 }}>
-          {between ? 'Watching…' : 'Waiting for first action…'}
-        </span>
-        {river}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {river}
-      {feed.map(function(item) {
-        if (item.type === 'hand') {
-          return <HandDivider key={item.id} handNumber={item.handNumber} />;
-        }
-        return (
-          <DecisionBand
-            key={item.id}
-            street={item.street}
-            action={item.action}
-            equity={item.equity}
-            potOdds={item.potOdds}
-            reasoning={item.reasoning}
-          />
-        );
-      })}
-    </div>
+    <button
+      type="button"
+      className={'watch-mute' + (muted ? ' is-muted' : '')}
+      aria-pressed={muted}
+      onClick={function() { setMuted(toggleMuted()); }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        {muted
+          ? <path d="M23 9l-6 6M17 9l6 6" />
+          : <path d="M15.5 8.5a5 5 0 010 7" />}
+      </svg>
+      <span>{muted ? 'Sound off' : 'Sound on'}</span>
+    </button>
   );
 }
 
@@ -464,7 +373,13 @@ function compactFor(slot, opponentCount) {
 
 // ---- WatchFelt -------------------------------------------------------------
 
-function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
+// W3-1: PaceFelt. The felt is now told which of the four pacing states it is in
+// and dresses itself accordingly — warm ground and a fat ticker while a pot is
+// heating, a breathing red glow on an all-in, the ticker sliding away on a
+// showdown. CALM is the felt that shipped, unchanged.
+function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom }) {
+  var pace = paceOf(game);
+  var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
   // screen -- board, reveals and the pot going to its winner -- and it holds
   // until the next deal clears it.
@@ -494,24 +409,35 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  // FIX-1g: the readout showed an em dash for the whole of the hero's turn,
-  // which is the one moment the owner is actually watching it. The server knows
-  // his equity before he acts -- it computes it for the briefing -- and the last
-  // number it sent for THIS hand is the honest answer until a newer one lands.
-  // `handEquity` is that value, remembered by the parent and cleared on the
-  // next deal, so a dash now means only one thing: nothing has been dealt yet.
-  var equityText  = between ? null : formatEquity(handEquity);
-  var hasEquity   = equityText !== null;
+  // How many board cards are face up right now. (`flipped`, not `revealed` —
+  // that name already belongs to the showdown's per-seat reveal map below.)
+  var landed = landedCount(game, flipped);
+
+  // The rope's far end is labelled with whoever is still contesting the pot;
+  // with more than one live opponent it stays unlabelled rather than picking a
+  // favourite. The owner is watching his agent, not refereeing.
+  var liveOpponents = (game && game.seats ? game.seats : [])
+    .map(function(seat, i) { return { seat: seat, i: i }; })
+    .filter(function(x) { return x.i !== heroSeat && x.seat && !x.seat.folded; });
+  var villainName = liveOpponents.length === 1
+    ? (liveOpponents[0].seat.displayName || ('Seat ' + (liveOpponents[0].i + 1)))
+    : null;
+
+  // FIX-1g held the last decision's equity so the readout never dashed while he
+  // was on the clock. W3-1 adds the better source in front of it: feature/pace
+  // puts hero equity on every snapshot, which is what finding 2 needs for the
+  // rope to move on every street rather than only when he acts.
+  var heroEquity  = between ? null : heroEquityOf(game, handEquity, heroSeat);
+  var hasEquity   = heroEquity !== null;
   // At showdown the readout stops reporting the hero's last action and says
   // how the hand ended -- the ref's `note` slot.
-  // FIX-1f: when it is the hero's turn the chip names the price, which is the
-  // one fact the removed meta line was carrying that nothing else shows.
+  // FIX-1f moved the price out of the deleted meta line and into the action
+  // chip. W3-1 gives it its own column in the hero row (HeroRow3), which is
+  // where the ref puts it, so the chip goes back to naming the action alone.
   var toCall = (live && heroData && game.currentBet != null)
     ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
     : 0;
-  var toActLabel = (game && game.toAct === heroSeat && live)
-    ? (toCall > 0 ? 'TO CALL $' + toCall.toLocaleString() : 'TO ACT')
-    : null;
+  var toActLabel = (game && game.toAct === heroSeat && live) ? 'TO ACT' : null;
   var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
     : toActLabel);
@@ -576,10 +502,15 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
     '--wv-pot':   geom.pot + 'px',
     '--wv-board': geom.board + 'px',
     '--wv-meta':  geom.meta + 'px',
+    // W3-1: his line sits directly above the hero row, so it needs the same
+    // band the geometry already reserves for it.
+    '--wv-hero-band': HERO_BAND + 'px',
   } : undefined;
 
   return (
-    <div className="watch-felt" style={feltStyle}>
+    <div className={'watch-felt' + (metaLine ? ' watch-felt--metaline' : '')}
+      style={feltStyle} data-pace={pace}>
+      {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
@@ -627,13 +558,36 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         </div>
       )}
 
+      {/* W3-1: `landed` is how many cards have been turned over. Off a showdown
+          that is simply how many the server has dealt; on one the parent walks
+          it up a card at a time and the newest slot animates in. */}
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
         {boardSlots.map(function(c, i) {
-          return c
-            ? <PlayingCard key={i} rank={c[0]} suit={c[1]} w={46} h={64} />
-            : <CardBack key={i} w={46} h={64} branded />;
+          var isLanding = pace === 'showdown' && i === landed - 1;
+          var cls = 'watch-felt__card' + (isLanding ? ' watch-felt__card--landing' : '');
+          return (
+            <div key={i} className={cls}>
+              {(c && i < landed)
+                ? <PlayingCard rank={c[0]} suit={c[1]} w={46} h={64} />
+                : <CardBack w={46} h={64} branded />}
+            </div>
+          );
         })}
       </div>
+
+      {/* The rope — finding 2. It takes the slot the table-id meta line used to
+          hold, which is exactly "directly under the board". */}
+      <div className="watch-felt__tug">
+        <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
+      </div>
+
+      {/* His line — one sentence, thread voice, and the loudest thing on the
+          screen at ALL-IN. Long voice lives in the thread; the felt gets one. */}
+      {line && (
+        <div className="watch-felt__line">
+          <span className="watch-felt__line-text">{line}</span>
+        </div>
+      )}
 
       {settled ? (
         <>
@@ -660,8 +614,8 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
                 filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
               }}>
                 {(c && !between)
-                  ? <PlayingCard rank={c[0]} suit={c[1]} w={40} h={56} />
-                  : <CardBack w={40} h={56} branded />}
+                  ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
+                  : <CardBack w={36} h={50} branded />}
               </div>
             );
           })}
@@ -679,11 +633,14 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         </div>
         <div className="watch-felt__hero-divider" />
 
+        {/* W3-1 HeroRow3: equity has moved to the rope under the board, so this
+            column now carries the two facts the removed meta line was holding —
+            the street, or the price when there is one to pay. */}
         <div>
-          <span className={'watch-felt__hero-lbl' + (hasEquity ? ' is-live' : '')}>Equity</span>
+          <span className="watch-felt__hero-lbl">{toCall > 0 ? 'To call' : 'Street'}</span>
           <div>
-            <span className={'watch-felt__hero-num' + (hasEquity ? ' is-live' : ' is-muted')}>
-              {equityText || '--'}
+            <span className={'watch-felt__hero-num ' + (toCall > 0 ? 'is-gold' : 'is-dim')}>
+              {toCall > 0 ? '$' + toCall.toLocaleString() : (street || '—')}
             </span>
           </div>
         </div>
@@ -692,6 +649,9 @@ function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
           : <span className="watch-felt__waiting">{heroNote}</span>}
+        {pace === 'allin' && !settled && (
+          <span className="watch-felt__hero-tag">HOLDING</span>
+        )}
       </div>
     </div>
   );
@@ -748,8 +708,13 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 }
 
 // ---- WatchTabs -------------------------------------------------------------
+// W3-2 (Tabs3): four tabs were three too many. LIVE ANALYSIS, RANGE and HISTORY
+// are gone — the first was the solver speaking over him, the other two never
+// had content — and READ and CHAT remain.
 
-var TABS = ['Live analysis', 'Range', 'History', 'Chat'];
+var TABS = ['Read', 'Chat'];
+var TAB_READ = 0;
+var TAB_CHAT = 1;
 
 // WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
 // click. Selection and dragging are one gesture, resolved by the sheet: a tap
@@ -766,21 +731,6 @@ function WatchTabs({ active }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ---- EmptyTab --------------------------------------------------------------
-
-function EmptyTab({ text }) {
-  return (
-    <div className="watch-panel__empty">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" aria-hidden style={{ marginBottom: 8, opacity: 0.4 }}>
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 8v4M12 16h.01" />
-      </svg>
-      {text}
     </div>
   );
 }
@@ -1035,6 +985,104 @@ export function WatchScreen({
   }
 
   var between = !handActive(game);
+  var pace = paceOf(game);
+
+  // W3-1: the showdown runout, one card at a time. The server says SHOWDOWN and
+  // the client walks the reveal up on a timer — 450ms a card, five cards in
+  // 2.0s, which is the ww-ref's "≈ 2s reveal + 1s hold". Off a showdown there
+  // is nothing to walk: `null` means "however many the server has dealt".
+  var [flipped, setFlipped] = useState(null);
+  var dealtCount = (game && game.community) ? game.community.length : 0;
+  useEffect(function() {
+    if (pace !== 'showdown') { setFlipped(null); return undefined; }
+    setFlipped(0);
+    var n = 0;
+    var id = setInterval(function() {
+      n += 1;
+      setFlipped(n);
+      if (n >= dealtCount) clearInterval(id);
+    }, FLIP_MS);
+    return function() { clearInterval(id); };
+  }, [pace, dealtCount, game && game.handNumber]);
+
+  // His one line on the felt: the newest decision's reasoning, in his voice.
+  // Finding 3 — long voice lives in the thread, the felt gets one sentence.
+  var feltLine = (lastDecision && lastDecision.reasoning) ? lastDecision.reasoning : null;
+
+  // ---- W3-3: the beats -----------------------------------------------------
+  // One entry per row of the ww-ref's haptics table, fired from the state the
+  // server put us in. Every rule the table sets — his events only, never two
+  // inside 120ms, nothing while backgrounded — is enforced inside lib/haptics,
+  // so these are plain "this happened" calls.
+
+  // Climbing the ladder. Latched per hand: HEATING taps once and never repeats,
+  // and stepping back down (a new hand) re-arms it.
+  var paceSeenRef = useRef({ hand: null, seen: {} });
+  useEffect(function() {
+    var hand = game ? game.handNumber : null;
+    if (paceSeenRef.current.hand !== hand) paceSeenRef.current = { hand: hand, seen: {} };
+    if (pace === 'calm' || paceSeenRef.current.seen[pace]) return;
+    paceSeenRef.current.seen[pace] = true;
+    if (pace === 'heating') beat('heating', fireHaptic);
+    else if (pace === 'allin') beat('allin', fireHaptic);
+  }, [pace, game && game.handNumber]);
+
+  // His action posting. Only ever his: lastDecision is the hero's decision, and
+  // an opponent's action must never reach the device.
+  useEffect(function() {
+    if (!lastDecision) return;
+    beat('hisAction', fireHaptic);
+  }, [lastDecision]);
+
+  // Each card of the runout, during the hold.
+  useEffect(function() {
+    if (pace !== 'showdown' || !flipped) return;
+    beat('runoutCard', fireHaptic);
+  }, [pace, flipped]);
+
+  // The pot, once it is settled. Winning is a notification; losing is quiet.
+  var resultSeenRef = useRef(null);
+  useEffect(function() {
+    var result = game && game.result ? game.result : null;
+    var hand = game ? game.handNumber : null;
+    if (!result || resultSeenRef.current === hand) return;
+    resultSeenRef.current = hand;
+    var heroSeat = Number.isInteger(mySeat) ? mySeat : 0;
+    var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
+    beat(won ? 'wonPot' : 'lostPot', fireHaptic);
+  }, [game && game.handNumber, game && game.result, mySeat]);
+
+  // ---- W3-4: the prediction beat -------------------------------------------
+  // Off unless the ap_predict flag says otherwise. The pick locks the moment he
+  // acts and settles against what he actually did; the streak lives in memory
+  // for as long as the tab does and is never written down.
+  var predictOn = predictEnabled();
+  var [pick, setPick] = useState(null);
+  var settledForRef = useRef(null);
+
+  useEffect(function() {
+    if (!predictOn || !lastDecision) return;
+    if (settledForRef.current === lastDecision) return;
+    settledForRef.current = lastDecision;
+    if (!pick || pick.locked) return;
+    var outcome = settle(pick.guess, lastDecision.action);
+    if (outcome.right === null) return;      // a spot the chips could not express
+    setPick({ guess: pick.guess, locked: true, right: outcome.right, streak: outcome.streak });
+    if (outcome.right) beat('predictionRight', fireHaptic);
+  }, [predictOn, lastDecision, pick]);
+
+  // A new hand clears the board for the next guess.
+  useEffect(function() {
+    if (predictOn) setPick(null);
+  }, [predictOn, game && game.handNumber]);
+
+  // A read forming. The panel animates; the device only nudges.
+  var formingRef = useRef(false);
+  var readsForming = !!(game && game.reads && game.reads.forming);
+  useEffect(function() {
+    if (readsForming && !formingRef.current) beat('readForms', fireHaptic);
+    formingRef.current = readsForming;
+  }, [readsForming]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
   var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
@@ -1085,14 +1133,14 @@ export function WatchScreen({
         cause={cause || (state === 'live' ? 'at the table' : 'resting')}
         state={state}
         action="Chat"
-        onAction={function() { setActiveTab(3); }}
+        onAction={function() { setActiveTab(TAB_CHAT); }}
       />
 
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
 
         <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} geom={sheet.geom} />
+          handEquity={handEquity} flipped={flipped} line={feltLine} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
@@ -1114,26 +1162,33 @@ export function WatchScreen({
 
           {sheet.detent === 'peek' && (
             <div className="watch-sheet__peek">
-              <span className="watch-sheet__peek-line">
-                {peekLine || 'Waiting for first action...'}
-              </span>
+              {/* W3-2: no "waiting for first action" anywhere. The peek either
+                  has his line or it has nothing to say and stays quiet. */}
+              {peekLine && <span className="watch-sheet__peek-line">{peekLine}</span>}
               {peekEquity && <span className="watch-sheet__peek-eq">{peekEquity}</span>}
             </div>
           )}
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === 0 && (
-                <LiveAnalysisTab
-                  feed={decisionFeed}
+              {activeTab === TAB_READ && (
+                <ReadTab
+                  game={game}
                   between={between}
                   agent={agent}
                   lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
+                  predict={predictOn ? (
+                    <PredictBeat
+                      picked={pick ? pick.guess : null}
+                      locked={!!(pick && pick.locked)}
+                      right={pick ? pick.right : undefined}
+                      streak={pick && pick.locked ? pick.streak : getStreak()}
+                      onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
+                    />
+                  ) : null}
                 />
               )}
-              {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
-              {activeTab === 2 && <EmptyTab text="No hands played yet." />}
-              {activeTab === 3 && (
+              {activeTab === TAB_CHAT && (
                 <ChatTab
                   agentThread={agentThread}
                   tableSpeech={tableSpeech}
