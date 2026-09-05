@@ -2053,7 +2053,7 @@ export class Table {
 
       if (!trigger) continue;
 
-      const line = pickTalkLine(trigger, moodState);
+      const line = pickTalkLine(trigger, moodState, { heat: mood?.heat ?? null });
       if (!line) continue;
 
       // Lock this hand and update per-seat timing. Reset streak if cardDead fired.

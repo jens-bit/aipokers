@@ -389,6 +389,28 @@ export function moodPromptLine(mood) {
   return `STATE: ${state}, heat ${heat}/100 — ${w.word}${because}. Voice: ${w.tone}.${shut}`;
 }
 
+// The line the DECISION briefing gets. Different job from moodPromptLine: that
+// one is about voice, this one is about play, and it stays inside the BOUNDED
+// law — every hint here nudges sizing or willingness to deviate, and not one
+// of them touches his range.
+export function moodBriefingHint(mood) {
+  const state = mood?.state ?? 'neutral';
+  const heat = Number.isFinite(mood?.heat) ? mood.heat : heatForState(state);
+  if (state === 'confident') return ' You are running well — stay assertive.';
+  if (state === 'sulking')   return ' You have shut down — tighten sizings and stick close to the script.';
+  if (state === 'frustrated') {
+    return heat >= 55
+      ? ' You are irritated — defend a touch wider and be quicker to fire, but do NOT abandon your range.'
+      : ' You are a little annoyed — play a touch looser, keep your range intact.';
+  }
+  if (state === 'tilted') {
+    if (heat >= 90) return ' You are boiling — you want to bet everything. Size larger and deviate more often, but your range is your range.';
+    if (heat >= 75) return ' You are steaming — size larger and be quick to deviate, but keep your range intact.';
+    return ' You are rattled — size a hair larger and be a little quicker to deviate; range unchanged.';
+  }
+  return '';
+}
+
 // ── Susceptibility: what the owner says ─────────────────────────────────────
 // MOOD-2b. The thread is not a support line; it is a person talking to a poker
 // player about poker. Being told he punted lands, and being asked what he was

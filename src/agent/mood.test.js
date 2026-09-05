@@ -318,13 +318,19 @@ console.log('\n— susceptibility: what the owner says, and only what he says �
 
   // And the source itself: nothing in this file knows what a neglected agent
   // is. A guilt mechanic would have to be spelled somewhere, so this looks.
-  // Comments stripped first: the file DESCRIBES the law in these words, and
-  // writing "there is no unopened-review mechanic here" is the opposite of
-  // having one. What must not exist is the code.
+  // Comments AND string literals stripped first. The file DESCRIBES this law in
+  // these words, and a prompt string says "do NOT abandon your range" — both are
+  // prose. What must not exist is an IDENTIFIER: a mechanic has to be named to
+  // be built, so this looks for the name.
   const src = fs.readFileSync(new URL('./mood.js', import.meta.url), 'utf8');
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
-  const banned = /\b(neglect\w*|abandon\w*|unopened|ignoredBy|lastSeenAt|daysSince|sinceLastVisit|lonel\w*)\b/i;
-  check(`mood.js has no absence-tracking code`, !banned.test(code));
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+  const banned = /\b(neglect\w*|\w*[Aa]bandoned\w*|unopened\w*|ignoredBy\w*|lastSeen\w*|daysSince\w*|sinceLast\w*|lonel\w*|awayFor\w*|silence\w*)\b/i;
+  check(`mood.js has no absence-tracking identifier`, !banned.test(code));
   check(`mood.js never subtracts one clock reading from another`,
     !/Date\.now\(\)\s*-\s*/.test(src));
 }
