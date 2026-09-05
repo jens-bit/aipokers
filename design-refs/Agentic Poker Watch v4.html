@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="design_doc_mode" content="canvas"/>
-<title>Agentic Poker · Watch v4</title>
+<title>Agentic Poker · Watch v4b</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -49,41 +49,44 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 
 <div class="frame" style="left:60px;top:80px">
   <div class="panel">
-    <div class="sub">Design wave 37</div>
-    <h1>Dealt, seated,<br/>spoken.</h1>
-    <p>v3 fixed tension, stakes and register. What it left behind was <b>a table with nobody at it</b> — five chips carrying names and stacks, no bodies — and reads filed behind a tab nobody opened. This wave adds three things and removes one.</p>
+    <div class="sub">Design wave 38 · watch v4b</div>
+    <h1>Bubbles,<br/>not a feed.</h1>
+    <p>v4 put his voice in a panel under the felt. Right instinct, wrong place: <b>a feed is a log you read, and what an owner wants is to watch someone talk</b>. So the words move onto the felt as speech bubbles over whoever is speaking, and the panel becomes the record rather than the performance.</p>
+    <p>Kept from v4 unchanged: the DEAL beat, opponents seated as ghosts with mood posture, tap-a-ghost → read sheet, the 40px header, the tug-of-war, the pace states, the haptic contract.</p>
 
-    <div class="lbl">Added</div>
-    <div class="lawrow"><span class="k">1</span><span class="v">A <b>DEAL</b> beat before CALM. His cards land one at a time, 90ms apart, one light haptic each, then the table's backs as a single sweep. A premium hand <b>warms his cards in gold</b> — owner-only, never on anyone else's felt.</span></div>
-    <div class="lawrow"><span class="k">2</span><span class="v"><b>Opponents as characters.</b> Every seat is a ghost with a mood posture — House regulars included. Their cards sit behind the shoulder, never in front of the face.</span></div>
-    <div class="lawrow"><span class="k">3</span><span class="v"><b>His voice as the default panel.</b> Decision lines with table talk woven in, and between hands one line of session truth.</span></div>
+    <div class="lbl">The bubble law</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>One bubble per seat, at most two on the felt</b>, 3–4 seconds, then gone. Never a queue, never a stack — if a third thing is said, the oldest goes.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>His sits above the hero row; an opponent's sits above their own ghost.</b> The tail is the entire mechanism by which you know who spoke.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Nothing is lost by expiring.</b> The TABLE tab keeps every line, which is exactly what frees a bubble to be brief.</span></div>
 
-    <div class="lbl">Removed</div>
-    <p>The <b>READ tab</b>. A read is a fact about one opponent, so it lives behind that opponent: tap a ghost, the sheet rises. Five opponents, five reads, and no tab that has to hold six of anything. Also gone: 96px of header chrome, and the MoodBand — whose only load-bearing part was the cause line, which now lives in the between-hands strip where there is room to read it.</p>
+    <div class="lbl">Removed, and replaced</div>
+    <p>The <b>VOICE tab and the feed</b>, and the decision line under the board. In their place, one tab — <b>TABLE</b> — carrying everything said at this table in order, his lines, theirs and yours, with the composer to talk to him mid-hand. <b>The felt never scrolls; the record always does.</b></p>
+    <p>Also new: <b>showdown turns their hole cards face up</b>, in seat order, held, then the pot slides. Backs only while the hand is live — the fish-tank law is unchanged.</p>
 
     <div class="lbl">Stacking order, as law</div>
-    <p style="margin-bottom:0"><code>rope 276 → line 313 → hero row bottom 12</code>. The decision line is never pinned without a relationship to what sits under it — that was the v3 bug, and on a 420px felt there are exactly 12 pixels of slack between each band.</p>
+    <p>The felt is <b>one height for every state — 520px</b>, and its centre is <b>a flow, not a list of offsets</b>. Eleven defects in this wave were one bug repeated: a fixed downstream offset meeting an upstream element whose height depends on state. The heat rope is 36px, not 29. The heat pot pill is 52px, not 39. His ALL-IN bubble is two lines, not one. Each time a constant tuned against one state broke in another.</p>
+    <p style="margin-bottom:0">So pot, board, his bubble band and the rope are <b>one flex column</b>, positioned once at y196 and flowed with 8px gaps above a reserved hero row — a taller pill or a thicker rope now <b>moves its neighbours instead of landing on them</b>. The seats stay absolute because they are anchored to the table, and their bands derive from the seat stack: <code>a seat is 60px (ghost 41 + gap 2 + chip 17) · top row 56 · side band 124 · side row 170</code>. Nothing downstream is a number any more.</p>
   </div>
 </div>
 
 <div class="frame" style="left:600px;top:80px">
-  <div class="grouphdr">The deal</div>
+  <div class="grouphdr">The deal, and the bubbles</div>
   <div class="groupsub">Two frames of one beat. The interval is the design: <b>90ms is fast enough to feel like one action and slow enough to feel like two cards</b> — under 60 it reads as a stutter, over 140 as a delay.</div>
   <div class="fh" style="margin-top:118px"><span class="fn">42a</span><span class="ft">DEAL · mid-arrival</span><span class="fb teal">one card in</span></div>
   <div id="d1"></div>
-  <div class="fa"><b>His first card has landed and the second is still travelling</b> — offset 34px, opacity zero, arriving on a 240ms ease. The table has no backs yet: <b>his cards come first, always</b>, because it is his hand you are watching. The rope sits dead centre because there is nothing to weigh yet, and the voice feed carries only the hand number and the stakes.</div>
+  <div class="fa"><b>His first card has landed and the second is still travelling</b> — offset 34px, opacity zero, arriving on a 240ms ease. The table has no backs yet: <b>his cards come first, always</b>, because it is his hand you are watching. The rope sits dead centre because there is nothing to weigh yet, and <b>no bubble</b>: most deals are not worth a word.</div>
 </div>
 
 <div class="frame" style="left:1060px;top:80px">
   <div class="fh" style="margin-top:118px"><span class="fn">42b</span><span class="ft">DEAL · a hand worth having</span><span class="fb gold">owner-only</span></div>
   <div id="d2"></div>
-  <div class="fa"><b>Ace-king, and his two cards carry a gold edge.</b> The warm comes straight from pre-flop equity, the hero row's border goes gold, and a small <code>PREMIUM</code> label says why. <b>This is a private read on his own hand</b> — if the screen is ever shared or spectated, both the edge and its soft haptic are suppressed. A gold edge is not a table effect.</div>
+  <div class="fa"><b>Ace-king, and his two cards carry a gold edge.</b> The warm comes from pre-flop equity, the hero row's border goes gold, a small <code>PREMIUM</code> label says why — and <b>this</b> is a deal worth a word, so his bubble arrives in its reserved band. The edge is a private read on his own hand: if the screen is shared or spectated, both it and its soft haptic are suppressed.</div>
 </div>
 
 <div class="frame" style="left:1520px;top:80px">
-  <div class="fh" style="margin-top:118px"><span class="fn">42c</span><span class="ft">CALM · six bodies</span><span class="fb teal">seated as characters</span></div>
+  <div class="fh" style="margin-top:118px"><span class="fn">42c</span><span class="ft">CALM · two bubbles</span><span class="fb teal">the maximum</span></div>
   <div id="d3"></div>
-  <div class="fa"><b>Five opponents, five postures, and two of them are already out of the hand.</b> Granite is acting — a teal pool under him, breathing. doyle_v3 and ivey_bot have folded and sit at <b>34% and desaturated</b>, still visibly themselves. nash_eq is another owner's agent: his ghost is fully visible, his cards are backs, and his mood is his own. The gold <code>3</code> on Granite is the biography layer, doing its job at 34px.</div>
+  <div class="fa"><b>Two bubbles, which is the maximum the felt will ever carry.</b> His sits above the rope; Granite's <i>“Again?”</i> sits above Granite, tail pointing down at him. Granite is acting, so he wears the white ring with a bright arc for time left and <code>9s</code> in his chip — <b>acting is a shape, never a colour</b>, because teal is an accent and Phil_AI wears it. doyle_v3 and ivey_bot have folded to 34% and desaturated, still visibly themselves.</div>
 </div>
 
 <div class="frame" style="left:1980px;top:80px">
@@ -101,29 +104,29 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <div class="frame" style="left:1060px;top:1200px">
   <div class="fh" style="margin-top:96px"><span class="fn">42f</span><span class="ft">HEATING</span><span class="fb gold">pot past the threshold</span></div>
   <div id="d6"></div>
-  <div class="fa"><b>Unchanged from v3, and that is the point</b> — the felt warms, the ticker grows, one rigid tap. What is new is that the postures <b>do not react</b>: a hot pot is his news and the room's, not theirs. The voice feed carries his sizing line as it happens.</div>
+  <div class="fa"><b>The felt warms, the ticker grows, one rigid tap — and a side seat speaks.</b> nash_eq folds out loud from the left rail, which is the case worth drawing: <b>the bubble's box is clamped to stay on the felt while its tail is computed back from his own x</b>, so the tail still lands on him rather than on empty green. Both facts hold for all five seats. His own bubble carries the sizing line, and the TABLE record takes both whether you were looking or not.</div>
 </div>
 
 <div class="frame" style="left:1520px;top:1200px">
   <div class="fh" style="margin-top:96px"><span class="fn">42g</span><span class="ft">ALL-IN</span><span class="fb red">3–5s hold</span></div>
   <div id="d7"></div>
-  <div class="fa"><b>The one place this product raises its voice, now with witnesses.</b> Red breathing glow, his line in Playfair, <code>RIVER IN 3</code> in the hero row's tag slot where the timer would be — because there is nothing left to decide. Granite's <b>"Call."</b> sits directly above his line in the feed, which is the whole argument for weaving table talk into it.</div>
+  <div class="fa"><b>The one place this product raises its voice, now with a witness in shot.</b> Red breathing glow, <code>RIVER IN 3</code> in the hero row's tag slot where the timer would be — nothing is left to decide. <b>His bubble is HELD for the three to five seconds rather than expiring</b>, and Granite's <i>“Call.”</i> answers it from his own seat. Two bubbles, two speakers, no ambiguity about which is which.</div>
 </div>
 
 <div class="frame" style="left:1980px;top:1200px">
-  <div class="fh" style="margin-top:96px"><span class="fn">42h</span><span class="ft">SHOWDOWN</span><span class="fb teal">the table reacts</span></div>
+  <div class="fh" style="margin-top:96px"><span class="fn">42h</span><span class="ft">SHOWDOWN</span><span class="fb teal">cards turn over</span></div>
   <div id="d8"></div>
-  <div class="fa"><b>Every seat reacts in posture, and only in posture.</b> Granite has gone from neutral to <b>tilted</b>; Phil_AI settles to neutral; the folded pair are unmoved, because they were not in it. No badges, no floating numbers, no callouts — the room tells you who lost it by how they are sitting. The pot lifts and fades as the result card lands.</div>
+  <div class="fa"><b>Their cards turn over.</b> In seat order, 140ms apart, one soft tap each — Granite's king-nine, Phil_AI's jacks, nash_eq's ace-queen — and the folded pair show nothing, because they folded. <b>Face-up cards get a shelf under the name chip, never the face:</b> backs sit behind the shoulder while the hand is live, and that is the only place cards ever touch the body. Which is what lets you read the posture the reveal produces — Granite going neutral → tilted with his king-nine sitting below him rather than over his eyes. <b>The only moment the fish-tank law changes state</b>, and no badges or floating numbers to help it.</div>
 </div>
 
 <div class="frame" style="left:2440px;top:1200px">
   <div class="fh" style="margin-top:96px"><span class="fn">42i</span><span class="ft">Between hands</span><span class="fb">the cause line's new home</span></div>
   <div id="d9"></div>
-  <div class="fa"><b>Where the MoodBand went.</b> The strip carries the cause line — <i>rolling, three big pots in a row</i> — the countdown to the next deal, and <b>one line of session truth</b>: <code>+$3,712 tonight · 43 hands · worst beat: the Q3o on hand 19</code>. That last clause is the sentence a returning owner actually wants, and there was nowhere to put it while a 96px header owned the space.</div>
+  <div class="fa"><b>Where the MoodBand went.</b> The strip carries the cause line — <i>rolling, three big pots in a row</i> — the countdown, and <b>one line of session truth</b>: <code>+$3,712 tonight · 43 hands · worst beat: the Q3o on hand 19</code>. That last clause is the sentence a returning owner actually wants. He is unhurried here, so his bubble is too, and your own line sits in the record above his.</div>
 </div>
 
 <div class="frame" style="left:600px;top:2400px">
-  <div class="fh"><span class="fn">43</span><span class="ft">Haptics · the deal</span><span class="fb teal">six new rows</span></div>
+  <div class="fh"><span class="fn">43</span><span class="ft">Haptics · deal, bubble, reveal</span><span class="fb teal">eight rows</span></div>
   <div id="h1"></div>
 </div>
 
@@ -137,13 +140,19 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="groupsub">The bodies are 62px instead of 34, which is the one place desktop genuinely gains something: an opponent's posture is legible rather than inferred.</div>
   <div class="fh" style="margin-top:96px"><span class="fn">D1</span><span class="ft">Watch v4 · CALM</span><span class="fb teal">voice in the rail</span></div>
   <div id="e1"></div>
-  <div class="fa w"><b>Five bodies around a real oval, and the voice feed docked in the rail with the session-truth line pinned above it.</b> Desktop has no between-hands strip because it has somewhere permanent to put that line. The rail's tabs are the same two — VOICE and CHAT — and the reads are not among them: they are still behind the seats.</div>
+  <div class="fa w"><b>Five bodies around a real oval, bubbles over whoever is speaking, and the TABLE record docked in the rail with the session-truth line pinned above it.</b> Desktop needs no between-hands strip because it has somewhere permanent for that line. One tab, and the reads are not in it — they are still behind the seats.</div>
 </div>
 
 <div class="frame" style="left:600px;top:5300px">
-  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">A seat clicked</span><span class="fb gold">read in the rail</span></div>
+  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">Showdown · the reveal</span><span class="fb teal">seat order</span></div>
+  <div id="e3"></div>
+  <div class="fa w"><b>At 1440 the reveal is the best thing on the board.</b> Three sets of hole cards turn face up at 30px — legible without leaning in — while the two folded seats show nothing. Granite has gone tilted, his bubble reads <i>&ldquo;Nice hand.&rdquo;</i> and his cards say why. <b>The record in the rail holds all three lines</b>, so the moment can expire from the felt without expiring from the session.</div>
+</div>
+
+<div class="frame" style="left:600px;top:6400px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D3</span><span class="ft">A seat clicked</span><span class="fb gold">read in the rail</span></div>
   <div id="e2"></div>
-  <div class="fa w"><b>The read takes the rail rather than rising as a sheet — the one structural divergence between platforms, and it is the right one.</b> Desktop can show the read and the hand at the same time; mobile cannot, so mobile gets a sheet. Granite keeps a teal ring at his seat, the felt drops to 62%, and <b>the hand plays on</b>. The nemesis tag and the lifetime figure fit here because there is room for them.</div>
+  <div class="fa w"><b>The read takes the rail rather than rising as a sheet — the one structural divergence between platforms, and it is the right one.</b> Desktop can show the read and the hand at once; mobile cannot, so mobile gets a sheet. Granite keeps a dashed teal ring, the felt drops to 62%, and <b>the hand plays on</b>. Bubbles are suppressed while a read is open — <b>suppressed, not lost</b>: the TABLE record still takes every line.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -183,6 +192,7 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['h1', Haptic4SheetM],
   ['m1', W4MatrixM],
   ['e1', D6W4WatchScreenM],
+  ['e3', D6W4ShowdownScreenM],
   ['e2', D6W4ReadScreenM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
