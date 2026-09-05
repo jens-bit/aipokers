@@ -244,7 +244,9 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
   var isEmpty = merged.length === 0 && !loading;
 
   return (
-    <div className="dr-chat-tab">
+    // FIX-1e: --fill, so the between-hands strip above cannot squeeze the list
+    // and the composer out of the sheet.
+    <div className="dr-chat-tab dr-chat-tab--fill">
       <div ref={listRef} className="dr-chat-tab__list">
         {isEmpty && (
           <div className="dr-chat-tab__empty">

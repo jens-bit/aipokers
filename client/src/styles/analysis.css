@@ -399,10 +399,23 @@
 
 /* ── Chat tab panel ─────────────────────────────────────────────────────── */
 
+/* The analysis panel gives the chat a fixed slot inside a scrolling page. */
 .dr-chat-tab {
   display: flex;
   flex-direction: column;
   height: 240px;
+}
+
+/* FIX-1e: inside the watch sheet the chat has to yield instead. The sheet is a
+   fixed-height flex column — felt, grab handle, the between-hands strip, the
+   tabs, then the panel — so a chat that insists on 240px pushes its own list
+   and composer below the sheet's bottom edge, where they cannot be tapped. The
+   reference (mood-watch.jsx) has the strip above the tabs and the panel taking
+   what is left, which is exactly this. */
+.dr-chat-tab--fill {
+  height: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .dr-chat-tab__list {
