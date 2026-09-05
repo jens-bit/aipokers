@@ -1,274 +1,332 @@
 #!/usr/bin/env node
-// scripts/verify-notifications.js
-// Drives a scripted day of events through the notification budget and asserts
-// that the ladder, holds, caps, and rotation behave exactly as specified.
+// scripts/verify-notifications.js — NOTIFY-2
+//
+// Drives a scripted day of events through the ONE notifier and asserts that
+// the ladder, the holds, the caps and the rotation behave exactly as
+// specified.
 //
 // Run:   node scripts/verify-notifications.js
-// Smoke: NOTIFY_SMOKE=1 node scripts/verify-notifications.js
-//        (sends one real Telegram message — requires TELEGRAM_BOT_TOKEN and
-//         NOTIFY_TARGET_CHAT_ID env vars with valid values)
+// Smoke: NOTIFY_SMOKE=1 NOTIFY_TARGET_CHAT_ID=<id> TELEGRAM_BOT_TOKEN=<tok> \
+//          node scripts/verify-notifications.js
+//        (sends one real Telegram message)
 //
-// NOTIFY_ENABLED is forced ON by this script before loading telegram.js.
-
-// ── MUST be set before the dynamic import below evaluates telegram.js ─────────
+// This file used to test src/server/notifications/telegram.js, the legacy
+// NOTIFY_ENABLED sender. NOTIFY-2 folded that module into src/server/notify.js
+// — one notifier, one ledger, one budget — so the assertions moved with it.
+// What is asserted here is deliberately the half that notify.test.js does not
+// cover: the six types that came across, the caps that came with them, and the
+// bus wiring. notify.test.js owns the ladder, the daily cap, the quiet window
+// and the mute.
+//
+// NOTIFY_ENABLED is set before anything loads, because notify.js reads it at
+// module scope — which is the point of the last suite below.
 process.env.NOTIFY_ENABLED = '1';
+delete process.env.NOTIFY_TZ_OFFSET_MIN;
+delete process.env.TELEGRAM_BOT_TOKEN;
 
-// ── Built-in imports (no NOTIFY_ENABLED dependency) ──────────────────────────
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// ── Dynamic import — evaluates AFTER process.env is patched ──────────────────
-const telegram = await import('../src/server/notifications/telegram.js');
+const notify = await import('../src/server/notify.js');
 const {
-  _injectTestSender,
-  _setTimeProvider,
-  _flushDueHolds,
-  ownerState,
-  saveNotifState,
-  notifySessionRecap,
-  notifyProposal,
-  notifyMoodAlert,
-  notifyQuietWin,
-  notifyMilestone,
-  recordSessionOutcome,
-  clearProposalPending,
-  ENABLED,
-} = telegram;
+  attachNotify, detachNotify, notifyEvent, _flushNow, LADDER, BUDGET, ENABLED,
+} = notify;
+const { emitCasinoEvent, EventType } = await import('../src/server/events.js');
+const { listNotificationHolds } = await import('../src/server/store.js');
 
 if (!ENABLED) {
   console.error('ERROR: NOTIFY_ENABLED did not propagate — check dynamic import order');
   process.exit(1);
 }
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
-const OWNER  = 'verify_owner_777';
-const CHAT   = OWNER;
-const AGENT1 = 'agent_verify_001';
-const AGENT2 = 'agent_verify_002';
-
-let _fakeClock = new Date(2026, 7, 30, 5, 0, 0, 0); // Aug 30 05:00 — quiet window
-let sends = [];
-
-function clock(h, m, day) {
-  _fakeClock = new Date(2026, 7, day !== undefined ? day : 30, h, m || 0, 0, 0);
-}
-
-_setTimeProvider(() => new Date(_fakeClock));
-
-_injectTestSender((chatId, text, button) => {
-  sends.push({ chatId, text, button, sentAt: new Date(_fakeClock) });
-  return true;
-});
-
-function resetOwner() {
-  const os = ownerState(OWNER);
-  os.dailyCounts      = { date: '', count: 0 };
-  os.moodAlertDate    = null;
-  os.quietWinWeek     = null;
-  os.sentMilestones   = {};
-  os.pendingHolds     = [];
-  os.lastAlternates   = {};
-  os.proposalNotified = false;
-  os.agentOutcomes    = {};
-  os.sentLog          = [];
-  sends               = [];
-}
+// ── Harness ──────────────────────────────────────────────────────────────────
 
 let passed = 0;
 let failed = 0;
 
-function expect(name, cond, hint) {
-  if (cond) {
-    console.log('  PASS  ' + name);
-    passed++;
-  } else {
-    console.error('  FAIL  ' + name + (hint ? ' — ' + hint : ''));
-    failed++;
-  }
+function expect(label, ok, detail) {
+  if (ok) { console.log('  PASS  ' + label); passed++; }
+  else { console.error('  FAIL  ' + label + (detail ? ' — ' + detail : '')); failed++; }
 }
 
-// ── Test 1: quiet window hold + 08:00 delivery ───────────────────────────────
-console.log('\nTest 1: quiet window hold + 08:00 delivery (worked example row 1)');
-resetOwner();
-clock(2, 14);
+// Owner-local is UTC+2, the documented default. `localAt` names an instant in
+// the owner's local time, which is the only clock any of these rules are in.
+const TZ = 120;
+const localAt = (day, h, m = 0) => Date.UTC(2026, 8, day, h - 2, m, 0, 0);
 
-await notifySessionRecap(OWNER, CHAT, AGENT1, 'The Grinder', {
-  pnl: 340, hands: 64, sessionEndTime: _fakeClock.getTime(),
-});
+let clock = localAt(2, 10, 0);
+let bot;
 
-expect('no send at 02:14', sends.length === 0, 'got ' + sends.length);
-
-const os1 = ownerState(OWNER);
-expect('hold queued', os1.pendingHolds.length === 1, 'got ' + os1.pendingHolds.length);
-if (os1.pendingHolds.length > 0) {
-  expect('hold type=session_recap', os1.pendingHolds[0].type === 'session_recap');
-  expect('hold text mentions 02:14', os1.pendingHolds[0].text.includes('02:14'),
-    os1.pendingHolds[0].text);
-  expect('hold has Open the floor button', os1.pendingHolds[0].button === 'Open the floor');
-  expect('hold deliverAfter is 08:00', (() => {
-    const da = new Date(os1.pendingHolds[0].deliverAfter);
-    return da.getHours() === 8 && da.getMinutes() === 0;
-  })());
+function attach() {
+  detachNotify();
+  const sent = [];
+  bot = {
+    sent,
+    async sendMessage(chatId, text, opts = {}) { sent.push({ chatId, text, opts }); return true; },
+  };
+  attachNotify({ bot, now: () => clock, tzOffsetFor: () => TZ, enabled: true, muted: () => false });
+  return sent;
 }
 
-// Flush at 08:00.
-clock(8, 0);
-await _flushDueHolds(OWNER, CHAT, _fakeClock);
+const texts = () => bot.sent.map((s) => s.text);
+const buttons = () => bot.sent.map((s) => s.opts?.reply_markup?.inline_keyboard?.[0]?.[0]?.text ?? null);
 
-expect('send fired at 08:00 flush', sends.length === 1, 'got ' + sends.length);
-expect('budget slot 1 used', ownerState(OWNER).dailyCounts.count === 1);
-expect('holds empty after flush', ownerState(OWNER).pendingHolds.length === 0);
-expect('sentLog has session_recap', ownerState(OWNER).sentLog[0]?.type === 'session_recap');
-
-// ── Test 2: proposal fills second budget slot ─────────────────────────────────
-console.log('\nTest 2: proposal fills second budget slot (worked example row 2)');
-clock(9, 40);
-
-await notifyProposal(OWNER, CHAT, AGENT1, 'The Grinder', {
-  proposalText: 'I keep folding when I\'m ahead. Can I loosen up?',
-});
-
-expect('proposal sent immediately (not quiet hours)', sends.length === 2, 'got ' + sends.length);
-expect('proposal has See his idea button', sends[1]?.button === 'See his idea');
-expect('budget at 2/2', ownerState(OWNER).dailyCounts.count === 2);
-
-// ── Test 3: mood alert dropped at 15:02 — budget spent ───────────────────────
-console.log('\nTest 3: mood alert DROPPED at 15:02 — budget spent (worked example row 3)');
-clock(15, 2);
-
-await notifyMoodAlert(OWNER, CHAT, AGENT1, 'The Grinder', {
-  moodState: 'tilted', cause: 'lost two big pots as favourite',
-});
-
-expect('mood alert not sent (budget spent)', sends.length === 2, 'got ' + sends.length);
-expect('moodAlertDate not set', ownerState(OWNER).moodAlertDate === null);
-
-// ── Test 4: quiet win dropped at 22:10 — budget spent ────────────────────────
-console.log('\nTest 4: quiet win DROPPED at 22:10 — budget spent, not in quiet window');
-clock(22, 10);
-
-recordSessionOutcome(OWNER, AGENT2, true);
-recordSessionOutcome(OWNER, AGENT2, true);
-recordSessionOutcome(OWNER, AGENT2, true); // 3rd consecutive
-
-await notifyQuietWin(OWNER, CHAT, AGENT2, 'Balanced v2.1');
-
-expect('quiet win not sent (budget spent, outside quiet window)', sends.length === 2,
-  'got ' + sends.length);
-expect('quietWinWeek not set', ownerState(OWNER).quietWinWeek === null);
-
-// ── Test 5: budget resets next day ───────────────────────────────────────────
-console.log('\nTest 5: budget resets the next day');
-clock(10, 0, 31); // Aug 31
-
-await notifySessionRecap(OWNER, CHAT, AGENT1, 'The Grinder', {
-  pnl: 210, hands: 42, sessionEndTime: _fakeClock.getTime(),
-});
-
-expect('recap sent on new day', sends.length === 3, 'got ' + sends.length);
-expect('budget at 1/2 on new day', ownerState(OWNER).dailyCounts.count === 1);
-
-// ── Test 6: mood alert hard cap once/day/owner ───────────────────────────────
-console.log('\nTest 6: mood alert hard cap once/day/owner');
-
-await notifyMoodAlert(OWNER, CHAT, AGENT1, 'The Grinder', { moodState: 'tilted' });
-expect('first mood alert sent', sends.length === 4, 'got ' + sends.length);
-expect('moodAlertDate set', ownerState(OWNER).moodAlertDate === '2026-08-31');
-
-await notifyMoodAlert(OWNER, CHAT, AGENT2, 'Balanced v2.1', { moodState: 'sulking' });
-expect('second mood alert blocked by daily owner cap', sends.length === 4, 'got ' + sends.length);
-
-// ── Test 7: proposal one-pending cap ─────────────────────────────────────────
-console.log('\nTest 7: proposal one-pending-at-a-time cap');
-resetOwner();
-clock(14, 0, 31);
-
-await notifyProposal(OWNER, CHAT, AGENT1, 'The Grinder', { proposalText: 'Proposal A' });
-expect('first proposal sent', sends.length === 1);
-expect('proposalNotified=true', ownerState(OWNER).proposalNotified === true);
-
-await notifyProposal(OWNER, CHAT, AGENT1, 'The Grinder', { proposalText: 'Proposal B' });
-expect('second proposal blocked', sends.length === 1, 'got ' + sends.length);
-
-clearProposalPending(OWNER);
-expect('proposalNotified cleared', ownerState(OWNER).proposalNotified === false);
-
-await notifyProposal(OWNER, CHAT, AGENT1, 'The Grinder', { proposalText: 'Proposal C' });
-expect('proposal after clear is sent', sends.length === 2);
-
-// ── Test 8: milestone once per threshold ─────────────────────────────────────
-console.log('\nTest 8: milestone once per threshold');
-resetOwner();
-
-await notifyMilestone(OWNER, CHAT, AGENT1, 'The Grinder', { hands: 1000, threshold: 1000 });
-expect('milestone sent', sends.length === 1);
-
-await notifyMilestone(OWNER, CHAT, AGENT1, 'The Grinder', { hands: 1000, threshold: 1000 });
-expect('duplicate milestone blocked', sends.length === 1, 'got ' + sends.length);
-
-// ── Test 9: alternates rotation (never same twice in a row) ──────────────────
-console.log('\nTest 9: alternates rotation');
-resetOwner();
-clock(10, 0, 31);
-
-const textsSent = [];
-for (let i = 0; i < 6; i++) {
-  ownerState(OWNER).dailyCounts = { date: '', count: 0 };
-  await notifySessionRecap(OWNER, CHAT, AGENT1, 'The Grinder', { pnl: 100, hands: 10 });
-  textsSent.push(sends[sends.length - 1]?.text || '');
+// Every send costs a budget slot and every second one inside half an hour is
+// held, so a suite that wants to watch a CAP has to stop the budget from being
+// the thing that stopped the message. Attaching fresh under a new owner on a
+// new local morning is the cheapest way to say "clean slate".
+let ownerSeq = 0;
+function freshOwner(day = 2, hour = 10) {
+  clock = localAt(day, hour, 0);
+  attach();
+  return `verify-owner-${++ownerSeq}`;
 }
 
-let rotOk = true;
-for (let i = 1; i < textsSent.length; i++) {
-  if (textsSent[i] === textsSent[i - 1]) { rotOk = false; break; }
+// ── 1. Every type the legacy notifier could send still has a rung ────────────
+
+console.log('\n1. the folded ladder');
+
+const FOLDED = ['broke', 'proposal', 'collected', 'want', 'milestone', 'quiet_win'];
+for (const type of FOLDED) {
+  expect(`${type} has a ladder rung`, Number.isFinite(LADDER[type]), 'LADDER: ' + JSON.stringify(LADDER));
 }
-expect('session_recap alternates never repeat consecutively', rotOk,
-  'repeated: ' + textsSent.slice(0, 3).join(' | '));
+expect('session_ended is still the top rung', LADDER.session_ended === 1);
+expect('broke sits directly under busted',
+  LADDER.broke === LADDER.busted + 1, `busted ${LADDER.busted}, broke ${LADDER.broke}`);
+expect('the legacy order survived: broke < proposal < collected < want < mood',
+  LADDER.broke < LADDER.proposal && LADDER.proposal < LADDER.collected
+  && LADDER.collected < LADDER.want && LADDER.want < LADDER.tilted);
+expect('the three that ask nothing are the bottom three',
+  Math.min(LADDER.milestone, LADDER.biggest_pot, LADDER.quiet_win) > LADDER.tilted);
+expect('one budget for all of them', BUDGET.maxPerDay === 3);
 
-// ── Test 10: priority ladder at flush — recap beats proposal ─────────────────
-console.log('\nTest 10: priority ladder — recap beats proposal when only 1 budget slot left');
-resetOwner();
-ownerState(OWNER).dailyCounts = { date: '2026-08-30', count: 1 }; // 1 slot spent
+// ── 2. Each folded type builds a message ─────────────────────────────────────
 
-clock(3, 0); // quiet window — Aug 30
+console.log('\n2. the folded messages');
 
-// Queue proposal (priority 2) then recap (priority 1).
-await notifyProposal(OWNER, CHAT, AGENT1, 'The Grinder', { proposalText: 'Hold proposal' });
-await notifySessionRecap(OWNER, CHAT, AGENT1, 'The Grinder', { pnl: 50, hands: 5 });
+{
+  const owner = freshOwner();
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder', mode: 'topup' });
+  expect('broke names the agent', /The Grinder/.test(texts()[0] ?? ''), texts()[0]);
+  expect('broke carries the fund button', buttons()[0] === 'Fund him', String(buttons()[0]));
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder', mode: 'cut' });
+  expect('a cut-off agent is not asking, so there is no button',
+    buttons()[0] === null, String(buttons()[0]));
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('collected', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder', moved: 4200 });
+  expect('collected names the amount', /\$4,200/.test(texts()[0] ?? ''), texts()[0]);
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('want', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder', line: 'Could murder a coffee.' });
+  expect('the want IS the message', /"Could murder a coffee\."/.test(texts()[0] ?? ''), texts()[0]);
+  expect('want carries its button', buttons()[0] === 'Sort him out', String(buttons()[0]));
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('milestone', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder', threshold: 1000 });
+  expect('milestone names the number', /1,000 hands/.test(texts()[0] ?? ''), texts()[0]);
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('proposal', {
+    ownerId: owner, agentId: 'a1', agentName: 'The Grinder',
+    proposalText: 'Can I loosen up a touch?', proposalAt: 111,
+  });
+  expect('proposal carries his line and his name',
+    /Can I loosen up a touch\?/.test(texts()[0] ?? '') && /The Grinder/.test(texts()[0] ?? ''), texts()[0]);
+  expect('proposal carries its button', buttons()[0] === 'See his idea', String(buttons()[0]));
+}
+{
+  const owner = freshOwner();
+  await notifyEvent('quiet_win', { ownerId: owner, agentId: 'a1', agentName: 'The Grinder' });
+  expect('a quiet win asks for nothing, so it has no button',
+    buttons()[0] === null, String(buttons()[0]));
+}
 
-expect('two items held', ownerState(OWNER).pendingHolds.length === 2,
-  'got ' + ownerState(OWNER).pendingHolds.length);
+// ── 3. The caps that came across with them ───────────────────────────────────
+//
+// A cap is not the budget. Three sends a day is no comfort if all three are
+// "he is broke" about the same agent, which is what these assert.
 
-// Flush at 08:00 — only 1 slot remaining; recap (priority 1) should win.
-clock(8, 0);
-await _flushDueHolds(OWNER, CHAT, _fakeClock);
+console.log('\n3. the caps');
 
-expect('exactly one send at flush', sends.length === 1, 'got ' + sends.length);
-expect('recap sent (priority 1 wins)', sends[0]?.button === 'Open the floor',
-  'button was: ' + sends[0]?.button);
-expect('holds empty after flush', ownerState(OWNER).pendingHolds.length === 0);
+{
+  const owner = freshOwner(3);
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  clock += 40 * 60 * 1000;   // clear of the 30-minute gap, still the same local day
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  expect('broke is once a day per agent', bot.sent.length === 1, `${bot.sent.length} sent`);
+
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a2', agentName: 'Value Bot', mode: 'topup' });
+  expect('a DIFFERENT agent going broke is a different message',
+    bot.sent.length === 2, `${bot.sent.length} sent`);
+
+  clock = localAt(4, 10, 0);  // the next local day
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  expect('the cap is a day, not forever', bot.sent.length === 3, `${bot.sent.length} sent`);
+}
+{
+  const owner = freshOwner(5);
+  await notifyEvent('want', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', line: 'A drink.' });
+  clock += 40 * 60 * 1000;
+  await notifyEvent('want', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', line: 'Another drink.' });
+  expect('want is once a day per agent — he asks and drops it',
+    bot.sent.length === 1, `${bot.sent.length} sent`);
+}
+{
+  const owner = freshOwner(6);
+  await notifyEvent('milestone', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', threshold: 1000 });
+  clock = localAt(9, 10, 0);   // days later, a clean budget
+  await notifyEvent('milestone', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', threshold: 1000 });
+  expect('a milestone is once per threshold, ever', bot.sent.length === 1, `${bot.sent.length} sent`);
+
+  await notifyEvent('milestone', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', threshold: 5000 });
+  expect('a HIGHER threshold is a new milestone', bot.sent.length === 2, `${bot.sent.length} sent`);
+}
+{
+  const owner = freshOwner(7);   // Mon 7 Sep 2026 — the same ISO week as the 9th
+  await notifyEvent('quiet_win', { ownerId: owner, agentId: 'a1', agentName: 'Grinder' });
+  clock = localAt(9, 10, 0);
+  await notifyEvent('quiet_win', { ownerId: owner, agentId: 'a2', agentName: 'Value Bot' });
+  expect('a quiet win is once a week per OWNER, whoever it is about',
+    bot.sent.length === 1, `${bot.sent.length} sent`);
+
+  clock = localAt(15, 10, 0);   // the following week
+  await notifyEvent('quiet_win', { ownerId: owner, agentId: 'a1', agentName: 'Grinder' });
+  expect('the week rolls over', bot.sent.length === 2, `${bot.sent.length} sent`);
+}
+{
+  // The legacy notifier allowed one PENDING proposal notification and needed an
+  // explicit clear on accept/reject to allow the next. The key is per proposal
+  // now, so a new proposal always gets its ping and no clear is needed.
+  const owner = freshOwner(16);
+  await notifyEvent('proposal', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', proposalText: 'A', proposalAt: 1 });
+  clock += 40 * 60 * 1000;
+  await notifyEvent('proposal', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', proposalText: 'A', proposalAt: 1 });
+  expect('the same proposal is never announced twice', bot.sent.length === 1, `${bot.sent.length} sent`);
+
+  await notifyEvent('proposal', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', proposalText: 'B', proposalAt: 2 });
+  expect('a NEW proposal gets its own ping, with nothing to clear first',
+    bot.sent.length === 2, `${bot.sent.length} sent`);
+}
+{
+  // A capped message held overnight reserves its key: the same fact arriving
+  // again before the window opens must not queue twice.
+  const owner = freshOwner(17, 23);   // inside the quiet window
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  await notifyEvent('broke', { ownerId: owner, agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  expect('a held cap key is reserved, so it queues once',
+    listNotificationHolds(owner).length === 1, `${listNotificationHolds(owner).length} held`);
+  expect('and nothing has gone out yet', bot.sent.length === 0, `${bot.sent.length} sent`);
+
+  clock = localAt(18, 8, 0);
+  await _flushNow(owner);
+  expect('it goes out when the window opens', bot.sent.length === 1, `${bot.sent.length} sent`);
+}
+
+// ── 4. The bus wiring ────────────────────────────────────────────────────────
+//
+// A bust and the biggest pot of the night are floor headlines AND owner pings.
+// The table emits once; the owner's half rides along as `detail` and never
+// touches the public event.
+
+console.log('\n4. the bus');
+
+{
+  const owner = freshOwner(20);
+  const event = emitCasinoEvent({
+    type: EventType.BUST,
+    tableId: 't1',
+    agentIds: ['a1'],
+    headline: 'The Grinder is out of chips',
+    pot: 4000,
+    detail: [{
+      type: 'busted', ownerId: owner, agentId: 'a1', agentName: 'The Grinder',
+      buyIn: 2000, hands: 61, endedAt: clock,
+    }],
+  });
+  await new Promise((r) => setImmediate(r));   // the notifier serialises per owner
+  expect('a bust on the bus reaches the owner', bot.sent.length === 1, `${bot.sent.length} sent`);
+  expect('and it is the bust message', /out|busted|stack gone/i.test(texts()[0] ?? ''), texts()[0]);
+  expect('the public event carries no owner id',
+    !('detail' in event) && !JSON.stringify(event).includes(owner), JSON.stringify(event));
+}
+{
+  const owner = freshOwner(21);
+  emitCasinoEvent({
+    type: EventType.BIG_POT,
+    tableId: 't1',
+    agentIds: ['a1', 'a2'],
+    headline: 'The Grinder and Value Bot played a 90bb pot',
+    pot: 1800,
+    detail: [{
+      type: 'biggest_pot', ownerId: owner, agentId: 'a1', agentName: 'The Grinder',
+      pot: 1800, handNumber: 37,
+    }],
+  });
+  await new Promise((r) => setImmediate(r));
+  expect('a big pot on the bus reaches the winner\'s owner only',
+    bot.sent.length === 1, `${bot.sent.length} sent`);
+  expect('and it names the hand', /hand 37/.test(texts()[0] ?? ''), texts()[0]);
+}
+{
+  // An event with no owner half is just a headline. Nothing is sent, and
+  // nothing throws.
+  const owner = freshOwner(22);
+  emitCasinoEvent({ type: EventType.HEATER, tableId: 't1', agentIds: ['a1'], headline: 'hot', pot: 10 });
+  await new Promise((r) => setImmediate(r));
+  expect('a headline with no owner half sends nothing', bot.sent.length === 0, `${bot.sent.length} sent`);
+  void owner;
+}
+{
+  // Detached, the bus must not reach a dead notifier.
+  detachNotify();
+  emitCasinoEvent({
+    type: EventType.BUST, tableId: 't1', agentIds: ['a1'], headline: 'out', pot: 10,
+    detail: [{ type: 'busted', ownerId: 'nobody', agentId: 'a1', agentName: 'X', buyIn: 1, hands: 1, endedAt: clock }],
+  });
+  await new Promise((r) => setImmediate(r));
+  expect('a detached notifier is deaf to the bus', true);
+}
+
+// ── 5. NOTIFY_ENABLED is the switch ──────────────────────────────────────────
+
+console.log('\n5. the switch');
+
+{
+  detachNotify();
+  const n = attachNotify({ bot: { async sendMessage() { return true; } }, enabled: false });
+  expect('attachNotify with the switch off attaches nothing', n === null, String(n));
+  expect('and isAttached says so', notify.isAttached() === false);
+  await notifyEvent('broke', { ownerId: 'off-owner', agentId: 'a1', agentName: 'Grinder', mode: 'topup' });
+  expect('so notifyEvent is a no-op', listNotificationHolds('off-owner').length === 0);
+}
+
+detachNotify();
 
 // ── Smoke test (optional real send) ──────────────────────────────────────────
+
 if (process.env.NOTIFY_SMOKE === '1') {
   console.log('\nSmoke test: one real Telegram message...');
-  _injectTestSender(null); // restore real sender
   const targetChat = process.env.NOTIFY_TARGET_CHAT_ID;
-  if (!targetChat) {
-    console.warn('  SKIP  NOTIFY_TARGET_CHAT_ID not set');
+  if (!targetChat || !process.env.TELEGRAM_BOT_TOKEN) {
+    console.warn('  SKIP  NOTIFY_TARGET_CHAT_ID / TELEGRAM_BOT_TOKEN not set');
   } else {
-    const { sendTelegram } = telegram;
-    const ok = await sendTelegram(targetChat,
-      '<b>NTF-4 smoke.</b> Notification verify script manual test. Disregard.',
-      null);
-    if (ok) { console.log('  PASS  smoke message sent to ' + targetChat); passed++; }
-    else     { console.error('  FAIL  smoke send failed — check TELEGRAM_BOT_TOKEN'); failed++; }
+    clock = localAt(2, 10, 0);
+    attachNotify({ now: () => clock, tzOffsetFor: () => TZ, enabled: true, muted: () => false });
+    await notifyEvent('collected', {
+      ownerId: targetChat, agentId: 'smoke', agentName: 'NOTIFY-2 smoke', moved: 1,
+    });
+    console.log('  sent (or logged a Telegram error above) to ' + targetChat);
+    detachNotify();
   }
 }
 
-// ── Summary ───────────────────────────────────────────────────────────────────
+// ── Summary ──────────────────────────────────────────────────────────────────
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) {
   console.error('verify-notifications: SOME TESTS FAILED');

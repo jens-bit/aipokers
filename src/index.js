@@ -163,7 +163,9 @@ const shutdown = (signal) => {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-// NOTIFY-1: the Telegram push notifier. Last line on purpose — it registers
+// NOTIFY-1/2: the Telegram push notifier — the only one, since NOTIFY-2 folded
+// the legacy NOTIFY_ENABLED sender into it. Last line on purpose: it registers
 // POST /api/agents/:id/notify, and the SPA fallback above only answers GET, so
-// a POST still reaches it. Everything else it does is out-of-band.
+// a POST still reaches it. Everything else it does is out-of-band, and it
+// sends nothing at all unless NOTIFY_ENABLED is set.
 attachNotify({ app });
