@@ -18,6 +18,8 @@ import {
   notifyMilestone,
   recordSessionOutcome,
   clearProposalPending,
+  notifyCollected,
+  notifyBroke,
 } from './notifications/telegram.js';
 import {
   ATTR_KEYS,
@@ -31,7 +33,16 @@ import {
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
-import { loadAgentStore, saveProfile } from './store.js';
+import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
+import {
+  POCKET_FLOAT, ENTRY_BUYIN, MODES,
+  emptyWallet, emptyPocket, ensurePocket,
+  stakesFor, isBroke, canAffordTable, buyInFor,
+  fund as walletFund, collect as walletCollect, autoRefill,
+  debitBuyIn, creditCashOut,
+  walletProjection, pocketProjection,
+  collectMoment, brokeMoment,
+} from './wallet.js';
 import {
   DRAFT_MAX_WORDS,
   draftReply,
@@ -69,6 +80,28 @@ function db() {
     }
   }
   return store;
+}
+
+// WALLET-1: the owner's wallet, cached beside the agent store and written
+// through the same seam. Pockets ride the agent records, so saveStore()
+// persists both halves of any transfer in one call.
+const wallets = new Map();
+
+function walletFor(userId) {
+  const id = String(userId ?? 'anon');
+  if (!wallets.has(id)) {
+    let w = null;
+    try { w = loadWallet(id); } catch (err) { console.error('[wallet] load failed:', err.message); }
+    wallets.set(id, w ?? emptyWallet(id));
+  }
+  return wallets.get(id);
+}
+
+function saveWalletFor(userId) {
+  const id = String(userId ?? 'anon');
+  const w = wallets.get(id);
+  if (!w) return;
+  try { saveWallet(id, w); } catch (err) { console.error('[wallet] save failed:', err.message); }
 }
 
 // Writes just this owner's profile — the whole store no longer gets rewritten
@@ -322,6 +355,47 @@ function ensureBankroll(agent) {
   if (agent.ledger.length === 0) {
     agent.ledger.push({ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
   }
+}
+
+// WALLET-1: `agent.bankroll` is mirrored to the pocket balance for one
+// release. Old clients and scripts/verify-chips.js read a field that still
+// means exactly what it did — the chips this agent can play with — while the
+// wallet holds the part they cannot see. Remove once nothing reads
+// careerStats.bankroll. See docs/WALLET_DESIGN.md.
+function mirrorBankroll(agent) {
+  ensurePocket(agent);
+  agent.bankroll = agent.pocket.balance;
+  return agent.pocket;
+}
+
+// WALLET-1: the two owner-economy beats, written through the same
+// lastMoment/sessionRecap machinery every other beat uses so the floor bubble,
+// the thread and the recap all pick them up with no new plumbing.
+//
+// §7.1 and the Mood Design Law: he reacts in his own voice, and never with
+// owner-guilt. He does not plead and the copy does not scold.
+function recordCollectMoment(agent, moved) {
+  const text = collectMoment({ moved, left: agent.pocket?.balance ?? 0, agentName: agent.name || 'He' });
+  agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  return text;
+}
+
+function recordBrokeMoment(agent) {
+  const text = brokeMoment({ mode: agent.pocket?.mode ?? 'topup', agentName: agent.name || 'He' });
+  agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  agent.sessionRecap = { text, at: Date.now() };
+  agent.unseenRecap = true;
+  return text;
+}
+
+function notifyCollect(userId, agent, moved) {
+  notifyCollected(userId, userId, agent.id, agent.name || 'Your agent', { moved })
+    .catch((e) => console.error('[notify] collect failed:', e.message));
+}
+
+function notifyBrokeOnce(userId, agent) {
+  notifyBroke(userId, userId, agent.id, agent.name || 'Your agent', { mode: agent.pocket?.mode ?? 'topup' })
+    .catch((e) => console.error('[notify] broke failed:', e.message));
 }
 
 // Append one entry to an agent's append-only ledger, capped at LEDGER_CAP.
@@ -946,6 +1020,10 @@ export function presentAgent(agent, { owner = false } = {}) {
   };
   return {
     ...agent,
+    // WALLET-1: the pocket rides the agent list projection, so the floor, the
+    // profile's pocket line and the wallet screen all read it from the call
+    // they already make. Money and stakes only — never an attribute or a mood.
+    pocket: pocketProjection(agent.pocket),
     mood: agent.mood ? { state: agent.mood.state, cause: agent.mood.cause ?? null, updatedAt: agent.mood.updatedAt ?? null } : null,
     lastMoment: agent.lastMoment ?? null,
     sessionRecap: agent.sessionRecap ?? null,
@@ -1202,6 +1280,97 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner })) });
+  });
+
+  // ── WALLET-1 (spec v11 §7.1) ───────────────────────────────────────────────
+  // Owner-scoped and behind auth: this is the player's money. Every route
+  // below reads and writes through wallet.js, which is the only place a chip
+  // is allowed to move.
+
+  // GET /api/wallet?userId=... — { balance, staked, session, playing, ledger }.
+  // Mirrors WALLET in design-refs/mood-wallet.jsx plus the "Playing" tile.
+  app.get('/api/wallet', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your wallet' });
+    const profile = getOrCreate(userId);
+    for (const a of profile.agents) mirrorBankroll(a);
+    const sessionNet = profile.agents.reduce((n, a) => {
+      const last = Array.isArray(a.sessionLog) && a.sessionLog.length ? a.sessionLog[a.sessionLog.length - 1] : null;
+      return n + (last && Number.isFinite(last.net) ? last.net : 0);
+    }, 0);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(walletProjection(walletFor(userId), profile.agents, { sessionNet }));
+  });
+
+  // POST /api/agents/:agentId/fund?userId=...  { mode, amount, cap }
+  // One call does both jobs the FundSheet offers: move money and set how he
+  // gets it next time. `cut` is a mode like any other — he keeps the roll he
+  // has and simply stops being deployed.
+  app.post('/api/agents/:agentId/fund', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const { mode, amount = 0, cap } = req.body ?? {};
+    if (mode !== undefined && !MODES.includes(mode)) {
+      return res.status(400).json({ error: `mode must be one of ${MODES.join(', ')}` });
+    }
+    if (amount !== undefined && amount !== null && !Number.isFinite(Number(amount))) {
+      return res.status(400).json({ error: 'amount must be a number' });
+    }
+
+    const wallet = walletFor(userId);
+    const pocket = ensurePocket(agent);
+    pocket.agentId = agent.id;
+    const result = walletFund(wallet, pocket, {
+      mode,
+      amount: Number(amount) || 0,
+      cap: cap === undefined ? undefined : (cap === null ? null : Number(cap)),
+    });
+    if (!result.ok) return res.status(400).json({ error: result.reason, available: result.available });
+
+    mirrorBankroll(agent);
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    res.json({ moved: result.moved, wallet: walletProjection(wallet, profile.agents), pocket: pocketProjection(pocket) });
+  });
+
+  // POST /api/agents/:agentId/collect?userId=...  { amount?, leaveFloat? }
+  // He brings it home. Default takes everything above his float, which is the
+  // design ref's "pocket back to its $300 float" — collecting must never be
+  // the thing that leaves him unable to sit down.
+  app.post('/api/agents/:agentId/collect', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const wallet = walletFor(userId);
+    const pocket = ensurePocket(agent);
+    pocket.agentId = agent.id;
+    const { amount = null, leaveFloat = true } = req.body ?? {};
+    const result = walletCollect(wallet, pocket, {
+      amount: amount === null || amount === undefined ? null : Number(amount),
+      leaveFloat: leaveFloat !== false,
+    });
+    if (!result.ok) return res.status(400).json({ error: result.reason });
+
+    recordCollectMoment(agent, result.moved);
+    mirrorBankroll(agent);
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    notifyCollect(userId, agent, result.moved);
+    res.json({
+      moved: result.moved,
+      wallet: walletProjection(wallet, profile.agents),
+      pocket: pocketProjection(pocket),
+      moment: agent.lastMoment,
+    });
   });
 
   // GET /api/agents/:agentId?userId=... — one agent, including the ATTR-1
