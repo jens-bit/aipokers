@@ -84,12 +84,19 @@ export const HEAT_EVENTS = Object.freeze({
   lostBigPot:           +16,
   cooler:               +14,   // second best hand, nobody's fault
   needled:              +12,
+  // BIO-2c: his nemesis sits down. One bounded step, exactly like every other
+  // event in this table, and it is the ONLY thing the biography layer is
+  // allowed to move — mood is already state, already temporary, already
+  // visible. It is never a notification: a grudge is not news, it is colour.
+  nemesisSeated:        +10,
   cardDead:             +10,
   wonBigPot:            -20,
   sessionWinStreak:     -16,
 });
 
 // A run of negative events with no win in between. Reset by anything good.
+// Note what is NOT here: nemesisSeated. He has not lost anything yet — the man
+// has only sat down. It heats him; it does not start a losing run.
 const LOSING_EVENTS = new Set(['lostAsEquityFavorite', 'sessionLossStreak', 'lostBigPot', 'cooler']);
 const COOLING_EVENTS = new Set(['wonBigPot', 'sessionWinStreak']);
 
@@ -177,6 +184,7 @@ const CAUSE_TEMPLATES = Object.freeze({
   sessionWinStreak:     (ctx) => `${ctx.streak ?? 3}-hand win streak`,
   sessionLossStreak:    (ctx) => `${ctx.streak ?? 3}-hand losing streak`,
   needled:              () => 'needled by opponent table talk',
+  nemesisSeated:        (ctx) => `${ctx.opponent ?? 'his nemesis'} sat down`,
 });
 
 // Decay: after this many consecutive uneventful hands, mood drifts one step

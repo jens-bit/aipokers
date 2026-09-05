@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
+import { openerFor } from './desktop/useAgentThread.js';
 
 export function AgentChat({ agent, onBack, onDeploy, onReady }) {
   const userId = getUserId();
@@ -17,26 +18,11 @@ export function AgentChat({ agent, onBack, onDeploy, onReady }) {
     fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
       .then((r) => r.json())
       .then((data) => {
-        const hands = data.recentHands || [];
-        if (hands.length > 0) {
-          const won = hands.filter((h) => h.won).length;
-          const lost = hands.length - won;
-          setChat([{
-            role: 'assistant',
-            content: `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`,
-          }]);
-        } else {
-          setChat([{
-            role: 'assistant',
-            content: 'Ready to play. Describe any changes to my strategy, or deploy me to start.',
-          }]);
-        }
+        // WIRE-1: his opener, written by the server (MOOD-2c).
+        setChat([{ role: 'assistant', content: openerFor(agent, data.recentHands || []) }]);
       })
       .catch(() => {
-        setChat([{
-          role: 'assistant',
-          content: 'Ready to play. Describe any changes to my strategy, or deploy me to start.',
-        }]);
+        setChat([{ role: 'assistant', content: openerFor(agent, []) }]);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,8 +63,11 @@ export function AgentChat({ agent, onBack, onDeploy, onReady }) {
     return () => onReady?.(null);
   }, [onReady]);
 
+  // WIRE-1: sniffing the greeting for a prefix only worked while the client
+  // wrote it. What the affordance actually means is "he has just played", which
+  // the record says outright.
   const hasSessionRecap = chat.length === 1 && chat[0].role === 'assistant' &&
-    chat[0].content.startsWith('Hey — I just finished');
+    (!!agent?.opener || !!agent?.sessionRecap);
 
   return (
     <div className="dr-app">

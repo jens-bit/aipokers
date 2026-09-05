@@ -108,6 +108,14 @@ export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCa
     action:    fmtAction(d.action),
     equity:    Number.isFinite(d.equity)   ? Math.round(d.equity * 100) : null,
     potOdds:   Number.isFinite(d.potOdds)  ? Math.round(d.potOdds * 100) : null,
+    // RIDERS-1: the pot as it stood after HIS action — an opponent's call lands
+    // afterwards, so the last row is a lower bound on the final pot rather than
+    // equal to it. And whether that action put him all in.
+    // `null` rather than a guess for a hand recorded before they existed — the
+    // replay can tell "not stored" from "zero" and fall back to its own
+    // approximation for the first, which it cannot do for the second.
+    pot:       Number.isFinite(d.pot) ? d.pot : null,
+    allIn:     typeof d.allIn === 'boolean' ? d.allIn : null,
     reasoning: typeof d.reasoning === 'string' ? d.reasoning.slice(0, 300) : null,
   }));
 

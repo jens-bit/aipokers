@@ -27,6 +27,9 @@ import {
   recordHandResult,
   setAgentMood,
   updateComputedMemory,
+  recordOpponentHand,
+  getAgentBio,
+  getAgentBioRole,
 } from '../src/server/agentProfiles.js';
 // finishAgentSession is exercised through POST /api/agents/:id/finish below,
 // not called directly, but it's the module member the endpoint delegates to.
@@ -280,6 +283,107 @@ console.log('\n[verify] the thread opens in his voice, not with a form letter');
     console.log(`         opener: "${a.opener}"`);
   }
   check('the recap still carries its own text', typeof a?.sessionRecap?.text === 'string');
+}
+
+// ── BIO-2: a whole biography cycle, and what it is forbidden to touch ───────
+console.log('\n[verify] BIO-2: the grudge ledger, the roles, and the law');
+{
+  // Snapshot everything the biography layer may NEVER move.
+  const before = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  const forbidden = (a) => JSON.stringify({
+    attrs: a?.attrs, potential: a?.potential, nature: a?.nature,
+    fatigue: a?.fatigue, strategy: a?.strategy, profile: a?.profile,
+    attrLog: a?.attrLog,
+  });
+  const forbiddenBefore = forbidden(before);
+
+  // 60 hands against one opponent, losing steadily — a grudge in the making.
+  const GRANITE = { playerId: 'house_granite', displayName: 'Granite' };
+  const DOYLE = { playerId: 'house_doyle', displayName: 'doyle_v3' };
+  for (let i = 0; i < 60; i++) {
+    recordOpponentHand(agentIdActual, userId, {
+      opponents: [GRANITE], net: -40, pot: 400, won: false,
+      cooler: i % 20 === 0, showdown: true, handNumber: i,
+    });
+  }
+  // ...and 40 against someone he is beating.
+  for (let i = 0; i < 40; i++) {
+    recordOpponentHand(agentIdActual, userId, {
+      opponents: [DOYLE], net: +55, pot: 300, won: true, handNumber: 100 + i,
+    });
+  }
+
+  // Roles are derived at session end.
+  await j('POST', `/api/agents/${agentIdActual}/finish`, {
+    userId, recap: 'long session, sitting out', sessionPnl: -400,
+  });
+
+  const bio = getAgentBio(agentIdActual, userId);
+  check('a nemesis formed', bio?.nemesis?.displayName === 'Granite', JSON.stringify(bio?.nemesis));
+  check('a favourite victim formed', bio?.victim?.displayName === 'doyle_v3', JSON.stringify(bio?.victim));
+  check('the nemesis row carries its evidence', /HANDS/.test(bio?.nemesis?.evidence ?? ''), bio?.nemesis?.evidence);
+  check('and his opinion, in his own words',
+    /Granite/.test(bio?.nemesis?.opinion ?? '') && (bio?.nemesis?.opinion ?? '').length > 30,
+    bio?.nemesis?.opinion);
+  check('roleOf names him', getAgentBioRole(agentIdActual, userId, 'house_granite') === 'nemesis');
+  check('a stranger holds no role', getAgentBioRole(agentIdActual, userId, 'house_nobody') === null);
+
+  const after = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  check('bio rides the projection', !!after?.bio?.nemesis, JSON.stringify(after?.bio ?? null));
+  check('with the three role slots always present',
+    after?.bio && 'nemesis' in after.bio && 'rival' in after.bio && 'victim' in after.bio);
+
+  // THE LAW: not one attribute, band, fatigue stage or strategy field moved.
+  check('no attribute, band, nature, fatigue, strategy or attrLog changed',
+    forbidden(after) === forbiddenBefore,
+    'something in the forbidden set moved');
+}
+
+console.log('\n[verify] BIO-2c: the recap names him when he was at the table');
+{
+  const a = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  const recap = a?.sessionRecap?.text ?? '';
+  // The finish above passed no seated ids, so he must NOT name anyone.
+  check('an empty room gets no name-drop', !/Granite/.test(recap), recap);
+
+  // Now finish a session he actually shared with his nemesis.
+  await j('POST', `/api/agents/${agentIdActual}/deploy`, { userId });
+  const { finishAgentSession } = await import('../src/server/agentProfiles.js');
+  finishAgentSession(agentIdActual, userId, {
+    recap: 'long session, sitting out', sessionPnl: -120, sessionHands: 30,
+    seatedPlayerIds: ['house_granite'],
+  });
+  const b = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  const named = b?.sessionRecap?.text ?? '';
+  check('he names the nemesis who was there', /Granite/.test(named), named);
+  check('and says what he wants from him', /cooler/.test(named), named);
+  console.log(`         recap: "${named}"`);
+}
+
+// ── BIO-2d: the SeatChip pip ────────────────────────────────────────────────
+console.log('\n[verify] BIO-2d: seats carry the history pip for the owner');
+{
+  const dep = await j('POST', `/api/agents/${agentIdActual}/deploy`, { userId });
+  check('deploy for the pip check', dep.status === 200);
+  await new Promise((r) => setTimeout(r, 800));
+
+  const a = (await j('GET', `/api/agents?userId=${userId}`))
+    .body.agents.find((x) => x.id === agentIdActual);
+  const seats = a?.liveGame?.seats ?? [];
+  check('the live game has seats', seats.length > 0, JSON.stringify(a?.liveGame ?? null));
+  if (seats.length > 0) {
+    check('every seat carries a history field for the owner',
+      seats.every((st) => 'history' in st), JSON.stringify(seats));
+    check('and it is a role name or null, never anything else',
+      seats.every((st) => st.history === null || ['nemesis', 'rival', 'victim'].includes(st.history)),
+      JSON.stringify(seats.map((st) => st.history)));
+    check('his own seat never carries a pip about himself',
+      seats[a.liveGame.heroSeat]?.history === null);
+  }
 }
 
 console.log('\n[verify] RELATE-1: the owner ledger, his wants, and the one item');

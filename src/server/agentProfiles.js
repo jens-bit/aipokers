@@ -34,11 +34,16 @@ import {
   ensureAttributes,
   birthAttributes,
   effectiveAttrs,
+  restedFatigue,
   logAttrChange,
   firstWordsFor,
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
+// MERGE-1 composition order, held everywhere the two features meet:
+// bio (who he is playing) → relationship (how you treat him) → mood (how he
+// is taking it). Bio is the oldest fact, the ledger colours it, mood is today.
+import { ensureBio, recordLedgerHand, deriveRoles, roleOf, recapMention } from '../agent/bio.js';
 import {
   recordOwnerEvent, tickOwnerMemorySession, ownerMemoryContext,
   isAskingAboutOwner, whatDoYouThinkOfMe, ownerToneScore,
@@ -603,6 +608,64 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   return agent;
 }
 
+// ── BIO-2: the grudge ledger ────────────────────────────────────────────────
+// One hand against the opponents who were in it, from his side. Called by
+// table.js after every completed hand, next to the other per-hand reporting.
+//
+// `net` is his chip change across the hand — the only figure the layer is built
+// on, and the only one an owner can check against the hand history. In a
+// multi-way pot the same net is recorded against every opponent who was in it:
+// the ledger's claim is "how these hands went when he was at the table", not a
+// per-seat settlement, and inventing an attribution would be worse than the
+// honest coarse one.
+export function recordOpponentHand(agentId, userId, { opponents = [], net = 0, pot = 0, won = false, cooler = false, bluffCaught = false, showdown = false, handNumber = 0 } = {}) {
+  if (!Array.isArray(opponents) || opponents.length === 0) return null;
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureBio(agent);
+
+  for (const opp of opponents) {
+    if (!opp?.playerId) continue;
+    recordLedgerHand(agent.bioLedger, {
+      playerId: opp.playerId,
+      displayName: opp.displayName ?? opp.playerId,
+      net, pot, won, cooler, bluffCaught, showdown, handNumber,
+    });
+  }
+  saveStore(userId ?? 'anon');
+  return agent.bioLedger;
+}
+
+// Recomputed from scratch at session end — never stored incrementally, which is
+// what makes the ref's law 6 true for free: beat him for three sessions and the
+// row changes, or leaves. Nothing about a role is remembered.
+export function refreshBioRoles(agent) {
+  if (!agent) return null;
+  ensureBio(agent);
+  agent.bio = deriveRoles(agent.bioLedger);
+  return agent.bio;
+}
+
+// His three relationships, as stored. Never null — an agent with no history
+// yet has three empty rows, which is what the card renders.
+export function getAgentBio(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureBio(agent);
+  return agent.bio;
+}
+
+// The role an opponent holds for this agent right now, or null. Used by the
+// table for the seat pip and by the table-talk picker.
+export function getAgentBioRole(agentId, userId, playerId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent?.bio) return null;
+  return roleOf(agent.bio, playerId);
+}
+
 // Bracket-matching JSON extractor. Tolerant of trailing garbage and prose
 // wrappers. Returns the substring of the first complete top-level object, or
 // null when the text is truncated / missing an object.
@@ -734,7 +797,7 @@ export function getMemoryContext(agentId, userId) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [] } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -742,13 +805,23 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.status = 'idle';
   agent.activeTableId = null;
   agent.unseenRecap = true;
+
+  // BIO-2b: roles are recomputed from the ledger this session just added to.
+  // Unconditionally — it was nested inside the recap-text branch at first,
+  // which meant a session ending without a recap string never derived a
+  // relationship at all. Deriving is session bookkeeping; the recap is text.
+  refreshBioRoles(agent);
   if (typeof recap === 'string' && recap.trim()) {
     ensureMood(agent);
     const flagCount = agent.sessionFlagged?.length ?? 0;
     const flagSuffix = flagCount > 0
       ? ` · ${flagCount} hand${flagCount === 1 ? '' : 's'} flagged`
       : '';
-    const text = (recap.trim() + flagSuffix).slice(0, 240);
+    // BIO-2c / law 1: he names the opponent — but ONLY when the opponent was
+    // actually at the table. A grudge recited to an empty room is a stat; the
+    // whole point is that it is a memory.
+    const mention = recapMention(agent.bio, seatedPlayerIds);
+    const text = (recap.trim() + flagSuffix + (mention ? ` · ${mention}` : '')).slice(0, 240);
     // MOOD-2c: the first line of the thread, in his voice, chosen by how hot he
     // is and by the hand he cannot stop thinking about. The counts that used to
     // be the opener are on the profile, where numbers belong.
@@ -840,9 +913,12 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     }
   }
 
-  // Fatigue is a within-session STATE and the session is over. He is fresh
-  // again by the time the owner next looks at him — the bar did its job.
-  agent.fatigue = 'fresh';
+  // RIDERS-1: fatigue survives the session now. It used to be reset to 'fresh'
+  // here, which meant an agent who had just ground out four hundred hands
+  // looked box-fresh the instant he stood up, and the floor's WORN pip could
+  // never fire at the bar. The stage he finished on is kept and recovers with
+  // time instead — see presentAgent.
+  agent.restedAt = Date.now();
   agent.sessionHands = 0;
   agent.wornSaidAtHand = null;
 
@@ -1049,6 +1125,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
   // player card and the 90-day sparkline have their data on the same call the
   // floor already makes.
   ensureAttributes(agent);
+  ensureBio(agent);
   const liveGame = agent.activeTableId
     ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
     : null;
@@ -1089,8 +1166,18 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     ? (liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0)
     : 0;
   const live = effectiveAttrs(agent, { sessionHands });
-  const fatigue = presence === 'playing' ? live.fatigue : 'fresh';
-  if (presence === 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
+  // RIDERS-1: at the table the live reading wins; away from it the STORED stage
+  // stands and recovers with the hours since he left. It is never overwritten
+  // with 'fresh' just because he is idle — that is what made a worn agent look
+  // rested the moment the session ended.
+  let fatigue;
+  if (presence === 'playing') {
+    fatigue = live.fatigue;
+    if (agent.fatigue !== fatigue) agent.fatigue = fatigue;
+  } else {
+    const since = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
+    fatigue = restedFatigue(agent.fatigue ?? 'fresh', since);
+  }
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;
@@ -1119,6 +1206,10 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     } : null,
     lastMoment: agent.lastMoment ?? null,
     sessionRecap: agent.sessionRecap ?? null,
+    // BIO-2b: the three relationships, each with the one fact it is built on
+    // and his opinion of it. Derived, never stored as a badge — and never
+    // anywhere near an attribute.
+    bio: agent.bio ?? { nemesis: null, rival: null, victim: null },
     // MOOD-2c: the thread's first line. Present whenever a session has ended;
     // the client should open with this instead of building its own greeting.
     opener: agent.sessionRecap?.opener ?? null,
@@ -1294,6 +1385,11 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
     proposalLine = `\nPending self-change: "${agent.proposal.text}". Raise it only if the conversation opens a natural door — never force it.`;
   }
 
+  // MERGE-1: house order is bio → relationship → mood. BIO-2 puts the bio
+  // context in the table-talk and decision briefings rather than here, so in
+  // this prompt the order is relationship then mood: what he remembers about
+  // you frames how he is taking today, not the other way round.
+  //
   // RELATE-1b: what he remembers about THIS owner, carried into the reply.
   // The same needle lands differently depending on the record — an owner who
   // has been on his back all week gets a different answer to one who reads his
@@ -1305,7 +1401,7 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${moodLine}${pepLine}${proposalLine}${ownerBlock}${recentLines}
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
@@ -1967,6 +2063,14 @@ export function installAgentProfileRoutes(app) {
       ...h,
       holeCards: owner ? (h.holeCards ?? []) : [],
       // opponentShowdownCards exposed as-is — public information from the showdown
+      // RIDERS-1: a hand flagged before pot/allIn were recorded reads them as
+      // null rather than undefined, so the replay sees "not stored" instead of
+      // a missing key and falls back to its own approximation.
+      streets: (h.streets ?? []).map((st) => ({
+        pot: null,
+        allIn: null,
+        ...st,
+      })),
     }));
     if (owner && hands.length > 0) {
       const wrote = recordOwnerEvent(agent, 'review_opened', { holeCards: hands[0].holeCards ?? [] });
@@ -2000,6 +2104,11 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'idle';
     agent.activeTableId = null;
     agent.unseenRecap = true;
+    // BIO-2b: this route ends a session without going through
+    // finishAgentSession, so it has to derive the roles itself. Two session-end
+    // paths is a wart that predates this tree; missing one of them would have
+    // meant a client-driven finish never formed a relationship.
+    refreshBioRoles(agent);
     // Session ended — build a self-change proposal from the leaks the
     // grounded-memory computed stats detected. One proposal max; already
     // pending proposals are preserved so the owner can still act on them.

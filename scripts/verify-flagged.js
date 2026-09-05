@@ -193,5 +193,73 @@ assert('fold-win entry has opponentShowdownCards array', Array.isArray(foldEntry
 assert('fold-win entry has no opponent cards (mucked)', foldEntry.opponentShowdownCards.length, 0);
 
 // ── Summary ───────────────────────────────────────────────────────────────────
+// ── RIDERS-1: the two exactness gaps, through the REAL path ─────────────────
+// Everything above builds decision objects by hand. This drives an actual jam
+// through the engine and the Table, so what is asserted is what table.js
+// really writes down — the gap being closed is precisely that the replay had
+// to infer these from an action string.
+console.log('\nRIDERS-1: pot and allIn recorded at the table');
+{
+  const { Game, Streets, Actions } = await import('../src/engine/game.js');
+  const { freshShuffledDeck } = await import('../src/engine/deck.js');
+
+  const game = new Game({
+    tableId: 'flag-riders',
+    seats: [{ playerId: 'hero', stack: 2000 }, { playerId: 'villain', stack: 2000 }],
+    smallBlind: 10, bigBlind: 20, dealerSeat: 0,
+  });
+  game.startHand(freshShuffledDeck());
+
+  // Mirror what table.js records: push the decision, act, then stamp.
+  const decisions = [];
+  let guard = 20;
+  while (game.street !== Streets.COMPLETE && game.street !== Streets.SHOWDOWN && guard-- > 0) {
+    const seat = game.toAct;
+    if (seat === null || seat === undefined) break;
+    const legal = game.legalActions(seat);
+    const raise = legal.find((a) => a.type === Actions.RAISE);
+    const call = legal.find((a) => a.type === Actions.CALL);
+    const action = raise ? { type: 'raise', amount: raise.max }
+      : call ? { type: 'call' }
+      : { type: 'check' };
+    const idx = decisions.push({
+      seat, street: game.street, action,
+      community: [...game.community], equity: 0.5, potOdds: 0.3, reasoning: 'jam',
+    }) - 1;
+    game.act(seat, action);
+    // table.js _stampDecisionOutcome, inlined:
+    decisions[idx].pot = game.pot;
+    decisions[idx].allIn = !!game.seats[seat].allIn;
+  }
+
+  const heroDecisions = decisions.filter((d) => d.seat === 0);
+  const entry = buildFlaggedEntry({
+    flagType: 'biggestPot',
+    decisions: heroDecisions,
+    handNumber: game.handNumber,
+    pot: game.result?.pot ?? 0,
+    holeCards: [...game.seats[0].holeCards],
+    won: (game.result?.winners ?? []).some((w) => w.seat === 0),
+  });
+
+  assert('every street row carries a numeric pot',
+    entry.streets.every((r) => Number.isFinite(r.pot)), true);
+  assert('the pot never decreases across the hand',
+    entry.streets.every((r, i, a) => i === 0 || r.pot >= a[i - 1].pot), true);
+  // The pot on a row is the pot after HIS action. The opponent's call lands
+  // afterwards, so the last row is a lower bound on the final pot rather than
+  // equal to it — which is exactly the "lower bound that ends exact" the
+  // replay timeline already pins to hand.pot. What changes is that the earlier
+  // beats are now exact too, instead of parsed out of an action string.
+  assert('the last recorded pot is a lower bound on the pot that was won',
+    entry.streets.at(-1).pot <= (game.result?.pot ?? 0), true);
+  assert('and it is a real figure, not zero',
+    entry.streets.at(-1).pot > 0, true);
+  assert('every street row says whether it was all-in',
+    entry.streets.every((r) => typeof r.allIn === 'boolean'), true);
+  assert('the jam is recorded as all-in',
+    entry.streets.some((r) => r.allIn === true), true);
+}
+
 console.log(`\n${passed + failed} test(s): ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

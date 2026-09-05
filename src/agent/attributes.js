@@ -761,6 +761,34 @@ export function attrCostsForHand({ decisions = [], won = false } = {}) {
   return out;
 }
 
+// ── Recovery at the bar ─────────────────────────────────────────────────────
+// RIDERS-1 / FLOOR-2. Fatigue is a within-session state, but it does not
+// evaporate the moment he stands up: an agent who just ground out four hundred
+// hands is still worn while he is at the bar, and the floor's WORN pip is the
+// only place an owner can see that a session cost him something.
+//
+// One stage back toward fresh per FATIGUE_RECOVERY_HOURS. Time only ever
+// restores — this is the bar doing its job, not a penalty for being away.
+export const FATIGUE_STAGES = Object.freeze(['fresh', 'settled', 'worn']);
+export const FATIGUE_RECOVERY_HOURS = 2;
+
+/**
+ * The stage he reads as after `hours` away from the table. Pure: the caller
+ * supplies the elapsed time, so nothing here reads a clock.
+ */
+export function restedFatigue(stage, hours) {
+  const at = FATIGUE_STAGES.indexOf(stage);
+  if (at <= 0) return 'fresh';
+  const h = Number(hours);
+  // Unbounded time away — an agent with no recorded session end — is fully
+  // rested, not permanently worn. Getting this backwards would have pinned a
+  // WORN pip on every agent that predates the field.
+  if (h === Infinity) return 'fresh';
+  if (Number.isNaN(h) || h <= 0) return FATIGUE_STAGES[at];
+  const stepsBack = Math.floor(h / FATIGUE_RECOVERY_HOURS);
+  return FATIGUE_STAGES[Math.max(0, at - stepsBack)];
+}
+
 // Fatigue, said once, in his own voice — the state matrix's thread cell for
 // WORN: "he mentions it once, unprompted." Never a notification: fatigue fixes
 // itself at the bar and has nothing to ask the owner for.

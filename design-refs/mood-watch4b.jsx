@@ -292,8 +292,12 @@ const DeskSeat = ({ s, acting, selected, reveal, order = 0 }) => (
   </div>
 );
 
-const DeskFelt4 = ({ says = [], acting, selected, reveal, seats = D6_SEATS, board = B4F, flip = 4, pot = '480', equity = 87, dim }) => (
-  <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 48% 46%, #2f4d48 0%, #1d2e2c 62%, #162423 100%)', opacity: dim || 1 }}>
+const DeskFelt4 = ({ says = [], acting, selected, reveal, seats = D6_SEATS, board = B4F, flip = 4, pot = '480', equity = 87, dim, heat, allin }) => (
+  <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', opacity: dim || 1,
+    background: heat
+      ? 'radial-gradient(ellipse at 48% 46%, #3b4a3f 0%, #24302c 58%, #17211f 100%)'
+      : 'radial-gradient(ellipse at 48% 46%, #2f4d48 0%, #1d2e2c 62%, #162423 100%)' }}>
+    {heat && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 ${allin ? 130 : 100}px ${allin ? M_RED : M_GOLD}${allin ? '4D' : '33'}`, animation: allin ? 'shimmer 1.4s ease-in-out infinite' : 'none' }}/>}
     <style>{`@keyframes bubblein{from{opacity:0}to{opacity:1}}`}</style>
     <div style={{ position: 'absolute', left: '-8%', right: '-8%', top: 140, bottom: 120, borderRadius: '50%', border: `1px solid ${M_TEAL}1A`, pointerEvents: 'none' }}/>
     {(() => {
@@ -303,9 +307,11 @@ const DeskFelt4 = ({ says = [], acting, selected, reveal, seats = D6_SEATS, boar
     })()}
 
     <div style={{ position: 'absolute', top: 350, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 3 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 18px', borderRadius: 20, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
-        <Lbl size={9.5}>Pot</Lbl>
-        <Amt size={30}>${pot}</Amt>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 22, minHeight: 46, boxSizing: 'border-box', padding: heat ? '6px 24px' : '5px 18px', background: heat ? `${allin ? M_RED : M_GOLD}1F` : 'rgba(23,27,27,0.6)', border: `1px solid ${heat ? `${allin ? M_RED : M_GOLD}66` : M_BORDER}` }}>
+        <Lbl size={9.5} color={heat ? (allin ? M_RED : M_GOLD) : M_MUTED}>Pot</Lbl>
+        {/^[\d.,]+$/.test(String(pot))
+          ? <Amt size={heat ? 38 : 30}>${pot}</Amt>
+          : <Num size={18} weight={700} color={M_MUTED}>{pot}</Num>}
       </div>
     </div>
     <div style={{ position: 'absolute', top: 416, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 7, zIndex: 3 }}>
@@ -331,8 +337,10 @@ const DeskFelt4 = ({ says = [], acting, selected, reveal, seats = D6_SEATS, boar
       <div style={{ width: 1, height: 26, background: M_BORDER }}/>
       <div><Lbl size={8.5}>To call</Lbl><div><Num size={14} weight={700} color={M_GOLD}>$240</Num></div></div>
       <div style={{ flex: 1 }}/>
-      <span style={{ padding: '7px 14px', borderRadius: 6, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em' }}>BET $240</span>
-      <SeatTimerRing value={9}/>
+      <span style={{ padding: '7px 14px', borderRadius: 6, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em' }}>{allin ? 'ALL-IN' : 'BET $240'}</span>
+      {allin
+        ? <span style={{ padding: '7px 11px', borderRadius: 6, background: `${M_RED}1F`, border: `1px solid ${M_RED}66`, fontFamily: MONO, fontSize: 10, fontWeight: 700, color: M_RED }}>RIVER IN 3</span>
+        : <SeatTimerRing value={9}/>}
     </div>
   </div>
 );

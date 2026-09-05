@@ -12,6 +12,9 @@ import {
   getAgentAttributes,
   noteAgentFatigue,
   finishAgentSession,
+  recordOpponentHand,
+  getAgentBioRole,
+  getAgentBio,
   addFlaggedHand,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
@@ -163,6 +166,8 @@ export class Table {
     // Opponents this seat has actually formed a read on this session — a Set so
     // the same opponent is not counted every hand.
     this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
+    // BIO-2c: whether this seat has already noticed his nemesis this session.
+    this._nemesisNoted = Array(maxSeats).fill(false);
 
     // The roster (playerIds in seat order) the current Game was built from.
     // Any mismatch against the live roster triggers a rebuild.
@@ -263,6 +268,7 @@ export class Table {
     ['seatJoinedAtHand', () => 0],
     ['attrEvidence',      () => newEvidence()],   // ATTR-3
     ['attrReadSubjects',  () => new Set()],           // ATTR-3
+    ['_nemesisNoted',     () => false],                // BIO-2c
     ['seatAccentColors',       () => null],
     ['seatTalkLines',          () => null],
     ['pendingNeedle',          () => null],   // TLK-1
@@ -657,6 +663,10 @@ export class Table {
           buyInAmount: buyIn,
           tableId: this.tableId,
           attrEvidence: this.attrEvidence[seat],   // ATTR-3: growth is drawn from this
+          // BIO-2c: he only names an opponent who was actually here.
+          seatedPlayerIds: this.pending
+            .map((p, i) => (i === seat ? null : p?.playerId ?? null))
+            .filter(Boolean),
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -811,6 +821,7 @@ export class Table {
     // A new session for this seat: fatigue and evidence both start at zero.
     this.attrEvidence[free] = newEvidence();
     this.attrReadSubjects[free] = new Set();
+    this._nemesisNoted[free] = false;
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
@@ -826,6 +837,25 @@ export class Table {
     if (!rec?.attrs) return null;
     const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
     return effectiveAttrs(rec, { sessionHands });
+  }
+
+  // RIDERS-1 (REPLAY-1's two exactness gaps): the pot as it stands once the
+  // action has landed, and whether that action put the seat all in.
+  //
+  // The replay timeline had to approximate both — it accumulated a pot by
+  // parsing amounts out of action strings and pinned the total to the final
+  // figure, and it guessed at all-in from the same strings, so a jam recorded
+  // as "raise 1847" played as an ordinary raise and the hold never fired. Both
+  // are facts the engine knows at the moment of the act; they only needed
+  // writing down.
+  //
+  // Stamped AFTER game.act, because the pot a viewer sees on that beat is the
+  // pot the action created, not the one it walked into.
+  _stampDecisionOutcome(idx, seat) {
+    const d = this.currentHandDecisions[idx];
+    if (!d || d.seat !== seat) return;
+    d.pot = this.game?.pot ?? null;
+    d.allIn = !!this.game?.seats?.[seat]?.allIn;
   }
 
   // ATTR-3: the two kinds of evidence that are visible at decision time. The
@@ -959,10 +989,17 @@ export class Table {
       heroSessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
       maxHands: this.maxHands,
       blinds: `${this.smallBlind}/${this.bigBlind}`,
+      // BIO-2d: `history` is the SeatChip pip — 'nemesis' | 'rival' | 'victim' |
+      // null, from THIS agent's point of view. Owner-scoped on the same flag
+      // that gates hole cards: another watcher has no business knowing who he
+      // has a grudge against.
       seats: g ? g.seats.map((s, i) => ({
         displayName: this.pending[i]?.displayName ?? s.playerId ?? '',
         stack:       s.stack ?? 0,
         accentColor: this.seatAccentColors[i] ?? null,
+        history: includeHole && i !== seat && this.pending[i]?.playerId
+          ? getAgentBioRole(agentId, this.agentUserIds[seat], this.pending[i].playerId)
+          : null,
       })) : [],
     };
   }
@@ -1126,6 +1163,9 @@ export class Table {
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._broadcastPace({ force: true });
+    // BIO-2c: the roster for this hand is settled, so this is the moment he
+    // notices who is across from him.
+    for (let seat = 0; seat < this.maxSeats; seat++) this._maybeNemesisSeated(seat);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -1424,6 +1464,7 @@ export class Table {
       if (!this._seatIsInGame(seat)) continue;
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
       this._collectHandEvidence(seat, decisions, { won, resultType: result.type });
+      this._recordBiographyHand(seat, decisions, { won, result });
       const handSummary = {
         handNumber,
         won,
@@ -1449,6 +1490,107 @@ export class Table {
       } catch (err) {
         console.error('[table] result report failed:', err.message);
       }
+    }
+  }
+
+  // BIO-2c: the strongest relationship at this table right now, from this
+  // seat's point of view. Nemesis first — it is the loudest of the three.
+  _roleAtTable(seat) {
+    const agentId = this.agentIds[seat];
+    if (!agentId) return null;
+    let best = null;
+    for (let i = 0; i < this.maxSeats; i++) {
+      if (i === seat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      const role = getAgentBioRole(agentId, this.agentUserIds[seat], pid);
+      const who = this.pending[i]?.displayName ?? pid;
+      if (role === 'nemesis') return { role, who };
+      if (role && !best) best = { role, who };
+    }
+    return best;
+  }
+
+  // BIO-2c: his nemesis sits down. Once per session per seat — the man arriving
+  // is one moment, not a state of affairs — and never a notification.
+  _maybeNemesisSeated(seat) {
+    const agentId = this.agentIds[seat];
+    if (!agentId) return;
+    if (this._nemesisNoted[seat]) return;
+    const bio = getAgentBio(agentId, this.agentUserIds[seat]);
+    const nemesis = bio?.nemesis;
+    if (!nemesis) return;
+
+    const here = this.pending.some((p, i) => i !== seat && p?.playerId === nemesis.playerId);
+    if (!here) return;
+
+    this._nemesisNoted[seat] = true;
+    try {
+      const current = getAgentMood(agentId, this.agentUserIds[seat]);
+      if (!current) return;
+      const profile = this.agentProfiles[seat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+      const next = applyMoodEvent(current, 'nemesisSeated', profile, {
+        context: { opponent: nemesis.displayName },
+        composure: this._seatAttrs(seat)?.COMPOSURE ?? null,
+      });
+      setAgentMood(agentId, this.agentUserIds[seat], next);
+      console.log(`[table:${this.tableId}] seat ${seat}: ${nemesis.displayName} sat down — heat ${current.heat} → ${next.heat}`);
+    } catch (err) {
+      console.error('[table] nemesis-seated event failed:', err.message);
+    }
+  }
+
+  // BIO-2: one row in the grudge ledger per opponent who was in the hand.
+  // Voice only — nothing here can reach an attribute, a band or the strategy,
+  // and the ledger is stored on the agent rather than in opponentStats because
+  // it is HIS history with them, not the table's record of them.
+  _recordBiographyHand(seat, decisions, { won, result }) {
+    const agentId = this.agentIds[seat];
+    if (!agentId) return;
+    const g = this.game;
+    if (!g) return;
+
+    const opponents = [];
+    for (let i = 0; i < g.seats.length; i++) {
+      if (i === seat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      opponents.push({ playerId: pid, displayName: this.pending[i]?.displayName ?? pid });
+    }
+    if (opponents.length === 0) return;
+
+    const start = this.currentHandStartStacks[seat];
+    const end = g.seats[seat]?.stack;
+    const net = Number.isFinite(start) && Number.isFinite(end) ? end - start : 0;
+    const showdown = result?.type === 'showdown';
+
+    // A cooler is a showdown he lost holding a hand that was well ahead at some
+    // point — the same shape flaggedHands classifies, read off his own
+    // decisions rather than the opponent's, which the server cannot see.
+    const bestEquity = decisions.reduce(
+      (m, d) => (Number.isFinite(d.equity) && d.equity > m ? d.equity : m), 0,
+    );
+    const cooler = showdown && !won && bestEquity > THRESHOLDS.COOLER_MIN_EQUITY;
+    // A bluff that got caught: he fired with a hand that could not win, and it
+    // went to showdown anyway.
+    const bluffCaught = showdown && !won && decisions.some(
+      (d) => (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+             Number.isFinite(d.equity) && d.equity < THRESHOLDS.BLUFF_MAX_EQUITY,
+    );
+
+    try {
+      recordOpponentHand(agentId, this.agentUserIds[seat], {
+        opponents,
+        net,
+        pot: result?.pot ?? 0,
+        won,
+        cooler,
+        bluffCaught,
+        showdown,
+        handNumber: g.handNumber,
+      });
+    } catch (err) {
+      console.error('[table] biography record failed:', err.message);
     }
   }
 
@@ -2053,7 +2195,13 @@ export class Table {
 
       if (!trigger) continue;
 
-      const line = pickTalkLine(trigger, moodState, { heat: mood?.heat ?? null });
+      // BIO-2c: if one of the other seats is somebody to him, that is the line.
+      const rel = this._roleAtTable(seat);
+      const line = pickTalkLine(trigger, moodState, {
+        heat: mood?.heat ?? null,
+        role: rel?.role ?? null,
+        who: rel?.who ?? null,
+      });
       if (!line) continue;
 
       // Lock this hand and update per-seat timing. Reset streak if cardDead fired.
@@ -2331,8 +2479,12 @@ export class Table {
 
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
+    // RIDERS-1: the index of the record we just pushed, so the pot and the
+    // all-in flag can be stamped on it once the engine has applied the action.
+    const decisionIdx = this.currentHandDecisions.length - 1;
     try {
       this.game.act(aiSeat, action);
+      this._stampDecisionOutcome(decisionIdx, aiSeat);
       this._incrementRaiseCountIfAggressive(action);
       this._logAction(aiSeat, streetBefore, action);
       this._broadcastPace();
@@ -2370,6 +2522,7 @@ export class Table {
       const fallbackAction = { type: fallback.type, ...(fallback.amount ? { amount: fallback.amount } : {}) };
       try {
         this.game.act(aiSeat, fallbackAction);
+        this._stampDecisionOutcome(decisionIdx, aiSeat);
         this._logAction(aiSeat, streetBefore, fallbackAction);
         // Replace the recorded decision with the action that actually played
         // out so stats reflect the engine's view.
