@@ -394,6 +394,74 @@ export function FeltDiorama({ f, hole, board, street, room = IDENTITY_ROOM, mini
   );
 }
 
+// ── FL-1 · the pip at his feet ───────────────────────────────────────────────
+// One pip, and only when he has news. GREW is teal because an attribute moved
+// up; WORN is gold because a band settled; POCKET $0 is muted and bordered
+// weakly on purpose — the broke pip states a fact and does not accuse anyone.
+export const PIPS = {
+  grew:  { label: 'GREW',      color: M_TEAL,  border: 'AA' },
+  worn:  { label: 'WORN',      color: M_GOLD,  border: 'AA' },
+  broke: { label: 'POCKET $0', color: '#6B6B6B', border: '55' },
+};
+
+export function RestPip({ kind, count }) {
+  const p = PIPS[kind];
+  if (!p) return null;
+  const label = kind === 'grew' && count > 0 ? `+${count} ${p.label}` : p.label;
+  return (
+    <span
+      className="floor-pip"
+      data-pip={kind}
+      style={{ color: p.color, border: `1px solid ${p.color}${p.border}` }}
+    >{label}</span>
+  );
+}
+
+// ── FL-1 · a body at the bar ─────────────────────────────────────────────────
+// Names are earned, not worn: at the bar the posture is the identity, so no
+// name chip is drawn unless this is the ghost the owner has selected.
+//
+// The chip is visual only. The button keeps its accessible name either way —
+// a screen-reader user still has to know whose body they are about to tap, and
+// "posture is the identity" is a rule about what the eye reads, not a licence
+// to ship an unlabelled control.
+export function BarGhost({
+  x, y, name, accent = M_TEAL, mood = 'neutral', size = 46, speed = 6,
+  drink = false, dim = false, pip = null, pipCount = 0, selected = false,
+  onClick, room = IDENTITY_ROOM,
+}) {
+  const m = MOODS[safeMood(mood)];
+  return (
+    <button
+      type="button"
+      className={`floor-occupant floor-bar-ghost${dim ? ' is-dim' : ''}${selected ? ' is-selected' : ''}`}
+      style={roomStyle(room, x, y)}
+      onClick={onClick}
+      aria-label={`${name} — ${m.label.toLowerCase()}`}
+    >
+      {selected && <GhostChip name={name} accent={accent} state="resting" />}
+      <span className="floor-occupant__body">
+        <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+        {drink && (
+          <svg width="13" height="20" viewBox="0 0 13 20" className="floor-occupant__drink" aria-hidden>
+            <path d="M2 3 L11 3 L8.4 11 L4.6 11 Z" fill={`${M_GOLD}44`} stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+            <path d="M6.5 11 L6.5 17" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+            <path d="M3.4 17.6 L9.6 17.6" stroke={`${M_GOLD}88`} strokeWidth="0.8" />
+          </svg>
+        )}
+      </span>
+      <span
+        className="floor-occupant__shadow"
+        style={{
+          width: size * 1.05,
+          background: `radial-gradient(ellipse, ${m.color}26, transparent 70%)`,
+        }}
+      />
+      {pip && <RestPip kind={pip} count={pipCount} />}
+    </button>
+  );
+}
+
 // Identity accent is stable per agent — derived from id so it never shuffles.
 const ACCENTS = [M_TEAL, M_PURPLE, M_GOLD, M_PINK];
 export function accentFor(agent, index = 0) {

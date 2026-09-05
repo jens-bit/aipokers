@@ -459,3 +459,30 @@
   color: var(--flr-dim);
 }
 .floor-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── FL-1 · the bar reads as people, not name tags ─────────────────────────
+   A body at the bar carries no chip: posture is the identity. The pip at his
+   feet is the only thing he wears, and only when he has news. */
+
+.floor-bar-ghost {
+  gap: 2px;
+}
+
+.floor-pip {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(14, 16, 18, 0.92);
+  border-radius: 3px;
+  padding: 2px 4.5px;
+  white-space: nowrap;
+  margin-top: 1px;
+  pointer-events: none;
+}
+
+/* The broke pip states a fact and does not accuse anyone: no red, no glow,
+   and a weaker border than the other two. */
+.floor-pip[data-pip='broke'] {
+  opacity: 0.86;
+}

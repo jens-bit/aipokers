@@ -3,12 +3,12 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { Occupant, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
+import { Occupant, BarGhost, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
 import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
-import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
+import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
@@ -187,14 +187,20 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
       });
     }),
     ...barSlots.map(({ agent, x }, i) => ({
-      agent, x, y: L.bar.y - 102, state: stateOf(agent),
+      agent, x, y: L.bar.y - 102, state: stateOf(agent), atBar: true,
       size: mini ? 44 : 48, speed: speedFor(agent, i), accentIndex: i, drink: true,
     })),
     ...(L.corner ? lounge.slice(0, 1).map((agent) => ({
-      agent, x: L.corner.cx, y: L.corner.cy - 62, state: stateOf(agent),
-      size: 50, speed: speedFor(agent, 3), accentIndex: 0, dim: true,
+      agent, x: L.corner.cx, y: L.corner.cy - 62, state: stateOf(agent), atBar: true,
+      size: 50, speed: speedFor(agent, 3), accentIndex: 0, dim: true, drink: true,
     })) : []),
-  ];
+  ]
+    // FL-1 — ONE GHOST PER AGENT, ALWAYS. An agent has exactly one body on the
+    // floor. splitFloor already partitions the roster, but the bar, the corner
+    // and the felts each slice their own lists, and a bug in any of them used
+    // to put a second copy of somebody on screen. This is the invariant, held
+    // in one place: first placement wins, every later one is dropped.
+    .filter((p, i, all) => all.findIndex((q) => q.agent.id === p.agent.id) === i);
 
   const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
 
@@ -278,7 +284,35 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   aria-hidden
                 />
               )}
-              {fatigueOf(p.agent) === 'worn' ? (
+              {p.atBar ? (
+                /* FL-1 — names are earned, not worn. At the bar the posture is
+                   the identity, so no chip is drawn unless he is the ghost the
+                   owner has open. One pip at his feet when he has news. */
+                <BarGhost
+                  x={p.x}
+                  y={p.y}
+                  name={p.agent.name}
+                  accent={accentFor(p.agent, p.accentIndex)}
+                  mood={moodOf(p.agent)}
+                  size={p.size}
+                  speed={p.speed}
+                  drink={p.drink}
+                  dim={p.dim}
+                  pip={newsPipFor(p.agent)}
+                  pipCount={grewCount(p.agent)}
+                  selected={zoomedId === p.agent.id}
+                  room={room}
+                  onClick={() => {
+                    if (desktopMode) {
+                      const newId = p.agent.id === zoomedId ? null : p.agent.id;
+                      setZoomedId(newId);
+                      onGhostSelect?.(newId ? p.agent : null);
+                    } else {
+                      setZoomedId(p.agent.id);
+                    }
+                  }}
+                />
+              ) : fatigueOf(p.agent) === 'worn' ? (
                 <WornOccupant
                   x={p.x}
                   y={p.y}
