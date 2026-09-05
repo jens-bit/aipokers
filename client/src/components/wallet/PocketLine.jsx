@@ -17,6 +17,9 @@ function noteFor(pocket) {
     return pocket.mode === 'cut' ? 'cut off · nothing pending' : 'pocket empty · your call';
   }
   const plays = `plays ${stakesFor(pocket)}`;
+  // The float is what auto refills back up to and what collect leaves behind,
+  // so it is the honest number for both of those sentences.
+  if (pocket.mode === 'auto' && pocket.float) return `${plays} · refills to ${money(pocket.float)}`;
   if (pocket.mode === 'auto' && pocket.cap) return `${plays} · refills up to ${money(pocket.cap)}`;
   if (pocket.mode === 'allowance' && pocket.cap) return `${plays} · ${money(pocket.cap)} allowance`;
   return plays;

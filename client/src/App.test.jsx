@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import App from './App.jsx';
 import { agentsResponse } from './test/fixtures/agents.js';
 import { fetchMock, telegram } from './test/harness.js';
+import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 
 function tab(name) {
   return screen.getByRole('button', { name });
@@ -118,5 +119,45 @@ describe('agent creation is BirthScreen and nothing else', () => {
 
     expect(await screen.findByText('Standup')).toBeInTheDocument();
     expect(fetchMock.posts).toHaveLength(0);
+  });
+});
+
+// WUI-4 — the one line that makes the profile's pocket action real. Without
+// onFund the pocket line renders its state and no button, by design; with it
+// the owner has a way from the player card to the money.
+describe('the profile card can reach the funding sheet', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/wallet', wallet);
+    fetchMock.route('/api/agents?', { agents: [brokeAgent] });
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+  });
+
+  it('renders Fund on the profile pocket line and lands on the YOU screen', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    // Open the agent's profile from the floor zoom.
+    await user.click(await screen.findByRole('button', { name: /^Value Bot — / }));
+    const zoom = await waitFor(() => {
+      const el = document.querySelector('.floor-zoom');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    await user.click(within(zoom).getByRole('button', { name: 'Profile' }));
+
+    const pocketLine = await waitFor(() => {
+      const el = document.querySelector('.wal-line');
+      expect(el).toBeTruthy();
+      return el;
+    });
+
+    const fund = within(pocketLine).getByRole('button', { name: 'Fund' });
+    await user.click(fund);
+
+    // The YOU screen owns the wallet and the funding sheet.
+    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
   });
 });

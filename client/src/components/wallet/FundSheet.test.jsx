@@ -42,7 +42,7 @@ describe('WUI-2 — where he stands', () => {
   it('shows his pocket now, the stakes it buys, and what you have to give', () => {
     renderSheet();
     expect(screen.getByText('Pocket now')).toBeInTheDocument();
-    expect(screen.getByText('$210')).toBeInTheDocument();
+    expect(screen.getByText('$2,100')).toBeInTheDocument();
     expect(screen.getByText('PLAYS $10/$20')).toBeInTheDocument();
     expect(screen.getByText('Wallet')).toBeInTheDocument();
     expect(screen.getByText('$2,340.50')).toBeInTheDocument();
@@ -101,23 +101,24 @@ describe('WUI-2 — the cap', () => {
 
   it('offers an amount field with the mode\'s own default', () => {
     renderSheet();
-    expect(screen.getByLabelText(/Amount/i)).toHaveValue(500);
+    expect(screen.getByLabelText(/Amount/i)).toHaveValue(5000);
   });
 
   it('calls it a cap for auto-refill, because that is what it is', async () => {
     const user = userEvent.setup();
     renderSheet();
     await user.click(option('Auto-refill'));
-    expect(screen.getByLabelText(/Cap/i)).toHaveValue(1000);
+    expect(screen.getByLabelText(/Cap/i)).toHaveValue(10000);
   });
 
   it('states what the choice buys — bigger pocket, bigger stakes', async () => {
     const user = userEvent.setup();
     renderSheet();
-    expect(screen.getByText(/seats him at/)).toHaveTextContent('$10/$20');
+    // A 5,000 allowance is the $25/$50 rung; one 2,000 buy-in is the entry.
+    expect(screen.getByText(/seats him at/)).toHaveTextContent('$25/$50');
 
     await user.click(option('One-time top-up'));
-    expect(screen.getByText(/seats him at/)).toHaveTextContent('$5/$10');
+    expect(screen.getByText(/seats him at/)).toHaveTextContent('$10/$20');
   });
 
   it('will not confirm an empty or zero amount', async () => {
@@ -128,7 +129,7 @@ describe('WUI-2 — the cap', () => {
     await user.clear(field);
     expect(screen.getByRole('button', { name: /Set allowance/i })).toBeDisabled();
 
-    await user.type(field, '250');
+    await user.type(field, '2500');
     expect(screen.getByRole('button', { name: /Set allowance/i })).toBeEnabled();
   });
 
@@ -196,7 +197,7 @@ describe('WUI-2 — confirming', () => {
     renderSheet({ onConfirm });
 
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 500, cap: null });
+    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 5000, cap: null });
   });
 
   it('sends auto-refill with its cap on the cap field', async () => {
@@ -206,7 +207,7 @@ describe('WUI-2 — confirming', () => {
 
     await user.click(option('Auto-refill'));
     await user.click(screen.getByRole('button', { name: /Set auto-refill/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'auto', amount: 1000, cap: 1000 });
+    expect(onConfirm).toHaveBeenCalledWith({ mode: 'auto', amount: 10000, cap: 10000 });
   });
 
   it('sends an edited amount, not the default', async () => {
@@ -216,10 +217,10 @@ describe('WUI-2 — confirming', () => {
 
     const field = screen.getByLabelText(/Amount/i);
     await user.clear(field);
-    await user.type(field, '750');
+    await user.type(field, '7500');
     await user.click(screen.getByRole('button', { name: /Set allowance/i }));
 
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 750, cap: null });
+    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 7500, cap: null });
   });
 
   it('cancels without funding anything', async () => {

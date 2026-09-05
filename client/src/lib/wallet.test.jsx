@@ -19,7 +19,10 @@ import {
   signedMoney,
   stakesFor,
 } from './wallet.js';
-import { aggressiveAgent, balancedAgent, brokeAgent, noPocketAgent, wallet } from '../test/fixtures/wallet.js';
+import {
+  aggressiveAgent, balancedAgent, brokeAgent, legacyPocketAgent,
+  noPocketAgent, shortAgent, wallet,
+} from '../test/fixtures/wallet.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
 describe('money', () => {
@@ -75,9 +78,31 @@ describe('pnlTone', () => {
 });
 
 describe('pocketOf', () => {
-  it('normalises a pocket from the contract', () => {
+  it('normalises the shipped pocketProjection', () => {
     expect(pocketOf(balancedAgent)).toEqual({
-      balance: 640, mode: 'auto', cap: 1000, broke: false, pnl: 340,
+      balance: 6400,
+      mode: 'auto',
+      cap: 10000,
+      // Not sent directly: derived as balance - collectable, which is what
+      // collect leaves behind and what auto refills back up to.
+      float: 2000,
+      broke: false,
+      stakesLabel: '$25/$50',
+      collectable: 4400,
+      have: 6400,
+      capBar: 10000,
+      pnl: 340,
+    });
+  });
+
+  it('reads a float sent directly, when one ever is', () => {
+    expect(pocketOf({ pocket: { balance: 6400, mode: 'auto', float: 2500 } }).float).toBe(2500);
+  });
+
+  it('degrades an older projection with no stakes, float or pnl', () => {
+    expect(pocketOf(legacyPocketAgent)).toMatchObject({
+      balance: 3000, mode: 'topup', cap: 3000,
+      float: null, stakesLabel: null, collectable: null, pnl: null,
     });
   });
 
@@ -103,9 +128,14 @@ describe('pocketOf', () => {
 });
 
 describe('pocketFill', () => {
-  it('draws money he has against the roll he was given', () => {
-    expect(pocketFill(pocketOf(balancedAgent))).toBe(64);   // 640 of a 1000 cap
-    expect(pocketFill(pocketOf(aggressiveAgent))).toBe(42); // 210 of a 500 allowance
+  it('draws have against capBar, the two fields the projection sends for it', () => {
+    expect(pocketFill(pocketOf(balancedAgent))).toBe(64);   // 6400 of a 10000 cap
+    expect(pocketFill(pocketOf(aggressiveAgent))).toBe(42); // 2100 of a 5000 allowance
+  });
+
+  it('still fills for a pocket the server calls broke, so short reads as short', () => {
+    expect(pocketFill(pocketOf(brokeAgent))).toBe(0);
+    expect(pocketFill(pocketOf(shortAgent))).toBe(18); // 900 of 5000
   });
 
   it('is empty when he is broke', () => {
@@ -113,36 +143,49 @@ describe('pocketFill', () => {
   });
 
   it('never overflows the bar', () => {
-    expect(pocketFill({ balance: 900, cap: 300, broke: false })).toBe(100);
+    expect(pocketFill({ have: 900, capBar: 300, broke: false })).toBe(100);
   });
 });
 
 describe('primaryAction — one action per row, never two', () => {
-  it('offers Collect while he is carrying money home', () => {
+  it('offers Collect while there is something above the float to collect', () => {
     expect(primaryAction(pocketOf(balancedAgent))).toBe('collect');
     expect(primaryAction(pocketOf(aggressiveAgent))).toBe('collect');
   });
 
-  it('offers Fund when there is nothing to collect', () => {
+  it('offers Fund when collectable is zero, even on a pocket holding chips', () => {
+    // shortAgent still has 900, but none of it is above his float.
+    expect(primaryAction(pocketOf(shortAgent))).toBe('fund');
     expect(primaryAction(pocketOf(brokeAgent))).toBe('fund');
   });
 });
 
-describe('stakesFor — pocket size sets his stakes', () => {
-  it('reads the roll he was given, not the balance of the moment', () => {
-    // The ref: a $500 allowance seats him at $10/$20 even on $210 left.
+describe('stakesFor — the server owns the ladder', () => {
+  // src/server/wallet.js picks the rung and sends its label. A second ladder
+  // in the client would eventually disagree with the one that decides where
+  // he really sits, so the label wins whenever it is there.
+  it('reports the rung the server actually seated him at', () => {
+    expect(stakesFor(pocketOf(balancedAgent))).toBe('$25/$50');
     expect(stakesFor(pocketOf(aggressiveAgent))).toBe('$10/$20');
-    expect(stakesFor({ balance: 40, cap: 300, broke: false })).toBe('$5/$10');
-  });
-
-  it('falls back to the balance when there is no cap', () => {
-    expect(stakesFor({ balance: 600, cap: null, broke: false })).toBe('$10/$20');
-    expect(stakesFor({ balance: 100, cap: null, broke: false })).toBe('$2/$5');
   });
 
   it('is an em dash for a broke pocket — he is not sitting anywhere', () => {
     expect(stakesFor(pocketOf(brokeAgent))).toBe('—');
+    expect(stakesFor(pocketOf(shortAgent))).toBe('—');
     expect(stakesFor(null)).toBe('—');
+  });
+
+  it('falls back to the ladder, keyed off the float, with no label', () => {
+    expect(stakesFor({ float: 10000, broke: false })).toBe('$50/$100');
+    expect(stakesFor({ float: 5000, broke: false })).toBe('$25/$50');
+    expect(stakesFor({ float: 2000, broke: false })).toBe('$10/$20');
+    // Below the entry buy-in there is no rung to sit at.
+    expect(stakesFor({ float: 900, broke: false })).toBe('—');
+  });
+
+  it('falls back further to the cap, then the balance', () => {
+    expect(stakesFor({ cap: 5000, broke: false })).toBe('$25/$50');
+    expect(stakesFor({ balance: 2000, broke: false })).toBe('$10/$20');
   });
 });
 
@@ -167,7 +210,11 @@ describe('fetchWallet — absence is a first-class answer', () => {
   it('returns the wallet when there is one', async () => {
     fetchMock.route('/api/wallet', wallet);
     expect(await fetchWallet()).toEqual({
-      balance: 2340.5, staked: 1150, session: 486, ledger: wallet.ledger,
+      balance: 2340.5,
+      staked: 1150,
+      session: 486,
+      playing: { live: 2, total: 4 },
+      ledger: wallet.ledger,
     });
   });
 
@@ -181,6 +228,12 @@ describe('fetchWallet — absence is a first-class answer', () => {
   it('is null when the endpoint does not exist yet', async () => {
     fetchMock.route('/api/wallet', () => ({ status: 404, body: {} }));
     expect(await fetchWallet()).toBeNull();
+  });
+
+  it('leaves playing null on a projection that predates the tile', async () => {
+    const { playing, ...older } = wallet;
+    fetchMock.route('/api/wallet', older);
+    expect((await fetchWallet()).playing).toBeNull();
   });
 
   it('is null when the body is not a wallet', async () => {

@@ -113,20 +113,23 @@ export function pnlTone(value) {
 
 // ── stakes ──────────────────────────────────────────────────────────────────
 // "Pocket size sets his stakes" is the product law, and the server is what
-// actually seats him — but the contract carries no stakes field, so the UI
-// derives a label to render. Keyed off the cap (the size of the roll the owner
-// committed) and falling back to the balance when there is no cap, which is
-// what the ref's own rows do: a $500 allowance seats him at $10/$20, a $300
-// float at $5/$10.
+// actually seats him. src/server/wallet.js owns the ladder and sends the rung
+// it picked as pocket.stakes = { smallBlind, bigBlind, label }, so that label
+// is the answer whenever it is there — a second ladder in the client would
+// eventually disagree with the one that decides where he really sits.
+//
+// The fallback below only runs against a projection that predates the ladder.
+// It keys off the float (the roll he is kept at), then the balance.
 export function stakesFor(pocket) {
-  if (!pocket || pocket.broke) return '—';
-  const roll = Number.isFinite(Number(pocket.cap)) && Number(pocket.cap) > 0
-    ? Number(pocket.cap)
-    : Number(pocket.balance);
+  if (!pocket) return '—';
+  if (pocket.stakesLabel) return pocket.stakesLabel;
+  if (pocket.broke) return '—';
+  const roll = pocket.float ?? pocket.cap ?? pocket.balance;
   if (!Number.isFinite(roll) || roll <= 0) return '—';
-  if (roll >= 500) return '$10/$20';
-  if (roll >= 250) return '$5/$10';
-  return '$2/$5';
+  if (roll >= 10_000) return '$50/$100';
+  if (roll >= 5_000) return '$25/$50';
+  if (roll >= 2_000) return '$10/$20';
+  return '—';
 }
 
 // ── pockets ─────────────────────────────────────────────────────────────────
@@ -135,16 +138,34 @@ export function stakesFor(pocket) {
 export function pocketOf(agent) {
   const p = agent?.pocket;
   if (!p || typeof p !== 'object') return null;
-  const balance = Number(p.balance);
-  const cap = Number(p.cap);
+  const balance = toAmount(p.balance) ?? 0;
+  const cap = toAmount(p.cap);
+  const collectable = toAmount(p.collectable);
+
+  // What collect leaves behind and what auto refills back up to. The
+  // projection sends `collectable` (balance - float) rather than the float
+  // itself, so derive it; a `float` sent directly is used as-is.
+  const float = toAmount(p.float)
+    ?? (collectable !== null ? Math.max(0, balance - collectable) : null);
+
   return {
-    balance: Number.isFinite(balance) ? balance : 0,
+    balance,
     mode: MODES[p.mode] ? p.mode : 'topup',
-    cap: Number.isFinite(cap) && cap > 0 ? cap : null,
-    // Broke is the server's call, but a zero balance is broke whatever it says.
-    broke: p.broke === true || (Number.isFinite(balance) && balance <= 0),
-    // Optional. The contract does not carry a per-pocket P&L; when it is absent
-    // the row shows an em dash rather than a number nobody computed.
+    cap: cap !== null && cap > 0 ? cap : null,
+    float,
+    // Broke is the server's call — it means "cannot cover the entry buy-in",
+    // which is a bigger number than zero. A zero balance is broke regardless.
+    broke: p.broke === true || balance <= 0,
+    // The rung the server actually seated him at.
+    stakesLabel: typeof p.stakes?.label === 'string' ? p.stakes.label : null,
+    // How much he is carrying home if the owner says so.
+    collectable: collectable !== null ? Math.max(0, collectable) : null,
+    // What the bar fills against: the cap when there is one, otherwise the
+    // next rung up, so a growing pocket still reads as progress.
+    have: toAmount(p.have) ?? balance,
+    capBar: toAmount(p.capBar) ?? cap,
+    // Absent on an older projection — the row then shows an em dash rather
+    // than a number nobody computed.
     pnl: toAmount(p.pnl),
   };
 }
@@ -156,16 +177,24 @@ export function hasPocket(agent) {
 // How full the pocket bar draws: money he has against the roll he was given.
 // Teal is what is left; the bar is empty and grey when he is broke.
 export function pocketFill(pocket) {
-  if (!pocket || pocket.broke) return 0;
-  const ceiling = pocket.cap ?? pocket.balance;
-  if (!ceiling || ceiling <= 0) return 0;
-  return Math.max(0, Math.min(100, (pocket.balance / ceiling) * 100));
+  if (!pocket) return 0;
+  const have = pocket.have ?? pocket.balance;
+  const ceiling = pocket.capBar ?? pocket.cap ?? have;
+  if (!ceiling || ceiling <= 0 || have <= 0) return 0;
+  return Math.max(0, Math.min(100, (have / ceiling) * 100));
 }
 
 // The one action a pocket row offers. Collect when he is carrying money home,
 // Fund when he is not. Never both — one primary action per row.
 export function primaryAction(pocket) {
-  if (!pocket || pocket.broke || pocket.balance <= 0) return 'fund';
+  if (!pocket) return 'fund';
+  // Collect is only an action when there is something above the float to
+  // collect. The projection answers that directly; without it, any balance
+  // counts.
+  if (pocket.collectable !== null && pocket.collectable !== undefined) {
+    return pocket.collectable > 0 ? 'collect' : 'fund';
+  }
+  if (pocket.broke || pocket.balance <= 0) return 'fund';
   return 'collect';
 }
 
@@ -189,8 +218,13 @@ export async function fetchWallet() {
     if (!Number.isFinite(Number(data.balance))) return null;
     return {
       balance: Number(data.balance),
-      staked: Number.isFinite(Number(data.staked)) ? Number(data.staked) : 0,
-      session: Number.isFinite(Number(data.session)) ? Number(data.session) : 0,
+      staked: toAmount(data.staked) ?? 0,
+      session: toAmount(data.session) ?? 0,
+      // The server counts who is actually at a table; the client should not
+      // second-guess it from presence.
+      playing: data.playing && Number.isFinite(Number(data.playing.live))
+        ? { live: Number(data.playing.live), total: Number(data.playing.total) }
+        : null,
       ledger: Array.isArray(data.ledger) ? data.ledger : [],
     };
   } catch {

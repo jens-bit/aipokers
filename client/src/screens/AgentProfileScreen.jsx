@@ -238,8 +238,10 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
     if (!before) return;
     try {
       const res = await collectFrom(target.id);
-      const float = Number.isFinite(Number(res?.float)) ? Number(res.float) : (before.cap ?? 0);
-      const amount = Number.isFinite(Number(res?.collected)) ? Number(res.collected) : before.balance - float;
+      const float = Number.isFinite(Number(res?.float)) ? Number(res.float) : (before.float ?? before.cap ?? 0);
+      const amount = Number.isFinite(Number(res?.moved ?? res?.collected))
+        ? Number(res.moved ?? res.collected)
+        : (before.collectable ?? Math.max(0, before.balance - float));
       setCollected({ pocketBefore: before.balance, float, amount, at: res?.at ?? null });
     } catch { /* the row stays as it was */ }
   }

@@ -21,9 +21,10 @@ const M_MUTED = '#6B6B6B';
 const M_GOLD = '#CDB380';
 const M_BORDER = 'rgba(255,255,255,0.12)';
 
-// The ref's own defaults. Presets, not a keypad: the owner is picking a size of
-// roll, not typing an exact wager.
-const DEFAULT_AMOUNT = { topup: 300, allowance: 500, auto: 1000, cut: null };
+// Presets on the real ladder (STAKES in src/server/wallet.js), not a keypad:
+// the owner is picking a size of roll, not typing an exact wager. One entry
+// buy-in, then the two rungs above it.
+const DEFAULT_AMOUNT = { topup: 2_000, allowance: 5_000, auto: 10_000, cut: null };
 
 // The cut-off copy, verbatim from the ref.
 const CUT_LINE =

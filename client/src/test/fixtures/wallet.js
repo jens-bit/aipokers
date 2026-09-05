@@ -1,15 +1,22 @@
 // client/src/test/fixtures/wallet.js — WALLET-UI-1
 //
-// Shapes taken from the contract on feature/wallet, with the numbers from
-// design-refs/mood-wallet.jsx so a test failure reads against the design:
+// Shapes taken from the shipped projections in src/server/wallet.js, so a
+// change there fails a client test rather than reaching a screen:
 //
-//   GET /api/wallet -> { balance, staked, session, ledger[] }
-//   agent.pocket    -> { balance, mode, cap, broke }
+//   walletProjection  -> { balance, staked, session, playing:{live,total}, ledger[] }
+//   pocketProjection  -> { balance, mode, cap, have, capBar,
+//                          stakes:{smallBlind,bigBlind,label}|null, broke,
+//                          collectable, funded, collected, pnl }
+//
+// The ladder is real chips, not the design sheet's dollars: the entry rung is
+// a 2,000 buy-in at $10/$20 (STAKES in src/server/wallet.js), and `broke`
+// means "cannot cover the entry buy-in", which is a bigger number than zero.
 
 export const wallet = {
   balance: 2340.5,
   staked: 1150,
   session: 486,
+  playing: { live: 2, total: 4 },
   ledger: [
     { ts: 1788700000000, type: 'fund', agentId: 'agent_aggressive', amount: -500 },
     { ts: 1788690000000, type: 'collect', agentId: 'agent_balanced', amount: 340 },
@@ -48,7 +55,12 @@ export const balancedAgent = agent({
   mood: { state: 'confident', cause: 'stacked the loose one', updatedAt: null },
   presence: 'playing',
   activeTableId: 'tbl-1',
-  pocket: { balance: 640, mode: 'auto', cap: 1000, broke: false, pnl: 340 },
+  pocket: {
+    balance: 6400, mode: 'auto', cap: 10000,
+    have: 6400, capBar: 10000,
+    stakes: { smallBlind: 25, bigBlind: 50, label: '$25/$50' },
+    broke: false, collectable: 4400, funded: 6060, collected: 0, pnl: 340,
+  },
 });
 
 // On an allowance and down — the Fund row while still holding money.
@@ -58,7 +70,12 @@ export const aggressiveAgent = agent({
   mood: { state: 'frustrated', cause: 'ran into the nuts', updatedAt: null },
   presence: 'playing',
   activeTableId: 'tbl-1',
-  pocket: { balance: 210, mode: 'allowance', cap: 500, broke: false, pnl: -90 },
+  pocket: {
+    balance: 2100, mode: 'allowance', cap: 5000,
+    have: 2100, capBar: 5000,
+    stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
+    broke: false, collectable: 100, funded: 2190, collected: 0, pnl: -90,
+  },
 });
 
 // A one-time top-up, resting with money in hand.
@@ -67,7 +84,12 @@ export const bluffAgent = agent({
   name: 'Bluff Master',
   mood: { state: 'confident', cause: null, updatedAt: null },
   unseenRecap: true,
-  pocket: { balance: 300, mode: 'topup', cap: 300, broke: false, pnl: 236 },
+  pocket: {
+    balance: 3000, mode: 'topup', cap: 3000,
+    have: 3000, capBar: 3000,
+    stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
+    broke: false, collectable: 1000, funded: 2764, collected: 0, pnl: 236,
+  },
 });
 
 // Out of money and cut off. Drawn quieter, never redder.
@@ -75,7 +97,12 @@ export const brokeAgent = agent({
   id: 'agent_value',
   name: 'Value Bot',
   mood: { state: 'sulking', cause: 'pocket empty', updatedAt: null },
-  pocket: { balance: 0, mode: 'cut', cap: null, broke: true, pnl: null },
+  pocket: {
+    balance: 0, mode: 'cut', cap: null,
+    have: 0, capBar: 2000,
+    stakes: null,
+    broke: true, collectable: 0, funded: 0, collected: 0, pnl: 0,
+  },
 });
 
 export const pocketAgents = [balancedAgent, aggressiveAgent, bluffAgent, brokeAgent];
@@ -85,3 +112,24 @@ export const walletAgentsResponse = { agents: pocketAgents };
 // A deployment with no wallet: agents carry no pocket at all.
 export const noPocketAgent = agent({ id: 'agent_plain', name: 'Plain Agent' });
 export const noWalletAgentsResponse = { agents: [noPocketAgent] };
+
+// A pocket that still holds chips but cannot cover the entry buy-in. `broke`
+// is the server's word for that, and it is a bigger number than zero.
+export const shortAgent = agent({
+  id: 'agent_short',
+  name: 'Short Stack',
+  mood: { state: 'frustrated', cause: null, updatedAt: null },
+  pocket: {
+    balance: 900, mode: 'allowance', cap: 5000,
+    have: 900, capBar: 5000,
+    stakes: null,
+    broke: true, collectable: 0, funded: 5000, collected: 0, pnl: -4100,
+  },
+});
+
+// An older projection: no stakes, no float, no pnl. Everything must degrade.
+export const legacyPocketAgent = agent({
+  id: 'agent_legacy',
+  name: 'Legacy Pocket',
+  pocket: { balance: 3000, mode: 'topup', cap: 3000, broke: false },
+});
