@@ -7,6 +7,8 @@ import { ThreadPanel } from './ThreadPanel.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
+import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
+import { splitFloor, standupLine } from '../floor/agentView.js';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -26,6 +28,7 @@ export function DesktopHome({
   // Focusing a live table swaps the stage AND the rail, without leaving the
   // desktop shell (DSK2-3). Null means the floor is on stage.
   const [deskTableId, setDeskTableId] = useState(null);
+  const [flaggedAgent, setFlaggedAgent] = useState(null);
   const draftKey = deskTableId ?? selectedId ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
@@ -63,8 +66,42 @@ export function DesktopHome({
     if (selectedIndex >= 0) hadSelection.current = true;
   }, [selectedId, selectedIndex, loading]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (flaggedAgent) { setFlaggedAgent(null); return; }
+      if (deskTableId) { setDeskTableId(null); return; }
+      setSelectedId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [flaggedAgent, deskTableId]);
+
   const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
   const watchedId = isWatching ? watchingAgent?.id ?? null : null;
+
+  // The floor's own posture split: playing at the felt, resting at the bar,
+  // sulking and tilted alone in the lounge corner.
+  const { playing, resting, lounge } = splitFloor(agents);
+  const topLine = loading ? 'Reading the room…' : standupLine({
+    playing, resting, lounge, total: agents.length,
+  });
+  const netTotal = agents.reduce((sum, a) => sum + (a.careerStats?.net ?? 0), 0);
+  const flaggedTotal = agents.reduce((sum, a) => sum + (a.flaggedCount ?? 0), 0);
+  const topNet = agents.length === 0 ? '—'
+    : netTotal < 0 ? `−$${Math.abs(netTotal).toLocaleString()}` : `+$${netTotal.toLocaleString()}`;
+  const topFlagged = agents.length === 0 ? '—' : `${flaggedTotal} flagged`;
+  const firstFlaggable = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
+
+  const topBar = (
+    <DesktopTopBar
+      liveCount={liveCount}
+      standupLine={playing.length === 0 ? topLine : null}
+      net={topNet}
+      flagged={topFlagged}
+      onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
+    />
+  );
 
   // DSK2-3: a live tile is one gesture — subscribe if we are not already, and
   // put that table on the stage.
@@ -84,7 +121,7 @@ export function DesktopHome({
   if (deskAgent) {
     return (
       <div className="dsk-root">
-        <DesktopTopBar liveCount={liveCount} />
+        {topBar}
         <div className="dsk-body">
           <DeskWatch
             agent={deskAgent}
@@ -102,9 +139,14 @@ export function DesktopHome({
 
   return (
     <div className="dsk-root">
-      <DesktopTopBar liveCount={liveCount} />
+      {topBar}
       <div className="dsk-body">
         <div className="dsk-stage">
+          {flaggedAgent && (
+            <div className="dsk-sheet">
+              <FlaggedHandsSheet agent={flaggedAgent} onBack={() => setFlaggedAgent(null)} />
+            </div>
+          )}
           <CasinoFloor
             desktopMode
             selectedAgentId={selectedId}
@@ -145,6 +187,7 @@ export function DesktopHome({
             onSelect={(agent) => setSelectedId(agent.id)}
             onOpenTable={openTable}
             onDraftAgent={onCreateAgent}
+            onOpenFlagged={(agent) => setFlaggedAgent(agent)}
           />
         )}
       </div>

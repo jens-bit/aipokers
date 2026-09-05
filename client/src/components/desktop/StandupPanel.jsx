@@ -6,6 +6,7 @@ import { moodOf, stateOf, lastMomentOf } from '../floor/agentView.js';
 import { GameTile } from './GameTile.jsx';
 import { PStandupCard } from './PStandupCard.jsx';
 import { PanelHead, RailBody, PComposer, PRosterRow, DraftPanel } from './panelParts.jsx';
+import { PFlaggedCard } from './PFlaggedCard.jsx';
 
 const MAX_SEATS = 4;
 
@@ -42,12 +43,37 @@ function TileStack({ games, highlightId, watchedId, onOpenTable, game, lastDecis
 
 export function StandupPanel({
   agents, loading, game, lastDecision, selectedId, watchedId,
-  draft, onDraftChange, onSelect, onOpenTable, onDraftAgent,
+  draft, onDraftChange, onSelect, onOpenTable, onDraftAgent, onOpenFlagged,
 }) {
   const live = agents.filter((a) => a.activeTableId || a.liveGame?.tableId);
   const sub = loading
     ? '—'
     : `${agents.length} AGENT${agents.length === 1 ? '' : 'S'} · ${live.length} LIVE`;
+
+  if (!loading && agents.length === 0) {
+    return (
+      <div className="dsk-panel">
+        <PanelHead title="Welcome" sub="NO AGENTS YET" />
+        <RailBody>
+          <div className="dsk-welcome">
+            <span className="dsk-label" style={{ fontSize: 9.5 }}>Standup</span>
+            <div className="dsk-welcome__title">Nothing to report yet.</div>
+            <div className="dsk-welcome__body">
+              The room is open. None of the agents on the floor are yours.
+            </div>
+          </div>
+          <DraftPanel first onDraft={onDraftAgent} />
+        </RailBody>
+        <PComposer
+          value={draft}
+          onChange={onDraftChange}
+          onSend={() => {}}
+          placeholder="Draft an agent to start a conversation…"
+          onCommand={(cmd) => onDraftChange(`${cmd} `)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="dsk-panel">
@@ -65,6 +91,8 @@ export function StandupPanel({
             onOpenTable={onOpenTable}
           />
         )}
+
+        <PFlaggedCard agents={agents} onOpen={onOpenFlagged} />
 
         {agents.length > 0 && (
           <>

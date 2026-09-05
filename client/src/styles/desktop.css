@@ -16,6 +16,7 @@
   --dsk-border: rgba(255, 255, 255, 0.12);
   --dsk-border-strong: rgba(255, 255, 255, 0.10);
   --dsk-border-2: rgba(255, 255, 255, 0.18);
+  --dsk-surf: #2F2F37;
   --dsk-text: #EDEDED;
   --dsk-dim: #A1A1A1;
   --dsk-muted: #6B6B6B;
@@ -1244,5 +1245,150 @@
 .dsk-arow__value.is-teal { color: var(--dsk-teal); }
 .dsk-arow__value.is-gold { color: var(--dsk-gold); }
 .dsk-arow__value.is-red { color: var(--dsk-red); }
+
+/* ── Top-bar standup pill (DSK2-4) ────────────────────────────────────────
+ * mood-desktop.jsx DeskTopBar: the standup line, or net + flagged. */
+
+.dsk-top__standup {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--dsk-surface);
+  border: 1px solid var(--dsk-border);
+  color: var(--dsk-muted);
+  cursor: pointer;
+  max-width: 520px;
+  transition: border-color 0.14s ease;
+}
+.dsk-top__standup:disabled { cursor: default; }
+.dsk-top__standup:not(:disabled):hover { border-color: rgba(0, 212, 170, 0.33); }
+.dsk-top__standup-line {
+  font-size: 12px;
+  color: var(--dsk-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsk-top__net {
+  font-family: var(--dsk-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-teal);
+}
+.dsk-top__standup-sep { font-family: var(--dsk-mono); font-size: 10px; color: var(--dsk-faint); }
+.dsk-top__flagged { font-size: 12px; color: var(--dsk-gold); white-space: nowrap; }
+
+/* ── Welcome card, first run (D3FtuScreenM) ──────────────────────────────── */
+
+.dsk-welcome {
+  background: var(--dsk-surface);
+  border: 1px solid var(--dsk-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.dsk-welcome__title {
+  font-family: var(--dsk-serif);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--dsk-text);
+  margin: 7px 0 5px;
+}
+.dsk-welcome__body { font-size: 12.5px; color: var(--dsk-dim); line-height: 1.55; }
+
+/* ── Flagged hands card (PFlaggedCard) ───────────────────────────────────── */
+
+.dsk-flagged {
+  background: var(--dsk-surface);
+  border: 1px solid var(--dsk-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dsk-flagged__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--dsk-border);
+}
+.dsk-flagged__title { color: var(--dsk-gold); font-size: 9.5px; }
+.dsk-flagged__rows { padding: 8px 9px; display: flex; flex-direction: column; gap: 4px; }
+.dsk-flagged__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--dsk-surf);
+  border-radius: 6px;
+  border: 1px solid var(--dsk-border);
+  color: var(--dsk-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.dsk-flagged__row:hover { border-color: rgba(205, 179, 128, 0.4); background: #35353E; }
+.dsk-flagged__cards { display: flex; gap: 3px; flex-shrink: 0; }
+.dsk-flagged__text { flex: 1; min-width: 0; }
+.dsk-flagged__action {
+  font-size: 12px;
+  color: var(--dsk-text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsk-flagged__meta {
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  color: var(--dsk-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsk-flagged__loss {
+  flex-shrink: 0;
+  font-family: var(--dsk-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsk-red);
+}
+.dsk-flagged__chev { flex-shrink: 0; }
+
+/* ── Flagged sheet over the stage ────────────────────────────────────────── */
+
+.dsk-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--dsk-bg);
+  overflow: hidden;
+}
+
+/* ── Hover states, per the refs' `cursor: pointer` affordances ──────────── */
+
+.dsk-tile { transition: outline-color 0.14s ease, opacity 0.14s ease; }
+.dsk-tile--dim:hover { opacity: 0.75; }
+.dsk-standup__chip { transition: border-color 0.14s ease, color 0.14s ease; }
+.floor-occupant { transition: filter 0.16s ease; }
+.floor.is-desktop .floor-occupant:hover { filter: brightness(1.14); }
+.dsk-apanel__action { transition: opacity 0.14s ease; }
+
+/* ── 1280x800 ────────────────────────────────────────────────────────────
+ * The panel is fixed at 520, so the stage takes what is left (760 here).
+ * Nothing may push past that: .dsk-root already clips, and every flex child
+ * that holds text carries min-width:0, so the page never scrolls sideways. */
+
+@media (max-width: 1365px) {
+  .dsk-panel { width: 440px; }
+  .dsk-roster { margin: 0 -14px; }
+  .dtb__center { top: 150px; }
+  .dtb__hero { bottom: 26px; }
+}
 
 }

@@ -9,7 +9,7 @@ function initialsOf(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export function DesktopTopBar({ liveCount }) {
+export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
@@ -33,6 +33,31 @@ export function DesktopTopBar({ liveCount }) {
         <span className="dsk-dot" aria-hidden />
         <span>{liveCount == null ? '—' : `${liveCount} LIVE`}</span>
       </div>
+      <div className="dsk-top__spacer" />
+
+      {/* Centre — the standup line, or the net + flagged pair (DeskTopBar). */}
+      <button
+        type="button"
+        className="dsk-top__standup"
+        onClick={onStandup}
+        disabled={!onStandup}
+      >
+        <span className="dsk-label" style={{ fontSize: 9 }}>Standup</span>
+        {standupLine ? (
+          <span className="dsk-top__standup-line">{standupLine}</span>
+        ) : (
+          <>
+            <span className="dsk-top__net">{net ?? '—'}</span>
+            <span className="dsk-top__standup-sep">·</span>
+            <span className="dsk-top__flagged">{flagged ?? '—'}</span>
+          </>
+        )}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
       <div className="dsk-top__spacer" />
       <span className="dsk-top__clock">{clock}</span>
       <span className="dsk-top__sep">·</span>
