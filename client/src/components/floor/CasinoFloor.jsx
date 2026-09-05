@@ -3,7 +3,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { Occupant, BarGhost, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
+import { Occupant, BarGhost, WalkIn, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
 import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
@@ -12,6 +12,13 @@ import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from 
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
+
+// How long the arriving body owns the room before he joins it. Long enough to
+// read as a crossing, short enough that it is never in the way.
+const WALK_MS = 5_000;
+
+// He comes in from the left edge of the room.
+const DOOR_X = 18;
 
 // ATTR-2e-2 — the worn posture at the felt.
 // Port of design-refs/char-play.jsx WornGhost / WornOccupant. Worn is a POSTURE
@@ -116,6 +123,32 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     };
   }, [load]);
 
+  // FL-3 — the newborn walks in. CasinoFloor is told nothing about births, so
+  // it works it out: an agent id that was not in the first roster this mount
+  // saw is somebody who arrived while the owner was standing here. He walks
+  // for one beat and then takes his place at the bar like everyone else.
+  //
+  // Deliberately keyed off "new since the first load" and not a createdAt
+  // timestamp: reopening the app should not replay an arrival that already
+  // happened, and a clock the client does not own is not evidence of anything.
+  const seenIdsRef = useRef(null);
+  const [arrivingId, setArrivingId] = useState(null);
+  const arrivalTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (loading) return;
+    const ids = new Set(agents.map((a) => a.id));
+    if (seenIdsRef.current === null) { seenIdsRef.current = ids; return; }
+    const fresh = agents.find((a) => !seenIdsRef.current.has(a.id));
+    seenIdsRef.current = ids;
+    if (!fresh) return;
+    setArrivingId(fresh.id);
+    clearTimeout(arrivalTimerRef.current);
+    arrivalTimerRef.current = setTimeout(() => setArrivingId(null), WALK_MS);
+  }, [agents, loading]);
+
+  useEffect(() => () => clearTimeout(arrivalTimerRef.current), []);
+
   // Resolve against the latest poll so a zoomed agent stays current (and
   // closes cleanly if it disappears from the roster).
   const zoomed = agents.find((a) => a.id === zoomedId) || null;
@@ -200,12 +233,20 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     // and the felts each slice their own lists, and a bug in any of them used
     // to put a second copy of somebody on screen. This is the invariant, held
     // in one place: first placement wins, every later one is dropped.
-    .filter((p, i, all) => all.findIndex((q) => q.agent.id === p.agent.id) === i);
+    .filter((p, i, all) => all.findIndex((q) => q.agent.id === p.agent.id) === i)
+    // FL-3: while he is crossing the room, the arriving body is his only body.
+    // The ordinary placement is dropped rather than drawn underneath it.
+    .filter((p) => p.agent.id !== arrivingId);
 
   // FL-2 — A LIVE FELT IS THE LOUDEST OBJECT. When a hand is running there is
   // one place to look: the room drops to 42% under a scrim and the live felt
   // gets a glow and a bright rim on top of it. With nothing live there is no
   // scrim at all and the room sits at its own brightness.
+  // FL-3: he comes in from the door and stops at the bar — the room's own
+  // resting spot, so the walk ends where he will be standing a moment later.
+  const arriving = arrivingId ? agents.find((a) => a.id === arrivingId) : null;
+  const arrivalSpot = { x: L.bar.x1 + (L.bar.x2 - L.bar.x1) * 0.62, y: L.bar.y - 102 };
+
   const liveFelt = tables.length > 0 ? litFelts[0] : null;
   const roomIsLive = !!liveFelt && !desktopMode;
 
@@ -410,6 +451,19 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
               )}
             </Fragment>
           ))}
+
+          {arriving && (
+            <WalkIn
+              from={{ x: DOOR_X }}
+              to={{ x: arrivalSpot.x, y: arrivalSpot.y }}
+              name={arriving.name}
+              accent={accentFor(arriving, agents.indexOf(arriving))}
+              mood={moodOf(arriving)}
+              size={mini ? 44 : 50}
+              room={room}
+              onClick={() => setZoomedId(arriving.id)}
+            />
+          )}
 
           {ftu && (
             <FtuStool

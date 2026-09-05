@@ -8,9 +8,9 @@
 //
 // The BUG-16 / BUG-17 regressions live in CasinoFloor.test.jsx and stay there.
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The dim/scrim rules are stylesheet rules, so the stylesheet has to be
 // loaded for getComputedStyle to see them (vite.config.js has css: true).
@@ -40,6 +40,11 @@ function renderFloor(props = {}) {
 const ghost = (name) => screen.getByRole('button', { name: new RegExp(`^${name} — `) });
 const ghosts = () => screen.getAllByRole('button', { name: /^.+ — (confident|neutral|frustrated|tilted|sulking)$/ });
 const pips = (scope = document) => [...scope.querySelectorAll('.floor-pip')];
+
+// Mirrored from CasinoFloor: the roster poll, and how long an arriving body
+// owns the room before he joins it.
+const POLL = 10_000;
+const WALK = 5_000;
 
 // ── the field readers ───────────────────────────────────────────────────────
 
@@ -181,7 +186,6 @@ describe('FL-1 — names are earned, not worn', () => {
 describe('FL-1 — one pip, and only when he has news', () => {
   beforeEach(() => {
     telegram.signIn();
-    vi.setSystemTime(NOW);
     fetchMock.route('/api/agents', restingRoom);
   });
 
@@ -228,7 +232,6 @@ describe('FL-1 — one pip, and only when he has news', () => {
 describe('FL-2 — a resting room still breathes', () => {
   beforeEach(() => {
     telegram.signIn();
-    vi.setSystemTime(NOW);
   });
 
   it('never says "Everyone\'s resting" — the line wave 34 retired', async () => {
@@ -275,7 +278,6 @@ describe('FL-2 — a resting room still breathes', () => {
 describe('FL-2 — a live felt is the loudest object', () => {
   beforeEach(() => {
     telegram.signIn();
-    vi.setSystemTime(NOW);
     fetchMock.route('/api/agents', liveRoom);
   });
 
@@ -323,5 +325,110 @@ describe('FL-2 — a live felt is the loudest object', () => {
     await waitFor(() => expect(ghosts()).toHaveLength(4));
     expect(within(ghost('Value Bot')).getByText('POCKET $0')).toBeInTheDocument();
     expect(container.querySelectorAll('.floor-pip').length).toBeGreaterThan(0);
+  });
+});
+
+// ── FL-3 · he walks in ──────────────────────────────────────────────────────
+
+describe('FL-3 — the newborn walks from the door to the bar', () => {
+  // This suite owns the clock: every step is a poll or a timeout. RTL's
+  // waitFor cannot drive Vitest's fake timers (it looks for a global `jest`),
+  // so the clock is advanced explicitly and the assertions are synchronous.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    telegram.signIn();
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const tick = (ms) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+  const walkIn = () => screen.queryByRole('button', { name: /— arriving$/ });
+
+  it('does not replay an arrival for agents who were already here', async () => {
+    fetchMock.route('/api/agents', restingRoom);
+    const { container } = renderFloor();
+    await tick(0);
+
+    // Everyone in the first roster was already in the room.
+    expect(ghosts()).toHaveLength(4);
+    expect(walkIn()).toBeNull();
+    expect(container.querySelector('.floor-walkin__trail')).toBeNull();
+  });
+
+  it('walks the agent who appears after the first load', async () => {
+    let roster = { agents: [quietAgent] };
+    fetchMock.route('/api/agents', () => roster);
+    const { container } = renderFloor();
+    await tick(0);
+    expect(ghosts()).toHaveLength(1);
+
+    // He is born, and the next poll brings him in.
+    roster = { agents: [quietAgent, grewAgent] };
+    await tick(POLL);
+
+    expect(walkIn()).toBeTruthy();
+    expect(walkIn().getAttribute('aria-label')).toBe('Bluff Master — arriving');
+    expect(container.querySelector('.floor-walkin__trail')).toBeTruthy();
+  });
+
+  // Rule 1 is the whole point of the slice: the arriving body IS his body.
+  it('draws him once and only once while he is crossing', async () => {
+    let roster = { agents: [quietAgent] };
+    fetchMock.route('/api/agents', () => roster);
+    renderFloor();
+    await tick(0);
+
+    roster = { agents: [quietAgent, grewAgent] };
+    await tick(POLL);
+    expect(walkIn()).toBeTruthy();
+
+    // No copy of him at the bar, and no ordinary body underneath.
+    expect(screen.queryByRole('button', { name: /^Bluff Master — (confident|neutral)/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /^Bluff Master — / })).toHaveLength(1);
+  });
+
+  it('wears his name for the crossing — nobody knows the posture yet', async () => {
+    let roster = { agents: [quietAgent] };
+    fetchMock.route('/api/agents', () => roster);
+    renderFloor();
+    await tick(0);
+
+    roster = { agents: [quietAgent, grewAgent] };
+    await tick(POLL);
+
+    expect(within(walkIn()).getByText('Bluff Master')).toBeInTheDocument();
+  });
+
+  it('takes his place at the bar once the walk is over', async () => {
+    let roster = { agents: [quietAgent] };
+    fetchMock.route('/api/agents', () => roster);
+    const { container } = renderFloor();
+    await tick(0);
+
+    roster = { agents: [quietAgent, grewAgent] };
+    await tick(POLL);
+    expect(walkIn()).toBeTruthy();
+
+    await tick(WALK + 500);
+
+    expect(walkIn()).toBeNull();
+    expect(container.querySelector('.floor-walkin__trail')).toBeNull();
+    // One body, now at the bar with everyone else, pip and all.
+    const settled = ghost('Bluff Master');
+    expect(settled).toHaveClass('floor-bar-ghost');
+    expect(within(settled).getByText('+2 GREW')).toBeInTheDocument();
+  });
+
+  it('an arrival is not dimmed by a live felt — it earns its few seconds', async () => {
+    let roster = liveRoom;
+    fetchMock.route('/api/agents', () => roster);
+    const { container } = renderFloor();
+    await tick(0);
+
+    roster = { agents: [...liveRoom.agents, quietAgent] };
+    await tick(POLL);
+    expect(walkIn()).toBeTruthy();
+
+    expect(container.querySelector('.floor')).toHaveClass('is-room-live');
+    expect(window.getComputedStyle(walkIn()).opacity).not.toBe('0.42');
   });
 });

@@ -8,7 +8,9 @@
 //   narrowed  — [key] | null                       (transient, one session)
 
 const HOUR = 60 * 60 * 1000;
-export const NOW = 1788700000000;
+// Relative to the real clock: the growth window is a duration, not a date, and
+// a fixture pinned to an absolute timestamp goes stale the day it is written.
+export const NOW = Date.now();
 
 function base(over) {
   return {

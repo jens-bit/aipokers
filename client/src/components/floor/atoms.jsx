@@ -462,6 +462,60 @@ export function BarGhost({
   );
 }
 
+// ── FL-3 · he walks in ───────────────────────────────────────────────────────
+// One body, a trail behind it, a destination ahead. The newborn's arriving
+// body IS his body — there is no second copy of him anywhere on the floor, so
+// CasinoFloor drops him from the ordinary placements while this is on screen.
+//
+// He wears his name for this one crossing: he has just been born and nobody
+// knows the posture yet, which is exactly the case rule 2 makes room for.
+export function WalkIn({
+  from, to, name, accent = M_TEAL, mood = 'neutral', size = 50,
+  onClick, room = IDENTITY_ROOM,
+}) {
+  const { k } = room;
+  const left = Math.min(from.x, to.x);
+  const trail = roomStyle(room, left, to.y + size * 0.92);
+  return (
+    <>
+      <div
+        className="floor-walkin__trail"
+        style={{
+          ...trail,
+          // The trail is a span, not a point: undo the centring roomStyle
+          // applies so it starts at the door and ends under him.
+          transform: `scale(${k})`,
+          transformOrigin: 'top left',
+          width: Math.abs(to.x - from.x),
+          background: `linear-gradient(90deg, transparent, ${accent}33 55%, ${accent}66)`,
+        }}
+        aria-hidden
+      />
+      <button
+        type="button"
+        className="floor-occupant floor-walkin"
+        style={roomStyle(room, to.x, to.y)}
+        onClick={onClick}
+        aria-label={`${name} — arriving`}
+      >
+        <GhostChip name={name} accent={accent} state="resting" />
+        <span className="floor-occupant__body" style={{ position: 'relative' }}>
+          <span
+            className="floor-walkin__halo"
+            style={{
+              width: size * 2.1,
+              height: size * 2.1,
+              background: `radial-gradient(circle, ${accent}1F, transparent 70%)`,
+            }}
+            aria-hidden
+          />
+          <FloorGhost mood={mood} accent={accent} size={size} speed={4.2} />
+        </span>
+      </button>
+    </>
+  );
+}
+
 // Identity accent is stable per agent — derived from id so it never shuffles.
 const ACCENTS = [M_TEAL, M_PURPLE, M_GOLD, M_PINK];
 export function accentFor(agent, index = 0) {

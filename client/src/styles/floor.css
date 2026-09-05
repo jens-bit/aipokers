@@ -524,3 +524,25 @@
 
 /* A resting room is not a dark one: no scrim, and the room at its own level. */
 .floor:not(.is-room-live) .floor__room-wrap { opacity: 0.92; }
+
+/* ── FL-3 · he walks in ────────────────────────────────────────────────────
+   One body crossing the room, with a trail behind it. The walk is the whole
+   point, so the body is never dimmed by the live scrim — an arrival is the
+   one thing allowed to compete with a live felt for a few seconds. */
+
+.floor-walkin__trail {
+  position: absolute;
+  height: 2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.floor-walkin__halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.floor.is-room-live .floor-walkin { opacity: 1; }
