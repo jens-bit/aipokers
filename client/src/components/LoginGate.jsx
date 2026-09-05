@@ -4,6 +4,11 @@
 // which we store and replay as x-telegram-init-data on every request. The
 // server verifies it with the widget signature scheme (see src/server/auth.js).
 // Once a login is stored, this component is a pass-through to `children`.
+//
+// FTU-2 — the door is the first screen of the first five minutes, so it is a
+// screen rather than a card in the middle of nothing: the room on one side, the
+// proposition on the other, and one way in. Port of D5FtuLoginScreenM from
+// design-refs/mood-ftu2.jsx. Styles in styles/ftu.css.
 
 import { useEffect, useRef, useState } from 'react';
 import { getWebLogin, setWebLogin, clearWebLogin, getTelegramInitData } from '../lib/telegram.js';
@@ -71,64 +76,48 @@ export default function LoginGate({ children }) {
 
   if (phase === 'in') return children;
 
+  const settling = phase === 'checking' || botUsername === null;
+
   return (
-    <div style={S.page}>
-      <div style={S.card}>
-        <div style={S.brand}>Agentic Poker</div>
-        {phase === 'checking' ? (
-          <div style={S.note}>Checking your session…</div>
-        ) : botUsername === null ? (
-          <div style={S.note}>Loading…</div>
-        ) : botUsername === '' ? (
-          <div style={S.note}>Web login not configured.</div>
-        ) : (
-          <>
-            <div style={S.lede}>Sign in with Telegram to reach your agents.</div>
-            <div ref={slotRef} style={S.slot} />
-          </>
-        )}
+    <div className="ftu-login">
+      {/* The room, before he has anybody in it. Lit, open, and holding a seat —
+          the same dashed rim the floor's own stool wears. */}
+      <div className="ftu-login__room">
+        <div className="ftu-login__glow" />
+        <div className="ftu-login__seat">
+          <div className="ftu-login__stool" />
+          <span className="ftu-login__seat-label">ONE OPEN SEAT</span>
+        </div>
+      </div>
+
+      <div className="ftu-login__pitch">
+        <h1 className="ftu-login__head">There is a room,<br />and an open seat<br />in it.</h1>
+        <p className="ftu-login__body">
+          You will not be playing. You hire someone, tell him how to play, and he sits
+          down without you — tonight, and every night after, whether you are watching
+          or not.
+        </p>
+
+        <div className="ftu-login__action">
+          {/* The widget is the primary action, so it stands where one goes. It
+              renders itself; until Telegram has answered, the slot holds its
+              place rather than the screen changing shape underneath it. */}
+          <div ref={slotRef} style={S.slot} />
+          {settling && <div className="ftu-login__foot">One moment…</div>}
+          {!settling && botUsername === '' && (
+            <div className="ftu-login__error">
+              Web login is not configured on this server. Open the Mini App from
+              Telegram instead.
+            </div>
+          )}
+        </div>
+
+        <div className="ftu-login__foot">$500 SEEDED ON SIGN-UP</div>
       </div>
     </div>
   );
 }
 
-// Marketing palette (tokens.css) — this sits on the same background as the
-// landing page, not inside the product UI.
-const S = {
-  page: {
-    minHeight: '100dvh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    background: 'radial-gradient(ellipse 70% 50% at 50% 0%, var(--marketing-bg-highlight) 0%, var(--marketing-bg-depth) 34%, var(--marketing-bg) 78%)',
-    color: 'var(--marketing-text)',
-  },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 18,
-    textAlign: 'center',
-    maxWidth: 360,
-  },
-  brand: {
-    fontFamily: 'var(--font-display)',
-    fontSize: 34,
-    lineHeight: 1.1,
-    color: 'var(--marketing-gold-highlight)',
-  },
-  lede: {
-    fontSize: 14,
-    lineHeight: 1.6,
-    color: 'var(--marketing-text-secondary)',
-  },
-  note: {
-    fontFamily: 'var(--font-label)',
-    fontSize: 11,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: 'var(--marketing-text-secondary)',
-  },
-  slot: { minHeight: 48 },
-};
+// The widget injects itself into this slot and brings its own styling; all it
+// needs is somewhere to stand that does not collapse before it arrives.
+const S = { slot: { minHeight: 48 } };
