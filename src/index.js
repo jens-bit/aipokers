@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
 import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
 import { readHands } from './server/handHistory.js';
-import { logAuthWarningIfNeeded } from './server/auth.js';
+import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } from './server/auth.js';
 import { rateLimiter } from './server/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,6 +58,23 @@ app.get('/api/stats', (_req, res) => {
     totalAgents,
     timestamp: new Date().toISOString(),
   });
+});
+
+// AUTH-1 — GET /api/auth/config: what the web login gate needs to render the
+// Telegram Login Widget. Empty botUsername means web login is not configured
+// on this deployment; the client says so rather than showing a dead button.
+// Public: the bot username is public information, nothing secret is exposed.
+app.get('/api/auth/config', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ botUsername: (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '') });
+});
+
+// AUTH-1 — GET /api/auth/me: is the credential this browser holds still good?
+// The gate calls it on load; a 401 means the stored web login expired and the
+// widget goes back up. Returns the Telegram user id behind either scheme.
+app.get('/api/auth/me', telegramAuthMiddleware, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ userId: telegramUserIdFrom(req.headers['x-telegram-init-data'] || '') });
 });
 
 // GET /api/history/:userId — last 20 completed hands for a user, newest first.
