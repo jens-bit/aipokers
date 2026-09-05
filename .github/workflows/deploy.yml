@@ -14,9 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # CI-1: 22, matching the VPS (v22.22.2). Not a free choice — better-sqlite3
+      # builds against NAPI_VERSION=10, which does not exist before Node 22, so
+      # on 20 the prebuilt binary cannot load and every suite that imports the
+      # store dies with no usable stderr (run #37).
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: |
             package-lock.json

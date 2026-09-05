@@ -27,6 +27,29 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
+// CI-1: node's test runner spawns each file with NODE_TEST_CONTEXT=child-v8,
+// which tells node "you are a test-runner child — emit v8-serialized results on
+// stdout instead of human output". That variable is inherited by anything those
+// files spawn, so a grandchild like `node src/server/draftGuard.test.js` (a
+// node:test file we run standalone) switched to the wire protocol: binary
+// garbage into our captured output, and a non-zero exit on Node 20.
+//
+// Children spawned here are standalone processes, never test-runner children.
+// Strip the whole protocol surface — the context flag plus any --test* flags
+// someone put in NODE_OPTIONS — so a spawned suite behaves exactly as it does
+// when a developer runs `node <file>` by hand.
+const TEST_FLAG = /^--(test|test-only|test-udp-no-try-send|test-force-exit|test-concurrency=|test-name-pattern=|test-reporter=|test-reporter-destination=|test-shard=|test-timeout=|test-skip-pattern=|experimental-test-)/;
+
+function stripTestRunnerEnv(childEnv) {
+  delete childEnv.NODE_TEST_CONTEXT;
+  delete childEnv.NODE_TEST_WORKER_ID;
+  if (typeof childEnv.NODE_OPTIONS === 'string') {
+    const kept = childEnv.NODE_OPTIONS.split(/\s+/).filter((f) => f && !TEST_FLAG.test(f));
+    if (kept.length) childEnv.NODE_OPTIONS = kept.join(' ');
+    else delete childEnv.NODE_OPTIONS;
+  }
+}
+
 // Runs `node <scriptPath>` and resolves { code, output, ms }.
 // isolateCwd:     run in a fresh scratch directory (removed afterwards) so the
 //                 script's data/ writes never land in the repo.
@@ -46,6 +69,7 @@ export function runScript(scriptPath, {
 
   const childEnv = { ...process.env, NODE_NO_WARNINGS: '1', ...env };
   if (!allowLiveModel) delete childEnv.ANTHROPIC_API_KEY;
+  stripTestRunnerEnv(childEnv);
 
   return new Promise((resolve) => {
     const started = Date.now();
