@@ -904,8 +904,8 @@ function detentName(frac) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
-  // W3-5: the newest PACE frame, { pace, potBb, board?, card? }. During a
-  // spectator-only all-in hold the server stages the runout here card by card;
+  // W3-5/W3-6: the newest PACE frame, { pace, potBb, board?, card? }. During a
+  // spectator-only all-in hold the server stages the runout card by card;
   // without it the flip falls back to the client's own timer.
   paceFrame,
 }) {
@@ -1044,7 +1044,11 @@ export function WatchScreen({
   // says what is face up, and every watcher sees the same card at the same
   // moment. The timer below is the fallback for a server that is not staging,
   // and it is not started when a frame is present.
-  var staged = stagedCount(paceFrame);
+  // W3-6: an explicit prop wins; otherwise useTable has merged the frame onto
+  // the view model, so the felt follows the server without every container in
+  // between forwarding a prop.
+  var frame = paceFrame || (game ? game.paceFrame : null);
+  var staged = stagedCount(frame);
   var [flipped, setFlipped] = useState(null);
   var dealtCount = (game && game.community) ? game.community.length : 0;
   useEffect(function() {

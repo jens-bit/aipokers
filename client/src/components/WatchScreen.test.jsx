@@ -731,6 +731,36 @@ describe('W3-5 the staged runout', () => {
     }
   });
 
+  // W3-6: useTable merges the frame onto the view model, so the felt follows the
+  // server without every container between them forwarding a prop.
+  it('W3-6: the felt follows a frame carried on the game', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch({
+        ...river,
+        paceFrame: { pace: 'showdown', board: ['5c', '4h', '8c', 'Kd'], card: 'Kd' },
+      });
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8', 'K']);
+      act(() => { vi.advanceTimersByTime(FLIP_MS * 5); });
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8', 'K']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('W3-6: an explicit prop still wins over the one on the game', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(
+        { ...river, paceFrame: { pace: 'showdown', board: ['5c'], card: '5c' } },
+        { paceFrame: { pace: 'showdown', board: ['5c', '4h', '8c'], card: '8c' } },
+      );
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('W3-5: a frame with no board defers to the fallback', () => {
     vi.useFakeTimers();
     try {

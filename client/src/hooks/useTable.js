@@ -48,6 +48,11 @@ export function useTable({ wsUrl }) {
   const [chatMessages, setChatMessages] = useState([]);
   // Last AI decision — { action, reasoning, seat } — cleared each hand start.
   const [lastDecision, setLastDecision] = useState(null);
+  // W3-6: the newest PACE frame — { pace, potBb, board, card }. `pace` also
+  // rides every STATE snapshot; what arrives only here is the STAGED RUNOUT
+  // during a spectator-only all-in hold, where the server turns the board a
+  // card at a time and the felt has to follow it rather than run its own clock.
+  const [paceFrame, setPaceFrame] = useState(null);
 
   const wsRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -85,9 +90,34 @@ export function useTable({ wsUrl }) {
         break;
       }
 
+      // W3-6. Additive and self-contained: a client that ignores this message
+      // sees exactly what it saw before it existed, because the STATE snapshot
+      // already holds the finished board.
+      //
+      // The frame is also merged onto `game`, which is the client's view model
+      // rather than the server's snapshot. That is what lets the watch screen
+      // read it without every container in between forwarding a new prop —
+      // WatchScreen still prefers an explicit `paceFrame` prop when it is given
+      // one, so wiring it through properly later is a one-line change.
+      case ServerMsg.PACE: {
+        const frame = {
+          pace: msg.pace,
+          potBb: msg.potBb ?? null,
+          board: msg.board ?? null,
+          card: msg.card ?? null,
+        };
+        setPaceFrame(frame);
+        setGame((g) => (g ? { ...g, pace: frame.pace, paceFrame: frame } : g));
+        break;
+      }
+
       case ServerMsg.HAND_START:
         lastStreetRef.current = Streets.PREFLOP;
         setLastDecision(null);
+        // A new deal resets the ladder to calm; the staged runout belonged to
+        // the hand that just ended.
+        setPaceFrame(null);
+        setGame((g) => (g ? { ...g, paceFrame: null } : g));
         setHistory((h) => [{ kind: 'handStart', handNumber: msg.handNumber, entries: [] }, ...h]);
         break;
 
@@ -259,6 +289,7 @@ export function useTable({ wsUrl }) {
     setMySeat(null);
     setChatMessages([]);
     setLastDecision(null);
+    setPaceFrame(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -286,6 +317,7 @@ export function useTable({ wsUrl }) {
     setMySeat(null);
     setChatMessages([]);
     setLastDecision(null);
+    setPaceFrame(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -318,6 +350,7 @@ export function useTable({ wsUrl }) {
     setLegalActions([]);
     setChatMessages([]);
     setLastDecision(null);
+    setPaceFrame(null);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
   }, []);
@@ -375,6 +408,7 @@ export function useTable({ wsUrl }) {
     sendChat,
     sitOut,
     lastDecision,
+    paceFrame,
   };
 }
 
