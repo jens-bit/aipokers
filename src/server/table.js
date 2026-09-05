@@ -1,6 +1,6 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
-import { getAgentAction, generateAiChatLine } from '../agent/handler.js';
+import { getAgentAction, generateAiChatLine, perceivedMath } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
 import {
   recordHandResult,
@@ -10,18 +10,29 @@ import {
   getAgentMood,
   setAgentMood,
   getAgentAttributes,
+  noteAgentFatigue,
   finishAgentSession,
   addFlaggedHand,
 } from './agentProfiles.js';
-import { classifyHand, buildFlaggedEntry } from './flaggedHands.js';
+import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
-import { effectiveAttrs, readMinHands } from '../agent/attributes.js';
+import {
+  effectiveAttrs,
+  readMinHands,
+  attrCostsForHand,
+  wornMomentFor,
+  newEvidence,
+  addEvidence,
+  decisionEvidence,
+  handEvidence,
+} from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
   decisionEffects as moodDecisionEffects,
+  EVENT_DELTAS,
 } from '../agent/mood.js';
 import { notifyMoodAlert } from './notifications/telegram.js';
 import {
@@ -94,6 +105,10 @@ export { HOUSE_TAG, HOUSE_STATION, HOUSE_STRATEGY, HOUSE_PROFILE, pickComplement
 // join-in-progress and leave-mid-session possible without tearing the table
 // down -- previously the Game was built once, on the first deal, and never
 // revisited.
+// ATTR-3: one session's worth of evidence for one seat. Field names are the
+// contract with EVIDENCE_FIELD in attributes.js — what trains each attribute,
+// in the ref's own words: showdowns seen, decision volume, big folds made
+// correctly, beats survived, bluffs that got through, hands at the table.
 export class Table {
   constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
@@ -139,6 +154,13 @@ export class Table {
     // handsThisSession when the seat sat down, so a late joiner's session
     // length is reported honestly instead of the whole table's.
     this.seatJoinedAtHand = Array(maxSeats).fill(0);
+    // ATTR-3: what each seat has EARNED this session, per attribute. Growth is
+    // drawn from this at the end of the session, so an agent grows from how he
+    // was deployed rather than from how long the app was left open.
+    this.attrEvidence = Array.from({ length: maxSeats }, () => newEvidence());
+    // Opponents this seat has actually formed a read on this session — a Set so
+    // the same opponent is not counted every hand.
+    this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
 
     // The roster (playerIds in seat order) the current Game was built from.
     // Any mismatch against the live roster triggers a rebuild.
@@ -222,6 +244,8 @@ export class Table {
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
+    ['attrEvidence',      () => newEvidence()],   // ATTR-3
+    ['attrReadSubjects',  () => new Set()],           // ATTR-3
     ['seatAccentColors',       () => null],
     ['seatTalkLines',          () => null],
     ['pendingNeedle',          () => null],   // TLK-1
@@ -613,6 +637,7 @@ export class Table {
           finalStack,
           buyInAmount: buyIn,
           tableId: this.tableId,
+          attrEvidence: this.attrEvidence[seat],   // ATTR-3: growth is drawn from this
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -764,6 +789,9 @@ export class Table {
     // MST-1: a seat that arrives mid-session gets credited only with the hands
     // it is actually dealt into.
     this.seatJoinedAtHand[free] = this.handsThisSession;
+    // A new session for this seat: fatigue and evidence both start at zero.
+    this.attrEvidence[free] = newEvidence();
+    this.attrReadSubjects[free] = new Set();
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
@@ -779,6 +807,21 @@ export class Table {
     if (!rec?.attrs) return null;
     const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
     return effectiveAttrs(rec, { sessionHands });
+  }
+
+  // ATTR-3: the two kinds of evidence that are visible at decision time. The
+  // rest (hands, beats survived, bluffs through) can only be known once the
+  // hand is over and are counted there.
+  _collectAttrEvidence(seat, action, ctx, gs) {
+    const ev = this.attrEvidence[seat];
+    if (!ev) return;
+    addEvidence(ev, decisionEvidence({
+      trueEquity: gs.equity,
+      seenEquity: ctx.seenEquity,
+      deviationDie: ctx.deviationDie,
+      inRange: ctx.inRange,
+      actionType: action?.type ?? null,
+    }));
   }
 
   hasHumanPlayer() {
@@ -1105,6 +1148,7 @@ export class Table {
     this._recordOpponentStats(this.game.result);
     this._updateAgentMoods(this.game.result);
     this._maybeSendAgentTalk(this.game.result);  // TLK-1
+    this._updateSeatFatigue();
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     // MST-1: bank the chips and note where the button goes next BEFORE any
@@ -1146,6 +1190,30 @@ export class Table {
     // 2.5s tempo until startSessionLoop takes it over.
     if (this.isAiOnly()) {
       this._scheduleNextHand(this.autoPlay ? this.handPauseMs : 2500);
+    }
+  }
+
+  // ATTR-3: fatigue is a within-session STATE that the record has to carry, so
+  // the floor can slump his posture and the card can dip the two bars it
+  // touches without asking the table. Written only when the stage actually
+  // changes; the crossing into 'worn' is the one time he mentions it, and it
+  // never pushes a notification — fatigue fixes itself at the bar.
+  _updateSeatFatigue() {
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      const eff = this._seatAttrs(seat);
+      if (!eff) continue;
+      const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+      try {
+        noteAgentFatigue(agentId, this.agentUserIds[seat], {
+          stage: eff.fatigue,
+          sessionHands,
+          moment: eff.fatigue === 'worn' ? wornMomentFor(sessionHands) : null,
+        });
+      } catch (err) {
+        console.error('[table] fatigue note failed:', err.message);
+      }
     }
   }
 
@@ -1255,7 +1323,13 @@ export class Table {
       // apply sequentially; each roll is independent.
       let mood = { ...next };
       for (const ev of events) {
+        const before = mood.state;
         mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx, composure });
+        // ATTR-3 evidence: COMPOSURE is trained by surviving beats WITHOUT
+        // tilting. The event landed, the state held — that is the survival.
+        if ((EVENT_DELTAS[ev.type] ?? 0) < 0 && mood.state === before) {
+          this.attrEvidence[seat].tiltSurvived++;
+        }
       }
       if (events.length === 0) {
         mood = tickMoodDecay(mood, { composure });
@@ -1309,6 +1383,7 @@ export class Table {
       // MST-1: a seat that joined mid-hand is not in this hand's Game.
       if (!this._seatIsInGame(seat)) continue;
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+      this._collectHandEvidence(seat, decisions, { won, resultType: result.type });
       const handSummary = {
         handNumber,
         won,
@@ -1335,6 +1410,15 @@ export class Table {
         console.error('[table] result report failed:', err.message);
       }
     }
+  }
+
+  // ATTR-3: the evidence a hand only yields once it is over.
+  _collectHandEvidence(seat, decisions, { won, resultType }) {
+    const ev = this.attrEvidence[seat];
+    if (!ev) return;
+    addEvidence(ev, handEvidence({
+      decisions, won, resultType, bluffMaxEquity: THRESHOLDS.BLUFF_MAX_EQUITY,
+    }));
   }
 
   // Classify the just-completed hand for each AI seat and store notable ones
@@ -1384,6 +1468,11 @@ export class Table {
         holeCards,
         won,
         opponentShowdownCards,
+        // ATTR-3: where an attribute actually shaped this hand. Only flagged
+        // hands carry it — the review sheet is the one surface entitled to say
+        // a low attribute cost money, and it says it about him, not about the
+        // number.
+        attrCosts: attrCostsForHand({ decisions, won }),
       });
 
       try {
@@ -1903,7 +1992,17 @@ export class Table {
       if (!read) continue;
       const subjectDeception = this._seatAttrs(i)?.DECEPTION ?? null;
       const gate = readMinHands({ reads: attrs?.READS ?? null, deception: subjectDeception });
-      if (read.handsObserved >= gate) opponentReads.push({ ...read, subjectDeception });
+      if (read.handsObserved >= gate) {
+        opponentReads.push({ ...read, subjectDeception });
+        // ATTR-3 evidence: he has solved this opponent well enough to be told
+        // about it. Once per opponent per session — the read does not get
+        // better by being re-read every hand.
+        const subjects = this.attrReadSubjects[aiSeat];
+        if (subjects && !subjects.has(pid)) {
+          subjects.add(pid);
+          this.attrEvidence[aiSeat].readsFormed++;
+        }
+      }
     }
 
     return {
@@ -1993,6 +2092,22 @@ export class Table {
     // Record the decision (with reasoning) before applying it so that even if
     // the engine rejects the action and we fall back, we still capture the
     // model's intent for stats.
+    // ATTR-3: what the attributes were doing when this decision was made.
+    // `equity` stays the TRUE number; `seenEquity` is what the briefing showed
+    // him. The hand review needs both to say "he misjudged equity by 7 points",
+    // and the session needs them to know whether his arithmetic held.
+    const seen = perceivedMath(gameState);
+    const attrCtx = {
+      seenEquity: seen.equity,
+      seenPotOdds: seen.potOdds,
+      deviationDie: !!gameState.policy?.dice?.deviationDie,
+      inRange: gameState.policy?.range ? !!gameState.policy.range.inRange : null,
+      moodState: gameState.mood?.state ?? 'neutral',
+      readSubjects: (gameState.opponentReads ?? []).map((r) => r.displayName || r.playerId),
+      fatigue: gameState.fatigue ?? null,
+    };
+    this._collectAttrEvidence(aiSeat, action, attrCtx, gameState);
+
     this.currentHandDecisions.push({
       seat: aiSeat,
       street: this.game.street,
@@ -2002,6 +2117,7 @@ export class Table {
       community: [...this.game.community],
       equity: gameState.equity,
       potOdds: gameState.potOdds,
+      attr: attrCtx,
       timestamp: Date.now(),
     });
 

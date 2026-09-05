@@ -3,7 +3,8 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { Occupant, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, M_TEAL } from './atoms.jsx';
+import { Occupant, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
+import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
@@ -11,6 +12,59 @@ import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
+
+// ATTR-2e-2 — the worn posture at the felt.
+// Port of design-refs/char-play.jsx WornGhost / WornOccupant. Worn is a POSTURE
+// SWAP and nothing more: same ghost, same mood, same accent, same seat. He bobs
+// slower (speed x1.7) and his lids ride that same bob so they cannot drift off
+// the eyes. Nothing about the felt or his cards changes — the fish-tank law is
+// untouched by fatigue.
+const WORN_SPEED = 1.7;
+
+function WornOccupant({
+  x, y, name, accent, mood, state, size = 56, speed = 5,
+  stack = null, chipMaxW, dim, onClick, room,
+}) {
+  const key = safeMood(mood);
+  const m = MOODS[key];
+  const slowed = speed * WORN_SPEED;
+  // Matches FloorGhost's own eye line, so the lids sit on the eyes at any size.
+  const cy = key === 'sulking' ? 46 : 42;
+
+  return (
+    <button
+      type="button"
+      className={`floor-occupant${dim ? ' is-dim' : ''}`}
+      style={roomStyle(room, x, y)}
+      onClick={onClick}
+      aria-label={`${name} — ${m.label.toLowerCase()}, worn`}
+    >
+      <GhostChip name={name} accent={accent} state={state} stack={stack} chipMaxW={chipMaxW} />
+      <span
+        className="floor-occupant__body"
+        style={{ position: 'relative', transform: 'translateY(4px) scale(0.985)' }}
+      >
+        <FloorGhost mood={mood} accent={accent} size={size} speed={slowed} />
+        <span
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            animation: `floor-bob ${slowed}s ease-in-out infinite`,
+          }}
+          aria-hidden
+        >
+          <svg width={size} height={size * 1.2} viewBox="0 0 80 96" style={{ display: 'block', overflow: 'visible' }}>
+            <rect x="26" y={cy - 7.6} width="28" height="6.4" fill="#04070C" />
+            <path d={`M27 ${cy - 1.4} L53 ${cy - 1.4}`} stroke={`${accent}55`} strokeWidth="0.9" strokeLinecap="round" />
+          </svg>
+        </span>
+      </span>
+      <span
+        className="floor-occupant__shadow"
+        style={{ width: size * 1.1, background: `radial-gradient(ellipse, ${m.color}2E, transparent 70%)` }}
+      />
+    </button>
+  );
+}
 
 export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfile, onDeploy, desktopMode = false, onGhostSelect, selectedAgentId }) {
   const [agents, setAgents] = useState([]);
@@ -224,6 +278,31 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   aria-hidden
                 />
               )}
+              {fatigueOf(p.agent) === 'worn' ? (
+                <WornOccupant
+                  x={p.x}
+                  y={p.y}
+                  name={p.agent.name}
+                  accent={accentFor(p.agent, p.accentIndex)}
+                  mood={moodOf(p.agent)}
+                  state={p.state}
+                  size={p.size}
+                  speed={p.speed}
+                  dim={p.dim}
+                  stack={p.stack}
+                  chipMaxW={p.chipMaxW}
+                  room={room}
+                  onClick={() => {
+                    if (desktopMode) {
+                      const newId = p.agent.id === zoomedId ? null : p.agent.id;
+                      setZoomedId(newId);
+                      onGhostSelect?.(newId ? p.agent : null);
+                    } else {
+                      setZoomedId(p.agent.id);
+                    }
+                  }}
+                />
+              ) : (
               <Occupant
                 x={p.x}
                 y={p.y}
@@ -248,6 +327,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   }
                 }}
               />
+              )}
               {p.felt && p.feltPot != null && (
                 <PotTicker
                   x={p.felt.cx}

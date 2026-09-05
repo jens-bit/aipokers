@@ -59,6 +59,27 @@ function moodPromptHint(state) {
   }
 }
 
+// What he THINKS the maths are, as opposed to what they are.
+//
+// Exported because two callers need the identical number: this module, which
+// writes it into the briefing, and table.js, which records it on the decision
+// so the hand review can say afterwards that he misjudged the spot and by how
+// much. Recomputing it in two places with two seeds would let the review
+// disagree with the hand it is reviewing.
+//
+// The seed is the hand, the seat and the cards — never a clock and never a
+// counter — so the arena's mirrored deck draws the same misjudgment on both
+// halves, and a replayed hand misjudges it the same way twice.
+export function perceivedMath(gs) {
+  const seed = `${gs?.handNumber ?? 0}:${gs?.seat ?? 0}:${gs?.street}:${(gs?.holeCards ?? []).join('')}:${(gs?.community ?? []).join('')}`;
+  const focus = gs?.attrs?.FOCUS ?? null;
+  return {
+    seed,
+    equity:  perceiveEquity(gs?.equity,  focus, `${seed}:eq`),
+    potOdds: perceiveEquity(gs?.potOdds, focus, `${seed}:po`),
+  };
+}
+
 // Build the per-turn user message describing the current game state.
 function buildUserPrompt(gs) {
   const board = gs.community.length > 0 ? gs.community.join(' ') : 'none (preflop)';
@@ -79,10 +100,7 @@ function buildUserPrompt(gs) {
   // noise is deterministic in a seed built from the hand, the seat and the
   // cards, so the arena's mirrored deck draws the same misjudgment on both
   // halves and the A/B stays clean. Inert without gs.attrs or at IMPACT 0.
-  const seed = `${gs.handNumber ?? 0}:${gs.seat ?? 0}:${gs.street}:${(gs.holeCards ?? []).join('')}:${(gs.community ?? []).join('')}`;
-  const focus = gs.attrs?.FOCUS ?? null;
-  const seenEquity  = perceiveEquity(gs.equity,  focus, `${seed}:eq`);
-  const seenPotOdds = perceiveEquity(gs.potOdds, focus, `${seed}:po`);
+  const { equity: seenEquity, potOdds: seenPotOdds } = perceivedMath(gs);
 
   const mathLines = [];
   if (Number.isFinite(seenEquity)) {

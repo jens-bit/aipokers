@@ -9,6 +9,8 @@ import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
 import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
+import { BirthCardRail } from './PlayerCardRail.jsx';
+import { PanelHead } from './panelParts.jsx';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -29,6 +31,11 @@ export function DesktopHome({
   // desktop shell (DSK2-3). Null means the floor is on stage.
   const [deskTableId, setDeskTableId] = useState(null);
   const [flaggedAgent, setFlaggedAgent] = useState(null);
+  // ATTR-2e-1: the card he was born with. App owns BirthScreen and is out of
+  // this slice's scope, so the arrival is observed here instead — an id that
+  // was not in the previous roster is a newborn, and it is shown once.
+  const [bornId, setBornId] = useState(null);
+  const knownIds = useRef(null);
   const draftKey = deskTableId ?? selectedId ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
@@ -70,12 +77,22 @@ export function DesktopHome({
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
       if (flaggedAgent) { setFlaggedAgent(null); return; }
+      if (bornId) { setBornId(null); return; }
       if (deskTableId) { setDeskTableId(null); return; }
       setSelectedId(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [flaggedAgent, deskTableId]);
+  }, [flaggedAgent, deskTableId, bornId]);
+
+  useEffect(() => {
+    if (loading) return;
+    const ids = new Set(agents.map((a) => a.id));
+    if (knownIds.current === null) { knownIds.current = ids; return; }
+    const fresh = agents.find((a) => !knownIds.current.has(a.id));
+    knownIds.current = ids;
+    if (fresh) { setBornId(fresh.id); setSelectedId(null); }
+  }, [agents, loading]);
 
   const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
   const watchedId = isWatching ? watchingAgent?.id ?? null : null;
@@ -109,6 +126,8 @@ export function DesktopHome({
     if (watchedId !== agent.id) onWatchAgent(agent);
     setDeskTableId(agent.id);
   }, [watchedId, onWatchAgent]);
+
+  const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -159,7 +178,16 @@ export function DesktopHome({
           />
         </div>
 
-        {selected ? (
+        {born ? (
+          <div className="dsk-panel">
+            <PanelHead
+              title="The card he was born with"
+              sub={born.name.toUpperCase()}
+              onClose={() => setBornId(null)}
+            />
+            <BirthCardRail agent={born} onDealIn={() => { setBornId(null); onDeployAgent(born); }} />
+          </div>
+        ) : selected ? (
           <ThreadPanel
             key={selected.id}
             agent={selected}
