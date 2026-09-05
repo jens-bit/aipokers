@@ -9,8 +9,9 @@ import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
   applyPepTalk as applyMoodPepTalk,
-  isSoothable as isMoodSoothable,
   heatForState,
+  applyOwnerMessage,
+  classifyOwnerMessage,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -1109,6 +1110,34 @@ export function floorSnapshot(userId, { owner = false } = {}) {
   });
 }
 
+// MOOD-2b: what the owner just said, applied to his heat. This replaces the
+// blanket "any message from the owner soothes him" behaviour: an owner who
+// types "you punted that" is not soothing anybody, and pretending otherwise
+// made the thread a button rather than a conversation.
+//
+// Bounded (±15), rate-limited by the pep talk's own 10-hand cooldown, and
+// scaled by COMPOSURE on the way in. Returns the same shape tryApplyPepTalk
+// does so the chat route can treat them alike.
+export function applyOwnerMessageToMood(agentId, userId, text) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { moved: false, mood: null, kind: 'neutral', reason: 'agent not found' };
+  ensureMood(agent);
+  ensureStats(agent);
+  ensureAttributes(agent);
+
+  const result = applyOwnerMessage(agent.mood, text, {
+    handsPlayed: agent.stats?.handsPlayed ?? 0,
+    composure: agent.attrs?.COMPOSURE ?? null,
+  });
+  if (!result.moved) return { moved: false, mood: agent.mood, kind: result.kind, reason: result.reason };
+
+  agent.mood = result.mood;
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return { moved: true, mood: agent.mood, kind: result.kind, reason: result.reason };
+}
+
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
 // Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
 // Persists on soothed=true.
@@ -1880,10 +1909,13 @@ export function installAgentProfileRoutes(app) {
       // any incoming owner message soothes it one step. The chat reply is
       // then generated with the pep-talk context so the agent acknowledges
       // it in character.
-      let pepResult = { soothed: false, mood: existingAgent.mood, reason: 'not attempted' };
-      if (isMoodSoothable(existingAgent.mood)) {
-        pepResult = tryApplyPepTalk(existingAgent.id, userId);
-      }
+      // MOOD-2b: the message itself decides. A needle heats him, a question
+      // about a hand cools him, and small talk does neither — the thread stops
+      // being a soothe button that fires on any keystroke.
+      const said = applyOwnerMessageToMood(existingAgent.id, userId, content);
+      const pepResult = said.moved && said.kind === 'care'
+        ? { soothed: true, mood: said.mood, reason: 'ok' }
+        : { soothed: false, mood: existingAgent.mood, reason: said.reason };
       if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
       const recentChat = existingAgent.chatHistory.slice(-6);
       const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
@@ -1896,6 +1928,11 @@ export function installAgentProfileRoutes(app) {
         return res.json({
           chat: [{ role: 'assistant', content: msg }],
           pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+          // MOOD-2b: what his mood did with what you said. `kind` is needle |
+          // care | neutral; heat is where he ended up.
+          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+                  moved: said.moved, kind: said.kind },
         });
       } catch (err) {
         console.error('[agentProfiles] agent-chat error:', err.message);

@@ -24,7 +24,11 @@ import {
   heatScales,
   clampHeat,
   restAtBar,
+  classifyOwnerMessage,
+  applyOwnerMessage,
 } from './mood.js';
+
+import fs from 'node:fs';
 
 let failures = 0;
 function check(label, cond) {
@@ -246,6 +250,83 @@ console.log('\n— heat: the bands, the backfill, and what may move it —');
   check(`nonsense hours do nothing`, restAtBar(level, { hours: 'x' }) === level);
   check(`an uneventful hand at level changes nothing`,
     tickDecay(level).heat === level.heat);
+}
+
+console.log('\n— susceptibility: what the owner says, and only what he says —');
+{
+  const HOT = { ...initialMood(), heat: 60, state: 'tilted', pepTalkAtHand: null };
+
+  check(`an insult is a needle`, classifyOwnerMessage('you absolute idiot') === 'needle');
+  check(`so is an insult with a question mark`,
+    classifyOwnerMessage('what were you thinking there?') === 'needle');
+  check(`so is naming the mistake`, classifyOwnerMessage('you punted that whole stack') === 'needle');
+  check(`praise is care`, classifyOwnerMessage('nice fold') === 'care');
+  check(`sympathy is care`, classifyOwnerMessage('unlucky, nothing you could do') === 'care');
+  check(`asking about a hand is care`, classifyOwnerMessage('why did you call there?') === 'care');
+  check(`so is asking what he held`, classifyOwnerMessage('what did you have?') === 'care');
+  check(`everything else is neutral`,
+    classifyOwnerMessage('see you tomorrow') === 'neutral' && classifyOwnerMessage('ok') === 'neutral');
+  check(`nothing at all is neutral`,
+    classifyOwnerMessage('') === 'neutral' && classifyOwnerMessage(null) === 'neutral');
+
+  // Bounded, both directions.
+  const needled = applyOwnerMessage(HOT, 'you idiot', { handsPlayed: 50, composure: 0 });
+  check(`a needle heats him`, needled.mood.heat > HOT.heat);
+  check(`by at most one step`, needled.mood.heat - HOT.heat <= HEAT_STEP);
+  const cared = applyOwnerMessage(HOT, 'unlucky, that happens', { handsPlayed: 50 });
+  check(`care cools him`, cared.mood.heat < HOT.heat);
+  check(`by at most one step`, HOT.heat - cared.mood.heat <= HEAT_STEP);
+  check(`a message is never worth more than a good pot`,
+    HEAT_STEP <= Math.abs(HEAT_EVENTS.wonBigPot));
+
+  // COMPOSURE is the shield, and the whole shield.
+  const glass = applyOwnerMessage(HOT, 'you idiot', { handsPlayed: 50, composure: 0 });
+  const stone = applyOwnerMessage(HOT, 'you idiot', { handsPlayed: 50, composure: 100 });
+  check(`a composed agent lets an insult go entirely`, stone.moved === false);
+  check(`an agent with no composure takes all of it`, glass.mood.heat - HOT.heat === HEAT_STEP);
+  const mid = applyOwnerMessage(HOT, 'you idiot', { handsPlayed: 50, composure: 50 });
+  check(`and in between, half of it`, mid.mood.heat - HOT.heat < HEAT_STEP && mid.moved === true);
+
+  // The cooldown the pep talk has always had.
+  const second = applyOwnerMessage(needled.mood, 'you idiot again', { handsPlayed: 55, composure: 0 });
+  check(`a second message inside the cooldown does nothing`,
+    second.moved === false && second.reason === 'cooldown');
+  const later = applyOwnerMessage(needled.mood, 'you idiot again',
+    { handsPlayed: 50 + PEP_TALK_COOLDOWN_HANDS, composure: 0 });
+  check(`after the cooldown it lands again`, later.moved === true);
+  check(`so an owner cannot type him into tilt`, (() => {
+    let m = { ...initialMood() };
+    for (let i = 0; i < 20; i++) m = applyOwnerMessage(m, 'you idiot', { handsPlayed: 0, composure: 0 }).mood;
+    return m.state !== 'tilted' && m.state !== 'sulking';
+  })());
+
+  // ── THE LAW ──────────────────────────────────────────────────────────────
+  // No code path changes heat without a message or a poker event.
+  console.log('\n  — no heat without a message or a poker event —');
+  const level = initialMood();
+  check(`an empty message does nothing`, applyOwnerMessage(level, '', { handsPlayed: 99 }).mood === level);
+  check(`a null message does nothing`, applyOwnerMessage(level, null, { handsPlayed: 99 }).mood === level);
+  check(`an undefined message does nothing`, applyOwnerMessage(level, undefined, { handsPlayed: 99 }).mood === level);
+  check(`whitespace does nothing`, applyOwnerMessage(level, '   \n  ', { handsPlayed: 99 }).mood === level);
+  check(`small talk does nothing`, applyOwnerMessage(level, 'hey', { handsPlayed: 99 }).moved === false);
+  check(`an unknown event does nothing`, applyEvent(level, 'ownerWasAway', VOLATILE).heat === level.heat);
+  check(`time alone does nothing`, restAtBar(level, { hours: 0 }) === level);
+  check(`a hot agent left alone COOLS, never the other way`, (() => {
+    const hot = { ...initialMood(), heat: 90, state: 'tilted' };
+    return restAtBar(hot, { hours: 100 }).heat < hot.heat;
+  })());
+
+  // And the source itself: nothing in this file knows what a neglected agent
+  // is. A guilt mechanic would have to be spelled somewhere, so this looks.
+  // Comments stripped first: the file DESCRIBES the law in these words, and
+  // writing "there is no unopened-review mechanic here" is the opposite of
+  // having one. What must not exist is the code.
+  const src = fs.readFileSync(new URL('./mood.js', import.meta.url), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const banned = /\b(neglect\w*|abandon\w*|unopened|ignoredBy|lastSeenAt|daysSince|sinceLastVisit|lonel\w*)\b/i;
+  check(`mood.js has no absence-tracking code`, !banned.test(code));
+  check(`mood.js never subtracts one clock reading from another`,
+    !/Date\.now\(\)\s*-\s*/.test(src));
 }
 
 console.log('\n— summary —');

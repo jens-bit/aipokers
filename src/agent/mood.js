@@ -354,6 +354,114 @@ export function applyPepTalk(currentMood, handsPlayed) {
   };
 }
 
+// ── Susceptibility: what the owner says ─────────────────────────────────────
+// MOOD-2b. The thread is not a support line; it is a person talking to a poker
+// player about poker. Being told he punted lands, and being asked what he was
+// holding lands the other way.
+//
+// Three rules bound the whole mechanism:
+//
+//   1. A MESSAGE IS REQUIRED. Nothing in here can be reached by silence, by an
+//      unopened review, or by time. There is no state in this product that
+//      says "the owner has not spoken to him in three days" and there never
+//      will be — that is guilt machinery, and this file is where it would go.
+//   2. AT MOST HEAT_STEP (15) EITHER WAY, once per PEP_TALK_COOLDOWN_HANDS.
+//      An owner cannot type an agent into tilt, and cannot type him out of it
+//      either: the cooldown is the same one the pep talk has always had.
+//   3. COUNTERABLE THROUGH PLAY. Fifteen points is one good pot. Whatever the
+//      owner says, the table says more.
+//
+// Classification is a lexicon, not a model call: deterministic, free, and
+// inspectable. An insult that also asks a question is still an insult.
+
+const NEEDLE_PATTERNS = [
+  /\b(idiot|moron|stupid|dumb|useless|pathetic|embarrassing|clown|joke)\b/i,
+  /\b(terrible|awful|garbage|trash|rubbish|dreadful|abysmal|worst)\b/i,
+  /\b(punt(ed|ing)?|spew(ed|ing)?|donk(ed)?|fish|nit|coward|chicken)\b/i,
+  /\b(chok(e|ed|ing)|bottled|blew it|threw it away|gave it away)\b/i,
+  /\b(you suck|sucks|hate (you|this)|disappoint(ed|ing)|useless)\b/i,
+  /\bwhat (were|was) you (thinking|doing)\b/i,
+  /\bhow could you\b/i,
+  /\b(seriously|again)\s*[?!]/i,
+  /\bwtf\b/i,
+];
+
+const CARE_PATTERNS = [
+  /\b(nice|great|good|lovely|excellent|brilliant)\s+(hand|call|fold|read|play|one|work|job)\b/i,
+  /\bwell played\b/i,
+  /\b(proud|impressed|liked that|love(d)? that)\b/i,
+  /\b(unlucky|bad beat|nothing you could do|not your fault|no ones fault|no one's fault)\b/i,
+  /\b(keep going|chin up|shake it off|forget it|next one|chalk it up|no worries|it happens|happens to everyone)\b/i,
+  /\b(trust|believe in) you\b/i,
+  /\b(why did you|why'd you|what happened|talk me through|walk me through|how come|explain)\b/i,
+  /\bwhat (did|were) you (have|holding)\b/i,
+  /\b(that|the) hand\b/i,
+];
+
+/**
+ * What an owner message is, as far as mood is concerned.
+ * @returns {'needle'|'care'|'neutral'}
+ */
+export function classifyOwnerMessage(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return 'neutral';
+  // An insult with a question mark on the end is an insult.
+  if (NEEDLE_PATTERNS.some((re) => re.test(t))) return 'needle';
+  if (CARE_PATTERNS.some((re) => re.test(t))) return 'care';
+  return 'neutral';
+}
+
+/**
+ * Apply one owner message to the mood.
+ *
+ * A needle is scaled by (100 − COMPOSURE): a composed agent lets it go, and an
+ * agent with no composure takes the full fifteen. Care is worth a step
+ * whoever he is — being asked about a hand works on everyone.
+ *
+ * @returns {{ mood, moved: boolean, kind: string, reason: string }}
+ */
+export function applyOwnerMessage(currentMood, text, { handsPlayed = 0, composure = null } = {}) {
+  const mood = currentMood ?? initialMood();
+  const kind = classifyOwnerMessage(text);
+  if (kind === 'neutral') return { mood, moved: false, kind, reason: 'nothing to react to' };
+
+  const last = mood.pepTalkAtHand;
+  const hands = Number(handsPlayed) || 0;
+  if (Number.isFinite(last) && hands - last < PEP_TALK_COOLDOWN_HANDS) {
+    return { mood, moved: false, kind, reason: 'cooldown' };
+  }
+
+  const before = Number.isFinite(mood.heat) ? mood.heat : heatForState(mood.state);
+  let delta;
+  if (kind === 'needle') {
+    // COMPOSURE is the shield, and it is the whole shield: at 100 nothing the
+    // owner types reaches him.
+    const exposure = Number.isFinite(composure) ? Math.max(0, Math.min(100, 100 - composure)) / 100 : 1;
+    delta = HEAT_STEP * exposure;
+  } else {
+    delta = -HEAT_STEP;
+  }
+  const heat = clampHeat(Math.max(HEAT_MIN, Math.min(HEAT_MAX, before + delta)));
+  if (heat === before) return { mood, moved: false, kind, reason: 'no effect' };
+
+  const losingRun = heat <= HEAT_BANDS[1].upTo ? 0 : (Number(mood.losingRun) || 0);
+  return {
+    mood: {
+      ...mood,
+      heat,
+      losingRun,
+      state: stateForHeat(heat, { losingRun }),
+      cause: kind === 'needle' ? 'owner had a go at me' : 'owner asked about a hand',
+      updatedAt: Date.now(),
+      uneventfulHands: 0,
+      pepTalkAtHand: hands,
+    },
+    moved: true,
+    kind,
+    reason: 'ok',
+  };
+}
+
 function makeCause(event, context) {
   const tmpl = CAUSE_TEMPLATES[event];
   return tmpl ? tmpl(context) : event;
