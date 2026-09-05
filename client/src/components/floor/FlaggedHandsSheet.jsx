@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { getUserId } from '../../lib/telegram.js';
+import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 
 // ── Design tokens (verbatim from mood-screens-f) ──────────────────────────────
 const M_TEAL   = '#00D4AA';
@@ -366,6 +366,44 @@ function HoleCardsRow({ holeCards }) {
   );
 }
 
+// BUG-18 — what beat you. The server records every seat that turned its hand
+// over at showdown (buildFlaggedEntry in src/server/flaggedHands.js) and the
+// API returns it unscoped, because cards shown at showdown are public. Without
+// this row a BAD BEAT review shows the equity collapsing with no sight of the
+// hand that caused it, which is the one thing the review exists to explain.
+// Empty on a pot won without a showdown — nobody had to show, so nothing to say.
+function OpponentShowdownRow({ opponents }) {
+  if (!Array.isArray(opponents) || opponents.length === 0) return null;
+  return (
+    <>
+      {opponents.map(({ seat, holeCards }, i) => {
+        if (!Array.isArray(holeCards) || holeCards.length === 0) return null;
+        return (
+          <div key={`${seat}-${i}`} style={{
+            display: 'flex', alignItems: 'center', gap: 11,
+            padding: `10px ${PAD}px`, borderBottom: `1px solid ${M_BORDER}`,
+            background: 'rgba(255,255,255,0.015)',
+          }}>
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              {holeCards.map((c, k) => {
+                if (typeof c === 'string' && c.length >= 2) {
+                  return <PlayingCard key={k} rank={c[0]} suit={c[1].toLowerCase()} w={30} h={41} />;
+                }
+                return <CardBack key={k} w={30} h={41} />;
+              })}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: M_TEXT, fontWeight: 500 }}>
+                {seat == null ? 'Opponent showed' : `Seat ${seat + 1} showed`}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function HandReview({ hand, agentName, agentMood, onBack }) {
   const streets = hand.streets ?? [];
   const { byStreet: attrByStreet, loose: looseAttrs } = splitAttrCosts(hand);
@@ -384,6 +422,7 @@ function HandReview({ hand, agentName, agentMood, onBack }) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <HoleCardsRow holeCards={hand.holeCards} />
+        <OpponentShowdownRow opponents={hand.opponentShowdownCards} />
 
         {/* Attribute cost lines the server did not pin to a street. */}
         {looseAttrs.length > 0 && (
@@ -513,7 +552,12 @@ export function FlaggedHandsSheet({ agent, onBack }) {
   useEffect(() => {
     if (!agent?.id) return;
     const url = `/api/agents/${encodeURIComponent(agent.id)}/flagged?userId=${encodeURIComponent(getUserId())}`;
-    fetch(url)
+    // BUG-19 — holeCards on this endpoint are owner-gated by isOwner(), which
+    // needs the credential header. Without it the server cannot tell it is the
+    // owner asking and returns holeCards: [], so the review showed card backs
+    // where the agent's own hand should be. Invisible on localhost, where no
+    // TELEGRAM_BOT_TOKEN is set and isOwner() defaults to true.
+    fetch(url, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then((data) => setHands(Array.isArray(data.flaggedHands) ? data.flaggedHands : []))
       .catch(() => setHands([]));
