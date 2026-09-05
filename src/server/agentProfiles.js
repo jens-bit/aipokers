@@ -808,6 +808,41 @@ export function getMemoryContext(agentId, userId) {
   return getAgentMemoryContext(agent);
 }
 
+// ── RAISE-2 · the thread's first line ───────────────────────────────────────
+//
+// MOOD-2c wrote the in-voice opener but only stored it on one of the two
+// session-end paths, and only inside the branch that had a recap string. Every
+// other way a thread gets opened — an agent still at a table, an agent who has
+// never finished a session, an owner-initiated POST /finish — served
+// `opener: null`, and the client filled the hole with
+//   "Hey — I just finished 20 hands. Won 12, lost 8. Want to review any hands
+//    or adjust my strategy?"
+// which is the form letter MOOD-2c existed to delete. It read the same whether
+// he had run over the table or been coolered three times.
+//
+// So the opener is computed here, on every projection, and is NEVER null. The
+// stored one wins when a session actually ended; otherwise it is derived from
+// the same mood and the same flagged hands, and for an agent with no session at
+// all it is his nature's greeting. There is no model call anywhere in this path
+// — it is templates the whole way down, which is why it cannot fail into a
+// tally.
+export function openerForAgent(agent) {
+  if (!agent) return null;
+  const stored = agent.sessionRecap?.opener;
+  if (typeof stored === 'string' && stored.trim()) return stored.trim();
+  const handsPlayed = Number(agent.stats?.handsPlayed) || 0;
+  const played = handsPlayed > 0
+    || (Array.isArray(agent.recentHands) && agent.recentHands.length > 0)
+    || (Array.isArray(agent.sessionLog) && agent.sessionLog.length > 0);
+  return formatOpener({
+    mood: agent.mood,
+    flagged: Array.isArray(agent.sessionFlagged) ? agent.sessionFlagged : [],
+    seed: handsPlayed,
+    nature: agent.nature,
+    played,
+  });
+}
+
 // Programmatic version of the /finish endpoint — used by table.js when a
 // table closes (natural end, sit-out, disconnect). Marks the agent idle,
 // sets unseenRecap, and builds a self-change proposal from leaks. No HTTP
@@ -829,8 +864,18 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // which meant a session ending without a recap string never derived a
   // relationship at all. Deriving is session bookkeeping; the recap is text.
   refreshBioRoles(agent);
+  ensureMood(agent);
+  // RAISE-2: the opener is written on EVERY session end, not only the ones the
+  // table happened to leave a recap string on. It was nested inside the branch
+  // below, so a session that ended without one served no opener at all and the
+  // client fell back to a win/loss tally.
+  const opener = formatOpener({
+    mood: agent.mood,
+    flagged: agent.sessionFlagged ?? [],
+    seed: sessionHands || 0,
+    nature: agent.nature,
+  });
   if (typeof recap === 'string' && recap.trim()) {
-    ensureMood(agent);
     const flagCount = agent.sessionFlagged?.length ?? 0;
     const flagSuffix = flagCount > 0
       ? ` · ${flagCount} hand${flagCount === 1 ? '' : 's'} flagged`
@@ -840,16 +885,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     // whole point is that it is a memory.
     const mention = recapMention(agent.bio, seatedPlayerIds);
     const text = (recap.trim() + flagSuffix + (mention ? ` · ${mention}` : '')).slice(0, 240);
-    // MOOD-2c: the first line of the thread, in his voice, chosen by how hot he
-    // is and by the hand he cannot stop thinking about. The counts that used to
-    // be the opener are on the profile, where numbers belong.
-    const opener = formatOpener({
-      mood: agent.mood,
-      flagged: agent.sessionFlagged ?? [],
-      seed: sessionHands || 0,
-    });
     agent.sessionRecap = { text, opener, at: Date.now() };
     agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  } else {
+    // No recap line to show, but the thread still has to open in his voice.
+    agent.sessionRecap = { ...(agent.sessionRecap ?? {}), text: agent.sessionRecap?.text ?? null, opener, at: Date.now() };
   }
   // Append to session log (cap 10)
   ensureStats(agent);
@@ -1228,9 +1268,10 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     // and his opinion of it. Derived, never stored as a badge — and never
     // anywhere near an attribute.
     bio: agent.bio ?? { nemesis: null, rival: null, victim: null },
-    // MOOD-2c: the thread's first line. Present whenever a session has ended;
-    // the client should open with this instead of building its own greeting.
-    opener: agent.sessionRecap?.opener ?? null,
+    // MOOD-2c / RAISE-2: the thread's first line, in his voice. ALWAYS present
+    // — the client has no business composing a greeting, and the one it used to
+    // compose when this was null was a win/loss tally.
+    opener: openerForAgent(agent),
     unseenRecap: !!agent.unseenRecap,
     proposal: agent.proposal ?? null,
     presence,
@@ -2127,6 +2168,22 @@ export function installAgentProfileRoutes(app) {
     // paths is a wart that predates this tree; missing one of them would have
     // meant a client-driven finish never formed a relationship.
     refreshBioRoles(agent);
+    // RAISE-2: and the same wart cost the opener. An owner who stops watching
+    // finishes the session through here, so this path has to write the line he
+    // opens the thread with too — otherwise the very next thing the owner does
+    // is open that thread and read a win/loss tally.
+    ensureMood(agent);
+    agent.sessionRecap = {
+      ...(agent.sessionRecap ?? {}),
+      text: agent.sessionRecap?.text ?? null,
+      opener: formatOpener({
+        mood: agent.mood,
+        flagged: agent.sessionFlagged ?? [],
+        seed: agent.stats?.handsPlayed ?? 0,
+        nature: agent.nature,
+      }),
+      at: Date.now(),
+    };
     // Session ended — build a self-change proposal from the leaks the
     // grounded-memory computed stats detected. One proposal max; already
     // pending proposals are preserved so the owner can still act on them.

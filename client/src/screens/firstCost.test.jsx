@@ -16,6 +16,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ChatsScreen } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
+// RAISE-2: the opening bubble is the agent's own line — served by the server,
+// or his birth words, or this last-ditch sentence. It is only an anchor here:
+// these cases are about layout and lifecycle, not about what he says.
+const OPENER = /Sit down\. What do you want to know\?/;
+
 const AGENT = {
   id: 'a1', name: 'Hothead v1.0', status: 'resting',
   mood: { state: 'frustrated', cause: 'closed −$180 · first session' },
@@ -133,7 +138,7 @@ describe('F-3: the first cost line explains itself', () => {
 
   it('draws no cost line at all when nothing has cost him anything', async () => {
     renderThread({ flaggedHands: [], count: 0 });
-    await screen.findByText(/Ready to play|just finished/i);
+    await screen.findByText(OPENER);
 
     expect(screen.queryByText(/TAP THE LABEL/)).toBeNull();
     expect(screen.queryByText(/It grows from/)).toBeNull();

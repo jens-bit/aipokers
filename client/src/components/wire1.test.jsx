@@ -35,21 +35,34 @@ const AGENT = {
 
 describe('WIRE-1/1 the opener is his, not the client\'s', () => {
   it('WIRE-1: openerFor prefers the served line', () => {
-    expect(openerFor(AGENT, HANDS)).toBe(SERVED_OPENER);
+    expect(openerFor(AGENT)).toBe(SERVED_OPENER);
   });
 
-  it('WIRE-1: falls back to the tally only for a record written before MOOD-2c', () => {
-    const legacy = { ...AGENT, opener: null };
-    expect(openerFor(legacy, HANDS)).toMatch(/^Hey — I just finished 3 hands\. Won 2, lost 1\./);
+  // RAISE-2 deleted the rule these three used to encode. The win/loss tally was
+  // written as "the fallback for a record written before MOOD-2c" and turned
+  // out to be the line playtest saw every session: the server only wrote
+  // `opener` on one of its two session-end paths, and only when that path
+  // carried a recap string. The tally is now never correct, so the assertions
+  // are inverted rather than relaxed — the sentence must not come back.
+  const TALLY = /I just finished .* hands?\. Won \d+, lost \d+/;
+
+  it('RAISE-2: never composes a win/loss tally, whatever the server sent', () => {
+    expect(openerFor({ ...AGENT, opener: null })).not.toMatch(TALLY);
+    expect(openerFor({ ...AGENT, opener: '   ' })).not.toMatch(TALLY);
+    expect(openerFor({ id: 'x' })).not.toMatch(TALLY);
+    expect(openerFor(undefined)).not.toMatch(TALLY);
   });
 
-  it('WIRE-1: and to "ready to play" when he has not played at all', () => {
-    expect(openerFor({ id: 'x' }, [])).toMatch(/^Ready to play/);
-    expect(openerFor(undefined, [])).toMatch(/^Ready to play/);
+  it('RAISE-2: without a served opener it uses his own birth line', () => {
+    const born = { ...AGENT, opener: null, firstWords: 'Bluffs, you said. Sit back. Watch this.' };
+    expect(openerFor(born)).toBe('Bluffs, you said. Sit back. Watch this.');
+    // A blank served opener is not an opener.
+    expect(openerFor({ ...born, opener: '   ' })).toBe('Bluffs, you said. Sit back. Watch this.');
   });
 
-  it('WIRE-1: a blank served opener is not an opener', () => {
-    expect(openerFor({ opener: '   ' }, HANDS)).toMatch(/^Hey — I just finished/);
+  it('RAISE-2: and a last-ditch sentence he would actually say when there is nothing else', () => {
+    expect(openerFor({ id: 'x' })).toBe('Sit down. What do you want to know?');
+    expect(openerFor(undefined)).toBe('Sit down. What do you want to know?');
   });
 
   it('WIRE-1: the mobile thread opens with his line', async () => {

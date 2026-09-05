@@ -18,7 +18,10 @@ import {
   addFlaggedHand,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
-import { PACE, paceFor, advancePace, potInBb, holdPlan, seedFor } from './pace.js';
+import {
+  PACE, paceFor, advancePace, potInBb, holdPlan, seedFor,
+  raiseFloor, raisesCapped, raiseCapPerStreet,
+} from './pace.js';
 import { classifyCooler } from './cooler.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
@@ -1238,6 +1241,70 @@ export class Table {
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
   }
 
+  // ── RAISE-1 · raise discipline ─────────────────────────────────────────
+  //
+  // Playtest: agents re-raising the minimum — +10 into a 400-chip pot — over
+  // and over on one street until the stacks were in. Slow, and not poker.
+  // Prompt wording never fixed it: a model offered "raise 10–1000" keeps
+  // taking the 10. So the table stops offering it, and enforces the same rule
+  // on whatever comes back.
+  //
+  // Two rules, both dialled from pace.js next to PACE_HEAT_BB:
+  //
+  //   (a) A raise is at least max(min legal raise, currentBet + ⅓ pot), never
+  //       above the jam. An agent who cannot afford the floor may still shove:
+  //       an all-in is the one raise that is always big enough.
+  //   (b) At RAISE_CAP_PER_STREET aggressive actions the street is CAPPED, and
+  //       the only raise left is the jam — the offer collapses to call, fold
+  //       or all-in, which is how a capped street works in a real cardroom and
+  //       is what guarantees the betting round terminates.
+  //
+  // The offer this returns is what _buildAiGameState puts in the briefing AND
+  // what _disciplineAction enforces on the way back in. Deriving it in one
+  // place is the point: a floor that only lived in the prompt would be a
+  // suggestion, and a floor that only lived in the enforcement would keep
+  // showing the agent a size the table intends to overwrite.
+  //
+  // Everything returned here sits INSIDE the engine's own bet/raise entry:
+  // discipline narrows what is legal, it never widens it.
+  _raiseOffer(seat, type) {
+    const g = this.game;
+    if (!g) return null;
+    const offer = g.legalActions(seat).find((a) => a.type === type);
+    if (!offer) return null;
+
+    const capped = raisesCapped(this._getRaiseCountThisStreet());
+    const min = capped
+      ? offer.max
+      : raiseFloor({
+          minLegal: offer.min,
+          maxLegal: offer.max,
+          pot: g.pot,
+          currentBet: g.currentBet,
+        });
+    return { type, min, max: offer.max, capped, engineMin: offer.min };
+  }
+
+  // The final gate. Runs on every AI bet/raise before it reaches the engine,
+  // including the ones built from a briefing that predates the current count.
+  // Returns the action to actually play.
+  _disciplineAction(seat, action) {
+    if (!action || (action.type !== 'bet' && action.type !== 'raise')) return action;
+    const offer = this._raiseOffer(seat, action.type);
+    if (!offer) return action;   // engine will reject it; the fallback path handles that
+
+    const asked = Number.isFinite(action.amount) ? Math.round(action.amount) : offer.engineMin;
+    const amount = Math.min(offer.max, Math.max(offer.min, asked));
+    if (amount === asked) return action;
+
+    if (offer.capped) {
+      console.log(`[agent] street capped at ${raiseCapPerStreet()} raises — ${action.type} ${asked} → all-in ${amount}`);
+    } else {
+      console.log(`[agent] undersized raise → ${amount}`);
+    }
+    return { ...action, amount };
+  }
+
   // ── Per-street raise counter + per-hand action log ──────────────────────
   _streetKey() {
     return this.game ? `${this.game.handNumber}:${this.game.street}` : null;
@@ -2339,8 +2406,11 @@ export class Table {
     const legal = g.legalActions(aiSeat);
 
     const callAction   = legal.find((a) => a.type === 'call')  ?? null;
-    const betAction    = legal.find((a) => a.type === 'bet')   ?? null;
-    const raiseAction  = legal.find((a) => a.type === 'raise') ?? null;
+    // RAISE-1: the DISCIPLINED offer, not the engine's raw one — see
+    // _raiseOffer. The briefing must show the sizes the table will actually
+    // accept, or the agent spends every turn asking for one the table rewrites.
+    const betAction    = this._raiseOffer(aiSeat, 'bet');
+    const raiseAction  = this._raiseOffer(aiSeat, 'raise');
 
     let position;
     if (N === 2) {
@@ -2461,6 +2531,11 @@ export class Table {
       spr,
       policy,
       raisesThisStreet,
+      // RAISE-1: the street is capped — the only raise still on offer is the
+      // jam, and the briefing says so in words rather than leaving the model to
+      // notice that min and max are the same number.
+      raiseCapped: !!(betAction?.capped || raiseAction?.capped),
+      raiseCap: raiseCapPerStreet(),
       opponentReads,
       mood,
       attrs,                                          // ATTR-1: FOCUS/READS read these
@@ -2516,10 +2591,15 @@ export class Table {
 
     console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
     const memoryContext = this.agentMemory[aiSeat] ?? '';
-    const { action, reasoning } = await getAgentAction(gameState, strategy, memoryContext);
+    let { action, reasoning } = await getAgentAction(gameState, strategy, memoryContext);
 
     // One final guard before mutating game state.
     if (!this.game || this.game.toAct !== aiSeat) return;
+
+    // RAISE-1: the last gate. The briefing already offered disciplined sizes,
+    // but the count can have moved while the model was thinking, and a fallback
+    // action never went through the briefing at all.
+    action = this._disciplineAction(aiSeat, action);
 
     // Record the decision (with reasoning) before applying it so that even if
     // the engine rejects the action and we fall back, we still capture the

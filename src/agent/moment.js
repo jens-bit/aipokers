@@ -118,6 +118,33 @@ const FLAG_CLAUSE = Object.freeze({
   biggestPot: (code) => `The ${code} pot was the night.`,
 });
 
+// RAISE-2: the opener for a thread that has nothing to recap yet — a fresh
+// agent, or one whose session ended without a stored recap. It is still HIS
+// sentence, chosen by the nature he was born with, because the alternative was
+// the form letter this whole file exists to delete:
+//   "Hey — I just finished 20 hands. Won 12, lost 8. Want to review any hands
+//    or adjust my strategy?"
+// A scoreboard is not a hello. Never a model call — a template per nature, the
+// same way firstWords works.
+const NATURE_OPENERS = Object.freeze({
+  Grinder:   'Ready when you are. I will still be here at hand four hundred.',
+  Hothead:   'Deal me in. I am not here to wait around.',
+  Professor: 'Give me the spot and the numbers. I will tell you the answer.',
+  Rock:      'I am ready. I will play what you gave me.',
+  Gambler:   'Sit down. Something will happen.',
+  Shark:     'Put me at a table. I want to watch someone.',
+  Sphinx:    'Whenever you are ready. It is only cards.',
+  Showman:   'Finally. Give me a table and an audience.',
+});
+
+// The one sentence he opens with when there is no session to talk about.
+// Never null: an agent born before natures existed still gets a line rather
+// than falling through to a tally.
+export function natureOpener(nature) {
+  const name = typeof nature === 'string' ? nature : nature?.name;
+  return NATURE_OPENERS[name] ?? 'Ready when you are.';
+}
+
 function words(text) {
   return String(text).trim().split(/\s+/).filter(Boolean);
 }
@@ -138,9 +165,15 @@ function pick(list, seed) {
  *                 he mentions
  * @param seed     anything stable about the session (hand count works) so the
  *                 line does not change on every read
- * @returns string, at most OPENER_MAX_WORDS words
+ * @param nature   agent.nature — used only when there is no session yet
+ * @param played   false when he has never finished a hand; he greets the owner
+ *                 in his nature's voice instead of recapping a night that did
+ *                 not happen
+ * @returns string, at most OPENER_MAX_WORDS words. NEVER null and never a
+ *          win/loss tally — this function is the only source of the line.
  */
-export function formatOpener({ mood = null, flagged = [], seed = 0 } = {}) {
+export function formatOpener({ mood = null, flagged = [], seed = 0, nature = null, played = true } = {}) {
+  if (!played) return natureOpener(nature);
   const state = mood?.state ?? 'neutral';
   const heat = Number.isFinite(mood?.heat) ? mood.heat : heatForState(state);
   const band = OPENER_LINES[state] ? state : 'neutral';

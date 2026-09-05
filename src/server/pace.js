@@ -46,6 +46,65 @@ export function heatThresholdBb() {
   return Number.isFinite(raw) && raw > 0 ? raw : 25;
 }
 
+// ── RAISE-1 · raise discipline ───────────────────────────────────────────────
+//
+// The two dials that stop the min-raise loop, kept next to PACE_HEAT_BB because
+// they are the same kind of question: how big does a pot have to be before it
+// means something. Playtest found agents re-raising the minimum — +10 into a
+// 400-chip pot — over and over on one street until the stacks were in. It takes
+// forever, it is not poker, and no amount of prompt wording fixed it: a model
+// that is offered "raise 10-1000" will keep taking the 10.
+//
+// So the table stops offering it. Both are enforced server-side in table.js,
+// not asked for in the briefing.
+
+// A raise must move the pot. Below this fraction of the pot the raise is not a
+// raise, it is a delay — rounded up rather than rejected, because the agent's
+// INTENT was to raise and honouring it at a real size is closer to what he
+// asked for than turning it into a call. One third is the smallest size that
+// still charges a draw something; anything under it is free.
+export function minRaisePotFraction() {
+  const raw = Number(process.env.RAISE_MIN_POT_FRACTION ?? 1 / 3);
+  return Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : 1 / 3;
+}
+
+// The standard cap: an opening bet plus three raises. Past it the street is
+// capped and only call, fold and all-in are offered — which is exactly how a
+// capped street works in a real cardroom, and it is what guarantees the
+// betting round terminates.
+export function raiseCapPerStreet() {
+  const raw = Number(process.env.RAISE_CAP_PER_STREET ?? 4);
+  return Number.isInteger(raw) && raw > 0 ? raw : 4;
+}
+
+/**
+ * The smallest raise the table will accept, as a TOTAL for this street — the
+ * same unit the engine's legalActions uses for `min`/`max`.
+ *
+ * max(min legal raise, currentBet + fraction of the pot), never above the
+ * jam: an agent who cannot afford the floor is allowed to shove, which is the
+ * one raise that is always big enough.
+ *
+ * @param minLegal  engine's raise.min (total this street)
+ * @param maxLegal  engine's raise.max (total this street) — the jam
+ * @param pot       the live pot, this street's chips included
+ * @param currentBet the amount already bet to, this street
+ */
+export function raiseFloor({ minLegal = 0, maxLegal = 0, pot = 0, currentBet = 0 } = {}) {
+  const min = Number(minLegal) || 0;
+  const max = Number(maxLegal) || 0;
+  const potChips = Math.max(0, Number(pot) || 0);
+  const bet = Math.max(0, Number(currentBet) || 0);
+  const potFloor = bet + Math.ceil(potChips * minRaisePotFraction());
+  return Math.min(max, Math.max(min, potFloor));
+}
+
+/** Is this street capped — no more raises but the jam? */
+export function raisesCapped(raisesThisStreet) {
+  const n = Number(raisesThisStreet);
+  return Number.isFinite(n) && n >= raiseCapPerStreet();
+}
+
 // Hold timings. The ref: "3–5s hold" on the all-in, "≈ 2s reveal + 1s hold".
 export const ALLIN_HOLD_MIN_MS = 3000;
 export const ALLIN_HOLD_MAX_MS = 5000;
