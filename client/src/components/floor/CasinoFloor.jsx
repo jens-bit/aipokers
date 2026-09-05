@@ -9,6 +9,7 @@ import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
 import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
+import { NotYet } from '../ftu/NotYet.jsx';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
@@ -505,13 +506,32 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
             />
           )}
 
+          {/* FTU-1: the room is open and lit; what is missing is one body. The
+              stool is the room saying so — dashed, which is this product's word
+              for reserved rather than broken — and it is decoration now, not
+              the control. The one primary action is docked at the bottom where
+              every other screen on this path keeps it. */}
           {ftu && (
-            <FtuStool
-              onClick={onCreateAgent}
-              x={LAYOUTS.quiet.bar.x1 + 100}
-              y={LAYOUTS.quiet.bar.y - 102}
-              room={room}
-            />
+            <>
+              <FtuStool
+                x={LAYOUTS.quiet.bar.x1 + 100}
+                y={LAYOUTS.quiet.bar.y - 102}
+                room={room}
+              />
+              {!desktopMode && (
+                <div className="floor-ftu__dock">
+                  <NotYet
+                    tone="teal"
+                    fact="NO AGENTS"
+                    voice="Every felt in here is somebody's employee. You do not have one yet."
+                    fills="Hire one and he takes the stool."
+                  />
+                  <button type="button" className="ftu-primary" onClick={onCreateAgent}>
+                    Draft your first agent
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -579,21 +599,10 @@ function spreadAlongBar(agents, bar) {
   return shown.map((agent, i) => ({ agent, x: bar.x1 + step * (i + 1) }));
 }
 
-function FtuStool({ x, y, onClick, room }) {
+function FtuStool({ x, y, room }) {
   return (
-    <button
-      type="button"
-      className="floor-ftu"
-      style={roomStyle(room, x, y)}
-      onClick={onClick}
-    >
-      <span className="floor-ftu__chip">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_TEAL}
-          strokeWidth="3" strokeLinecap="round" aria-hidden>
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Draft your first agent
-      </span>
+    <div className="floor-ftu" style={roomStyle(room, x, y)} aria-hidden>
+      <span className="floor-ftu__chip">ONE OPEN SEAT</span>
       <svg width="58" height="70" viewBox="0 0 80 96" style={{ display: 'block' }} aria-hidden>
         <defs>
           <radialGradient id="ftuFloorGlow" cx="50%" cy="50%" r="55%">
@@ -608,6 +617,6 @@ function FtuStool({ x, y, onClick, room }) {
           stroke={`${M_TEAL}44`} strokeWidth="1" strokeDasharray="2,3" />
       </svg>
       <span className="floor-ftu__shadow" />
-    </button>
+    </div>
   );
 }
