@@ -72,7 +72,6 @@ export default function App() {
   const lastResultKeyRef = useRef(null);
   const isDesktop = useIsDesktop();
   const [desktopWatchAgent, setDesktopWatchAgent] = useState(null);
-  const [desktopFocusTable, setDesktopFocusTable] = useState(false);
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -177,7 +176,6 @@ export default function App() {
     if (!isSpectatorRef.current) {
       callAgentFinish(activeAgentIdRef.current); // use ref — never stale
     }
-    setDesktopFocusTable(false);
     setDesktopWatchAgent(null);
     disconnect();
   }, [disconnect, callAgentFinish]);
@@ -201,7 +199,7 @@ export default function App() {
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
-  if (isDesktop && !desktopFocusTable) {
+  if (isDesktop) {
     // BIR-2: one creation path. The desktop rail's DraftPanel opens this same
     // BirthScreen — there is no second form.
     if (isCreating) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getTelegramDisplayName } from '../../lib/telegram.js';
+import { getTelegramDisplayName, getWebLogin, clearWebLogin } from '../../lib/telegram.js';
 import { LogoMark } from './primitives.jsx';
 
 function initialsOf(name) {
@@ -21,6 +21,14 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup 
   }, []);
 
   const name = getTelegramDisplayName() || 'Player';
+  // AUTH-1: web-only. Inside the Mini App Telegram owns the session, so there
+  // is nothing here to log out of and the row never renders.
+  const webLogin = getWebLogin();
+
+  function logout() {
+    clearWebLogin();
+    window.location.reload();
+  }
 
   return (
     <div className="dsk-top">
@@ -65,6 +73,15 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup 
         <div className="dsk-top__initials">{initialsOf(name)}</div>
         <span className="dsk-top__name">{name}</span>
       </div>
+      {webLogin && (
+        <button
+          type="button"
+          className="dsk-btn dsk-btn--ghost dsk-top__logout"
+          onClick={logout}
+        >
+          Log out
+        </button>
+      )}
     </div>
   );
 }
