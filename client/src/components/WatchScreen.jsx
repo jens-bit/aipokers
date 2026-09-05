@@ -457,7 +457,7 @@ function compactFor(slot, opponentCount) {
 
 // ---- WatchFelt -------------------------------------------------------------
 
-function WatchFelt({ game, mySeat, lastDecision, geom }) {
+function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
   // WV2-5: three phases, not two. `settled` is a finished hand still on
   // screen -- board, reveals and the pot going to its winner -- and it holds
   // until the next deal clears it.
@@ -487,10 +487,13 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  // Equity is a live read on a hand in progress. At showdown the cards are on
-  // the table, so the ref's readout shows an em dash there -- as it does
-  // between hands.
-  var equityText  = live ? formatEquity(lastDecision && lastDecision.equity) : null;
+  // FIX-1g: the readout showed an em dash for the whole of the hero's turn,
+  // which is the one moment the owner is actually watching it. The server knows
+  // his equity before he acts -- it computes it for the briefing -- and the last
+  // number it sent for THIS hand is the honest answer until a newer one lands.
+  // `handEquity` is that value, remembered by the parent and cleared on the
+  // next deal, so a dash now means only one thing: nothing has been dealt yet.
+  var equityText  = between ? null : formatEquity(handEquity);
   var hasEquity   = equityText !== null;
   // At showdown the readout stops reporting the hero's last action and says
   // how the hand ended -- the ref's `note` slot.
@@ -941,6 +944,20 @@ export function WatchScreen({
   var handNumberRef  = useRef(null);
   var streetRef      = useRef('');
 
+  // FIX-1g: the hero's last known equity for the hand in progress. Decisions
+  // arrive one at a time and the readout has to say something in between, so
+  // the newest number is held until the next deal replaces it. Derived from
+  // props on every render and idempotent, so it is safe to keep in a ref.
+  var handEquityRef = useRef({ hand: null, equity: null });
+  var currentHand   = game ? game.handNumber : null;
+  if (handEquityRef.current.hand !== currentHand) {
+    handEquityRef.current = { hand: currentHand, equity: null };
+  }
+  if (lastDecision && equityPct(lastDecision.equity) !== null) {
+    handEquityRef.current.equity = lastDecision.equity;
+  }
+  var handEquity = handEquityRef.current.equity;
+
   // Track current street so we can stamp each decision band with it.
   // Runs every render — always up-to-date before the decision effect fires.
   useEffect(function() {
@@ -1067,7 +1084,8 @@ export function WatchScreen({
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
 
-        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision} geom={sheet.geom} />
+        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
+          handEquity={handEquity} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
