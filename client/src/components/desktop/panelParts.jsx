@@ -4,6 +4,7 @@
 import { useEffect, useRef } from 'react';
 import { FloorGhost, StateTag, MOODS, safeMood } from '../floor/atoms.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
+import { GrewBadge, NatureFormingChip } from '../system/CharacterAtoms.jsx';
 import { NavIcon } from './primitives.jsx';
 
 // 46px fixed head with an optional close affordance.
@@ -137,7 +138,7 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
   );
 }
 
-export function PRosterRow({ name, accent, mood, state, line, pnl, active, onClick }) {
+export function PRosterRow({ name, accent, mood, state, line, pnl, grew, active, onClick }) {
   const m = safeMood(mood);
   const down = typeof pnl === 'string' && (pnl.startsWith('−') || pnl.startsWith('-'));
   return (
@@ -151,6 +152,7 @@ export function PRosterRow({ name, accent, mood, state, line, pnl, active, onCli
         <div className="dsk-roster-row__name-line">
           <span className="dsk-roster-row__name">{name}</span>
           <StateTag state={state} compact />
+          {grew > 0 && <GrewBadge gain={grew} />}
         </div>
         <div
           className="dsk-roster-row__line"
@@ -173,6 +175,7 @@ export function DraftPanel({ first, onDraft }) {
         <FloorGhost mood="neutral" accent="#00D4AA" size={62} speed={7} />
       </div>
       <div className="dsk-draft__title">{first ? 'Draft your first agent' : 'Draft another agent'}</div>
+      <div className="dsk-draft__forming"><NatureFormingChip /></div>
       <div className="dsk-draft__body">
         {first
           ? 'Describe how you want him to play. He takes a seat, plays his own hands, and reports back here.'

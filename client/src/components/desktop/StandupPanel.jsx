@@ -7,6 +7,7 @@ import { GameTile } from './GameTile.jsx';
 import { PStandupCard } from './PStandupCard.jsx';
 import { PanelHead, RailBody, PComposer, PRosterRow, DraftPanel } from './panelParts.jsx';
 import { PFlaggedCard } from './PFlaggedCard.jsx';
+import { gainsWithin, grewWithin } from '../../lib/attributes.js';
 
 const MAX_SEATS = 4;
 
@@ -110,6 +111,9 @@ export function StandupPanel({
                   state={stateOf(agent)}
                   line={lastMomentOf(agent)}
                   pnl={fmtNet(agent.careerStats?.net)}
+                  grew={grewWithin(agent.attrLog)
+                    ? gainsWithin(agent.attrLog).reduce((n, g) => n + g.gain, 0)
+                    : 0}
                   active={selectedId === agent.id || watchedId === agent.id}
                   onClick={() => onSelect(agent)}
                 />
