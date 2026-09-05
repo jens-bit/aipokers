@@ -160,10 +160,17 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
             <path d={`M43.2 ${cy - 2.6} Q${R} ${cy + 1.4} 49.8 ${cy - 2.6}`} stroke={eye} strokeWidth="2.2" fill="none" strokeLinecap="round"/>
           </>
         )}
-        {d > 0 && (
+        {/* CONFIDENT BROWS ARE LEVEL. The first version raised them at the inner
+            corner — the worried brow. The fix over-rotated and dropped them at the
+            inner corner instead, which is the ANGRY brow: a shallow V over wide
+            eyes reads as scowling, not assured. Assurance is the ABSENCE of brow
+            drama, so the calm tier has none at all, the middle tier a faint level
+            line, and only the top tier adds a single asymmetric outer lift — which
+            is the whole of what makes a face smug rather than cross. */}
+        {d > 0 && narrow > 0 && (
           <>
-            <path d={`M29.8 ${cy - 8.4} L37.2 ${cy - 6.4 - narrow * 0.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity={0.6 + narrow * 0.35}/>
-            <path d={`M50.2 ${cy - 8.4 - (d > 2 && narrow === 1 ? 1.6 : 0)} L42.8 ${cy - 6.4 - narrow * 0.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity={0.6 + narrow * 0.35}/>
+            <path d={`M30.2 ${cy - 7.6} L37 ${cy - 7.6}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity={0.4 + narrow * 0.3}/>
+            <path d={`M49.8 ${cy - 7.6 - (narrow === 1 ? 1.8 : 0)} L43 ${cy - 7.6}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity={0.4 + narrow * 0.3}/>
           </>
         )}
       </g>

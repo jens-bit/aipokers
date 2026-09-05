@@ -88,10 +88,15 @@ const WideShot = ({ scale, children, w = 1440, h = 900 }) => (
 // ── the hero art: one ghost, one felt, one light ──
 const HeroScene = ({ w = 560, h = 400 }) => (
   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0 }}>
+    {/* THE SHEEN HAS TO FINISH INSIDE ITS OWN BOX. It was an ellipse centred at 26%
+        of the box height with a 60% vertical radius, so the box's top edge sat at
+        just 43% of that radius — still carrying ~5% gold — and the box cut the
+        gradient off as a hard horizontal line against the maroon. Every edge is now
+        past the transparent stop: top 42/40 = 105%, bottom 145%, sides 104%. */}
     <div style={{
-      position: 'absolute', left: '50%', top: -h * 0.1, width: w * 0.86, height: h * 0.96,
+      position: 'absolute', left: '50%', top: -h * 0.18, width: w * 1.04, height: h * 1.16,
       transform: 'translateX(-50%)', pointerEvents: 'none',
-      background: `radial-gradient(ellipse 50% 60% at 50% 26%, rgba(232,213,168,0.16), rgba(232,213,168,0.05) 42%, transparent 72%)`,
+      background: `radial-gradient(ellipse 48% 40% at 50% 42%, rgba(232,213,168,0.16), rgba(232,213,168,0.05) 40%, transparent 68%)`,
     }}/>
     <div style={{
       position: 'absolute', left: '50%', bottom: h * 0.05, transform: 'translateX(-50%)',
@@ -103,8 +108,8 @@ const HeroScene = ({ w = 560, h = 400 }) => (
       <div style={{ position: 'absolute', inset: 16, borderRadius: '50%', border: `1px solid rgba(205,179,128,0.10)` }}/>
     </div>
     <div style={{ position: 'absolute', left: '50%', bottom: h * 0.30, transform: 'translateX(-50%)', display: 'flex', zIndex: 3 }}>
-      <div style={{ transform: 'rotate(-9deg) translateX(7px)' }}><PlayingCard rank="A" suit="s" w={Math.round(w * 0.093)} h={Math.round(w * 0.129)}/></div>
-      <div style={{ transform: 'rotate(9deg) translateX(-7px)' }}><PlayingCard rank="K" suit="h" w={Math.round(w * 0.093)} h={Math.round(w * 0.129)}/></div>
+      <div style={{ transform: 'rotate(-11deg) translateX(2px)', transformOrigin: 'bottom center' }}><PlayingCard rank="A" suit="s" w={Math.round(w * 0.093)} h={Math.round(w * 0.129)}/></div>
+      <div style={{ transform: 'rotate(11deg) translateX(-2px)', transformOrigin: 'bottom center' }}><PlayingCard rank="K" suit="h" w={Math.round(w * 0.093)} h={Math.round(w * 0.129)}/></div>
     </div>
     <div style={{ position: 'absolute', left: '50%', bottom: h * 0.36, transform: 'translateX(-50%)', zIndex: 2 }}>
       <MoodGhost mood="confident" accent={L_GOLD} tone={L_GOLD} size={Math.round(w * 0.235)} ring={false}/>
