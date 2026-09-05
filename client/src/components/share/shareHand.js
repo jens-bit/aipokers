@@ -8,13 +8,15 @@
 //     in someone else's chat wins.
 //  2. WebApp.shareMessage — Telegram's own share, and the only one that can
 //     put a bot-authored message in front of a chat picker. It shares a message
-//     the BOT prepared (savePreparedInlineMessage), not bytes from here, so it
-//     is only reachable once something hands us a prepared id. Nothing does
-//     yet; the hook is here so the day the bot endpoint lands this file is the
-//     only one that has to know.
+//     the BOT prepared (savePreparedInlineMessage), not bytes from here, so
+//     getting there is a round trip: SHARE-2 POSTs the PNG we just drew to
+//     /api/share/prepare, the server hosts it and asks the bot to remember a
+//     photo message pointing at it, and the prepared id comes back.
 //  3. WebApp.switchInlineQuery — the same handoff without a prepared message:
-//     Telegram opens the chat picker with a query addressed to the bot. Also
-//     needs the bot to answer inline queries, which is a server concern.
+//     Telegram opens the chat picker with a query addressed to the bot, which
+//     answers it with the card SHARE-2 already stored for that hand. This is
+//     what catches a prepare that failed — the picture is on the server either
+//     way, so route 3 still has something to show.
 //  4. The download. No chat picker, no bot: the PNG lands in the user's files
 //     and the caption on their clipboard, and they post it themselves — which
 //     is exactly what people were doing with screenshots before this existed,
@@ -23,13 +25,16 @@
 // Nothing here throws at the caller. A share that fails is a share that did
 // not happen, and the sheet stays open so they can try the other button.
 
+import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 import { shareCaption, shareFilename } from './shareModel.js';
 
 /** @returns {'web-share'|'telegram-prepared'|'telegram-inline'|'download'|'copied'|'none'} */
 export async function shareHand({
   model,
   png,
+  agentId = null,
   preparedMessageId = null,
+  prepare = prepareShare,
   webApp = typeof window !== 'undefined' ? window.Telegram?.WebApp : null,
   nav = typeof navigator !== 'undefined' ? navigator : null,
 } = {}) {
@@ -49,12 +54,17 @@ export async function shareHand({
     }
   }
 
-  // 2 — Telegram's own share, once a bot-prepared message exists.
-  if (preparedMessageId && typeof webApp?.shareMessage === 'function') {
-    try {
-      webApp.shareMessage(preparedMessageId);
-      return 'telegram-prepared';
-    } catch { /* fall through */ }
+  // 2 — Telegram's own share, through a message the bot has been asked to
+  // remember. The round trip only happens when there is a picker to hand it to;
+  // a browser with no shareMessage must not spend a prepare on the server.
+  if (typeof webApp?.shareMessage === 'function') {
+    const id = preparedMessageId ?? await prepare({ model, png, agentId });
+    if (id) {
+      try {
+        webApp.shareMessage(id);
+        return 'telegram-prepared';
+      } catch { /* fall through */ }
+    }
   }
 
   // 3 — the chat picker, with the hand named for the bot to render.
@@ -71,10 +81,80 @@ export async function shareHand({
   return saved ? 'download' : (copied ? 'copied' : 'none');
 }
 
+/** The hand this card is about, as the server knows it. '' when unstamped. */
+export function handIdOf(model) {
+  return model?.stamp ? model.stamp.replace(/[^0-9]/g, '') : '';
+}
+
 /** The query the bot would answer inline. Names the hand, not the card. */
 export function inlineQuery(model) {
-  const hand = model.stamp ? model.stamp.replace(/[^0-9]/g, '') : '';
+  const hand = handIdOf(model);
   return hand ? `hand ${hand}` : `hand ${model.name}`;
+}
+
+/**
+ * SHARE-2 — hand the PNG to the server and get back the id of the message the
+ * bot will send. Only the picture travels: the caption and the button are built
+ * server-side from the flagged hand, so nothing here can decide what the bot
+ * says.
+ *
+ * Returns null for every failure, and never throws. A share that could not be
+ * prepared is a share that falls through to the chat picker, which by then has
+ * a card of its own to find — not an error in front of someone who pressed a
+ * button once.
+ */
+export async function prepareShare({
+  model,
+  png,
+  agentId,
+  fetchImpl = typeof fetch === 'function' ? fetch : null,
+} = {}) {
+  const handId = handIdOf(model);
+  if (!agentId || !handId || !png || !fetchImpl) return null;
+
+  try {
+    const base64 = await toBase64(png);
+    if (!base64) return null;
+
+    const res = await fetchImpl(`/api/share/prepare?userId=${encodeURIComponent(getUserId())}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // The route is owner-gated — without the credential the server cannot
+        // tell it is his hand and answers 403.
+        'x-telegram-init-data': getTelegramInitData(),
+      },
+      body: JSON.stringify({ agentId, handId, png: base64 }),
+    });
+    if (!res?.ok) return null;
+    const data = await res.json();
+    return data?.preparedId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The Blob as a data: URL — which is base64, with a prefix the server strips.
+ *
+ * FileReader rather than blob.arrayBuffer() + btoa: arrayBuffer is missing from
+ * jsdom, so the test environment could not have exercised this path at all, and
+ * a route that only its own tests cannot reach is a route nobody checks. It
+ * also does the base64 itself, so there is no chunked String.fromCharCode loop
+ * here waiting to overflow the stack on a bigger card.
+ */
+function toBase64(blob) {
+  if (!blob || typeof FileReader !== 'function') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    try {
+      reader.readAsDataURL(blob);
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 function isAbort(err) {

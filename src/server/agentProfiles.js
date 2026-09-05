@@ -1593,6 +1593,19 @@ export function addFlaggedHand(agentId, userId, entry) {
   return agent;
 }
 
+// SHARE-2: one flagged hand of one agent, by hand number, with the name to put
+// on the card beside it. The share routes need both and have no business
+// reaching into a profile themselves. Hole cards come back untouched — the
+// caller is the owner-gated prepare route, and the card it builds is his.
+export function getFlaggedHand(agentId, userId, handNumber) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const hand = (agent.sessionFlagged ?? [])
+    .find((h) => String(h?.handNumber) === String(handNumber));
+  return hand ? { agentName: agent.name ?? 'Your agent', hand } : null;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export function installAgentProfileRoutes(app) {

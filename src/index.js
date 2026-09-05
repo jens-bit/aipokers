@@ -11,6 +11,7 @@ import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
 import { attachNotify } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
+import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -28,6 +29,11 @@ const bigBlind = Number(process.env.BIG_BLIND ?? 20);
 console.log(`[ai-poker] store: ${openStore()}`);
 
 const app = express();
+// SHARE-2: the share card arrives as a base64 PNG, which does not fit inside
+// express.json()'s 100kb default. Mounted first and path-scoped, so only this
+// one route gets the larger ceiling; body-parser marks the request parsed, so
+// the general parser below leaves it alone.
+app.use('/api/share/prepare', express.json({ limit: SHARE_BODY_LIMIT }));
 app.use(express.json());
 
 // General rate limit on all API routes. Configurable via env.
@@ -38,6 +44,10 @@ installAgentProfileRoutes(app);
 // EVENT-1: GET /api/events?since=<id> - the floor ticker's poll. Public
 // headlines only, no model call, already inside the /api rate limiter above.
 installEventRoutes(app);
+// SHARE-2: POST /api/share/prepare (auth + owner + 5/hour) and the public
+// GET /share/<id>.png the prepared message points at. Registered here, above
+// the SPA fallback, so the image is not answered with index.html.
+installShareRoutes(app);
 
 // Build the HTTP server and attach WebSocket before registering the remaining
 // routes so that the tables Map is in scope for /api/stats.
@@ -167,3 +177,8 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 // POST /api/agents/:id/notify, and the SPA fallback above only answers GET, so
 // a POST still reaches it. Everything else it does is out-of-band.
 attachNotify({ app });
+
+// SHARE-2: answer inline queries for the same cards. No-op without a bot
+// token, and SHARE_INLINE=0 turns it off on a deployment that would rather
+// drive the bot's updates some other way.
+startInlinePolling();
