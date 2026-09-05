@@ -375,6 +375,196 @@ export function birthAttributes({ profile = null, rand = Math.random } = {}) {
   return { attrs, potential, nature };
 }
 
+// ── Growth ───────────────────────────────────────────────────────────────────
+// Permanent, single points, slow, and never without a named cause
+// (char-system2.jsx S4). A tick is drawn once per attribute at the END of a
+// session, from that attribute's own evidence in that session — so growth is a
+// consequence of how he was deployed, not of how long the app was open.
+//
+// Three rules the shape has to obey, all from the ref:
+//   · ticks come in ONES. Never two points, never a jump.
+//   · they slow as he approaches his ceiling. "The first ten points of Focus
+//     are a week, the last five are a season."
+//   · nothing ever regresses, and nothing ever passes hi.
+
+// What trains each attribute, named in the ref's own words, and how much of it
+// a single session needs before the tick is as likely as it will ever get.
+export const EVIDENCE_FIELD = Object.freeze({
+  READS:      'readsFormed',            // showdowns seen — reads actually formed
+  FOCUS:      'misjudgmentsAvoided',    // sheer decision volume, counted honestly
+  DISCIPLINE: 'deviationsResisted',     // big folds made correctly
+  COMPOSURE:  'tiltSurvived',           // surviving beats without tilting
+  DECEPTION:  'bluffsThrough',          // bluffs that get through uncalled
+  STAMINA:    'hands',                  // long sessions at the table
+});
+
+export const EVIDENCE_FULL = Object.freeze({
+  READS: 4, FOCUS: 120, DISCIPLINE: 5, COMPOSURE: 3, DECEPTION: 4, STAMINA: 200,
+});
+
+// Even a perfect session is a coin-flip at best. A character that grows every
+// time he plays is a progress bar, and this is a person.
+export const MAX_TICK_CHANCE = 0.5;
+
+// How willing the attribute still is to move, by where it sits against its
+// scouted band. Below the band he climbs freely; the closer he gets to the low
+// edge the slower it goes; inside the top half it is a season's work; at hi it
+// is over.
+export function growthProximity(cur, lo, hi) {
+  const c = clampAttr(cur);
+  if (!isNum(lo) || !isNum(hi) || c >= hi) return 0;
+  if (c < lo) {
+    // Full speed a long way below, tapering to 0.35 as he reaches the low edge.
+    return 0.35 + 0.65 * Math.min(1, (lo - c) / 25);
+  }
+  const t = (c - lo) / Math.max(1, hi - lo);      // 0..1 inside the band
+  if (t < 0.5) return 0.35 - 0.54 * t;            // 0.35 → 0.08 across the lower half
+  return 0.06 * (1 - t) * 2;                      // 0.06 → 0 across the top half
+}
+
+// P(+1) for one attribute this session.
+export function growthChance(key, evidence, cur, band) {
+  const need = EVIDENCE_FULL[key];
+  if (!need) return 0;
+  const have = Number(evidence?.[EVIDENCE_FIELD[key]] ?? 0);
+  if (!Number.isFinite(have) || have <= 0) return 0;
+  const earned = Math.min(1, have / need);
+  const room = growthProximity(cur, band?.lo, band?.hi);
+  return Math.max(0, Math.min(MAX_TICK_CHANCE, earned * room));
+}
+
+// The cause is the product. A tick with no cause is a number going up in a
+// game; a tick with one is the agent telling you what he learned this evening.
+const GROWTH_CAUSE = Object.freeze({
+  READS:      (n) => `read ${n === 1 ? 'an opponent' : `${n} opponents`} well enough to act on it.`,
+  FOCUS:      (n) => `${n} decisions, and the arithmetic held.`,
+  DISCIPLINE: (n) => `let the line talk him out of ${n === 1 ? 'a hand' : `${n} hands`} he wanted to play.`,
+  COMPOSURE:  (n) => `took ${n === 1 ? 'a beat' : `${n} beats`} and did not tilt.`,
+  DECEPTION:  (n) => `${n === 1 ? 'a bluff' : `${n} bluffs`} got through uncalled.`,
+  STAMINA:    (n) => `${n} hands in one sitting, still counting straight.`,
+});
+
+export function growthCause(key, count) {
+  const t = GROWTH_CAUSE[key];
+  return t ? t(Math.max(1, Math.round(Number(count) || 0))) : 'played.';
+}
+
+// ── The scouted ceiling ──────────────────────────────────────────────────────
+// Bands narrow from HANDS PLAYED, never from wins (char-system2.jsx S3: "Narrow
+// the band from hands played, not from wins"), in visible jumps, and never
+// widen again. The stage widths are the ref's own: a 30-point rumour on day one,
+// 24 by the first week, 8 by a month, near a number by 2,000 hands.
+export const SCOUT_STAGES = Object.freeze([
+  { hands: 120,  width: 24 },
+  { hands: 500,  width: 8 },
+  { hands: 2000, width: 2 },
+]);
+
+// Where the truth actually sits, inside the band he was born with. Derived from
+// his id, never stored: an exact potential written into the record is a number
+// one careless projection away from the screen, and the ceiling is never a
+// number on a bar.
+export function potentialTarget(agent, key) {
+  const birth = agent?.potentialBirth?.[key] ?? agent?.potential?.[key];
+  if (!birth || !isNum(birth.lo) || !isNum(birth.hi)) return null;
+  const frac = (hashSeed(`${agent?.id ?? 'anon'}:${key}:potential`) % 10000) / 10000;
+  return birth.lo + frac * (birth.hi - birth.lo);
+}
+
+// One stage of narrowing for one key. Never widens, never leaves the birth band.
+export function narrowedBand(agent, key, width) {
+  const cur = agent?.potential?.[key];
+  const birth = agent?.potentialBirth?.[key] ?? cur;
+  if (!cur || !birth || !isNum(cur.lo) || !isNum(cur.hi)) return null;
+  const target = potentialTarget(agent, key);
+  if (target == null) return null;
+
+  let lo = Math.round(target - width / 2);
+  let hi = lo + width;
+  if (lo < birth.lo) { lo = Math.round(birth.lo); hi = lo + width; }
+  if (hi > birth.hi) { hi = Math.round(birth.hi); lo = hi - width; }
+
+  // The one-way ratchet: a band may only ever close.
+  lo = Math.max(lo, Math.round(cur.lo));
+  hi = Math.min(hi, Math.round(cur.hi));
+
+  // A scouting report cannot claim a ceiling he has already walked past. If he
+  // is ahead of the estimate, the estimate was wrong, and hi moves up to meet
+  // him — never above the band it is closing from, so this can only ever narrow.
+  const reached = clampAttr(agent?.attrs?.[key] ?? 0);
+  if (hi < reached) hi = Math.min(Math.round(cur.hi), reached);
+  if (hi < lo) lo = hi;
+  return { lo: clampAttr(lo), hi: clampAttr(hi) };
+}
+
+// Which scouting stages a lifetime hand count has reached.
+export function scoutStageFor(handsPlayed) {
+  const h = Number(handsPlayed) || 0;
+  let stage = 0;
+  for (const s of SCOUT_STAGES) if (h >= s.hands) stage++;
+  return stage;
+}
+
+// ── The session's end ────────────────────────────────────────────────────────
+// Called once per finished session. Mutates the agent (ticks, bands, attrLog)
+// and returns what happened, so the caller can put it in the recap and the
+// thread without recomputing any of it.
+//
+// Returns { ticks: [{key, from, to, cause}], narrowed: [key], stage }.
+export function applySessionGrowth(agent, {
+  evidence = {},
+  handsPlayed = null,
+  rand = Math.random,
+  now = Date.now(),
+} = {}) {
+  if (!agent) return { ticks: [], narrowed: [], stage: 0 };
+  ensureAttributes(agent);
+  if (!agent.potentialBirth || typeof agent.potentialBirth !== 'object') {
+    // Agents born before ATTR-3 have no day-one record; their current band is
+    // the best available truth about where they started.
+    agent.potentialBirth = JSON.parse(JSON.stringify(agent.potential));
+  }
+
+  const ticks = [];
+  for (const key of ATTR_KEYS) {
+    const from = clampAttr(agent.attrs[key]);
+    const band = agent.potential[key];
+    const chance = growthChance(key, evidence, from, band);
+    if (chance <= 0 || rand() >= chance) continue;
+    const to = Math.min(clampAttr(band?.hi ?? 100), from + 1);
+    if (to === from) continue;                    // already at the ceiling
+    agent.attrs[key] = to;
+    const cause = growthCause(key, evidence[EVIDENCE_FIELD[key]]);
+    logAttrChange(agent, { key, from, to, cause, ts: now });
+    ticks.push({ key, from, to, cause });
+  }
+
+  // Narrowing is a separate event from growth and happens on its own clock.
+  const lifetime = isNum(handsPlayed) ? Number(handsPlayed) : (agent.stats?.handsPlayed ?? 0);
+  const reached = scoutStageFor(lifetime);
+  const already = isNum(agent.scoutStage) ? Number(agent.scoutStage) : 0;
+  const narrowed = [];
+  if (reached > already) {
+    const width = SCOUT_STAGES[reached - 1].width;
+    for (const key of ATTR_KEYS) {
+      const before = agent.potential[key];
+      const after = narrowedBand(agent, key, width);
+      if (!after || (after.lo === before.lo && after.hi === before.hi)) continue;
+      agent.potential[key] = after;
+      // The value does not move — from === to on purpose, so a sparkline drawn
+      // from the log never renders a phantom step for a scouting report.
+      const at = clampAttr(agent.attrs[key]);
+      logAttrChange(agent, { key, from: at, to: at, cause: 'narrowed', ts: now });
+      narrowed.push(key);
+    }
+    agent.scoutStage = reached;
+  }
+  // Transient: the gold caret rides for one session and then retires.
+  agent.narrowed = narrowed.length > 0 ? narrowed : null;
+
+  return { ticks, narrowed, stage: reached };
+}
+
 // ── STAMINA / fatigue ────────────────────────────────────────────────────────
 // The only attribute that acts on other attributes. Onset is a hand number,
 // not an outcome; after onset FOCUS and DISCIPLINE erode linearly, reaching

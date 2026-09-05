@@ -29,6 +29,7 @@ import {
   logAttrChange,
   firstWordsFor,
   natureHintFor,
+  applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
@@ -605,7 +606,7 @@ export function getMemoryContext(agentId, userId) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -649,6 +650,33 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       tableId: tableId ?? null,
     });
   }
+
+  // ── ATTR-3: growth ─────────────────────────────────────────────────────────
+  // Permanent, single points, drawn once per attribute from the evidence this
+  // session produced — and only for a session that actually happened. Fatigue
+  // is the opposite curve and resets here: he rested.
+  let growth = { ticks: [], narrowed: [], stage: 0 };
+  if (sessionHands > 0) {
+    try {
+      growth = applySessionGrowth(agent, {
+        evidence: attrEvidence ?? { hands: sessionHands },
+        handsPlayed: agent.stats?.handsPlayed ?? 0,
+      });
+      if (growth.ticks.length > 0) {
+        console.log(`[agents] ${agent.name} grew: ` +
+          growth.ticks.map((t) => `${t.key} ${t.from}→${t.to}`).join(', '));
+      }
+      if (growth.narrowed.length > 0) {
+        console.log(`[agents] ${agent.name} scouting narrowed (stage ${growth.stage}): ${growth.narrowed.join(', ')}`);
+      }
+    } catch (err) {
+      console.error('[agents] growth failed:', err.message);
+    }
+  }
+  // Fatigue is a within-session STATE and the session is over. He is fresh
+  // again by the time the owner next looks at him — the bar did its job.
+  agent.fatigue = 'fresh';
+  agent.sessionHands = 0;
 
   const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
