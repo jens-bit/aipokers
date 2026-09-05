@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Watch v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa.w{max-width:1180px}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Design wave 37</div>
+    <h1>Dealt, seated,<br/>spoken.</h1>
+    <p>v3 fixed tension, stakes and register. What it left behind was <b>a table with nobody at it</b> — five chips carrying names and stacks, no bodies — and reads filed behind a tab nobody opened. This wave adds three things and removes one.</p>
+
+    <div class="lbl">Added</div>
+    <div class="lawrow"><span class="k">1</span><span class="v">A <b>DEAL</b> beat before CALM. His cards land one at a time, 90ms apart, one light haptic each, then the table's backs as a single sweep. A premium hand <b>warms his cards in gold</b> — owner-only, never on anyone else's felt.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Opponents as characters.</b> Every seat is a ghost with a mood posture — House regulars included. Their cards sit behind the shoulder, never in front of the face.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>His voice as the default panel.</b> Decision lines with table talk woven in, and between hands one line of session truth.</span></div>
+
+    <div class="lbl">Removed</div>
+    <p>The <b>READ tab</b>. A read is a fact about one opponent, so it lives behind that opponent: tap a ghost, the sheet rises. Five opponents, five reads, and no tab that has to hold six of anything. Also gone: 96px of header chrome, and the MoodBand — whose only load-bearing part was the cause line, which now lives in the between-hands strip where there is room to read it.</p>
+
+    <div class="lbl">Stacking order, as law</div>
+    <p style="margin-bottom:0"><code>rope 276 → line 313 → hero row bottom 12</code>. The decision line is never pinned without a relationship to what sits under it — that was the v3 bug, and on a 420px felt there are exactly 12 pixels of slack between each band.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The deal</div>
+  <div class="groupsub">Two frames of one beat. The interval is the design: <b>90ms is fast enough to feel like one action and slow enough to feel like two cards</b> — under 60 it reads as a stutter, over 140 as a delay.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">42a</span><span class="ft">DEAL · mid-arrival</span><span class="fb teal">one card in</span></div>
+  <div id="d1"></div>
+  <div class="fa"><b>His first card has landed and the second is still travelling</b> — offset 34px, opacity zero, arriving on a 240ms ease. The table has no backs yet: <b>his cards come first, always</b>, because it is his hand you are watching. The rope sits dead centre because there is nothing to weigh yet, and the voice feed carries only the hand number and the stakes.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">42b</span><span class="ft">DEAL · a hand worth having</span><span class="fb gold">owner-only</span></div>
+  <div id="d2"></div>
+  <div class="fa"><b>Ace-king, and his two cards carry a gold edge.</b> The warm comes straight from pre-flop equity, the hero row's border goes gold, and a small <code>PREMIUM</code> label says why. <b>This is a private read on his own hand</b> — if the screen is ever shared or spectated, both the edge and its soft haptic are suppressed. A gold edge is not a table effect.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">42c</span><span class="ft">CALM · six bodies</span><span class="fb teal">seated as characters</span></div>
+  <div id="d3"></div>
+  <div class="fa"><b>Five opponents, five postures, and two of them are already out of the hand.</b> Granite is acting — a teal pool under him, breathing. doyle_v3 and ivey_bot have folded and sit at <b>34% and desaturated</b>, still visibly themselves. nash_eq is another owner's agent: his ghost is fully visible, his cards are backs, and his mood is his own. The gold <code>3</code> on Granite is the biography layer, doing its job at 34px.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">42d</span><span class="ft">A seat tapped</span><span class="fb red">the READ tab is gone</span></div>
+  <div id="d4"></div>
+  <div class="fa"><b>The read rises from the person it is about.</b> Granite gets a teal ring, the felt drops to 55%, and the sheet carries his five bars, his confidence brackets, his <code>NEMESIS</code> tag, and one line in your agent's voice: <i>"He never folds, so I stop bluffing him."</i> <b>The hand keeps playing behind it</b> — opening a read pauses nothing. Five opponents means five of these, which is exactly why a tab could never have held them.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">42e</span><span class="ft">A thin read</span><span class="fb">22 hands</span></div>
+  <div id="d5"></div>
+  <div class="fa"><b>The state that proves the sheet is honest.</b> Twenty-two hands against nash_eq: two bars have values with wide brackets, one has a value and no confidence at all, and <b>two are simply blank with <code>··</code></b>. His line refuses to pretend — <i>"Twenty-two hands. He is tight, and that is all I have."</i> A read that fills in evenly regardless of evidence would make the whole system a decoration.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">42f</span><span class="ft">HEATING</span><span class="fb gold">pot past the threshold</span></div>
+  <div id="d6"></div>
+  <div class="fa"><b>Unchanged from v3, and that is the point</b> — the felt warms, the ticker grows, one rigid tap. What is new is that the postures <b>do not react</b>: a hot pot is his news and the room's, not theirs. The voice feed carries his sizing line as it happens.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">42g</span><span class="ft">ALL-IN</span><span class="fb red">3–5s hold</span></div>
+  <div id="d7"></div>
+  <div class="fa"><b>The one place this product raises its voice, now with witnesses.</b> Red breathing glow, his line in Playfair, <code>RIVER IN 3</code> in the hero row's tag slot where the timer would be — because there is nothing left to decide. Granite's <b>"Call."</b> sits directly above his line in the feed, which is the whole argument for weaving table talk into it.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:1200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">42h</span><span class="ft">SHOWDOWN</span><span class="fb teal">the table reacts</span></div>
+  <div id="d8"></div>
+  <div class="fa"><b>Every seat reacts in posture, and only in posture.</b> Granite has gone from neutral to <b>tilted</b>; Phil_AI settles to neutral; the folded pair are unmoved, because they were not in it. No badges, no floating numbers, no callouts — the room tells you who lost it by how they are sitting. The pot lifts and fades as the result card lands.</div>
+</div>
+
+<div class="frame" style="left:2440px;top:1200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">42i</span><span class="ft">Between hands</span><span class="fb">the cause line's new home</span></div>
+  <div id="d9"></div>
+  <div class="fa"><b>Where the MoodBand went.</b> The strip carries the cause line — <i>rolling, three big pots in a row</i> — the countdown to the next deal, and <b>one line of session truth</b>: <code>+$3,712 tonight · 43 hands · worst beat: the Q3o on hand 19</code>. That last clause is the sentence a returning owner actually wants, and there was nowhere to put it while a 96px header owned the space.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2400px">
+  <div class="fh"><span class="fn">43</span><span class="ft">Haptics · the deal</span><span class="fb teal">six new rows</span></div>
+  <div id="h1"></div>
+</div>
+
+<div class="frame" style="left:600px;top:3200px">
+  <div class="fh"><span class="fn">44</span><span class="ft">State matrix · watch v4</span><span class="fb teal">five moving parts</span></div>
+  <div id="m1"></div>
+</div>
+
+<div class="frame" style="left:600px;top:4200px">
+  <div class="grouphdr">Desktop parity · 1440 × 900</div>
+  <div class="groupsub">The bodies are 62px instead of 34, which is the one place desktop genuinely gains something: an opponent's posture is legible rather than inferred.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">D1</span><span class="ft">Watch v4 · CALM</span><span class="fb teal">voice in the rail</span></div>
+  <div id="e1"></div>
+  <div class="fa w"><b>Five bodies around a real oval, and the voice feed docked in the rail with the session-truth line pinned above it.</b> Desktop has no between-hands strip because it has somewhere permanent to put that line. The rail's tabs are the same two — VOICE and CHAT — and the reads are not among them: they are still behind the seats.</div>
+</div>
+
+<div class="frame" style="left:600px;top:5300px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">A seat clicked</span><span class="fb gold">read in the rail</span></div>
+  <div id="e2"></div>
+  <div class="fa w"><b>The read takes the rail rather than rising as a sheet — the one structural divergence between platforms, and it is the right one.</b> Desktop can show the read and the hand at the same time; mobile cannot, so mobile gets a sheet. Granite keeps a teal ring at his seat, the felt drops to 62%, and <b>the hand plays on</b>. The nemesis tag and the lifetime figure fit here because there is room for them.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-watch4.jsx"></script>
+<script type="text/babel" src="mood-watch4b.jsx"></script>
+
+<script type="text/babel">
+[
+  ['d1', W4DealScreenM],
+  ['d2', W4DealWarmScreenM],
+  ['d3', W4CalmScreenM],
+  ['d4', W4ReadSheetScreenM],
+  ['d5', W4ThinReadScreenM],
+  ['d6', W4HeatingScreenM],
+  ['d7', W4AllInScreenM],
+  ['d8', W4ShowdownScreenM],
+  ['d9', W4BetweenScreenM],
+  ['h1', Haptic4SheetM],
+  ['m1', W4MatrixM],
+  ['e1', D6W4WatchScreenM],
+  ['e2', D6W4ReadScreenM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever, using each
+   frame's best-known height. Timers only: rAF is suspended in throttled iframes. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

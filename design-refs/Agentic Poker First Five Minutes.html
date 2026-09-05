@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · The First Five Minutes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{transform:translateY(44px);opacity:0}to{transform:none;opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa.w{max-width:1180px}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Design wave 36</div>
+    <h1>Nothing has<br/>happened yet.<br/>Say which thing.</h1>
+    <p>The complete first-run path, end to end: Telegram or web, an empty floor, the draft, the card, his walk-in, his first hand, his first recap, and the You screen with the seeded wallet. <b>Nine screens, about five minutes</b>, and six of the nine are empty of something.</p>
+    <p>Which makes this board mostly a board about <b>empty states</b> — and the rule is that an empty state is <b>a room that breathes, not a placeholder sentence</b>. Nothing here is missing. Something has simply not happened yet, and the screen names which thing, in the voice of whoever would know: the room, the recruiter, or him.</p>
+
+    <div class="lbl">The grammar, three parts</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>What has not happened</b> — in mono, small, stated as a fact. <code>NO READS YET</code>, not "Nothing to see here".</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Who says so</b> — a voice with standing. Him, if he is waiting. The recruiter, if he does not exist yet. The room, if nobody does.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>What would fill it</b> — one sentence, concrete, and never an instruction. The primary action at the foot of the screen already handles that.</span></div>
+
+    <div class="lbl">Carried in, unchanged</div>
+    <p>One primary action per screen, named after the next screen (34). One ghost per agent, always (34). The attribute sheet closed by default, attributes explaining themselves only when one first <b>costs money</b> (34). The rope from the deal, READ never a spinner (33).</p>
+
+    <div class="lbl">What this path deliberately has none of</div>
+    <p style="margin-bottom:0">No tour. No tooltip sequence. No progress checklist, no "3 of 5 steps", no confetti when he is born. <b>The reward for finishing onboarding is an employee at a table</b>, and that is the only reward offered.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The path</div>
+  <div class="groupsub">Read the strip, then the nine screens in order. The gold line in each cell is what that screen is empty of.</div>
+  <div id="strip"></div>
+</div>
+
+<div class="frame" style="left:600px;top:600px">
+  <div class="grouphdr gold">Mobile · 390 × 844</div>
+  <div class="groupsub">In order. The first two screens contain no agent at all, which makes them the hardest two screens in the product — and the ones a new user judges it by.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">40a</span><span class="ft">1 · Telegram</span><span class="fb teal">the real front door</span></div>
+  <div id="s1"></div>
+  <div class="fa"><b>The product's actual first screen is a bot message, so it is drawn in Telegram's chrome rather than ours.</b> Two messages and one inline button. The first sentence does the whole job — <b>&ldquo;There is a room, and there is an open seat in it&rdquo;</b> — and the second says the thing every new user needs to hear before anything else: <b>you will not be playing</b>. The proof line is other people's activity, not a promise: <code>847 agents in seats right now</code>.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:600px">
+  <div class="fh" style="margin-top:118px"><span class="fn">40b</span><span class="ft">2 · The empty floor</span><span class="fb red">no agents</span></div>
+  <div id="s2"></div>
+  <div class="fa"><b>The hardest empty state in the product, and the room does most of the work.</b> The lights are on, the felts are dressed, the bottles are lit — this is a business that was open before you arrived. What is missing is one body, and the room shows that as <b>a dashed stool under its own teal pool</b>: reserved, not broken, in the same dashed language the drafting state uses. The <code>NotYet</code> box says who is missing and the room says it in one line: <i>&ldquo;Every felt in here is somebody's employee. You do not have one yet.&rdquo;</i></div>
+</div>
+
+<div class="frame" style="left:1520px;top:600px">
+  <div class="fh" style="margin-top:118px"><span class="fn">40c</span><span class="ft">3 · The draft, empty</span><span class="fb">no brief</span></div>
+  <div id="s3"></div>
+  <div class="fa"><b>An empty seat drawn at 18%, phase zero — no fill, no eyes, no name.</b> The band above it reads <code>0% DEFINED · nothing decided yet</code>, which is a fact rather than a scold. The recruiter opens with what he needs and then shows what an answer looks like, in plain words, because &ldquo;style, risk, tightness, aggression&rdquo; means nothing to somebody who has never done this. <b>Three chips, and any one of them is a complete brief.</b></div>
+</div>
+
+<div class="frame" style="left:1980px;top:600px">
+  <div class="fh" style="margin-top:118px"><span class="fn">40d</span><span class="ft">4 · Brief usable</span><span class="fb teal">Deal him in</span></div>
+  <div id="s4"></div>
+  <div class="fa"><b>One chip in, and the screen changes its mind about what it wants from you.</b> The strip fills, the nature forms out of the conversation, and <b>the composer gives up its place to the button</b> — with &ldquo;or keep describing him&rdquo; underneath, because a first-time user often wants to add one more thing. The recruiter names the one irreversible fact before the button is pressed: <b>his temperament is not something you set</b>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1800px">
+  <div class="fh" style="margin-top:96px"><span class="fn">40e</span><span class="ft">5 · The card</span><span class="fb teal">his, with no history</span></div>
+  <div id="s5"></div>
+  <div class="fa"><b>Name, nature, his first words, one line of what he's built for.</b> On a first agent this is the entire card: the six-bar sheet stays folded, and the footnote is the onboarding strategy in one sentence — <i>you can read the numbers later, he explains them as they matter</i>. He is standing in the room behind the sheet, in his own light, and <b>the card rises from him</b> rather than over him.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1800px">
+  <div class="fh" style="margin-top:96px"><span class="fn">40f</span><span class="ft">6 · He walks in</span><span class="fb">one body</span></div>
+  <div id="s6"></div>
+  <div class="fa"><b>The room that was empty ninety seconds ago now has exactly one person in it.</b> There is no live felt to dim against, so nothing is dimmed — he is the only body, and the felt ahead of him still carries the dashed rim from the empty state, now about to be filled. The standup drops the net figure for this one moment and says <b>&ldquo;Rock v1.0 is taking a seat&rdquo;</b>. Next: his first hand has not been dealt, and he is the one impatient about it.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1800px">
+  <div class="fh" style="margin-top:96px"><span class="fn">40g</span><span class="ft">7 · His first hand</span><span class="fb gold">no reads yet</span></div>
+  <div id="s7"></div>
+  <div class="fa"><b>Preflop, thirty dollars in the pot, and the rope sits dead centre — never blank.</b> That is the wave-33 rule doing its job on the one hand where equity is genuinely 50/50. Below it, READ is five empty bars with <code>··</code> for values and <b>&ldquo;Give me a few hands.&rdquo;</b> in his voice. This is the first screen where an attribute is <i>felt</i> rather than read: how fast those bars fill is what READS does.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:1800px">
+  <div class="fh" style="margin-top:96px"><span class="fn">40h</span><span class="ft">8 · His first recap</span><span class="fb gold">nothing flagged</span></div>
+  <div id="s8"></div>
+  <div class="fa"><b>Forty hands, thirty-one folds, eighteen dollars — and the first attribute explains itself.</b> The cost line was always going to be the teaching moment: <code>he misjudged equity by 6% · FOCUS</code>, tappable once. And where the replay card would sit, a dashed row says <b>nothing was worth flagging</b> in his voice: <i>&ldquo;No big bluffs, no bad beats. It was a quiet first shift.&rdquo;</i> A quiet shift is a result, not a gap.</div>
+</div>
+
+<div class="frame" style="left:2440px;top:1800px">
+  <div class="fh" style="margin-top:96px"><span class="fn">40i</span><span class="ft">9 · You</span><span class="fb">seeded, one pocket</span></div>
+  <div id="s9"></div>
+  <div class="fa"><b>$500 seeded on sign-up, $300 of it already in his pocket, and the receipt says so.</b> One pocket row, and the pocket line that matters: <b>$318 plays $1/$2</b> — the stakes came from the money, which is the only economy rule a new owner needs. The history block is <b>the one empty state on this board with no voice at all</b>: the wallet is the owner's, so nothing speaks for it. It admits its own limit instead — <i>one session is not a trend</i>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:3000px">
+  <div class="fh"><span class="fn">41</span><span class="ft">Empty states, as matrix rows</span><span class="fb teal">seven rows</span></div>
+  <div id="mx"></div>
+</div>
+
+<div class="frame" style="left:600px;top:4000px">
+  <div class="grouphdr">Desktop parity · 1440 × 900</div>
+  <div class="groupsub">Three of the nine, chosen because they are the ones a desktop user actually starts on: the login, the empty room, and the first hand.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">D1</span><span class="ft">Web login</span><span class="fb teal">the room is the argument</span></div>
+  <div id="e1"></div>
+  <div class="fa w"><b>The room plays behind the sign-in, at full size, before you have an account.</b> No hero illustration and no feature list — the product is a place, so the place is the pitch, and the copy is the same three sentences as the Telegram message. <b>One button</b>, and the two facts underneath that make signing up cost nothing: other people are already in there, and $500 arrives with you.</div>
+</div>
+
+<div class="frame" style="left:600px;top:5100px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">The empty room</span><span class="fb red">no agents</span></div>
+  <div id="e2"></div>
+  <div class="fa w"><b>1440 gives the empty state something mobile cannot: the whole room at once, with one dashed stool in it.</b> The rail carries the <code>NotYet</code> box, the single action, and the one panel this path allows itself — <b>what happens next</b>, in three sentences, including where the money comes from and what it decides. That panel exists because a desktop user is reading, not tapping.</div>
+</div>
+
+<div class="frame" style="left:600px;top:6200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D3</span><span class="ft">His first hand</span><span class="fb gold">no reads yet</span></div>
+  <div id="e3"></div>
+  <div class="fa w"><b>Five card backs, a $30 pot, and a rope at exactly 52%.</b> The stage is the wave-33 felt with nothing turned up — CALM, because a first hand at $1/$2 is not an event and the product does not pretend otherwise. The rail spends its extra room explaining <b>what will fill the bars</b>: every showdown he sees, at a speed his READS attribute sets. Nothing on this screen has a number worth watching yet, and it says so without apologising.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-snack.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-notify.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="char-profile.jsx"></script>
+<script type="text/babel" src="char-birth.jsx"></script>
+<script type="text/babel" src="mood-wallet.jsx"></script>
+<script type="text/babel" src="mood-flow2.jsx"></script>
+<script type="text/babel" src="mood-birth3.jsx"></script>
+<script type="text/babel" src="mood-casino2.jsx"></script>
+<script type="text/babel" src="mood-ftu2.jsx"></script>
+
+<script type="text/babel">
+[
+  ['strip', FtuPathStrip],
+  ['s1', FtuTelegramScreenM],
+  ['s2', FtuEmptyFloorScreenM],
+  ['s3', FtuDraftEmptyScreenM],
+  ['s4', FtuDraftReadyScreenM],
+  ['s5', FtuBirthCardScreenM],
+  ['s6', FtuWalkInScreenM],
+  ['s7', FtuFirstHandScreenM],
+  ['s8', FtuFirstRecapScreenM],
+  ['s9', FtuYouScreenM],
+  ['mx', FtuMatrixM],
+  ['e1', D5FtuLoginScreenM],
+  ['e2', D5FtuEmptyScreenM],
+  ['e3', D5FtuFirstHandScreenM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever, using each
+   frame's best-known height. Timers only: rAF is suspended in throttled iframes. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>
