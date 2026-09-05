@@ -7,6 +7,7 @@ import { collectFrom, fetchWallet, fundAgent, hasPocket } from '../lib/wallet.js
 import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
 import { PocketList } from '../components/wallet/PocketRow.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
+import { NotYet } from '../components/ftu/NotYet.jsx';
 import { presenceOf } from '../components/floor/agentView.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
@@ -243,6 +244,11 @@ export function YouScreen() {
 
   const totalHands     = agents.reduce((s, a) => s + (a.stats?.handsPlayed || 0), 0);
   const agentCount     = agents.length;
+  // FTU-4: how much history there is to believe. One session of it is not a
+  // trend, and a lifetime grid full of em dashes is the screen apologising for
+  // arithmetic it has not earned the right to do yet.
+  const sessionCount   = agents.reduce((s, a) => s + (a.careerStats?.sessions ?? a.sessionLog?.length ?? 0), 0);
+  const thinHistory    = !loading && agentCount > 0 && sessionCount <= 1;
   const stableBankroll = agents.reduce((s, a) => s + (a.careerStats?.bankroll ?? a.bankroll ?? 0), 0);
 
   // Derived stats
@@ -368,6 +374,18 @@ export function YouScreen() {
       <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agentCount} />
       <PocketList agents={pocketAgents} onFund={setFundTarget} onCollect={handleCollect} />
 
+      {/* FTU-4: one session in, the only honest number on this screen is the
+          balance. Saying so is better than four em dashes in a grid. */}
+      {thinHistory && (
+        <div className="ftu-you-note">
+          <NotYet
+            fact="ONE SESSION OF HISTORY"
+            voice={null}
+            fills="A second session gives him a mood line to plot, and a week gives him a win rate worth believing. Until then the only honest number on this screen is the balance."
+          />
+        </div>
+      )}
+
       {/* ── Lifetime stats ────────────────────────────────────────── */}
       <div style={{ padding: '0 14px', marginBottom: 7, flexShrink: 0 }}>
         <Lbl size={9.5}>Lifetime</Lbl>
@@ -390,9 +408,16 @@ export function YouScreen() {
       </div>
       <div style={{ padding: '0 14px', display: 'flex', flexDirection: 'column', gap: 7, flexShrink: 0 }}>
         {loading ? null : replays.length === 0 ? (
-          <div style={{ padding: '14px 0', textAlign: 'center' }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 9, letterSpacing: '0.12em', color: M_MUTED }}>NO HANDS YET — DEPLOY AN AGENT TO PLAY</span>
-          </div>
+          // FTU-4: not "NO HANDS YET". A notable hand is one that was worth
+          // remembering, and he has not had one — which is a fact about the
+          // week rather than a hole in the screen.
+          <NotYet
+            fact={agentCount === 0 ? 'NOBODY PLAYING FOR YOU YET' : 'NO HAND HAS BEEN WORTH REMEMBERING'}
+            voice={null}
+            fills={agentCount === 0
+              ? 'Hire someone and the hands he thinks were worth showing you collect here.'
+              : 'A bluff that gets through, a bad beat, a cooler — the ones he flags arrive here as replays.'}
+          />
         ) : replays.map((h, i) => {
           const hole = h.hole || [['?', 's'], ['?', 's']];
           const wonAmt = h.won ? (h.pot || 0) : -(h.bet || 0);
