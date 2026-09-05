@@ -1018,6 +1018,26 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   return agent;
 }
 
+// NOTIFY-1: per-agent mute. Lives on the agent record rather than in the
+// notifications table because it is a property of him, not of a send — it has
+// to survive with the agent, and it has to be readable without touching the
+// ledger. Absent means not muted, so every agent that predates this is audible.
+export function setAgentNotifyMuted(agentId, userId, muted) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  agent.notifyMuted = !!muted;
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return agent;
+}
+
+export function isAgentNotifyMuted(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  return !!agent?.notifyMuted;
+}
+
 // Return an agent's numeric policy profile (backfilled from style/risk if
 // the agent pre-dates the profile feature). Null if the agent doesn't exist.
 export function getAgentProfile(agentId, userId) {

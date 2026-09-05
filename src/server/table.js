@@ -16,6 +16,7 @@ import {
   getAgentBioRole,
   getAgentBio,
   addFlaggedHand,
+  openerForAgent,
 } from './agentProfiles.js';
 import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -48,6 +49,10 @@ import {
   EVENT_DELTAS,
 } from '../agent/mood.js';
 import { notifyMoodAlert } from './notifications/telegram.js';
+// NOTIFY-1: there is no src/server/events.js on main, so the four owner-facing
+// events are emitted from the four places in this file that already know they
+// happened. notifyEvent is a no-op until attachNotify() runs in src/index.js.
+import { notifyEvent, isAttached as notifyAttached, HEAT_TILTED } from './notify.js';
 import {
   HOUSE_TAG,
   HOUSE_STATION,
@@ -456,14 +461,19 @@ export class Table {
         const buyIn = occupant.buyIn ?? this.defaultBuyIn();
         const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
         const watched = this.spectators.some((s) => s.spectatorSeat === seat);
-        finishAgentSession(agentId, this.agentUserIds[seat], {
+        const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+        const agent = finishAgentSession(agentId, this.agentUserIds[seat], {
           recap,
           sessionPnl: finalStack - buyIn,
           watched,
-          sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          sessionHands,
           finalStack,
           buyInAmount: buyIn,
           tableId: this.tableId,
+        });
+        this._notifySessionEnd({
+          seat, agentId, agent, buyIn, finalStack, watched, sessionHands,
+          busted: recap === RECAP_BUST,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -489,6 +499,38 @@ export class Table {
     this._broadcast({ type: ServerMsg.SEAT_LEFT, seat, displayName, reason: recap });
   }
 
+
+  // NOTIFY-1: the two session-end pings, from the one place that knows how the
+  // seat ended. A bust and a sit-out are different messages — one is a decision
+  // for the owner, the other is a result — so they are different ladder rungs
+  // and never both fire for the same seat.
+  //
+  // Nothing is sent for a session the owner WATCHED end: the ref's trigger for
+  // the recap is "a session ends while you were not watching it", and pinging
+  // someone about the thing on their screen is the kind of message this budget
+  // exists to prevent.
+  _notifySessionEnd({ seat, agentId, agent, buyIn, finalStack, watched, sessionHands, busted }) {
+    const ownerId = this.agentUserIds[seat];
+    if (!ownerId || watched) return;
+    const agentName = agent?.name || this.pending[seat]?.displayName || 'Your agent';
+    const endedAt = Date.now();
+
+    if (busted) {
+      notifyEvent('busted', { ownerId: String(ownerId), agentId, agentName, buyIn, hands: sessionHands, endedAt });
+      return;
+    }
+    notifyEvent('session_ended', {
+      ownerId: String(ownerId),
+      agentId,
+      agentName,
+      // RAISE-2: the opener is the line he would open the thread with, and it
+      // is never null — which is exactly why it can be the message text.
+      opener: openerForAgent(agent) || 'Session done.',
+      pnl: finalStack - buyIn,
+      hands: sessionHands,
+      endedAt,
+    });
+  }
 
   // ── AGE-35: session loop ──────────────────────────────────────────────────
 
@@ -662,11 +704,12 @@ export class Table {
         const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
         const sessionPnl = finalStack - buyIn;
         const watched    = this.spectators.some((s) => s.spectatorSeat === seat);
-        finishAgentSession(agentId, this.agentUserIds[seat], {
+        const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+        const agent = finishAgentSession(agentId, this.agentUserIds[seat], {
           recap: recap ?? reason,
           sessionPnl,
           watched,
-          sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          sessionHands,
           finalStack,
           buyInAmount: buyIn,
           tableId: this.tableId,
@@ -675,6 +718,10 @@ export class Table {
           seatedPlayerIds: this.pending
             .map((p, i) => (i === seat ? null : p?.playerId ?? null))
             .filter(Boolean),
+        });
+        this._notifySessionEnd({
+          seat, agentId, agent, buyIn, finalStack, watched, sessionHands,
+          busted: finalStack <= 0,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -1553,11 +1600,30 @@ export class Table {
       const nextState = mood.state;
       if ((nextState === 'tilted' || nextState === 'sulking') && nextState !== prevState) {
         const ownerId = this.agentUserIds[seat];
-        if (ownerId) {
+        if (ownerId && !notifyAttached()) {
+          // Legacy path (NOTIFY_ENABLED). It is skipped whenever NOTIFY-1 is
+          // attached so a tilt cannot go out twice from two budgets that do not
+          // know about each other.
           notifyMoodAlert(String(ownerId), String(ownerId), agentId,
             this.pending[seat]?.displayName || 'Your agent',
             { moodState: nextState, cause: mood.cause || null }
           ).catch((e) => console.error('[notify] mood alert failed:', e.message));
+        }
+      }
+
+      // NOTIFY-1: tilt is only worth a ping once it is hot. `tilted` at heat 62
+      // is a bad ten minutes; heat 70 is the night going wrong, and the heat is
+      // the number the owner can check on the floor.
+      if (nextState === 'tilted' && prevState !== 'tilted' && mood.heat >= HEAT_TILTED) {
+        const ownerId = this.agentUserIds[seat];
+        if (ownerId) {
+          notifyEvent('tilted', {
+            ownerId: String(ownerId),
+            agentId,
+            agentName: this.pending[seat]?.displayName || 'Your agent',
+            heat: Math.round(mood.heat),
+            cause: mood.cause || null,
+          });
         }
       }
     }
@@ -1765,7 +1831,21 @@ export class Table {
         sessionBiggestPot: this.sessionBiggestPot,
       });
 
-      if (flagType === 'biggestPot') this.sessionBiggestPot = pot;
+      if (flagType === 'biggestPot') {
+        this.sessionBiggestPot = pot;
+        // NOTIFY-1: news about him that asks nothing of the owner, so it enters
+        // at the bottom of the ladder and carries no button. Only when he WON
+        // it — the biggest pot of the night he paid for is not this message.
+        if (won && userId) {
+          notifyEvent('biggest_pot', {
+            ownerId: String(userId),
+            agentId,
+            agentName: this.pending[seat]?.displayName || 'Your agent',
+            pot,
+            handNumber: this.game.handNumber,
+          });
+        }
+      }
       if (!flagType) continue;
 
       const holeCards = [...(this.game.seats[seat]?.holeCards ?? [])];

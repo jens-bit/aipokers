@@ -9,6 +9,7 @@ import { readHands } from './server/handHistory.js';
 import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } from './server/auth.js';
 import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
+import { attachNotify } from './server/notify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -157,3 +158,8 @@ const shutdown = (signal) => {
 };
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// NOTIFY-1: the Telegram push notifier. Last line on purpose — it registers
+// POST /api/agents/:id/notify, and the SPA fallback above only answers GET, so
+// a POST still reaches it. Everything else it does is out-of-band.
+attachNotify({ app });

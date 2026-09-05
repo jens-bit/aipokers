@@ -102,6 +102,27 @@ function applySchema(d) {
       updated_at INTEGER NOT NULL DEFAULT 0
     );
 
+    -- NOTIFY-1: the send ledger. (owner_id, type, ts) is the whole budget
+    -- input — three per owner per day, thirty minutes apart, and the rotation
+    -- index for a type is just how many of that type have gone before — so
+    -- nothing about a decision is stored, only what was actually done.
+    --
+    -- "state" is the one column beyond that triple: a message that arrives in
+    -- quiet hours (or inside the 30-minute gap) is HELD, not cancelled, so the
+    -- row has to survive a restart with the text it will eventually send.
+    -- 'sent' rows are the ledger; 'held' rows are the queue.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id   TEXT    NOT NULL,
+      type       TEXT    NOT NULL,
+      ts         INTEGER NOT NULL,
+      state      TEXT    NOT NULL DEFAULT 'sent',
+      deliver_at INTEGER,
+      payload    TEXT
+    );
+    CREATE INDEX IF NOT EXISTS notifications_owner ON notifications (owner_id, ts DESC);
+    CREATE INDEX IF NOT EXISTS notifications_held  ON notifications (state, deliver_at);
+
     -- WALLET-1: the owner's money, separate from the roll each agent carries.
     CREATE TABLE IF NOT EXISTS wallets (
       owner_id   TEXT PRIMARY KEY,
@@ -441,6 +462,66 @@ export function saveNotificationState(state) {
       if (!keep.has(row.owner_id)) d.prepare('DELETE FROM notification_state WHERE owner_id = ?').run(row.owner_id);
     }
   })();
+}
+
+// ── Notification ledger (NOTIFY-1) ───────────────────────────────────────────
+//
+// Two shapes over one table. A 'sent' row is history and is never updated; a
+// 'held' row is a message waiting for the window to open and is deleted the
+// moment it either goes out (as a fresh 'sent' row) or loses on budget.
+
+export function recordNotificationSent(ownerId, type, ts) {
+  conn().prepare("INSERT INTO notifications (owner_id, type, ts, state) VALUES (?, ?, ?, 'sent')")
+    .run(String(ownerId), String(type), Math.floor(ts));
+}
+
+// Every send for this owner at or after `sinceTs`, oldest first. The daily
+// count and the gap-since-last-send are both read off this one query.
+export function listNotificationsSince(ownerId, sinceTs) {
+  return conn().prepare(
+    "SELECT type, ts FROM notifications WHERE owner_id = ? AND state = 'sent' AND ts >= ? ORDER BY ts",
+  ).all(String(ownerId), Math.floor(sinceTs));
+}
+
+// How many of `type` this owner has ever been sent — the rotation index, so
+// "never the same alternate twice running" needs no state of its own.
+export function countNotificationsOfType(ownerId, type) {
+  const row = conn().prepare(
+    "SELECT COUNT(*) AS n FROM notifications WHERE owner_id = ? AND type = ? AND state = 'sent'",
+  ).get(String(ownerId), String(type));
+  return row?.n ?? 0;
+}
+
+export function putNotificationHold(ownerId, type, deliverAt, payload) {
+  const info = conn().prepare(
+    "INSERT INTO notifications (owner_id, type, ts, state, deliver_at, payload) VALUES (?, ?, ?, 'held', ?, ?)",
+  ).run(String(ownerId), String(type), Date.now(), Math.floor(deliverAt), JSON.stringify(payload ?? {}));
+  return Number(info.lastInsertRowid);
+}
+
+// Held rows for one owner (or every owner when ownerId is null — what the
+// restart flush walks), soonest first.
+export function listNotificationHolds(ownerId = null) {
+  const rows = ownerId === null
+    ? conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload FROM notifications WHERE state = 'held' ORDER BY deliver_at").all()
+    : conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload FROM notifications WHERE state = 'held' AND owner_id = ? ORDER BY deliver_at").all(String(ownerId));
+  return rows.map((r) => ({
+    id: r.id,
+    ownerId: r.owner_id,
+    type: r.type,
+    queuedAt: r.ts,
+    deliverAt: r.deliver_at,
+    payload: jsonParse(r.payload, {}),
+  }));
+}
+
+export function setNotificationHoldDeliverAt(id, deliverAt) {
+  conn().prepare("UPDATE notifications SET deliver_at = ? WHERE id = ? AND state = 'held'")
+    .run(Math.floor(deliverAt), id);
+}
+
+export function deleteNotificationHold(id) {
+  conn().prepare("DELETE FROM notifications WHERE id = ? AND state = 'held'").run(id);
 }
 
 // ── Wallets (WALLET-1) ───────────────────────────────────────────────────────
