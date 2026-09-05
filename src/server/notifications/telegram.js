@@ -59,6 +59,7 @@ export function ownerState(ownerId) {
       proposalNotified: false,
       agentOutcomes:    {},
       brokeDates:       {},   // WALLET-1: <agentId> -> 'YYYY-MM-DD', one broke alert a day
+      wantDates:        {},   // RELATE-1d: <agentId> -> 'YYYY-MM-DD', one want a day
       sentLog:          [],
     };
   }
@@ -262,7 +263,10 @@ const MAX_DAILY = 2;
 // WALLET-1: `broke` sits just under the session recap — it is the one state
 // where the owner genuinely has a decision to make — and `collected` below the
 // proposal, because bringing money home is good news that can wait for 08:00.
-const TYPE_PRIORITY = { session_recap: 1, broke: 2, proposal: 3, collected: 4, mood_alert: 5, milestone: 6, quiet_win: 7 };
+// RELATE-1d: a want sits below the proposal — he is asking for a drink, not
+// flagging a decision — and above the mood alert, because it IS the mood
+// alert with something the owner can actually do about it.
+const TYPE_PRIORITY = { session_recap: 1, broke: 2, proposal: 3, collected: 4, want: 5, mood_alert: 6, milestone: 7, quiet_win: 8 };
 
 function getDailyCount(os, now) {
   const today = localDateStr(now || _now());
@@ -494,6 +498,22 @@ export async function notifyBroke(ownerId, chatId, agentId, agentName, opts) {
   os.brokeDates[agentId] = today;
   const msg = buildBroke(os, agentName, mode);
   await scheduleNotification(ownerId, chatId, 'broke', msg.text, msg.button || null, agentId, now);
+}
+
+// RELATE-1d: he asked for something. Hard cap of once per day per agent, on
+// top of the daily budget — he asks and then drops it, and a want that arrives
+// twice is nagging. No guilt copy: the button is the whole message.
+export async function notifyWant(ownerId, chatId, agentId, agentName, opts) {
+  if (!ENABLED) return;
+  const now  = _now();
+  const line = (opts && opts.line) ? String(opts.line) : 'Could do with something.';
+  const os   = ownerState(ownerId);
+  if (!os.wantDates) os.wantDates = {};
+  const today = localDateStr(now);
+  if (os.wantDates[agentId] === today) return;
+  os.wantDates[agentId] = today;
+  const text = agentName + ': "' + line + '"';
+  await scheduleNotification(ownerId, chatId, 'want', text, 'Sort him out', agentId, now);
 }
 
 // Fires when lifetime hands cross a milestone threshold (once per threshold).

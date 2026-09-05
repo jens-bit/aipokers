@@ -14,6 +14,9 @@ import {
   classifyOwnerMessage,
   moodPromptLine,
   restAtBar,
+  restingHeat,
+  ownerDriftCause,
+  isSoothable as isMoodSoothable,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -24,6 +27,7 @@ import {
   clearProposalPending,
   notifyCollected,
   notifyBroke,
+  notifyWant,
 } from './notifications/telegram.js';
 import {
   ATTR_KEYS,
@@ -36,7 +40,16 @@ import {
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
+// MERGE-1 composition order, held everywhere the two features meet:
+// bio (who he is playing) → relationship (how you treat him) → mood (how he
+// is taking it). Bio is the oldest fact, the ledger colours it, mood is today.
 import { ensureBio, recordLedgerHand, deriveRoles, roleOf, recapMention } from '../agent/bio.js';
+import {
+  recordOwnerEvent, tickOwnerMemorySession, ownerMemoryContext,
+  isAskingAboutOwner, whatDoYouThinkOfMe, ownerToneScore,
+} from '../agent/ownerMemory.js';
+import { ITEMS, isItem, priceOf, wantTrigger, buildWant } from '../agent/wants.js';
+import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import {
@@ -822,6 +835,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   }
   // Append to session log (cap 10)
   ensureStats(agent);
+  // RELATE-1a: the owner ledger compresses on the session cadence, the same
+  // way the opponent ring is trimmed — duplicates fold into one line with a
+  // count rather than twelve copies of the same grievance.
+  try { tickOwnerMemorySession(agent); } catch (err) { console.error('[relate] compress failed:', err.message); }
+
   if (!Array.isArray(agent.sessionLog)) agent.sessionLog = [];
   agent.sessionLog.push({
     endedAt: Date.now(),
@@ -880,10 +898,17 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   if (previousSession?.endedAt) {
     const hours = Math.max(0, (Date.now() - previousSession.endedAt) / 3_600_000);
     if (hours > 0) {
+      // RELATE-1c: where he settles is coloured by how he has been treated.
+      // Bounded at ±10 — under one HEAT_STEP, so a single pep talk still
+      // outweighs a week of needling. The input is the owner ledger, which
+      // cannot be moved by an absence, so this is not guilt machinery: an
+      // owner who does nothing scores null and the target is plain neutral.
+      const toneScore = ownerToneScore(agent);
       agent.mood = restAtBar(agent.mood, {
         hours,
         composure: agent.attrs?.COMPOSURE ?? null,
         profile: agent.profile ?? null,
+        restingTarget: restingHeat(toneScore),
       });
     }
   }
@@ -1254,6 +1279,50 @@ export function applyOwnerMessageToMood(agentId, userId, text) {
   return { moved: true, mood: agent.mood, kind: result.kind, reason: result.reason };
 }
 
+// RELATE-1d: he raises a want. At most one pending — a second is not raised
+// while the first is unanswered, because asking twice is nagging and this
+// product does not nag. Returns the moment, or null.
+//
+// Nothing here reads a clock: the trigger takes the heat and the losing run
+// from the hand that just finished, so a want cannot be produced by absence.
+export function maybeRaiseWant(agent, { ownerId = null } = {}) {
+  ensureMood(agent);
+  ensureStats(agent);
+  if (agent.want && !agent.want.answered) return null;    // one pending, always
+
+  const trigger = wantTrigger({
+    heat: agent.mood?.heat ?? 0,
+    losingRun: agent.mood?.losingRun ?? 0,
+    handsPlayed: agent.stats?.handsPlayed ?? 0,
+    lastWantAtHand: agent.lastWantAtHand ?? null,
+  });
+  if (!trigger) return null;
+
+  agent.want = buildWant(trigger, { moodState: agent.mood?.state ?? 'frustrated' });
+  agent.lastWantAtHand = agent.stats?.handsPlayed ?? 0;
+  // The want IS his moment — it is what he would say if you looked at him now.
+  agent.lastMoment = { text: agent.want.text, mood: agent.want.mood, at: agent.want.at, kind: 'want' };
+
+  if (ownerId) {
+    notifyWant(ownerId, ownerId, agent.id, agent.name || 'Your agent', { line: agent.want.text })
+      .catch((e) => console.error('[notify] want failed:', e.message));
+  }
+  return agent.want;
+}
+
+// RELATE-1a: one place the routes call to write an owner-ledger line and
+// persist it. Every caller is an owner ACT — a message he sent or a button he
+// pressed. There is deliberately no timer, no cron and no "hasn't been back"
+// path into this function; see the guardrail note in src/agent/ownerMemory.js.
+export function noteOwnerEvent(agentId, userId, type, ctx = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const entry = recordOwnerEvent(agent, type, ctx);
+  if (entry) saveStore(userId ?? 'anon');
+  return entry;
+}
+
 // Applies a pep talk if the agent is soothable AND the cooldown allows.
 // Returns { soothed, mood, reason } — same shape as mood.applyPepTalk.
 // Persists on soothed=true.
@@ -1316,12 +1385,23 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
     proposalLine = `\nPending self-change: "${agent.proposal.text}". Raise it only if the conversation opens a natural door — never force it.`;
   }
 
+  // MERGE-1: house order is bio → relationship → mood. BIO-2 puts the bio
+  // context in the table-talk and decision briefings rather than here, so in
+  // this prompt the order is relationship then mood: what he remembers about
+  // you frames how he is taking today, not the other way round.
+  //
+  // RELATE-1b: what he remembers about THIS owner, carried into the reply.
+  // The same needle lands differently depending on the record — an owner who
+  // has been on his back all week gets a different answer to one who reads his
+  // hands back, and that difference is the whole feature.
+  const ownerBlock = ownerMemoryContext(agent);
+
   // Inject recent thread so the model can't repeat itself
   const recentLines = recentChat.length > 0
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${moodLine}${pepLine}${proposalLine}${recentLines}
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
@@ -1522,6 +1602,12 @@ export function installAgentProfileRoutes(app) {
     });
     if (!result.ok) return res.status(400).json({ error: result.reason, available: result.available });
 
+    // RELATE-1a: staking him and cutting him off are both things he remembers.
+    if (pocket.mode === 'cut') {
+      recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
+    } else if (result.moved > 0) {
+      recordOwnerEvent(agent, 'funded', { amount: result.moved });
+    }
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
@@ -1552,6 +1638,7 @@ export function installAgentProfileRoutes(app) {
     if (!result.ok) return res.status(400).json({ error: result.reason });
 
     recordCollectMoment(agent, result.moved);
+    recordOwnerEvent(agent, 'collected', { amount: result.moved });
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
@@ -1573,6 +1660,94 @@ export function installAgentProfileRoutes(app) {
       pocket: view,
       moment: agent.lastMoment,
     });
+  });
+
+  // RELATE-1d — POST /api/agents/:agentId/give?userId=...  { item }
+  //
+  // The one item (design 29). §7.1: bought from the WALLET, never from a
+  // pocket — a pocket that can buy things is a purchase path into the
+  // character system. Items touch STATE, never SKILL: one snack, one effect
+  // (soothe one mood step, sharing the pep-talk cooldown), one button.
+  app.post('/api/agents/:agentId/give', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const item = String(req.body?.item || agent.want?.item || 'snack');
+    if (!isItem(item)) {
+      return res.status(400).json({ error: `item must be one of ${Object.keys(ITEMS).join(', ')}` });
+    }
+
+    ensureMood(agent);
+    ensureStats(agent);
+
+    // "He's fine. Save it." — the ref's own line. Giving a snack to a level
+    // agent spends nothing, because there is no mood to soothe.
+    if (!isMoodSoothable(agent.mood)) {
+      return res.status(400).json({ error: "He's fine. Save it.", spent: 0, soothed: false });
+    }
+
+    const wallet = walletFor(userId);
+    const price = priceOf(item);
+    if (wallet.balance < price) {
+      return res.status(400).json({ error: 'wallet does not cover that', available: wallet.balance });
+    }
+
+    // The effect is the pep talk's, and it shares the pep talk's cooldown —
+    // an item is not a way around a rate limit.
+    const result = applyMoodPepTalk(agent.mood, agent.stats?.handsPlayed ?? 0);
+    if (!result.soothed) {
+      return res.status(400).json({ error: 'Snacked recently — shared with the pep talk.', spent: 0, soothed: false, reason: result.reason });
+    }
+
+    wallet.balance -= price;
+    wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -price, agentId: agent.id, item });
+    agent.mood = result.mood;
+
+    // The answer becomes a ledger line either way; this is the "given" half.
+    recordOwnerEvent(agent, 'item_given', { item });
+    if (agent.want && !agent.want.answered) {
+      agent.want.answered = 'given';
+      agent.want.answeredAt = Date.now();
+    }
+    agent.lastMoment = {
+      text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
+      mood: agent.mood?.state ?? 'neutral',
+      at: Date.now(),
+    };
+
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    res.json({
+      given: item,
+      spent: price,
+      soothed: true,
+      mood: { state: agent.mood.state, heat: agent.mood.heat },
+      moment: agent.lastMoment,
+      wallet: walletProjection(wallet, profile.agents),
+    });
+  });
+
+  // RELATE-1d — POST /api/agents/:agentId/want/dismiss?userId=...
+  // "No" is a complete answer. It costs him the line in his ledger and
+  // nothing else: he drops it, and he does not ask again this cooldown.
+  app.post('/api/agents/:agentId/want/dismiss', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.want || agent.want.answered) return res.status(400).json({ error: 'nothing pending' });
+
+    agent.want.answered = 'ignored';
+    agent.want.answeredAt = Date.now();
+    recordOwnerEvent(agent, 'want_ignored', { item: agent.want.item });
+    saveStore(userId);
+    emitAgentChange(userId);
+    res.json({ dismissed: true, want: agent.want });
   });
 
   // GET /api/agents/:agentId?userId=... — one agent, including the ATTR-1
@@ -1871,6 +2046,9 @@ export function installAgentProfileRoutes(app) {
 
   // GET /api/agents/:agentId/flagged?userId=...
   // Returns this session's flagged hands for the floor's hand-review sheet.
+  // RELATE-1a: opening the review is an owner ACT and he remembers it —
+  // "read back the Q3o hand". Only the proven owner writes a line; a
+  // spectator looking at the sheet is not his backer.
   // holeCards are owner-gated: only the authenticated owner sees their agent's
   // hole cards — the same law AGE-33 applied to the DECISION broadcast.
   // opponentShowdownCards are public (revealed at showdown) and always returned.
@@ -1894,6 +2072,10 @@ export function installAgentProfileRoutes(app) {
         ...st,
       })),
     }));
+    if (owner && hands.length > 0) {
+      const wrote = recordOwnerEvent(agent, 'review_opened', { holeCards: hands[0].holeCards ?? [] });
+      if (wrote) saveStore(userId);
+    }
     res.json({ flaggedHands: hands, count: hands.length });
   });
 
@@ -1952,6 +2134,7 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     if (!agent.proposal) return res.status(400).json({ error: 'no active proposal' });
+    recordOwnerEvent(agent, 'proposal_accepted', { what: agent.proposal.text });
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
@@ -1966,6 +2149,7 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (agent.proposal) recordOwnerEvent(agent, 'proposal_rejected', { what: agent.proposal.text });
     agent.proposal = null;
     saveStore(userId);
     clearProposalPending(userId);
@@ -2046,8 +2230,44 @@ export function installAgentProfileRoutes(app) {
       const pepResult = said.moved && said.kind === 'care'
         ? { soothed: true, mood: said.mood, reason: 'ok' }
         : { soothed: false, mood: existingAgent.mood, reason: said.reason };
+
+      // RELATE-1a: the message he just received goes in the owner ledger. Only
+      // a needle or a real question writes a line — small talk is not a fact
+      // about the owner, and silence writes nothing because there is no
+      // message to write from.
+      if (said.kind === 'needle') {
+        recordOwnerEvent(existingAgent, 'needle', {
+          text: content,
+          losing: (existingAgent.recentHands?.[0]?.won === false) || (existingAgent.mood?.heat ?? 0) > 40,
+        });
+      } else if (said.kind === 'care') {
+        recordOwnerEvent(existingAgent, pepResult.soothed ? 'pep_talk' : 'care', {
+          aboutHand: /hand|why|what (did|were) you/i.test(content),
+          holeCards: existingAgent.recentHands?.[0]?.holeCards ?? [],
+        });
+      }
+
       if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
       const recentChat = existingAgent.chatHistory.slice(-6);
+
+      // RELATE-1b: "what do you think of me?" is answered from the ledger, by
+      // template, with no model call. It is the one question where a generated
+      // answer would be worse than a written one — he is describing a real
+      // record and the record is right there. It also costs nothing.
+      if (isAskingAboutOwner(content)) {
+        const msg = whatDoYouThinkOfMe(existingAgent);
+        existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+        if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+        saveStore(userId);
+        return res.json({
+          chat: [{ role: 'assistant', content: msg }],
+          fromOwnerMemory: true,
+          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+                  moved: said.moved, kind: said.kind },
+        });
+      }
+
       const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
       try {
         const reply = await callClaude([{ role: 'user', content }], systemText, 100);

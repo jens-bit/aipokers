@@ -386,6 +386,77 @@ console.log('\n[verify] BIO-2d: seats carry the history pip for the owner');
   }
 }
 
+console.log('\n[verify] RELATE-1: the owner ledger, his wants, and the one item');
+{
+  // — the ledger is written from owner ACTS, and only from owner acts —
+  const before = (await j('GET', `/api/agents/${agentIdActual}?userId=${userId}`)).body;
+  // Dedupe is the design: a repeated fact bumps a count rather than adding a
+  // line, so the thing that must grow is the total weight, not the length.
+  const weigh = (l) => (l ?? []).reduce((n, e) => n + (e.count ?? 1), 0);
+  const ledgerBefore = weigh(before.ownerMemory);
+
+  // A needle through the real chat route.
+  await j('POST', '/api/agents/chat', { userId, existingAgentId: agentIdActual, content: 'what were you thinking, you idiot' });
+  // Opening the flagged sheet is an owner act too.
+  await j('GET', `/api/agents/${agentIdActual}/flagged?userId=${userId}`);
+
+  const after = (await j('GET', `/api/agents/${agentIdActual}?userId=${userId}`)).body;
+  const ledger = after.ownerMemory ?? [];
+  check('owner acts write ledger lines', weigh(ledger) > ledgerBefore, `${ledgerBefore} -> ${weigh(ledger)}`);
+  check('a needle from the owner is remembered', ledger.some((e) => e.type === 'needle'));
+  // review_opened only fires when there is actually a hand on the sheet —
+  // opening an empty review is not reading a hand back.
+  const flagged = (await j('GET', `/api/agents/${agentIdActual}/flagged?userId=${userId}`)).body;
+  if ((flagged.count ?? 0) > 0) {
+    const withReview = (await j('GET', `/api/agents/${agentIdActual}?userId=${userId}`)).body;
+    check('opening a non-empty review is remembered',
+      (withReview.ownerMemory ?? []).some((e) => e.type === 'review_opened'));
+  } else {
+    check('an empty review writes nothing', !ledger.some((e) => e.type === 'review_opened'));
+  }
+  check('the ledger is capped at 12', ledger.length <= 12, String(ledger.length));
+  check('every line names a tone', ledger.every((e) => [-1, 0, 1].includes(e.tone)));
+  check('no line stores the owner text verbatim',
+    !JSON.stringify(ledger).includes('you idiot'));
+  const guilt = /alone|abandon|neglect|miss(ed)? you|never (come|visit)|where were you/i;
+  check('no line is about absence', !ledger.some((e) => guilt.test(e.text)),
+    ledger.map((e) => e.text).join(' | '));
+  if (ledger.length > 0) console.log(`         ledger: ${ledger.map((e) => e.text).join(' | ')}`);
+
+  // — "what do you think of me?" answers from the ledger, no model call —
+  const asked = await j('POST', '/api/agents/chat', {
+    userId, existingAgentId: agentIdActual, content: 'what do you think of me?',
+  });
+  const answer = asked.body?.chat?.[0]?.content ?? '';
+  check('he answers the question about the owner', answer.length > 0, answer);
+  check('and it comes from the ledger, not the model', asked.body?.fromOwnerMemory === true);
+  check('the answer carries no guilt', !guilt.test(answer), answer);
+  console.log(`         "what do you think of me?" -> ${answer}`);
+
+  // — the item is wallet-funded, soothes one step, and refuses when he is fine —
+  const walletBefore = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
+  const give = await j('POST', `/api/agents/${agentIdActual}/give?userId=${userId}`, { userId, item: 'beer' });
+  if (give.status === 200) {
+    check('the item soothed a step', give.body.soothed === true);
+    check('it was paid for from the WALLET, never a pocket', give.body.spent > 0);
+    const walletAfter = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
+    check('the wallet actually paid', walletAfter === walletBefore - give.body.spent,
+      `${walletBefore} -> ${walletAfter}, spent ${give.body.spent}`);
+    const withItem = (await j('GET', `/api/agents/${agentIdActual}?userId=${userId}`)).body;
+    check('giving wrote a ledger line',
+      (withItem.ownerMemory ?? []).some((e) => e.type === 'item_given'));
+  } else {
+    // The documented refusal: a level agent has no mood to soothe.
+    check('a level agent refuses the item rather than spending',
+      /fine\. save it|snacked recently/i.test(give.body?.error ?? ''), give.body?.error);
+    check('and nothing was spent', (give.body?.spent ?? 0) === 0);
+  }
+
+  // — an unknown item is refused —
+  const bogus = await j('POST', `/api/agents/${agentIdActual}/give?userId=${userId}`, { userId, item: 'ferrari' });
+  check('an item that does not exist is refused', bogus.status === 400, String(bogus.status));
+}
+
 console.log('\n[verify] cleanup: delete the e2e agent');
 await j('DELETE', `/api/agents/${agentIdActual}?userId=${userId}`);
 wss.close();
