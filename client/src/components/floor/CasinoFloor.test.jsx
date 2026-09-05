@@ -108,7 +108,9 @@ describe('an agent the snapshot marks live is shown live (BUG-16)', () => {
     const { container } = renderFloor();
 
     await waitFor(() => expect(occupants()).toHaveLength(2));
-    expect(screen.getByText("Everyone's resting.")).toBeInTheDocument();
+    // FL-2 retired "Everyone's resting." for a line that says what happened.
+    // What BUG-16 pins here is unchanged: nothing on this floor reads as live.
+    expect(screen.getByText(/resting ·/)).toBeInTheDocument();
     expect(occupant('The Grinder').querySelector('.floor-dot')).toBeNull();
     expect(container.querySelectorAll('.floor-pot')).toHaveLength(0);
   });

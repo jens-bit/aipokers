@@ -459,3 +459,90 @@
   color: var(--flr-dim);
 }
 .floor-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── FL-1 · the bar reads as people, not name tags ─────────────────────────
+   A body at the bar carries no chip: posture is the identity. The pip at his
+   feet is the only thing he wears, and only when he has news. */
+
+.floor-bar-ghost {
+  gap: 2px;
+}
+
+.floor-pip {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(14, 16, 18, 0.92);
+  border-radius: 3px;
+  padding: 2px 4.5px;
+  white-space: nowrap;
+  margin-top: 1px;
+  pointer-events: none;
+}
+
+/* The broke pip states a fact and does not accuse anyone: no red, no glow,
+   and a weaker border than the other two. */
+.floor-pip[data-pip='broke'] {
+  opacity: 0.86;
+}
+
+/* ── FL-2 · a live felt is the loudest object ──────────────────────────────
+   One place to look. The room and every body not in the hand drop to 42%
+   under a scrim; the live felt keeps its brightness and gains a rim. */
+
+.floor.is-room-live .floor__room-wrap { opacity: 0.42; }
+.floor.is-room-live .floor-bar-ghost { opacity: 0.42; }
+.floor.is-room-live .floor-bar-ghost.is-selected { opacity: 1; }
+
+.floor__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(8, 9, 11, 0.34);
+  pointer-events: none;
+}
+
+.floor-live-glow {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 212, 170, 0.18), transparent 68%);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.floor-live-rim {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 170, 0.53);
+  box-shadow: 0 0 22px rgba(0, 212, 170, 0.24), inset 0 0 26px rgba(0, 212, 170, 0.12);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* A resting room is not a dark one: no scrim, and the room at its own level. */
+.floor:not(.is-room-live) .floor__room-wrap { opacity: 0.92; }
+
+/* ── FL-3 · he walks in ────────────────────────────────────────────────────
+   One body crossing the room, with a trail behind it. The walk is the whole
+   point, so the body is never dimmed by the live scrim — an arrival is the
+   one thing allowed to compete with a live felt for a few seconds. */
+
+.floor-walkin__trail {
+  position: absolute;
+  height: 2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.floor-walkin__halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.floor.is-room-live .floor-walkin { opacity: 1; }

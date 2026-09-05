@@ -3,15 +3,22 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { Occupant, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
+import { Occupant, BarGhost, WalkIn, GhostChip, FloorGhost, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, MOODS, safeMood, M_TEAL } from './atoms.jsx';
 import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
-import { moodOf, stateOf, splitFloor, standupLine } from './agentView.js';
+import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
 const POLL_MS = 10_000;
+
+// How long the arriving body owns the room before he joins it. Long enough to
+// read as a crossing, short enough that it is never in the way.
+const WALK_MS = 5_000;
+
+// He comes in from the left edge of the room.
+const DOOR_X = 18;
 
 // ATTR-2e-2 — the worn posture at the felt.
 // Port of design-refs/char-play.jsx WornGhost / WornOccupant. Worn is a POSTURE
@@ -116,6 +123,32 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
     };
   }, [load]);
 
+  // FL-3 — the newborn walks in. CasinoFloor is told nothing about births, so
+  // it works it out: an agent id that was not in the first roster this mount
+  // saw is somebody who arrived while the owner was standing here. He walks
+  // for one beat and then takes his place at the bar like everyone else.
+  //
+  // Deliberately keyed off "new since the first load" and not a createdAt
+  // timestamp: reopening the app should not replay an arrival that already
+  // happened, and a clock the client does not own is not evidence of anything.
+  const seenIdsRef = useRef(null);
+  const [arrivingId, setArrivingId] = useState(null);
+  const arrivalTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (loading) return;
+    const ids = new Set(agents.map((a) => a.id));
+    if (seenIdsRef.current === null) { seenIdsRef.current = ids; return; }
+    const fresh = agents.find((a) => !seenIdsRef.current.has(a.id));
+    seenIdsRef.current = ids;
+    if (!fresh) return;
+    setArrivingId(fresh.id);
+    clearTimeout(arrivalTimerRef.current);
+    arrivalTimerRef.current = setTimeout(() => setArrivingId(null), WALK_MS);
+  }, [agents, loading]);
+
+  useEffect(() => () => clearTimeout(arrivalTimerRef.current), []);
+
   // Resolve against the latest poll so a zoomed agent stays current (and
   // closes cleanly if it disappears from the roster).
   const zoomed = agents.find((a) => a.id === zoomedId) || null;
@@ -187,14 +220,35 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
       });
     }),
     ...barSlots.map(({ agent, x }, i) => ({
-      agent, x, y: L.bar.y - 102, state: stateOf(agent),
+      agent, x, y: L.bar.y - 102, state: stateOf(agent), atBar: true,
       size: mini ? 44 : 48, speed: speedFor(agent, i), accentIndex: i, drink: true,
     })),
     ...(L.corner ? lounge.slice(0, 1).map((agent) => ({
-      agent, x: L.corner.cx, y: L.corner.cy - 62, state: stateOf(agent),
-      size: 50, speed: speedFor(agent, 3), accentIndex: 0, dim: true,
+      agent, x: L.corner.cx, y: L.corner.cy - 62, state: stateOf(agent), atBar: true,
+      size: 50, speed: speedFor(agent, 3), accentIndex: 0, dim: true, drink: true,
     })) : []),
-  ];
+  ]
+    // FL-1 — ONE GHOST PER AGENT, ALWAYS. An agent has exactly one body on the
+    // floor. splitFloor already partitions the roster, but the bar, the corner
+    // and the felts each slice their own lists, and a bug in any of them used
+    // to put a second copy of somebody on screen. This is the invariant, held
+    // in one place: first placement wins, every later one is dropped.
+    .filter((p, i, all) => all.findIndex((q) => q.agent.id === p.agent.id) === i)
+    // FL-3: while he is crossing the room, the arriving body is his only body.
+    // The ordinary placement is dropped rather than drawn underneath it.
+    .filter((p) => p.agent.id !== arrivingId);
+
+  // FL-2 — A LIVE FELT IS THE LOUDEST OBJECT. When a hand is running there is
+  // one place to look: the room drops to 42% under a scrim and the live felt
+  // gets a glow and a bright rim on top of it. With nothing live there is no
+  // scrim at all and the room sits at its own brightness.
+  // FL-3: he comes in from the door and stops at the bar — the room's own
+  // resting spot, so the walk ends where he will be standing a moment later.
+  const arriving = arrivingId ? agents.find((a) => a.id === arrivingId) : null;
+  const arrivalSpot = { x: L.bar.x1 + (L.bar.x2 - L.bar.x1) * 0.62, y: L.bar.y - 102 };
+
+  const liveFelt = tables.length > 0 ? litFelts[0] : null;
+  const roomIsLive = !!liveFelt && !desktopMode;
 
   const zoomedPlacement = zoomed ? placements.find((p) => p.agent.id === zoomed.id) : null;
 
@@ -202,7 +256,10 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
   const flaggableAgent = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
 
   return (
-    <div className={`floor${zoomed && !desktopMode ? ' is-zoomed' : ''}${desktopMode ? ' is-desktop' : ''}`} ref={rootRef}>
+    <div
+      className={`floor${zoomed && !desktopMode ? ' is-zoomed' : ''}${desktopMode ? ' is-desktop' : ''}${roomIsLive ? ' is-room-live' : ''}`}
+      ref={rootRef}
+    >
       <div className={`floor__room-wrap${zoomed && !desktopMode ? ' is-zoomed' : ''}`}>
         <RoomLayer
           layout={layout}
@@ -210,6 +267,33 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
           viewBox={!desktopMode && zoomedPlacement ? zoomViewBox(zoomedPlacement.x, zoomedPlacement.y) : undefined}
         />
       </div>
+
+      {/* The scrim, and the two marks that make one felt loud: a soft pool of
+          light around it and a rim on the felt itself. Both are decoration and
+          neither takes a pointer — the ghosts above stay tappable. */}
+      {roomIsLive && !zoomed && (
+        <>
+          <div className="floor__scrim" aria-hidden />
+          <div
+            className="floor-live-glow"
+            style={{
+              ...roomStyle(room, liveFelt.cx, liveFelt.cy - liveFelt.ry * 2.6),
+              width: liveFelt.rx * 3.4 * room.k,
+              height: liveFelt.ry * 5.2 * room.k,
+            }}
+            aria-hidden
+          />
+          <div
+            className="floor-live-rim"
+            style={{
+              ...roomStyle(room, liveFelt.cx, liveFelt.cy - liveFelt.ry),
+              width: liveFelt.rx * 2 * room.k,
+              height: liveFelt.ry * 2 * room.k,
+            }}
+            aria-hidden
+          />
+        </>
+      )}
 
       {/* On mobile, unmount occupants when zoomed so the small ghost stays hidden
           behind the FloorZoom modal. On desktop, occupants stay mounted always. */}
@@ -229,7 +313,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
               <span className="floor-standup__line">
                 {loading
                   ? 'Reading the room…'
-                  : standupLine({ playing, resting, lounge, total: agents.length })}
+                  : standupLine({ playing, resting, lounge, total: agents.length, agents })}
               </span>
               {flaggableAgent && (
                 <span style={{
@@ -278,7 +362,35 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   aria-hidden
                 />
               )}
-              {fatigueOf(p.agent) === 'worn' ? (
+              {p.atBar ? (
+                /* FL-1 — names are earned, not worn. At the bar the posture is
+                   the identity, so no chip is drawn unless he is the ghost the
+                   owner has open. One pip at his feet when he has news. */
+                <BarGhost
+                  x={p.x}
+                  y={p.y}
+                  name={p.agent.name}
+                  accent={accentFor(p.agent, p.accentIndex)}
+                  mood={moodOf(p.agent)}
+                  size={p.size}
+                  speed={p.speed}
+                  drink={p.drink}
+                  dim={p.dim}
+                  pip={newsPipFor(p.agent)}
+                  pipCount={grewCount(p.agent)}
+                  selected={zoomedId === p.agent.id}
+                  room={room}
+                  onClick={() => {
+                    if (desktopMode) {
+                      const newId = p.agent.id === zoomedId ? null : p.agent.id;
+                      setZoomedId(newId);
+                      onGhostSelect?.(newId ? p.agent : null);
+                    } else {
+                      setZoomedId(p.agent.id);
+                    }
+                  }}
+                />
+              ) : fatigueOf(p.agent) === 'worn' ? (
                 <WornOccupant
                   x={p.x}
                   y={p.y}
@@ -339,6 +451,19 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
               )}
             </Fragment>
           ))}
+
+          {arriving && (
+            <WalkIn
+              from={{ x: DOOR_X }}
+              to={{ x: arrivalSpot.x, y: arrivalSpot.y }}
+              name={arriving.name}
+              accent={accentFor(arriving, agents.indexOf(arriving))}
+              mood={moodOf(arriving)}
+              size={mini ? 44 : 50}
+              room={room}
+              onClick={() => setZoomedId(arriving.id)}
+            />
+          )}
 
           {ftu && (
             <FtuStool
