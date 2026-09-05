@@ -20,6 +20,8 @@ describe('protocol', () => {
       LEAVE: 'leave',
       PING: 'ping',
       SIT_OUT: 'sit_out',
+      FLOOR_SUB: 'floor_sub',
+      FLOOR_UNSUB: 'floor_unsub',
     });
   });
 
@@ -36,6 +38,7 @@ describe('protocol', () => {
       SEAT_LEFT: 'seat_left',
       ERROR: 'error',
       PONG: 'pong',
+      EVENT: 'event',
     });
   });
 
