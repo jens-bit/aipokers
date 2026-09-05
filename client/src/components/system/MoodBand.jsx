@@ -47,7 +47,9 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', cause, state = 
           type="button"
           onClick={onAction}
           style={{
-            height: 30, padding: '0 13px', borderRadius: 8, cursor: 'pointer',
+            /* FIX-1d: base.css floors buttons at --tap (44px), which grew this
+               row past the design's 63px. The ref sizes it at 30. */
+            height: 30, minHeight: 0, padding: '0 13px', borderRadius: 8, cursor: 'pointer',
             background: 'transparent',
             border: `1px solid ${state === 'live' ? 'rgba(255,255,255,0.10)' : '#00D4AA'}`,
             color: state === 'live' ? '#A1A1A1' : '#00D4AA',

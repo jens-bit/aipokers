@@ -131,7 +131,7 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
         type="button"
         onClick={onSkip}
         style={{
-          height: 30, padding: '0 12px', borderRadius: 8, flexShrink: 0,
+          height: 30, minHeight: 0, padding: '0 12px', borderRadius: 8, flexShrink: 0,
           border: ready ? 'none' : `1px solid rgba(255,255,255,0.14)`,
           background: ready ? M_TEAL : 'transparent',
           color: ready ? '#0A0A0A' : M_TEXT,
@@ -668,18 +668,23 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       `}</style>
 
       {/* Back header */}
+      {/* FIX-1d: GlobalHeader's row from mood-atoms — 2px/10px padding around a
+          29px control row and no bottom rule, so the chrome is 41px instead of
+          the 63px it had grown to. The back control needs an explicit
+          minHeight because base.css floors every button at --tap (44px), which
+          is what was inflating this row and the band below it. */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`,
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '2px 14px 10px',
         background: M_PANEL, flexShrink: 0,
       }}>
         <button
           type="button"
           onClick={onBack}
           aria-label="Back"
-          style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
+          style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>

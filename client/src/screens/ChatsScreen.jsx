@@ -595,25 +595,30 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
 
       {/* Back header */}
+      {/* FIX-1d: GlobalHeader's row from mood-atoms — 2px/10px padding around a
+          29px control row and no bottom rule, so the chrome is 41px instead of
+          the 63px it had grown to. The back control needs an explicit
+          minHeight because base.css floors every button at --tap (44px), which
+          is what was inflating this row and the band below it. */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`,
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '2px 14px 10px',
         background: M_PANEL, flexShrink: 0,
       }}>
         <button
           type="button"
           onClick={onBack}
           aria-label="Back"
-          style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
+          style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
         <button
           type="button"
           onClick={() => onOpenProfile?.(agent)}
-          style={{ flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
+          style={{ flex: 1, height: 29, minHeight: 0, display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
         >
           <span style={{ fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
             {agent.name}
