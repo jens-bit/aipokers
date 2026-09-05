@@ -16,6 +16,7 @@ import { fetchMock, telegram } from '../test/harness.js';
 import { FLIP_MS } from '../lib/pace.js';
 import { resetHaptics } from '../lib/haptics.js';
 import { isMuted, play, resetAudio } from '../lib/audio.js';
+import { GUESSES, resetPredict } from '../lib/predict.js';
 
 function renderWatch(game, props = {}) {
   return render(
@@ -564,6 +565,93 @@ describe('W3-3 the beats', () => {
     expect(isMuted()).toBe(true);
     expect(screen.getByRole('button', { name: /sound off/i })).toBeInTheDocument();
     expect(container.querySelector('.watch-mute').className).toContain('is-muted');
+  });
+});
+
+// ── W3-4 · the prediction beat, behind its flag ─────────────────────────────
+
+describe('W3-4 the prediction beat', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    resetPredict();
+    try { window.localStorage.clear(); } catch { /* private window */ }
+  });
+
+  const enable = () => window.localStorage.setItem('ap_predict', '1');
+
+  it('W3-4: is absent unless the flag is set', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(container.querySelector('.predict')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Raise' })).not.toBeInTheDocument();
+  });
+
+  it('W3-4: appears in the panel with the flag on, framed as a bet on him', () => {
+    enable();
+    const { container } = renderWatch(midHandGame);
+    expect(container.querySelector('.predict')).toBeTruthy();
+    // The verb is his. This is not a control the owner is operating.
+    expect(screen.getByText('He’s going to…')).toBeInTheDocument();
+    expect(GUESSES.every((g) => screen.getByRole('button', { name: g }))).toBe(true);
+  });
+
+  it('W3-4: picking a chip marks it and nothing else', async () => {
+    enable();
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+
+    await user.click(screen.getByRole('button', { name: 'Raise' }));
+    const chips = [...container.querySelectorAll('.predict__chip')];
+    expect(chips.map((c) => c.className.includes('is-picked'))).toEqual([false, false, true]);
+    // Nothing is spent and nothing is locked until he acts.
+    expect(chips.every((c) => !c.disabled)).toBe(true);
+  });
+
+  it('W3-4: the chips lock the moment he acts, and a right call extends the streak', async () => {
+    enable();
+    const user = userEvent.setup();
+    const { container, rerender } = renderWatch(midHandGame);
+
+    await user.click(screen.getByRole('button', { name: 'Raise' }));
+
+    rerender(
+      <WatchScreen game={midHandGame} mySeat={0} config={spectatorConfig}
+        displayNames={{}} chatMessages={[]}
+        lastDecision={{ seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.6 }}
+        sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}} />,
+    );
+
+    expect(screen.getByText('You called it')).toBeInTheDocument();
+    expect(screen.getByText('1 IN A ROW')).toBeInTheDocument();
+    expect([...container.querySelectorAll('.predict__chip')].every((c) => c.disabled)).toBe(true);
+    expect(container.querySelector('.predict__chip.is-won')).toBeTruthy();
+  });
+
+  it('W3-4: a wrong call says so and takes the streak to zero', async () => {
+    enable();
+    const user = userEvent.setup();
+    const { container, rerender } = renderWatch(midHandGame);
+
+    await user.click(screen.getByRole('button', { name: 'Fold' }));
+    rerender(
+      <WatchScreen game={midHandGame} mySeat={0} config={spectatorConfig}
+        displayNames={{}} chatMessages={[]}
+        lastDecision={{ seat: 0, action: { type: 'call', amount: 40 }, equity: 0.6 }}
+        sendChat={() => {}} onLeave={() => {}} onSitOut={() => {}} />,
+    );
+
+    expect(screen.getByText('Not this time')).toBeInTheDocument();
+    expect(screen.getByText('0 IN A ROW')).toBeInTheDocument();
+    expect(container.querySelector('.predict__chip.is-lost')).toBeTruthy();
+  });
+
+  it('W3-4: there is nothing to spend and no reward but the number', () => {
+    enable();
+    const { container } = renderWatch(midHandGame);
+    const text = container.querySelector('.predict').textContent.toLowerCase();
+    for (const banned of ['coin', 'chips left', 'claim', 'reward', 'bonus', 'x2']) {
+      expect(text).not.toContain(banned);
+    }
   });
 });
 

@@ -17,6 +17,8 @@ import { TugBar } from './system/TugBar.jsx';
 import { ReadPanel } from './system/ReadPanel.jsx';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
+import { PredictBeat } from './system/PredictBeat.jsx';
+import { predictEnabled, settle, getStreak } from '../lib/predict.js';
 import { paceOf, paceMeta, heroEquityOf, landedCount, FLIP_MS } from '../lib/pace.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -83,10 +85,11 @@ function posLabel(seat, game) {
 // the attribute panel ATTR-2e put on the hand just played. Nothing here says
 // "waiting for the first action": before there is evidence he says so himself.
 
-function ReadTab({ game, between, agent, lastHand }) {
+function ReadTab({ game, between, agent, lastHand, predict }) {
   return (
     <div className="watch-panel__read">
       <ReadPanel reads={game ? game.reads : null} />
+      {predict}
       {between && agent && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
       <MuteToggle />
     </div>
@@ -1049,6 +1052,30 @@ export function WatchScreen({
     beat(won ? 'wonPot' : 'lostPot', fireHaptic);
   }, [game && game.handNumber, game && game.result, mySeat]);
 
+  // ---- W3-4: the prediction beat -------------------------------------------
+  // Off unless the ap_predict flag says otherwise. The pick locks the moment he
+  // acts and settles against what he actually did; the streak lives in memory
+  // for as long as the tab does and is never written down.
+  var predictOn = predictEnabled();
+  var [pick, setPick] = useState(null);
+  var settledForRef = useRef(null);
+
+  useEffect(function() {
+    if (!predictOn || !lastDecision) return;
+    if (settledForRef.current === lastDecision) return;
+    settledForRef.current = lastDecision;
+    if (!pick || pick.locked) return;
+    var outcome = settle(pick.guess, lastDecision.action);
+    if (outcome.right === null) return;      // a spot the chips could not express
+    setPick({ guess: pick.guess, locked: true, right: outcome.right, streak: outcome.streak });
+    if (outcome.right) beat('predictionRight', fireHaptic);
+  }, [predictOn, lastDecision, pick]);
+
+  // A new hand clears the board for the next guess.
+  useEffect(function() {
+    if (predictOn) setPick(null);
+  }, [predictOn, game && game.handNumber]);
+
   // A read forming. The panel animates; the device only nudges.
   var formingRef = useRef(false);
   var readsForming = !!(game && game.reads && game.reads.forming);
@@ -1150,6 +1177,15 @@ export function WatchScreen({
                   between={between}
                   agent={agent}
                   lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
+                  predict={predictOn ? (
+                    <PredictBeat
+                      picked={pick ? pick.guess : null}
+                      locked={!!(pick && pick.locked)}
+                      right={pick ? pick.right : undefined}
+                      streak={pick && pick.locked ? pick.streak : getStreak()}
+                      onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
+                    />
+                  ) : null}
                 />
               )}
               {activeTab === TAB_CHAT && (

@@ -1117,3 +1117,92 @@
 }
 
 .watch-mute.is-muted { color: var(--sys-muted, #6B6B6B); }
+
+/* ── W3-4 · the prediction beat ───────────────────────────────────────────── */
+/* A bet ON him, never a control. Behind the ap_predict flag and off by default. */
+
+.predict { padding: 10px 14px 0; }
+
+.predict__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+
+.predict__lbl {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sys-teal, #00D4AA);
+  white-space: nowrap;
+}
+
+.predict__lbl.is-locked { color: var(--sys-gold, #CDB380); }
+
+.predict__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+
+/* The streak is the whole prize: a number, in gold, and nothing to spend it on. */
+.predict__streak {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--sys-gold, #CDB380);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.predict__chips { display: flex; gap: 7px; }
+
+.predict__chip {
+  flex: 1;
+  height: 40px;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--sys-panel-2, #28282F);
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  color: var(--sys-dim, #A1A1A1);
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out;
+}
+
+.predict__chip.is-picked {
+  background: rgba(0, 212, 170, 0.08);
+  border-color: rgba(0, 212, 170, 0.40);
+  color: var(--sys-teal, #00D4AA);
+}
+
+.predict__chip.is-won {
+  background: rgba(0, 212, 170, 0.12);
+  border-color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, #00D4AA);
+}
+
+.predict__chip.is-lost {
+  background: rgba(255, 77, 79, 0.08);
+  border-color: rgba(255, 77, 79, 0.40);
+  color: var(--sys-red, #FF4D4F);
+}
+
+/* Locked is the whole point: the chips settle the moment he acts. */
+.predict__chip.is-dimmed { opacity: 0.4; }
+.predict__chip:disabled { cursor: default; opacity: 1; }
+.predict__chip.is-dimmed:disabled { opacity: 0.4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .predict__chip { transition: none; }
+}
