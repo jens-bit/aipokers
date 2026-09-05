@@ -1921,3 +1921,77 @@
 .dsk-shape__note b { color: var(--dsk-text, #ededed); font-weight: 600; }
 
 .dsk-shape__deal { width: 100%; height: 44px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-5 — floor v2 at the desk. D4Floor2ScreenM.
+ *
+ * The four rules were built for the floor itself (FL-1..3) and the desk uses
+ * that same CasinoFloor, so rules 1 and 2 — one ghost per agent, and a name
+ * only when seated or selected — already hold here. What the desk adds is the
+ * rail's own reading of rule 4, and the sizes the ref draws the resting bodies
+ * at along the bottom of a wide stage.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-room {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--dsk-panel-2, #1b1b1b);
+  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+}
+
+.dsk-room__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dsk-room__census {
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dsk-muted, #6b6b6b);
+  white-space: nowrap;
+}
+
+.dsk-room__rows {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dsk-room__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.dsk-room__row:disabled { cursor: default; }
+.dsk-room__row:hover:not(:disabled) .dsk-room__name { color: var(--dsk-teal, #00d4aa); }
+
+.dsk-room__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--dsk-text, #ededed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── the resting bodies on a wide stage ───────────────────────────────────── */
+/* The ref draws the pip a half-point larger at the desk's scale, where it sits
+   further from the eye. The ghost sizes themselves come from the floor's own
+   layout, which the desk shares — nothing is re-scaled here, because a second
+   set of sizes is a second thing to keep in step. */
+
+.floor.is-desktop .floor-pip { font-size: 8.5px; }

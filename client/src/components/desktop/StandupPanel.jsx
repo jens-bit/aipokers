@@ -7,6 +7,7 @@ import { GameTile } from './GameTile.jsx';
 import { PStandupCard } from './PStandupCard.jsx';
 import { PanelHead, RailBody, PComposer, PRosterRow, DraftPanel } from './panelParts.jsx';
 import { PFlaggedCard } from './PFlaggedCard.jsx';
+import { DeskRoomCard } from './DeskRoomCard.jsx';
 import { gainsWithin, grewWithin } from '../../lib/attributes.js';
 
 const MAX_SEATS = 4;
@@ -81,6 +82,10 @@ export function StandupPanel({
       <PanelHead title="Standup" sub={sub} />
       <RailBody>
         <PStandupCard agents={agents} loading={loading} />
+
+        {/* DP-5 — wave 34's fourth rule at the desk: the room says what
+            happened in it, and who it happened to. */}
+        <DeskRoomCard agents={agents} onSelect={onSelect} />
 
         {live.length > 0 && (
           <TileStack
