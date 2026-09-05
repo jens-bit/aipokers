@@ -17,9 +17,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WatchScreen } from './WatchScreen.jsx';
 import { betweenHandsGame, spectatorConfig } from '../test/fixtures/game.js';
@@ -107,5 +107,66 @@ describe('FIX-1e watch chat vs the between-hands bar', () => {
 
     // The analysis panel keeps its fixed slot — this fix is scoped to the sheet.
     expect(rule(analysis, '.dr-chat-tab')).toMatch(/height:\s*240px/);
+  });
+});
+
+// FIX-4 (playtest 2026-09-05): "with the bottom sheet pulled down, tapping CHAT
+// in the header does nothing."
+//
+// W4-5 made the header button and the sheet's own TABLE tab one decision:
+// hand it a thread and it opens the thread, otherwise it selects the tab. But
+// selecting a tab inside a sheet dragged to HIDDEN selects something nobody can
+// see, so on the deployment where onOpenThread is not wired the control read as
+// dead. Where there is no thread to open, the button now does the whole
+// gesture: pick the tab AND bring the sheet back up.
+describe('FIX-4 the header CHAT button with the sheet pulled down', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  const sheet = () => document.querySelector('.watch-sheet');
+
+  // A tap on the grab handle cycles expanded -> peek -> hidden. The gesture is
+  // pointer-driven, so it is played rather than clicked: same pointerId, no
+  // movement, well inside the 400ms tap window.
+  function tapHandle() {
+    const grab = document.querySelector('.watch-sheet__grab');
+    act(() => {
+      fireEvent.pointerDown(grab, { pointerId: 1, button: 0, clientY: 500 });
+      fireEvent.pointerUp(grab, { pointerId: 1, clientY: 500 });
+    });
+  }
+
+  it('FIX-4: opens the sheet on the TABLE tab when there is no thread to open', async () => {
+    const user = userEvent.setup();
+    renderWatch();
+
+    expect(sheet().dataset.detent).toBe('expanded');
+    tapHandle();
+    expect(sheet().dataset.detent).toBe('peek');
+    tapHandle();
+    expect(sheet().dataset.detent).toBe('hidden');
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+
+    expect(sheet().dataset.detent).toBe('expanded');
+    // ...and it is the TABLE tab that is showing, not whatever was last picked.
+    expect(document.querySelector('.dr-chat-tab')).not.toBeNull();
+  });
+
+  it('FIX-4: a thread still wins, and the sheet is left where the owner put it', async () => {
+    const user = userEvent.setup();
+    const onOpenThread = vi.fn();
+    renderWatch({ onOpenThread });
+
+    tapHandle();
+    tapHandle();
+    expect(sheet().dataset.detent).toBe('hidden');
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+
+    expect(onOpenThread).toHaveBeenCalledTimes(1);
+    expect(sheet().dataset.detent).toBe('hidden');
   });
 });

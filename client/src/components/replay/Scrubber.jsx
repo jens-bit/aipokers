@@ -28,6 +28,13 @@ function PauseIcon() {
 export function Scrubber({ timeline, at, playing, streetLabel, meta, onSeek, onToggle, onOpenHand }) {
   const total = timeline.total || 1;
   const pct = Math.max(0, Math.min(100, (at / total) * 100));
+  // FIX-4: the range input is controlled, and a range input sanitises whatever
+  // is assigned to it onto its own step grid. Handing it the reel's raw elapsed
+  // seconds (3.6000000000000005) left the DOM holding 3.6 and React believing
+  // otherwise on every tick, which is the drift that lets the control echo a
+  // seek back at the reel and pause it. Snapping here means the two never
+  // disagree; the felt still runs on the unrounded clock.
+  const snapped = Math.round(at * 10) / 10;
 
   return (
     <div className="replay-scrub">
@@ -62,7 +69,7 @@ export function Scrubber({ timeline, at, playing, streetLabel, meta, onSeek, onT
           min={0}
           max={total}
           step={0.1}
-          value={at}
+          value={snapped}
           aria-label="Scrub the replay"
           onChange={(e) => onSeek?.(Number(e.target.value))}
         />
