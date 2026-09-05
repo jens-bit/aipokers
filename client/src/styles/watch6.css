@@ -1,0 +1,584 @@
+/* watch6.css — WATCH v6.
+   The hero seated at the bottom, the felt filling the screen, chat as a
+   whisper, history as a glass layer.
+
+   Ported from design-refs/mood-watch5.jsx, with the material from
+   design-refs/mood-watch4c.jsx (GLASS) and design-refs/mood-atoms.jsx.
+   Loaded after watch.css, so the few v4b rules it supersedes lose cleanly. */
+
+/* ── the material ─────────────────────────────────────────────────────────
+   "Two different materials meeting at a hard line is why it looked cheap next
+   to the felt." Every panel on this screen is now the same glass — translucent
+   over the felt's own colour, a thin light border, a display-font label. */
+.glass {
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 13px;
+  padding: 11px 13px;
+}
+
+.glass--up {
+  background: rgba(18, 30, 28, 0.84);
+  border-color: rgba(255, 255, 255, 0.17);
+}
+
+.glass-lbl {
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--sys-text, #EDEDED);
+}
+
+/* ── the hero, seated at the bottom edge ──────────────────────────────────
+   A FLOWED COLUMN: bubble, him, rope, strip, cost. Every gap belongs to the
+   column, so a two-line bubble or a thicker rope moves its neighbours instead
+   of landing on them — the lesson v4b paid eleven defects for. */
+.watch-hero {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.watch-hero__says {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.watch-hero__body {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  /* base.css floors every button at --tap; here the ghost's own box is the
+     control, and a 44px floor would push the rope down by the difference. */
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  margin-bottom: 26px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.watch-hero__aura {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 190px;
+  height: 190px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* His cards are IN FRONT of him — over the LOWER THIRD of his body, never
+   behind it, and never over his face: the face is the readout the whole screen
+   is built around. His head spans 15%..100% of the 96px box, so the lower third
+   of it starts at 64%. Above the ghost in z, and the column's own 26px gap
+   under him is what keeps the overhang off the rope. */
+.watch-hero__cards {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  z-index: 6;
+}
+
+.watch-hero__cards .watch-felt__hero-card {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+}
+
+.watch-hero__tug {
+  width: 100%;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+/* The strip: stack, street or to-call, his action. Glass, inside the column —
+   not a chrome bar pinned to the felt. */
+.watch-hero__strip.watch-felt__hero {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  background: rgba(13, 23, 21, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.watch-hero__stack-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+/* ── "why the hand went wrong", pinned under his strip until the next flop ── */
+.watch-hero__cost {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+}
+
+.watch-hero__cost-line {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--sys-gold, #CDB380);
+}
+
+.watch-hero__cost-key {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+  border: 1px solid rgba(205, 179, 128, 0.53);
+  border-radius: 3px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+/* ── the whisper: pale, small, rising from the bottom edge, gone in 4s ───── */
+.watch-whisper {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  z-index: 7;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  animation: whisper 4s ease-out both;
+}
+
+.watch-whisper__box {
+  max-width: 250px;
+  padding: 7px 12px;
+  border-radius: 11px;
+  background: rgba(237, 237, 237, 0.10);
+  border: 1px solid rgba(237, 237, 237, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(237, 237, 237, 0.86);
+  text-align: center;
+}
+
+/* It rises CLEAR of him. The ref anchors it at bottom: 8 and lets it hover
+   there, which on a real felt parks it across his strip and hides the price he
+   is being asked for the whole four seconds. It still rises from the bottom
+   edge and still fades in four; it just does not sit on his readout to do it. */
+@keyframes whisper {
+  0%   { opacity: 0; transform: translateY(10px); }
+  18%  { opacity: 1; transform: translateY(-58px); }
+  78%  { opacity: 1; transform: translateY(-66px); }
+  100% { opacity: 0; transform: translateY(-78px); }
+}
+
+/* ── the composer: a whisper, not a chat ────────────────────────────────── */
+.watch-composer {
+  flex-shrink: 0;
+  padding: 9px 12px 16px;
+  background: #101A18;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.watch-composer__pill.glass {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border-radius: 22px;
+  padding: 0 6px 0 14px;
+}
+
+.watch-composer__input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  /* The ref draws the placeholder at 13px, but BUG-02 is a hard floor: iOS
+     Safari zooms the whole Mini App when a field under 16px takes focus, and
+     the zoom does not come back. 16px is the smallest size that is not a bug. */
+  font-size: 16px;
+  color: var(--sys-text, #EDEDED);
+}
+
+.watch-composer__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+
+.watch-composer__thread {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--sys-muted, #6B6B6B);
+  cursor: pointer;
+}
+
+.watch-composer__send {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sys-teal, #00D4AA);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.watch-composer__send:disabled { opacity: 0.45; cursor: default; }
+
+.watch-composer__hint {
+  margin-top: 7px;
+  text-align: center;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--sys-faint, #55555C);
+}
+
+/* ── the thread, as a glass sheet over the lower 70% of the felt ───────────
+   The felt never resizes for it. That was the tell that a sheet was a
+   different screen rather than a layer. */
+.thread-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 9px 14px 12px;
+  box-sizing: border-box;
+  animation: thread-in 0.28s ease-out both;
+}
+
+@keyframes thread-in { from { opacity: 0; } to { opacity: 1; } }
+
+.thread-sheet__grab {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  margin-bottom: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.thread-sheet__grab-bar {
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.thread-sheet__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.thread-sheet__state {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--sys-muted, #6B6B6B);
+  white-space: nowrap;
+}
+
+.thread-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.thread-sheet__empty {
+  padding: 14px 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.thread-sheet__foot {
+  flex-shrink: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Four registers, one row: HIM, YOU, TABLE, and an opponent under their own
+   name — quoted and italic, because table talk is background until it isn't. */
+.thread-row {
+  display: flex;
+  gap: 9px;
+  padding: 8px 0;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.thread-row__who {
+  width: 56px;
+  flex-shrink: 0;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--sys-muted, #6B6B6B);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-row__text {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.42;
+  color: var(--sys-muted, #6B6B6B);
+  font-style: italic;
+}
+
+.thread-row__at {
+  flex-shrink: 0;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 8.5px;
+  font-weight: 500;
+  color: var(--sys-faint, #55555C);
+}
+
+.thread-row--him .thread-row__who { font-weight: 700; color: var(--sys-teal, #00D4AA); }
+.thread-row--him .thread-row__text {
+  font-size: 13px;
+  font-style: normal;
+  color: var(--sys-text, #EDEDED);
+}
+
+.thread-row--you .thread-row__who { font-weight: 700; color: var(--sys-gold, #CDB380); }
+.thread-row--you .thread-row__text { font-style: normal; color: var(--sys-gold, #CDB380); }
+
+.thread-row--table .thread-row__text { font-style: normal; }
+.thread-row.is-cost .thread-row__who,
+.thread-row.is-cost .thread-row__text { color: var(--sys-gold, #CDB380); }
+
+/* ── the read sheet: the SAME glass, the same 70% ──────────────────────────
+   It was --sys-panel: a flat grey card butted against the felt. */
+.read-sheet {
+  height: 70%;
+  max-height: 70%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  box-shadow: none;
+}
+
+/* ── the ceremony, around the hero at the bottom ───────────────────────────
+   Heat colours it: a tilted agent's loss does not look like a calm one's. */
+.watch-ceremony {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: radial-gradient(ellipse 90% 46% at 50% 84%,
+    rgba(0, 212, 170, 0.10) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+}
+
+.watch-ceremony[data-outcome='lost'] {
+  background: radial-gradient(ellipse 90% 46% at 50% 84%,
+    rgba(205, 179, 128, 0.10) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+}
+
+.watch-ceremony[data-outcome='lost'][data-heat='hot'] {
+  background: radial-gradient(ellipse 90% 46% at 50% 84%,
+    rgba(255, 77, 79, 0.14) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+}
+
+.watch-ceremony__block {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.watch-ceremony__name {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.watch-ceremony__head {
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: var(--sys-teal, #00D4AA);
+}
+
+.watch-ceremony[data-outcome='lost'] .watch-ceremony__head { color: var(--sys-gold, #CDB380); }
+.watch-ceremony[data-outcome='lost'][data-heat='hot'] .watch-ceremony__head { color: var(--sys-red, #FF4D4F); }
+
+/* THE DELTA AND WHERE HE STANDS. "Granite took $1,250" tells the owner what
+   happened to the pot; it does not tell him what happened to his guy. */
+.watch-ceremony__delta {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.watch-ceremony__delta-amt {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.watch-ceremony__delta-amt.is-won  { color: var(--sys-teal, #00D4AA); }
+.watch-ceremony__delta-amt.is-lost { color: var(--sys-red, #FF4D4F); }
+
+.watch-ceremony__dot { font-size: 12px; color: var(--sys-muted, #6B6B6B); }
+.watch-ceremony__stack-lbl { font-size: 12.5px; color: var(--sys-dim, #A1A1A1); }
+
+.watch-ceremony__stack {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sys-text, #EDEDED);
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-ceremony__took {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.watch-ceremony__ghost { position: relative; margin-top: 2px; }
+
+.watch-ceremony__aura {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 210px;
+  height: 210px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.15), transparent 68%);
+  pointer-events: none;
+}
+
+.watch-ceremony[data-outcome='lost'] .watch-ceremony__aura {
+  background: radial-gradient(circle, rgba(205, 179, 128, 0.15), transparent 68%);
+}
+.watch-ceremony[data-outcome='lost'][data-heat='hot'] .watch-ceremony__aura {
+  background: radial-gradient(circle, rgba(255, 77, 79, 0.24), transparent 68%);
+}
+
+/* The next hand starts in 3s anyway — the button only makes it now, which is
+   why it is primary and the conversation is the secondary. */
+.watch-ceremony__acts {
+  width: 100%;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.watch-ceremony__acts .watch-btn { width: 100%; }
+
+.watch-ceremony__next {
+  text-align: center;
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--sys-faint, #55555C);
+}
+
+/* ── the last two flat greys on this screen ──────────────────────────────
+   The header was --sys-panel (#232329) and the sit-out strip --sys-panel-2: a
+   grey bar butted against a dark green table, which is the exact seam v4c
+   exists to remove. Both take the felt's own colour now. */
+.watch-screen__header {
+  background: linear-gradient(180deg, #16221F 0%, #131f1e 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.watch-screen {
+  background: #101A18;
+}
+
+.thread-sheet__foot .watch-sitout-strip {
+  background: rgba(18, 30, 28, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 13px;
+  margin-top: 8px;
+}
+
+.thread-sheet__foot .watch-sitout-strip.is-hidden {
+  display: none;
+}
+
+/* The sound switch sits in the sheet's head, so it is a chip rather than a row. */
+.thread-sheet__head .watch-mute {
+  margin: 0;
+  height: 26px;
+  min-height: 0;
+  padding: 0 9px;
+  border-radius: 8px;
+}

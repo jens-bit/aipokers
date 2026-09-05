@@ -8,6 +8,7 @@
 import { PanelHead, RailBody, PComposer } from './panelParts.jsx';
 import { equityPct, phaseOf } from './DeskTableStage.jsx';
 import { RiverAttrPanel } from '../AnalysisPanel.jsx';
+import { ThreadRow } from '../system/ThreadSheet.jsx';
 
 export function AnalysisPanel({ title, action, onAction, children }) {
   return (
@@ -44,7 +45,7 @@ function fmtMoney(n) {
 }
 
 export function WatchRail({
-  agent, game, lastDecision, heroSeat, hands,
+  agent, game, lastDecision, heroSeat, hands, thread,
   draft, onDraftChange, onSend, sending, onClose,
 }) {
   const between = phaseOf(game) === 'between';
@@ -60,14 +61,38 @@ export function WatchRail({
   const stats = agent?.careerStats;
   const lastHand = Array.isArray(hands) && hands.length ? hands[0] : null;
 
+  // HIM / YOU / TABLE, in the order it happened — the same four registers the
+  // phone's sheet draws, from the same component, so the two cannot disagree
+  // about who said what.
+  const tableRows = [
+    ...(heroDecision?.reasoning
+      ? [{ id: 'live', who: 'HIM', text: heroDecision.reasoning }]
+      : []),
+    ...(Array.isArray(thread) ? thread : []).map((m, i) => ({
+      id: m._id ?? `t${i}`,
+      who: m.role === 'user' ? 'YOU' : 'HIM',
+      text: m.content,
+    })),
+  ];
+
   return (
-    <div className="dsk-panel">
+    <div className="dsk-panel dsk-panel--watch">
       <PanelHead
         title={agent?.name || 'At the table'}
         sub={between ? 'BETWEEN HANDS' : 'AT THE TABLE'}
         onClose={onClose}
       />
       <RailBody>
+        {/* WATCH-6, board 31: the rail leads with THE TABLE — everything said
+            here, in order, whoever said it. On the phone this is a sheet you
+            pull up; at 1440 there is room for it to be always open, which is
+            what the ref says on it. */}
+        <AnalysisPanel title="The table">
+          {tableRows.length === 0
+            ? <div className="dsk-apanel__empty">Nothing said at this table yet.</div>
+            : tableRows.map((r) => <ThreadRow key={r.id} row={r} />)}
+        </AnalysisPanel>
+
         <AnalysisPanel title="Live analysis">
           {heroDecision?.reasoning && !between && (
             <div className="dsk-apanel__voice">“{heroDecision.reasoning}”</div>
@@ -120,7 +145,7 @@ export function WatchRail({
         onChange={onDraftChange}
         onSend={onSend}
         busy={sending}
-        placeholder={`Message ${agent?.name || 'your agent'}…`}
+        placeholder="Whisper to him…"
         onCommand={(cmd) => onDraftChange(`${cmd} `)}
       />
     </div>

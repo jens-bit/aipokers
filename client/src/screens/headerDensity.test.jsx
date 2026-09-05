@@ -185,11 +185,12 @@ describe('FIX-4 the watch header is one 40px row', () => {
     }
   });
 
+  // WATCH-6 re-expressed: the draggable stage is gone. The FELT is the next
+  // child and takes the rest — header -> felt -> composer, nothing between —
+  // so the rule that has to hold this is the felt's own.
   it('FIX-4: the felt starts straight under the row, with no second band', () => {
-    // .watch-stage is the next child and takes the rest; a padded strip between
-    // the two would have to declare its own height here.
-    expect(prop('.watch-stage', 'flex')).toBe('1');
-    expect(prop('.watch-stage', 'min-height')).toBe('0');
+    expect(prop('.watch-felt--fill', 'flex')).toBe('1');
+    expect(prop('.watch-felt--fill', 'min-height')).toBe('0');
     expect(prop('.watch-screen__header', 'padding')).toBe('0 14px');
   });
 });

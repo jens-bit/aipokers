@@ -257,24 +257,27 @@ describe('W4-5: where Chat goes', () => {
     expect(onOpenThread).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the in-sheet tab when it cannot', async () => {
+  // WATCH-6 re-expressed: the fallback is no longer a tab in a sheet under the
+  // felt — it is the record as a glass layer OVER the felt, with the hand still
+  // running behind it.
+  it('falls back to the record over the felt when it cannot', async () => {
     render(<WatchScreen {...props} />);
     await userEvent.click(screen.getByRole('button', { name: 'Chat' }));
 
-    // No router, so talking stays here: the sheet's own tab takes over. W4-4
-    // named it TABLE — the record — and it carries the composer.
     await waitFor(() => {
-      expect(document.querySelector('.watch-tabs__tab.is-active')).toHaveTextContent(/table/i);
+      expect(document.querySelector('.thread-sheet')).not.toBeNull();
     });
+    expect(document.querySelector('.thread-sheet').textContent).toContain('The table');
   });
 
-  it('the sheet tab and the header button are the same control', async () => {
+  it('every way in is the same control', async () => {
     const onOpenThread = vi.fn();
     render(<WatchScreen {...props} onOpenThread={onOpenThread} />);
 
-    // W4-2 removed READ, so CHAT is the panel's only tab and index 0.
-    const tab = document.querySelector('[data-watch-tab="0"]');
-    await userEvent.click(tab);
-    expect(onOpenThread).toHaveBeenCalled();
+    // His face and the composer's arrow both ask for the same thing the header
+    // asks for, so a wired router takes all three.
+    await userEvent.click(document.querySelector('.watch-hero__body'));
+    await userEvent.click(document.querySelector('.watch-composer__thread'));
+    expect(onOpenThread).toHaveBeenCalledTimes(2);
   });
 });

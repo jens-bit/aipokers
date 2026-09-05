@@ -6,7 +6,8 @@
 // THE BUBBLE LAW (design-refs/mood-watch4.jsx header):
 //   · one bubble per seat at a time, and at most TWO on the felt at once
 //   · 3–4 seconds, then gone. Never a queue, never a stack, never a scrollback
-//   · his sits above the hero row; an opponent's sits above their own ghost
+//   · his sits above HIM (v6: the top of the hero column, over his head);
+//     an opponent's sits above their own ghost
 //   · a bubble that would be cut off is not shown — the record has it either way
 
 import { act, render } from '@testing-library/react';
@@ -67,7 +68,7 @@ describe('W4-3: the bubble law, as arithmetic', () => {
       u('b', 2, 'Old news.', false, now - BUBBLE_MS * 4),
     ];
     expect(onFelt(said, now)).toHaveLength(0);
-    // Nothing said is lost: the felt is the performance, the tab is the record.
+    // Nothing said is lost: the felt is the performance, the thread is the record.
     expect(record(said)).toHaveLength(2);
   });
 
@@ -112,7 +113,13 @@ describe('W4-3: speech on the felt', () => {
     const mine = document.querySelector('.bubble--mine');
     expect(mine).toBeTruthy();
     expect(mine.textContent).toContain('He is capped.');
-    expect(document.querySelector('.watch-felt__band')).toBeTruthy();
+    // WATCH-6 re-expressed: the reserved band under the seat ring is gone. His
+    // bubble is now the first thing in the HERO COLUMN — above his head, part
+    // of the same flow, so a two-line bubble moves him rather than landing on
+    // him. That the band belongs to him is the rule; where it hangs is not.
+    const band = document.querySelector('.watch-hero__says');
+    expect(band).toBeTruthy();
+    expect(band.contains(mine)).toBe(true);
   });
 
   it('table talk becomes a bubble over the seat that said it', () => {

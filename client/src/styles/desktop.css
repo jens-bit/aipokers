@@ -1032,8 +1032,12 @@
 .dtb__back:hover { border-color: var(--dsk-teal); color: var(--dsk-teal); }
 
 .dtb__seat { position: absolute; top: 18px; z-index: 3; }
-.dtb__seat--left { left: 20px; }
-.dtb__seat--right { right: 20px; }
+.dtb__seat--tl { left: 20px; }
+.dtb__seat--tr { right: 20px; }
+/* Clear of the BACK TO THE FLOOR pill, which owns the top centre. */
+.dtb__seat--tc { left: 50%; top: 62px; transform: translateX(-50%); }
+.dtb__seat--ml { left: 20px; top: 190px; }
+.dtb__seat--mr { right: 20px; top: 190px; }
 
 .dtb__center {
   position: absolute;
@@ -1099,17 +1103,34 @@
 }
 
 .dtb__hero {
+  /* WATCH-6, board 31 (D9V5ScreenM): he is SEATED at the bottom of the felt,
+     facing the room. A flowed column — bubble, him, rope, strip — so a longer
+     line moves its neighbours instead of landing on them. */
   position: absolute;
-  bottom: 34px;
+  bottom: 26px;
   left: 0;
   right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  z-index: 3;
+  gap: 10px;
+  z-index: 5;
 }
-.dtb__hero-cards { display: flex; gap: 7px; }
+.dtb__hero-cards {
+  /* IN FRONT of him — over the LOWER THIRD of his body, never behind it and
+     never over his face. His head spans 15%..100% of the 132px box, so the
+     lower third starts at 64%. Playwright, 1440x900: at `bottom: -8px` the
+     pair sat straight across his eyes. */
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  z-index: 6;
+}
+
+.dtb__hero-card { display: block; }
 .dtb__hero-row { display: flex; align-items: center; gap: 12px; }
 .dtb__hero-name { font-size: 13.5px; font-weight: 600; color: var(--dsk-text); line-height: 1.15; }
 .dtb__hero-meta { display: flex; align-items: baseline; gap: 6px; }
@@ -1700,9 +1721,8 @@
    before the seam stops reading as a single moving thing. */
 
 .dtb__tug {
-  width: 48%;
-  min-width: 260px;
-  margin-top: 4px;
+  width: 300px;
+  margin-top: 34px;
 }
 
 /* ── his one line ─────────────────────────────────────────────────────────── */
@@ -1995,3 +2015,109 @@
    set of sizes is a second thing to keep in step. */
 
 .floor.is-desktop .floor-pip { font-size: 8.5px; }
+
+
+/* ── WATCH-6 · the desk stage, board 31 ─────────────────────────────────── */
+.dtb__hero-body {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.dtb__hero-aura {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.dtb__hero-bubble { position: relative; max-width: 420px; }
+
+.dtb__hero-bubble-box {
+  padding: 11px 16px;
+  border-radius: 13px;
+  background: rgba(12, 26, 24, 0.94);
+  border: 1px solid rgba(0, 212, 170, 0.40);
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--dsk-text, #EDEDED);
+  text-align: center;
+}
+
+.dtb__hero-bubble-tail {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid rgba(12, 26, 24, 0.94);
+}
+
+/* The strip: the same glass the phone uses, not a chrome bar. */
+.dtb__strip {
+  /* Wide enough for his action chip. At a fixed 420 the chip overflowed the
+     glass and painted outside it. */
+  min-width: 420px;
+  max-width: 620px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px;
+  border-radius: 13px;
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.dtb__strip-rule {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.11);
+  flex-shrink: 0;
+}
+
+.dtb__hero-num {
+  font-family: var(--dsk-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dtb__hero-num.is-gold { color: var(--dsk-gold, #CDB380); }
+.dtb__hero-num.is-dim  { color: var(--dsk-dim, #A1A1A1); }
+
+/* ── the rail: the felt's own material, not a flat grey card on green ────── */
+.dsk-panel--watch {
+  background: linear-gradient(180deg, #16221F 0%, #101A18 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.dsk-panel--watch .dsk-apanel {
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 13px;
+}
+
+.dsk-panel--watch .dsk-composer {
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+/* The rail's composer box was --dsk-surface (#28282F) — the last flat grey on
+   the watch screen. On this screen it is the felt's own glass, like the pill
+   the phone whispers into. */
+.dsk-panel--watch .dsk-composer__box {
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-color: rgba(255, 255, 255, 0.11);
+}
