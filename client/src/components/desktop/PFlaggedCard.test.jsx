@@ -58,13 +58,30 @@ describe('PFlaggedCard', () => {
     });
   });
 
-  it('lists what he misjudged, and hands the agent back when a row is opened', async () => {
+  // DP-3 widened this: a row names the hand it is showing, so the desk can put
+  // that one hand in the theatre. VIEW ALL still hands back the agent alone,
+  // because it means "the whole list".
+  it('lists what he misjudged, and hands back the agent AND the hand a row names', async () => {
     fetchMock.route('/flagged', FLAGGED);
     const onOpen = vi.fn();
     render(<PFlaggedCard agents={[playingAgent]} onOpen={onOpen} />);
 
     const row = await screen.findByText('Bluff-jammed river');
     row.closest('button').click();
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    const [agent, hand] = onOpen.mock.calls[0];
+    expect(agent).toBe(playingAgent);
+    expect(hand).toBeTruthy();
+    expect(hand.handNumber).toBe(FLAGGED.flaggedHands[0].handNumber);
+  });
+
+  it('VIEW ALL asks for the list, not for one hand', async () => {
+    fetchMock.route('/flagged', FLAGGED);
+    const onOpen = vi.fn();
+    render(<PFlaggedCard agents={[playingAgent]} onOpen={onOpen} />);
+
+    (await screen.findByRole('button', { name: /VIEW ALL/i })).click();
     expect(onOpen).toHaveBeenCalledWith(playingAgent);
   });
 });

@@ -1759,3 +1759,65 @@
 /* Its own head is the panel's, so the sheet's is dropped rather than stacked. */
 .dsk-wallet__sheet .wal-sheet__head { display: none; }
 .dsk-wallet__sheet .wal-sheet { background: transparent; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-3 — a replay on the desk stage. D3ReplayScreenM.
+ * The felt is DeskTableStage, unchanged: it is handed the same shape the
+ * server sends and does not know it is being replayed, which is why DP-1's
+ * ladder and rope work here for nothing.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dsk-replay {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dsk-replay__stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
+.dsk-replay__stage .dtb { flex: 1; }
+
+/* The scrubber owns the space below the felt, the way it does in the phone's
+   theatre. 24px gutters are the ref's. */
+.dsk-replay__scrub {
+  flex-shrink: 0;
+  padding: 0 24px 14px;
+  background: var(--dsk-bg, #0b0d0e);
+}
+
+/* ── his line, street by street ───────────────────────────────────────────── */
+
+.dsk-beat {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.dsk-beat__label {
+  flex-shrink: 0;
+  width: 58px;
+  font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--dsk-muted, #6b6b6b);
+}
+
+.dsk-beat__line {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--dsk-dim, #a1a1a1);
+}
+
+/* The all-in beat is the one the hand turned on, so it is the one that reads. */
+.dsk-beat[data-loud] .dsk-beat__label { color: var(--dsk-red, #ff4d4f); }
+.dsk-beat[data-loud] .dsk-beat__line { color: var(--dsk-text, #ededed); font-style: normal; }

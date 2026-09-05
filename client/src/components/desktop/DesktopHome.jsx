@@ -12,6 +12,8 @@ import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
 import { BirthCardRail } from './PlayerCardRail.jsx';
 import { DeskWalletPanel } from './DeskWalletPanel.jsx';
+import { DeskReplayStage } from './DeskReplayStage.jsx';
+import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
 import { RosterStrip } from './RosterStrip.jsx';
 
@@ -37,6 +39,9 @@ export function DesktopHome({
   // DP-2: the wallet is a rail panel, reached from the net figure in the top
   // bar — the same number it is about.
   const [walletOpen, setWalletOpen] = useState(false);
+  // DP-3: a flagged hand opens on the stage, with its beats in the rail —
+  // D3ReplayScreenM's own split.
+  const [replay, setReplay] = useState(null);
   const [wallet, setWallet] = useState(null);
 
   useEffect(() => {
@@ -161,6 +166,27 @@ export function DesktopHome({
     if (deskTableId && !loading && deskIndex < 0) setDeskTableId(null);
   }, [deskTableId, deskIndex, loading]);
 
+  if (replay) {
+    return (
+      <div className="dsk-root">
+        {topBar}
+        <div className="dsk-body">
+          <div className="dsk-stage">
+            <DeskReplayStage
+              hand={replay.hand}
+              agentName={replay.agent?.name}
+              onBack={() => setReplay(null)}
+            />
+          </div>
+          <DeskReplayPanel
+            hand={replay.hand}
+            onClose={() => setReplay(null)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (deskAgent) {
     return (
       <div className="dsk-root">
@@ -263,7 +289,12 @@ export function DesktopHome({
             onSelect={(agent) => setSelectedId(agent.id)}
             onOpenTable={openTable}
             onDraftAgent={onCreateAgent}
-            onOpenFlagged={(agent) => setFlaggedAgent(agent)}
+            onOpenFlagged={(agent, hand) => {
+              // A row names its hand: that one goes to the theatre. VIEW ALL
+              // has no hand, so it opens the sheet with the whole list.
+              if (hand) setReplay({ agent, hand });
+              else setFlaggedAgent(agent);
+            }}
           />
         )}
       </div>
