@@ -36,6 +36,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { BirthScreen } from './BirthScreen.jsx';
 import { ChatsScreen } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
+// The watch header is styled from a stylesheet rather than inline, so its row
+// is read out of the real file the way desktopWidth.test.jsx reads its columns.
+import WATCH_CSS from '../styles/watch.css?raw';
 
 const REF_HEADER_H = 40; // ww-ref S4 GlobalHeader: 2px top + 29px controls + 9px bottom
 const REF_BAND_H = 56;   // ww-ref S4 MoodBand / DraftBand: 9 + 38 ghost + 8 + 1px rule
@@ -113,5 +116,80 @@ describe('FIX-2a header density', () => {
     const band = rowOf(await screen.findByRole('button', { name: 'Skip' }));
 
     expect(rowHeight(header) + rowHeight(band)).toBe(REF_HEADER_H + REF_BAND_H);
+  });
+});
+
+// FIX-4 (playtest 2026-09-05): "the watch header is still too fat — it should
+// be 40px, one line, with no second row of padding above the felt."
+//
+// FIX-3c collapsed the mood band into a 40px header and .watch-screen__header
+// duly declares `height: 40px`. The row still rendered 45px, because a flex
+// item's automatic minimum size is content-based and base.css floors every
+// <button> at --tap (44px): the floor beat the declared height and the extra
+// 4px (plus the rule) landed on the felt. .watch-screen__chat was released from
+// that floor when it was written; .watch-screen__back never was.
+describe('FIX-4 the watch header is one 40px row', () => {
+  // The declaration block for a selector. Matched by scanning rather than by a
+  // regex, so `.watch-screen` is never answered by `.watch-screen__header`:
+  // only the occurrence whose very next non-space character opens a block is
+  // the rule for that selector on its own.
+  // Comments are stripped first: a rule's own note can mention another
+  // property, and a selector named in prose is not a rule.
+  const stripComments = (text) => {
+    let out = '';
+    let i = 0;
+    for (;;) {
+      const start = text.indexOf('/*', i);
+      if (start < 0) return out + text.slice(i);
+      out += text.slice(i, start);
+      const end = text.indexOf('*/', start);
+      if (end < 0) return out;
+      i = end + 2;
+    }
+  };
+  const CSS = stripComments(WATCH_CSS);
+
+  const declarations = (selector, css = CSS) => {
+    let from = 0;
+    for (;;) {
+      const i = css.indexOf(selector, from);
+      if (i < 0) throw new Error('no rule for ' + selector);
+      const open = css.indexOf('{', i);
+      if (open > 0 && css.slice(i + selector.length, open).trim() === '') {
+        return css.slice(open + 1, css.indexOf('}', open));
+      }
+      from = i + selector.length;
+    }
+  };
+  const prop = (selector, name) => {
+    for (const decl of declarations(selector).split(';')) {
+      const colon = decl.indexOf(':');
+      if (colon > 0 && decl.slice(0, colon).trim() === name) return decl.slice(colon + 1).trim();
+    }
+    return null;
+  };
+
+  it('FIX-4: the row is the ww-ref 40px', () => {
+    expect(prop('.watch-screen__header', 'height')).toBe('40px');
+    // One line: no wrap, so a long agent name ellipsises instead of pushing the
+    // mood pill and CHAT onto a second row.
+    expect(prop('.watch-screen__header', 'flex-wrap')).toBeNull();
+    expect(prop('.watch-screen__header', 'display')).toBe('flex');
+  });
+
+  it('FIX-4: no control in it is floored at --tap, which is what inflated it', () => {
+    for (const control of ['.watch-screen__back', '.watch-screen__chat']) {
+      expect(prop(control, 'min-height')).toBe('0');
+      // ...and each declares a height that fits inside the row.
+      expect(parseFloat(prop(control, 'height'))).toBeLessThanOrEqual(REF_HEADER_H);
+    }
+  });
+
+  it('FIX-4: the felt starts straight under the row, with no second band', () => {
+    // .watch-stage is the next child and takes the rest; a padded strip between
+    // the two would have to declare its own height here.
+    expect(prop('.watch-stage', 'flex')).toBe('1');
+    expect(prop('.watch-stage', 'min-height')).toBe('0');
+    expect(prop('.watch-screen__header', 'padding')).toBe('0 14px');
   });
 });

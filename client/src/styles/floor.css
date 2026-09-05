@@ -331,11 +331,16 @@
   pointer-events: none;
 }
 
+/* FIX-4: the speech bubble is z-index 5 and starts at y=30, so it was painted
+   straight over a back control that lives at y=10..44 — the way out of the
+   zoom was under the thing the agent was saying. The control sits above the
+   bubble instead; nothing moves, and the bubble's own text starts below y=44
+   so only its rounded corner passes behind. */
 .floor-zoom__back {
   position: absolute;
   top: 10px;
   left: 12px;
-  z-index: 3;
+  z-index: 6;
   width: 34px;
   height: 34px;
   display: grid;

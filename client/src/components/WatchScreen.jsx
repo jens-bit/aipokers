@@ -934,6 +934,11 @@ function useSheetDrag({ onSelectTab }) {
     setFrac(FELT_FRAC[clamp(index, 0, FELT_FRAC.length - 1)]);
   }
 
+  // FIX-4: the detents are a gesture's business, but the header's CHAT button
+  // has to be able to say "open" without knowing the ladder. FELT_FRAC[0] is
+  // EXPANDED -- the same detent a tap on a tab restores.
+  var openSheet = useCallback(function() { setFrac(FELT_FRAC[0]); }, []);
+
   function onPointerDown(e) {
     if (e.button !== undefined && e.button !== 0) return;
     var tabAttr = e.target && e.target.closest ? e.target.closest('[data-watch-tab]') : null;
@@ -989,6 +994,7 @@ function useSheetDrag({ onSelectTab }) {
     stageRef: stageRef,
     dragging: dragging,
     detent: detentName(frac),
+    openSheet: openSheet,
     geom: feltGeometry(frac, stagePx),
     handlers: {
       onPointerDown: onPointerDown,
@@ -1415,15 +1421,6 @@ export function WatchScreen({
     if (before === false && shownFormed) beat('readForms', fireHaptic);
   }, [shownWho, shownFormed]);
 
-  // WV2-3: the sheet owns the vertical layout of the whole screen.
-  // W4-5: one decision, both entry points. The header button and the sheet's
-  // own CHAT tab are the same control and must not disagree about where
-  // talking to him happens.
-  var openChat = useCallback(function() {
-    if (onOpenThread) { onOpenThread(); return; }
-    setActiveTab(TAB_CHAT);
-  }, [onOpenThread]);
-
   // W4-2: which seat's read is open, by seat index. Null is the felt with
   // nothing over it.
   var [selectedSeat, setSelectedSeat] = useState(null);
@@ -1440,6 +1437,23 @@ export function WatchScreen({
       setActiveTab(i);
     },
   });
+
+  // WV2-3: the sheet owns the vertical layout of the whole screen.
+  // W4-5: one decision, both entry points. The header button and the sheet's
+  // own CHAT tab are the same control and must not disagree about where
+  // talking to him happens.
+  //
+  // FIX-4: with the sheet dragged to HIDDEN, selecting its TABLE tab selected
+  // a tab nobody could see, so the header's CHAT button read as dead. Where
+  // there is no thread to open, the button now does the whole gesture: pick
+  // the tab AND bring the sheet back up. Declared after the sheet because it
+  // drives it; `var` hoists, so the tap handler above still resolves it.
+  var openSheet = sheet.openSheet;
+  var openChat = useCallback(function() {
+    if (onOpenThread) { onOpenThread(); return; }
+    setActiveTab(TAB_CHAT);
+    openSheet();
+  }, [onOpenThread, openSheet]);
 
   // Belt-and-braces: non-passive touchmove on the sheet container so that a
   // drag starting on the grab handle cannot bubble up to Telegram's webview

@@ -22,6 +22,7 @@ import { fetchMock, telegram } from '../../test/harness.js';
 // ?raw gives the stylesheet as text, so the assertions read the real file
 // rather than a copy of the numbers that could drift from it.
 import CSS from '../../styles/desktop.css?raw';
+import WATCH_CSS from '../../styles/watch.css?raw';
 
 // Pull `width: <n>px` off a selector's LAST declaration, so a media-query
 // override wins over the base rule the way the cascade would apply it.
@@ -141,5 +142,78 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
       const active = strip().querySelector('.dsk-strip__row.is-active');
       expect(active?.getAttribute('aria-label')).toBe(playingAgent.name);
     });
+  });
+});
+
+// FIX-4 (playtest 2026-09-05): "on a wide viewport the opponent seat ghost sits
+// tiny at the top-left and the felt stretches edge to edge."
+//
+// The watch screen is the mobile spectator view — App.jsx renders it whenever
+// the viewport is under the 1100px desktop breakpoint — so a 1024px window, or
+// a desktop browser dragged narrow, gets it at a width it was never drawn for.
+// The seat ring is `position: absolute` inside .watch-felt at left/right 12px,
+// so it is already anchored to the felt rather than to the viewport; what went
+// wrong is that the felt was as wide as the window, which threw the ghosts into
+// the far corners. Bounding the felt puts them back around the table.
+describe('FIX-4: the watch felt is a stage, not a page', () => {
+  // A brace-balanced slice, so the @media block is read whole rather than to
+  // the first closing brace inside it.
+  const blockAt = (css, from) => {
+    const open = css.indexOf('{', from);
+    let depth = 0;
+    for (let i = open; i < css.length; i++) {
+      if (css[i] === '{') depth += 1;
+      else if (css[i] === '}') {
+        depth -= 1;
+        if (depth === 0) return css.slice(open + 1, i);
+      }
+    }
+    throw new Error('unbalanced block');
+  };
+
+  const ruleFor = (selector, css = WATCH_CSS) => {
+    let from = 0;
+    for (;;) {
+      const i = css.indexOf(selector, from);
+      if (i < 0) throw new Error('no rule for ' + selector);
+      const open = css.indexOf('{', i);
+      if (open > 0 && css.slice(i + selector.length, open).trim() === '') return blockAt(css, i);
+      from = i + selector.length;
+    }
+  };
+
+  const value = (block, name) => {
+    for (const decl of block.split(';')) {
+      const colon = decl.indexOf(':');
+      if (colon > 0 && decl.slice(0, colon).trim() === name) return decl.slice(colon + 1).trim();
+    }
+    return null;
+  };
+
+  // What .watch-felt is given above the wide breakpoint.
+  const wideFelt = () => {
+    const at = WATCH_CSS.indexOf('@media (min-width: 760px)');
+    expect(at).toBeGreaterThan(-1);
+    const media = blockAt(WATCH_CSS, at);
+    expect(media).toContain('.watch-felt');
+    return ruleFor('.watch-felt', media);
+  };
+
+  it('FIX-4: bounded to 720px on a wide viewport', () => {
+    expect(value(wideFelt(), 'max-width')).toBe('720px');
+  });
+
+  it('FIX-4: centred, so the table is not pinned to one edge', () => {
+    const felt = wideFelt();
+    expect(value(felt, 'margin-left')).toBe('auto');
+    expect(value(felt, 'margin-right')).toBe('auto');
+    // Without an explicit width the auto margins have nothing to divide: a
+    // stretched flex item has no width of its own to centre.
+    expect(value(felt, 'width')).toBe('100%');
+  });
+
+  it('FIX-4: the seat ring is positioned against the felt, not the viewport', () => {
+    expect(value(ruleFor('.watch-felt'), 'position')).toBe('relative');
+    expect(value(ruleFor('.watch-felt__seat'), 'position')).toBe('absolute');
   });
 });
