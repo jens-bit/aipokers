@@ -7,6 +7,7 @@
 // there is no hand to have a read on.
 import { PanelHead, RailBody, PComposer } from './panelParts.jsx';
 import { equityPct, phaseOf } from './DeskTableStage.jsx';
+import { RiverAttrPanel } from '../AnalysisPanel.jsx';
 
 export function AnalysisPanel({ title, action, onAction, children }) {
   return (
@@ -57,6 +58,7 @@ export function WatchRail({
   const odds = toCall > 0 && pot > 0 ? (pot / toCall).toFixed(1) : null;
 
   const stats = agent?.careerStats;
+  const lastHand = Array.isArray(hands) && hands.length ? hands[0] : null;
 
   return (
     <div className="dsk-panel">
@@ -93,6 +95,8 @@ export function WatchRail({
             </>
           )}
         </AnalysisPanel>
+
+        {between && lastHand && <RiverAttrPanel agent={agent} hand={lastHand} />}
 
         <AnalysisPanel title="History">
           {hands?.length ? hands.slice(0, 4).map((h, i) => (

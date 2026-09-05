@@ -12,6 +12,7 @@ import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { accentFor } from './floor/atoms.jsx';
 import { Streets } from '../lib/protocol.js';
+import { RiverAttrPanel } from './AnalysisPanel.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -166,7 +167,11 @@ function HandDivider({ handNumber }) {
 // ---- LiveAnalysisTab -------------------------------------------------------
 // Receives the stable feed array; never clears it.
 
-function LiveAnalysisTab({ feed, between }) {
+function LiveAnalysisTab({ feed, between, agent, lastHand }) {
+  var river = (between && agent && lastHand)
+    ? <RiverAttrPanel agent={agent} hand={lastHand} />
+    : null;
+
   if (feed.length === 0) {
     return (
       <div className="watch-panel__empty">
@@ -181,12 +186,14 @@ function LiveAnalysisTab({ feed, between }) {
         <span style={{ opacity: between ? 0.4 : 1, fontSize: between ? 11 : 12 }}>
           {between ? 'Watching…' : 'Waiting for first action…'}
         </span>
+        {river}
       </div>
     );
   }
 
   return (
     <div>
+      {river}
       {feed.map(function(item) {
         if (item.type === 'hand') {
           return <HandDivider key={item.id} handNumber={item.handNumber} />;
@@ -1089,7 +1096,14 @@ export function WatchScreen({
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === 0 && <LiveAnalysisTab feed={decisionFeed} between={between} />}
+              {activeTab === 0 && (
+                <LiveAnalysisTab
+                  feed={decisionFeed}
+                  between={between}
+                  agent={agent}
+                  lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
+                />
+              )}
               {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
               {activeTab === 2 && <EmptyTab text="No hands played yet." />}
               {activeTab === 3 && (

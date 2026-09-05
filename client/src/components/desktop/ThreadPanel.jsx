@@ -3,13 +3,14 @@
 // PanelHead(close) → MoodBand → pinned GameTile while live → feed → PComposer.
 //
 // The camera never moves: selecting a ghost swaps THIS panel, not the stage.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MoodBand } from '../system/MoodBand.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { accentFor, MOODS } from '../floor/atoms.jsx';
 import { moodOf, causeOf, stateOf } from '../floor/agentView.js';
 import { GameTile } from './GameTile.jsx';
 import { PanelHead, PComposer } from './panelParts.jsx';
+import { PlayerCardRail } from './PlayerCardRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
 
 const PROFILE_LABELS = {
@@ -127,6 +128,10 @@ export function ThreadPanel({
 }) {
   const { chat, sending, accepting, send, acceptProposal, moodOverride, causeOverride } = useAgentThread(agent);
   const feedRef = useRef(null);
+  // D3ThreadCardScreenM puts the player card in a panel of its own beside the
+  // thread. This shell has one 520 panel, not two, so the card is a view of it
+  // — reachable only while a thread is open, which is the ref's condition.
+  const [view, setView] = useState('thread');
 
   const accent = accentFor(agent, accentIndex);
   const mood = moodOverride ?? moodOf(agent);
@@ -149,7 +154,31 @@ export function ThreadPanel({
 
   return (
     <div className="dsk-panel">
-      <PanelHead title={agent.name} sub={isLive ? 'AT THE TABLE' : state === 'recap' ? 'SESSION DONE' : 'RESTING'} onClose={onClose} />
+      <PanelHead
+        title={view === 'card' ? 'Player card' : agent.name}
+        sub={view === 'card'
+          ? agent.name.toUpperCase()
+          : isLive ? 'AT THE TABLE' : state === 'recap' ? 'SESSION DONE' : 'RESTING'}
+        onClose={onClose}
+      />
+      <div className="dsk-panel__views" role="tablist">
+        {[['thread', 'Thread'], ['card', 'Player card']].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            className={`dsk-panel__view${view === key ? ' is-on' : ''}`}
+            onClick={() => setView(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'card' ? (
+        <PlayerCardRail agent={agent} accentIndex={accentIndex} />
+      ) : (
+      <>
       <MoodBand
         accent={accent}
         mood={mood}
@@ -197,6 +226,9 @@ export function ThreadPanel({
         })}
         {sending && <TypingBubble mood={mood} accent={accent} />}
       </div>
+
+      </>
+      )}
 
       <PComposer
         value={draft}
