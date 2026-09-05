@@ -246,11 +246,13 @@ const pad = (v, n) => String(v).padStart(n);
 const padE = (v, n) => String(v).padEnd(n);
 
 console.log(`\n── Sessions ─────────────────────────────────────────────────────────`);
-console.log('  ' + padE('#', 4) + pad('hands', 6) + pad('career', 8) + '  ' + padE('fatigue', 9) + padE('grew', 30) + 'narrowed');
+const GREW_W = 52;
+console.log('  ' + padE('#', 4) + pad('hands', 6) + pad('career', 8) + '  ' + padE('fatigue', 9) + padE('grew', GREW_W) + 'narrowed');
 for (const s of sessions) {
-  const grew = s.ticks.map((t) => `${t.key} ${t.from}→${t.to}`).join(' ') || '—';
+  let grew = s.ticks.map((t) => `${t.key.slice(0, 5)} ${t.from}→${t.to}`).join('  ') || '—';
+  if (grew.length > GREW_W - 2) grew = `${grew.slice(0, GREW_W - 3)}…`;
   console.log('  ' + padE(s.n, 4) + pad(s.hands, 6) + pad(s.lifetime, 8) + '  ' +
-    padE(s.worn ? 'worn' : 'settled', 9) + padE(grew, 30) + (s.narrowed.length ? `${s.narrowed.length} keys` : '—'));
+    padE(s.worn ? 'worn' : 'settled', 9) + padE(grew, GREW_W) + (s.narrowed.length ? `${s.narrowed.length} keys` : '—'));
 }
 
 console.log(`\n── The growth log (agent.attrLog, what the client draws) ────────────`);
