@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getUserId } from '../../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { CasinoFloor } from '../floor/CasinoFloor.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { GameTile } from './GameTile.jsx';
@@ -16,7 +16,7 @@ export function DesktopHome({
   const [selectedId, setSelectedId] = useState(null);
 
   const load = useCallback(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => setAgents(Array.isArray(data.agents) ? data.agents : []))
       .catch(() => {})

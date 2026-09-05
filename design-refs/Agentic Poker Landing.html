@@ -21,19 +21,19 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 .ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
 .fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
 .fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
-.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#8A8A92}
+.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
 .fa b{color:#C9C9CE;font-weight:600}
 .fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#CDB380}
 .panel{width:420px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
 .panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
 .panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#CDB380;margin-bottom:16px}
-.panel p{font-size:13px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
 .panel p b{color:#EDEDED;font-weight:600}
-.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:20px 0 8px}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
 .lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
 .lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:20px;flex-shrink:0;padding-top:2px;color:#CDB380}
-.lawrow .v{font-size:12.5px;line-height:1.5;color:#A1A1A1}
-.sw{display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#A1A1A1}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.sw{display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#C3C3C6}
 .sw i{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.14)}
 </style>
 </head>
@@ -73,7 +73,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <!-- ARTBOARDS -->
 <div class="frame" style="left:520px;top:80px">
   <div class="grouphdr" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px">Viewport discipline</div>
-  <div class="groupsub" style="font-size:13px;color:#8A8A92;line-height:1.6;margin-bottom:22px;max-width:1100px">The page is now built against a breakpoint table — <b>1440 · 1280 · 768 · 390</b> — with one law on top: <b>the hero fits the first viewport</b>, at 1440×900 and at 1280×800 alike, with the next section's header just peeking above the fold. The headline loses size per breakpoint (88 → 68 → 52), never presence. Section paddings tightened (76px → 54/44px) so each scroll lands at a natural stop. The gold dashed line on these two frames <b>is</b> the fold.</div>
+  <div class="groupsub" style="font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px">The page is now built against a breakpoint table — <b>1440 · 1280 · 768 · 390</b> — with one law on top: <b>the hero fits the first viewport</b>, at 1440×900 and at 1280×800 alike, with the next section's header just peeking above the fold. The headline loses size per breakpoint (88 → 68 → 52), never presence. Section paddings tightened (76px → 54/44px) so each scroll lands at a natural stop. The gold dashed line on these two frames <b>is</b> the fold.</div>
   <div class="fh" style="margin-top:78px"><span class="fn">V1</span><span class="ft">Hero · 1440×900</span><span class="fb">fold drawn</span></div>
   <div id="lhv1"></div>
   <div class="fa"><b>Everything above the line, art included.</b> Masthead, headline at 88, sub, CTA with its microcopy, and the full ghost-at-felt scene sit inside the first viewport, and the HOW IT WORKS label peeks below the hero's border so the page visibly continues. The hero section takes an exact height (viewport − 62px peek) and centres its row inside it.</div>
@@ -140,7 +140,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
       var max = MIN_CONTENT;
       inRow.forEach(function (f) {
-        var best = Math.max(f.getBoundingClientRect().height, parseFloat(f.dataset.h || '0') || 0);
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
         f.dataset.h = String(best);
         max = Math.max(max, best);
       });
@@ -150,7 +150,6 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     plan.forEach(function (p) {
       p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
     });
-    remember();
     return true;
   }
   var pending = null;
@@ -167,14 +166,14 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
   function stale() {
     var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
     for (var i = 0; i < fs.length; i++) {
-      var h = fs[i].getBoundingClientRect().height;
+      var h = fs[i].offsetHeight;
       var seen = parseFloat(fs[i].dataset.h || '0');
       if (h - seen > 2) return true;
     }
     return false;
   }
   function remember() {
-    frames().forEach(function (f) { f.dataset.h = String(f.getBoundingClientRect().height); });
+    frames().forEach(function (f) { f.dataset.h = String(f.offsetHeight); });
   }
   function boot() {
     schedule(0);

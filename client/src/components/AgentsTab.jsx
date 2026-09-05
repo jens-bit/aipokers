@@ -18,7 +18,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat, onVsYou }) {
   const [deployingId, setDeployingId] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => { setAgents(data.agents || []); setLoading(false); })
       .catch(() => setLoading(false));

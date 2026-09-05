@@ -23,6 +23,7 @@
 // empty felt; the floor exists to skip the genuinely pathological case.
 
 import { normalizeProfile } from '../agent/policy.js';
+import { pickCastMember } from './houseCast.js';
 
 // Neutral shape for a seat we know nothing about.
 const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
@@ -30,6 +31,11 @@ const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 }
 // Below this projected action score a table is not worth joining and the
 // deploy creates a fresh one instead.
 export const JOIN_MIN_SCORE = Number(process.env.MATCHMAKING_MIN_SCORE ?? 25);
+
+// Bonus applied when a deploying agent is joining a table that already holds
+// one of their own agents (same userId). Keeps owner agents together and
+// skips the JOIN_MIN_SCORE gate so a same-owner join always beats a fresh table.
+export const SAME_OWNER_SCORE_BONUS = 50;
 
 // A table with fewer hands than this left in its session cap would give a
 // joiner a pointless few-hand stay, so it is skipped.
@@ -55,15 +61,20 @@ export const HOUSE_STATION = {
 export const HOUSE_STRATEGY = HOUSE_TAG.strategy;
 export const HOUSE_PROFILE = HOUSE_TAG.profile;
 
-// Pick the House shape to seat against the agents already at the table.
-// Accepts a single profile (the heads-up call site) or an array of them.
-// Tight table → loose Station House; loose table → TAG House. TAG is the
-// default when there is nothing to complement.
+// Pick the House cast member whose archetype best complements the agents already
+// at the table. Returns a house descriptor with display-ready fields plus the
+// stable id and full castMember reference for table plumbing.
 export function pickComplementaryHouse(opposing) {
-  const profiles = toProfileList(opposing);
-  if (profiles.length === 0) return HOUSE_TAG;
-  const meanTightness = mean(profiles.map((p) => p.tightness));
-  return meanTightness > 60 ? HOUSE_STATION : HOUSE_TAG;
+  const member = pickCastMember(opposing);
+  return {
+    displayName: member.name,
+    strategy:    member.strategy,
+    profile:     member.profile,
+    accentColor: member.accentColor,
+    talkLines:   member.talkLines,
+    stableId:    member.id,
+    castMember:  member,
+  };
 }
 
 // ── Action potential ────────────────────────────────────────────────────────
@@ -111,14 +122,21 @@ export function scoreTableForJoin(table, joinerProfile) {
 // Ranked by projected action; ties go to the fuller table, so the floor
 // concentrates into one lively felt instead of drifting into several quiet
 // ones. `candidates` is any iterable of Tables.
-export function pickTableToJoin(candidates, { profile = null, agentId = null } = {}) {
+//
+// MATCH-2: when `userId` is supplied, tables that already hold one of the
+// owner's agents get SAME_OWNER_SCORE_BONUS added and bypass JOIN_MIN_SCORE
+// entirely — any open own-table with a free seat beats creating a fresh table.
+export function pickTableToJoin(candidates, { profile = null, agentId = null, userId = null } = {}) {
   const joiner = profile ? normalizeProfile(profile) : NEUTRAL;
   const ranked = [];
   for (const table of candidates ?? []) {
     const blocker = joinBlocker(table, { agentId });
     if (blocker) continue;
-    const score = scoreTableForJoin(table, joiner);
-    if (score < JOIN_MIN_SCORE) continue;
+    const isOwnTable = !!userId &&
+      (table.agentUserIds ?? []).some((uid) => uid != null && uid === userId);
+    const base = scoreTableForJoin(table, joiner);
+    const score = isOwnTable ? base + SAME_OWNER_SCORE_BONUS : base;
+    if (!isOwnTable && score < JOIN_MIN_SCORE) continue;
     ranked.push({ table, score, seated: table.seatedCount() });
   }
   if (ranked.length === 0) return null;

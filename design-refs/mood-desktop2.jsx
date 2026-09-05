@@ -210,7 +210,7 @@ const PComposer = ({ draft = '', slash }) => (
     ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 600, color: M_FAINT, padding: '2px 5px', border: `1px solid ${M_BORDER}`, borderRadius: 3 }}>/</span>
-        <span style={{ fontFamily: MONO, fontSize: 10, color: M_FAINT }}>for commands</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: M_MUTED }}>for commands</span>
       </div>
     )}
 

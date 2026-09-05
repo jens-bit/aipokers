@@ -1,6 +1,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 
-html, body, #root { height: 100%; margin: 0; padding: 0; }
+html, body { height: 100%; margin: 0; padding: 0; }
+/* --tg-h is set by initViewportTracking() and shrinks when the iOS keyboard
+   opens inside Telegram. Falls back to 100dvh outside Telegram. */
+#root { height: var(--tg-h, 100dvh); margin: 0; padding: 0; }
 html { overflow-x: hidden; }
 body {
   font-family: var(--font-label);

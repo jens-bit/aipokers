@@ -20,30 +20,30 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 .ft{font-family:"Playfair Display",serif;font-size:17px;font-weight:600;color:#EDEDED}
 .fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0}
 .fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
-.fb.dim{color:#8A8A92;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
-.fa{margin-top:12px;max-width:406px;font-size:12px;line-height:1.5;color:#8A8A92}
+.fb.dim{color:#9E9EA2;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
+.fa{margin-top:12px;max-width:406px;font-size:12px;line-height:1.5;color:#9E9EA2}
 .fa b{color:#C9C9CE;font-weight:600}
 .fa code{font-family:"JetBrains Mono",monospace;font-size:11px;color:#00D4AA}
 .panel{width:400px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:22px 22px 24px}
 .panel h1{font-family:"Playfair Display",serif;font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
 .panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
-.panel p{font-size:12.5px;line-height:1.6;color:#A1A1A1;margin:0 0 12px}
+.panel p{font-size:12.5px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
 .panel p b{color:#EDEDED;font-weight:600}
-.panel .rule{display:flex;gap:9px;font-size:12px;line-height:1.5;color:#A1A1A1;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
-.panel .rule span:first-child{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6B6B6B;flex-shrink:0;padding-top:1px}
-.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B;margin:18px 0 8px}
+.panel .rule{display:flex;gap:9px;font-size:12px;line-height:1.5;color:#C3C3C6;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.panel .rule span:first-child{font-family:"JetBrains Mono",monospace;font-size:10px;color:#9E9EA2;flex-shrink:0;padding-top:1px}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:18px 0 8px}
 .swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
-.sw{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:#8A8A92;border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:4px 7px}
+.sw{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:#9E9EA2;border:1px solid rgba(255,255,255,.07);border-radius:5px;padding:4px 7px}
 .sw i{width:9px;height:9px;border-radius:2px;display:block}
 .rec{margin-top:10px;padding:11px 13px;border-radius:9px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.28)}
 .rec .h{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
-.rec p{margin:0;font-size:12px;color:#A1A1A1;line-height:1.55}
+.rec p{margin:0;font-size:12px;color:#C3C3C6;line-height:1.55}
 .detail{width:406px;background:#0A0A0A;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 0}
 .grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:6px}
-.groupsub{font-size:12px;color:#8A8A92;line-height:1.5;margin-bottom:18px;max-width:900px}
+.groupsub{font-size:12px;color:#9E9EA2;line-height:1.5;margin-bottom:18px;max-width:900px}
 .lawrow{display:flex;gap:12px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}
 .lawrow .k{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;width:86px;flex-shrink:0;padding-top:2px}
-.lawrow .v{font-size:12px;line-height:1.5;color:#A1A1A1}
+.lawrow .v{font-size:12px;line-height:1.5;color:#C3C3C6}
 </style>
 </head>
 <body>
@@ -64,7 +64,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     <p style="margin-bottom:6px">One status system in home rows, thread bands and team cards. An idle agent shows no live marker anywhere.</p>
     <div class="lawrow"><span class="k" style="color:#00D4AA">Live</span><span class="v">playing now — pulse dot, and a sticky bar in the thread</span></div>
     <div class="lawrow"><span class="k" style="color:#CDB380">Recap</span><span class="v">finished since you last looked — gold tick</span></div>
-    <div class="lawrow"><span class="k" style="color:#6B6B6B">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
+    <div class="lawrow"><span class="k" style="color:#9E9EA2">Resting</span><span class="v">idle — no pulse, no bar, no exceptions</span></div>
 
     <div class="lbl" style="color:#CDB380">Law 3 · the floor is a fish tank</div>
     <p style="margin-bottom:6px">A felt where one of <b>your own</b> agents is playing renders as a living <b>mini-diorama</b> — board on the felt centre, his two hole cards face up and fanned in front of his seated ghost, pot above the far rail. The felt <b>is</b> the zero-tap view; there is no now-playing bar. Another user&rsquo;s agent always shows <b>backs</b>.</p>
@@ -349,6 +349,124 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
   <div class="fa"><b>Three ghosts, one felt — existed in code, never drawn.</b> Balanced and Aggressive are yours: face-up minis at the near rail, per the diorama law. doyle_v3 belongs to another owner: card backs, always. One PotTicker above the far rail serves the whole table — a pot is the table's, not a seat's.</div>
 </div>
 
+<!-- THE SNACK -->
+<div class="frame" style="left:520px;top:10800px">
+  <div class="grouphdr">The snack — the first item</div>
+  <div class="groupsub">Designed before it is built, and shipped <b>alone</b>. Scope law: <b>items touch STATE, never SKILL</b> — a snack soothes one mood step and changes nothing about how he plays. One effect, one button, and it <b>shares the pep-talk cooldown</b>, so care has one clock. Inventory is <b>3, regenerating daily at 08:00</b> — shown as pantry pips, never a number with a glyph. <b>No store, no prices, no currency iconography anywhere</b>: the biscuit is warm gold with a bite taken out, the moment reads as feeding a pet. Reuses MoodBand, thread bubbles, EventLine, ZoomView — the chip docks above the composer via the thread's new <code>dock</code> slot.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">28a</span><span class="ft">The button</span><span class="fb gold">soothable only</span></div>
+  <div id="sn1"></div>
+  <div class="fa"><b>Tilted agent, chip ready, two pips in the pantry.</b> The chip docks between feed and composer — care sits next to talking, not inside it. Below, at 1:1: the <b>cooldown</b> state (mm:ss, marked shared with pep talk), the <b>empty pantry</b> (restocks at 08:00), and the rule that matters most: on a fine agent the chip is <b>absent, not disabled</b> — care you cannot spend wrongly needs no grey state.</div>
+  <div style="margin-top:16px"><div id="sn1s"></div></div>
+</div>
+<div class="frame" style="left:980px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28b</span><span class="ft">The moment</span><span class="fb teal">one step down</span></div>
+  <div id="sn2"></div>
+  <div class="fa"><b>Three things move at once, all in existing anatomy.</b> The EventLine logs the act (TILTED ▾ FRUSTRATED · one step, gold — reward territory), the MoodBand is already showing <b>frustrated</b> with &ldquo;stepped down — was tilted a minute ago&rdquo; as its cause, and the chip has decremented to one pip and entered the shared cooldown. His acknowledgment is in his voice, mid-chew — grudging, because he is still frustrated. A snack is one step, not a cure.</div>
+</div>
+<div class="frame" style="left:1440px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28c</span><span class="ft">The refusal</span><span class="fb">no error styling</span></div>
+  <div id="sn3"></div>
+  <div class="fa"><b>&ldquo;He's fine. Save it.&rdquo;</b> Trying to feed a confident agent is declined by the house in a muted EventLine — the same furniture as every other event, <b>no red, no toast, no error state</b>. The pantry keeps its pips and the agent gets the last word. Being told no is part of the fiction.</div>
+</div>
+<div class="frame" style="left:1900px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28d</span><span class="ft">The zoom</span><span class="fb">same affordance</span></div>
+  <div id="sn4"></div>
+  <div class="fa"><b>The sulking case, where the zoom already lives.</b> The chip rides the zoom's new <code>extra</code> slot between cause line and actions — identical anatomy to the thread's dock, so the affordance is learned once. CHAT and PROFILE keep their places; the snack never replaces a conversation, it sits beside one.</div>
+</div>
+<div class="frame" style="left:2360px;top:10800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">28e</span><span class="ft">Flavor · the bar</span><span class="fb gold">six seconds</span></div>
+  <div id="sn5"></div>
+  <div class="fa"><b>The cheapest possible version, priced in elements: one biscuit svg, two crumb dots, one warm pool.</b> All four ride the existing <code>drift</code> keyframe plus a single 6s <code>crumbfade</code> — CSS only, self-terminating, no state. The room notices him being cared for and then goes back to its night. Value Bot keeps sulking in the corner: a snack is his owner's to give, not ambient.</div>
+</div>
+
+<!-- PROFILE v2 · THE PLAYER CARD -->
+<div class="frame" style="left:520px;top:12100px">
+  <div class="grouphdr">Profile v2 — the player card</div>
+  <div class="groupsub">The attribute system takes the middle of the profile and everything that was there before is <b>demoted, not deleted</b>: career collapses from a six-cell grid to one line, the mood arc loses half its height, activity gives up its slot. Anatomy top to bottom: <b>MoodBand (unchanged)</b> → the creature and his <b>nature badge</b> → the <b>six-bar cluster</b> → <b>fatigue in words</b> → career, mood arc, edit strategy. <b>Cluster, not radar:</b> a hexagon needs most of the 362px content width to label six axes, and it cannot show a <i>range</i> — the scouted ceiling would have to become a second overlapping polygon. The row cluster carries current, band and narrowing tick at a 20px pitch, holds the canon order so an agent's silhouette is recognisable across surfaces, and drops unchanged into a 300px rail. It reads as a shape because it refuses to be a table: no row rules, no per-row fill, one number column.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">29a</span><span class="ft">Day one</span><span class="fb teal">wide bands</span></div>
+  <div id="pv1"></div>
+  <div class="fa"><b>Born four minutes ago, and the card already has something to say.</b> Every current value is exact from the first second &mdash; nothing is withheld &mdash; but the gold bands are 20 to 30 points wide, so the shape you are looking at is a <b>guess about who he will be</b>. The Rock's silhouette is already legible: Discipline long, Reads short. One nature line does the explaining, in his territory rather than a tooltip, and the two empty surfaces say what will fill them instead of showing zeros.</div>
+</div>
+<div class="frame" style="left:980px;top:12100px">
+  <div class="fh" style="margin-top:118px"><span class="fn">29b</span><span class="ft">Veteran · worn</span><span class="fb gold">2,041 hands</span></div>
+  <div id="pv2"></div>
+  <div class="fa"><b>Two thousand hands later the bands are 4 to 6 points wide and two of them are spent:</b> Reads sits inside its ceiling at 82, Deception at 74 with the narrowing caret still up from this session. Composure never went anywhere &mdash; 44 against a 46&ndash;52 ceiling is the Shark's price, and the mood arc below is the same fact told twice. He is <b>worn at 140 hands</b>, so Focus and Discipline have retreated behind their bands and their numbers have gone gold: <b>the bands do not move</b>, because fatigue is not a lower ceiling.</div>
+</div>
+<div class="frame" style="left:1440px;top:12100px">
+  <div class="fh" style="margin-top:118px"><span class="fn">29c</span><span class="ft">Attribute focus</span><span class="fb teal">tap a bar</span></div>
+  <div id="pv3"></div>
+  <div class="fa"><b>Tapping a bar expands it in place</b> &mdash; the cluster keeps its order and the other five bars stay put, so you never lose the shape you tapped into. Inside is <b>a picture, not a paragraph</b>: ninety days of Focus rising toward the gold ceiling zone, the last three ticks as dots on the line, the current value large, and a five-word caption. <b>His voice moved out</b> — the thread is the text-heavy surface, and this is not it. No modal, no second screen, no route.</div>
+</div>
+
+<!-- NATURE REVEAL AT BIRTH -->
+<div class="frame" style="left:520px;top:13400px">
+  <div class="grouphdr">The nature reveal — birth gets its beat</div>
+  <div class="groupsub">The draft flow already ended in the right place: <b>the floor is the confirmation</b>, and there is still no &ldquo;agent created&rdquo; wall. What changes is what he says when he lands. The generic welcome line is gone — <b>his first words are his nature</b>, and the badge arrives after the name chip, because the label is what the room puts on him and cannot precede him. <b>Voice law, now explicit:</b> before birth the drafting voice is the <b>Recruiter</b> — system furniture, neutral border, no mood, no pip — and it may hint at a nature forming but never commit. <span style="color:#CDB380">This supersedes artboard 22b</span>, where the pre-birth draft spoke through <code>AgentBubble</code> with a mood: nobody speaks for him before he exists. Desktop already did this correctly (<code>DBSys</code>, &ldquo;Recruiter&rdquo;).</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">30a</span><span class="ft">The reveal</span><span class="fb teal">on the floor</span></div>
+  <div id="nb1"></div>
+  <div class="fa"><b>Four things in sequence, none of them a dialog:</b> the line rises, the light finds him, the dashed name chip fades in, then the <b>nature badge</b> lands. Balanced v2.1 keeps playing his hand at the felt throughout &mdash; the arrival group is <code>pointer-events: none</code>, so the room is never blocked by its own good news.</div>
+</div>
+<div class="frame" style="left:980px;top:13400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">30b</span><span class="ft">The card he was born with</span><span class="fb gold">sheet, not a wall</span></div>
+  <div id="nb2"></div>
+  <div class="fa"><b>The birth certificate, shown once.</b> A dismissible sheet over the floor &mdash; grab handle, one primary action, and <b>the room still visible above it</b>, because he is already in it. Six exact currents with 20-to-30-point bands, the badge, and the zero-sum pair <b>in words rather than numbers</b>: BUILT FOR / WILL STRUGGLE. One tap and it is gone; the same card lives on his profile from then on.</div>
+</div>
+<div class="frame" style="left:1440px;top:13400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">30c</span><span class="ft">Mid-draft hint</span><span class="fb">recruiter voice</span></div>
+  <div id="nb3"></div>
+  <div class="fa"><b>&ldquo;This is starting to sound like a Rock.&rdquo;</b> The recruiter reads the conversation back and guesses — and dresses the guess as one: a <b>dashed FORMING · ROCK? chip</b> with no +/− pair, because the pair is a fact and this is not one yet. It also says the part that keeps the draft from becoming a slot machine: his temperament is <b>not something you set</b>. Nothing else about this screen changes; the watermark ghost, the draft strip and the 62% band are as shipped.</div>
+</div>
+
+<!-- ATTRIBUTES IN DAILY PLAY -->
+<div class="frame" style="left:520px;top:14700px">
+  <div class="grouphdr">Attributes in daily play — four existing screens, one more fact each</div>
+  <div class="groupsub">Nothing here is a new screen or a new component family. The thread learns to log a <b>tick with a cause</b>; the floor learns a <b>worn posture</b>; the zoom carries the fatigue line under its strip; <code>StreetRow</code> gains <b>one label</b>. Two laws held throughout: <b>fatigue is not a mood</b> — it never touches the aura, the rim or the mood eye set, only lids, float speed and a small sink — and <b>growth never pings on its own</b>: it rides the recap or it waits a day.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">31a</span><span class="ft">The growth moment</span><span class="fb teal">thread + recap</span></div>
+  <div id="gm1"></div>
+  <div class="fa"><b>The recap bubble gets one row — TONIGHT TRAINED: READS +1, DISCIPLINE +1 — and the ticks arrive as their own quiet lines,</b> each in his voice with the hand behind it. &ldquo;I&rsquo;m starting to see through Granite&rdquo; is the payload; <code>READS 61 &rarr; 62</code> is the receipt. Same well, same sparkle, same mono meta as every other event line: a point of Reads is not a trophy.</div>
+</div>
+<div class="frame" style="left:980px;top:14700px">
+  <div class="fh" style="margin-top:118px"><span class="fn">31b</span><span class="ft">Fatigue on the floor</span><span class="fb gold">posture only</span></div>
+  <div id="gm2"></div>
+  <div class="fa"><b>The shipped two-game floor, with one difference: Aggressive v1.3 is 140 hands in.</b> Same felts, same cast, same moods &mdash; he is still <b>tilted</b> and still reads as tilted, because <b>worn is a posture swap and nothing else</b>: heavy lids, a <b>1.7&times; slower float</b>, a 4px sink. No aura change, no rim change, no new eye shape, no tag. Balanced v2.1 is fresh at the lower felt for the comparison, and Bluff Master is upright at the bar with a drink &mdash; <b>the bar is mechanical now</b>, and a rested body is the only signal it needs to give.</div>
+</div>
+<div class="frame" style="left:1440px;top:14700px">
+  <div class="fh" style="margin-top:118px"><span class="fn">31c</span><span class="ft">Zoom · worn</span><span class="fb gold">140 hands in</span></div>
+  <div id="gm3"></div>
+  <div class="fa"><b>&ldquo;140 hands in — he&rsquo;s worn&rdquo;, docked directly under the strip</b> in the same slot the snack chip uses. The strip stays the <b>game</b> — pot, equity, action, timer, untouched — and the fatigue row is state about <b>him</b>, which is why it is a separate band rather than a replaced number. It names the cost (<code>FOCUS &minus;6</code>) and offers no button: the cure is the bar, and he is mid-hand.</div>
+</div>
+<div class="frame" style="left:1900px;top:14700px">
+  <div class="fh" style="margin-top:118px"><span class="fn">31d</span><span class="ft">Hand review · annotated</span><span class="fb">one extra label</span></div>
+  <div id="gm4"></div>
+  <div style="margin-top:16px"><div id="gm4s"></div></div>
+  <div class="fa"><b>The flagged hand, now with the reason under the verdict.</b> Flop: <code>held the line · DISCIPLINE</code>, teal, because it earned money. River: <code>he misjudged equity by 7% · FOCUS</code>, gold, because it cost some. <b>The annotation never grades the hand</b> — WITH THE MATH / AGAINST IT already did that; it names which half of the agent produced it. Below the phone at 1:1: the review’s footer panel, which prices the miss — a Focus of 62, six points below his own number at hand 147. <b>The strategy was not wrong here. The execution was.</b></div>
+</div>
+
+<!-- THE SEAM, AND THE STRESS TESTS -->
+<div class="frame" style="left:520px;top:16200px">
+  <div class="grouphdr">The seam with items, and two attempts to break the card</div>
+  <div class="groupsub">Closing wave. The one law that keeps the no-purchase-path law true is <b>items touch STATE, never SKILL</b> — so the state where both systems are live at once (tilted <i>and</i> worn) has to read as two different kinds of thing without a caption. Then two stress cases: a build with one maxed attribute and one broken one, and the same agent five thousand hands apart.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">32</span><span class="ft">Tilted <i>and</i> worn</span><span class="fb gold">the seam</span></div>
+  <div id="sm1"></div>
+  <div class="fa"><b>Both systems live in one thread, and nothing about them matches except the colour.</b> The snack is an <b>action</b>: docked at the composer beside talking, with a button and a count, and it moves mood one step. The fatigue row is a <b>state</b>: in the feed with the other events, no button, nothing to spend, and it names its own cost and its own cure. Below, at 1:1, the two side by side with the distinction spelled out — <b>no item in this product will ever move the row underneath</b>.</div>
+  <div style="margin-top:16px"><div id="sm1s"></div></div>
+</div>
+<div class="frame" style="left:980px;top:16200px">
+  <div class="fh" style="margin-top:118px"><span class="fn">33a</span><span class="ft">Stress · the Showman</span><span class="fb gold">93 and 38</span></div>
+  <div id="st1"></div>
+  <div class="fa"><b>The build the cluster has to survive: Deception 93 at its ceiling, Focus 38 well under a 44–52 one.</b> The silhouette does the work — one bar running the full width, one stopping a third of the way in, and no reading required to see which is which. The nature line says the same thing in words (&ldquo;he does not always know what they have either, and he does not seem to mind&rdquo;), so the card is never carried by the bars alone.</div>
+</div>
+<div class="frame" style="left:1440px;top:16200px">
+  <div class="fh" style="margin-top:118px"><span class="fn">33b</span><span class="ft">Stress · four rows against the math</span><span class="fb teal">+$620</span></div>
+  <div id="st2"></div>
+  <div class="fa"><b>Nine-four offsuit, every street AGAINST IT, and a $620 pot.</b> The hand review's verdict column is <b>not a score</b> — it says what the math said, and the annotation column says which half of him produced the decision: <code>opened trash from the CO · DISCIPLINE</code> in gold, then three <code>DECEPTION</code> rows in teal ending with <code>called the fold within 4%</code>. A Showman is <b>supposed</b> to look like this, and the sheet has to be able to say so without calling him wrong.</div>
+</div>
+<div class="frame" style="left:1900px;top:16200px">
+  <div class="fh" style="margin-top:118px"><span class="fn">33c</span><span class="ft">Stress · day one vs 5,000 hands</span><span class="fb teal">same agent</span></div>
+  <div id="st3"></div>
+  <div class="fa"><b>The same Rock, twice, with the numbers deliberately hard to read at this size — which is the test.</b> Left: short fills, wide gold bands, a mood panel with nothing in it. Right: <b>fills reaching their bands</b>, bands collapsed to two or three points, Discipline at its ceiling, ten sessions plotted. <b>Growth reads as geometry</b>: the ragged left edge becomes a long even one, and the gold gets thin. He is still a Rock — the badge never changed, and neither did what he is bad at.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -367,8 +485,14 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-casino.jsx"></script>
 <script type="text/babel" src="mood-watch.jsx"></script>
 <script type="text/babel" src="mood-watch2.jsx"></script>
+<script type="text/babel" src="mood-snack.jsx"></script>
 <script type="text/babel" src="mood-birth.jsx"></script>
 <script type="text/babel" src="mood-flow.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="char-profile.jsx"></script>
+<script type="text/babel" src="char-birth.jsx"></script>
+<script type="text/babel" src="char-play.jsx"></script>
+<script type="text/babel" src="char-close.jsx"></script>
 
 <script type="text/babel">
 const mounts = [
@@ -387,6 +511,22 @@ const mounts = [
   ['f5', PostureSheetScreenM],
   ['s1', HomeScreenM],
   ['s7b', AgentProfileScreenM],
+  ['pv1', ProfileDayOneScreenM],
+  ['pv2', ProfileVeteranScreenM],
+  ['pv3', ProfileFocusScreenM],
+  ['nb1', BirthNatureFloorScreenM],
+  ['nb2', BirthCardScreenM],
+  ['nb3', BirthNatureHintScreenM],
+  ['gm1', ThreadGrowthScreenM],
+  ['gm2', FloorFatigueScreenM],
+  ['gm3', ZoomWornScreenM],
+  ['gm4', HandReviewAttrScreenM],
+  ['gm4s', RiverAttrPanel],
+  ['sm1', SeamThreadScreenM],
+  ['sm1s', SeamCompareM],
+  ['st1', ProfileShowmanScreenM],
+  ['st2', ShowmanReviewScreenM],
+  ['st3', GrowthPairM],
   ['s3a', ThreadRestingScreenM],
   ['s3b', ThreadDeployScreenM],
   ['s3c', ThreadLiveScreenM],
@@ -410,6 +550,12 @@ const mounts = [
   ['wm2', Watch6HandScreenM],
   ['wm3', WatchShowdownScreenM],
   ['ftrio', FloorTrioScreenM],
+  ['sn1', SnackThreadScreenM],
+  ['sn1s', SnackStatesStripM],
+  ['sn2', SnackMomentScreenM],
+  ['sn3', SnackRefusalScreenM],
+  ['sn4', SnackZoomScreenM],
+  ['sn5', SnackFloorScreenM],
 ];
 mounts.forEach(([id, Comp]) => {
   ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);

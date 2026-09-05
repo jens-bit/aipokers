@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { Header } from './components/Header.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
-import { Play } from './components/Play.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
-import { getTelegramDisplayName, getUserId } from './lib/telegram.js';
+import { getTelegramDisplayName, getUserId, initViewportTracking } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { TableSeat } from './components/TableSeat.jsx';
 import { Card } from './components/Card.jsx';
@@ -54,6 +53,8 @@ export default function App() {
     });
     return names;
   }, [game?.seats]);
+
+  useEffect(() => initViewportTracking(), []);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('casino');

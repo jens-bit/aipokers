@@ -194,7 +194,7 @@ const DerivedTypeScale = () => {
 };
 
 const SystemTokensM = () => (
-  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values. AMBIENCE PASS: ground lifted #0A0A0A → #1A1A1E, panels to #232329 / #28282F, borders to 0.12 / 0.18, felt and room fill-light roughly ×2 — tuned for phone OLEDs, which crush shadows. Mood glows unchanged, so they pop harder against the lighter room. Text colours untouched.">
+  <Sheet title="Tokens" sub="Palette, type, radius, spacing and glow. Swatches are bound to the live token constants; type, radius and glow samples are rendered at their real values. AMBIENCE PASS: ground lifted #0A0A0A → #1A1A1E, panels to #232329 / #28282F, borders to 0.12 / 0.18, felt and room fill-light roughly ×2 — tuned for phone OLEDs, which crush shadows. Mood glows unchanged, so they pop harder against the lighter room. CONTRAST: the greys were lifted <b>with</b> the room — M_DIM → #C3C3C6, M_MUTED → #9E9EA2, M_RED → #FF6B6D — because holding them fixed under a brighter ground drops secondary text to 2.75:1. Every text token now clears AA against the worst base it sits on (the teal-tinted pill), measured rather than assumed. M_FAINT #55555C is reclassified as non-text: dashes, rings and empty pips only.">
     <SyLbl>Grounds, panels, borders</SyLbl>
     <Row>
       <Swatch hex={M_BG} name="M_BG" use="app ground, floor ground"/>
@@ -209,12 +209,12 @@ const SystemTokensM = () => (
     <Row mb={22}>
       <div style={{ width: 280 }}>
         <div style={{ height: 42, borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}/>
-        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>rgba(255,255,255,0.06)</div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>{M_BORDER}</div>
         <div style={{ fontSize: 11, color: M_DIM, marginTop: 2 }}>M_BORDER · every card and divider</div>
       </div>
       <div style={{ width: 280 }}>
         <div style={{ height: 42, borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER_2}` }}/>
-        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>rgba(255,255,255,0.10)</div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: M_TEXT, marginTop: 6 }}>{M_BORDER_2}</div>
         <div style={{ fontSize: 11, color: M_DIM, marginTop: 2 }}>M_BORDER_2 · inputs, ghost buttons</div>
       </div>
     </Row>
@@ -457,6 +457,28 @@ const GhostAnatomyM = () => (
           <div style={{ marginTop: 6 }}><Callout>{m.note}</Callout></div>
         </div>
       ))}
+    </Row>
+
+    <SyLbl>New atom &middot; AttrBar</SyLbl>
+    <Row gap={22} mb={22}>
+      <div style={{ width: 260 }}>
+        <AttrBar name="FOCUS" cur={54} lo={60} hi={90} w={260} narrowed/>
+        <div style={{ marginTop: 16 }}>
+          <AttrBar row name="READS" cur={82} lo={80} hi={84} w={260}/>
+          <div style={{ height: 12 }}/>
+          <AttrBar row name="COMPOSURE" cur={44} lo={46} hi={52} w={260}/>
+        </div>
+      </div>
+      <Callout>
+        The character system&rsquo;s only new atom. <b style={{ color: M_TEXT }}>Two layouts, one component</b>:
+        <b style={{ color: M_TEXT }}>stacked</b> (name above, band printed in gold) for reference sheets
+        and the birth reveal; <b style={{ color: M_TEXT }}>row</b> (<span style={{ color: M_TEAL }}>row</span> prop —
+        name 78 / track flex / value 22, 20px pitch) for the six-bar cluster on the player card and in
+        the desktop rail. Teal fill + white cap is the current value; the gold band is the
+        <b style={{ color: M_TEXT }}> scouted ceiling</b> and its width is the confidence — a potential
+        number is never printed. The gold caret marks a band that narrowed this session and is the
+        only animation on the bar. Full anatomy on the Character System board, S3.
+      </Callout>
     </Row>
 
     <Row gap={14} mb={0}>

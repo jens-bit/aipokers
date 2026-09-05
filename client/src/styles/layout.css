@@ -6,8 +6,7 @@
   width: 100%;
   max-width: var(--max-w-mobile);
   margin: 0 auto;
-  height: 100vh;
-  height: 100dvh; /* responds to virtual keyboard on iOS/Android */
+  height: var(--tg-h, 100dvh); /* --tg-h tracks Telegram viewport; 100dvh elsewhere */
   overflow: hidden;
   position: relative;
   padding-top: var(--safe-top);
@@ -731,7 +730,7 @@
    resolve var(--dr-*) correctly. */
 .dr-app {
   --dr-bg: #0a0a0a;
-  --dr-panel: #141414;
+  --dr-panel: #232329;
   --dr-panel-2: #1b1b1b;
   --dr-felt: #0f1818;
   --dr-accent: #00d4aa;
@@ -1554,7 +1553,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #141414; /* dr-panel — not exposed as a global CSS token */
+  background: #232329; /* dr-panel — not exposed as a global CSS token */
   border: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;

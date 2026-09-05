@@ -375,10 +375,13 @@ const FloorScreen = ({ layout, standup, seats, bar, lounge, ghostSize = 56, mini
           const s = seats[f.seat];
           if (!s) return null;
           const gh = (ghostSize * 1.2) + 19 + 3;
+          // `worn` swaps the occupant for the fatigued posture (char-play.jsx) and nothing
+          // else — same seat, same chip, same mood. Fatigue never touches the mood channel.
+          const Occ = (s.worn && typeof WornOccupant !== 'undefined') ? WornOccupant : Occupant;
           return (
             <React.Fragment key={`s${i}`}>
               <Diorama f={f} hole={s.hole} own={s.own !== false}/>
-              <Occupant x={f.cx} y={f.cy - gh + 8} name={s.name} accent={s.accent} mood={s.mood}
+              <Occ x={f.cx} y={f.cy - gh + 8} name={s.name} accent={s.accent} mood={s.mood}
                 state="live" size={ghostSize} speed={s.speed}/>
               {/* a diorama stacks its pot above the ghost name chip, above the far rail and
                   on the centre axis so it cannot foul a chip at any name width.
@@ -478,7 +481,7 @@ const FloorFullScreenM = () => (
 );
 
 // ═══ ZOOM ═══
-const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip }) => {
+const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip, extra }) => {
   const m = MOODS[mood];
   return (
     <PhoneShell>
@@ -531,6 +534,7 @@ const ZoomView = ({ name, accent, mood, line, cause, state, primary, pot, strip 
             <StateTag state={state} compact/>
           </div>
           <div style={{ fontSize: 13, color: m.color, lineHeight: 1.45, marginBottom: 13 }}>{cause}</div>
+          {extra && <div style={{ marginBottom: 12 }}>{extra}</div>}
           <div style={{ display: 'flex', gap: 9 }}>
             {primary === 'watch' ? (
               <>
@@ -686,6 +690,7 @@ const PostureSheetScreenM = () => (
 );
 
 Object.assign(window, {
+  FloorScreen,
   FloorQuietScreenM, FloorOneScreenM, FloorTwoScreenM, FloorThreeScreenM, FloorFullScreenM,
   ZoomTiltedScreenM, ZoomPlayingScreenM, ZoomActionScreenM, ZoomBetweenScreenM, ZoomRestingScreenM,
   CasinoFTUScreenM, PostureSheetScreenM,

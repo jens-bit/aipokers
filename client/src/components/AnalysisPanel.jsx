@@ -80,7 +80,7 @@ function TabBar({ active, onSelect, hasChatBadge }) {
   return (
     <div style={{
       display: 'flex', gap: 18, padding: '0 4px 12px',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
       marginBottom: 14,
     }}>
       {tabs.map((t, i) => {

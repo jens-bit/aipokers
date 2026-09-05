@@ -27,6 +27,10 @@ import { THRESHOLDS } from './flaggedHands.js';
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
 
+// ── Bankroll constants ────────────────────────────────────────────────────────
+const STARTING_GRANT = 10_000;
+const LEDGER_CAP = 100;
+
 // ── Persistence ──────────────────────────────────────────────────────────────
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -199,6 +203,8 @@ function commitAgent(profile, existingAgentId, agentData) {
     lastUpdated: null,
   };
   agent.mood = initialMood();
+  agent.bankroll = STARTING_GRANT;
+  agent.ledger = [{ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null }];
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
   return agent;
@@ -240,6 +246,26 @@ function ensureMemory(agent) {
   if (!Array.isArray(agent.memory.tendencies)) agent.memory.tendencies = [];
   if (typeof agent.memory.summary !== 'string') agent.memory.summary = '';
   if (!Number.isFinite(agent.memory.handsObserved)) agent.memory.handsObserved = 0;
+}
+
+// Lazily backfill bankroll for agents created before this feature. Existing
+// agents receive STARTING_GRANT + their recorded lifetime netWon so they are
+// not arbitrarily reset to 10 000 if they have played many sessions. Idempotent.
+function ensureBankroll(agent) {
+  if (typeof agent.bankroll === 'number') return;
+  const net = typeof agent.stats?.netWon === 'number' ? agent.stats.netWon : 0;
+  agent.bankroll = STARTING_GRANT + net;
+  if (!Array.isArray(agent.ledger)) agent.ledger = [];
+  if (agent.ledger.length === 0) {
+    agent.ledger.push({ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
+  }
+}
+
+// Append one entry to an agent's append-only ledger, capped at LEDGER_CAP.
+function appendLedger(agent, entry) {
+  if (!Array.isArray(agent.ledger)) agent.ledger = [];
+  agent.ledger.push(entry);
+  if (agent.ledger.length > LEDGER_CAP) agent.ledger = agent.ledger.slice(-LEDGER_CAP);
 }
 
 // Aggregate stats across the entire store for the GET /api/stats endpoint.
@@ -543,7 +569,7 @@ export function getMemoryContext(agentId, userId) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0 } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -572,6 +598,21 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   });
   if (agent.sessionLog.length > 10) agent.sessionLog = agent.sessionLog.slice(-10);
   agent.stats.netWon = (agent.stats.netWon ?? 0) + (typeof sessionPnl === 'number' ? sessionPnl : 0);
+
+  // Bankroll: credit the chips the agent walked away with. buyIn was already
+  // debited on deploy, so adding sessionPnl restores net movement correctly.
+  if (typeof sessionPnl === 'number') {
+    ensureBankroll(agent);
+    agent.bankroll += sessionPnl;
+    const creditAmount = typeof finalStack === 'number' ? finalStack
+      : typeof buyInAmount === 'number' ? buyInAmount + sessionPnl : sessionPnl;
+    appendLedger(agent, {
+      ts: Date.now(),
+      type: 'cashout',
+      amount: creditAmount,
+      tableId: tableId ?? null,
+    });
+  }
 
   const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
@@ -740,12 +781,14 @@ export function presentAgent(agent, { owner = false } = {}) {
     ? (liveGame ? 'playing' : 'resting')
     : ((agent.status === 'playing' || agent.activeTableId) ? 'playing' : 'resting');
   const sessionLog = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
+  ensureBankroll(agent);
   const careerStats = {
     hands: agent.stats?.handsPlayed ?? 0,
     sessions: sessionLog.length,
     net: typeof agent.stats?.netWon === 'number' ? agent.stats.netWon : null,
     biggestPot: agent.stats?.biggestPot ?? 0,
     winRate: typeof agent.stats?.winRate === 'number' ? agent.stats.winRate : null,
+    bankroll: agent.bankroll,
   };
   return {
     ...agent,
@@ -997,6 +1040,7 @@ export function installAgentProfileRoutes(app) {
 
     ensureMemory(agent);
     ensureProfile(agent);
+    ensureBankroll(agent);
 
     // Already at a live table — hand back the same one rather than stacking a
     // second autonomous session on top of the first.
@@ -1021,7 +1065,26 @@ export function installAgentProfileRoutes(app) {
     let joinedExisting = false;
     let sessionStarted = false;
 
-    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id });
+    const candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id, userId });
+
+    // ── Bankroll gate ─────────────────────────────────────────────────────────
+    // Only enforce when the server manages sessions (liveTables present).
+    let deployBuyIn = 0;
+    if (liveTables) {
+      const defaultBB = liveTables.getDefaultBlinds?.()?.bigBlind ?? 20;
+      deployBuyIn = candidate?.table
+        ? (candidate.table.bigBlind ?? defaultBB) * 100
+        : defaultBB * 100;
+      if (agent.bankroll < deployBuyIn) {
+        return res.status(402).json({
+          error: "He's felted. Grant a reload?",
+          felted: true,
+          bankroll: agent.bankroll,
+          required: deployBuyIn,
+        });
+      }
+    }
+
     if (candidate?.table) {
       try {
         seat = candidate.table.joinAgentSession({
@@ -1082,6 +1145,11 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
+    // Debit the buy-in from bankroll; credited back (as finalStack) when session ends.
+    if (deployBuyIn > 0 && sessionStarted) {
+      agent.bankroll -= deployBuyIn;
+      appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: deployBuyIn, tableId });
+    }
     saveStore(userId);
     console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
     emitAgentChange(userId);
@@ -1251,6 +1319,26 @@ export function installAgentProfileRoutes(app) {
     agent.proposal = null;
     saveStore(userId);
     clearProposalPending(userId);
+    res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
+  });
+
+  // POST /api/agents/:agentId/reload — free play-money reload for felted agents.
+  // Only available when the agent cannot afford the minimum buy-in.
+  app.post('/api/agents/:agentId/reload', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    ensureBankroll(agent);
+    const minBuyIn = (liveTables?.getDefaultBlinds?.()?.bigBlind ?? 20) * 100;
+    if (agent.bankroll >= minBuyIn) {
+      return res.status(400).json({ error: 'Agent still has chips', bankroll: agent.bankroll });
+    }
+    agent.bankroll += STARTING_GRANT;
+    appendLedger(agent, { ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
+    saveStore(userId);
+    emitAgentChange(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId) }));
   });
 

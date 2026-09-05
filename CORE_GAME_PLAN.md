@@ -568,3 +568,88 @@ Reads:
 
 ## CACHE-1 verdict (2026-08-30): prompt caching NOT viable on Haiku 4.5 — closed
 cache_control was already correctly set; the blocker is Haiku 4.5's 4096-token minimum cacheable prefix (highest of any current model; Opus 5 is 512, Sonnet 5 is 1024). Our static prefix is 235 tokens — 17x below the floor — and padding to 4096 costs more than it saves. Verdict: accept cold cache on Haiku; revisit only if (a) the static prefix organically grows past ~4k (e.g. richer strategy/memory text), or (b) decisions move to a model with a lower floor. Branch feature/prompt-cache holds the measurement; not merged.
+
+---
+
+## ACCEPT-1 run (2026-08-30, 200 pairs, reads ON) — INCOMPLETE: API credit exhaustion
+
+**Run:** `node scripts/arena.js --pairs 200 --profiles scripts/arena-profiles.json --matchups "*"` (reads ON, claude-haiku-4-5). Elapsed: 6385.7 s (~106 min). Output: `data/arena/run-2026-08-30T18-25-10-561Z.json`.
+
+**Credit failure:** API balance depleted at approximately pair 62/200 of matchup 5 (Loose Cannon vs Calling Station). All requests from that point returned HTTP 400 "credit balance too low". Matchups 5 and 6 are corrupted by all-fallback decisions (SB folds every hand; mirrored cancellation makes bb/100 = 0 and CI = 0 for matchup 6). Matchups 1–4 are clean (fallback ≤ 0.3%).
+
+### Valid matchup results (matchups 1–4, 400 hands each)
+
+| Matchup | Agent | bb/100 | ±CI95 | VPIP | AF | Fallback% |
+|---------|-------|--------|-------|------|----|-----------|
+| Nit vs Loose Cannon | Nit | −2.5 | ±162.5 | 15.7 | 0.82 | 0.2 |
+| | Loose Cannon | +2.5 | ±162.5 | 76.2 | 12.32 | 0.0 |
+| Nit vs TAG | Nit | +25.3 | ±76.6 | 22.6 | 4.50 | 0.0 |
+| | TAG | −25.3 | ±76.6 | 30.0 | 11.36 | 0.3 |
+| Nit vs Calling Station | Nit | +52.4 | ±116.7 | 22.0 | 5.45 | 0.0 |
+| | Calling Station | −52.4 | ±116.7 | 91.1 | 0.46 | 0.0 |
+| Loose Cannon vs TAG | Loose Cannon | −79.5 | ±203.2 | 65.5 | 1.60 | 0.0 |
+| | TAG | +79.5 | ±203.2 | 29.0 | 6.21 | 0.0 |
+
+### Corrupted matchup results (matchups 5–6, post credit exhaustion — discard)
+
+| Matchup | Fallback% | bb/100 | Note |
+|---------|-----------|--------|------|
+| Loose Cannon vs Calling Station | LC 23.9% / CS 20.7% | LC +159.5 ±81.5 | First ~60 pairs valid, rest fallback-fold; number untrustworthy |
+| TAG vs Calling Station | TAG 100% / CS 100% | 0 / 0 | Entirely invalid — every SB folded preflop, mirrored cancellation |
+
+### Per-agent aggregate (as recorded; TAG, LC, CS contaminated by credit failure)
+
+| Agent | bb/100 | ±CI95 | VPIP | PFR | AF | Fold% | Fallback% |
+|-------|--------|-------|------|-----|----|-------|-----------|
+| Nit | +25.0 | ±71.3 | 19.9 | 19.8 | 2.62 | 45.5 | 0.1 |
+| Loose Cannon | +27.5 | ±91.1 | 57.4 | 51.6 | 3.62 | 22.2 | 9.3 |
+| TAG | +18.1 | ±72.4 | 21.9 | 21.3 | 7.34 | 57.5 | 18.5 |
+| Calling Station | −70.6 | ±47.7 | 47.6 | 8.2 | 0.33 | 24.9 | 20.9 |
+
+Note: TAG's true VPIP in valid matchups is 30% (vs Nit) and 29% (vs LC), not 21.9% — that figure includes 200 zero-VPIP fallback hands from matchup 6. Similarly Calling Station's valid VPIP is 91.1% (vs Nit). The aggregate bb/100 for Nit is uncontaminated (+25.0). TAG valid-only (matchups 2 + 4): hands=800, net=+4340, bb/100=+27.1.
+
+### Acceptance criteria verdict
+
+**Criterion 1 — Behavioral separation (VPIP spread ≥ 25 pts): PASS**
+Nit VPIP 15.7% (vs Loose Cannon) vs Calling Station VPIP 91.1% (vs Nit) = **75.4 pt spread**. Aggression factor spans 0.46 (Station) → 12.32 (Cannon): personalities are behaviorally distinct and not caricatures (Cannon folds 18–20% and called down, not autoraise). Bluff-die compliance visible in LC AF collapsing 12.32 → 1.60 against TAG (BLUFF DIE hits, LC switches to pot-control). Criterion met convincingly.
+
+**Criterion 2 — Skill separation (TAG beats Station + Cannon, CI excl zero): FAIL**
+- TAG vs Calling Station: **NO DATA** — matchup entirely invalid (100% fallback).
+- TAG vs Loose Cannon: +79.5 ±203.2 bb/100 → 95% CI = [−123.7, +282.7], **includes zero**. TAG is directionally above Cannon but 200 pairs is insufficient for this high-variance matchup (all-in pots swing ±2000 chips frequently; ±200 CI is expected at this sample size).
+- Directional ordering in valid data: TAG +27.1 (valid-only) vs Station −52.4 (vs Nit) supports the exploit narrative, but no matchup between them completed.
+
+**Criterion 3 — Fallback rate < 2%: PASS (valid matchups) / FAIL (full run)**
+Matchups 1–4 fallback: Nit 0–0.2%, Loose Cannon 0%, TAG 0–0.3%, Calling Station 0%. Engine health is clean. The 9–21% fallback in the aggregate is entirely caused by credit exhaustion in matchups 5–6, not by prompt or engine problems. Criterion passes on the system; fails on the run artifact due to the billing interruption.
+
+**AGE-40 validation (TAG vs Station with reads ON, fold% ≈ 20%): INCONCLUSIVE**
+The TAG vs Calling Station matchup is entirely invalid. Cannot confirm or deny whether the fold-inversion fix holds at 200 pairs. The 150-pair AGE-40 A/B result (+126.1 ±199, fold% 19.4%) remains the best evidence available.
+
+### Overall verdict: **FAIL — gate not passed**
+
+**Blocking cause:** API credit depleted. Three of the six matchups are unusable. The two most critical for the acceptance gate (TAG vs Station, TAG vs Cannon with enough significance) are missing or insignificant.
+
+**What the valid data does confirm:**
+- Behavioral separation is strong and stable (criterion 1 is clearly met — same conclusion as AGE-28).
+- Engine and fallback health are fine: 0–0.3% fallback in all pre-exhaustion decisions.
+- TAG beats Station directionally (−52.4 bb/100 for Station vs Nit, +79.5 for TAG vs Cannon), consistent with prior runs; significance requires completing the matchup.
+
+**To complete the gate:** Top up the API credit balance, then re-run the two missing matchups:
+```
+node scripts/arena.js --pairs 200 --profiles scripts/arena-profiles.json --matchups "TAG,Calling Station"
+node scripts/arena.js --pairs 200 --profiles scripts/arena-profiles.json --matchups "Loose Cannon,Calling Station"
+```
+Evaluate criterion 2 (TAG vs Station CI and TAG vs Cannon CI) and the AGE-40 fold-rate check from the TAG vs Station run. Criterion 1 and engine health need not be re-verified.
+
+## Character System — design LOCKED (zips 30–32, 2026-09-02 → 09-05; synced to design-refs/)
+
+Files: char-system.jsx (ATTRS, NATURES, AttrBar/AttrTrack, FatigueMeter, GrowthTick), char-system2.jsx (potential band, growth vs fatigue, surface map), char-profile.jsx (player card v2, AttrCluster, AttrFocusPanel = sparkline + big value + 5-word caption, AttrSpark, PlayerCardRail for desktop), char-birth.jsx (nature reveal, birth card), char-play.jsx (thread growth line, worn posture at the felt, hand-review attr row, RiverAttrPanel, roster grew badge), char-close.jsx (state matrix attributes × surfaces, seam thread, how-it-plays), char-bio.jsx (biography layer: nemesis / rival / favourite victim, grudge ledger, SeatChip `history` pip). Docs: "Agentic Poker Character System.html", "Agentic Poker Biography.html".
+
+Model: STRATEGY (chosen: aggression, tightness, bluffFreq, discipline slider) vs six ATTRIBUTES (grown: READS, FOCUS, DISCIPLINE, COMPOSURE, DECEPTION, STAMINA; 0–100; execution-only). Eight zero-sum NATURES assigned at birth (±ATTR_STEP=8 on one attribute up, one down; announced in his voice; never re-rolled). Current is visible from day one; potential is a scouted band (lo–hi) that narrows with hands. Growth is permanent, single points over weeks, diminishing near the band. Fatigue is STATE (fresh / settled / worn), erodes effective FOCUS + DISCIPLINE late in a session, restored by time at the bar.
+
+Laws (binding on every build): no purchase path; fixed birth budget; attributes never gate play; the ceiling is never a number on a bar (inside a tapped bar it may be printed once, in gold); every cost line reads as HIS misjudgment ("he misjudged equity by 7% · Focus"); the biography layer touches voice, table talk and mood events only — never an attribute, band, fatigue or strategy; a grudge is never a notification. Day-one currents sit at 55–65% of the band's low edge (design 32 fix) so a newborn has room to grow.
+
+Density verdict (Jens, 09-05): the tapped panel is a picture, not a paragraph — 29c went from ~70 words to a sparkline + value + caption. Voice lives in the thread only. Permanent hint labels removed.
+
+Build order: ATTR-1 (engine, measurement-first, feature/attributes; arena --attributes off|low|high; ATTRIBUTE_IMPACT knob; attrLog ring buffer) → ATTR-2 (UI port: bars, tapped panel, birth card, hand-review row) → ATTR-3 (growth ticks + fatigue state in the session loop) → BIO-2 (per-opponent ledger → derived roles → recap line + needle injection). Target at full impact: same-strategy high vs low ≥ +30 bb/100, CI excluding zero; "off" reproduces ACCEPT-1 within CI.
+
+## Merged 2026-09-05: feature/watch-calm (WCM-1 calm between-hands state, WCM-2 felt density/colour) → main 9ab7aca. Remaining unmerged: feature/desktop-port (DSK2-1 only; DSK2-2..4 status unknown).

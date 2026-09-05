@@ -2,13 +2,13 @@
 // Balance card · Lifetime 2×2 stats · Replays · Settings
 
 import { useEffect, useState } from 'react';
-import { getTelegramDisplayName, getUserId } from '../lib/telegram.js';
+import { getTelegramDisplayName, getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
-const M_BG      = '#0A0A0A';
-const M_PANEL   = '#141414';
+const M_BG      = '#1A1A1E';
+const M_PANEL   = '#232329';
 const M_PANEL_2 = '#1b1b1b';
-const M_BORDER  = 'rgba(255,255,255,0.06)';
+const M_BORDER  = 'rgba(255,255,255,0.12)';
 const M_TEXT    = '#EDEDED';
 const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
@@ -167,7 +167,7 @@ export function YouScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then(async (data) => {
         const list = data.agents || [];
@@ -194,6 +194,7 @@ export function YouScreen() {
 
   const totalHands     = agents.reduce((s, a) => s + (a.stats?.handsPlayed || 0), 0);
   const agentCount     = agents.length;
+  const stableBankroll = agents.reduce((s, a) => s + (a.careerStats?.bankroll ?? a.bankroll ?? 0), 0);
 
   // Derived stats
   const winRatePct = (() => {
@@ -254,7 +255,7 @@ export function YouScreen() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
           <ChipGlyph />
           <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: M_TEXT }}>
-            {totalHands > 0 ? `${(totalHands * 10).toLocaleString()}.00` : '1,000.00'}
+            {stableBankroll > 0 ? stableBankroll.toLocaleString() : '—'}
           </span>
           <div style={{ flex: 1 }} />
           <Lbl size={9}>Balance</Lbl>

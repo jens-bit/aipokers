@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getUserId } from '../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 function formatAmount(amount) {
   return amount == null ? '--' : Number(amount).toLocaleString();
@@ -94,7 +94,7 @@ export function HistoryTab() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/agents?userId=${encodeURIComponent(getUserId())}`)
+    fetch(`/api/agents?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => setAgents(data.agents || []))
       .catch(() => setLoadError(true));

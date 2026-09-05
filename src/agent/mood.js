@@ -26,6 +26,7 @@ export const EVENT_DELTAS = Object.freeze({
   cardDead:               -1,
   sessionWinStreak:       +1,
   sessionLossStreak:      -1,
+  needled:                -1,   // TLK-1: opponent table talk got under the skin
 });
 
 const CAUSE_TEMPLATES = Object.freeze({
@@ -35,6 +36,7 @@ const CAUSE_TEMPLATES = Object.freeze({
   cardDead:             (ctx) => `card-dead ${ctx.foldsInARow ?? 6}+ hands`,
   sessionWinStreak:     (ctx) => `${ctx.streak ?? 3}-hand win streak`,
   sessionLossStreak:    (ctx) => `${ctx.streak ?? 3}-hand losing streak`,
+  needled:              () => 'needled by opponent table talk',
 });
 
 // Decay: after this many consecutive uneventful hands, mood drifts one step

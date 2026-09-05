@@ -2,7 +2,7 @@
 // how many agents are playing. Ported from design-refs/mood-casino.jsx.
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { getUserId } from '../../lib/telegram.js';
+import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { Occupant, PotTicker, FeltBoard, FeltHoleCards, dioramaMetrics, accentFor, speedFor, M_TEAL } from './atoms.jsx';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
@@ -37,7 +37,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
   }, []);
 
   const load = useCallback(() => {
-    fetch(`/api/agents?userId=${getUserId()}`)
+    fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.json())
       .then((data) => setAgents(Array.isArray(data.agents) ? data.agents : []))
       .catch(() => {})

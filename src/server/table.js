@@ -29,6 +29,12 @@ import {
   HOUSE_PROFILE,
   pickComplementaryHouse,
 } from './matchmaking.js';
+import {
+  pickTalkLine,
+  isStoic,
+  isSusceptible,
+  TALK_INTERVAL_HANDS,
+} from '../agent/tableTalk.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -113,6 +119,15 @@ export class Table {
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
+    // HC-1: House cast identity per seat — null for player/agent seats.
+    this.seatAccentColors = Array(maxSeats).fill(null);
+    this.seatTalkLines    = Array(maxSeats).fill(null);
+    // TLK-1: table talk + needle state.
+    this.pendingNeedle         = Array(maxSeats).fill(null);  // queued talk line for next decision briefing
+    this._needledThisSession   = Array(maxSeats).fill(0);     // cap mood event once per session per seat
+    this._talkHandNumber       = -1;                          // last hand any agent talked (one per hand)
+    this._talkLastHandBySeat   = Array(maxSeats).fill(-1);    // last hand this seat talked
+    this._prefoldStreakBySeat  = Array(maxSeats).fill(0);     // consecutive preflop-fold hands per seat
     // MST-1: chips live on the table, not inside whichever Game instance is
     // current -- the Game is rebuilt whenever the roster changes.
     this.seatStacks = Array(maxSeats).fill(null);
@@ -205,6 +220,12 @@ export class Table {
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
+    ['seatAccentColors',       () => null],
+    ['seatTalkLines',          () => null],
+    ['pendingNeedle',          () => null],   // TLK-1
+    ['_needledThisSession',    () => 0],      // TLK-1
+    ['_talkLastHandBySeat',    () => -1],     // TLK-1
+    ['_prefoldStreakBySeat',   () => 0],      // TLK-1
   ];
 
   _clearSeat(seat) {
@@ -383,6 +404,9 @@ export class Table {
           sessionPnl: finalStack - buyIn,
           watched,
           sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          finalStack,
+          buyInAmount: buyIn,
+          tableId: this.tableId,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -439,15 +463,18 @@ export class Table {
     });
     const house = pickComplementaryHouse(profile);
     this.seatAI({
-      displayName: house.displayName,
-      strategy: house.strategy,
+      displayName:  house.displayName,
+      strategy:     house.strategy,
       agentProfile: house.profile,
-      buyIn: stack,
+      buyIn:        stack,
+      stableId:     house.stableId,
+      accentColor:  house.accentColor,
+      talkLines:    house.talkLines,
     });
     // Leave the table-wide agentStrategy null: _maybeRunAiTurn prefers it over
     // the per-seat text, which would hand the hero's strategy to the House.
     this.agentStrategy = null;
-    console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house === HOUSE_STATION ? 'Station' : 'TAG'} House, max ${this.maxHands} hands`);
+    console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house.displayName} (${house.castMember?.archetype ?? 'House'}), max ${this.maxHands} hands`);
     this.startSessionLoop({ delayMs: 250 });
     return heroSeat;
   }
@@ -581,6 +608,9 @@ export class Table {
           sessionPnl,
           watched,
           sessionHands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+          finalStack,
+          buyInAmount: buyIn,
+          tableId: this.tableId,
         });
       } catch (err) {
         console.error('[table] finishAgentSession failed:', err.message);
@@ -676,23 +706,26 @@ export class Table {
       // action instead of a fold-fest.
       const opposingProfile = this.agentProfiles.find((p) => p) ?? null;
       const house = pickComplementaryHouse(opposingProfile);
-      console.log(`[table:${this.tableId}] scheduling House archetype=${house === HOUSE_STATION ? 'Station' : 'TAG'} vs opponent T=${opposingProfile?.tightness ?? '?'}`);
+      console.log(`[table:${this.tableId}] scheduling ${house.displayName} (${house.castMember?.archetype ?? 'House'}) vs opponent T=${opposingProfile?.tightness ?? '?'}`);
       this.maybeAutoSeatAI({
         agentDisplayName: house.displayName,
-        agentStrategy: house.strategy,
-        agentId: null,
-        userId: null,
-        memoryContext: '',
-        agentProfile: house.profile,
+        agentStrategy:    house.strategy,
+        agentId:          null,
+        userId:           null,
+        memoryContext:    '',
+        agentProfile:     house.profile,
+        stableId:         house.stableId,
+        accentColor:      house.accentColor,
+        talkLines:        house.talkLines,
       });
       this.maybeStartHand();
     }, HOUSE_FALLBACK_MS);
   }
 
   // Seat an AI agent at the first free slot. Called when AI_ENABLED=true.
-  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+  seatAI({ displayName = 'Agentic v1', strategy = '', buyIn, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const free = this.pending.findIndex((p) => p === null);
-    if (free === -1) throw new Error('table full ÔÇö cannot seat AI');
+    if (free === -1) throw new Error('table full — cannot seat AI');
 
     // Match the human player's buy-in if not specified.
     const humanSeat = this.pending.findIndex((p, i) => p !== null && !this.aiSeats[i]);
@@ -703,7 +736,12 @@ export class Table {
       // across compaction -- the button is tracked by playerId, and
       // opponentStats keys its reads on it. `ai_agent_<seat>` was neither:
       // a seat freed and refilled could reissue a live id.
-      playerId: agentId ? `agent_${agentId}` : `ai_${this.tableId}_${this._seatSeq++}`,
+      // HC-1: cast members use a stable `house_<id>` so reads accumulate.
+      playerId: agentId
+        ? `agent_${agentId}`
+        : stableId
+          ? `house_${stableId}`
+          : `ai_${this.tableId}_${this._seatSeq++}`,
       buyIn: aiBuyIn,
       displayName,
     };
@@ -716,6 +754,9 @@ export class Table {
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
     this.aiLastChatHand[free] = -1;
+    // HC-1: cast identity (null for player/agent seats)
+    this.seatAccentColors[free] = accentColor ?? null;
+    this.seatTalkLines[free]    = Array.isArray(talkLines) ? [...talkLines] : null;
     this.seatStacks[free] = aiBuyIn;
     this.seatLeaving[free] = false;
     // MST-1: a seat that arrives mid-session gets credited only with the hands
@@ -833,14 +874,15 @@ export class Table {
       blinds: `${this.smallBlind}/${this.bigBlind}`,
       seats: g ? g.seats.map((s, i) => ({
         displayName: this.pending[i]?.displayName ?? s.playerId ?? '',
-        stack: s.stack ?? 0,
+        stack:       s.stack ?? 0,
+        accentColor: this.seatAccentColors[i] ?? null,
       })) : [],
     };
   }
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
-  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+  maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
@@ -854,6 +896,9 @@ export class Table {
       userId,
       memoryContext,
       agentProfile,
+      stableId,
+      accentColor,
+      talkLines,
     });
   }
 
@@ -1041,6 +1086,7 @@ export class Table {
     this._persistHand();
     this._recordOpponentStats(this.game.result);
     this._updateAgentMoods(this.game.result);
+    this._maybeSendAgentTalk(this.game.result);  // TLK-1
     // After reporting, evolve any AI's persistent memory every 5 hands.
     this._maybeTriggerMemoryUpdates();
     // MST-1: bank the chips and note where the button goes next BEFORE any
@@ -1587,6 +1633,18 @@ export class Table {
       : 'opponent';
     const agentStyle = this.agentStrategy || this.aiStrategy[aiSeat] || '';
 
+    // HC-1: cast members have pre-written lines — use one instead of calling
+    // the model. Same frequency gates already passed above; this just skips
+    // the LLM cost for House opponents.
+    const castLines = this.seatTalkLines?.[aiSeat];
+    if (Array.isArray(castLines) && castLines.length > 0) {
+      const line = castLines[Math.floor(Math.random() * castLines.length)];
+      if (this.aiSeats[aiSeat] && this.pending[aiSeat]) {
+        this.sendChat(aiSeat, line, true);
+      }
+      return;
+    }
+
     generateAiChatLine({
       trigger,
       agentName,
@@ -1604,6 +1662,121 @@ export class Table {
         this.sendChat(aiSeat, line, true);
       })
       .catch((err) => console.error('[table] AI chat error:', err.message));
+  }
+
+  // TLK-1: After each hand, attempt to send a template talk line from one AI
+  // agent. Rate-limited (TALK_INTERVAL_HANDS per seat; one agent per hand).
+  // Needles susceptible AI opponents: sets pendingNeedle + fires needled mood
+  // event once per session per seat.
+  _maybeSendAgentTalk(result) {
+    if (!result || !this.game) return;
+    const handNumber = this.game.handNumber;
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+    const pot = result.pot ?? 0;
+    const bigPotThreshold = this.bigBlind * 20;
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.aiSeats[seat] || !this.pending[seat]) continue;
+      if (!this._seatIsInGame(seat)) continue;
+
+      const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+
+      // Always update the preflop-fold streak so it stays accurate even when
+      // rate-limited.
+      const onlyFoldedPreflop =
+        myDecisions.length > 0 &&
+        myDecisions.every((d) => d.street === 'preflop' && d.action?.type === 'fold');
+      if (onlyFoldedPreflop) {
+        this._prefoldStreakBySeat[seat] = (this._prefoldStreakBySeat[seat] ?? 0) + 1;
+      } else if (myDecisions.length > 0) {
+        this._prefoldStreakBySeat[seat] = 0;
+      }
+
+      // Rate limit: per-agent gap and one-agent-per-hand.
+      const lastTalkHand = this._talkLastHandBySeat[seat] ?? -1;
+      if (handNumber - lastTalkHand < TALK_INTERVAL_HANDS) continue;
+      if (this._talkHandNumber === handNumber) continue;
+
+      const won = winners.some((w) => w.seat === seat);
+      const agentId = this.agentIds[seat];
+      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
+      const moodState = mood?.state ?? 'neutral';
+
+      // Detect trigger (priority: cardDead > wonBigPot > lostAsFavorite > shownBluff).
+      let trigger = null;
+
+      if (this._prefoldStreakBySeat[seat] >= 3) {
+        trigger = 'cardDead';
+      }
+
+      if (!trigger && won && pot > bigPotThreshold) {
+        trigger = 'wonBigPot';
+      }
+
+      if (!trigger && !won && result.type === 'showdown') {
+        const maxEquity = myDecisions.reduce(
+          (m, d) => Number.isFinite(d.equity) && d.equity > m ? d.equity : m, 0
+        );
+        if (maxEquity > 0.60) trigger = 'lostAsFavorite';
+      }
+
+      if (!trigger && won && result.type === 'showdown') {
+        outerSearch:
+        for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+          if (oppSeat === seat || !this.pending[oppSeat]) continue;
+          const oppDecisions = this.currentHandDecisions.filter((d) => d.seat === oppSeat);
+          for (const d of oppDecisions) {
+            if (
+              (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+              Number.isFinite(d.equity) && d.equity < 0.38
+            ) { trigger = 'shownBluff'; break outerSearch; }
+          }
+        }
+      }
+
+      if (!trigger) continue;
+
+      const line = pickTalkLine(trigger, moodState);
+      if (!line) continue;
+
+      // Lock this hand and update per-seat timing. Reset streak if cardDead fired.
+      this._talkHandNumber = handNumber;
+      this._talkLastHandBySeat[seat] = handNumber;
+      if (trigger === 'cardDead') this._prefoldStreakBySeat[seat] = 0;
+      this.sendChat(seat, line, true);
+
+      // Needle susceptible AI opponents.
+      for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+        if (oppSeat === seat) continue;
+        if (!this.aiSeats[oppSeat] || !this.pending[oppSeat]) continue;
+        if (!this._seatIsInGame(oppSeat)) continue;
+        const oppProfile = this.agentProfiles[oppSeat] ??
+          { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+        if (isStoic(oppProfile) || !isSusceptible(oppProfile)) continue;
+
+        // Queue the line for the opponent's next decision briefing.
+        this.pendingNeedle[oppSeat] = line;
+
+        // Mood event — once per session per seat to stay BOUNDED.
+        if ((this._needledThisSession[oppSeat] ?? 0) === 0) {
+          const oppAgentId = this.agentIds[oppSeat];
+          if (oppAgentId) {
+            const oppMood = getAgentMood(oppAgentId, this.agentUserIds[oppSeat]);
+            if (oppMood) {
+              const newMood = applyMoodEvent(oppMood, 'needled', oppProfile, {});
+              try {
+                setAgentMood(oppAgentId, this.agentUserIds[oppSeat], newMood);
+              } catch (err) {
+                console.error(`[table:${this.tableId}] needle setAgentMood failed:`, err.message);
+              }
+            }
+          }
+          this._needledThisSession[oppSeat] = 1;
+        }
+      }
+
+      break; // Only one agent per hand.
+    }
   }
 
   // Build the gameState object for the agent handler from the current game.
@@ -1727,6 +1900,7 @@ export class Table {
       raisesThisStreet,
       opponentReads,
       mood,
+      tableTalk:  this.pendingNeedle[aiSeat] ?? null,   // TLK-1
       opponents:  g.seats
         .map((s, i) => i === aiSeat ? null : { seat: i, stack: s.stack, folded: s.folded, contribThisStreet: s.contribThisStreet })
         .filter(Boolean),
@@ -1760,6 +1934,7 @@ export class Table {
     }
 
     const gameState = this._buildAiGameState(aiSeat);
+    this.pendingNeedle[aiSeat] = null;  // TLK-1: consumed into gameState
     const strategy = this.agentStrategy || this.aiStrategy[aiSeat];
 
     // Human-like thinking delay (0.8ÔÇô2.5 s).

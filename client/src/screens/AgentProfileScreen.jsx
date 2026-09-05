@@ -7,10 +7,10 @@ import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/ato
 import { moodOf, stateOf, causeOf } from '../components/floor/agentView.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
-const M_BG      = '#0A0A0A';
-const M_PANEL   = '#141414';
+const M_BG      = '#1A1A1E';
+const M_PANEL   = '#232329';
 const M_PANEL_2 = '#1b1b1b';
-const M_BORDER  = 'rgba(255,255,255,0.06)';
+const M_BORDER  = 'rgba(255,255,255,0.12)';
 const M_TEXT    = '#EDEDED';
 const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
@@ -150,15 +150,20 @@ function CareerGrid({ careerStats }) {
   const sessions = cs.sessions ?? 0;
   const winRate  = typeof cs.winRate === 'number' ? `${cs.winRate}%` : '—';
   const bigPot   = cs.biggestPot > 0 ? cs.biggestPot.toLocaleString() : '—';
-  const net      = cs.net != null ? (cs.net >= 0 ? `+${cs.net.toLocaleString()}` : `−${Math.abs(cs.net).toLocaleString()}`) : '—';
-  const netColor = cs.net == null ? M_TEXT : cs.net >= 0 ? M_TEAL : M_RED;
+  // Bankroll is the live chip balance; fall back to net P&L for pre-BANK-1 data.
+  const bankrollV = typeof cs.bankroll === 'number'
+    ? cs.bankroll.toLocaleString()
+    : (cs.net != null ? (cs.net >= 0 ? `+${cs.net.toLocaleString()}` : `−${Math.abs(cs.net).toLocaleString()}`) : '—');
+  const bankrollColor = typeof cs.bankroll === 'number'
+    ? (cs.bankroll >= 10_000 ? M_TEAL : cs.bankroll > 0 ? M_GOLD : M_RED)
+    : (cs.net == null ? M_TEXT : cs.net >= 0 ? M_TEAL : M_RED);
 
   const cells = [
-    { l: 'Hands',       v: hands.toLocaleString(), c: M_TEXT   },
+    { l: 'Hands',       v: hands.toLocaleString(), c: M_TEXT        },
     { l: 'Win rate',    v: winRate,                 c: typeof cs.winRate === 'number' && cs.winRate >= 50 ? M_TEAL : M_RED },
-    { l: 'Sessions',    v: sessions.toString(),     c: M_TEXT   },
-    { l: 'Biggest pot', v: bigPot,                  c: M_GOLD   },
-    { l: 'Net',         v: net,                     c: netColor },
+    { l: 'Sessions',    v: sessions.toString(),     c: M_TEXT        },
+    { l: 'Biggest pot', v: bigPot,                  c: M_GOLD        },
+    { l: 'Bankroll',    v: bankrollV,               c: bankrollColor },
   ];
 
   return (

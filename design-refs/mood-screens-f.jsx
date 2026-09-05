@@ -2,16 +2,27 @@
 // same card radius/border, same type scale, same composer. Still reached only
 // from a flagged chip — a sheet by navigation, screen #5's language by anatomy.
 
-const StreetRow = ({ street, board, action, reason, equity, matched, last }) => (
+// `attr` — the character system showing through: one extra label under the verdict,
+// naming the attribute that shaped the decision. Gold when it cost money, teal when
+// it earned it. Never a grade on the hand; the verdict above already did that.
+const StreetRow = ({ street, board, action, reason, equity, matched, attr, last }) => (
   <div style={{ padding: `10px ${CANON.pad}px`, borderBottom: last ? 'none' : `1px solid ${M_BORDER}` }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 7 }}>
       <Lbl size={9}>{street}</Lbl>
-      <div style={{ flex: 1, height: 1, background: M_BORDER }}/>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-        <Num size={14} weight={700} color={matched ? M_TEAL : M_RED}>{equity}%</Num>
-        <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED }}>
-          {matched ? 'WITH THE MATH' : 'AGAINST IT'}
-        </span>
+      <div style={{ flex: 1, height: 1, background: M_BORDER, marginTop: 5 }}/>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <Num size={14} weight={700} color={matched ? M_TEAL : M_RED}>{equity}%</Num>
+          <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: matched ? M_TEAL : M_RED }}>
+            {matched ? 'WITH THE MATH' : 'AGAINST IT'}
+          </span>
+        </div>
+        {attr && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: attr.cost ? M_GOLD : M_TEAL, opacity: .95 }}>{attr.note}</span>
+            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.13em', color: attr.cost ? M_GOLD : M_TEAL, background: `${attr.cost ? M_GOLD : M_TEAL}14`, border: `1px solid ${attr.cost ? M_GOLD : M_TEAL}44`, borderRadius: 3, padding: '2px 5px' }}>{attr.k}</span>
+          </div>
+        )}
       </div>
     </div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -124,4 +135,4 @@ const HandReviewScreenM = () => (
   </PhoneShell>
 );
 
-Object.assign(window, { HandReviewScreenM, StreetRow });
+Object.assign(window, { HandReviewScreenM, StreetRow, VerdictBand });

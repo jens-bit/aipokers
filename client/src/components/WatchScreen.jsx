@@ -83,14 +83,14 @@ function DecisionBand({ street, action, equity, reasoning }) {
   return (
     <div style={{
       padding: '10px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{
           fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
           fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
           padding: '2px 7px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.12)',
           color: 'var(--sys-muted,#6B6B6B)',
           textTransform: 'uppercase', flexShrink: 0,
         }}>{(street || 'PREFLOP').toUpperCase()}</span>
@@ -151,14 +151,14 @@ function HandDivider({ handNumber }) {
       display: 'flex', alignItems: 'center', gap: 9,
       padding: '8px 14px',
     }}>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
       <span style={{
         fontFamily: 'var(--sys-font-label,"Oswald",sans-serif)',
         fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: 'var(--sys-muted,#6B6B6B)',
       }}>HAND #{handNumber}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
     </div>
   );
 }
@@ -166,17 +166,21 @@ function HandDivider({ handNumber }) {
 // ---- LiveAnalysisTab -------------------------------------------------------
 // Receives the stable feed array; never clears it.
 
-function LiveAnalysisTab({ feed }) {
+function LiveAnalysisTab({ feed, between }) {
   if (feed.length === 0) {
     return (
       <div className="watch-panel__empty">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="1.4" strokeLinecap="round" aria-hidden
-          style={{ marginBottom: 8, opacity: 0.4 }}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4M12 16h.01" />
-        </svg>
-        Waiting for first action...
+        {!between && (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.4" strokeLinecap="round" aria-hidden
+            style={{ marginBottom: 6, opacity: 0.35 }}>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+        )}
+        <span style={{ opacity: between ? 0.4 : 1, fontSize: between ? 11 : 12 }}>
+          {between ? 'Watching…' : 'Waiting for first action…'}
+        </span>
       </div>
     );
   }
@@ -209,7 +213,16 @@ function LiveAnalysisTab({ feed }) {
 
 function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
   var [text, setText] = useState('');
-  var listRef = useRef(null);
+  var listRef    = useRef(null);
+  var chatInputRef = useRef(null);
+
+  useEffect(function() {
+    var el = chatInputRef.current;
+    if (!el) return;
+    function onFocus() { setTimeout(function() { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150); }
+    el.addEventListener('focus', onFocus);
+    return function() { el.removeEventListener('focus', onFocus); };
+  }, []);
 
   // Merge thread messages and ambient table speech sorted by timestamp.
   var merged = agentThread.map(function(m) { return Object.assign({}, m, { _type: 'thread' }); })
@@ -301,7 +314,7 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
         )}
       </div>
       <form className="dr-chat-tab__form" onSubmit={submit}>
-        <input className="dr-chat-tab__input" value={text}
+        <input ref={chatInputRef} className="dr-chat-tab__input" value={text}
           onChange={function(e) { setText(e.target.value); }}
           placeholder={'Message ' + (agentName || 'your agent') + '...'}
           maxLength={280} disabled={loading} aria-label="Chat message" />
@@ -588,16 +601,16 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
         <div className="watch-felt__pot">
           <div className="watch-felt__pot-pill">
             <span className="watch-felt__pot-label">POT</span>
-            <span className="watch-felt__pot-amt">
-              {between ? '--' : ('$' + pot.toLocaleString())}
+            <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
+              {between ? '—' : ('$' + pot.toLocaleString())}
             </span>
           </div>
         </div>
       )}
 
-      <div className="watch-felt__board">
+      <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
         {boardSlots.map(function(c, i) {
-          return (c && !between)
+          return c
             ? <PlayingCard key={i} rank={c[0]} suit={c[1]} w={46} h={64} />
             : <CardBack key={i} w={46} h={64} branded />;
         })}
@@ -667,15 +680,15 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
 
 // ---- SitOutStrip / SitOutSheet ---------------------------------------------
 
-function SitOutStrip({ onRequest }) {
+function SitOutStrip({ visible, onRequest }) {
   return (
-    <div className="watch-sitout-strip">
+    <div className={'watch-sitout-strip' + (visible ? '' : ' is-hidden')} aria-hidden={!visible}>
       <div>
         <div className="watch-sitout-strip__title">Between hands</div>
         <div className="watch-sitout-strip__meta">READY FOR NEXT DEAL</div>
       </div>
       <div style={{ flex: 1 }} />
-      <button type="button" className="watch-sitout-strip__btn" onClick={onRequest}>
+      <button type="button" className="watch-sitout-strip__btn" onClick={onRequest} tabIndex={visible ? 0 : -1}>
         Sit out after this hand
       </button>
     </div>
@@ -894,7 +907,7 @@ export function WatchScreen({
     if (!agentId) return;
     var cancelled = false;
     function load() {
-      fetch('/api/agents?userId=' + getUserId())
+      fetch('/api/agents?userId=' + getUserId(), { headers: { 'x-telegram-init-data': getTelegramInitData() } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (cancelled) return;
@@ -1055,9 +1068,11 @@ export function WatchScreen({
             <SheetHandle thin={hidden} />
           </div>
 
-          {between && sheet.detent === 'expanded' && (
-            <SitOutStrip key="sitout" onRequest={function() { setSitOutPending(true); }} />
-          )}
+          <SitOutStrip
+            key="sitout"
+            visible={between && sheet.detent === 'expanded'}
+            onRequest={function() { setSitOutPending(true); }}
+          />
 
           <div key="grab-tabs" className="watch-sheet__grab" hidden={hidden} {...sheet.handlers}>
             <WatchTabs active={activeTab} />
@@ -1074,7 +1089,7 @@ export function WatchScreen({
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === 0 && <LiveAnalysisTab feed={decisionFeed} />}
+              {activeTab === 0 && <LiveAnalysisTab feed={decisionFeed} between={between} />}
               {activeTab === 1 && <EmptyTab text="Range analysis coming soon." />}
               {activeTab === 2 && <EmptyTab text="No hands played yet." />}
               {activeTab === 3 && (
