@@ -104,6 +104,45 @@ export const HEAT_DECAY_PER_HAND = 2;
 // to work while nobody is looking, and it only ever cools.
 export const HEAT_REST_PER_HOUR = 10;
 
+// RELATE-1c: how far the OWNER RELATIONSHIP can move where he settles.
+//
+// Everything above this line is poker. This is the one dial the owner's own
+// behaviour touches, and it is deliberately the smallest one in the file: an
+// owner who is on his back all week moves his resting heat up by at most ten,
+// an owner who reads his hands back moves it down by at most ten. Ten is under
+// one HEAT_STEP (15), so a single pep talk still outweighs a week of needling
+// — the relationship colours where he rests, it never decides how he plays.
+//
+// It is NOT guilt machinery: the input is ownerToneScore, which is computed
+// from messages sent and buttons pressed and cannot be moved by an absence
+// (src/agent/ownerMemory.js). An owner who does nothing at all scores null and
+// this returns 0.
+export const OWNER_DRIFT_MAX = 10;
+
+/**
+ * The resting heat he drifts toward, given how he has been treated.
+ * `toneScore` is ownerToneScore()'s [-1..+1], or null when there is no record.
+ * Positive tone (treated well) cools the baseline; hostile warms it.
+ */
+export function restingHeat(toneScore) {
+  const t = Number(toneScore);
+  if (!Number.isFinite(t)) return HEAT_MIDPOINT.neutral;
+  const drift = Math.round(-Math.max(-1, Math.min(1, t)) * OWNER_DRIFT_MAX);
+  return clampHeat(HEAT_MIDPOINT.neutral + drift);
+}
+
+/**
+ * What to say about it, or null when the drift is too small to mention. Never
+ * a number: the owner sees a sentence in his voice, never a score.
+ */
+export function ownerDriftCause(toneScore) {
+  const t = Number(toneScore);
+  if (!Number.isFinite(t)) return null;
+  if (t <= -0.5) return "you've been on my back all week";
+  if (t >= 0.5) return 'been a decent week, all told';
+  return null;
+}
+
 /**
  * How hard events land, both directions, from the same tilt-resistance trait
  * the ordinal machine used. A stoic takes less heat from a beat AND sheds it
@@ -262,12 +301,14 @@ export function applyEvent(currentMood, event, profile, { context = {}, composur
 // invoke this when NO event fired this hand.
 // ATTR-1 hook — COMPOSURE is also RECOVERY: how many uneventful hands he needs
 // to come back. 6 hands at attribute 0, DECAY_HANDS at 50, 2 at 100.
-export function tickDecay(currentMood, { composure = null } = {}) {
+export function tickDecay(currentMood, { composure = null, restingTarget = null } = {}) {
   const next = { ...currentMood };
   next.uneventfulHands = (next.uneventfulHands ?? 0) + 1;
 
   const before = Number.isFinite(next.heat) ? next.heat : heatForState(next.state);
-  const target = HEAT_MIDPOINT.neutral;
+  // RELATE-1c: where he settles, not just how fast. Defaults to the neutral
+  // midpoint, which is exactly the old behaviour when no ledger says otherwise.
+  const target = Number.isFinite(restingTarget) ? clampHeat(restingTarget) : HEAT_MIDPOINT.neutral;
   if (before === target) return next;
 
   // MOOD-2: cooling is continuous now rather than a band-step every N hands,
@@ -300,15 +341,18 @@ export function tickDecay(currentMood, { composure = null } = {}) {
  * the caller: nothing here reads a clock, so no code path can quietly turn
  * absence into a mood.
  */
-export function restAtBar(currentMood, { hours = 0, composure = null, profile = null } = {}) {
+export function restAtBar(currentMood, { hours = 0, composure = null, profile = null, restingTarget = null } = {}) {
   const h = Number(hours);
   if (!Number.isFinite(h) || h <= 0) return currentMood;
 
   const before = Number.isFinite(currentMood?.heat) ? currentMood.heat : heatForState(currentMood?.state);
-  const target = HEAT_MIDPOINT.neutral;
+  const target = Number.isFinite(restingTarget) ? clampHeat(restingTarget) : HEAT_MIDPOINT.neutral;
   if (before <= target) return currentMood;
 
   const cooling = profile ? heatScales(profile, { composure }).cooling : 1;
+  // He settles ABOVE neutral when the week has been bad — and the floor says
+  // why in his voice rather than showing a number.
+  const restCause = target > HEAT_MIDPOINT.neutral ? "you've been on my back all week" : null;
   const step = Math.min(HEAT_REST_PER_HOUR * h * cooling, before - target);
   const heat = clampHeat(before - step);
   const losingRun = heat <= HEAT_BANDS[1].upTo ? 0 : (Number(currentMood?.losingRun) || 0);
@@ -318,7 +362,9 @@ export function restAtBar(currentMood, { hours = 0, composure = null, profile = 
     heat,
     losingRun,
     state: stateForHeat(heat, { losingRun }),
-    cause: heat === target ? 'rested at the bar' : (currentMood?.cause ?? null),
+    cause: heat === target
+      ? (restCause ?? 'rested at the bar')
+      : (currentMood?.cause ?? null),
     updatedAt: Date.now(),
   };
 }

@@ -14,6 +14,8 @@ import {
   classifyOwnerMessage,
   moodPromptLine,
   restAtBar,
+  restingHeat,
+  ownerDriftCause,
 } from '../agent/mood.js';
 import {
   notifySessionRecap,
@@ -819,10 +821,17 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   if (previousSession?.endedAt) {
     const hours = Math.max(0, (Date.now() - previousSession.endedAt) / 3_600_000);
     if (hours > 0) {
+      // RELATE-1c: where he settles is coloured by how he has been treated.
+      // Bounded at ±10 — under one HEAT_STEP, so a single pep talk still
+      // outweighs a week of needling. The input is the owner ledger, which
+      // cannot be moved by an absence, so this is not guilt machinery: an
+      // owner who does nothing scores null and the target is plain neutral.
+      const toneScore = ownerToneScore(agent);
       agent.mood = restAtBar(agent.mood, {
         hours,
         composure: agent.attrs?.COMPOSURE ?? null,
         profile: agent.profile ?? null,
+        restingTarget: restingHeat(toneScore),
       });
     }
   }

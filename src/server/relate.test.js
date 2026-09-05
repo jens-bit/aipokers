@@ -15,7 +15,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildAgentChatSystem } from './agentProfiles.js';
-import { recordOwnerEvent, whatDoYouThinkOfMe, isAskingAboutOwner } from '../agent/ownerMemory.js';
+import { recordOwnerEvent, whatDoYouThinkOfMe, isAskingAboutOwner, ownerToneScore } from '../agent/ownerMemory.js';
+import {
+  restingHeat, ownerDriftCause, restAtBar, tickDecay,
+  OWNER_DRIFT_MAX, HEAT_MIDPOINT, HEAT_STEP,
+} from '../agent/mood.js';
 
 function agentWith(events) {
   const a = {
@@ -126,4 +130,70 @@ test('RELATE-1b: the answer names a specific memory rather than a feeling', () =
     /gets on my back|cut me off/.test(answer),
     `must quote the record, got: ${answer}`,
   );
+});
+
+// ── RELATE-1c: bounded baseline drift ────────────────────────────────────────
+
+test('RELATE-1c: the drift is bounded at ten, both directions', () => {
+  assert.equal(restingHeat(-1), HEAT_MIDPOINT.neutral + OWNER_DRIFT_MAX, 'worst possible week');
+  assert.equal(restingHeat(1), HEAT_MIDPOINT.neutral - OWNER_DRIFT_MAX, 'best possible week');
+  // Values outside [-1,1] cannot buy extra drift.
+  assert.equal(restingHeat(-99), HEAT_MIDPOINT.neutral + OWNER_DRIFT_MAX);
+  assert.equal(restingHeat(99), HEAT_MIDPOINT.neutral - OWNER_DRIFT_MAX);
+});
+
+test("RELATE-1c: the drift never outweighs the briefing's own bounded effect", () => {
+  assert.ok(OWNER_DRIFT_MAX < HEAT_STEP,
+    `a week of needling (${OWNER_DRIFT_MAX}) must not beat one pep talk (${HEAT_STEP})`);
+});
+
+test('RELATE-1c: no ledger means no drift — an absent owner is not a hostile one', () => {
+  assert.equal(restingHeat(null), HEAT_MIDPOINT.neutral);
+  assert.equal(restingHeat(undefined), HEAT_MIDPOINT.neutral);
+  assert.equal(restingHeat(NaN), HEAT_MIDPOINT.neutral);
+  assert.equal(ownerToneScore({ id: 'x' }), null);
+});
+
+test('RELATE-1c: a hostile week leaves him settling hotter, and says why', () => {
+  const hostile = agentWith(HOSTILE);
+  const target = restingHeat(ownerToneScore(hostile));
+  assert.ok(target > HEAT_MIDPOINT.neutral, `expected above neutral, got ${target}`);
+  assert.ok(target <= HEAT_MIDPOINT.neutral + OWNER_DRIFT_MAX);
+
+  const rested = restAtBar({ heat: 80, state: 'tilted', losingRun: 0 }, { hours: 24, restingTarget: target });
+  assert.equal(rested.heat, target, 'a full night at the bar takes him to his baseline, not below it');
+  assert.equal(rested.cause, "you've been on my back all week");
+  assert.equal(ownerDriftCause(ownerToneScore(hostile)), "you've been on my back all week");
+});
+
+test('RELATE-1c: a decent week leaves him settling cooler', () => {
+  const decent = agentWith(DECENT);
+  const target = restingHeat(ownerToneScore(decent));
+  assert.ok(target < HEAT_MIDPOINT.neutral, `expected below neutral, got ${target}`);
+  assert.ok(target >= HEAT_MIDPOINT.neutral - OWNER_DRIFT_MAX);
+  assert.equal(ownerDriftCause(ownerToneScore(decent)), 'been a decent week, all told');
+});
+
+test('RELATE-1c: it is counterable — treating him better moves the baseline back', () => {
+  const a = agentWith(HOSTILE);
+  const before = restingHeat(ownerToneScore(a));
+  for (let i = 0; i < 12; i++) recordOwnerEvent(a, 'pep_talk');
+  const after = restingHeat(ownerToneScore(a));
+  assert.ok(after < before, `${after} should be cooler than ${before}`);
+});
+
+test('RELATE-1c: the drift is never surfaced as a number', () => {
+  // The only owner-facing output is a sentence. If a cause ever contains a
+  // digit, somebody has started showing a score.
+  for (const t of [-1, -0.6, -0.5, 0, 0.5, 0.6, 1, null]) {
+    const cause = ownerDriftCause(t);
+    if (cause !== null) assert.equal(/\d/.test(cause), false, `cause carries a number: ${cause}`);
+  }
+});
+
+test('RELATE-1c: with no drift supplied, decay behaves exactly as before', () => {
+  const mood = { heat: 60, state: 'frustrated', losingRun: 0, uneventfulHands: 0 };
+  const plain = tickDecay({ ...mood });
+  const explicit = tickDecay({ ...mood }, { restingTarget: HEAT_MIDPOINT.neutral });
+  assert.equal(plain.heat, explicit.heat, 'the default target is the old behaviour');
 });
