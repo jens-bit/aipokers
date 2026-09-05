@@ -245,7 +245,65 @@ console.log('\n— pace rides every snapshot —');
   await sleep(150);
 }
 
-// ── 4. the hold length is reproducible ──────────────────────────────────────
+// ── 4. the owner's spectator: equity from the deal, and his read ────────────
+// WATCH on a client-driven table seats the watcher's OWN agent and attaches him
+// to it — that seat is his, which is the same rule _broadcastDecision has always
+// used to decide who may see reasoning. So the watcher goes first here and the
+// human sits down opposite him, which is the real shape of the flow.
+console.log('\n— the owner’s spectator sees his agent’s eyes —');
+{
+  const tableId = 'pace-hero';
+  const spec = await openSocket('S');
+  spec.send({ type: ClientMsg.WATCH, tableId, displayName: 'His Agent' });
+  const watching = await waitFor(spec, (m) => m.type === ServerMsg.WATCHING, 5000);
+  check('the watcher is attached to a seat', !!watching);
+
+  const a = await openSocket('A');
+  a.send({ type: ClientMsg.JOIN, tableId, playerId: 'ha', buyIn: 2000, displayName: 'A' });
+  await waitFor(a, (m) => m.type === ServerMsg.JOINED);
+  await sleep(700);
+
+  const states = spec.of(ServerMsg.STATE).filter((e) => e.msg.state.street && e.msg.state.street !== 'waiting');
+  check('the spectator gets snapshots of the live hand', states.length > 0, `${spec.of(ServerMsg.STATE).length} states`);
+
+  // The rider: equity is there from the DEAL, before his agent has acted once.
+  const first = states[0]?.msg.state;
+  check('hero equity is on the first snapshot of the hand — never a dash',
+    typeof first?.heroEquity === 'number' && first.heroEquity > 0 && first.heroEquity < 1,
+    JSON.stringify(first?.heroEquity));
+  check('every snapshot of a live hand carries it',
+    states.every((e) => typeof e.msg.state.heroEquity === 'number'),
+    `${states.filter((e) => typeof e.msg.state.heroEquity !== 'number').length} without`);
+  check('equity is a probability, not a percentage',
+    states.every((e) => e.msg.state.heroEquity === null || (e.msg.state.heroEquity >= 0 && e.msg.state.heroEquity <= 1)));
+
+  // The read panel: five rows in the ref's order, present from the start even
+  // with no evidence behind them, because the bars fill rather than appear.
+  const withReads = states.find((e) => Array.isArray(e.msg.state.reads));
+  check('the read panel rides the snapshot', !!withReads);
+  if (withReads) {
+    const panel = withReads.msg.state.reads[0];
+    check('one entry per opponent', withReads.msg.state.reads.length >= 1);
+    check('five rows in the ref order',
+      panel.rows.map((r) => r.k).join(',') === 'vpip,pfr,aggr,fold,sd', JSON.stringify(panel.rows.map((r) => r.k)));
+    check('each row is {value, confidence, formed}',
+      panel.rows.every((r) => (r.value === null || typeof r.value === 'number')
+        && typeof r.confidence === 'number' && typeof r.formed === 'boolean'));
+    check('hands observed rides the panel', typeof panel.handsObserved === 'number');
+    check('a fresh opponent has formed nothing and says nothing',
+      panel.handsObserved === 0 ? (panel.formed === false && panel.line === null) : true);
+  }
+
+  // Nobody else gets either payload.
+  const seated = a.of(ServerMsg.STATE).at(-1)?.msg.state;
+  check('a seated player is told nothing about anyone’s equity', seated?.heroEquity === undefined);
+  check('a seated player gets no read panel', seated?.reads === undefined);
+
+  a.close(); spec.close();
+  await sleep(150);
+}
+
+// ── 5. the hold length is reproducible ──────────────────────────────────────
 console.log('\n— the hold is deterministic —');
 {
   check('the same table and hand always hold for the same time',

@@ -4,7 +4,15 @@
 //   2. no stat is ever phrased so it implies the hero should fold more
 // Run: node src/agent/reads.test.js
 
-import { classifyOpponent, formatOpponentRead, vpipLabel } from './reads.js';
+import {
+  classifyOpponent,
+  formatOpponentRead,
+  vpipLabel,
+  readPanel,
+  readConfidence,
+  READ_ROWS,
+  AF_FULL_SCALE,
+} from './reads.js';
 
 let failures = 0;
 function check(label, cond, detail) {
@@ -142,6 +150,78 @@ console.log('\n8) vpip labels');
   check('loose below 70',      vpipLabel(60) === 'loose');
   check('very loose at 96',    vpipLabel(96) === 'very loose');
   check('unknown when NaN',    vpipLabel(NaN) === 'unknown');
+}
+
+console.log('\n— the READ panel (PACE-1) —');
+{
+  const station = {
+    playerId: 'house_station', displayName: 'The Regular', handsObserved: 23,
+    vpip: 96, pfr: 4, af: 0.2, foldToRaise: 6, wentToShowdown: 71,
+  };
+
+  const p = readPanel(station, { reads: 50 });
+  check('five rows, in the ref order',
+    p.rows.map((r) => r.k).join(',') === 'vpip,pfr,aggr,fold,sd');
+  check('the labels are the ref labels',
+    p.rows.map((r) => r.label).join('|') === READ_ROWS.map((r) => r.label).join('|'));
+  check('every row is 0-100 or null',
+    p.rows.every((r) => r.value === null || (r.value >= 0 && r.value <= 100)));
+  check('every row carries a confidence in 0..1',
+    p.rows.every((r) => r.confidence >= 0 && r.confidence <= 1));
+  check('every row says whether it is formed',
+    p.rows.every((r) => typeof r.formed === 'boolean'));
+  check('hands observed rides the panel', p.handsObserved === 23);
+  check('a formed read gets a line in HIS voice',
+    p.formed === true && typeof p.line === 'string' && /^He calls everything/.test(p.line));
+  check('the line is his, not the prompt directive',
+    !/value bet|do NOT|RANGE line/i.test(p.line));
+
+  // The gate is the briefing's gate, exactly.
+  const thin = readPanel({ ...station, handsObserved: 4 }, { reads: 50 });
+  check('below the evidence bar nothing is formed',
+    thin.formed === false && thin.rows.every((r) => r.formed === false));
+  check('below the bar there is no line to say', thin.line === null);
+  check('the numbers are still there — the bars fill before the read forms',
+    thin.rows[0].value === 96);
+
+  // READS moves the bar, exactly as it moves the briefing.
+  const sharp = readPanel({ ...station, handsObserved: 8 }, { reads: 100 });
+  const dull  = readPanel({ ...station, handsObserved: 8 }, { reads: 0 });
+  check('a sharp reader forms a read on evidence a dull one ignores',
+    sharp.formed === true && dull.formed === false);
+  check('the gate is reported so the panel can explain itself',
+    sharp.gate < dull.gate);
+
+  // DECEPTION pushes it back the other way.
+  const vsSlippery = readPanel({ ...station, handsObserved: 8 }, { reads: 100, deception: 100 });
+  check('a deceptive opponent takes longer to solve', vsSlippery.formed === false);
+
+  // Below READS 40 he gets no directive at all — same rule as the briefing.
+  const lowReads = readPanel(station, { reads: 20 });
+  check('below READS 40 there is no line, only numbers',
+    lowReads.formed === true && lowReads.line === null);
+
+  check('an unknown opponent reports nulls, never a plausible zero',
+    readPanel(null, { reads: 50 }).rows.every((r) => r.value === null && r.confidence === 0));
+  check('an opponent with no fold data reports null for that row alone', (() => {
+    const r = readPanel({ ...station, foldToRaise: null }, { reads: 50 });
+    return r.rows.find((x) => x.k === 'fold').value === null && r.rows.find((x) => x.k === 'vpip').value === 96;
+  })());
+
+  check('aggression is a ratio scaled onto the bar', (() => {
+    const passive = readPanel({ ...station, af: 0 }, { reads: 50 }).rows.find((r) => r.k === 'aggr');
+    const wild = readPanel({ ...station, af: AF_FULL_SCALE }, { reads: 50 }).rows.find((r) => r.k === 'aggr');
+    const beyond = readPanel({ ...station, af: 12 }, { reads: 50 }).rows.find((r) => r.k === 'aggr');
+    const always = readPanel({ ...station, af: Infinity }, { reads: 50 }).rows.find((r) => r.k === 'aggr');
+    return passive.value === 0 && wild.value === 100 && beyond.value === 100 && always.value === 100;
+  })());
+
+  check('confidence grows with evidence and tops out at 1',
+    readConfidence(5, 10) < readConfidence(20, 10) &&
+    readConfidence(1000, 10) === 1 &&
+    readConfidence(0, 10) === 0);
+  check('a sharp reader is confident sooner than a dull one',
+    readConfidence(15, 5) > readConfidence(15, 20));
 }
 
 console.log('\n— summary —');

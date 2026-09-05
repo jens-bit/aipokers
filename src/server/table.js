@@ -29,6 +29,7 @@ import {
   handEvidence,
 } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
+import { readPanel } from '../agent/reads.js';
 import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
@@ -189,6 +190,12 @@ export class Table {
     this._boardBeforeAct = [];
     this._raiseCounts = {};
     this._paceTimers = [];                         // PACE-1 staged-hold timers
+    // PACE-1b: hero equity is Monte Carlo and the felt asks for it on every
+    // snapshot, so it is computed once per (hand, board, seat) and reused.
+    this._heroEquity = new Map();
+    // The formed-read fingerprint per seat, so a READ message is sent when the
+    // picture actually changes rather than on every broadcast.
+    this._readFingerprint = new Map();
     this._aiInactivityTimer = null;                // 60s timeout for AI tables
     this._houseFallbackTimer = null;               // 5s delay before auto-seating House
     this.sessionBiggestPot = 0;                    // session high-water pot; flaggedHands tracks it
@@ -891,11 +898,18 @@ export class Table {
   // of view. A watcher joining mid-hand gets the hand in progress rather than
   // an empty board and a "Waiting…" placeholder. No-op when no hand has been
   // dealt yet — there is nothing to show.
+  // AGE-36: hand a watcher the hand already in progress. PACE-1b: including
+  // his agent's equity and read, because this snapshot IS the mid-hand case —
+  // a watcher who attaches on the turn saw a dash until somebody acted, which
+  // on a checked-down street could be the rest of the hand.
   sendSnapshot(ws, seat) {
     if (!ws || ws.readyState !== ws.OPEN) return;
     if (!this.game) return;
     if (seat < 0 || seat >= this.game.seats.length) return;
     const state = this._augmentState(this.game.getPublicState(seat));
+    state.heroEquity = this._heroEquityFor(seat);
+    const reads = this._readsFor(seat);
+    if (reads) state.reads = reads;
     ws.send(JSON.stringify({
       type: ServerMsg.STATE,
       state,
@@ -1108,6 +1122,7 @@ export class Table {
     this._streetAtActionCapture = null;
     this.pace = PACE.CALM;
     this._boardBeforeAct = [];
+    this._heroEquity.clear();
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._broadcastPace({ force: true });
@@ -1614,13 +1629,20 @@ export class Table {
       const legal = this.game.legalActions(seat);
       ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
     }
-    // Send read-only state to spectators (no legal actions).
+    // Send read-only state to spectators (no legal actions). PACE-1b: the seat
+    // a spectator is attached to is his own, so it carries his agent's live
+    // equity and his agent's read on the table — the same scoping
+    // _broadcastDecision uses for reasoning.
     for (const s of this.spectators) {
       if (!s.ws || s.ws.readyState !== s.ws.OPEN) continue;
       if (s.spectatorSeat >= nGameSeats) continue;
       const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
+      state.heroEquity = this._heroEquityFor(s.spectatorSeat);
+      const reads = this._readsFor(s.spectatorSeat);
+      if (reads) state.reads = reads;
       s.ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: [], yourSeat: s.spectatorSeat }));
     }
+    this._maybeBroadcastReads();
     this._resetStallWatchdog();
     this._notifyStateChange();
     // Schedule AI turn if applicable ÔÇö async, fire-and-forget.
@@ -1655,6 +1677,83 @@ export class Table {
     }
     for (const s of this.spectators) {
       if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(payload);
+    }
+  }
+
+  // ── PACE-1b: what the owner's spectator sees ───────────────────────────
+  // The seat a spectator is attached to is his own — the same rule
+  // _broadcastDecision has always used to decide who may see reasoning and
+  // equity. Neither of the two payloads below goes anywhere else.
+
+  // Hero equity, from the deal rather than from the first decision. The felt
+  // shows a live percentage; before this it showed a dash until the agent
+  // acted, which on a folded-round street could be the whole hand.
+  //
+  // Cached per (hand, board, seat): equity only moves when a card lands, and
+  // 800 iterations on every broadcast for every watcher is a real cost.
+  _heroEquityFor(seat) {
+    const g = this.game;
+    if (!g || seat == null || seat < 0 || seat >= g.seats.length) return null;
+    const me = g.seats[seat];
+    if (!me || me.folded || !Array.isArray(me.holeCards) || me.holeCards.length < 2) return null;
+    if (g.street === Streets.WAITING) return null;
+
+    const key = `${g.handNumber}:${g.community.length}:${seat}`;
+    if (this._heroEquity.has(key)) return this._heroEquity.get(key);
+
+    const activeOpponents = g.seats.filter((s, i) => i !== seat && !s.folded).length;
+    let equity = null;
+    try {
+      equity = estimateEquity({
+        holeCards: me.holeCards,
+        community: g.community,
+        nOpponents: Math.max(1, activeOpponents),
+        iterations: 800,
+      }).equity;
+    } catch (err) {
+      console.warn(`[table:${this.tableId}] hero equity failed:`, err.message);
+    }
+    this._heroEquity.set(key, equity);
+    return equity;
+  }
+
+  // His picture of everyone else at the table, gated by exactly the evidence
+  // bar the briefing uses — so the panel can never show a read he is not
+  // already playing with.
+  _readsFor(seat) {
+    // An AI seat, not necessarily a STORED agent: a watcher who arrives with no
+    // agentId still gets a seat and still forms reads, and gating this on a
+    // saved record would leave that panel permanently blank. Without a record
+    // there are no attributes either, so the evidence bar falls back to the
+    // same default the briefing uses.
+    if (!this.aiSeats[seat]) return null;
+    const attrs = this._seatAttrs(seat);
+    const out = [];
+    for (let i = 0; i < this.maxSeats; i++) {
+      if (i === seat) continue;
+      const pid = this.pending[i]?.playerId;
+      if (!pid) continue;
+      const panel = readPanel(getOpponentRead(pid), {
+        reads: attrs?.READS ?? null,
+        deception: this._seatAttrs(i)?.DECEPTION ?? null,
+      });
+      out.push({ ...panel, seat: i, displayName: panel.displayName ?? this.pending[i]?.displayName ?? pid });
+    }
+    return out.length > 0 ? out : null;
+  }
+
+  // A READ message when the picture changes — a read forming is an event, and
+  // the panel animates on it. Silent otherwise, however often state is pushed.
+  _maybeBroadcastReads() {
+    for (const spec of this.spectators) {
+      if (!spec.ws || spec.ws.readyState !== spec.ws.OPEN) continue;
+      const seat = spec.spectatorSeat;
+      const reads = this._readsFor(seat);
+      if (!reads) continue;
+      const fingerprint = reads.map((r) => `${r.playerId}:${r.formed ? 1 : 0}:${r.shape ?? ''}`).join('|');
+      if (this._readFingerprint.get(seat) === fingerprint) continue;
+      this._readFingerprint.set(seat, fingerprint);
+      spec.ws.send(JSON.stringify({ type: ServerMsg.READ, tableId: this.tableId, seat, reads }));
     }
   }
 
