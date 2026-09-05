@@ -131,3 +131,376 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── NextAction (F-1) ─────────────────────────────────────────────────────
+ * design-refs/mood-flow2.jsx NextAction. Same border, same background and the
+ * same padding rhythm as the composer it replaces, so the swap reads as one
+ * object changing its mind rather than a new bar appearing. */
+
+.next-action {
+  flex-shrink: 0;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel, #232329);
+  padding: 10px 14px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.next-action__sub {
+  margin-bottom: 8px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+}
+.next-action__btn {
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  border: none;
+  border-radius: 8px;
+  background: var(--sys-teal, #00D4AA);
+  color: #0A0A0A;
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+}
+.next-action__btn:hover { background: #00e6b8; }
+.next-action__btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+
+.next-action__link-row { margin-top: 9px; text-align: center; }
+.next-action__link {
+  border: none;
+  background: none;
+  padding: 0 0 1px;
+  min-height: 0;
+  font-family: inherit;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--sys-muted, #9E9EA2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+.next-action__link:hover { color: var(--sys-text, #EDEDED); }
+
+/* ── NatureFormed, the guess form (F-1) ──────────────────────────────────
+ * Once the draft is usable this component renders NatureChip instead, which
+ * brings its own styles from attributes.css. */
+
+.nature-formed--guess {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 4px;
+  border: 1px dashed rgba(205, 179, 128, 0.33);
+  max-width: 100%;
+}
+.nature-formed__label {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #9E9EA2);
+}
+.nature-formed__rule {
+  width: 1px;
+  height: 12px;
+  flex-shrink: 0;
+  background: rgba(205, 179, 128, 0.27);
+}
+.nature-formed__guess {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Birth card v3 (F-2) ─────────────────────────────────────────────────
+ * design-refs/mood-birth3.jsx BirthCard3. He is the headline; the numbers are
+ * a drawer. The well sits half out of the top edge and the card rises from it,
+ * so there is exactly one ghost on screen at any moment. */
+
+.birth-card3 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  max-height: 88%;
+  overflow-y: auto;
+  background: var(--sys-panel, #232329);
+  border-top: 1px solid rgba(0, 212, 170, 0.27);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 212, 170, 0.08);
+  padding: 0 14px 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  animation: birth-sheetup 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.birth-card3__well-row {
+  display: flex;
+  justify-content: center;
+  margin-top: -34px;
+  margin-bottom: 4px;
+}
+.birth-card3__well {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  background: #0a0f17;
+  border: 1px solid rgba(0, 212, 170, 0.4);
+  box-shadow: 0 0 26px rgba(0, 212, 170, 0.24);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.birth-card3__head { text-align: center; margin-bottom: 12px; }
+.birth-card3__name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 25px;
+  font-weight: 600;
+  color: var(--sys-text, #EDEDED);
+  letter-spacing: -0.01em;
+}
+.birth-card3__nature { margin-top: 9px; }
+
+.birth-card3__first {
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: var(--sys-panel-2, #28282F);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  margin-bottom: 11px;
+  font-size: 14px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.birth-card3__built {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+.birth-card3__built-label {
+  width: 62px;
+  flex-shrink: 0;
+  padding-top: 2px;
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  color: var(--sys-teal, #00D4AA);
+}
+.birth-card3__built-text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--sys-dim, #C3C3C6);
+  line-height: 1.45;
+}
+
+.birth-card3__fold { margin-bottom: 12px; }
+.birth-card3__sheet {
+  margin-top: 9px;
+  padding: 13px 13px 14px;
+  border-radius: 10px;
+  background: var(--sys-panel-2, #28282F);
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  animation: birth-rise 0.35s ease-out both;
+}
+.birth-card3__sheet-note {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  font-size: 11.5px;
+  color: var(--sys-muted, #9E9EA2);
+  line-height: 1.5;
+}
+.birth-card3__sheet-note b { color: var(--sys-dim, #C3C3C6); font-weight: 600; }
+
+.birth-card3__deal {
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  border: none;
+  border-radius: 8px;
+  background: var(--sys-teal, #00D4AA);
+  color: #0A0A0A;
+  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  cursor: pointer;
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.birth-card3__deal:hover { background: #00e6b8; }
+
+.birth-card3__later {
+  margin-top: 9px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--sys-muted, #9E9EA2);
+}
+
+/* ── SheetFold (F-2) ─────────────────────────────────────────────────────
+ * The whole point is that it is closed. */
+
+.sheet-fold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  min-height: 0;
+  border-radius: 10px;
+  background: var(--sys-panel-2, #28282F);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--sys-muted, #9E9EA2);
+  cursor: pointer;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.sheet-fold.is-open {
+  background: transparent;
+  border-color: var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+.sheet-fold__label {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sys-dim, #C3C3C6);
+}
+.sheet-fold.is-open .sheet-fold__label { color: var(--sys-teal, #00D4AA); }
+.sheet-fold__note {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+  white-space: nowrap;
+}
+.sheet-fold__chev { flex-shrink: 0; transition: transform 0.2s ease; }
+.sheet-fold.is-open .sheet-fold__chev {
+  transform: rotate(180deg);
+  color: var(--sys-teal, #00D4AA);
+}
+
+/* ── CostLine + AttrExplain (F-3) ────────────────────────────────────────
+ * design-refs/mood-birth3.jsx FirstCostLineScreenM and AttrExplain. An
+ * attribute explains itself the first time it costs him something, in the
+ * thread, in one sentence, on a tap. After that the label is just a label. */
+
+.cost-line {
+  margin: 0 14px 9px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.05);
+  border: 1px solid rgba(205, 179, 128, 0.2);
+}
+.cost-line__row { display: flex; align-items: center; gap: 9px; }
+.cost-line__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--sys-dim, #C3C3C6);
+  line-height: 1.4;
+}
+.cost-line__key {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: rgba(205, 179, 128, 0.12);
+  border: 1px solid rgba(205, 179, 128, 0.53);
+  color: var(--sys-gold, #CDB380);
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cost-line__key--plain {
+  background: transparent;
+  border-color: rgba(205, 179, 128, 0.27);
+  cursor: default;
+}
+.cost-line__meta {
+  margin-top: 7px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+}
+
+.attr-explain {
+  margin: 0 14px 9px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  background: var(--sys-panel, #232329);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+  animation: birth-rise 0.35s ease-out both;
+}
+.attr-explain__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.attr-explain__key {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--sys-gold, #CDB380);
+}
+.attr-explain__rule { flex: 1; height: 1px; background: var(--sys-border, rgba(255, 255, 255, 0.12)); }
+.attr-explain__once {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sys-muted, #9E9EA2);
+  white-space: nowrap;
+}
+.attr-explain__mean {
+  font-size: 13.5px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.5;
+}
+.attr-explain__bar {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+}
+.attr-explain__his {
+  font-size: 11.5px;
+  color: var(--sys-muted, #9E9EA2);
+  line-height: 1.45;
+  margin-top: 9px;
+}

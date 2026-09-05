@@ -122,7 +122,11 @@ describe('FIX-1a mobile horizontal overflow', () => {
 
     await screen.findByText(/Tight preflop, no multiway bluffs/);
     expect(screen.getByText('Forming')).toBeInTheDocument(); // the FORMING chip
-    expect(screen.getByText('STYLE')).toBeInTheDocument();   // the profile strip
+    // F-1 renamed the strip's slots to the four dials PACE-1d actually sends
+    // (TIGHT / AGGR / BLUFF / DISC). This assertion only locates the strip; the
+    // rule the test encodes — nothing on the draft screen scrolls sideways — is
+    // unchanged and still checked by auditAll below.
+    expect(screen.getByText('TIGHT')).toBeInTheDocument();   // the profile strip
     expect(auditAll(container)).toEqual([]);
   });
 
