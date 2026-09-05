@@ -58,6 +58,7 @@ export function ownerState(ownerId) {
       lastAlternates:   {},
       proposalNotified: false,
       agentOutcomes:    {},
+      brokeDates:       {},   // WALLET-1: <agentId> -> 'YYYY-MM-DD', one broke alert a day
       sentLog:          [],
     };
   }
@@ -166,6 +167,33 @@ function buildMilestone(os, agentName, threshold) {
   return alts[pickAlternate(os, 'milestone', alts.length)];
 }
 
+// WALLET-1 (spec v11 §7.1). No owner-guilt in either of these: being out of
+// money is a fact and the owner's call, not an accusation, and bringing money
+// home is a transfer rather than a reward burst.
+function buildCollected(os, agentName, moved) {
+  const amt = '<b>$' + Math.round(moved).toLocaleString() + '</b>';
+  const alts = [
+    { text: agentName + ' brought home ' + amt + '. It is in your wallet.', button: 'Open the floor' },
+    { text: agentName + ' cashed out ' + amt + ' to your wallet and kept his float.', button: 'Open the floor' },
+    { text: amt + ' from ' + agentName + '. He wants to go again on what is left.', button: 'Open the floor' },
+  ];
+  return alts[pickAlternate(os, 'collected', alts.length)];
+}
+
+function buildBroke(os, agentName, mode) {
+  const alts = mode === 'cut'
+    ? [
+        { text: agentName + ' is out and cut off. He is at the bar, and nothing he has learned is lost.' },
+        { text: agentName + "'s pocket is empty. Cut off, so he is not asking." },
+      ]
+    : [
+        { text: agentName + ' is out of money. He is at the bar — your call.', button: 'Fund him' },
+        { text: agentName + "'s pocket is empty. He keeps his reads either way.", button: 'Fund him' },
+        { text: 'That is ' + agentName + "'s roll gone. He takes a seat at the bar.", button: 'Fund him' },
+      ];
+  return alts[pickAlternate(os, 'broke', alts.length)];
+}
+
 // ── Session outcome tracking (quiet win) ──────────────────────────────────────
 // Records whether this session was profitable. Returns true if the last 3 sessions
 // were all profitable (trigger for quiet win notification).
@@ -231,7 +259,10 @@ export async function sendTelegram(chatId, text, button) {
 
 // ── Budget constants ──────────────────────────────────────────────────────────
 const MAX_DAILY = 2;
-const TYPE_PRIORITY = { session_recap: 1, proposal: 2, mood_alert: 3, milestone: 4, quiet_win: 5 };
+// WALLET-1: `broke` sits just under the session recap — it is the one state
+// where the owner genuinely has a decision to make — and `collected` below the
+// proposal, because bringing money home is good news that can wait for 08:00.
+const TYPE_PRIORITY = { session_recap: 1, broke: 2, proposal: 3, collected: 4, mood_alert: 5, milestone: 6, quiet_win: 7 };
 
 function getDailyCount(os, now) {
   const today = localDateStr(now || _now());
@@ -435,6 +466,34 @@ export async function notifyQuietWin(ownerId, chatId, agentId, agentName) {
   if (os.quietWinWeek === isoWeekStr(now)) return; // weekly cap
   const msg = buildQuietWin(os, agentName);
   await scheduleNotification(ownerId, chatId, 'quiet_win', msg.text, null, agentId, now);
+}
+
+// WALLET-1: fires when the owner collects from a pocket. Budget-bound like
+// everything else; no per-type cap beyond that, because a collect is always
+// something the owner just did on purpose.
+export async function notifyCollected(ownerId, chatId, agentId, agentName, opts) {
+  if (!ENABLED) return;
+  const now   = _now();
+  const moved = (opts && Number.isFinite(opts.moved)) ? opts.moved : 0;
+  if (moved <= 0) return;
+  const os  = ownerState(ownerId);
+  const msg = buildCollected(os, agentName, moved);
+  await scheduleNotification(ownerId, chatId, 'collected', msg.text, msg.button, agentId, now);
+}
+
+// WALLET-1: fires when a pocket empties. Hard cap of once per day per agent —
+// he is out until the owner acts, and repeating that is nagging, not news.
+export async function notifyBroke(ownerId, chatId, agentId, agentName, opts) {
+  if (!ENABLED) return;
+  const now  = _now();
+  const mode = (opts && opts.mode) ? opts.mode : 'topup';
+  const os   = ownerState(ownerId);
+  if (!os.brokeDates) os.brokeDates = {};
+  const today = localDateStr(now);
+  if (os.brokeDates[agentId] === today) return;
+  os.brokeDates[agentId] = today;
+  const msg = buildBroke(os, agentName, mode);
+  await scheduleNotification(ownerId, chatId, 'broke', msg.text, msg.button || null, agentId, now);
 }
 
 // Fires when lifetime hands cross a milestone threshold (once per threshold).
