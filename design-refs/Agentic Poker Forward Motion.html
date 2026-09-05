@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Forward Motion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{transform:translateY(44px);opacity:0}to{transform:none;opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa.w{max-width:1180px}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#FF6B6D}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.grouphdr.red{color:#FF6B6D}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Design wave 34</div>
+    <h1>Somewhere<br/>to press.</h1>
+    <p>Playtest, 17:43–17:47, prod. Four findings, and the first one is the whole wave: after tapping a suggestion chip the recruiter said &ldquo;Let&rsquo;s go&rdquo; and <b>the screen offered nothing to press</b>. The chain from draft to birth to floor to watch existed as screens but not as a sequence.</p>
+    <p>So this wave changes <b>flow and emphasis, not systems</b>. Design 32 and 33 stay exactly as they are — no attribute, no pacing state, no wallet rule moves. What changes is which thing is loudest on each screen, and what happens when you press it.</p>
+
+    <div class="lbl">The four findings</div>
+    <div class="lawrow"><span class="k">F1</span><span class="v">Nothing pulls you forward. Fixed with <b>one primary action per screen, named after the next screen</b> — and the composer giving up its place once the brief is usable.</span></div>
+    <div class="lawrow"><span class="k">F2</span><span class="v">The birth card led with six bars that mean nothing to a new owner. The card is now <b>about him</b>; the sheet is a fold, closed by default on a first agent.</span></div>
+    <div class="lawrow"><span class="k">F3</span><span class="v">The forming ghost floated over the chat, didn't fit, and was then covered by the card. He now has <b>a place</b> — the band well, then the sheet's header well.</span></div>
+    <div class="lawrow"><span class="k">F4</span><span class="v">The floor: a newborn drawn twice, a bar that read as a queue of name tags, and a dead room. Four new rules, fish-tank law intact.</span></div>
+
+    <div class="lbl">The line this wave will not cross</div>
+    <p style="margin-bottom:0">No tutorial screen and no text wall. Attributes <b>explain themselves the first time each one matters</b> — a cost line in the thread, a tappable label, one sentence. If it can't be taught in a moment where it already mattered, it doesn't get taught.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr red">Finding 1 · the chain</div>
+  <div class="groupsub">Four screens, four primary actions, and each one names the screen it leads to. Read the strip first — the screens after it are the same thing drawn at 390px.</div>
+  <div id="f1strip"></div>
+</div>
+
+<div class="frame" style="left:600px;top:700px">
+  <div class="fh" style="margin-top:96px"><span class="fn">36a</span><span class="ft">Draft · one chip in</span><span class="fb red">the bug screen, fixed</span></div>
+  <div id="c1"></div>
+  <div class="fa"><b>This is the exact screen the playtest got stuck on.</b> Tapping &ldquo;Aggressive bluffer&rdquo; is a decision, so the strip fills immediately — <b>78 / 71 / 34 / 82</b>, never dashes — the nature forms and stops being a guess, and <b>the composer gives up its place to &ldquo;Deal him in&rdquo;</b>. Talking is still there as a text link under the button, one tap from the full composer with the brief intact.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:700px">
+  <div class="fh" style="margin-top:96px"><span class="fn">36b</span><span class="ft">The card</span><span class="fb teal">about him</span></div>
+  <div id="c2"></div>
+  <div class="fa"><b>Name, nature, his first words, one line of what he's built for.</b> That is the whole card. Six bars are behind <b>&ldquo;His sheet&rdquo;</b> — closed, and on a first agent it is never open by default. The footnote is the onboarding strategy in one line: <i>you can read the numbers later, he explains them as they matter.</i> The action is the same verb as the draft screen, because it is the same intent, now confirmed against a name.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:700px">
+  <div class="fh" style="margin-top:96px"><span class="fn">36c</span><span class="ft">He walks in</span><span class="fb teal">one body</span></div>
+  <div id="c3"></div>
+  <div class="fa"><b>The floor does the confirming, as it always has — but now he arrives rather than appearing.</b> One ghost, mid-room, a hairline trail behind him and an empty felt ahead. The standup says <b>&ldquo;Hothead v1.0 is taking a seat&rdquo;</b> instead of a net figure, for exactly this one moment. Primary action: <b>Watch him</b>.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:700px">
+  <div class="fh" style="margin-top:96px"><span class="fn">36d</span><span class="ft">His first hand</span><span class="fb">the chain ends</span></div>
+  <div id="c4"></div>
+  <div class="fa"><b>Thirty seconds old, and the only exit is into conversation.</b> Composed from Watch v3's parts untouched — same felt, same rope, same hero row. His line is the one that closes the chain: <b>&ldquo;Right. Let's find out what I am.&rdquo;</b> READ is empty and says so in his voice, which is also the first time an attribute is doing visible work.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1900px">
+  <div class="grouphdr gold">Finding 2 · the sheet, behind curiosity</div>
+  <div class="groupsub">Two states of the same card, and the only onboarding this product gets.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">37a</span><span class="ft">The fold, opened</span><span class="fb gold">a tap</span></div>
+  <div id="b2"></div>
+  <div class="fa"><b>The numbers are a drawer, not a headline.</b> Opened, the fold shows the six bars in canon order with one line under them — <i>the gold band is how good he might get</i> — and nothing else. Note what a newborn's sheet actually looks like: <b>every current sits well under its band</b>, which is the shape of an agent who has everything to prove. The label changes from <code>IF YOU WANT THE NUMBERS</code> to <code>SIX ATTRIBUTES · THEY GROW</code>.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1900px">
+  <div class="fh" style="margin-top:96px"><span class="fn">37b</span><span class="ft">First cost line</span><span class="fb gold">tap FOCUS</span></div>
+  <div id="b3"></div>
+  <div class="fa"><b>This is how an owner learns what Focus is: the first time it costs him money.</b> The cost line already existed from wave 32 — the change is that its label is <b>tappable once</b>, and the tap produces one sentence, his current value, and the band. Then the label goes back to being a label. <b>No tutorial screen, no carousel, no text wall</b>, and nothing to dismiss.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1900px">
+  <div class="grouphdr">Finding 3 · the ghost gets a place</div>
+  <div class="groupsub" style="max-width:390px">He floated, didn't fit, and got covered.</div>
+  <div class="fh" style="margin-top:14px"><span class="fn">37c</span><span class="ft">Before birth</span><span class="fb teal">the band well</span></div>
+  <div id="b4"></div>
+  <div class="fa"><b>Two places, and they were both already in the design.</b> Before birth he lives in <code>DraftBand</code>'s 42px well — the slot MoodBand uses for a mood ghost — at the size it was drawn for, filling as the phase rises. Behind the chat he is a watermark at <b>8%, clipped to the scroll area</b>, so he can never cover a bubble or be covered by a sheet. After birth he moves to the card's own header well (36b), and <b>the card rises from him</b>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:3100px">
+  <div class="grouphdr red">Finding 4 · the fish tank, for legibility and pull</div>
+  <div class="groupsub">Four rules added to the fish-tank law rather than replacing it. <b>One ghost per agent, always</b> — an agent has exactly one body, and an arriving body IS his body. <b>Names are earned</b>: a name chip appears when he is seated or selected, never worn at the bar, where posture is the identity. <b>A live felt is the loudest object</b>: everything else drops to 42% under a scrim and the live felt gets a lit rim on top of it. <b>A resting room still breathes</b>: never "Everyone's resting" — the standup says what happened, and a ghost with news carries one pip.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">38a</span><span class="ft">Resting, and alive</span><span class="fb">four bodies, no tags</span></div>
+  <div id="d1"></div>
+  <div class="fa"><b>&ldquo;Four resting · Bluff Master grew tonight.&rdquo;</b> The bar is three bodies at three different bobs with drinks and postures — <b>no name tags at all</b> — and the one who can't play sits apart in the corner. Three pips carry the only news in the room: <code>+2 GREW</code>, <code>WORN</code>, <code>POCKET $0</code>. No news, no pip. The room stays at 92% because nothing is competing with it, and there is one thing to press.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:3100px">
+  <div class="fh" style="margin-top:118px"><span class="fn">38b</span><span class="ft">One live felt</span><span class="fb teal">42% everywhere else</span></div>
+  <div id="d2"></div>
+  <div class="fa"><b>There is exactly one place to look.</b> The lit felt keeps its diorama, its pot ticker and its name chip at full brightness with a lit rim; the room, the bar and the corner go to 42% under a scrim, keeping their postures and their pips but losing their names. This is the same room as 38a with <b>one thing turned up</b> rather than a different screen.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:3100px">
+  <div class="fh" style="margin-top:118px"><span class="fn">38c</span><span class="ft">The newborn, once</span><span class="fb red">was drawn twice</span></div>
+  <div id="d3"></div>
+  <div class="fa"><b>The bug: a big ghost near the rail AND a copy of him in the seated lineup.</b> Now there is one body, at floor scale, crossing the room with a trail behind it and a name chip on — because he is the selected agent for this moment. Balanced v2.1 keeps playing at his felt. <b>An arriving agent is not a special effect; he is the agent.</b></div>
+</div>
+
+<div class="frame" style="left:600px;top:4400px">
+  <div class="fh"><span class="fn">39</span><span class="ft">New state-matrix rows</span><span class="fb teal">six rows, no columns</span></div>
+  <div id="mx"></div>
+</div>
+
+<div class="frame" style="left:600px;top:5300px">
+  <div class="grouphdr">Desktop parity · 1440 × 900</div>
+  <div class="groupsub">The same three moments. The roster is collapsed throughout, per wave 33's fix, because all three are three-column compositions.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">D1</span><span class="ft">Draft · brief usable</span><span class="fb teal">one button, bottom right</span></div>
+  <div id="e1"></div>
+  <div class="fa w"><b>Desktop puts the action where a desktop user looks for it</b> — bottom right of the thread column, with &ldquo;or keep describing him&rdquo; on the left of the same bar and the readiness state in the middle. The rail carries the tall <code>DraftProfile</code> and one panel explaining what the button does, including the part that cannot be undone: <b>his temperament is read from this conversation and cannot be changed afterwards</b>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:6400px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">The card, in the rail</span><span class="fb teal">fold closed</span></div>
+  <div id="e2"></div>
+  <div class="fa w"><b>Desktop has room to show him and the card at once, so it does.</b> He stands on the floor at 96px in his own light with his name under him; the rail carries the nature badge, his first words, what he's built for, the closed fold and the action. <b>Still one ghost</b> — the rail has no avatar well, because he is already on screen.</div>
+</div>
+
+<div class="frame" style="left:600px;top:7500px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D3</span><span class="ft">He walks in</span><span class="fb">room + who has news</span></div>
+  <div id="e3"></div>
+  <div class="fa w"><b>The trail reads better at 1440 than at 390</b> — 260px of it, ending at a body that is clearly mid-room rather than mid-seat. The resting bodies sit along the bottom left at 72% with their pips, and the rail turns the pips into a list: <b>who has news</b>, which is the one thing the mobile floor cannot spell out.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="char-profile.jsx"></script>
+<script type="text/babel" src="char-birth.jsx"></script>
+<script type="text/babel" src="mood-flow2.jsx"></script>
+<script type="text/babel" src="mood-birth3.jsx"></script>
+<script type="text/babel" src="mood-casino2.jsx"></script>
+
+<script type="text/babel">
+[
+  ['f1strip', FlowStrip],
+  ['c1', FlowDraftScreenM],
+  ['c2', BirthCardClosedScreenM],
+  ['c3', Floor2WalkInScreenM],
+  ['c4', FlowFirstHandScreenM],
+  ['b2', BirthCardOpenScreenM],
+  ['b3', FirstCostLineScreenM],
+  ['b4', DraftGhostPlaceScreenM],
+  ['d1', Floor2RestingScreenM],
+  ['d2', Floor2LiveScreenM],
+  ['d3', Floor2WalkInScreenM],
+  ['mx', Flow34MatrixM],
+  ['e1', D4FlowScreenM],
+  ['e2', D4BirthCardScreenM],
+  ['e3', D4Floor2ScreenM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever, using each
+   frame's best-known height. Timers only: rAF is suspended in throttled iframes. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

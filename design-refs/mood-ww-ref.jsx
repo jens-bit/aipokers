@@ -5,15 +5,15 @@
 const FINDINGS = [
   { n: '1', said: 'Everything appears at once, at machine speed.',
     was: 'The felt had one state. A $60 pot and a $3,694 pot were drawn identically, and a hand resolved in the time it took to render it.',
-    now: 'Four server-driven pacing states — CALM, HEATING, ALL-IN, SHOWDOWN — with a 3\u20135s hold on the all-in and a held reveal.',
+    now: 'Four server-driven pacing states — CALM, HEATING, ALL-IN, SHOWDOWN — with a 3–5s hold on the all-in and a held reveal.',
     law: 'the hold exists only while a spectator is present' },
   { n: '2', said: 'The money on the line is a small number in a corner.',
     was: 'Equity was one of four rows in an analysis stack, at 12.5px, below the fold on a short phone.',
     now: 'A tug-of-war bar directly under the board: him on one end, the villain on the other, the seam moving on every street.',
     law: 'the one thing a non-poker player reads' },
   { n: '3', said: 'The decision line reads like a solver.',
-    was: '\u201cSolver line \u00b7 BET 50% \u00b7 matches his action\u201d, next to pot odds and fold equity.',
-    now: 'One line of thread voice, \u226412 words. \u201cAce-ten. Fine. Let\u2019s see who\u2019s home.\u201d',
+    was: '“Solver line · BET 50% · matches his action”, next to pot odds and fold equity.',
+    now: 'One line of thread voice, ≤12 words. “Ace-ten. Fine. Let’s see who’s home.”',
     law: 'long voice lives in the thread; the felt gets one line' },
 ];
 
@@ -41,13 +41,13 @@ const WatchFindingsSheetM = () => (
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_RED}0D`, border: `1px solid ${M_RED}33` }}>
         <SyLbl color={M_RED}>Removed, not restyled</SyLbl>
         <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>
-          The LIVE ANALYSIS / RANGE / HISTORY tabs are gone; <b style={{ color: M_TEXT }}>READ and CHAT</b> remain. The table-id &middot; blinds &middot; street line under the board is gone \u2014 street and to-call moved into the LiveBar row. Pot odds, fold equity and solver lines are gone from the felt entirely: they were the solver speaking over him.
+          The LIVE ANALYSIS / RANGE / HISTORY tabs are gone; <b style={{ color: M_TEXT }}>READ and CHAT</b> remain. The table-id &middot; blinds &middot; street line under the board is gone — street and to-call moved into the LiveBar row. Pot odds, fold equity and solver lines are gone from the felt entirely: they were the solver speaking over him.
         </div>
       </div>
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_TEAL}0D`, border: `1px solid ${M_TEAL}33` }}>
         <SyLbl color={M_TEAL}>Bugs fixed in the same pass</SyLbl>
         <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>
-          The sit-out control no longer overlaps the chat list or composer \u2014 it lives in the between-hands strip and nowhere else. <b style={{ color: M_TEXT }}>Hero equity shows from the deal</b>, never a dash while he is to act; before the flop the rope sits dead centre rather than empty.
+          The sit-out control no longer overlaps the chat list or composer — it lives in the between-hands strip and nowhere else. <b style={{ color: M_TEXT }}>Hero equity shows from the deal</b>, never a dash while he is to act; before the flop the rope sits dead centre rather than empty.
         </div>
       </div>
     </div>
@@ -72,8 +72,8 @@ const PaceSheetM = () => (
         ['ENTERS ON', ['a deal', 'pot > 12\u00d7 the big blind', 'a stack committed', 'the last card, or a fold to a jam']],
         ['FELT', ['as shipped', 'warms, inset gold glow', 'red glow, breathing', 'teal edge, pot slides']],
         ['POT TICKER', ['23px', '30px, gold pill', '30px, red pill', 'slides to the winner']],
-        ['DURATION', ['unbounded', 'until the pot resolves', '3\u20135s hold', '\u2248 2s reveal + 1s hold']],
-        ['UNWATCHED', ['identical', 'identical', 'no hold \u2014 resolves at speed', 'no hold \u2014 becomes a replay']],
+        ['DURATION', ['unbounded', 'until the pot resolves', '3–5s hold', '≈ 2s reveal + 1s hold']],
+        ['UNWATCHED', ['identical', 'identical', 'no hold — resolves at speed', 'no hold — becomes a replay']],
       ].map(([label, cells]) => (
         <React.Fragment key={label}>
           <div style={{ fontFamily: MONO, fontSize: 9, color: M_MUTED, paddingTop: 11 }}>{label}</div>
@@ -94,16 +94,16 @@ const PaceSheetM = () => (
 
 // ── S2 · haptics and sound, as a contract ───────────────────────────────────
 const HAPTICS = [
-  { ev: 'Card dealt', hap: 'impactOccurred(\u2018light\u2019)', snd: 'deal tick \u00b7 12ms', note: 'one per card, 90ms apart' },
-  { ev: 'His action posts', hap: 'impactOccurred(\u2018medium\u2019)', snd: 'chip set down', note: 'only his \u2014 never an opponent\u2019s' },
-  { ev: 'HEATING entered', hap: 'impactOccurred(\u2018rigid\u2019)', snd: 'low swell, 400ms', note: 'once per hand, never repeated' },
-  { ev: 'ALL-IN entered', hap: 'notificationOccurred(\u2018warning\u2019)', snd: 'heavy hit + room hush', note: 'the loudest thing in the product' },
-  { ev: 'Runout card', hap: 'impactOccurred(\u2018soft\u2019)', snd: 'deal tick, pitched up', note: 'during the hold only' },
-  { ev: 'Won the pot', hap: 'notificationOccurred(\u2018success\u2019)', snd: 'chips sliding, 700ms', note: 'no fanfare, no jingle' },
-  { ev: 'Lost the pot', hap: 'impactOccurred(\u2018soft\u2019)', snd: 'silence', note: 'losing is quiet on purpose' },
+  { ev: 'Card dealt', hap: 'impactOccurred(‘light’)', snd: 'deal tick · 12ms', note: 'one per card, 90ms apart' },
+  { ev: 'His action posts', hap: 'impactOccurred(‘medium’)', snd: 'chip set down', note: 'only his — never an opponent’s' },
+  { ev: 'HEATING entered', hap: 'impactOccurred(‘rigid’)', snd: 'low swell, 400ms', note: 'once per hand, never repeated' },
+  { ev: 'ALL-IN entered', hap: 'notificationOccurred(‘warning’)', snd: 'heavy hit + room hush', note: 'the loudest thing in the product' },
+  { ev: 'Runout card', hap: 'impactOccurred(‘soft’)', snd: 'deal tick, pitched up', note: 'during the hold only' },
+  { ev: 'Won the pot', hap: 'notificationOccurred(‘success’)', snd: 'chips sliding, 700ms', note: 'no fanfare, no jingle' },
+  { ev: 'Lost the pot', hap: 'impactOccurred(‘soft’)', snd: 'silence', note: 'losing is quiet on purpose' },
   { ev: 'Read forms', hap: 'selectionChanged()', snd: 'none', note: 'the panel animates instead' },
-  { ev: 'Prediction correct', hap: 'impactOccurred(\u2018light\u2019)', snd: 'none', note: 'the streak number is the reward' },
-  { ev: 'Collect confirmed', hap: 'notificationOccurred(\u2018success\u2019)', snd: 'single soft note', note: 'a transfer, not a jackpot' },
+  { ev: 'Prediction correct', hap: 'impactOccurred(‘light’)', snd: 'none', note: 'the streak number is the reward' },
+  { ev: 'Collect confirmed', hap: 'notificationOccurred(‘success’)', snd: 'single soft note', note: 'a transfer, not a jackpot' },
 ];
 
 const HapticSheetM = () => (
@@ -144,13 +144,13 @@ const WWMatrixM = () => {
   const surfaces = ['Felt / watch', 'Thread', 'Floor', 'Roster', 'YOU screen', 'Notifications'];
   const rows = [
     { k: 'CALM', c: M_MUTED, cells: ['as shipped; rope live from the deal', 'LiveBar docked, no change', 'canon posture', 'live dot', 'pocket unchanged', 'silent'] },
-    { k: 'HEATING', c: M_GOLD, cells: ['felt warms, ticker 30px, one rigid tap', 'LiveBar pot goes gold', 'pot ticker grows over the felt', 'pot value goes gold', '\u2014', 'silent \u2014 it resolves in seconds'] },
-    { k: 'ALL-IN', c: M_RED, cells: ['3\u20135s hold on his line, red breath', 'LiveBar shows ALL-IN, no timer', 'the diorama holds too', 'row pulses once', '\u2014', 'silent'] },
+    { k: 'HEATING', c: M_GOLD, cells: ['felt warms, ticker 30px, one rigid tap', 'LiveBar pot goes gold', 'pot ticker grows over the felt', 'pot value goes gold', '—', 'silent — it resolves in seconds'] },
+    { k: 'ALL-IN', c: M_RED, cells: ['3–5s hold on his line, red breath', 'LiveBar shows ALL-IN, no timer', 'the diorama holds too', 'row pulses once', '—', 'silent'] },
     { k: 'SHOWDOWN', c: M_TEAL, cells: ['cards flip one at a time, pot slides', 'result line, then the replay card', 'chips slide at the felt', 'P&L updates', 'wallet figure animates', 'batched into the recap'] },
-    { k: 'FUNDED', c: M_TEAL, cells: ['stakes match the pocket', 'no announcement', 'he walks to a felt', 'pocket figure on the row', 'pocket bar full', 'silent \u2014 the owner did it'] },
+    { k: 'FUNDED', c: M_TEAL, cells: ['stakes match the pocket', 'no announcement', 'he walks to a felt', 'pocket figure on the row', 'pocket bar full', 'silent — the owner did it'] },
     { k: 'ALLOWANCE', c: M_TEAL, cells: ['unchanged', 'he names the number once', 'unchanged', 'ALLOWANCE tag', 'bar drains toward zero', 'one ping at 20% left'] },
     { k: 'AUTO', c: M_GOLD, cells: ['unchanged', 'a refill line, in his voice', 'unchanged', 'AUTO tag', 'refill shown against the cap', 'silent until the cap is hit'] },
-    { k: 'BROKE', c: M_MUTED, cells: ['he is not at a felt', '\u201cI\u2019m out. Your call.\u201d + fund dock', 'at the bar, POCKET $0 chip', 'pocket $0, no P&L', 'Fund is the row action', 'one ping, once, no nagging'] },
+    { k: 'BROKE', c: M_MUTED, cells: ['he is not at a felt', '“I’m out. Your call.” + fund dock', 'at the bar, POCKET $0 chip', 'pocket $0, no P&L', 'Fund is the row action', 'one ping, once, no nagging'] },
     { k: 'CUT OFF', c: M_MUTED, cells: ['not seated', 'nothing pending, no plea', 'at the bar, indefinitely', 'CUT OFF tag', 'row still shows what he keeps', 'never'] },
   ];
   return (
@@ -163,7 +163,7 @@ const WWMatrixM = () => {
         <div key={r.k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 10, padding: '9px 0', borderBottom: `1px solid ${M_BORDER}`, alignItems: 'stretch', background: ri === 4 ? `${M_TEAL}05` : 'transparent' }}>
           <div style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: r.c, paddingTop: 10 }}>{r.k}</div>
           {r.cells.map((c, i) => (
-            <div key={i} style={{ fontSize: 11.5, color: c === '\u2014' ? M_FAINT : M_DIM, lineHeight: 1.45, padding: '9px 11px', borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>{c}</div>
+            <div key={i} style={{ fontSize: 11.5, color: c === '—' ? M_FAINT : M_DIM, lineHeight: 1.45, padding: '9px 11px', borderRadius: 8, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>{c}</div>
           ))}
         </div>
       ))}
@@ -179,13 +179,13 @@ const WWMatrixM = () => {
 
 // ── S4 · header heights, with numbers the port can hit ──────────────────────
 const HEADS = [
-  { k: 'iOS status bar', was: 44, now: 44, note: 'device \u2014 not ours to change' },
+  { k: 'iOS status bar', was: 44, now: 44, note: 'device — not ours to change' },
   { k: 'GlobalHeader', was: 48, now: 40, note: 'controls stay 29px; vertical padding 2/8, not 2/10' },
-  { k: 'MoodBand', was: 64, now: 56, note: 'ghost 42\u219238, cause line stays 11.5px' },
+  { k: 'MoodBand', was: 64, now: 56, note: 'ghost 42→38, cause line stays 11.5px' },
   { k: 'LiveBar (docked)', was: 82, now: 76, note: 'unchanged content, tighter top pad' },
   { k: 'Tabs (READ / CHAT)', was: 42, now: 36, note: 'two tabs need less reach than four' },
-  { k: 'Composer', was: 64, now: 64, note: 'hit target \u2014 never shrinks' },
-  { k: 'TabBar', was: 56, now: 56, note: 'hit target \u2014 never shrinks' },
+  { k: 'Composer', was: 64, now: 64, note: 'hit target — never shrinks' },
+  { k: 'TabBar', was: 56, now: 56, note: 'hit target — never shrinks' },
 ];
 
 const HeaderSheetM = () => {
@@ -211,7 +211,7 @@ const HeaderSheetM = () => {
         <div style={{ width: 300, flexShrink: 0 }}>
           <SyLbl color={M_TEAL}>What the 22px buys</SyLbl>
           <div style={{ padding: '13px 15px', borderRadius: 11, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, fontSize: 12, color: M_DIM, lineHeight: 1.6 }}>
-            Chrome above the felt drops from <b style={{ color: M_TEXT }}>{wasSum}px to {nowSum}px</b>. On a 390&times;844 device that is <b style={{ color: M_TEXT }}>22 more pixels of felt</b> \u2014 the difference between the rope sitting under the board and the rope sitting under the fold, which was the whole point of drawing it.
+            Chrome above the felt drops from <b style={{ color: M_TEXT }}>{wasSum}px to {nowSum}px</b>. On a 390&times;844 device that is <b style={{ color: M_TEXT }}>22 more pixels of felt</b> — the difference between the rope sitting under the board and the rope sitting under the fold, which was the whole point of drawing it.
           </div>
           <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: `${M_GOLD}0D`, border: `1px solid ${M_GOLD}33` }}>
             <SyLbl color={M_GOLD}>Budget, 844 tall</SyLbl>
@@ -230,10 +230,10 @@ const DeskFixSheetM = () => (
   <Sheet title="1440 does not fit three columns" sub="Port finding: the thread screen with a panel open overflows by 337px — 340 roster + 917 stage + 520 panel. Both offered options were drawn; the rail wins, because losing the roster loses the thing desktop is for.">
     <div style={{ display: 'flex', gap: 16 }}>
       {[
-        { t: 'Chosen \u00b7 the rail collapses', c: M_TEAL, cols: [[68, 'ICONS'], [852, 'THREAD'], [520, 'PANEL']],
-          why: 'The roster becomes a 68px avatar strip the moment a panel opens \u2014 mood rims and live dots still read, so you keep the who-is-playing glance that desktop exists for. Reversible in one click, and the thread keeps 852px.' },
-        { t: 'Rejected \u00b7 thread replaces the stage', c: M_RED, cols: [[340, 'ROSTER'], [580, 'THREAD'], [520, 'PANEL']],
-          why: 'Fits, but it costs the floor. The room going away when you open a card is exactly the modal behaviour the desktop layout was built to avoid \u2014 and it makes the panel a second thread rather than a companion to one.' },
+        { t: 'Chosen · the rail collapses', c: M_TEAL, cols: [[68, 'ICONS'], [852, 'THREAD'], [520, 'PANEL']],
+          why: 'The roster becomes a 68px avatar strip the moment a panel opens — mood rims and live dots still read, so you keep the who-is-playing glance that desktop exists for. Reversible in one click, and the thread keeps 852px.' },
+        { t: 'Rejected · thread replaces the stage', c: M_RED, cols: [[340, 'ROSTER'], [580, 'THREAD'], [520, 'PANEL']],
+          why: 'Fits, but it costs the floor. The room going away when you open a card is exactly the modal behaviour the desktop layout was built to avoid — and it makes the panel a second thread rather than a companion to one.' },
       ].map(o => (
         <div key={o.t} style={{ flex: 1, padding: '14px 16px 16px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${o.c}44` }}>
           <div style={{ fontFamily: OSWALD, fontSize: 10.5, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: o.c }}>{o.t}</div>
@@ -260,7 +260,7 @@ const DeskFixSheetM = () => (
       <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: `${M_TEAL}0D`, border: `1px solid ${M_TEAL}33` }}>
         <SyLbl color={M_TEAL}>Implementation</SyLbl>
         <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.6, marginTop: -3 }}>
-          One prop: <span style={{ fontFamily: MONO, fontSize: 11 }}>ThreadRosterRail collapsed</span>. Same component, same rows, same order \u2014 name, state tag and last line drop out, avatar and live dot stay. Every three-column composition passes it; two-column screens never do.
+          One prop: <span style={{ fontFamily: MONO, fontSize: 11 }}>ThreadRosterRail collapsed</span>. Same component, same rows, same order — name, state tag and last line drop out, avatar and live dot stay. Every three-column composition passes it; two-column screens never do.
         </div>
       </div>
     </div>

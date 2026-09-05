@@ -13,9 +13,9 @@ const FLAGS = {
 // street → seconds, authored so the beats land where the tension is: the runout
 // gets the same 3–5s hold a live spectator gets, and the reveal is held after it.
 const TIMELINE = [
-  { k: 'PRE', at: 0, s: 3.5, pot: '60', flip: 0, eq: 52, line: 'Ace-ten. Fine. Let\u2019s see who\u2019s home.' },
+  { k: 'PRE', at: 0, s: 3.5, pot: '60', flip: 0, eq: 52, line: 'Ace-ten. Fine. Let’s see who’s home.' },
   { k: 'FLOP', at: 3.5, s: 6, pot: '180', flip: 3, eq: 38, line: 'Nothing yet. He bets small, so he has nothing either.' },
-  { k: 'TURN', at: 9.5, s: 7, pot: '620', flip: 4, eq: 24, line: 'He raised. I don\u2019t believe him.' },
+  { k: 'TURN', at: 9.5, s: 7, pot: '620', flip: 4, eq: 24, line: 'He raised. I don’t believe him.' },
   { k: 'ALL-IN', at: 16.5, s: 5, pot: '3,694', flip: 4, eq: 18, line: 'All of it.' },
   { k: 'RIVER', at: 21.5, s: 4, pot: '3,694', flip: 5, eq: 100, line: 'Told you. Nothing.' },
   { k: 'END', at: 25.5, s: 3, pot: '3,694', flip: 5, eq: 100, line: 'That is how you get paid with ace-high.' },
