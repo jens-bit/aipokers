@@ -1645,3 +1645,79 @@
 }
 
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DP-1 — the desk stage catches up to watch v3.
+ * Ported from D3Watch3ScreenM in design-refs/mood-watch3.jsx. The mobile felt
+ * already had all of this (watch.css); these are the desk's own sizes for the
+ * same three things: the pacing ladder, the rope, and his one line.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the four states ──────────────────────────────────────────────────────── */
+/* CALM is the stage that shipped, unchanged. The other three earn it. */
+
+.dtb[data-pace='heating'],
+.dtb[data-pace='allin'] {
+  background: radial-gradient(ellipse at 48% 40%, #3b4a3f 0%, #202c28 58%, #131c1a 100%);
+}
+
+.dtb__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 600ms ease-out, box-shadow 600ms ease-out;
+}
+
+.dtb[data-pace='heating'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 90px rgba(205, 179, 128, 0.18);
+}
+
+.dtb[data-pace='allin'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 130px rgba(255, 77, 79, 0.26);
+  animation: dtb-breathe 1.4s ease-in-out infinite;
+}
+
+.dtb[data-pace='showdown'] .dtb__glow {
+  opacity: 1;
+  box-shadow: inset 0 0 100px rgba(0, 212, 170, 0.18);
+}
+
+@keyframes dtb-breathe {
+  0%, 100% { box-shadow: inset 0 0 110px rgba(255, 77, 79, 0.20); }
+  50%      { box-shadow: inset 0 0 150px rgba(255, 77, 79, 0.32); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dtb[data-pace='allin'] .dtb__glow { animation: none; }
+}
+
+/* ── the rope ─────────────────────────────────────────────────────────────── */
+/* 26% inset each side, the ref's own figure. It is the widest the rope gets
+   before the seam stops reading as a single moving thing. */
+
+.dtb__tug {
+  width: 48%;
+  min-width: 260px;
+  margin-top: 4px;
+}
+
+/* ── his one line ─────────────────────────────────────────────────────────── */
+
+.dtb__line {
+  margin: 2px 0 0;
+  max-width: 620px;
+  text-align: center;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--dsk-text, #ededed);
+}
+
+/* At ALL-IN his line is the loudest thing on the stage — the same law the
+   phone applies, at the desk's size. */
+.dtb[data-pace='allin'] .dtb__line { color: #fff; }

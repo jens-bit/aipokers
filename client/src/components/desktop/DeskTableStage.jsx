@@ -1,5 +1,16 @@
 // The table as the main stage, ported from design-refs/mood-desktop.jsx
-// DeskTableStage (screens D3WatchScreenM / D3WatchBetweenScreenM).
+// DeskTableStage (screens D3WatchScreenM / D3WatchBetweenScreenM), brought up
+// to watch v3 from D3Watch3ScreenM in design-refs/mood-watch3.jsx.
+//
+// DP-1 adds the two things v3 gave the phone and the desk did not have: the
+// rope directly under the board, and the pacing ladder. Both come from the
+// mobile modules rather than a desktop copy — lib/pace.js owns the ladder and
+// system/TugBar.jsx owns the rope, so the two surfaces cannot drift.
+//
+// SEAM for feature/watch-4: D6W4WatchScreenM replaces the two SeatChips with
+// DeskSeat (a seated body with a speech bubble) and the centre with DeskFelt4.
+// Those land when that branch merges; the pace attribute, the rope slot and
+// the voice line below are where they plug in.
 //
 // Three phases, the same law WatchScreen applies on mobile (WCM-1): a hand is
 // live, or settled-but-still-on-screen, or genuinely between. Between hands
@@ -10,7 +21,9 @@
 // here is always one the viewer is entitled to.
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
 import { SeatChip, AgentAvatar } from '../system/SeatChip.jsx';
+import { TugBar } from '../system/TugBar.jsx';
 import { Streets } from '../../lib/protocol.js';
+import { heroEquityOf, paceMeta, paceOf } from '../../lib/pace.js';
 
 const LIVE_STREETS = [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN];
 
@@ -70,6 +83,11 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
   const between = phase === 'between';
   const live = phase === 'live';
 
+  // The server owns the ladder; the client is told which state it is in and
+  // never infers one. Anything unrecognised reads as calm.
+  const pace = paceOf(game);
+  const pMeta = paceMeta(game);
+
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agentName);
   const heroSeat = named >= 0 ? named : 0;
@@ -83,14 +101,26 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
 
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
   const eq = live ? equityPct(heroDecision?.equity) : null;
+
+  // The rope reads the snapshot first — that is the point of finding 2 — and
+  // falls back to whatever the last decision taught us. Before the deal there
+  // is nothing to know, so it sits dead centre rather than empty.
+  const heroEquity = between ? null : heroEquityOf(game, heroDecision?.equity ?? null, heroSeat);
+  const hasEquity = Number.isFinite(heroEquity);
+  const villainName = opponents.find((o) => !o.seat.folded)?.seat?.displayName ?? null;
+
+  // One sentence of thread voice. Long voice lives in the thread; the felt
+  // gets one line, and it is the loudest thing on the stage at ALL-IN.
+  const feltLine = !between && heroDecision?.reasoning ? heroDecision.reasoning : null;
   const action = live ? formatAction(heroDecision?.action) : null;
   const toCall = live && game?.toAct === heroSeat && game?.currentBet
     ? Math.max(0, game.currentBet - (hero?.committed ?? 0))
     : 0;
 
   return (
-    <div className="dtb">
+    <div className="dtb" data-pace={pace}>
       <div className="dtb__arc" aria-hidden />
+      <div className="dtb__glow" aria-hidden />
 
       <button type="button" className="dtb__back" onClick={onBack}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -122,6 +152,14 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         </div>
 
         <Board cards={board} between={between} />
+
+        {/* The rope, directly under the board — the ref puts it at 26% inset
+            and the stylesheet holds that width. */}
+        <div className="dtb__tug">
+          <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
+        </div>
+
+        {feltLine && <p className="dtb__line">{feltLine}</p>}
 
         {between ? (
           <span className="dtb__shuffling">SHUFFLING UP…</span>

@@ -56,8 +56,10 @@ describe('DeskTableStage between hands (WCM-1)', () => {
   });
 
   it('shows an em dash for the pot instead of $0', () => {
-    render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    const { container } = render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
+    // DP-1 put the rope under the board, and a rope with nothing to say also
+    // reads '—', so the assertion names the pot rather than the whole stage.
+    expect(container.querySelector('.dtb__pot-dash')).toHaveTextContent('—');
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
@@ -70,5 +72,131 @@ describe('DeskTableStage between hands (WCM-1)', () => {
     render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
     expect(screen.getByText(/waiting for the deal/i)).toBeInTheDocument();
     expect(screen.queryByText(/equity/i)).not.toBeInTheDocument();
+  });
+});
+
+// ── DP-1 · watch v3 at the desk ─────────────────────────────────────────────
+// Ported from D3Watch3ScreenM. The rope and the ladder come from the mobile
+// modules (lib/pace.js, system/TugBar.jsx), so these assert the desk renders
+// them — not that a second implementation agrees with the first.
+
+describe('DP-1 — the pacing ladder', () => {
+  const at = (pace) => ({ ...midHandGame, pace });
+
+  it('is calm by default, and calm is the stage that shipped', () => {
+    const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
+    expect(container.querySelector('.dtb')).toHaveAttribute('data-pace', 'calm');
+  });
+
+  it('takes the state the server put the table in', () => {
+    for (const pace of ['heating', 'allin', 'showdown']) {
+      const { container, unmount } = render(<DeskTableStage game={at(pace)} agentName={HERO} />);
+      expect(container.querySelector('.dtb')).toHaveAttribute('data-pace', pace);
+      unmount();
+    }
+  });
+
+  it('never infers a state the server did not send', () => {
+    const { container } = render(<DeskTableStage game={at('dramatic')} agentName={HERO} />);
+    expect(container.querySelector('.dtb')).toHaveAttribute('data-pace', 'calm');
+  });
+
+  it('carries a glow layer that takes no pointer and reads to nobody', () => {
+    const { container } = render(<DeskTableStage game={at('allin')} agentName={HERO} />);
+    const glow = container.querySelector('.dtb__glow');
+    expect(glow).toBeTruthy();
+    expect(glow).toHaveAttribute('aria-hidden');
+  });
+});
+
+describe('DP-1 — the rope under the board', () => {
+  it('draws the rope on a live hand', () => {
+    const { container } = render(
+      <DeskTableStage
+        game={{ ...midHandGame, heroEquity: 0.71 }}
+        agentName={HERO}
+      />,
+    );
+    const tug = container.querySelector('.dtb__tug .tug');
+    expect(tug).toBeTruthy();
+    expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+  });
+
+  it('sits directly under the board, not below the fold', () => {
+    const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
+    const centre = container.querySelector('.dtb__center');
+    const kids = [...centre.children].map((el) => el.className);
+    expect(kids.indexOf('dtb__board')).toBeLessThan(kids.indexOf('dtb__tug'));
+  });
+
+  it('reads the snapshot first, then falls back to the last decision', () => {
+    const { container, rerender } = render(
+      <DeskTableStage
+        game={{ ...midHandGame, heroEquity: 0.71 }}
+        agentName={HERO}
+        lastDecision={{ seat: 0, equity: 0.2, action: { type: 'bet', amount: 40 } }}
+      />,
+    );
+    expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+
+    rerender(
+      <DeskTableStage
+        game={midHandGame}
+        agentName={HERO}
+        lastDecision={{ seat: 0, equity: 0.2, action: { type: 'bet', amount: 40 } }}
+      />,
+    );
+    expect(screen.getByLabelText(/Hero equity 20 percent/)).toBeInTheDocument();
+    expect(container.querySelector('.dtb__tug .tug--dead')).toBeNull();
+  });
+
+  it('sits dead centre before the deal rather than empty', () => {
+    const { container } = render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
+    expect(container.querySelector('.dtb__tug .tug--dead')).toBeTruthy();
+    expect(screen.getByLabelText(/Equity not known yet/)).toBeInTheDocument();
+  });
+
+  it('fattens with the heated half of the ladder, and not before', () => {
+    const { container, unmount } = render(
+      <DeskTableStage game={{ ...midHandGame, pace: 'heating', heroEquity: 0.6 }} agentName={HERO} />,
+    );
+    expect(container.querySelector('.tug--big')).toBeTruthy();
+    unmount();
+
+    const calm = render(<DeskTableStage game={{ ...midHandGame, heroEquity: 0.6 }} agentName={HERO} />);
+    expect(calm.container.querySelector('.tug--big')).toBeNull();
+  });
+});
+
+describe('DP-1 — his one line', () => {
+  const withLine = (over = {}) => (
+    <DeskTableStage
+      game={midHandGame}
+      agentName={HERO}
+      lastDecision={{ seat: 0, action: { type: 'bet', amount: 620 }, reasoning: "Now it's a real pot. Good." }}
+      {...over}
+    />
+  );
+
+  it('puts one sentence of thread voice on the stage', () => {
+    render(withLine());
+    expect(screen.getByText("Now it's a real pot. Good.")).toBeInTheDocument();
+  });
+
+  it('says nothing at all when he has not spoken', () => {
+    const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
+    expect(container.querySelector('.dtb__line')).toBeNull();
+  });
+
+  it('goes quiet between hands — no stale line held over', () => {
+    const { container } = render(withLine({ game: betweenHandsGame }));
+    expect(container.querySelector('.dtb__line')).toBeNull();
+  });
+
+  it('ignores a line that belongs to somebody else at the table', () => {
+    const { container } = render(withLine({
+      lastDecision: { seat: 1, action: { type: 'call' }, reasoning: 'Not his to say.' },
+    }));
+    expect(container.querySelector('.dtb__line')).toBeNull();
   });
 });
