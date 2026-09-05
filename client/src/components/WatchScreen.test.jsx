@@ -90,12 +90,114 @@ describe('WatchScreen mid-hand', () => {
     }
   });
 
-  it('shows the street and the blinds on the meta line', () => {
+  // FIX-1f replaces the old "shows the street and the blinds on the meta line"
+  // case. That test encoded a rule the 2026-09-05 playtest reversed: the felt
+  // carried "#tbl · $10/$20 · FLOP · 3-HANDED · TO CALL $40" while a hand was
+  // live, five facts of which four are already on screen. The line is gone
+  // during a hand; the board reports the street, the seat ring reports how many
+  // are in, and the price is in the readout. It survives between hands, which
+  // is the reference's calm state (design-refs/mood-watch.jsx).
+  it('FIX-1f: shows no meta line on the felt while a hand is live', () => {
     const { container } = renderWatch(midHandGame);
-    const meta = container.querySelector('.watch-felt__street').textContent;
-    expect(meta).toContain('FLOP');
-    expect(meta).toContain('$10/$20');
-    expect(meta).toContain('3-HANDED');
+    expect(container.querySelector('.watch-felt__street')).toBeNull();
+  });
+
+  it('FIX-1f: keeps the calm meta line between hands', () => {
+    const { container } = renderWatch(betweenHandsGame);
+    const meta = container.querySelector('.watch-felt__street');
+    expect(meta).toBeTruthy();
+    expect(meta.textContent).toContain('$10/$20');
+    expect(meta.textContent).toContain('SHUFFLING');
+    expect(meta.textContent).not.toContain('HANDED');
+  });
+
+  it('FIX-1f: the readout carries the price when it is the hero\'s turn', () => {
+    // Hero is seat 0 and owes 40 - 40 = 0 in the fixture; move the action to
+    // them with something still to call.
+    const toActGame = {
+      ...midHandGame,
+      toAct: 0,
+      currentBet: 80,
+      seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, contribThisStreet: 40 } : s)),
+    };
+    const { container } = renderWatch(toActGame);
+    expect(container.querySelector('.watch-felt__action-chip').textContent).toBe('TO CALL $40');
+  });
+
+  // FIX-1g. The readout showed an em dash for the whole of the hero's turn —
+  // the one moment the owner is watching it. The server knows his equity before
+  // he acts, so the last number it sent for this hand stands until a newer one
+  // lands, and a dash now means only "nothing dealt yet".
+  describe('FIX-1g hero equity', () => {
+    const equityText = (container) =>
+      container.querySelector('.watch-felt__hero-num.is-live, .watch-felt__hero-num.is-muted').textContent;
+
+    it('FIX-1g: shows the equity the server sent with the last decision', () => {
+      const { container } = renderWatch(midHandGame, {
+        lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
+      });
+      expect(equityText(container)).toBe('67.4%');
+    });
+
+    it('FIX-1g: holds that number while the hero is asked to act again', () => {
+      const { container, rerender } = renderWatch(midHandGame, {
+        lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
+      });
+
+      // The turn lands and the hero is on the clock with no decision on the
+      // wire yet — lastDecision is null. Same hand, so the read still stands.
+      // This is exactly where the dash used to appear.
+      rerender(
+        <WatchScreen
+          game={{ ...midHandGame, street: 'turn', toAct: 0, community: ['5c', '4h', '8c', 'Kd'] }}
+          mySeat={0}
+          config={spectatorConfig}
+          displayNames={{ 0: 'The Grinder', 1: 'Doyle_v3', 2: 'Granite' }}
+          chatMessages={[]}
+          lastDecision={null}
+          sendChat={() => {}}
+          onLeave={() => {}}
+          onSitOut={() => {}}
+        />,
+      );
+
+      expect(container.querySelector('.watch-felt__action-chip')).toBeTruthy();
+      expect(equityText(container)).toBe('67.4%');
+    });
+
+    it('FIX-1g: forgets the read when the next hand is dealt', () => {
+      const { container, rerender } = renderWatch(midHandGame, {
+        lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
+      });
+
+      rerender(
+        <WatchScreen
+          game={{ ...midHandGame, handNumber: 2, toAct: 0 }}
+          mySeat={0}
+          config={spectatorConfig}
+          displayNames={{ 0: 'The Grinder', 1: 'Doyle_v3', 2: 'Granite' }}
+          chatMessages={[]}
+          lastDecision={null}
+          sendChat={() => {}}
+          onLeave={() => {}}
+          onSitOut={() => {}}
+        />,
+      );
+
+      expect(equityText(container)).toBe('--');
+    });
+
+    it('FIX-1g: dashes before the deal, and only there', () => {
+      const { container } = renderWatch(betweenHandsGame, {
+        lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.674 },
+      });
+      expect(equityText(container)).toBe('--');
+    });
+
+    it('FIX-1g: dashes on a hand that has produced no read yet', () => {
+      const { container } = renderWatch(midHandGame);
+      expect(equityText(container)).toBe('--');
+    });
   });
 
   it('appends the agent\'s decision to the feed with its equity as a percentage', async () => {

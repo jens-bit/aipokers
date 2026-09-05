@@ -803,6 +803,12 @@
   resize: none;
 }
 .dsk-composer__input::placeholder { color: var(--dsk-faint); }
+/* FIX-1b: 13.5px is the desktop design and stays that way for a mouse. A touch
+   device wide enough to get this layout (iPad landscape is 1366px) zooms the
+   whole page on focus below 16px, so lift it there and nowhere else. */
+@media (pointer: coarse) {
+  .dsk-composer__input { font-size: 16px; }
+}
 .dsk-composer__actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
 .dsk-composer__kbd {
   font-family: var(--dsk-mono);

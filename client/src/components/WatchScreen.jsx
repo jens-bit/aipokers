@@ -251,7 +251,9 @@ function ChatTab({ agentThread, tableSpeech, onSend, loading, agentName }) {
   var isEmpty = merged.length === 0 && !loading;
 
   return (
-    <div className="dr-chat-tab">
+    // FIX-1e: --fill, so the between-hands strip above cannot squeeze the list
+    // and the composer out of the sheet.
+    <div className="dr-chat-tab dr-chat-tab--fill">
       <div ref={listRef} className="dr-chat-tab__list">
         {isEmpty && (
           <div className="dr-chat-tab__empty">
@@ -462,7 +464,7 @@ function compactFor(slot, opponentCount) {
 
 // ---- WatchFelt -------------------------------------------------------------
 
-function WatchFelt({ game, mySeat, lastDecision, geom }) {
+function WatchFelt({ game, mySeat, lastDecision, handEquity, geom }) {
   // WV2-5: three phases, not two. `settled` is a finished hand still on
   // screen -- board, reveals and the pot going to its winner -- and it holds
   // until the next deal clears it.
@@ -492,16 +494,27 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
-  // Equity is a live read on a hand in progress. At showdown the cards are on
-  // the table, so the ref's readout shows an em dash there -- as it does
-  // between hands.
-  var equityText  = live ? formatEquity(lastDecision && lastDecision.equity) : null;
+  // FIX-1g: the readout showed an em dash for the whole of the hero's turn,
+  // which is the one moment the owner is actually watching it. The server knows
+  // his equity before he acts -- it computes it for the briefing -- and the last
+  // number it sent for THIS hand is the honest answer until a newer one lands.
+  // `handEquity` is that value, remembered by the parent and cleared on the
+  // next deal, so a dash now means only one thing: nothing has been dealt yet.
+  var equityText  = between ? null : formatEquity(handEquity);
   var hasEquity   = equityText !== null;
   // At showdown the readout stops reporting the hero's last action and says
   // how the hand ended -- the ref's `note` slot.
+  // FIX-1f: when it is the hero's turn the chip names the price, which is the
+  // one fact the removed meta line was carrying that nothing else shows.
+  var toCall = (live && heroData && game.currentBet != null)
+    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
+    : 0;
+  var toActLabel = (game && game.toAct === heroSeat && live)
+    ? (toCall > 0 ? 'TO CALL $' + toCall.toLocaleString() : 'TO ACT')
+    : null;
   var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
-    : (game && game.toAct === heroSeat && live ? 'TO ACT' : null));
+    : toActLabel);
 
   // Opponents in seat order clockwise from the hero, so the ring on screen
   // matches the order the action actually moves in.
@@ -543,19 +556,18 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
     ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
     : null;
 
-  // WV2-5: the street and what the hero is being asked for, on the meta line.
   var blinds = (game && game.smallBlind != null && game.bigBlind != null)
     ? ('$' + game.smallBlind + '/$' + game.bigBlind)
     : '';
-  var toCall = (live && heroData && game.currentBet != null)
-    ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
-    : 0;
   var tableLabel = '#' + (game && game.tableId ? game.tableId : '--');
+  // FIX-1f: the felt no longer carries a meta line during a hand. It had grown
+  // to "#tbl · $10/$20 · PREFLOP · 2-HANDED · TO CALL $40" — five facts, four of
+  // them already on screen: the board shows the street, the seat ring shows how
+  // many are in, and the amount belongs in the readout. Between hands the line
+  // stays, because that is the ref's calm state and there is no board to read.
   var metaLine = between
     ? [tableLabel, blinds, 'SHUFFLING'].filter(Boolean).join(' · ')
-    : [tableLabel, blinds, street, seatCount + '-HANDED']
-        .concat(toCall > 0 ? ['TO CALL $' + toCall.toLocaleString()] : [])
-        .filter(Boolean).join(' · ');
+    : null;
 
   // WV2-3: the felt's height and its three interior tops come from the sheet's
   // current detent, so it grows and shrinks with the drag.
@@ -636,7 +648,7 @@ function WatchFelt({ game, mySeat, lastDecision, geom }) {
           </div>
         </>
       ) : (
-        <div className="watch-felt__street">{metaLine}</div>
+        metaLine && <div className="watch-felt__street">{metaLine}</div>
       )}
 
       <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
@@ -939,6 +951,20 @@ export function WatchScreen({
   var handNumberRef  = useRef(null);
   var streetRef      = useRef('');
 
+  // FIX-1g: the hero's last known equity for the hand in progress. Decisions
+  // arrive one at a time and the readout has to say something in between, so
+  // the newest number is held until the next deal replaces it. Derived from
+  // props on every render and idempotent, so it is safe to keep in a ref.
+  var handEquityRef = useRef({ hand: null, equity: null });
+  var currentHand   = game ? game.handNumber : null;
+  if (handEquityRef.current.hand !== currentHand) {
+    handEquityRef.current = { hand: currentHand, equity: null };
+  }
+  if (lastDecision && equityPct(lastDecision.equity) !== null) {
+    handEquityRef.current.equity = lastDecision.equity;
+  }
+  var handEquity = handEquityRef.current.equity;
+
   // Track current street so we can stamp each decision band with it.
   // Runs every render — always up-to-date before the decision effect fires.
   useEffect(function() {
@@ -1065,7 +1091,8 @@ export function WatchScreen({
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
 
-        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision} geom={sheet.geom} />
+        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
+          handEquity={handEquity} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that

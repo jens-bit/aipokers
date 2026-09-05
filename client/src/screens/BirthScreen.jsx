@@ -131,7 +131,7 @@ function DraftBand({ phase = 0, cause, onSkip, ready }) {
         type="button"
         onClick={onSkip}
         style={{
-          height: 30, padding: '0 12px', borderRadius: 8, flexShrink: 0,
+          height: 30, minHeight: 0, padding: '0 12px', borderRadius: 8, flexShrink: 0,
           border: ready ? 'none' : `1px solid rgba(255,255,255,0.14)`,
           background: ready ? M_TEAL : 'transparent',
           color: ready ? '#0A0A0A' : M_TEXT,
@@ -155,12 +155,13 @@ function DraftStrip({ style, risk, tight, aggr }) {
       display: 'flex', alignItems: 'center',
       background: M_PANEL_2, border: `1px dashed ${M_DIM}44`, borderRadius: 8,
       padding: '7px 11px', gap: 0,
+      maxWidth: '100%', minWidth: 0, overflow: 'hidden',
     }}>
       {fields.map(([k, v], i) => (
-        <span key={k} style={{ display: 'inline-flex', alignItems: 'center' }}>
-          {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block' }} />}
-          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED }}>{k}</span>
+        <span key={k} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+          {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block', flexShrink: 0 }} />}
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
+            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{k}</span>
             {v == null
               ? <span style={{ fontFamily: MONO, fontSize: 12, color: M_FAINT }}>—</span>
               : <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: M_TEXT }}>{v}</span>
@@ -543,8 +544,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
+  // instant the screen appears, which covers half the draft and hides the
+  // content the owner came to read. The field is focused when they tap it.
+  //
+  // When they do, scroll the composer into view after the keyboard animates in
+  // — iOS in Telegram needs the explicit push, because --tg-h shrinks the
+  // container but the browser does not always scroll the focused element up.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -661,18 +668,23 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       `}</style>
 
       {/* Back header */}
+      {/* FIX-1d: GlobalHeader's row from mood-atoms — 2px/10px padding around a
+          29px control row and no bottom rule, so the chrome is 41px instead of
+          the 63px it had grown to. The back control needs an explicit
+          minHeight because base.css floors every button at --tap (44px), which
+          is what was inflating this row and the band below it. */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`,
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '2px 14px 10px',
         background: M_PANEL, flexShrink: 0,
       }}>
         <button
           type="button"
           onClick={onBack}
           aria-label="Back"
-          style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
+          style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -701,7 +713,12 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       )}
 
       {/* Feed */}
-      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
+      {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY. A box that
+          declares only one axis has the other computed from `visible` to
+          `auto`, which turns every feed into a horizontal scroller — that is
+          what let the draft screen be dragged sideways off the ghost
+          watermark's 14px overhang. */}
+      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden auto', position: 'relative' }}>
 
         {!hasTalked ? (
           /* Entry state: ghost fills center, opening message pinned to bottom */
@@ -771,14 +788,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                       {/* DraftStrip after each AI reply while still forming (create mode only) */}
                       {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
                         <>
-                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', minWidth: 0 }}>
                             <DraftStrip />
                           </div>
                           {/* His temperament is not something you set, and nothing
                               is fixed until he exists — so the chip is a dashed
                               guess with no zero-sum pair. It prints a name only
                               if the server hinted one. */}
-                          <div style={{ padding: '0 14px', marginBottom: 9 }}>
+                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', overflow: 'hidden' }}>
                             <NatureFormingChip guess={msg.natureHint} />
                           </div>
                         </>

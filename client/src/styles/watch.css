@@ -482,9 +482,13 @@
 }
 
 /* ── panel ────────────────────────────────────────────────────────────── */
+/* FIX-1e: a flex column, so a tab that wants the whole panel (the chat) can
+   take it and scroll inside itself rather than overflowing the sheet. */
 .watch-panel {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--sys-bg, #1A1A1E);

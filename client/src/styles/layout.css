@@ -1356,7 +1356,7 @@
   border: 1px solid var(--dr-border-strong);
   background: var(--dr-panel-2);
   color: var(--dr-text);
-  font-size: 14px;
+  font-size: 16px;      /* FIX-1b: >=16px or iOS Safari zooms on focus */
 }
 .dr-form-field input:focus {
   outline: none;

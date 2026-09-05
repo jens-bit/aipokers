@@ -394,6 +394,7 @@ function AgentBubble({ mood, accent, training, children }) {
           borderLeft: `2px solid ${moodColor}`,
           borderRadius: 12, borderBottomLeftRadius: 4,
           padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5,
+          minWidth: 0, overflowWrap: 'anywhere',
         }}>
           {children}
           <TrainingLine items={training} />
@@ -407,7 +408,7 @@ function OwnerBubble({ children }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', padding: `0 14px`, marginBottom: 9 }}>
       <div style={{ maxWidth: 264 }}>
-        <div style={{ background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5 }}>{children}</div>
+        <div style={{ background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere' }}>{children}</div>
       </div>
     </div>
   );
@@ -469,11 +470,13 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const msgIdRef  = useRef(0);
   const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  // Belt-and-braces: scroll the composer into view after the keyboard animates
-  // in (iOS in Telegram needs an explicit push — --tg-h shrinks the container
-  // but the browser doesn't always auto-scroll the focused element up).
+  // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
+  // instant the screen appears, which covers half the thread and hides the
+  // content the owner came to read. The field is focused when they tap it.
+  //
+  // When they do, scroll the composer into view after the keyboard animates in
+  // — iOS in Telegram needs the explicit push, because --tg-h shrinks the
+  // container but the browser does not always scroll the focused element up.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -592,25 +595,30 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
 
       {/* Back header */}
+      {/* FIX-1d: GlobalHeader's row from mood-atoms — 2px/10px padding around a
+          29px control row and no bottom rule, so the chrome is 41px instead of
+          the 63px it had grown to. The back control needs an explicit
+          minHeight because base.css floors every button at --tap (44px), which
+          is what was inflating this row and the band below it. */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`,
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '2px 14px 10px',
         background: M_PANEL, flexShrink: 0,
       }}>
         <button
           type="button"
           onClick={onBack}
           aria-label="Back"
-          style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
+          style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
         <button
           type="button"
           onClick={() => onOpenProfile?.(agent)}
-          style={{ flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
+          style={{ flex: 1, height: 29, minHeight: 0, display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
         >
           <span style={{ fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
             {agent.name}
@@ -642,7 +650,10 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       )}
 
       {/* Chat feed */}
-      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 10 }}>
+      {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY — a box that
+          declares one axis has the other computed from `visible` to `auto`,
+          which made the thread draggable sideways on any long token. */}
+      <div ref={feedRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden auto', paddingTop: 10 }}>
         {chat.map((msg) => {
           if (msg.role === 'proposal') {
             return (

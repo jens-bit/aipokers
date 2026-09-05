@@ -9,6 +9,8 @@
 //   agent.potential = { KEY: { lo, hi } }
 //   agent.nature    = null | { name, up, down, line }        null = "still forming"
 //   agent.fatigue   = 'fresh' | 'settled' | 'worn'           absent → fresh
+//   agent.narrowed  = null | [KEY]   transient: the bands that moved in at the
+//                                     end of the last session, one session only
 //   agent.attrLog   = [{ ts, key, from, to, cause }]
 //
 // Constants below are copied from design-refs/char-system.jsx. Order is law:
@@ -104,7 +106,7 @@ export function fatigueOf(agent) {
  *   nature: {name:string, up:string|null, down:string|null, line:string|null} | null,
  *   fatigue: string,
  *   scouted: boolean,
- *   rows: Array<{key:string, cur:number, lo:number, hi:number, fatigued:boolean}>,
+ *   rows: Array<{key:string, cur:number, lo:number, hi:number, fatigued:boolean, narrowed:boolean}>,
  * }}
  */
 export function normalizeAttrs(agent) {
@@ -115,6 +117,13 @@ export function normalizeAttrs(agent) {
   // Fatigue erodes execution on exactly two attributes, and only at 'worn'.
   const worn = fatigue === 'worn';
   const dips = { FOCUS: worn, DISCIPLINE: worn };
+
+  // FIX-1h: the gold caret at the high end of a bar. ATTR-3 sets agent.narrowed
+  // to the keys whose band moved in at the end of the last session and clears it
+  // on the next one — "appears for one session after the band narrows, then
+  // retires" (char-system2.jsx). AttrCluster has always passed row.narrowed
+  // through to AttrBar; nothing was ever setting it, so the caret never fired.
+  const narrowedKeys = Array.isArray(agent?.narrowed) ? agent.narrowed : [];
 
   const attrs = {};
   const potential = {};
@@ -127,7 +136,7 @@ export function normalizeAttrs(agent) {
     const hi = hasBand ? clamp(Math.round(Math.max(band.lo, band.hi))) : bandFor(cur).hi;
     attrs[key] = cur;
     potential[key] = { lo, hi };
-    return { key, cur, lo, hi, fatigued: !!dips[key] };
+    return { key, cur, lo, hi, fatigued: !!dips[key], narrowed: narrowedKeys.includes(key) };
   });
 
   return {
@@ -175,26 +184,47 @@ export function seriesFor(attrLog, key, days = 90, now = Date.now()) {
   return [entries[0].from, ...entries.map((e) => e.to)];
 }
 
+// FIX-1h: not every attrLog entry is growth. ATTR-3 writes two book-keeping
+// entries with the same shape — 'birth', one per attribute the moment an agent
+// is created, and 'narrowed', when a scouting band moves in. Both carry
+// from === to on purpose, so a sparkline never draws a phantom step for them.
+// Neither is something he learned at the table, so neither may light the GREW
+// badge: a newborn who has not played a hand was showing "+0 GREW" on the
+// roster, and a scouting report was claiming credit for growth.
+const LEDGER_CAUSES = new Set(['birth', 'narrowed']);
+
+export function isGrowthTick(entry) {
+  if (!entry || !ATTR_KEYS.includes(entry.key)) return false;
+  if (!Number.isFinite(entry.from) || !Number.isFinite(entry.to)) return false;
+  return !LEDGER_CAUSES.has(entry.cause);
+}
+
 /**
  * Every growth tick inside the window, across all six attributes, oldest first —
  * the thread's growth lines, in the order they happened.
+ *
+ * FIX-1i: ledger entries are filtered out here too. A GrowthLine reads
+ * "FOCUS 62 → 62" with the cause quoted underneath as his own voice, so a
+ * 'narrowed' entry rendered as him announcing a step he did not take, in a
+ * sentence he never said. Growth is an event with a cause he can speak; the
+ * scouting report and the birth record are neither.
  */
 export function recentEntries(attrLog, hours = 24, now = Date.now()) {
   if (!Array.isArray(attrLog)) return [];
   const cutoff = now - hours * 60 * 60 * 1000;
   return attrLog
-    .filter((e) => e && ATTR_KEYS.includes(e.key) && Number.isFinite(e.from) && Number.isFinite(e.to))
+    .filter(isGrowthTick)
     .map((e) => ({ ...e, _ts: toMillis(e.ts) }))
     .filter((e) => e._ts != null && e._ts >= cutoff)
     .sort((a, b) => a._ts - b._ts);
 }
 
-/** True when anything at all grew inside the window — the roster's GREW badge. */
+/** True when he actually grew inside the window — the roster's GREW badge. */
 export function grewWithin(attrLog, hours = 24, now = Date.now()) {
   if (!Array.isArray(attrLog) || attrLog.length === 0) return false;
   const cutoff = now - hours * 60 * 60 * 1000;
   return attrLog.some((e) => {
-    if (!e || !ATTR_KEYS.includes(e.key)) return false;
+    if (!isGrowthTick(e)) return false;
     const ts = toMillis(e.ts);
     return ts != null && ts >= cutoff;
   });
@@ -206,8 +236,9 @@ export function gainsWithin(attrLog, hours = 24, now = Date.now()) {
   const cutoff = now - hours * 60 * 60 * 1000;
   const totals = new Map();
   for (const e of attrLog) {
-    if (!e || !ATTR_KEYS.includes(e.key)) continue;
-    if (!Number.isFinite(e.from) || !Number.isFinite(e.to)) continue;
+    // Same filter as grewWithin: the badge's presence and its number are the
+    // same claim, so they have to be counted from the same entries.
+    if (!isGrowthTick(e)) continue;
     const ts = toMillis(e.ts);
     if (ts == null || ts < cutoff) continue;
     totals.set(e.key, (totals.get(e.key) ?? 0) + (e.to - e.from));
