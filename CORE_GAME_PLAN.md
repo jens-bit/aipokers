@@ -2,6 +2,7 @@
 
 Created: 2026-08-29 (Cowork session, post-audit)
 Status: ACTIVE — this is the next build phase, ahead of any new UI work and ahead of all Phase 3 work.
+Where we are: **jump to `EOD status 2026-09-05` at the end of this file.** Everything between here and there is the build record, oldest first.
 
 ---
 
@@ -652,7 +653,7 @@ Density verdict (Jens, 09-05): the tapped panel is a picture, not a paragraph �
 
 Build order: ATTR-1 (engine, measurement-first, feature/attributes; arena --attributes off|low|high; ATTRIBUTE_IMPACT knob; attrLog ring buffer) → ATTR-2 (UI port: bars, tapped panel, birth card, hand-review row) → ATTR-3 (growth ticks + fatigue state in the session loop) → BIO-2 (per-opponent ledger → derived roles → recap line + needle injection). Target at full impact: same-strategy high vs low ≥ +30 bb/100, CI excluding zero; "off" reproduces ACCEPT-1 within CI.
 
-### ATTR-1 status (branch `feature/attributes`, 2026-09-05 — built, unmerged, unpushed)
+### ATTR-1 status (branch `feature/attributes`, 2026-09-05 — MERGED to main `c2d8621`, unpushed)
 
 Commits: `c95578e` ATTR-1a module + tests · `daaaa1d` ATTR-1b the six hooks + verify script · `0dabb29` ATTR-1c arena `--attributes` flag · ATTR-1d piecewise lerp + birth generator.
 
@@ -666,16 +667,25 @@ Commits: `c95578e` ATTR-1a module + tests · `daaaa1d` ATTR-1b the six hooks + v
 
 Client contract: `GET /api/agents` carries `attrs`, `potential`, `nature` and `fatigue` (`fresh` while resting, from `effectiveAttrs` against that seat's own session hand count while at a table); `GET /api/agents/:id` adds the `attrLog` ring buffer (200 entries) the 90-day sparkline draws.
 
-**Measurement is PENDING CREDITS.** No `ANTHROPIC_API_KEY` is present in the environment, so not one model call was made. The three runs are wired and smoke-tested on the fallback path:
-```
-node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes high
-node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes low
-node scripts/arena.js --pairs 50 --matchups "TAG,TAG" --attributes off
-```
+**MEASURED 2026-09-05 — the attribute engine moves money.** Two 1000-pair runs against real Haiku 4.5, reads on, `ATTRIBUTE_IMPACT=1`, `TAG,TAG` with seat B held at neutral 50 so the only difference between the seats is the six numbers:
+
+| run | seat A attrs | hands | seat A bb/100 | CI95 | file |
+|---|---|---|---|---|---|
+| high | 80 | 2000 | **+36.83** | ±32.25 | `data/arena/run-2026-09-05T16-19-15-262Z.json` |
+| low | 25 | 2000 | **−23.88** | ±34.53 | `data/arena/run-2026-09-05T18-21-55-482Z.json` |
+
+High clears zero on its own interval; low does not (−58.4 … +10.7). The **high-vs-low spread is 60.7 bb/100**, past the ≥ +30 bb/100 target this tree was written against. Fallback rate 0–0.2% on every side, so these are real model decisions and not the safe-action path. Runtimes 82 min and 115 min.
+
+Two caveats, recorded rather than glossed:
+- **The `off` control was not run.** The acceptance criterion has two halves and only one is answered: nothing yet demonstrates that `ATTRIBUTE_IMPACT=0` reproduces the ACCEPT-1 baseline under live models. `node scripts/arena.js --pairs 1000 --matchups "TAG,TAG" --attributes off` is the missing run.
+- The two runs are separate measurements, not one paired experiment, so the 60.7 figure is a difference of two independent estimates and its interval is wider than either row's.
+
+The 50-pair runs earlier the same day (`run-2026-09-05T14-14-40-693Z.json` high, `...T14-20-34-088Z.json` low) are **pilots and are noise** — CI ±118 and ±211, with the direction reversed in both. They are kept for the record and must not be quoted.
+
 Building the flag surfaced a defect that would have ruined exactly this measurement: with `--matchups "TAG,TAG"` both seats keyed the same stats object and the second summary silently overwrote seat A's row. Sides are now labelled `TAG#A` / `TAG#B`, which also keeps their opponent reads from merging into one record.
 
 
-### ATTR-3 status (branch `feature/attributes-3`, 2026-09-05 — built, unmerged, unpushed)
+### ATTR-3 status (branch `feature/attributes-3`, 2026-09-05 — MERGED to main `0a37bca`, unpushed)
 
 Commits: `6516569` ATTR-3a contract riders · `b24ec94` ATTR-3b growth + narrowing · `6f459a5` ATTR-3c fatigue in the loop + attrCosts · `5243095` ATTR-3d verify-growth + arena `grow` · `921865c` the draft-chat rider.
 
@@ -693,5 +703,59 @@ Commits: `6516569` ATTR-3a contract riders · `b24ec94` ATTR-3b growth + narrowi
 
 **Draft-chat rider.** `POST /api/agents/chat` replied to "be sporadic and chaotic" → "lets go" with a Python class in a code fence and no agent. `src/server/draftGuard.js` now rejects code and fences and trims to 60 words; a vague brief is mapped to sliders and said back in one line instead of asking a second question; and a GO signal builds the agent, returning the `agentId` BirthScreen has always waited for — nothing in the client ever called `/api/agents/build`, so the draft could not complete at all.
 
-**Known client gap (one line, not mine to write):** `normalizeAttrs` in `client/src/lib/attributes.js` does not map `agent.narrowed` onto `row.narrowed`, so `AttrBar`'s gold caret never fires; and `grewWithin` counts any `attrLog` entry, so a session that only narrowed lights the GREW badge. Both are one-line client fixes on the ATTR-2 side.
-## Merged 2026-09-05: feature/watch-calm (WCM-1 calm between-hands state, WCM-2 felt density/colour) → main 9ab7aca. Remaining unmerged: feature/desktop-port (DSK2-1 only; DSK2-2..4 status unknown).
+**Known client gap — CLOSED by FIX-1h (`d1454d9`) and FIX-1i (`7ede97d`):** `normalizeAttrs` now passes `agent.narrowed` through so the gold caret fires, and `grewWithin` / `gainsWithin` / `recentEntries` all filter on one named `isGrowthTick` predicate, so the badge, its number and the thread's growth lines are counted from the same entries. `seriesFor` stays unfiltered on purpose. The original note read: `normalizeAttrs` in `client/src/lib/attributes.js` does not map `agent.narrowed` onto `row.narrowed`, so `AttrBar`'s gold caret never fires; and `grewWithin` counts any `attrLog` entry, so a session that only narrowed lights the GREW badge. Both are one-line client fixes on the ATTR-2 side.
+## Merged 2026-09-05 (midday): feature/watch-calm (WCM-1 calm between-hands state, WCM-2 felt density/colour) → main 9ab7aca. *Superseded by the EOD status below — feature/desktop-port and 28 other branches merged over the course of the day and evening.*
+
+---
+
+# EOD status 2026-09-05 — where every area stands
+
+168 commits between 13:21 and 00:15, across 29 merged branches (30 counting `feature/watch-5`, which reached main by fast-forward after MERGE-2). All merged to main, and main is pushed: `origin/main` is at `4f82b92`. Written from `git log --since=2026-09-05` and the branch reports in the commit bodies; the ATTR-1 / ATTR-3 status sections above are updated in place rather than restated here. Shipped as **CHANGELOG 0.10.0**.
+
+## Status by area
+
+**Tree 1 — equity engine.** DONE and unchanged. Now also read by the pacing layer: `state.heroEquity` rides every spectator snapshot including the mid-hand catch-up one, computed once per (hand, board, seat) because Monte Carlo is not free.
+
+**Tree 2 — policy compiler.** DONE. One correction on top of it tonight: DISCIPLINE's deviation die is exported as `deviationPercent()` because `table.js` recomputes it when mood nudges the roll, and the two must not disagree.
+
+**Tree 3 — opponent model + memory.** DONE, and it now has a face. `readPanel()` serves the five rows the watch surface draws, gated by *exactly* the briefing's own evidence bar — so the panel can never show a read he is not already playing with. That equality is the design: the bars are the receipt for a decision, not a second opinion.
+
+**Tree 3.5 — personality layer.** DONE and deepened. Mood is a number now (MOOD-2), the owner relationship is a third memory book (RELATE-1), and the per-opponent biography is a fourth (BIO-2). The Mood Design Law is enforced by a test that reads `mood.js` and fails on absence-tracking identifiers or clock subtraction.
+
+**Tree 4 — server-side life.** DONE, and stressed by the wallet: `verify-server-life.js` caught WALLET-1c's first definition of "broke" and the product was wrong, not the assertion.
+
+**Tree 6 — multi-seat.** DONE and unchanged.
+
+**Character system (ATTR-1/2/3, BIO-2).** COMPLETE and MEASURED — engine, UI, growth, fatigue, biography. See the two status sections above; the headline is +36.83 bb/100 for high attributes and a 60.7 bb/100 high-vs-low spread. The one gap is the `off` control run.
+
+**Wallet + pockets (WALLET-1, WUI-1..4).** COMPLETE server and client, migrated by SEED-1, 107 offline checks with chip conservation re-asserted after every move. **Not yet confirmed against prod data.** SEED-1 runs on first boot after deploy and gives every existing agent one buy-in in the pocket with the surplus in the wallet; it is proved idempotent and chip-conserving on a fixture in today's data shape, but nobody has read the numbers back off the VPS.
+
+**SQLite (SQLITE-1, Fredrik's track).** COMPLETE locally: store, schema, one-time JSON migration, all four persistence seams switched, `export-json.js` rollback verified byte-identical. **Its state on the VPS is unverified from here.** This is the highest-risk item on the board — `data/agents.json` there is live user data and the migration renames it to `.migrated` on first boot. main is pushed and the deploy job runs on a green push, so the migration has either already run or will on the next deploy; either way the confirmation steps in `read-me-claude/DATA_MIGRATION.md` are still owed. Back up to /root, record the agent count, check the `[store]` migration log, confirm `app.db` exists, `agents.json.migrated` was kept, and the count matches.
+
+**Watch.** v3 → v4 → v5 in one night. v3 gave it the pacing ladder, the rope and two tabs; v4 made seats characters, moved his voice onto the felt as bubbles and turned the READ tab into a sheet on a seat tap; v5 answered the playtest verdict ("too stiff, no time to react, folds don't feel like anything") with a client-side pacing queue, the muck, the hand ceremony and a pinned "why the hand went wrong". The felt is the current centre of gravity of the product and has had three design waves and two playtests in twelve hours — it is the thing most likely to need a fourth.
+
+**Casino floor.** v2 rules all built (one ghost per agent, names earned, one pip, a resting room that breathes, one loud felt, the newborn walking in).
+
+**Desktop.** At parity with mobile for the first time: DSK2-1..5 built the shell, DP-1..5 caught the desk up to watch v3, the wallet, the replay, the draft panel and floor v2, all by importing the mobile modules rather than copying them.
+
+**First five minutes (FTU, FLOW).** COMPLETE for the nine screens the design covers. The NotYet grammar and `assertNoPlaceholders()` are the reusable half.
+
+**Landing.** design-40 hero ported (LAND-3). One open defect: BUG-29, horizontal overflow at ≤768, which predates the port.
+
+**Model providers (MODEL-1).** Anthropic / openai-compatible / ollama behind one `complete()`, every decision priced, arena `--model` / `--model-b`. Unused so far — every measurement tonight was Haiku 4.5. This is what makes the "model tiers" open question answerable with a number rather than an opinion.
+
+**Test framework.** `npm test` 1.3s, `npm run test:e2e` ~36s, client ~800 tests. Discovery-based, no live model calls, CI on Node 22 gating deploy. This held all night: FIX-1h, WALLET-1c, MOOD-2a, BIO-2, ATTR-1d and SEAT-1b were each caught by a test rather than by review.
+
+## Not done, in the order it matters
+
+1. **Confirm the deploy, on the VPS, by hand.** main is pushed (`origin/main` = `4f82b92`) and the workflow deploys on a green push, so the first 0.10.0 deploy carries *both* the SQLite migration and the SEED-1 wallet seeding against live user data. Nobody has looked at the result. Do the `DATA_MIGRATION.md` checklist and record the agent count and the wallet/pocket totals here.
+2. **The `off` arena control** — the second half of the ATTR acceptance criterion.
+3. **Server-authoritative action timer, reconnect/sit-out, seat lifecycle** — Fredrik's next track, and the reason DSK2-3 draws no `SeatTimerRing` and says "NEXT DEAL SHORTLY" instead of counting down.
+4. **`package.json` still says `version: 0.1.0`** while the changelog is at 0.10.0. Left alone tonight because this was a docs-only pass; worth deciding whether that field is meant to track releases at all.
+5. **Two session-end paths** — `finishAgentSession` and the inline teardown in `POST /api/agents/:id/finish`. Growth, roles and the opener each had to be fixed twice because of it (BIO-2c, BUG-28). Collapsing them is a small tree of its own.
+6. **Open bugs**: BUG-20 (dead 14px rule), BUG-29 (landing overflow ≤768), BUG-30 (haptics soft-vs-light, reveal-vs-pot), BUG-31 (the prediction beat has no home).
+
+## Two things worth keeping as method
+
+- **The playtest → fix loop ran four times tonight** (FIX-1 at 16:37, FIX-2 at 18:03, FIX-3 at 18:46, FIX-4 at 23:43), each wave a screenshot session followed by one branch of one-root-cause-each fixes with a failing test per fix. Every one of them found things no amount of reading would have.
+- **The testing law held under pressure.** Rules were changed six times tonight — the felt's meta line, the removed tabs, the READ panel's shape, the "Everyone's resting" line, the tally opener, the tab labels — and every one is recorded in its commit as *a rule we no longer want*, with the replacement asserted. No assertion was loosened to reach green, and three times (WALLET-1c's broke, MOOD-2a's bounded law, BIO-2's role derivation) the test was right and the product was wrong.

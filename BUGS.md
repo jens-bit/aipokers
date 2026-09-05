@@ -1,5 +1,5 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-05 (0.9.0 sweep)
+Last updated: 2026-09-05 (0.10.0 sweep) — 4 open, 26 resolved
 
 
 ---
@@ -15,7 +15,82 @@ Last updated: 2026-09-05 (0.9.0 sweep)
 
 ---
 
+### BUG-29 — Landing page scrolls sideways at ≤768
+**Severity:** Medium (first screen a stranger sees)
+**Where:** the marketing landing / hero scene (`client/` welcome page, `.hero-*` rules)
+**What:** Reported from the 0.10.0 pass: horizontal overflow on the landing page at viewport widths of 768 and below — the document scrolls sideways.
+**Not caused by LAND-3, and not fixed by it.** LAND-3 (`5321886`, the design-40 sheen and card-fan port) verified `document.scrollWidth` byte-identical before and after at 1440 / 1280 / 768 / 390 / 375, so whatever overflows was already overflowing and the hero port neither introduced nor removed it. The mobile mascot centring fix in that commit (`.hero-copy` width 100% at ≤430) is adjacent but is a different symptom.
+**Fix:** find the element wider than its column at 768 — measure with Playwright rather than by reading CSS, since LAND-3's scrollWidth check is the harness that already exists — then cap it and add the width to that check so the page cannot regress silently.
+
+---
+
+### BUG-30 — Haptics: soft-vs-light and reveal-vs-pot are unresolved design calls
+**Severity:** Low (feel, not function)
+**Where:** `client/src/lib/haptics.js`, `client/src/screens/WatchScreen.jsx` — the `heroCardWarms`, `showdownReveal` and pot rows
+**What:** Two decisions CLEAN-1 made in order to ship, both flagged at the time rather than settled:
+1. **soft vs light.** design-refs HAPTIC4 gives the card warm and the showdown reveal as `soft`; the brief for the CLEAN-1 pass asked for light / light / medium, which is what shipped. The two sources disagree and the code follows the brief.
+2. **reveal vs pot.** The showdown reveal and the pot settling arrive in the same commit, and the 120ms floor only lets one through. The pot wins, because "losing is quiet" is the older law, and the reveal takes HAPTIC4's own 140ms interval behind it — the one number in that table set above the floor. Whether the reveal should instead be the one that lands is not settled.
+**Fix:** a design call from the mood/haptics wave, not a code fix. Whichever way it goes, `haptics.test.jsx`'s ordered call list is where it gets pinned.
+
+---
+
+### BUG-31 — The prediction beat has no home in watch v4
+**Severity:** Low (shipped dark; nothing renders it for a normal user)
+**Where:** `client/src/components/system/PredictBeat.jsx`, `client/src/lib/predict.js` (flag `ap_predict`), rendered from `WatchScreen`
+**What:** W3-4 shipped the prediction beat inside the READ tab, behind a localStorage flag and off by default, deliberately, "because this is the one part of the wave that could turn a manager game into a clicker". W4-2 then deleted the READ tab — a read is about one person, so it became a sheet on a seat tap. The beat was re-homed into the panel rather than lost, but watch v4 gives it no place of its own and the design refs do not assign it one. It is live code behind a flag with no designed home.
+**Fix:** a product decision, not a bug fix — give it a home in v4/v5 (its own slot, or a gesture), or delete the module and the flag. Leaving flagged-off code with no owner is how BUG-20 happened.
+
+---
+
 ## RESOLVED — kept here for traceability
+
+### BUG-21 — Replay stopped after the opening beat — RESOLVED 2026-09-05
+**Where:** `client/src/components/replay/ReplayTheatre.jsx`
+Found in the mobile playtest, fixed in FIX-4 (`0d58ca8`). `.replay-theatre__stage` has no height of its own — its only child is the felt, and the felt's height IS 306/639 of whatever the ResizeObserver watching that stage reports. Every notification therefore handed back 48% of the last one, so the felt collapsed to nothing within half a second and took the board and the reveal with it. The theatre's own box is the viewport's, so that is what is measured now, with the header subtracted. Two hardenings alongside: the reel's interval no longer depends on `timeline.total` (read off an object every caller rebuilds each render), and the scrubber's controlled range input is handed a value already on its own step grid, so the DOM and React cannot disagree about where the reel is and the control cannot echo a seek back and pause it.
+**Test:** FIX-4 cases in `ReplayTheatre.test.jsx` — a six-beat replay plays to the end under a browser-shaped ResizeObserver, and the felt keeps its height. Watched failing on the pre-fix tree.
+
+### BUG-22 — Watch header rendered 45px against a 40px budget — RESOLVED 2026-09-05
+**Where:** `client/src/screens/WatchScreen.jsx` / `.watch-screen__back`
+FIX-4 (`0d58ca8`). `base.css` floors every `<button>` at `--tap` (44px), and a flex item's automatic minimum size is content-based, so that floor beat the row's declared height and the extra 5px came off the felt. `.watch-screen__chat` had been released from the floor when FIX-3c wrote it; `.watch-screen__back` never was.
+**Test:** `headerDensity.test.jsx`, which recomputes each row's box model from the styles React applied. Watched failing pre-fix.
+
+### BUG-23 — With the sheet dragged down, CHAT selected a tab nobody could see — RESOLVED 2026-09-05
+**Where:** `client/src/screens/WatchScreen.jsx`
+FIX-4 (`0d58ca8`). With the sheet at the HIDDEN detent the header's CHAT button picked the TABLE tab and stopped, so the gesture did nothing visible. Where there is no thread to open it now does the whole gesture — pick the tab *and* bring the sheet back up. Composed with WATCH-5's `openChat(ctx)` in MERGE-2 (`bbf3391`): FIX-4's position and body, WATCH-5's context argument, `sheetApiRef` dropped because it only existed to bridge a hoisting problem the ordering solved.
+**Test:** `watchChatLayout.test.jsx` — with no thread to open, the sheet comes back up on the TABLE tab; the ceremony tap opens the thread with the hand attached; the header button opens it with null and never a click event.
+
+### BUG-24 — Speech bubble painted over the zoom's back control — RESOLVED 2026-09-05
+**Where:** the floor zoom sheet
+FIX-4 (`0d58ca8`). The bubble sits at z-index 5 from y=30 and the back control occupies y=10..44, so the bubble covered it. The control is raised above it; nothing moves, and only the bubble's rounded corner passes behind, since its text starts below y=44.
+**Test:** new `FloorZoom.test.jsx`. Watched failing pre-fix.
+
+### BUG-25 — Watch felt filled a wide window edge to edge — RESOLVED 2026-09-05
+**Where:** the watch felt / seat ring
+FIX-4 (`0d58ca8`). On a wide window the felt stretched the full width, which threw the seat ghosts into the far corners of a table nobody was sitting at. The felt is bounded to the ref's 720px and centred above 760px; the seat ring was always absolute inside the felt, so it follows for free.
+**Test:** `desktopWidth.test.jsx`. Watched failing pre-fix.
+
+### BUG-26 — Min-raise loop, again: +10 into a 400-chip pot until the stacks were in — RESOLVED 2026-09-05
+**Severity:** Medium (gameplay quality; also inflates LLM cost and arena runtimes)
+**Where:** `src/server/table.js` (`_raiseOffer`, `_buildAiGameState`, `_disciplineAction`), constants in `src/server/pace.js`
+**Predecessor:** BUG-13, closed 2026-08-29 on the strength of Tree 2's sizing directives and the `RAISES THIS STREET: n` briefing line. Those were a *request* to the model, and the loop came back in tonight's playtest. Recorded as a fresh entry rather than reopening BUG-13, because the diagnosis changed: **a model offered "raise 10–1000" keeps taking the 10, so the table stops offering it.**
+**Fix (RAISE-1, `f77d4f9`):**
+(a) a raise is at least `max(min legal raise, currentBet + ⅓ pot)` and never above the jam — an agent who cannot afford the floor may still shove, because all-in is the one raise that is always big enough. Undersized raises are rounded up and logged `[agent] undersized raise → X`.
+(b) at four aggressive actions the street is CAPPED and the only raise left is the jam: call, fold or all-in, exactly as a capped street works in a cardroom. That is what guarantees the round terminates.
+One seam does both jobs — the offer is built once, put in the briefing, and enforced on the way back in; a floor that lived only in the prompt would be a suggestion, one that lived only in the enforcement would keep showing the agent a size the table intends to overwrite. The floor is a fraction of the POT, so it does not bite heads-up preflop where the engine's own minimum is already larger — which was never the case the playtest complained about.
+**Dials:** `RAISE_MIN_POT_FRACTION` (default 1/3), `RAISE_CAP_PER_STREET` (default 4), both env-dialable in `src/server/pace.js`.
+**Test:** `pace.test.js` (10 cases on the two dials) and `table.raise.test.js` (11 cases through a real Table, including a street of nothing but minimum raises now terminating).
+
+### BUG-27 — The thread opened with a win/loss tally instead of his voice — RESOLVED 2026-09-05
+**Where:** `client/src/hooks/useAgentThread.js` (`legacyOpener`), `src/server/agentProfiles.js`
+The CHATS thread opened with "Hey — I just finished 20 hands. Won 12, lost 8. Want to review any hands or adjust my strategy?" — a form letter, identical whether he had run over the table or been coolered three times. MOOD-2c had already written the real opener (`formatOpener()` picks by heat band and names the one hand he cannot let go of, ≤15 words, no counts), and WIRE-1 had routed all three surfaces through one `openerFor()`; the tally survived as the fallback. RAISE-2 (`f77d4f9`) removed it from the codebase: `presentAgent` always computes an opener, `formatOpener` gained a nature-voiced greeting for the case with no session to recap, and the client fallback is now his own birth line then a short last-ditch sentence. There is no model call anywhere in this path — templates the whole way down, so there is nothing to fail into.
+**Test rule change, per the testing law:** `wire1.test.jsx` asserted the tally as "the fallback for a record written before MOOD-2c". That rule is retired — the tally is never correct now — so those cases were INVERTED rather than relaxed: `openerFor` must not produce it for any input. Five other suites used `/Ready to play/` purely as a "thread has loaded" anchor and now anchor on the new opening line; no assertion in them was weakened.
+
+### BUG-28 — `opener` was null on every session-end path but one — RESOLVED 2026-09-05
+**Where:** `src/server/agentProfiles.js` — `finishAgentSession` vs `POST /api/agents/:id/finish`
+The reason BUG-27 kept surfacing. `opener` was written on only ONE of the two session-end paths (`finishAgentSession`, not the route's own inline teardown), and there only inside `if (recap string)`. So every other way a thread opens — an agent still at a table, one who has never finished a session, any owner-initiated finish — served `opener: null` and the client filled the hole with the tally. Both paths persist an opener now, and `presentAgent` computes one regardless (`openerForAgent`). This is the same two-session-end-paths wart BIO-2b/2c/2d hit from the other side (roles were derived on one path only); the duplication predates both trees and is worth collapsing.
+**Test:** `opener.test.js`, 8 cases, three of which were verified failing before the fix.
+
+
 
 ### BUG-10 — In-game header drops platform branding — RESOLVED (verified visually 2026-08-29: spade + branding present in watch header; fix commit c7be663 from May)
 **Severity:** Medium (visual)
@@ -29,7 +104,7 @@ Last updated: 2026-09-05 (0.9.0 sweep)
 **What:** The DECISION message (action, reasoning, and — since AGE-16 — equity and potOdds) is broadcast to every connection at the table, including a human playing AGAINST the AI. Reasoning can describe hand strength, and equity ~85% preflop effectively reveals AA/KK. Observed 2026-08-29 in vs-AI play: you see House's thoughts.
 **Fix:** Route DECISION only to spectators whose agent it is (and into the stored hand review); never to opposing seats mid-hand. Fold into Tree 4 (UI surfacing) or fix standalone earlier.
 
-### BUG-13 — Min-raise wars: 20–30 raise ping-pong before all-in — RESOLVED (Tree 2 sizing directives; confirmed gone in AGE-28 arena + prod playtest)
+### BUG-13 — Min-raise wars: 20–30 raise ping-pong before all-in — RESOLVED (Tree 2 sizing directives; confirmed gone in AGE-28 arena + prod playtest) — **RECURRED, see BUG-26**
 **Severity:** Medium (gameplay quality; also inflates LLM cost + arena runtimes)
 **Where:** Agent decision behavior (src/agent/handler.js prompt) — engine is rule-correct; the models each min-raise, reopening action indefinitely.
 **What:** AI vs AI / vs House escalate via repeated minimum raises, taking 20–30 turns to reach all-in. Classic LLM poker pathology. Observed 2026-08-29.
