@@ -66,9 +66,14 @@ export const WRITERS = Object.freeze({
   needle: {
     tone: TONE.HOSTILE,
     ownerAct: 'sent a message',
+    // His read, never the words. An earlier draft quoted 40 characters of the
+    // message here and relate.test.js caught it: a clipped quote is still a
+    // transcript, and an owner who types something private while needling him
+    // should not find it in his agent's memory. What survives is the shape of
+    // the behaviour, which is the only part that is his to remember anyway.
     line: (ctx) => (ctx.losing
       ? 'gets on my back when I lose'
-      : `told me "${clip(ctx.text, 40)}"`),
+      : 'has a go at me when he feels like it'),
   },
   care: {
     tone: TONE.DECENT,

@@ -1250,12 +1250,18 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
     proposalLine = `\nPending self-change: "${agent.proposal.text}". Raise it only if the conversation opens a natural door — never force it.`;
   }
 
+  // RELATE-1b: what he remembers about THIS owner, carried into the reply.
+  // The same needle lands differently depending on the record — an owner who
+  // has been on his back all week gets a different answer to one who reads his
+  // hands back, and that difference is the whole feature.
+  const ownerBlock = ownerMemoryContext(agent);
+
   // Inject recent thread so the model can't repeat itself
   const recentLines = recentChat.length > 0
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${moodLine}${pepLine}${proposalLine}${recentLines}
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${moodLine}${pepLine}${proposalLine}${ownerBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 

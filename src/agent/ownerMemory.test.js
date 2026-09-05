@@ -94,20 +94,35 @@ test('the ledger is capped at twelve lines, oldest out first', () => {
   assert.equal(a.ownerMemory.at(-1).text, 'staked me 1900');
 });
 
-test('nothing stores a transcript', () => {
-  const a = agent();
+test('nothing stores a transcript, on EITHER needle branch', () => {
   const secret = 'my card number is 4111 1111 1111 1111 and I live at 12 Elm Street';
-  recordOwnerEvent(a, 'needle', { text: secret, losing: true });
-  recordOwnerEvent(a, 'care', { aboutHand: false });
-  const blob = JSON.stringify(a.ownerMemory);
-  assert.equal(blob.includes('4111'), false, 'the message body must never be stored verbatim');
-  assert.equal(blob.includes('Elm Street'), false);
+  // Both branches, because the losing:false branch is the one that used to
+  // quote the owner and relate.test.js caught it.
+  for (const losing of [true, false]) {
+    const a = agent();
+    recordOwnerEvent(a, 'needle', { text: secret, losing });
+    recordOwnerEvent(a, 'care', { aboutHand: false });
+    const blob = JSON.stringify(a.ownerMemory);
+    assert.equal(blob.includes('4111'), false, `losing=${losing}: message body stored verbatim`);
+    assert.equal(blob.includes('Elm Street'), false, `losing=${losing}`);
+    assert.equal(blob.includes('card number'), false, `losing=${losing}`);
+  }
 });
 
-test('a needle with no losing context quotes only a clipped fragment', () => {
-  const a = agent();
-  const e = recordOwnerEvent(a, 'needle', { text: 'x'.repeat(500), losing: false });
-  assert.ok(e.text.length <= 80, `line was ${e.text.length} chars`);
+test('no writer echoes the owner text back, whatever is passed in', () => {
+  const marker = 'ZZQXMARKERQXZZ';
+  for (const type of OWNER_EVENTS) {
+    const a = agent();
+    recordOwnerEvent(a, type, {
+      text: marker, item: marker, what: marker,
+      amount: 100, holeCards: ['Qh', '3d'], losing: false, aboutHand: false,
+    });
+    const blob = JSON.stringify(a.ownerMemory);
+    // `what` is a proposal HIS OWN engine wrote, so it is allowed through;
+    // everything sourced from the owner's keyboard is not.
+    if (type === 'proposal_accepted' || type === 'proposal_rejected') continue;
+    assert.equal(blob.includes(marker), false, `${type} echoed owner input`);
+  }
 });
 
 // ── compression ──────────────────────────────────────────────────────────────
