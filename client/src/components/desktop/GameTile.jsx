@@ -9,7 +9,7 @@ function formatAction(action) {
 
 // The watched agent is seated under its own display name. Both seats can emit
 // DECISION messages, so match by name rather than trusting the last decider.
-export function GameTile({ game, agentName, lastDecision, onWatch }) {
+export function GameTile({ game, agentName, lastDecision, highlighted, dimmed, onWatch, onFocusTable }) {
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agentName);
   const heroIndex = named >= 0 ? named : 0;
@@ -31,7 +31,7 @@ export function GameTile({ game, agentName, lastDecision, onWatch }) {
   const streetLabel = street && street !== Streets.WAITING ? String(street).toUpperCase() : 'WAITING';
 
   return (
-    <div className="dsk-tile">
+    <div className={`dsk-tile${highlighted ? ' dsk-tile--hl' : ''}${dimmed ? ' dsk-tile--dim' : ''}`}>
       <div className="dsk-tile__head">
         <Hood size={22} />
         <div className="dsk-tile__head-text">
@@ -88,7 +88,10 @@ export function GameTile({ game, agentName, lastDecision, onWatch }) {
         <span className="dsk-tile__thought">
           {heroDecision?.reasoning ? `"${heroDecision.reasoning}"` : 'Waiting for the next decision…'}
         </span>
-        <button type="button" className="dsk-tile__watch" onClick={onWatch}>WATCH →</button>
+        {onFocusTable
+          ? <button type="button" className="dsk-tile__watch" onClick={onFocusTable}>FOCUS TABLE →</button>
+          : <button type="button" className="dsk-tile__watch" onClick={onWatch}>WATCH →</button>
+        }
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
 import { AgentChat } from './components/AgentChat.jsx';
-import { getTelegramDisplayName, getUserId, initViewportTracking } from './lib/telegram.js';
+import { getTelegramDisplayName, getTelegramInitData, getUserId, initViewportTracking } from './lib/telegram.js';
 import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { TableSeat } from './components/TableSeat.jsx';
 import { Card } from './components/Card.jsx';
@@ -15,7 +15,7 @@ import { HistoryDrawer } from './components/HistoryDrawer.jsx';
 import { HistoryTab } from './components/HistoryTab.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { AnalysisPanel } from './components/AnalysisPanel.jsx';
-import { DesktopShell } from './components/desktop/DesktopShell.jsx';
+import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
@@ -72,7 +72,6 @@ export default function App() {
   const lastResultKeyRef = useRef(null);
   const isDesktop = useIsDesktop();
   const [desktopWatchAgent, setDesktopWatchAgent] = useState(null);
-  const [desktopFocusTable, setDesktopFocusTable] = useState(false);
 
   function setActiveAgent(id) {
     activeAgentIdRef.current = id;
@@ -177,7 +176,6 @@ export default function App() {
     if (!isSpectatorRef.current) {
       callAgentFinish(activeAgentIdRef.current); // use ref — never stale
     }
-    setDesktopFocusTable(false);
     setDesktopWatchAgent(null);
     disconnect();
   }, [disconnect, callAgentFinish]);
@@ -201,7 +199,18 @@ export default function App() {
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
-  if (isDesktop && !desktopFocusTable) {
+  if (isDesktop) {
+    // BIR-2: one creation path. The desktop rail's DraftPanel opens this same
+    // BirthScreen — there is no second form.
+    if (isCreating) {
+      return (
+        <BirthScreen
+          onBack={() => setIsCreating(false)}
+          onBirth={() => setIsCreating(false)}
+        />
+      );
+    }
+
     const watchPayload = (payload, agent) => {
       setDesktopWatchAgent(agent || null);
       setActiveAgent(payload.agentId);
@@ -217,17 +226,20 @@ export default function App() {
     };
 
     return (
-      <DesktopShell
+      <DesktopHome
         game={game}
         lastDecision={lastDecision}
+        onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
-        onFocusTable={() => setDesktopFocusTable(true)}
         onWatchAgent={async (agent) => {
           if (!agent?.activeTableId) return;
           let memoryContext = '';
           try {
-            const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+            const res = await fetch(
+              `/api/agents/${agent.id}/memory?userId=${getUserId()}`,
+              { headers: { 'x-telegram-init-data': getTelegramInitData() } },
+            );
             if (res.ok) memoryContext = (await res.json()).memoryContext || '';
           } catch { /* watch with empty context */ }
           watchPayload({
@@ -241,12 +253,16 @@ export default function App() {
         onDeployAgent={async (agent) => {
           const res = await fetch(`/api/agents/${agent.id}/queue`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': getTelegramInitData(),
+            },
             body: JSON.stringify({ userId: getUserId() }),
           });
           if (!res.ok) return;
           watchPayload(await res.json(), agent);
         }}
+        onCreateAgent={() => setIsCreating(true)}
       />
     );
   }
