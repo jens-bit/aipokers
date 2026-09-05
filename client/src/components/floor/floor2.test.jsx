@@ -291,6 +291,28 @@ describe('FL-2 — a live felt is the loudest object', () => {
     expect(container.querySelector('.floor-live-rim')).toBeTruthy();
   });
 
+  // CLEAN-1 (DSKP-1): the desktop stage draws this same room, and the guard on
+  // `roomIsLive` meant it drew it flat — a hand running with nothing to say so.
+  // The rule is about the room, not about the width.
+  it('CLEAN-1: says the same thing on the desktop stage', async () => {
+    const { container } = renderFloor({ desktopMode: true });
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+
+    expect(container.querySelector('.floor')).toHaveClass('is-room-live');
+    expect(container.querySelector('.floor__scrim')).toBeTruthy();
+    expect(container.querySelector('.floor-live-rim')).toBeTruthy();
+  });
+
+  // Selecting an agent on desktop is not the mobile zoom — the room stays where
+  // it is and the rail opens beside it — so the scrim has no reason to stand
+  // down for it.
+  it('CLEAN-1: and keeps it up while an agent is selected there', async () => {
+    const { container } = renderFloor({ desktopMode: true, selectedAgentId: 'a_quiet' });
+    await waitFor(() => expect(ghosts()).toHaveLength(4));
+
+    expect(container.querySelector('.floor__scrim')).toBeTruthy();
+  });
+
   it('lights exactly one felt — one place to look', async () => {
     const { container } = renderFloor();
     await waitFor(() => expect(ghosts()).toHaveLength(4));

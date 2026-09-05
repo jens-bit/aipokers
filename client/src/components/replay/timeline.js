@@ -199,3 +199,61 @@ export function beatIndexAt(timeline, t) {
   const beat = beatAt(timeline, t);
   return beat ? timeline.beats.indexOf(beat) : -1;
 }
+
+// ── The beat, as a table snapshot ─────────────────────────────────────────
+// CLEAN-1: the adapter lives here, next to the beats it reads, rather than in
+// the theatre — the desk stage and the phone both play the same reel and
+// neither should carry its own copy of the shape.
+
+// A beat's `label` is what the scrubber prints; the felt wants the street the
+// server would have sent. They are not the same word — lowercasing 'PRE' gave
+// 'pre', which is not a street at all, so a preflop beat read as a hand that
+// was not running — and 'ALL-IN' names a moment rather than a street.
+//
+// `beat.key` carries the real street ('turn-3'), so it answers both: the label
+// is only consulted for the terminal beat, whose key is 'end'.
+const STREET_FOR_LABEL = { END: 'complete' };
+
+export function streetForBeat(beat) {
+  const named = STREET_FOR_LABEL[beat?.label];
+  if (named) return named;
+  const key = String(beat?.key ?? '').split('-')[0];
+  return STREET_LABEL[key] ? key : 'preflop';
+}
+
+/**
+ * One beat, as a table snapshot. The felt does not know it is being replayed —
+ * it is handed the same shape the server sends and draws it the same way.
+ */
+export function snapshotFor(timeline, beat, hand) {
+  return {
+    tableId: hand?.tableId ?? 'replay',
+    handNumber: timeline.handNumber ?? 0,
+    street: streetForBeat(beat),
+    smallBlind: null,
+    bigBlind: null,
+    pot: beat.pot,
+    community: beat.board,
+    currentBet: 0,
+    toAct: null,
+    pace: beat.pace,
+    heroEquity: beat.equity == null ? null : beat.equity / 100,
+    seats: [
+      {
+        playerId: 'hero',
+        stack: null,
+        holeCards: timeline.holeCards,
+        folded: false,
+        displayName: hand?.agentName ?? 'Your agent',
+      },
+      ...timeline.opponentShowdownCards.map((o) => ({
+        playerId: `opp-${o.seat}`,
+        stack: null,
+        holeCards: beat.label === 'END' ? (o.holeCards ?? []) : [],
+        folded: false,
+        displayName: o.displayName ?? `Seat ${o.seat + 1}`,
+      })),
+    ],
+    result: null,
+  };
+}

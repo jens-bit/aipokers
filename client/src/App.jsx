@@ -73,10 +73,15 @@ export default function App() {
   const lastResultKeyRef = useRef(null);
   const isDesktop = useIsDesktop();
   const [desktopWatchAgent, setDesktopWatchAgent] = useState(null);
+  // CLEAN-1: who is being watched, as the roster knows him. The socket config
+  // carries only an id and a display name, and a thread is a person — so the
+  // agent that started the watch is kept for as long as the watch lasts.
+  const [watchedAgent, setWatchedAgent] = useState(null);
 
-  function setActiveAgent(id) {
+  function setActiveAgent(id, agent = null) {
     activeAgentIdRef.current = id;
     setActiveAgentId(id);
+    setWatchedAgent(agent);
   }
 
   function navigateTo(tab) {
@@ -201,20 +206,9 @@ export default function App() {
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
 
   if (isDesktop) {
-    // BIR-2: one creation path. The desktop rail's DraftPanel opens this same
-    // BirthScreen — there is no second form.
-    if (isCreating) {
-      return (
-        <BirthScreen
-          onBack={() => setIsCreating(false)}
-          onBirth={() => setIsCreating(false)}
-        />
-      );
-    }
-
     const watchPayload = (payload, agent) => {
       setDesktopWatchAgent(agent || null);
-      setActiveAgent(payload.agentId);
+      setActiveAgent(payload.agentId, agent || null);
       watch({
         tableId: payload.tableId,
         agentId: payload.agentId,
@@ -264,6 +258,17 @@ export default function App() {
           watchPayload(await res.json(), agent);
         }}
         onCreateAgent={() => setIsCreating(true)}
+        // CLEAN-1 (DP-4): a draft is a thing that happens on the desk, not a
+        // trip out of it. BIR-2 still holds — this is the same BirthScreen the
+        // rail's DraftPanel opens — but it now runs on the stage, so the top
+        // bar, the roster and every panel's state are still there when he is
+        // born. Returning it from here instead would unmount the whole shell.
+        draft={isCreating ? (
+          <BirthScreen
+            onBack={() => setIsCreating(false)}
+            onBirth={() => setIsCreating(false)}
+          />
+        ) : null}
       />
     );
   }
@@ -304,7 +309,7 @@ export default function App() {
                 if (res.ok) memoryContext = (await res.json()).memoryContext || '';
               } catch { /* watch with empty context */ }
               setAgentProfileTarget(null);
-              setActiveAgent(ag.id);
+              setActiveAgent(ag.id, ag);
               watch({
                 tableId: ag.activeTableId,
                 agentId: ag.id,
@@ -343,7 +348,7 @@ export default function App() {
                   const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
                   if (res.ok) memoryContext = (await res.json()).memoryContext || '';
                 } catch { /* watch with empty context */ }
-                setActiveAgent(agent.id);
+                setActiveAgent(agent.id, agent);
                 watch({
                   tableId: agent.activeTableId,
                   agentId: agent.id,
@@ -362,7 +367,7 @@ export default function App() {
                 });
                 if (!res.ok) return;
                 const payload = await res.json();
-                setActiveAgent(payload.agentId);
+                setActiveAgent(payload.agentId, agent);
                 watch({
                   tableId: payload.tableId,
                   agentId: payload.agentId,
@@ -391,7 +396,7 @@ export default function App() {
                 });
                 if (!res.ok) return;
                 const payload = await res.json();
-                setActiveAgent(payload.agentId);
+                setActiveAgent(payload.agentId, agent);
                 watch({
                   tableId: payload.tableId,
                   agentId: payload.agentId,
@@ -410,7 +415,7 @@ export default function App() {
                   if (res.ok) memoryContext = (await res.json()).memoryContext || '';
                 } catch { /* watch with empty context */ }
                 setAgentChatTarget(null);
-                setActiveAgent(agent.id);
+                setActiveAgent(agent.id, agent);
                 watch({
                   tableId: agent.activeTableId,
                   agentId: agent.id,
@@ -474,6 +479,14 @@ export default function App() {
         displayNames={displayNames}
         onLeave={handleLeave}
         onSitOut={sitOut}
+        // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,
+        // the same one the floor and the roster open. Only offered when there
+        // is a person to open — without it WatchScreen keeps talking in its own
+        // TABLE tab, which is the behaviour that existed before.
+        onOpenThread={watchedAgent ? () => {
+          handleLeave();
+          openAgentChat(watchedAgent);
+        } : undefined}
         config={config}
       />
     );
