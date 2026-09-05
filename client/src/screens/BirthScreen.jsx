@@ -544,8 +544,14 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
+  // instant the screen appears, which covers half the draft and hides the
+  // content the owner came to read. The field is focused when they tap it.
+  //
+  // When they do, scroll the composer into view after the keyboard animates in
+  // — iOS in Telegram needs the explicit push, because --tg-h shrinks the
+  // container but the browser does not always scroll the focused element up.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;

@@ -101,6 +101,24 @@ describe('BirthScreen', () => {
     expect(post.body).toMatchObject({ content: 'Tight and patient' });
   });
 
+  // FIX-1c. Mobile playtest 2026-09-05: the draft screen threw the iOS keyboard
+  // up on entry, covering the opening prompt the owner is meant to answer.
+  it('FIX-1c: does not take focus when the draft screen opens', async () => {
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
+    await screen.findByText(/One open seat/);
+
+    expect(composer()).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('FIX-1c: focuses the composer when the owner taps it', async () => {
+    const user = userEvent.setup();
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
+
+    await user.click(composer());
+    expect(composer()).toHaveFocus();
+  });
+
   // BUG-02 regression. Any text field below 16px makes iOS Safari zoom the
   // whole page on focus, which broke the layout of the creation chat.
   it('every input and textarea computes to at least 16px (BUG-02)', () => {

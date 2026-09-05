@@ -470,11 +470,13 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   const msgIdRef  = useRef(0);
   const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  // Belt-and-braces: scroll the composer into view after the keyboard animates
-  // in (iOS in Telegram needs an explicit push — --tg-h shrinks the container
-  // but the browser doesn't always auto-scroll the focused element up).
+  // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
+  // instant the screen appears, which covers half the thread and hides the
+  // content the owner came to read. The field is focused when they tap it.
+  //
+  // When they do, scroll the composer into view after the keyboard animates in
+  // — iOS in Telegram needs the explicit push, because --tg-h shrinks the
+  // container but the browser does not always scroll the focused element up.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
