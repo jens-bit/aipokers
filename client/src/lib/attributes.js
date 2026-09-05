@@ -184,20 +184,6 @@ export function seriesFor(attrLog, key, days = 90, now = Date.now()) {
   return [entries[0].from, ...entries.map((e) => e.to)];
 }
 
-/**
- * Every growth tick inside the window, across all six attributes, oldest first —
- * the thread's growth lines, in the order they happened.
- */
-export function recentEntries(attrLog, hours = 24, now = Date.now()) {
-  if (!Array.isArray(attrLog)) return [];
-  const cutoff = now - hours * 60 * 60 * 1000;
-  return attrLog
-    .filter((e) => e && ATTR_KEYS.includes(e.key) && Number.isFinite(e.from) && Number.isFinite(e.to))
-    .map((e) => ({ ...e, _ts: toMillis(e.ts) }))
-    .filter((e) => e._ts != null && e._ts >= cutoff)
-    .sort((a, b) => a._ts - b._ts);
-}
-
 // FIX-1h: not every attrLog entry is growth. ATTR-3 writes two book-keeping
 // entries with the same shape — 'birth', one per attribute the moment an agent
 // is created, and 'narrowed', when a scouting band moves in. Both carry
@@ -211,6 +197,26 @@ export function isGrowthTick(entry) {
   if (!entry || !ATTR_KEYS.includes(entry.key)) return false;
   if (!Number.isFinite(entry.from) || !Number.isFinite(entry.to)) return false;
   return !LEDGER_CAUSES.has(entry.cause);
+}
+
+/**
+ * Every growth tick inside the window, across all six attributes, oldest first —
+ * the thread's growth lines, in the order they happened.
+ *
+ * FIX-1i: ledger entries are filtered out here too. A GrowthLine reads
+ * "FOCUS 62 → 62" with the cause quoted underneath as his own voice, so a
+ * 'narrowed' entry rendered as him announcing a step he did not take, in a
+ * sentence he never said. Growth is an event with a cause he can speak; the
+ * scouting report and the birth record are neither.
+ */
+export function recentEntries(attrLog, hours = 24, now = Date.now()) {
+  if (!Array.isArray(attrLog)) return [];
+  const cutoff = now - hours * 60 * 60 * 1000;
+  return attrLog
+    .filter(isGrowthTick)
+    .map((e) => ({ ...e, _ts: toMillis(e.ts) }))
+    .filter((e) => e._ts != null && e._ts >= cutoff)
+    .sort((a, b) => a._ts - b._ts);
 }
 
 /** True when he actually grew inside the window — the roster's GREW badge. */

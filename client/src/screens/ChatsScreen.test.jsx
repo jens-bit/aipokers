@@ -84,6 +84,65 @@ describe('ChatsScreen', () => {
     });
   });
 
+  // FIX-1i. The thread's growth lines come from attrLog, which also carries
+  // ATTR-3's two book-keeping causes. A 'narrowed' entry rendered as
+  // "FOCUS 62 → 62" with the word `narrowed` quoted underneath as his own
+  // voice — a step he did not take, in a sentence he never said.
+  describe('FIX-1i growth lines skip ledger entries', () => {
+    const hoursAgo = (h) => Date.now() - h * 60 * 60 * 1000;
+
+    const withLog = (attrLog) => ({ ...AGENT, attrLog });
+
+    it('FIX-1i: renders a real tick in his voice', async () => {
+      const { container } = renderThread(withLog([{
+        ts: hoursAgo(2), key: 'READS', from: 61, to: 62,
+        cause: "I'm starting to see through Granite.",
+      }]));
+
+      expect(await screen.findByText(/I'm starting to see through Granite/)).toBeInTheDocument();
+      const lines = container.querySelectorAll('.growth-line');
+      expect(lines).toHaveLength(1);
+      expect(lines[0].querySelector('.growth-line__delta').textContent).toMatch(/READS\s*61\s*→\s*62/);
+    });
+
+    it('FIX-1i: renders nothing for a narrowed entry', async () => {
+      renderThread(withLog([{
+        ts: hoursAgo(2), key: 'FOCUS', from: 62, to: 62, cause: 'narrowed',
+      }]));
+
+      await screen.findByText(/Ready to play/);
+      expect(screen.queryByText('narrowed')).not.toBeInTheDocument();
+      expect(screen.queryByText(/FOCUS/)).not.toBeInTheDocument();
+      // No TONIGHT TRAINED row either — nothing was trained.
+      expect(screen.queryByText('TONIGHT TRAINED')).not.toBeInTheDocument();
+    });
+
+    it('FIX-1i: renders nothing for a newborn\'s birth entries', async () => {
+      renderThread(withLog(
+        ['READS', 'FOCUS', 'DISCIPLINE', 'COMPOSURE', 'DECEPTION', 'STAMINA']
+          .map((key) => ({ ts: hoursAgo(0.2), key, from: 36, to: 36, cause: 'birth' })),
+      ));
+
+      await screen.findByText(/Ready to play/);
+      expect(screen.queryByText('birth')).not.toBeInTheDocument();
+      expect(screen.queryByText('TONIGHT TRAINED')).not.toBeInTheDocument();
+    });
+
+    it('FIX-1i: shows only the tick when a session both grew and narrowed', async () => {
+      const { container } = renderThread(withLog([
+        { ts: hoursAgo(3), key: 'READS', from: 61, to: 62, cause: 'Third showdown against the same opponent.' },
+        { ts: hoursAgo(3), key: 'READS', from: 62, to: 62, cause: 'narrowed' },
+        { ts: hoursAgo(3), key: 'FOCUS', from: 54, to: 54, cause: 'narrowed' },
+      ]));
+
+      await screen.findByText(/Third showdown against the same opponent/);
+      expect(container.querySelectorAll('.growth-line')).toHaveLength(1);
+      expect(screen.queryByText('narrowed')).not.toBeInTheDocument();
+      // The badge's number and the lines agree: one point, one line.
+      expect(screen.getByText('READS +1')).toBeInTheDocument();
+    });
+  });
+
   it('sends a message to the chat endpoint with the Telegram header', async () => {
     const user = userEvent.setup();
     fetchMock.route('/api/agents/chat', {

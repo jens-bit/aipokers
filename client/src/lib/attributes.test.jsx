@@ -1,4 +1,4 @@
-// client/src/lib/attributes.test.jsx — FIX-1h
+// client/src/lib/attributes.test.jsx — FIX-1h / FIX-1i
 //
 // The character-system data contract. Pure functions, so these are plain unit
 // tests: no rendering, no fetch, no clock beyond the `now` each helper takes.
@@ -9,6 +9,8 @@
 //   2. grewWithin counted every attrLog entry, including ATTR-3's two
 //      book-keeping causes ('birth', 'narrowed'), so a newborn who had not
 //      played a hand wore a GREW badge.
+// FIX-1i carries the same cause filter into recentEntries, which feeds the
+// thread's growth lines.
 
 import { describe, expect, it } from 'vitest';
 
@@ -20,6 +22,7 @@ import {
   grewWithin,
   isGrowthTick,
   normalizeAttrs,
+  recentEntries,
   seriesFor,
 } from './attributes.js';
 
@@ -158,5 +161,45 @@ describe('FIX-1h grew badge cause filter', () => {
       tick('FOCUS', 55, 56, 2),
     ];
     expect(seriesFor(log, 'FOCUS', 90, NOW)).toEqual([54, 54, 55, 56]);
+  });
+});
+
+// ── FIX-1i · the thread's growth lines ──────────────────────────────────────
+// The same rule, one surface further on. recentEntries feeds GrowthLine, which
+// renders "FOCUS 62 → 62" with the cause quoted underneath as his own voice. A
+// ledger entry there is him announcing a step he did not take, in a sentence he
+// never said.
+
+describe('FIX-1i growth line cause filter', () => {
+  it('FIX-1i: recentEntries drops birth and narrowed entries', () => {
+    const log = [
+      { ts: hoursAgo(6), key: 'FOCUS', from: 54, to: 54, cause: 'birth' },
+      { ts: hoursAgo(2), key: 'FOCUS', from: 62, to: 62, cause: 'narrowed' },
+    ];
+    expect(recentEntries(log, 24, NOW)).toEqual([]);
+  });
+
+  it('FIX-1i: recentEntries keeps real ticks, oldest first', () => {
+    const log = [
+      tick('DISCIPLINE', 72, 73, 1, 'folded top pair to the river jam'),
+      { ts: hoursAgo(2), key: 'READS', from: 62, to: 62, cause: 'narrowed' },
+      tick('READS', 61, 62, 4, 'third showdown against the same opponent'),
+      { ts: hoursAgo(20), key: 'STAMINA', from: 41, to: 41, cause: 'birth' },
+    ];
+
+    expect(recentEntries(log, 24, NOW).map((e) => [e.key, e.from, e.to])).toEqual([
+      ['READS', 61, 62],
+      ['DISCIPLINE', 72, 73],
+    ]);
+  });
+
+  it('FIX-1i: a session that only narrowed produces no growth lines', () => {
+    // Exactly what ATTR-3 writes when a scouting stage is reached and nothing
+    // ticked: six narrowed entries, no growth. The thread must stay quiet.
+    const log = ATTR_KEYS.map((k) => ({ ts: hoursAgo(1), key: k, from: 60, to: 60, cause: 'narrowed' }));
+
+    expect(recentEntries(log, 24, NOW)).toEqual([]);
+    expect(grewWithin(log, 24, NOW)).toBe(false);
+    expect(gainsWithin(log, 24, NOW)).toEqual([]);
   });
 });
