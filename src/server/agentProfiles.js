@@ -1389,6 +1389,7 @@ export function installAgentProfileRoutes(app) {
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
     const { amount = null, leaveFloat = true } = req.body ?? {};
+    const pocketBefore = pocket.balance;
     const result = walletCollect(wallet, pocket, {
       amount: amount === null || amount === undefined ? null : Number(amount),
       leaveFloat: leaveFloat !== false,
@@ -1401,10 +1402,20 @@ export function installAgentProfileRoutes(app) {
     saveWalletFor(userId);
     emitAgentChange(userId);
     notifyCollect(userId, agent, result.moved);
+    // WALLET-1e — the receipt CollectCard draws: how much came home, what he
+    // was left holding, and when. `pocketBefore` is the "his pocket $640 →
+    // $300" line, so the card needs no second call to render the transfer.
+    // `moved` is kept alongside `collected` for the one release the older
+    // clients need; they mean the same chips.
+    const view = pocketProjection(pocket);
     res.json({
+      collected: result.moved,
+      float: view.float,
+      at: Date.now(),
+      pocketBefore,
       moved: result.moved,
       wallet: walletProjection(wallet, profile.agents),
-      pocket: pocketProjection(pocket),
+      pocket: view,
       moment: agent.lastMoment,
     });
   });

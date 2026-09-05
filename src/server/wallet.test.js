@@ -288,6 +288,95 @@ test('the same agent gets a stable line rather than a fresh roll each render', (
   assert.equal(a, b);
 });
 
+// ── WALLET-1e: the collect receipt ───────────────────────────────────────────
+// Boots the real routes on an ephemeral port. CollectCard takes
+// { pocketBefore, float, collected, at }, so the response has to carry them or
+// the card cannot draw the transfer without a second call.
+
+async function withServer(fn) {
+  const ORIGINAL_CWD = process.cwd();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-collect-'));
+  // Auth off: with neither configured the middleware allows all and isOwner is
+  // true, which is the documented local-dev posture. Deleting them makes the
+  // test independent of whatever the developer has exported.
+  const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+  const savedSecret = process.env.DEV_API_SECRET;
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.DEV_API_SECRET;
+  _closeForTests();
+  process.chdir(dir);
+
+  const { default: express } = await import('express');
+  const { installAgentProfileRoutes } = await import('./agentProfiles.js');
+  const app = express();
+  app.use(express.json());
+  installAgentProfileRoutes(app);
+  const server = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await fn(base);
+  } finally {
+    await new Promise((r) => server.close(r));
+    _closeForTests();
+    process.chdir(ORIGINAL_CWD);
+    if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+    if (savedSecret !== undefined) process.env.DEV_API_SECRET = savedSecret;
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+}
+
+const postJson = (url, body) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+
+test('WALLET-1e: POST /collect responds with the receipt CollectCard draws', async () => {
+  await withServer(async (base) => {
+    // Seed an agent straight into the store the routes read, with a winning
+    // pocket to bring home.
+    const store = await import('./store.js');
+    store.saveProfile('u1', {
+      userId: 'u1',
+      chat: [],
+      agents: [{
+        id: 'a1', name: 'Balanced', status: 'idle', activeTableId: null,
+        bankroll: 6_400,
+        pocket: { balance: 6_400, mode: 'auto', cap: 3_000, realised: 3_400, ledger: [] },
+      }],
+    });
+
+    const res = await postJson(`${base}/api/agents/a1/collect?userId=u1`, { userId: 'u1' });
+    const body = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(body));
+
+    assert.equal(body.collected, 3_400, 'collected is what came home');
+    assert.equal(body.float, 3_000, 'float is what he was left holding');
+    assert.equal(typeof body.at, 'number', 'at is a timestamp');
+    assert.ok(body.at > 0 && body.at <= Date.now() + 1_000);
+    assert.equal(body.pocketBefore, 6_400, 'the $640 → $300 line needs the before');
+    assert.equal(body.pocket.balance, 3_000);
+    assert.equal(body.pocket.float, 3_000, 'the receipt and the row agree');
+    assert.equal(body.wallet.balance, 3_400);
+  });
+});
+
+test('WALLET-1e: collecting nothing is a 400, not an empty receipt', async () => {
+  await withServer(async (base) => {
+    const store = await import('./store.js');
+    store.saveProfile('u1', {
+      userId: 'u1', chat: [],
+      agents: [{
+        id: 'a1', name: 'Flat', status: 'idle', activeTableId: null, bankroll: 2_000,
+        pocket: { balance: 2_000, mode: 'auto', cap: 3_000, realised: 0, ledger: [] },
+      }],
+    });
+    const res = await postJson(`${base}/api/agents/a1/collect?userId=u1`, { userId: 'u1' });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /nothing to collect/);
+  });
+});
+
 // ── SEED-1: the migration, on today's data shape ─────────────────────────────
 
 test('SEED-1: seeding conserves every chip on a fixture of today\'s shape', () => {
@@ -462,8 +551,132 @@ test('WALLET-1: a solvent pocket is never broke whatever the mode', async () => 
   }
 });
 
-test('floatFor never drops below one buy-in', () => {
-  assert.equal(floatFor({ cap: 0 }), ENTRY_BUYIN);
-  assert.equal(floatFor({ cap: null }), POCKET_FLOAT);
-  assert.equal(floatFor({ cap: 5_000 }), 5_000);
+// ── WALLET-1e: float ─────────────────────────────────────────────────────────
+
+test('WALLET-1e: float is the committed roll for auto and allowance', () => {
+  assert.equal(floatFor(emptyPocket({ mode: 'auto', cap: 5_000 })), 5_000);
+  assert.equal(floatFor(emptyPocket({ mode: 'allowance', cap: 3_000 })), 3_000);
+  assert.equal(floatFor(emptyPocket({ mode: 'auto', cap: null })), POCKET_FLOAT, 'no cap falls back to the default float');
+});
+
+test('WALLET-1e: float is one buy-in at his rung for topup and cut', () => {
+  for (const mode of ['topup', 'cut']) {
+    assert.equal(floatFor(emptyPocket({ mode, balance: 2_400 })), 2_000, `${mode} @ $10/$20`);
+    assert.equal(floatFor(emptyPocket({ mode, balance: 6_000 })), 5_000, `${mode} @ $25/$50`);
+    assert.equal(floatFor(emptyPocket({ mode, balance: 12_000 })), 10_000, `${mode} @ $50/$100`);
+  }
+});
+
+test('WALLET-1e: float never drops below one buy-in at the entry rung', () => {
+  for (const mode of MODES) {
+    for (const cap of [null, 0, 1, 500]) {
+      const f = floatFor(emptyPocket({ mode, cap, balance: 0 }));
+      assert.ok(f >= ENTRY_BUYIN, `${mode}/cap ${cap} gave ${f} — a float he cannot sit down on is a bust`);
+    }
+  }
+});
+
+test('WALLET-1e: float is exactly what collect leaves behind', () => {
+  // The receipt and the row must never disagree — collect() calls floatFor().
+  for (const pocket of [
+    emptyPocket({ mode: 'auto', cap: 3_000, balance: 9_000 }),
+    emptyPocket({ mode: 'allowance', cap: 5_000, balance: 9_000 }),
+    emptyPocket({ mode: 'topup', balance: 9_000 }),
+    emptyPocket({ mode: 'cut', balance: 9_000 }),
+  ]) {
+    const expected = floatFor(pocket);
+    collect(emptyWallet('o'), pocket);
+    assert.equal(pocket.balance, expected, `${pocket.mode} left ${pocket.balance}, float said ${expected}`);
+    assert.equal(pocketProjection(pocket).float, expected);
+  }
+});
+
+test('WALLET-1e: the projection carries float', () => {
+  const p = pocketProjection(emptyPocket({ mode: 'auto', cap: 3_000, balance: 6_400 }));
+  assert.equal(p.float, 3_000);
+  assert.equal(p.collectable, 3_400, 'collectable is balance minus float');
+});
+
+// ── WALLET-1e: pnl ───────────────────────────────────────────────────────────
+
+test('WALLET-1e: pnl is realised table P&L, both signs', () => {
+  const wallet = emptyWallet('o'); wallet.balance = 20_000;
+  const pocket = emptyPocket({ mode: 'auto', cap: 5_000 });
+
+  fund(wallet, pocket, { mode: 'auto', amount: 5_000, cap: 5_000 });
+  assert.equal(pocketProjection(pocket).pnl, 0, 'funding is a transfer, not a win');
+
+  debitBuyIn(pocket, 2_000, 't1');
+  creditCashOut(pocket, 3_400, 't1');                 // up 1 400
+  assert.equal(pocketProjection(pocket).pnl, 1_400);
+
+  debitBuyIn(pocket, 2_000, 't2');
+  creditCashOut(pocket, 0, 't2');                     // felted, down 2 000
+  assert.equal(pocketProjection(pocket).pnl, -600, 'a losing night can take it negative');
+});
+
+test('WALLET-1e: collecting does not change pnl', () => {
+  const wallet = emptyWallet('o'); wallet.balance = 20_000;
+  const pocket = emptyPocket({ mode: 'auto', cap: 3_000 });
+  fund(wallet, pocket, { mode: 'auto', amount: 3_000, cap: 3_000 });
+  debitBuyIn(pocket, 2_000); creditCashOut(pocket, 5_400);
+  const before = pocketProjection(pocket).pnl;
+  assert.equal(before, 3_400);
+  collect(wallet, pocket);
+  assert.equal(pocketProjection(pocket).pnl, before, 'bringing it home is a transfer, not a loss');
+});
+
+test('WALLET-1e: pnl survives the ledger being capped', () => {
+  const pocket = emptyPocket({ mode: 'auto', cap: 5_000, balance: 200_000 });
+  for (let i = 0; i < 80; i++) {            // 160 entries, past the 100 cap
+    debitBuyIn(pocket, 2_000, `t${i}`);
+    creditCashOut(pocket, 2_100, `t${i}`);
+  }
+  assert.ok(pocket.ledger.length <= 100, 'ledger is capped');
+  assert.equal(pocketProjection(pocket).pnl, 80 * 100, 'the counter remembers what the ledger forgot');
+});
+
+test('WALLET-1e: a pocket written before realised existed backfills from its ledger', () => {
+  const legacy = {
+    balance: 3_000, mode: 'auto', cap: 3_000,
+    ledger: [
+      { id: '1', ts: 1, type: 'fund', amount: 3_000 },
+      { id: '2', ts: 2, type: 'buyin', amount: -2_000 },
+      { id: '3', ts: 3, type: 'cashout', amount: 2_500 },
+    ],
+  };
+  const agent = { id: 'a1', pocket: legacy };
+  ensurePocket(agent);
+  assert.equal(agent.pocket.realised, 500);
+  assert.equal(pocketProjection(agent.pocket).pnl, 500);
+});
+
+test('WALLET-1e: seeding a pocket starts it at zero P&L', () => {
+  const profile = { userId: 'o', agents: [{ id: 'a1', bankroll: 10_000 }] };
+  seedOwner(profile);
+  assert.equal(pocketProjection(profile.agents[0].pocket).pnl, 0, 'a seeded pocket has won and lost nothing yet');
+});
+
+// ── WALLET-1e: mode 'cut' in the projection ──────────────────────────────────
+
+test("WALLET-1e: 'cut' projects as a mode like any other", () => {
+  const pocket = emptyPocket({ mode: 'cut', balance: 6_400 });
+  const p = pocketProjection(pocket);
+  assert.equal(p.mode, 'cut');
+  assert.equal(p.broke, false, 'cut off is not the same as out of money');
+  assert.deepEqual(p.stakes, { smallBlind: 25, bigBlind: 50, label: '$25/$50' });
+  assert.equal(p.float, 5_000);
+});
+
+test('WALLET-1e: every mode round-trips through the projection', () => {
+  for (const mode of MODES) {
+    assert.equal(pocketProjection(emptyPocket({ mode, balance: 3_000 })).mode, mode);
+  }
+});
+
+test('WALLET-1e: the projection keys are the documented contract', () => {
+  assert.deepEqual(Object.keys(pocketProjection(emptyPocket())).sort(), [
+    'balance', 'broke', 'cap', 'capBar', 'collectable', 'collected',
+    'float', 'funded', 'have', 'mode', 'pnl', 'stakes',
+  ]);
 });
