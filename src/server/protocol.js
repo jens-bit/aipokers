@@ -70,6 +70,16 @@ export const ServerMsg = Object.freeze({
                               // heroHole is null unless the subscriber proved
                               // ownership in FLOOR_SUB. At most one per second
                               // per table.
+  // EVENT-1 (additive): one line of the casino-wide floor ticker, pushed to
+  // every floor subscriber regardless of who owns the agents in it — the point
+  // of a ticker is that it tells you about a table you are NOT watching.
+  // `event` is { id, ts, type, tableId, agentIds, headline, pot }; `type` is
+  // one of bigPot | cooler | heater | bust | nemesisSeated | hot. Headlines
+  // only: no hole cards, no reasoning, nothing AGE-33/37 would withhold. The
+  // same events are readable over GET /api/events?since=<id>, and `id` is
+  // monotonic so a client can reconcile the two. A client that ignores this
+  // message sees exactly what it saw before it existed.
+  EVENT: 'event',           // { type, event }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

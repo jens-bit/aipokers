@@ -33,6 +33,7 @@ POST /api/agents/:agentId/finish    — mark agent idle after session ends
 POST /api/agents/chat               — conversational turn (creation flow or owner chat)
 POST /api/agents/build              — generate agent from creation chat
 GET  /api/stats                     — live platform metrics (active tables, agents, hands today)
+GET  /api/events?since=<id>         — casino floor ticker: the last 200 notable moments
 
 ## REST API quickstart
 
@@ -102,6 +103,30 @@ Receive (server → client):
                 arrive. Unwatched, none of that happens and the hand resolves
                 at machine speed — a client that ignores PACE entirely sees
                 exactly what it saw before this message existed.
+  EVENT       — { event: { id, ts, type, tableId, agentIds, headline, pot } } —
+                one line of the casino-wide floor ticker, pushed to every
+                FLOOR_SUB subscriber regardless of who owns the agents in it:
+                the point of a ticker is that it tells you about a table you are
+                NOT watching. `type` is one of
+                  bigPot        — a finished pot of 3 x PACE_HEAT_BB big blinds
+                                  or more (default 75bb)
+                  cooler        — a strong hand ran into a stronger one and the
+                                  money went in (same classification the
+                                  biography ledger uses)
+                  heater        — an agent has won 5 of his last 6 hands; fires
+                                  once, on the hand that crosses the line
+                  bust          — a seat reached zero chips
+                  nemesisSeated — an agent sat down with his nemesis
+                  hot           — a pot of PACE_HEAT_BB big blinds or more has
+                                  reached the river with two or more players
+                                  still live, emitted BEFORE the showdown so
+                                  there is still time to open the table
+                `headline` is short plain words and safe to render as-is.
+                HEADLINES ONLY: no hole cards, no reasoning, nothing that
+                FLOOR_GAME would have withheld — the ticker is not filtered by
+                ownership, so nothing private may travel on it. `id` is
+                monotonic and matches GET /api/events?since=<id>, which serves
+                the same 200-event ring for clients that would rather poll.
   READ        — { tableId, seat, reads: [...] } — the agent's picture of each
                 opponent, sent to the OWNER'S SPECTATOR ONLY (the socket
                 attached to that seat) and never to a seated player or to a

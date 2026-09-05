@@ -20,6 +20,7 @@
 
 import { ServerMsg } from './protocol.js';
 import { floorSnapshot } from './agentProfiles.js';
+import { bus as eventBus } from './events.js';
 
 // One push per table per second, per subscriber.
 const PUSH_INTERVAL_MS = Number(process.env.FLOOR_PUSH_INTERVAL_MS ?? 1000);
@@ -31,6 +32,11 @@ let liveTables = null;
 
 export function configure({ liveTables: provider } = {}) {
   liveTables = provider ?? null;
+  // EVENT-1: exactly one listener on the casino bus, no matter how many times
+  // a process composes a server (tests build several). off-then-on is
+  // idempotent because `relayEvent` is a stable module-level function.
+  eventBus.off('event', relayEvent);
+  eventBus.on('event', relayEvent);
 }
 
 export function subscriberCount() {
@@ -80,6 +86,29 @@ function sendFloorState(ws, entry) {
     return;
   }
   send(ws, { type: ServerMsg.FLOOR_STATE, userId: entry.userId, agents });
+}
+
+// EVENT-1: the floor ticker. Unlike FLOOR_STATE and FLOOR_GAME this is NOT
+// filtered by owner — an event about somebody else's agent at a table you have
+// never seen is the entire reason the ticker exists. It is safe to fan out
+// unfiltered because an event carries headlines only; anything private stays
+// behind the table's own ownership checks.
+export function broadcastEvent(event) {
+  if (!event || subs.size === 0) return 0;
+  const payload = { type: ServerMsg.EVENT, event };
+  let sent = 0;
+  for (const ws of subs.keys()) {
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
+function relayEvent(event) {
+  try {
+    broadcastEvent(event);
+  } catch (err) {
+    console.error('[floor] event relay failed:', err.message);
+  }
 }
 
 // An agent standing changed for this owner (deployed, retired, recap
@@ -177,5 +206,6 @@ function pushGame(ws, entry, table, { force = false } = {}) {
 // Test helper — drop every subscription and its pending timers.
 export function reset() {
   for (const ws of [...subs.keys()]) unsubscribe(ws);
+  eventBus.off('event', relayEvent);
   liveTables = null;
 }
