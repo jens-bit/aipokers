@@ -16,7 +16,7 @@ const PROFILE_CAST = {
     name: 'Grinder v1.0', accent: M_TEAL, mood: 'neutral', state: 'resting',
     cause: 'built four minutes ago — no hands yet',
     nature: { n: 'Rock', up: 'DISCIPLINE', dn: 'READS' },
-    natureLine: 'A Rock does not read you. He decides what he folds before you act, and then he folds it — every time, whatever you show him.',
+    natureLine: 'A Rock decides what he folds before you act, and then he folds it.',
     born: 'BORN TODAY · 0 HANDS',
     fatigue: null,
     attrs: [
@@ -33,7 +33,7 @@ const PROFILE_CAST = {
     name: 'Aggressive v1.3', accent: M_PURPLE, mood: 'frustrated', state: 'live',
     cause: 'two rivers called back — 140 hands in',
     nature: { n: 'Shark', up: 'READS', dn: 'COMPOSURE' },
-    natureLine: 'Two thousand hands have not changed what he is: he sees it first and he takes it badly.',
+    natureLine: 'Two thousand hands have not changed him: he sees it first, and he takes it badly.',
     born: 'TIER 2 · BUILT MAR 14',
     fatigue: { stage: 'worn', line: 'worn — 140 hands, Focus dipping' },
     attrs: [
@@ -50,9 +50,9 @@ const PROFILE_CAST = {
 
 const GROWTH_LOG = {
   FOCUS: [
-    { f: 61, t: 62, when: 'TODAY · 09:12', c: 'priced a turn call at 2.4 to 1 and got it exactly right.' },
-    { f: 60, t: 61, when: 'MAY 4', c: '340 decisions in one sitting — volume is what moves this one.' },
-    { f: 59, t: 60, when: 'APR 28', c: 'caught his own equity error on the river and folded instead.' },
+    { when: 'a', f: 61, t: 62, short: 'priced a turn call at 2.4 to 1, exactly right' },
+    { when: 'b', f: 60, t: 61, short: '340 decisions in one sitting' },
+    { when: 'c', f: 59, t: 60, short: 'caught his own equity error on the river' },
   ],
 };
 
@@ -65,7 +65,7 @@ const AttrCluster = ({ attrs, w = 334, expand, showBands = true }) => {
         <React.Fragment key={a.k}>
           <AttrBar row w="100%" name={a.k} cur={a.cur} lo={showBands ? a.lo : null} hi={a.hi}
             narrowed={a.narrowed} fatigued={a.fatigued} on={expand === a.k}/>
-          {expand === a.k && <AttrFocusPanel attr={meta(a.k)} live={a} log={GROWTH_LOG[a.k] || []}/>}
+          {expand === a.k && <AttrFocusPanel attr={meta(a.k)} live={a}/>}
         </React.Fragment>
       ))}
     </div>
@@ -73,36 +73,64 @@ const AttrCluster = ({ attrs, w = 334, expand, showBands = true }) => {
 };
 
 // ── the tapped bar, expanded ──────────────────────────────────────────────────
-const AttrFocusPanel = ({ attr, live, log }) => (
-  <div style={{ borderRadius: 10, background: M_PANEL, border: `1px solid ${M_TEAL}44`, padding: '12px 13px', marginTop: 1 }}>
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 9 }}>
-      <span style={{ fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: M_TEAL }}>{attr.k}</span>
-      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: M_TEXT }}>{live.cur}</span>
-      <span style={{ flex: 1 }}/>
-      <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_GOLD }}>CEILING {live.lo}&ndash;{live.hi}</span>
-    </div>
-    <div style={{ fontSize: 12.5, color: M_TEXT, lineHeight: 1.5 }}>{attr.mean} {attr.moves}</div>
-    <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 9, borderTop: `1px solid ${M_BORDER}` }}>
-      <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.13em', color: M_MUTED, width: 54, flexShrink: 0, paddingTop: 1 }}>TRAINED<br/>BY</span>
-      <span style={{ fontSize: 12, color: M_TEAL, lineHeight: 1.45 }}>{attr.trains}</span>
-    </div>
-    <div style={{ marginTop: 11, paddingTop: 9, borderTop: `1px solid ${M_BORDER}` }}>
-      <Lbl size={9}>Last three ticks</Lbl>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 7 }}>
-        {log.map(g => (
-          <div key={g.when} style={{ display: 'flex', gap: 9 }}>
-            <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 600, color: M_TEAL, width: 46, flexShrink: 0 }}>{g.f}<span style={{ color: M_MUTED }}>&rarr;</span>{g.t}</span>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: M_DIM, lineHeight: 1.4 }}>
-              {g.c}
-              <span style={{ fontFamily: MONO, fontSize: 9, color: M_MUTED, display: 'block', marginTop: 2 }}>{g.when}</span>
-            </span>
-          </div>
-        ))}
+// SHOW, DON'T TELL. The three ticks were three sentences; they are now three dots
+// on a line that rises toward a gold ceiling zone. One glance answers the two
+// questions worth asking — is he still climbing, and how much is left — and the
+// only text left is a value, a delta, and a five-word caption. His voice moved out
+// entirely: the thread is the text-heavy surface, and the card is not.
+const SPARK = {
+  READS:      [74, 76, 77, 78, 79, 80, 81, 82, 82],
+  FOCUS:      [54, 56, 57, 57, 58, 59, 60, 61, 62],
+  DISCIPLINE: [64, 65, 66, 67, 67, 68, 68, 69, 69],
+  COMPOSURE:  [41, 41, 42, 42, 43, 43, 43, 44, 44],
+  DECEPTION:  [66, 68, 69, 70, 71, 72, 73, 74, 74],
+  STAMINA:    [58, 59, 60, 61, 61, 62, 62, 63, 63],
+};
+
+const AttrSpark = ({ series, lo, hi, w = 300, h = 58 }) => {
+  const min = Math.min(...series, lo) - 3, max = Math.max(...series, hi) + 3;
+  const yy = v => h - ((v - min) / (max - min)) * h;
+  const xx = i => 4 + (i / (series.length - 1)) * (w - 8);
+  const pts = series.map((v, i) => [xx(i), yy(v)]);
+  const last = pts[pts.length - 1];
+  const ticks = [];
+  for (let i = 1; i < series.length; i++) if (series[i] > series[i - 1]) ticks.push(i);
+  const recent = ticks.slice(-3);
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+      <rect x="0" y={yy(hi)} width={w} height={Math.max(3, yy(lo) - yy(hi))} fill={`${M_GOLD}1A`}/>
+      <line x1="0" y1={yy(hi)} x2={w} y2={yy(hi)} stroke={`${M_GOLD}99`} strokeWidth="1"/>
+      <line x1="0" y1={yy(lo)} x2={w} y2={yy(lo)} stroke={`${M_GOLD}55`} strokeWidth="1" strokeDasharray="3 3"/>
+      <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={M_TEAL} strokeWidth="1.8" strokeLinejoin="round"/>
+      {recent.map(i => <circle key={i} cx={pts[i][0]} cy={pts[i][1]} r="2.8" fill={M_BG} stroke={M_TEAL} strokeWidth="1.4"/>)}
+      <circle cx={last[0]} cy={last[1]} r="3.4" fill="#EDEDED"/>
+    </svg>
+  );
+};
+
+const AttrFocusPanel = ({ attr, live, log }) => {
+  const series = SPARK[attr.k] || [live.cur - 4, live.cur - 3, live.cur - 2, live.cur - 1, live.cur];
+  const gain = series[series.length - 1] - series[0];
+  return (
+    <div style={{ borderRadius: 10, background: M_PANEL, border: `1px solid ${M_TEAL}44`, padding: '11px 13px 12px', marginTop: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: M_TEAL, flex: 1 }}>{attr.k}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: M_TEAL }}>+{gain}</span>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED }}>90D</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9, marginTop: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}><AttrSpark series={series} lo={live.lo} hi={live.hi}/></div>
+        <div style={{ flexShrink: 0, textAlign: 'right', paddingBottom: 2 }}>
+          <div><Num size={19} weight={700} color={live.fatigued ? M_GOLD : M_TEXT}>{live.cur}</Num></div>
+          <div style={{ marginTop: 1 }}><Num size={9.5} color={M_GOLD} weight={600}>{live.lo}&ndash;{live.hi}</Num></div>
+        </div>
+      </div>
+      <div style={{ marginTop: 9, paddingTop: 8, borderTop: `1px solid ${M_BORDER}` }}>
+        <Num size={9} color={M_MUTED} weight={500}>{attr.meanShort.toUpperCase()} &middot; FROM {attr.trainsShort.toUpperCase()}</Num>
       </div>
     </div>
-    <div style={{ marginTop: 11, paddingTop: 9, borderTop: `1px solid ${M_BORDER}`, fontSize: 12.5, color: M_DIM, fontStyle: 'italic', lineHeight: 1.45 }}>{attr.voice}</div>
-  </div>
-);
+  );
+};
 
 // ── fatigue, in words ─────────────────────────────────────────────────────────
 const FatigueLine = ({ stage, line, compact }) => {
@@ -122,7 +150,6 @@ const FatigueLine = ({ stage, line, compact }) => {
     <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
       {blocks}
       <span style={{ flex: 1, fontSize: 12, color: f.color === M_GOLD ? M_GOLD : M_DIM, lineHeight: 1.4 }}>{line || f.line}</span>
-      <span style={{ fontFamily: MONO, fontSize: 9, color: M_MUTED, flexShrink: 0 }}>RESTS AT THE BAR</span>
     </div>
   );
 };
@@ -174,7 +201,7 @@ const IdentityBlock = ({ a, compact }) => (
 );
 
 // ── the screen ────────────────────────────────────────────────────────────────
-const ProfileV2M = ({ who = 'vet', expand }) => {
+const ProfileV2M = ({ who = 'vet', expand, rel }) => {
   const a = PROFILE_CAST[who];
   return (
     <PhoneShell>
@@ -183,18 +210,17 @@ const ProfileV2M = ({ who = 'vet', expand }) => {
         action={a.state === 'live' ? 'Watch' : 'Deploy'} cause={a.cause}/>
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <IdentityBlock a={a} compact={!!expand}/>
+        <IdentityBlock a={a} compact={!!expand || !!rel}/>
 
-        {!expand && (
+        {!expand && !rel && (
           <div style={{ margin: '0 14px 12px', fontSize: 12.5, color: `color-mix(in oklab, ${M_GOLD} 30%, ${M_DIM})`, lineHeight: 1.5, fontStyle: 'italic' }}>
             {a.natureLine}
           </div>
         )}
 
         {/* the cluster — the heart of the card */}
-        <div style={{ padding: '0 14px 5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '0 14px 5px' }}>
           <Lbl size={9.5}>Attributes</Lbl>
-          <Num size={9} color={M_MUTED} weight={500}>{who === 'day1' ? 'CEILING NOT YET SCOUTED' : expand ? 'TAP AGAIN TO CLOSE' : 'GOLD = SCOUTED CEILING'}</Num>
         </div>
         <div style={{ margin: '0 14px 12px', padding: '13px 13px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
           <AttrCluster attrs={a.attrs} w="100%" expand={expand}/>
@@ -203,12 +229,20 @@ const ProfileV2M = ({ who = 'vet', expand }) => {
               <FatigueLine stage={a.fatigue.stage} line={a.fatigue.line}/>
             </div>
           )}
-          {!a.fatigue && (
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
-              <FatigueLine stage="fresh" line="fresh — no hands played yet"/>
-            </div>
-          )}
         </div>
+
+        {/* the biography layer — narrative, below the numbers, never mixed into them */}
+        {rel && a.rels && (
+          <>
+            <div style={{ padding: '0 14px 5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Lbl size={9.5}>Relationships</Lbl>
+              <Num size={9} color={M_MUTED} weight={500}>FROM 2,041 HANDS OF HISTORY</Num>
+            </div>
+            <div style={{ margin: '0 14px 12px', padding: '2px 13px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
+              {a.rels.map((r, i) => <RelRow key={r.who} {...r} last={i === a.rels.length - 1}/>)}
+            </div>
+          </>
+        )}
 
         {/* demoted: career on one line */}
         <div style={{ margin: '0 14px 12px', padding: '9px 13px 10px', borderRadius: 12, background: 'transparent', border: `1px solid ${M_BORDER}`, display: 'flex' }}>
@@ -221,6 +255,7 @@ const ProfileV2M = ({ who = 'vet', expand }) => {
         </div>
 
         {/* demoted: the mood arc */}
+        {!rel && <>
         <div style={{ padding: '0 14px 5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Lbl size={9.5}>Mood · last 10 sessions</Lbl>
           <span style={{ fontSize: 11, color: M_MUTED }}>{who === 'day1' ? 'nothing to plot yet' : 'tilts fast, recovers slow'}</span>
@@ -232,6 +267,7 @@ const ProfileV2M = ({ who = 'vet', expand }) => {
               </div>
             : <PMoodArc sessions={SESSIONS} w={332}/>}
         </div>
+        </>}
 
         <div style={{ margin: '0 14px', display: 'flex', alignItems: 'center', gap: 11, padding: '11px 13px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_TEAL}3D` }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -349,7 +385,7 @@ const D3ThreadCardScreenM = () => (
 );
 
 Object.assign(window, {
-  PROFILE_CAST, GROWTH_LOG, AttrCluster, AttrFocusPanel, FatigueLine, PMoodArc, IdentityBlock,
+  PROFILE_CAST, GROWTH_LOG, SPARK, AttrSpark, AttrCluster, AttrFocusPanel, FatigueLine, PMoodArc, IdentityBlock,
   ProfileV2M, ProfileDayOneScreenM, ProfileVeteranScreenM, ProfileFocusScreenM,
   PlayerCardRail, D3ThreadCardScreenM,
 });

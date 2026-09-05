@@ -53,12 +53,16 @@ const SeatAvatar = ({ mood, size = 34 }) => {
 };
 
 // compact seat chip — top corners, never an oval seat ring
-const SeatChip = ({ name, stack, pos, acting, folded, align = 'left', dealer }) => (
+// `history` — the biography layer showing at the felt: a gold count pill in the
+// corner opposite the dealer button, meaning "you two have a history, and it is
+// this many notable hands long". Gold because it is flagged territory, mono because
+// it is a count. No new component, no invented icon.
+const SeatChip = ({ name, stack, pos, acting, folded, align = 'left', dealer, history }) => (
   <div style={{
     display: 'flex', alignItems: 'center', gap: 7,
     padding: '4px 9px 4px 5px', borderRadius: 18,
     background: 'rgba(23,27,27,0.72)',
-    border: `1px solid ${acting ? `${M_TEAL}66` : M_BORDER}`,
+    border: `1px solid ${acting ? `${M_TEAL}66` : history ? `${M_GOLD}55` : M_BORDER}`,
     boxShadow: acting ? `0 0 10px ${M_TEAL}2E` : 'none',
     opacity: folded ? 0.42 : 1,
     flexDirection: align === 'right' ? 'row-reverse' : 'row',
@@ -69,6 +73,13 @@ const SeatChip = ({ name, stack, pos, acting, folded, align = 'left', dealer }) 
         width: 14, height: 14, borderRadius: 7, background: '#F4EBDD', color: '#0A0A0A',
         fontFamily: MONO, fontSize: 8.5, fontWeight: 700, display: 'inline-flex',
         alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(0,0,0,0.5)' }}>D</span>
+    )}
+    {history && (
+      <span style={{ position: 'absolute', top: -5, [align === 'right' ? 'right' : 'left']: -4,
+        minWidth: 15, height: 15, padding: '0 3.5px', borderRadius: 8,
+        background: 'rgba(19,19,22,0.95)', border: `1px solid ${M_GOLD}`, color: M_GOLD,
+        fontFamily: MONO, fontSize: 8.5, fontWeight: 700, display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 7px ${M_GOLD}44` }}>{history}</span>
     )}
     <AgentAvatar size={24}/>
     <div style={{ minWidth: 0, textAlign: align === 'right' ? 'right' : 'left' }}>
