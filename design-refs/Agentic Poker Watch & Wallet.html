@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Watch &amp; Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa.w{max-width:1180px}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:24px;flex-shrink:0;padding-top:2px;color:#CDB380}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Design wave 33</div>
+    <h1>Tension, theatre,<br/>and whose money<br/>it is.</h1>
+    <p>The playtest verdict on the watch screen was <b>&ldquo;a simulation, not a game&rdquo;</b>, and it was right for three specific reasons: everything appeared at once at machine speed, the money on the line was a small number in a corner, and the decision line read like a solver. Part 1 fixes those three and nothing else — the felt, the LiveBar row and every law survive.</p>
+    <p>Part 2 accepts the real shape of the product: <b>most hands happen while nobody watches</b>, so the flagged hand becomes a 28-second replay using the same pacing beats. Part 3 builds the economy that was specified and never drawn — <b>an owner wallet, and a pocket per agent</b>. Poker staking, backer and horse: the pocket is the bet, so there is no betting menu.</p>
+
+    <div class="lbl">What this wave adds</div>
+    <div class="lawrow"><span class="k">P1</span><span class="v">Two tabs instead of four; four server-driven pacing states; the tug-of-war bar; his line in thread voice, ≤12 words. Plus the haptic and sound contract.</span></div>
+    <div class="lawrow"><span class="k">P2</span><span class="v">The replay theatre — same felt, same rope, same held reveal, scrubbable, entered from the recap.</span></div>
+    <div class="lawrow"><span class="k">P3</span><span class="v">Wallet, pockets, three funding modes, the collect moment, and broke drawn without guilt.</span></div>
+    <div class="lawrow"><span class="k">P4</span><span class="v">The 1440 overflow, and header heights specified in pixels so the port has a number to hit.</span></div>
+
+    <div class="lbl">Bound by, not reopening</div>
+    <p style="margin-bottom:0">Fish-tank law. Mood law. Every character law from design 32 — no purchase path, attributes never gate play, the ceiling is never a number on a bar, cost lines are his misjudgment, biography touches voice and mood only. And the density verdict: <b>a panel is a picture, not a paragraph</b>.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr red">Part 1 · Watch v3 — the reference sheets</div>
+  <div class="groupsub">Read these before the screens: the three findings and what each one cost, then the pacing ladder that answers the first of them.</div>
+  <div class="fh"><span class="fn">W0</span><span class="ft">The playtest</span><span class="fb red">three findings</span></div>
+  <div id="w0"></div>
+</div>
+
+<div class="frame" style="left:600px;top:1000px">
+  <div class="fh"><span class="fn">W1</span><span class="ft">The pacing ladder</span><span class="fb">CALM · HEATING · ALL-IN · SHOWDOWN</span></div>
+  <div id="w1"></div>
+</div>
+
+<div class="frame" style="left:600px;top:2000px">
+  <div class="grouphdr">Part 1 · Watch v3 — mobile</div>
+  <div class="groupsub">390×844. Chrome above the felt is 136px (40 header + 56 mood band + 40 tabs), so the felt gets 330 and <b>the rope always sits under the board rather than under the fold</b>. The table-id line is gone; street and to-call live in the LiveBar row.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">33a</span><span class="ft">CALM</span><span class="fb">the default</span></div>
+  <div id="m1"></div>
+  <div class="fa"><b>Identical to the felt that shipped, plus the rope and minus the noise.</b> The tug-of-war bar sits directly under the board: him on the left in teal, the villain on the right in red, the seam animating on every street. His number is on his end; the villain end gets a name and no figure, because the owner is watching his agent, not refereeing the table. Below, <b>READ</b> — the opponent model that has existed server-side all along, finally on a screen.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:2000px">
+  <div class="fh" style="margin-top:96px"><span class="fn">33b</span><span class="ft">HEATING</span><span class="fb">pot past the threshold</span></div>
+  <div id="m2"></div>
+  <div class="fa"><b>The felt warms, the ticker goes from 23px to 30px in a gold pill, and one rigid haptic fires — once per hand, never repeated.</b> Nothing is added to the screen; the same elements get louder. The rope thickens to 12px because this is the moment its number matters most. Below the fold the READ panel gives way to <b>the prediction beat</b>, live while he thinks.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:2000px">
+  <div class="fh" style="margin-top:96px"><span class="fn">33c</span><span class="ft">ALL-IN</span><span class="fb red">3–5s hold</span></div>
+  <div id="m3"></div>
+  <div class="fa"><b>The only place this product raises its voice.</b> A red breathing glow, his line promoted to Playfair 17 in a box of its own, <code>RIVER IN 3</code> counting down, and a three-to-five second hold before the runout. <b>The hold exists only while a spectator is watching</b> — unwatched, the hand resolves at machine speed, because a pause nobody sees is just a worse win rate. The prediction locks the instant he acts: <b>you called it</b>.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:2000px">
+  <div class="fh" style="margin-top:96px"><span class="fn">33d</span><span class="ft">SHOWDOWN</span><span class="fb teal">reveal, then the slide</span></div>
+  <div id="m4"></div>
+  <div class="fa"><b>Cards flip one at a time, the reveal is held for a beat, then the pot slides to the winner</b> — the ticker lifts and fades as the result card lands. His hand is named in words (&ldquo;Ace-high flush&rdquo;), the villain's is stated plainly, and the figure is the only large number. In the panel below, the READ updates <b>in front of you</b>: GOES TO SHOWDOWN moves 41 → 44, its confidence bracket tightens, and a new read forms in his voice.</div>
+</div>
+
+<div class="frame" style="left:2440px;top:2000px">
+  <div class="fh" style="margin-top:96px"><span class="fn">33e</span><span class="ft">No read yet</span><span class="fb teal">never a spinner</span></div>
+  <div id="m5"></div>
+  <div class="fa"><b>The state the old screen got wrong twice.</b> There is no &ldquo;waiting for first action&rdquo; and no &ldquo;ready for next deal&rdquo;: before any evidence the bars are empty with <code>··</code> for values, and he says <b>&ldquo;Give me a few hands.&rdquo;</b> The rope sits dead centre rather than blank — hero equity <b>shows from the deal</b>, never a dash while he is to act. How fast those bars fill is what the READS attribute actually does, which makes this the first screen where an attribute is felt rather than read.</div>
+</div>
+
+<div class="frame" style="left:600px;top:3200px">
+  <div class="fh"><span class="fn">W2</span><span class="ft">Haptics &amp; sound</span><span class="fb">contract, not a mockup</span></div>
+  <div id="w2"></div>
+  <div class="fa w"><b>Ten events, and the phone is on silent in a bar</b> — so every beat lands on haptics alone and sound is a second layer with a mute toggle. Three rules carry the table: haptics fire on <b>his</b> events only, never two inside 120ms, and <b>losing is quiet</b>. A loss sound is the product telling the owner off, and there is no guilt anywhere in this design.</div>
+</div>
+
+<div class="frame" style="left:600px;top:4200px">
+  <div class="grouphdr gold">Part 2 · Replay theatre</div>
+  <div class="groupsub">The same components as Watch v3, driven by an authored timeline instead of a server: <code>PaceFelt</code>, <code>TugBar</code>, his line, the held reveal. 28 seconds, scrubbable, street-marked. Entered from the thread recap and the flagged rail.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">34a</span><span class="ft">The theatre</span><span class="fb red">mid all-in</span></div>
+  <div id="r1"></div>
+  <div class="fa"><b>Scrubbed to 16.5s: the all-in, before the river.</b> The scrubber is street-marked (PRE · FLOP · TURN · ALL-IN · RIVER · END) so a hand can be read as a shape before it is played, and the beats are authored where the tension is — the runout gets the same 3–5s hold a live spectator gets. The panel below shows <b>the read as it stood at that moment</b>, not as it stands now: <code>FOLDS TO HEAT 8</code> is why he thought this would work.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:4200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">34b</span><span class="ft">The reveal</span><span class="fb gold">ace-high</span></div>
+  <div id="r2"></div>
+  <div class="fa"><b>Held, then the pot slides.</b> The bluff is shown in gold rather than teal — the money was won, but what is interesting is the cards. &ldquo;Ace-high. No pair.&rdquo; and the fold named underneath. His closing line is the only text under the felt, and the scrubber has stopped rather than looped: <b>a replay ends</b>.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:4200px">
+  <div class="fh" style="margin-top:96px"><span class="fn">34c</span><span class="ft">Entry from the recap</span><span class="fb teal">a poster, not a link</span></div>
+  <div id="r3"></div>
+  <div class="fa"><b>&ldquo;One hand did most of it and you missed it.&rdquo;</b> The replay card is the only new furniture the thread gains: the final board, the rope at 100%, the flag, one line, the figure, and a play button. It is a poster rather than a link — the hand is legible before you tap. <b>Twenty-eight seconds</b>, and he says so.</div>
+</div>
+
+<div class="frame" style="left:600px;top:5400px">
+  <div class="grouphdr gold">Part 3 · Owner wallet and agent pockets</div>
+  <div class="groupsub">Spec v11 §7.1, drawn for the first time. Two balances: the <b>owner wallet</b> is the player's money and buys items and slots; each agent carries a <b>pocket</b>, the roll he plays with, and <b>pocket size sets his stakes</b>. That is the whole mechanic — the pocket IS the bet, so there is no wager control anywhere in the product. Items come from the wallet, never a pocket: a pocket that can buy things is a purchase path into the character system.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">35a</span><span class="ft">The YOU screen</span><span class="fb teal">wallet + four pockets</span></div>
+  <div id="p1"></div>
+  <div class="fa"><b>One balance, then where the rest of it currently is.</b> Each agent is a row: pocket, stakes, tonight's P&amp;L, a mode tag, a drain bar, and <b>a single action</b> — Collect when he is up, Fund when he is not. Value Bot is cut off and his row is deliberately unremarkable: dimmed avatar, $0, no P&amp;L, and the same Fund button as everyone else. Snacks sit at the bottom with the line that keeps the laws intact: <b>bought from the wallet, never from a pocket</b>.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:5400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">35b</span><span class="ft">The funding sheet</span><span class="fb">three modes, and off</span></div>
+  <div id="p2"></div>
+  <div class="fa"><b>Top-up, allowance, auto-refill — and cutting him off as a fourth option with equal billing.</b> Each mode is one sentence about what happens when the money runs out. The note at the bottom is the only rule the owner needs: <b>a $500 allowance seats him at $10/$20</b>. Bigger pocket, bigger stakes. The cut-off copy does the emotional work: he keeps his attributes, his read book and his grudges, so stopping him costs nothing but time.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:5400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">35c</span><span class="ft">He brings it home</span><span class="fb teal">pocket → wallet</span></div>
+  <div id="p3"></div>
+  <div class="fa"><b>&ldquo;Six hundred and forty in my pocket. Three hundred of it is yours.&rdquo;</b> The collect card is drawn as <b>a transfer, not a jackpot</b>: his pocket on the left falling back to its float, an arrow, your wallet on the right taking the difference. One soft note, one success haptic, no burst and no coin. And the alternative is offered in the same row — <b>leave it in</b>, and he plays bigger tomorrow.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:5400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">35d</span><span class="ft">Broke, in the thread</span><span class="fb">no guilt</span></div>
+  <div id="p4"></div>
+  <div class="fa"><b>&ldquo;I'm out. Your call.&rdquo;</b> Four words, and then he drops it. The dock replaces the LiveBar with the plain fact — pocket $0, cut off Tuesday, nothing pending — and a Fund button that does not blink. <b>He never pleads and the copy never scolds.</b> His second line is the one that matters: <i>my read book keeps either way</i>. Nothing is lost by stopping, which is what makes stopping a real choice.</div>
+</div>
+
+<div class="frame" style="left:2440px;top:5400px">
+  <div class="fh" style="margin-top:118px"><span class="fn">35e</span><span class="ft">Broke, on the floor</span><span class="fb">POCKET $0</span></div>
+  <div id="p5"></div>
+  <div class="fa"><b>At the bar with a drink he is not enjoying.</b> Sulking posture, a drink, and a small mono <code>POCKET $0</code> chip at his feet — the only piece of money iconography allowed in the room, and it is a fact rather than a prompt. Balanced v2.1 plays on at the lit felt above him. <b>The floor never asks for money</b>; it only shows who is in the game.</div>
+  <div style="margin-top:16px"><div id="p6"></div></div>
+</div>
+
+<div class="frame" style="left:600px;top:6600px">
+  <div class="grouphdr">Integration and the two port fixes</div>
+  <div class="groupsub">The third matrix on the wall, and the two findings from the port with numbers attached.</div>
+  <div class="fh"><span class="fn">W3</span><span class="ft">State matrix</span><span class="fb teal">pacing × money × surface</span></div>
+  <div id="w3"></div>
+</div>
+
+<div class="frame" style="left:600px;top:7800px">
+  <div class="fh"><span class="fn">W4</span><span class="ft">Header heights</span><span class="fb">in pixels</span></div>
+  <div id="w4"></div>
+</div>
+
+<div class="frame" style="left:600px;top:8600px">
+  <div class="fh"><span class="fn">W5</span><span class="ft">1440 does not fit three columns</span><span class="fb red">−337px</span></div>
+  <div id="w5"></div>
+</div>
+
+<div class="frame" style="left:600px;top:9400px">
+  <div class="grouphdr">Desktop parity · 1440 × 900</div>
+  <div class="groupsub">Same components, same states, no second design. The stage takes the felt, the rail takes whichever panel the moment needs, and the roster collapses to avatars whenever three columns are open.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">D1</span><span class="ft">Watch v3 · HEATING</span><span class="fb gold">stage + read rail</span></div>
+  <div id="d1"></div>
+  <div class="fa w"><b>The rope at 1440 is 48% of the table width and the pot is 34px</b> — desktop's extra room goes to the two things the playtest said were missing, not to more panels. His line sits under the rope in Playfair 20, still ≤12 words. The rail carries READ and the prediction beat together, which is the one arrangement mobile cannot do.</div>
+</div>
+
+<div class="frame" style="left:600px;top:10400px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D2</span><span class="ft">Replay in the table stage</span><span class="fb red">mid all-in</span></div>
+  <div id="d2"></div>
+  <div class="fa w"><b>The replay does not get a window; it plays where the game plays.</b> Scrubber docked under the stage, and the rail lists <b>his line street by street</b> — the all-in row in red — so a hand can be read as dialogue without scrubbing at all.</div>
+</div>
+
+<div class="frame" style="left:600px;top:11400px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D3</span><span class="ft">Wallet</span><span class="fb teal">pockets + fund rail</span></div>
+  <div id="d3"></div>
+  <div class="fa w"><b>The same four rows, unchanged.</b> Desktop's width buys the wallet a headline row of four figures and the funding sheet a permanent home in the rail — so setting an allowance never covers the pockets it affects. The line under the header is the law, stated where an implementer will read it: <b>pocket size sets his stakes — there is no betting menu</b>.</div>
+</div>
+
+<div class="frame" style="left:600px;top:12400px">
+  <div class="fh" style="margin-top:96px"><span class="fn">D4</span><span class="ft">Thread + panel</span><span class="fb teal">68 + 852 + 520</span></div>
+  <div id="d4"></div>
+  <div class="fa w"><b>The overflow fix, in place.</b> The roster is a 68px avatar strip — mood rims and live dots still read, so the who-is-playing glance survives — and the thread keeps 852px with the panel at its full 520. One click restores it. <b>The floor was never sacrificed</b>, which was the whole argument for the desktop layout.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-snack.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-birth.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-replay.jsx"></script>
+<script type="text/babel" src="mood-wallet.jsx"></script>
+<script type="text/babel" src="mood-ww-ref.jsx"></script>
+
+<script type="text/babel">
+[
+  ['w0', WatchFindingsSheetM],
+  ['w1', PaceSheetM],
+  ['m1', Watch3CalmScreenM],
+  ['m2', Watch3HeatingScreenM],
+  ['m3', Watch3AllInScreenM],
+  ['m4', Watch3ShowdownScreenM],
+  ['m5', Watch3NoReadScreenM],
+  ['w2', HapticSheetM],
+  ['r1', ReplayTheatreScreenM],
+  ['r2', ReplayRevealScreenM],
+  ['r3', ThreadReplayScreenM],
+  ['p1', YouWalletScreenM],
+  ['p2', FundSheetScreenM],
+  ['p3', ThreadCollectScreenM],
+  ['p4', ThreadBrokeScreenM],
+  ['p5', FloorBrokeScreenM],
+  ['p6', PocketLineSpec],
+  ['w3', WWMatrixM],
+  ['w4', HeaderSheetM],
+  ['w5', DeskFixSheetM],
+  ['d1', D3Watch3ScreenM],
+  ['d2', D3ReplayScreenM],
+  ['d3', D3WalletScreenM],
+  ['d4', D3ThreadPanelScreenM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever, using each
+   frame's best-known height. Timers only: rAF is suspended in throttled iframes. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

@@ -299,7 +299,40 @@ const D3WatchBetweenScreenM = () => (
 );
 
 // ═══ G · THREAD — roster left, thread right, proposal moment, bar docked ═══
-const ThreadRosterRail = ({ active, drafting, born }) => (
+// PORT FIX · `collapsed` — 1440 does not fit 340 + stage + 520. When a panel opens,
+// the roster becomes a 68px avatar strip: same rows, same order, name/state/last-line
+// dropped, mood rim and live dot kept. The who-is-playing glance is the reason desktop
+// exists, so it is the last thing to go — losing the stage instead was rejected.
+const ROSTER = [
+  { name: 'Aggressive v1.3', accent: M_PURPLE, mood: 'frustrated', state: 'live', line: 'Rivers keep getting called. Let me pull back.', pnl: '+$120' },
+  { name: 'Balanced v2.1', accent: M_TEAL, mood: 'confident', state: 'live', line: "He's capped. Betting 240 for value.", pnl: '+$340' },
+  { name: 'Bluff Master', accent: M_GOLD, mood: 'confident', state: 'recap', line: 'Session done — ROI 18.4%.', pnl: '+$210' },
+  { name: 'Value Bot', accent: M_PINK, mood: 'sulking', state: 'resting', line: "I'd rather not talk about it.", pnl: '−$45' },
+];
+
+const RosterStrip = ({ active }) => (
+  <div style={{ width: 68, flexShrink: 0, borderRight: `1px solid ${M_BORDER}`, background: M_PANEL, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ height: 46, flexShrink: 0, borderBottom: `1px solid ${M_BORDER}`, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: M_MUTED }}>4</span>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 0', width: '100%', alignItems: 'center' }}>
+      {ROSTER.map(r => (
+        <div key={r.name} title={r.name} style={{
+          position: 'relative', width: 52, height: 52, borderRadius: 9, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: active === r.name ? 'rgba(0,212,170,0.06)' : 'transparent',
+          borderLeft: active === r.name ? `2px solid ${M_TEAL}` : '2px solid transparent',
+        }}>
+          <PHood size={34} accent={r.accent} mood={r.mood}/>
+          {r.state === 'live' && <span style={{ position: 'absolute', top: 6, right: 7 }}><LiveDot size={5}/></span>}
+          {r.state === 'recap' && <span style={{ position: 'absolute', top: 7, right: 8, width: 5, height: 5, borderRadius: '50%', background: M_GOLD }}/>}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const ThreadRosterRail = ({ active, drafting, born, collapsed }) => collapsed ? <RosterStrip active={active}/> : (
   <div style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${M_BORDER}`, background: M_PANEL, display: 'flex', flexDirection: 'column' }}>
     <PanelHead title="Chats" sub={drafting ? '4 AGENTS · 1 DRAFTING' : born ? '5 AGENTS · 2 LIVE' : '4 AGENTS · 2 LIVE'}/>
     <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -326,12 +359,7 @@ const ThreadRosterRail = ({ active, drafting, born }) => (
             line="Deal me in whenever you're ready." pnl="—"/>
         </div>
       )}
-      {[
-        { name: 'Aggressive v1.3', accent: M_PURPLE, mood: 'frustrated', state: 'live', line: 'Rivers keep getting called. Let me pull back.', pnl: '+$120' },
-        { name: 'Balanced v2.1', accent: M_TEAL, mood: 'confident', state: 'live', line: "He's capped. Betting 240 for value.", pnl: '+$340' },
-        { name: 'Bluff Master', accent: M_GOLD, mood: 'confident', state: 'recap', line: 'Session done — ROI 18.4%.', pnl: '+$210' },
-        { name: 'Value Bot', accent: M_PINK, mood: 'sulking', state: 'resting', line: "I'd rather not talk about it.", pnl: '−$45' },
-      ].map((r, i) => (
+      {ROSTER.map((r, i) => (
         <div key={i} style={{
           background: active === r.name ? 'rgba(0,212,170,0.06)' : 'transparent',
           borderLeft: active === r.name ? `2px solid ${M_TEAL}` : '2px solid transparent',
@@ -405,8 +433,56 @@ const D3ThreadScreenM = () => (
   </DesktopShell>
 );
 
+// ═══ H · THREAD + PANEL — three columns inside 1440, the port fix in place ═══
+const D3ThreadPanelScreenM = () => (
+  <DesktopShell>
+    <DeskTopBar net="+$460" flagged="4 flagged"/>
+    <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <ThreadRosterRail active="Aggressive v1.3" collapsed/>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: M_BG }}>
+        <MoodBand accent={M_PURPLE} mood="frustrated" state="live" action="Watch"
+          cause="two rivers called back — 140 hands in"/>
+        <LiveBar table="38104" blinds="$10/$20" street="river" pot="120" equity="31.2"
+          action="TO ACT" timer={4} hole={[['Q', 's'], ['Q', 'd']]}
+          board={[['K', 'c'], ['9', 'c'], ['4', 'c'], ['2', 'c'], ['5', 'h']]}/>
+        <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '18px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div style={{ flex: 1, height: 1, background: M_BORDER }}/>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: M_MUTED, letterSpacing: '0.18em' }}>WED · MAY 6</span>
+            <div style={{ flex: 1, height: 1, background: M_BORDER }}/>
+          </div>
+          <div style={{ display: 'flex', gap: 12, maxWidth: 620, marginBottom: 16 }}>
+            <PHood size={32} accent={M_PURPLE} mood="frustrated"/>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: M_TEXT }}>Aggressive v1.3</span>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: M_MUTED }}>09:14</span>
+              </div>
+              <div style={{ background: M_PANEL_2, border: `1px solid ${M_PURPLE}3D`, borderRadius: 12, padding: '13px 16px', fontSize: 13.5, color: M_TEXT, lineHeight: 1.55 }}>
+                Rivers keep getting called. Let me pull back.
+              </div>
+            </div>
+          </div>
+          <div style={{ marginLeft: 44, maxWidth: 620, display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
+            <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_TEAL }}>68 + 852 + 520 = 1440</span>
+            <span style={{ flex: 1, fontSize: 11.5, color: M_MUTED }}>roster collapsed to avatars; the thread keeps 852px and the stage is not sacrificed</span>
+          </div>
+        </div>
+        <PComposer draft=""/>
+      </div>
+      <Panel>
+        <PanelHead title="Read" sub="GRANITE · 142 HANDS" close/>
+        <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <ReadPanel line="He never folds, so I stop bluffing him."/>
+        </div>
+      </Panel>
+    </div>
+  </DesktopShell>
+);
+
 Object.assign(window, {
   D3HomeOneScreenM, D3HomeZoomScreenM, D3QuietScreenM, D3FtuScreenM,
-  D3WatchScreenM, D3WatchBetweenScreenM, D3ThreadScreenM,
+  D3WatchScreenM, D3WatchBetweenScreenM, D3ThreadScreenM, D3ThreadPanelScreenM,
   TileStack, RailBody, DraftPanel, AnalysisPanel, WatchRail, ThreadRosterRail,
+  RosterStrip, ROSTER,
 });
