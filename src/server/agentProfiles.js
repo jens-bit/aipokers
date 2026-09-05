@@ -18,17 +18,10 @@ import {
   ownerDriftCause,
   isSoothable as isMoodSoothable,
 } from '../agent/mood.js';
-import {
-  notifySessionRecap,
-  notifyProposal,
-  notifyQuietWin,
-  notifyMilestone,
-  recordSessionOutcome,
-  clearProposalPending,
-  notifyCollected,
-  notifyBroke,
-  notifyWant,
-} from './notifications/telegram.js';
+// NOTIFY-2: one notifier. Everything the legacy NOTIFY_ENABLED sender said
+// from this file — broke, collected, want, milestone, proposal, quiet win —
+// now goes through the same ladder, budget and ledger as everything else.
+import { notifyEvent } from './notify.js';
 import {
   ATTR_KEYS,
   ensureAttributes,
@@ -422,13 +415,22 @@ function recordBrokeMoment(agent) {
 }
 
 function notifyCollect(userId, agent, moved) {
-  notifyCollected(userId, userId, agent.id, agent.name || 'Your agent', { moved })
-    .catch((e) => console.error('[notify] collect failed:', e.message));
+  // A collect the owner did not make is not a thing, so there is no cap here
+  // beyond the budget — but a zero-chip transfer is not news.
+  if (!(Number(moved) > 0)) return;
+  notifyEvent('collected', {
+    ownerId: String(userId), agentId: agent.id, agentName: agent.name || 'Your agent', moved,
+  });
 }
 
+// The "Once" is now the notifier's: `broke` carries a once-a-day-per-agent cap
+// key, so this can be called from every path that discovers an empty pocket
+// without any of them having to know about the others.
 function notifyBrokeOnce(userId, agent) {
-  notifyBroke(userId, userId, agent.id, agent.name || 'Your agent', { mode: agent.pocket?.mode ?? 'topup' })
-    .catch((e) => console.error('[notify] broke failed:', e.message));
+  notifyEvent('broke', {
+    ownerId: String(userId), agentId: agent.id, agentName: agent.name || 'Your agent',
+    mode: agent.pocket?.mode ?? 'topup',
+  });
 }
 
 // Append one entry to an agent's append-only ledger, capped at LEDGER_CAP.
@@ -568,10 +570,10 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   const MILESTONES = [1000];
   for (const m of MILESTONES) {
     if (prevHands < m && s.handsPlayed >= m) {
-      const ownerId = String(userId ?? 'anon');
-      notifyMilestone(ownerId, ownerId, agentId, agent.name || 'Your agent', {
-        hands: s.handsPlayed, threshold: m,
-      }).catch((e) => console.error('[notify] milestone failed:', e.message));
+      notifyEvent('milestone', {
+        ownerId: String(userId ?? 'anon'), agentId, agentName: agent.name || 'Your agent',
+        threshold: m,
+      });
     }
   }
 
@@ -982,40 +984,48 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
 
   const hadProposalBefore = !!agent.proposal;
   try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  const thirdWin = typeof sessionPnl === 'number'
+    ? recordSessionOutcome(agent, sessionPnl > 0)
+    : false;
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
 
   // ── Notifications ──
+  //
+  // NOTIFY-2: the session recap used to be sent from here as well as from
+  // table.js's _notifySessionEnd, on the same trigger ("a session ended and
+  // the owner was not watching"), out of two budgets that could not see each
+  // other. The table's is the one that survived: it is the side that knows how
+  // the seat ended, so it can tell a sit-out from a bust and send the right
+  // one of the two.
   const ownerId = String(userId ?? 'anon');
-  const chatId  = ownerId;
   const agentName = agent.name || 'Your agent';
-
-  // Session recap: owner was away when session ended.
-  if (!watched && agent.sessionRecap) {
-    notifySessionRecap(ownerId, chatId, agentId, agentName, {
-      pnl: typeof sessionPnl === 'number' ? sessionPnl : 0,
-      hands: sessionHands || 0,
-      sessionEndTime: Date.now(),
-    }).catch((e) => console.error('[notify] session recap failed:', e.message));
-  }
 
   // Proposal: freshly created this session end.
   if (!hadProposalBefore && agent.proposal) {
-    notifyProposal(ownerId, chatId, agentId, agentName, {
+    notifyEvent('proposal', {
+      ownerId, agentId, agentName,
       proposalText: agent.proposal.text || '',
-    }).catch((e) => console.error('[notify] proposal failed:', e.message));
+      proposalAt: agent.proposal.createdAt ?? null,
+    });
   }
 
   // Quiet win: 3rd consecutive profitable session.
-  if (typeof sessionPnl === 'number') {
-    const thirdWin = recordSessionOutcome(ownerId, agentId, sessionPnl > 0);
-    if (thirdWin) {
-      notifyQuietWin(ownerId, chatId, agentId, agentName)
-        .catch((e) => console.error('[notify] quiet win failed:', e.message));
-    }
-  }
+  if (thirdWin) notifyEvent('quiet_win', { ownerId, agentId, agentName });
 
   return agent;
+}
+
+// Was this session profitable, and is it the third in a row that was? The
+// streak lives on the agent record because it is a fact about HIM — it moved
+// here in NOTIFY-2 from the legacy notifier's per-owner state blob, where a
+// per-agent streak had no business being. Five kept, three consulted.
+function recordSessionOutcome(agent, profitable) {
+  const outcomes = (Array.isArray(agent.sessionOutcomes) ? agent.sessionOutcomes : [])
+    .concat([!!profitable])
+    .slice(-5);
+  agent.sessionOutcomes = outcomes;
+  return outcomes.length >= 3 && outcomes.slice(-3).every(Boolean);
 }
 
 // NOTIFY-1: per-agent mute. Lives on the agent record rather than in the
@@ -1383,8 +1393,10 @@ export function maybeRaiseWant(agent, { ownerId = null } = {}) {
   agent.lastMoment = { text: agent.want.text, mood: agent.want.mood, at: agent.want.at, kind: 'want' };
 
   if (ownerId) {
-    notifyWant(ownerId, ownerId, agent.id, agent.name || 'Your agent', { line: agent.want.text })
-      .catch((e) => console.error('[notify] want failed:', e.message));
+    notifyEvent('want', {
+      ownerId: String(ownerId), agentId: agent.id, agentName: agent.name || 'Your agent',
+      line: agent.want.text,
+    });
   }
   return agent.want;
 }
@@ -2221,9 +2233,11 @@ export function installAgentProfileRoutes(app) {
     emitAgentChange(userId);
     // Proposal notification (owner-initiated finish — skip session recap since they are watching).
     if (!hadProposalBefore && agent.proposal) {
-      notifyProposal(userId, userId, agentId, agent.name || 'Your agent', {
+      notifyEvent('proposal', {
+        ownerId: String(userId), agentId, agentName: agent.name || 'Your agent',
         proposalText: agent.proposal.text || '',
-      }).catch((e) => console.error('[notify] proposal failed:', e.message));
+        proposalAt: agent.proposal.createdAt ?? null,
+      });
     }
     res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
@@ -2241,7 +2255,6 @@ export function installAgentProfileRoutes(app) {
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
-    clearProposalPending(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 
@@ -2255,7 +2268,6 @@ export function installAgentProfileRoutes(app) {
     if (agent.proposal) recordOwnerEvent(agent, 'proposal_rejected', { what: agent.proposal.text });
     agent.proposal = null;
     saveStore(userId);
-    clearProposalPending(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 

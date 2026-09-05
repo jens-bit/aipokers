@@ -42,9 +42,17 @@ function fmtAction(action) {
 //   decisions        — currentHandDecisions filtered to this agent's seat
 //   pot              — final pot size in chips
 //   sessionBiggestPot — largest pot seen so far this session (before this hand)
+// The session high-water mark, on its own so there is exactly one definition
+// of it. NOTIFY-2: table.js asks this at the bus emit site — one hand before
+// sessionBiggestPot is advanced — to decide whether the pot the floor is
+// shouting about is also the one worth telling the owner about.
+export function isSessionBiggestPot(pot, sessionBiggestPot) {
+  return Number.isFinite(pot) && pot > (sessionBiggestPot ?? 0);
+}
+
 export function classifyHand({ won, resultType, decisions, pot, sessionBiggestPot }) {
   // BIGGEST POT: always supersedes drama flags — the session high-water mark.
-  if (Number.isFinite(pot) && pot > (sessionBiggestPot ?? 0)) return 'biggestPot';
+  if (isSessionBiggestPot(pot, sessionBiggestPot)) return 'biggestPot';
 
   if (!Array.isArray(decisions) || decisions.length === 0) return null;
 

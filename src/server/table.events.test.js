@@ -21,7 +21,7 @@ import {
   installAgentProfileRoutes, recordOpponentHand, finishAgentSession,
 } from './agentProfiles.js';
 import { setPersistEnabled } from './opponentStats.js';
-import { EventType, eventsSince, resetEvents, bigPotThresholdBb, hotThresholdBb } from './events.js';
+import { EventType, eventsSince, resetEvents, bigPotThresholdBb, hotThresholdBb, bus } from './events.js';
 
 setPersistEnabled(false);
 // Ten agents over two limited endpoints each would trip the LLM-spending
@@ -183,6 +183,100 @@ test('EVENT-1 bust: a seat that hits zero is announced', () => {
   assert.deepEqual(rest, [], 'only the seat that actually busted');
   assert.equal(ev.headline, 'Taker is out of chips');
   assert.deepEqual([...ev.agentIds], [loser], 'it is about him, not about the table');
+
+  table.closeTable('test done');
+});
+
+// ── NOTIFY-2 · the owner's half of a headline ───────────────────────────────
+//
+// A bust and the biggest pot of the night are one fact each, and both surfaces
+// — the public ticker and the owner's phone — are fed from one emit. These
+// tests own the half the ticker never sees: that the record is built at all,
+// that it is built for the right person, and that it stays off the wire the
+// floor reads.
+//
+// The notifier itself is not attached here. What is asserted is what table.js
+// puts ON the bus; what the budget then does with it is notify.test.js's and
+// scripts/verify-notifications.js's business.
+
+// Collect the private channel for the duration of one hand.
+function captureDetail(fn) {
+  const seen = [];
+  const on = (record, event) => seen.push({ record, event });
+  bus.on('detail', on);
+  try { fn(); } finally { bus.off('detail', on); }
+  return seen;
+}
+
+test("NOTIFY-2 bust: the owner's copy rides the bust event and never the ticker", () => {
+  const [winner, loser] = ['agent-rounder', 'agent-taker'];
+  const table = seatTable({ agents: [winner, loser] });
+
+  const seen = captureDetail(() => playScriptedCooler(table));
+  const busts = seen.filter((s) => s.record.type === 'busted');
+
+  assert.equal(busts.length, 1, 'one bust, one owner told');
+  const { record, event } = busts[0];
+  assert.equal(event.type, EventType.BUST, 'it rides the bust headline, not some other one');
+  assert.equal(record.agentId, loser, 'it is about the man who lost his chips');
+  assert.equal(record.ownerId, userId);
+  assert.equal(record.agentName, 'Taker');
+  assert.equal(record.buyIn, 1000, 'the buy-in he sat down with — the number the message names');
+  assert.equal(record.hands, 1);
+
+  // Rule 1 of events.js: nothing on the public event may say who owns him.
+  assert.ok(!('detail' in event), 'the frozen event carries no private half');
+  assert.ok(!JSON.stringify(eventsSince(0)).includes(userId), 'and neither does the ring');
+
+  table.closeTable('test done');
+});
+
+test('NOTIFY-2 bust: an owner watching the bust happen is not told about it', () => {
+  const table = seatTable({ agents: ['agent-rounder', 'agent-taker'] });
+  // He is sitting there looking at seat 1 as it happens. Pinging him about the
+  // thing on his screen is exactly what the budget exists to prevent.
+  table.spectators.push({ ws: fakeWs(), spectatorSeat: 1 });
+
+  const seen = captureDetail(() => playScriptedCooler(table));
+
+  assert.deepEqual(seen.filter((s) => s.record.type === 'busted'), [], 'no ping for a watched bust');
+  assert.equal(ofType(EventType.BUST).length, 1, 'but the floor still hears he is out');
+
+  table.closeTable('test done');
+});
+
+test("NOTIFY-2 biggestPot: only the winner's owner, and only at a new high-water mark", () => {
+  const [winner, loser] = ['agent-rounder', 'agent-taker'];
+  const table = seatTable({ agents: [winner, loser] });
+
+  const seen = captureDetail(() => playScriptedCooler(table));
+  const pots = seen.filter((s) => s.record.type === 'biggest_pot');
+
+  assert.equal(pots.length, 1, 'one record — the loser of the biggest pot is not told he won it');
+  const { record, event } = pots[0];
+  assert.equal(event.type, EventType.BIG_POT);
+  assert.equal(record.agentId, winner);
+  assert.equal(record.ownerId, userId);
+  assert.equal(record.pot, 2000);
+  assert.equal(record.handNumber, table.game?.handNumber ?? 1);
+
+  // And the same rule the classifier uses is the one the bus used: the mark
+  // only moves in _classifyAndFlagHands, which runs after the emit.
+  assert.equal(table.sessionBiggestPot, 2000, 'the high-water mark moved for the next hand');
+
+  table.closeTable('test done');
+});
+
+test("NOTIFY-2 biggestPot: a big pot that is not the session's biggest tells nobody", () => {
+  const table = seatTable({ agents: ['agent-rounder', 'agent-taker'] });
+  // He has already taken a bigger one tonight. The floor still shouts about
+  // this pot — it is 100bb — but it is not news about HIM any more.
+  table.sessionBiggestPot = 9999;
+
+  const seen = captureDetail(() => playScriptedCooler(table));
+
+  assert.deepEqual(seen.filter((s) => s.record.type === 'biggest_pot'), [], 'no second "biggest pot of the night"');
+  assert.equal(ofType(EventType.BIG_POT).length, 1, 'the headline is unaffected');
 
   table.closeTable('test done');
 });

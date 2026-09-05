@@ -4,6 +4,13 @@
 // one per rule the ref board makes checkable: the ladder, the daily cap, the
 // quiet window, and the mute.
 //
+// NOTIFY-2 folded the legacy notifier in here and left this file alone on
+// purpose: these four rules did not change, and a suite that has to be edited
+// to accommodate a refactor is a suite that was asserting the refactor. The
+// six types that came across, their caps, the bus wiring and the NOTIFY_ENABLED
+// switch are asserted in scripts/verify-notifications.js, which is where that
+// notifier's own tests already lived.
+//
 // The bot is a fake that records what it was handed. The store is the REAL
 // SQLite store — this file is spawned in a scratch cwd by
 // src/test/helpers/runScript.js, so `data/app.db` is a throwaway, and running
@@ -58,6 +65,12 @@ function attach({ muted = () => false } = {}) {
     now: () => clock,
     tzOffsetFor: () => TZ,
     muted,
+    // NOTIFY-2: the notifier is gated on NOTIFY_ENABLED, which is deliberately
+    // not set in a test process — it is the switch a deployment throws, not a
+    // property of the budget. Every suite here is about what the notifier does
+    // once it is on, so they all turn it on explicitly. The switch itself is
+    // asserted in its own test at the bottom of this file.
+    enabled: true,
   });
 }
 
@@ -287,7 +300,7 @@ async function withRouteServer(fn) {
   app.use(express.json());
   clock = localAt(10, 10, 0);
   bot = fakeBot();
-  attachNotify({ bot, app, now: () => clock, tzOffsetFor: () => TZ });   // real mute lookup
+  attachNotify({ bot, app, now: () => clock, tzOffsetFor: () => TZ, enabled: true });   // real mute lookup
 
   const server = http.createServer(app);
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
