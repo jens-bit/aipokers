@@ -9,6 +9,11 @@ export const ClientMsg = Object.freeze({
   LEAVE: 'leave',
   PING: 'ping',
   SIT_OUT: 'sit_out',
+  // EVENT-2: the floor channel. FLOOR_SUB is what a ticker sends to start
+  // receiving EVENT frames; it carries a userId because the same subscription
+  // also drives this owner's FLOOR_STATE / FLOOR_GAME pushes.
+  FLOOR_SUB: 'floor_sub',
+  FLOOR_UNSUB: 'floor_unsub',
 });
 
 export const ServerMsg = Object.freeze({
@@ -23,6 +28,10 @@ export const ServerMsg = Object.freeze({
   SEAT_LEFT: 'seat_left',
   ERROR: 'error',
   PONG: 'pong',
+  // EVENT-1/EVENT-2: one line of the casino-wide ticker,
+  // { event: { id, ts, type, tableId, agentIds, headline, pot } }. Pushed to
+  // every FLOOR_SUB subscriber regardless of who owns the agents in it.
+  EVENT: 'event',
 });
 
 export const Streets = Object.freeze({
