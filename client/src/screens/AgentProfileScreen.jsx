@@ -1,10 +1,21 @@
 // NAV PROFILE-1a — agent profile screen.
 // Port of AgentProfileScreenM from design-refs/mood-screens-e.jsx.
 // Uses real careerStats + sessionLog from presentAgent; activity feed from sessionFlagged.
+//
+// ATTR-2b — the player card v2 from design-refs/char-profile.jsx sits on top of
+// it: identity + nature, the six-bar cluster, fatigue in words. Everything below
+// the cluster is history; everything in it is the creature. Career and the mood
+// arc are demoted, not removed.
 
+import { useEffect, useMemo, useState } from 'react';
 import { MoodBand } from '../components/system/MoodBand.jsx';
+import { MoodGhost } from '../components/system/MoodGhost.jsx';
+import { AttrCluster } from '../components/system/AttrCluster.jsx';
+import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf } from '../components/floor/agentView.js';
+import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
+import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -185,8 +196,65 @@ function CareerGrid({ careerStats }) {
   );
 }
 
+// ── Identity: the creature, then the label ────────────────────────────────
+// Port of IdentityBlock from char-profile.jsx. The nature badge is beside the
+// name, always — and when the server has not assigned one it says so rather
+// than guessing: a nature is never invented on the client.
+function IdentityBlock({ agent, accent, mood, nature, compact }) {
+  const hands = agent.careerStats?.hands ?? agent.stats?.handsPlayed ?? 0;
+  const born = hands > 0 ? `${hands.toLocaleString()} HANDS` : 'BORN TODAY · 0 HANDS';
+  return (
+    <div style={{ padding: compact ? '10px 14px 8px' : '13px 14px 10px', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+      <div style={{
+        width: 54, height: 54, borderRadius: 13, flexShrink: 0,
+        background: '#0A0F17', border: `1px solid ${accent}44`,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
+      }}>
+        <MoodGhost mood={mood} accent={accent} size={52} ring={false} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 19, fontWeight: 600, color: M_TEXT, letterSpacing: '-0.01em' }}>
+          {agent.name}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
+          {nature ? <NatureChip nature={nature} /> : <NatureFormingChip />}
+          <Num size={9} color={M_MUTED} weight={500}>{born}</Num>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch }) {
+  // Which bar is tapped open. Null = the cluster reads as one silhouette.
+  const [expand, setExpand] = useState(null);
+  // attrLog is promised on GET /api/agents/:id; the list projection may carry it
+  // too. Only reach for the detail endpoint once the engine is actually sending
+  // attributes — on main today there is nothing to fetch.
+  const [detailLog, setDetailLog] = useState(null);
+
+  const agentId = agent?.id;
+  const needsLog = !!agent?.attrs && !Array.isArray(agent?.attrLog);
+
+  useEffect(() => {
+    if (!agentId || !needsLog) return;
+    let alive = true;
+    fetch(`/api/agents/${encodeURIComponent(agentId)}?userId=${encodeURIComponent(getUserId())}`,
+      { headers: { 'x-telegram-init-data': getTelegramInitData() } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const log = data?.agent?.attrLog ?? data?.attrLog;
+        if (alive && Array.isArray(log)) setDetailLog(log);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [agentId, needsLog]);
+
+  const character = useMemo(() => normalizeAttrs(agent), [agent]);
+  const attrLog = detailLog ?? (Array.isArray(agent?.attrLog) ? agent.attrLog : []);
+  const seriesOf = useMemo(() => (key) => seriesFor(attrLog, key), [attrLog]);
+
   if (!agent) return null;
 
   const accent  = accentFor(agent);
@@ -197,6 +265,10 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch }) {
 
   const sessionLog   = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
   const activityRows = buildActivityRows(agent);
+
+  // Fatigue is within-session state: it belongs on the card while he is at a
+  // table or has just left one, and whenever it is anything but fresh.
+  const showFatigue = isLive || state === 'recap' || character.fatigue !== 'fresh';
 
   const actionLabel = isLive ? 'Watch' : 'Chat';
   function handleAction() {
@@ -240,6 +312,42 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch }) {
 
       {/* Scrollable body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+
+        {/* Identity — the creature, then the label */}
+        <IdentityBlock
+          agent={agent}
+          accent={accent}
+          mood={mood}
+          nature={character.nature}
+          compact={!!expand}
+        />
+
+        {/* His nature in one sentence. Hidden while a bar is open: the panel is
+            the argument then, and two voices would compete. */}
+        {!expand && character.nature?.line && (
+          <div style={{
+            margin: '0 14px 12px', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic',
+            color: `color-mix(in oklab, ${M_GOLD} 30%, ${M_DIM})`,
+          }}>
+            {character.nature.line}
+          </div>
+        )}
+
+        {/* The cluster — the heart of the card */}
+        <div style={{ padding: '0 14px 5px' }}><Lbl size={9.5}>Attributes</Lbl></div>
+        <div style={{ margin: '0 14px 12px', padding: '13px 13px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
+          <AttrCluster
+            rows={character.rows}
+            expand={expand}
+            onExpand={setExpand}
+            seriesFor={seriesOf}
+          />
+          {showFatigue && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
+              <FatigueLine stage={character.fatigue} />
+            </div>
+          )}
+        </div>
 
         {/* Career */}
         <div style={{ padding: '11px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
