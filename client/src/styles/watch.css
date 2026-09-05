@@ -1493,3 +1493,92 @@
 @media (prefers-reduced-motion: reduce) {
   .read-sheet, .seat-ghost__shelf { animation: none; }
 }
+
+/* ── W4-3 · bubbles, not a feed ─────────────────────────────────────────
+ * mood-watch4.jsx Bubble. Two registers, one shape: HIS is teal-edged and
+ * carries his voice; an opponent's is neutral and quieter, because table talk
+ * is background until it isn't. The tail points down at whoever said it — that
+ * is the entire mechanism by which you know who is speaking. */
+
+.bubble {
+  z-index: 6;
+  pointer-events: none;
+  animation: bubble-in 0.22s ease-out both;
+}
+@keyframes bubble-in { from { opacity: 0; } to { opacity: 1; } }
+
+.bubble__box {
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(18, 20, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  font-size: 11.5px;
+  color: var(--sys-dim, #C3C3C6);
+  line-height: 1.4;
+  text-align: left;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bubble--mine .bubble__box {
+  padding: 9px 13px;
+  background: rgba(12, 26, 24, 0.94);
+  border-color: rgba(0, 212, 170, 0.4);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 212, 170, 0.12);
+  font-size: 13px;
+  color: var(--sys-text, #EDEDED);
+  text-align: center;
+  font-style: normal;
+  white-space: normal;
+}
+
+.bubble__tail {
+  position: absolute;
+  top: 100%;
+  margin-left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid rgba(18, 20, 22, 0.92);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.18));
+}
+.bubble--mine .bubble__tail {
+  left: 50%;
+  border-top-color: rgba(12, 26, 24, 0.94);
+  filter: drop-shadow(0 1px 0 rgba(0, 212, 170, 0.4));
+}
+
+/* His band is reserved above the hero row whether or not he is speaking, which
+   is what "his bubble always fits" means once the layout is a flow. */
+.watch-felt__band {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 96px;
+  display: flex;
+  justify-content: center;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* An opponent's sits over their own ghost, in the band the seats leave above
+   them. The slot modifiers put it on the same anchor as the seat itself. */
+.watch-felt__bubble {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  pointer-events: none;
+  max-width: 150px;
+}
+.watch-felt__bubble--top { left: 50%; transform: translateX(-50%); top: 4px; }
+.watch-felt__bubble--left { left: 6px; top: 74px; }
+.watch-felt__bubble--right { right: 6px; top: 74px; }
+.watch-felt__bubble--topleft { left: 6px; top: 4px; }
+.watch-felt__bubble--topright { right: 6px; top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble { animation: none; }
+}

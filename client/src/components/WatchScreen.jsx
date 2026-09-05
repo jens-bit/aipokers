@@ -16,6 +16,8 @@ import { TugBar } from './system/TugBar.jsx';
 import { ReadPanel } from './system/ReadPanel.jsx';
 import { SeatGhost } from './system/SeatGhost.jsx';
 import { ReadSheet } from './system/ReadSheet.jsx';
+import { Bubble } from './system/Bubble.jsx';
+import { onFelt, record, BUBBLE_MS } from '../lib/bubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
@@ -427,7 +429,7 @@ function compactFor(slot, opponentCount) {
 // R-2 exports this: the replay theatre plays the same felt, driven by an
 // authored timeline instead of by the server. Reuse, not a second felt — the
 // pacing states, the rope and the hero row are all here already.
-export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat }) {
+export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat, bubbles = [] }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
@@ -636,6 +638,27 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         );
       })}
 
+      {/* W4-3 · speech. At most two on the felt, one per seat, and a bubble
+          that would be cut off is not shown at all — the record has it either
+          way. His is centred in the band above the hero row; an opponent's
+          sits over their own ghost, and its tail points back at them. */}
+      {bubbles.map(function(b) {
+        if (b.mine) {
+          return (
+            <div key={b.id} className="watch-felt__band">
+              <Bubble mine flow text={b.text} />
+            </div>
+          );
+        }
+        var idx = opponentSeats.findIndex(function(o) { return o.seat === b.seat; });
+        if (idx < 0) return null;
+        return (
+          <div key={b.id} className={'watch-felt__bubble watch-felt__bubble--' + slots[idx]}>
+            <Bubble text={b.text} at={0} w={142} flow />
+          </div>
+        );
+      })}
+
       {/* The pot ticker is an outer positioning row with the pill inside it --
           without the inner element the pill spanned the whole felt. At
           showdown the pot has already moved, so it steps aside for the
@@ -674,13 +697,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         <TugBar equity={heroEquity} villain={villainName} big={pMeta.heat} dead={!hasEquity} />
       </div>
 
-      {/* His line — one sentence, thread voice, and the loudest thing on the
-          screen at ALL-IN. Long voice lives in the thread; the felt gets one. */}
-      {line && (!geom || !geom.felt || geom.line != null) && (
-        <div className="watch-felt__line">
-          <span className="watch-felt__line-text">{line}</span>
-        </div>
-      )}
+      {/* W4-3: there is no line under the board any more. The felt is where
+          speech happens — as bubbles over whoever is speaking — and the TABLE
+          tab is where speech is kept. The height that line held goes back to
+          the felt. */}
 
       {settled ? (
         <>
@@ -1086,8 +1106,65 @@ export function WatchScreen({
   }, [lastDecision]);
 
   // AI trash-talk from the WS — shown as ambient rows in the agent DM thread.
+  // W4-3 keeps the seat: it is what puts the bubble over the right ghost.
   var tableSpeech = chatMessages.filter(function(m) { return m.isAI; })
-    .map(function(m) { return { text: m.text, t: m.t || 0 }; });
+    .map(function(m) { return { text: m.text, t: m.t || 0, seat: m.seat }; });
+
+  // ── W4-3 · everything said at this table, in order ──────────────────────
+  // One stream, two consumers: the felt takes what fits and is still fresh,
+  // the TABLE tab takes all of it. They are allowed to disagree — that is the
+  // last clause of the bubble law.
+  var [said, setSaid] = useState([]);
+  var saidIdRef = useRef(0);
+
+  // His decision line. DECISION carries the seat it came from, so a table where
+  // both seats think out loud cannot attribute one to the other.
+  useEffect(function() {
+    if (!lastDecision || !lastDecision.reasoning) return;
+    var seat = Number.isInteger(lastDecision.seat) ? lastDecision.seat : mySeat;
+    setSaid(function(prev) {
+      var last = prev[prev.length - 1];
+      if (last && last.mine && last.text === lastDecision.reasoning) return prev;
+      return prev.concat([{
+        id: 'd' + (++saidIdRef.current),
+        seat: seat,
+        text: lastDecision.reasoning,
+        mine: seat === mySeat,
+        at: Date.now(),
+      }]);
+    });
+  }, [lastDecision, mySeat]);
+
+  // Table talk. chatMessages is append-only, so the count is the cursor.
+  var talkSeenRef = useRef(0);
+  useEffect(function() {
+    var fresh = tableSpeech.slice(talkSeenRef.current);
+    if (fresh.length === 0) return;
+    talkSeenRef.current = tableSpeech.length;
+    setSaid(function(prev) {
+      return prev.concat(fresh.map(function(m) {
+        return {
+          id: 't' + (++saidIdRef.current),
+          seat: Number.isInteger(m.seat) ? m.seat : null,
+          text: m.text,
+          mine: Number.isInteger(m.seat) && m.seat === mySeat,
+          at: m.t || Date.now(),
+        };
+      }));
+    });
+  }, [tableSpeech.length]);
+
+  // A bubble is 3–4 seconds, so the felt has to re-read the clock even when
+  // nothing new is said — otherwise the last one would sit there for ever.
+  var [bubbleTick, setBubbleTick] = useState(0);
+  useEffect(function() {
+    if (said.length === 0) return undefined;
+    var id = setInterval(function() { setBubbleTick(function(n) { return n + 1; }); }, 500);
+    return function() { clearInterval(id); };
+  }, [said.length]);
+
+  var bubbles = onFelt(said, Date.now());
+  var tableRecord = record(said);
 
   function sendToAgent(text) {
     if (!agentId || agentLoading) return;
@@ -1330,7 +1407,8 @@ export function WatchScreen({
 
         <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
           game={game} mySeat={mySeat} lastDecision={lastDecision}
-          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom} />
+          handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom}
+          bubbles={bubbles} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
             always mounted (the tab one merely hidden at HIDDEN) so a drag that
