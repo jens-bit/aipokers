@@ -4,7 +4,7 @@
 //   2. Chat identity: owner messages render as "You" (isAI:false + seat=mySeat), not the
 //      agent name. Distinguishing signal from server: isAI=false for human-typed chat.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { SeatChip, SeatChipSm, BetPill, SeatCardBacks } from './system/SeatChip.jsx';
@@ -19,6 +19,7 @@ import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
 import { paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS } from '../lib/pace.js';
+import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -453,6 +454,36 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     ? heroData.holeCards.map(pc).filter(Boolean)
     : null;
 
+  // ── W4-1 · the DEAL beat ─────────────────────────────────────────────────
+  // The hand is dealt, not shown. His two cards land 90ms apart, each with its
+  // own light tap, then the table's backs sweep out as one gesture with no
+  // haptic — their cards are not his event.
+  //
+  // Keyed on the hand number, so a re-render, a reconnect or a late snapshot
+  // cannot re-deal a hand that is already on the table.
+  var handNo = game ? game.handNumber : null;
+  var dealRef = useRef({ hand: null, t0: 0 });
+  var [dealT, setDealT] = useState(DEAL_TOTAL_MS);
+
+  useEffect(function() {
+    if (!live || !isNewDeal(handNo, dealRef.current.hand)) return undefined;
+    dealRef.current = { hand: handNo, t0: Date.now() };
+    setDealT(0);
+
+    var timers = [
+      setTimeout(function() { setDealT(CARD_GAP_MS); fireHaptic('cardDealt'); }, CARD_GAP_MS),
+      setTimeout(function() { setDealT(CARD_GAP_MS * 2); fireHaptic('cardDealt'); }, CARD_GAP_MS * 2),
+      setTimeout(function() { setDealT(DEAL_TOTAL_MS); }, BACKS_DELAY_MS),
+    ];
+    return function() { timers.forEach(clearTimeout); };
+  }, [handNo, live]);
+
+  var beat = live ? dealBeat(dealT) : { landed: 2, backs: true };
+  var heroLanded = between ? 2 : beat.landed;
+  // Owner-only by construction: warming needs heroHole, which the server only
+  // ships to a viewer who proved ownership. A spectator gets no glow, no tap.
+  var warm = live && isWarm(heroHole, heroEquityOf(game, handEquity, heroSeat));
+
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
 
@@ -653,14 +684,20 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         metaLine && <div className="watch-felt__street">{metaLine}</div>
       )}
 
-      <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '')}>
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+      <div className={'watch-felt__hero' + (actionLabel ? ' is-active' : '') + (warm ? ' is-warm' : '')}>
+        <div className="watch-felt__hero-cards">
           {(heroHole || [null, null]).map(function(c, i) {
+            // W4-1: each card slides in from the right and lands. `landed` is
+            // the beat's own count, so card two is never on the felt before
+            // card one — "never simultaneous" is a layout fact, not a timing hope.
+            var down = i < heroLanded;
             return (
-              <div key={i} style={{
-                transform: 'rotate(' + (i ? 3 : -3) + 'deg)',
-                filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
-              }}>
+              <div
+                key={i}
+                className={'watch-felt__hero-card' + (down ? ' is-down' : '')}
+                data-landed={down ? 'yes' : 'no'}
+                style={{ transform: 'rotate(' + (i ? 3 : -3) + 'deg) translateX(' + (down ? 0 : 34) + 'px)' }}
+              >
                 {(c && !between)
                   ? <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50} />
                   : <CardBack w={36} h={50} branded />}
@@ -694,9 +731,10 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         </div>
         <div style={{ flex: 1 }} />
 
+        {warm && !actionLabel && <span className="watch-felt__premium">PREMIUM</span>}
         {actionLabel
           ? <span className="watch-felt__action-chip">{actionLabel}</span>
-          : <span className="watch-felt__waiting">{heroNote}</span>}
+          : (!warm && <span className="watch-felt__waiting">{heroNote}</span>)}
         {pace === 'allin' && !settled && (
           <span className="watch-felt__hero-tag">HOLDING</span>
         )}
@@ -907,6 +945,12 @@ function detentName(frac) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // W4-5: where "Chat" goes. When the shell can route to his thread it hands
+  // this in and the control leaves the watch screen entirely; without it the
+  // conversation stays in the sheet, which is the only behaviour that existed
+  // before. Optional on purpose — WatchScreen is mounted from more than one
+  // place and must not require a router.
+  onOpenThread,
   // W3-5/W3-6: the newest PACE frame, { pace, potBb, board?, card? }. During a
   // spectator-only all-in hold the server stages the runout card by card;
   // without it the flip falls back to the client's own timer.
@@ -1157,7 +1201,20 @@ export function WatchScreen({
   }, [shownWho, shownFormed]);
 
   // WV2-3: the sheet owns the vertical layout of the whole screen.
-  var sheet     = useSheetDrag({ onSelectTab: setActiveTab });
+  // W4-5: one decision, both entry points. The header button and the sheet's
+  // own CHAT tab are the same control and must not disagree about where
+  // talking to him happens.
+  var openChat = useCallback(function() {
+    if (onOpenThread) { onOpenThread(); return; }
+    setActiveTab(TAB_CHAT);
+  }, [onOpenThread]);
+
+  var sheet     = useSheetDrag({
+    onSelectTab: function(i) {
+      if (i === TAB_CHAT) { openChat(); return; }
+      setActiveTab(i);
+    },
+  });
 
   // Belt-and-braces: non-passive touchmove on the sheet container so that a
   // drag starting on the grab handle cannot bubble up to Telegram's webview
@@ -1208,7 +1265,7 @@ export function WatchScreen({
         <button
           type="button"
           className="watch-screen__chat"
-          onClick={function() { setActiveTab(TAB_CHAT); }}
+          onClick={openChat}
         >Chat</button>
       </div>
 

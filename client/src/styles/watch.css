@@ -1250,3 +1250,38 @@
 @media (prefers-reduced-motion: reduce) {
   .predict__chip { transition: none; }
 }
+
+/* ── W4-1 · the DEAL beat ────────────────────────────────────────────────
+ * design-refs/mood-watch4.jsx HeroCards4. Each card slides in from the right
+ * and lands; the transform is set inline from the beat's own count, so card
+ * two is never on the felt before card one. */
+
+.watch-felt__hero-cards { display: flex; gap: 3px; flex-shrink: 0; }
+
+.watch-felt__hero-card {
+  opacity: 0;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s;
+}
+.watch-felt__hero-card.is-down { opacity: 1; }
+
+/* Premium: the gold is the whole signal, and it is owner-only by construction
+   — a viewer without hole cards has nothing to warm. */
+.watch-felt__hero.is-warm { border-color: rgba(205, 179, 128, 0.4); }
+.watch-felt__hero.is-warm { box-shadow: inset 0 1px 0 rgba(205, 179, 128, 0.18); }
+.watch-felt__hero.is-warm .watch-felt__hero-card.is-down {
+  filter: drop-shadow(0 0 7px rgba(205, 179, 128, 0.6)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+}
+.watch-felt__premium {
+  font-family: 'Oswald', Inter, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sys-gold, #CDB380);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-felt__hero-card { transition: none; }
+}
