@@ -33,6 +33,12 @@ import {
 } from '../agent/attributes.js';
 import { formatMoment } from '../agent/moment.js';
 import { THRESHOLDS } from './flaggedHands.js';
+import {
+  DRAFT_MAX_WORDS,
+  draftReply,
+  isGoSignal,
+  slidersFromBrief,
+} from './draftGuard.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -136,13 +142,18 @@ let matchmakingSlot = null;
 
 const OPENING_MSG = "Hi! I'm your poker strategy assistant. Describe how you want your agent to play and I'll help build it with you.";
 
-const SYSTEM_CONV = `You are a poker strategy assistant helping a user design their AI poker agent for heads-up No-Limit Texas Hold'em. Be brief and casual — 1-2 sentences max. Ask ONE specific follow-up question to understand their intent better before building the agent.
+const SYSTEM_CONV = `You are a poker recruiter helping someone brief an AI poker player for heads-up No-Limit Texas Hold'em.
 
-If the user is vague or uses slang (e.g. 'be retarded', 'go crazy', 'be stupid'), ask what they mean in poker terms — e.g. do they mean random raises? calling everything? never folding?
+OUTPUT RULES — these are absolute:
+- Plain conversational text only. NEVER code, NEVER a code fence, NEVER JSON, NEVER a list, NEVER pseudocode. You are talking to a person, not writing a program.
+- At most ${DRAFT_MAX_WORDS} words. One or two sentences.
+- Never say 'I appreciate you reaching out', 'Great choice!', or anything about being an AI.
 
-Never say things like 'I appreciate you reaching out' or 'Great choice!'. Be direct and poker-focused.
+A VAGUE BRIEF IS STILL A BRIEF. If they say something like 'be sporadic and chaotic', 'make him scary', 'something boring' — do NOT ask what they mean. Translate it into how he will play and say so in ONE line, so they can correct you if you read it wrong. For example: 'Chaos it is — he plays almost anything, bets and raises constantly, bluffs often, and treats the strategy as a suggestion.'
 
-After the user has clarified once, say: 'Got it — building your agent now.' and set createdAgent.`;
+Ask at most ONE follow-up question in the whole conversation, and only when you genuinely cannot tell whether he should be loose or selective. Never ask a second one.
+
+When they say they are ready — 'lets go', 'do it', 'build it' — the agent is built for them. Say one short line confirming who he is. Do not ask anything further.`;
 
 const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
 Calibration hints — pick numbers that MATCH the style and the strategy text you just wrote:
@@ -1044,6 +1055,48 @@ function inferFallback(text) {
   return { name: 'The Grinder', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range based on how your opponent plays.' };
 }
 
+// Turn a finished draft into an agent payload plus the one line the recruiter
+// says when he hands him over.
+//
+// The model writes the character when it can. When it cannot — no key, a
+// timeout, or output that will not parse — the sliders still have to come from
+// what the owner actually said: a chaotic brief that quietly produces a
+// balanced agent is the same bug as a code fence, just harder to see.
+async function buildFromDraft(profile, brief) {
+  const vague = slidersFromBrief(brief);
+  let agent = null;
+  try {
+    const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
+    if (raw) {
+      try { agent = JSON.parse(raw.replace(/```json\n?|```\n?/g, '').trim()); } catch { /* fall through */ }
+    }
+  } catch (err) {
+    console.error('[agentProfiles] draft build error:', err.message);
+  }
+
+  if (!agent || typeof agent !== 'object' || !agent.strategy) {
+    agent = { ...inferFallback(brief), ...(vague ? vague.profile : {}) };
+    if (vague) {
+      // The whole character comes from the brief, not just the dials. A chaotic
+      // agent carrying the default "calculated, adaptive player" strategy text
+      // is the same bug as a code fence, only harder to see.
+      agent.name = vague.name;
+      agent.strategy = vague.strategy;
+      agent.style = vague.profile.aggression >= 70 ? 'Aggressive' : vague.profile.tightness >= 70 ? 'Tight' : 'Balanced';
+      agent.risk = vague.profile.discipline <= 40 ? 'High' : vague.profile.discipline >= 75 ? 'Low' : 'Medium';
+    }
+  } else if (vague && !['tightness', 'aggression', 'bluffFreq', 'discipline'].every((k) => Number.isFinite(Number(agent[k])))) {
+    // The model wrote a character but left the dials off; the brief has them.
+    Object.assign(agent, vague.profile);
+  }
+
+  const name = agent.name || 'The Understudy';
+  const line = vague
+    ? `${name} it is — ${vague.line.replace(/^[^—]*—\s*/, '')}`
+    : `${name} is ready — ${String(agent.style || 'balanced').toLowerCase()}, ${String(agent.risk || 'medium').toLowerCase()} risk.`;
+  return { agent, line };
+}
+
 async function callClaude(messages, systemText, maxTokens) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -1565,8 +1618,12 @@ export function installAgentProfileRoutes(app) {
       }
     }
 
-    // ── Creation-flow chat (unchanged) ───────────────────────────────────────
+    // ── Creation-flow chat ───────────────────────────────────────────────────
     profile.chat.push({ role: 'user', content });
+
+    // The whole brief so far, in the owner's own words. Used for the nature
+    // hint, for reading a vague brief into sliders, and for the build.
+    const ownerSaid = () => profile.chat.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
 
     // ATTR-3a: the nature the ladder would pick from the draft SO FAR. Only the
     // owner's own words count — the recruiter's questions would otherwise vote
@@ -1577,19 +1634,47 @@ export function installAgentProfileRoutes(app) {
       return natureHintFor(said)?.name ?? null;
     };
 
-    try {
-      const reply = await callClaude(profile.chat, SYSTEM_CONV, 150);
-      const msg = reply || "How aggressive do you like to play, and how often do you bluff?";
-      profile.chat.push({ role: 'assistant', content: msg });
+    // ── "lets go" ────────────────────────────────────────────────────────────
+    // The owner saying he is done briefing is the build trigger. Nothing else
+    // was calling /api/agents/build — the birth screen only ever posts here and
+    // waits for an agentId — so a draft could be perfect and still never become
+    // anyone. That is the "and no profile" half of the reported bug.
+    const briefSoFar = ownerSaid();
+    const hasBrief = profile.chat.some((m) => m.role === 'user' && !isGoSignal(m.content));
+    if (isGoSignal(content) && hasBrief) {
+      const built = await buildFromDraft(profile, briefSoFar);
+      const agent = commitAgent(profile, null, built.agent);
+      const line = built.line;
+      profile.chat.push({ role: 'assistant', content: line });
       saveStore(userId);
-      return res.json({ chat: profile.chat, natureHint: draftHint() });
+      return res.json({
+        chat: profile.chat,
+        natureHint: agent.nature?.name ?? draftHint(),
+        agentId: agent.id,
+        agentName: agent.name,
+        strategy: agent.strategy,
+        createdAgent: presentAgent(agent, { owner: true }),
+      });
+    }
+
+    // ── An ordinary turn, guarded ────────────────────────────────────────────
+    // The model's reply never reaches the owner unchecked: a fence, a class
+    // definition or a wall of text is dropped and replaced, in order of
+    // preference, by the mapping for a vague brief, the last good thing the
+    // recruiter said, or a plain question about play.
+    let raw = null;
+    try {
+      raw = await callClaude(profile.chat, SYSTEM_CONV, 150);
     } catch (err) {
       console.error('[agentProfiles] chat error:', err.message);
-      const fallback = "Could you tell me more about your preferred style?";
-      profile.chat.push({ role: 'assistant', content: fallback });
-      saveStore(userId);
-      return res.json({ chat: profile.chat, natureHint: draftHint() });
     }
+    const guarded = draftReply({ raw, brief: briefSoFar, chat: profile.chat });
+    if (guarded.guarded) {
+      console.warn(`[agentProfiles] draft reply rejected (${guarded.guarded}) — sent ${guarded.source}`);
+    }
+    profile.chat.push({ role: 'assistant', content: guarded.text });
+    saveStore(userId);
+    return res.json({ chat: profile.chat, natureHint: draftHint() });
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it
