@@ -14,6 +14,8 @@ import { Streets } from '../lib/protocol.js';
 import { RiverAttrPanel } from './AnalysisPanel.jsx';
 import { TugBar } from './system/TugBar.jsx';
 import { ReadPanel } from './system/ReadPanel.jsx';
+import { SeatGhost } from './system/SeatGhost.jsx';
+import { ReadSheet } from './system/ReadSheet.jsx';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
@@ -425,7 +427,7 @@ function compactFor(slot, opponentCount) {
 // R-2 exports this: the replay theatre plays the same felt, driven by an
 // authored timeline instead of by the server. Reuse, not a second felt — the
 // pacing states, the rope and the hero row are all here already.
-export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom }) {
+export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
   // WV2-5: three phases, not two. `settled` is a finished hand still on
@@ -528,6 +530,12 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
     var s = game && game.seats ? game.seats[si] : null;
     if (!s) continue;
     opponentSeats.push({
+      seat: si,
+      // accentColor is served per seat; mood is NOT on the wire yet, so every
+      // opponent stands neutral until it is. The posture slot is here so the
+      // day it ships nothing else has to move.
+      accent: s.accentColor || '#00D4AA',
+      mood: s.mood || 'neutral',
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
       pos: posLabel(si, game),
@@ -600,22 +608,28 @@ export function WatchFelt({ game, mySeat, lastDecision, handEquity, flipped, lin
         var showBacks = live ? !o.folded : (settled && !showCards);
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}>
-            {compact
-              ? <SeatChipSm name={o.name} stack={o.stack} acting={o.acting}
-                  folded={o.folded} dealer={o.dealer} />
-              : <SeatChip name={o.name} stack={o.stack} pos={o.pos} acting={o.acting}
-                  folded={o.folded} align={align} dealer={o.dealer} />}
-            {(showBacks || showCards || o.bet) && (
+            {/* W4-2: he is somebody sitting there, not a chip with a number on
+                it. Same FloorGhost the casino floor draws, same accent, so a
+                House regular looks the same at the felt as in the room. */}
+            <SeatGhost
+              name={o.name}
+              stack={o.stack}
+              accent={o.accent}
+              mood={o.mood}
+              folded={o.folded}
+              acting={o.acting}
+              selected={selectedSeat === o.seat}
+              dealt={beat.backs}
+              reveal={!!o.reveal}
+              show={o.reveal}
+              side={slot === 'left' || slot === 'right'}
+              order={i}
+              size={compact ? 30 : 34}
+              onSelect={function() { onSelectSeat(o.seat); }}
+            />
+            {o.bet && (
               <div className="watch-felt__seat-row">
-                {showCards && (
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    {o.reveal.map(function(c, k) {
-                      return <PlayingCard key={k} rank={c[0]} suit={c[1]} w={22} h={31} />;
-                    })}
-                  </div>
-                )}
-                {showBacks && <SeatCardBacks mucked={o.mucked} />}
-                {o.bet && <BetPill amount={o.bet} />}
+                <BetPill amount={o.bet} />
               </div>
             )}
           </div>
@@ -800,9 +814,11 @@ function SitOutSheet({ game, onConfirm, onCancel }) {
 // are gone — the first was the solver speaking over him, the other two never
 // had content — and READ and CHAT remain.
 
-var TABS = ['Read', 'Chat'];
-var TAB_READ = 0;
-var TAB_CHAT = 1;
+// W4-2: READ is gone. A read was never a tab — it is about ONE person, and the
+// way you ask for it is to tap them. The rows moved into ReadSheet, which opens
+// over the felt on a seat tap. CHAT stays, and W4-4 renames it TABLE.
+var TABS = ['Chat'];
+var TAB_CHAT = 0;
 
 // WV2-3: the tab bar is the sheet's grab handle, so it no longer binds its own
 // click. Selection and dragging are one gesture, resolved by the sheet: a tap
@@ -938,6 +954,29 @@ function detentName(frac) {
     if (Math.abs(FELT_FRAC[i] - frac) < Math.abs(FELT_FRAC[best] - frac)) best = i;
   }
   return DETENTS[best];
+}
+
+// W4-2: one seat's read out of the served `state.reads` array, and the facts
+// the sheet's header needs about that seat. Both return null rather than guess,
+// so a seat the server has no read for opens a sheet that says so.
+function readFor(game, seat) {
+  var list = (game && Array.isArray(game.reads)) ? game.reads : null;
+  if (!list) return null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].seat === seat) return list[i];
+  }
+  return null;
+}
+
+function seatSummary(game, seat) {
+  var s = (game && game.seats) ? game.seats[seat] : null;
+  if (!s) return null;
+  return {
+    name: s.displayName || ('Seat ' + (seat + 1)),
+    stack: s.stack != null ? s.stack.toLocaleString() : null,
+    accent: s.accentColor || '#00D4AA',
+    mood: s.mood || 'neutral',
+  };
 }
 
 // ---- WatchScreen (export) --------------------------------------------------
@@ -1209,6 +1248,16 @@ export function WatchScreen({
     setActiveTab(TAB_CHAT);
   }, [onOpenThread]);
 
+  // W4-2: which seat's read is open, by seat index. Null is the felt with
+  // nothing over it.
+  var [selectedSeat, setSelectedSeat] = useState(null);
+  var toggleSeat = useCallback(function(seat) {
+    setSelectedSeat(function(prev) {
+      if (prev !== seat) fireHaptic('readForms');
+      return prev === seat ? null : seat;
+    });
+  }, []);
+
   var sheet     = useSheetDrag({
     onSelectTab: function(i) {
       if (i === TAB_CHAT) { openChat(); return; }
@@ -1271,8 +1320,16 @@ export function WatchScreen({
 
       <div className={'watch-stage' + (sheet.dragging ? ' is-dragging' : '')}
         ref={sheet.stageRef}>
+        {selectedSeat != null && (
+          <ReadSheet
+            entry={readFor(game, selectedSeat)}
+            seat={seatSummary(game, selectedSeat)}
+            onClose={function() { setSelectedSeat(null); }}
+          />
+        )}
 
-        <WatchFelt game={game} mySeat={mySeat} lastDecision={lastDecision}
+        <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
+          game={game} mySeat={mySeat} lastDecision={lastDecision}
           handEquity={handEquity} flipped={faceUp} line={feltLine} geom={sheet.geom} />
 
         {/* THE SHEET -- the tab bar is the grab handle. Both grab surfaces are
@@ -1305,23 +1362,25 @@ export function WatchScreen({
 
           {sheet.detent === 'expanded' && (
             <div className="watch-panel">
-              {activeTab === TAB_READ && (
-                <ReadTab
-                  game={game}
-                  between={between}
-                  agent={agent}
-                  lastHand={agent && agent.recentHands ? agent.recentHands[0] : null}
-                  predict={predictOn ? (
-                    <PredictBeat
-                      picked={pick ? pick.guess : null}
-                      locked={!!(pick && pick.locked)}
-                      right={pick ? pick.right : undefined}
-                      streak={pick && pick.locked ? pick.streak : getStreak()}
-                      onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
-                    />
-                  ) : null}
+              {/* W4-2: the READ tab is gone — a read is about one person and you
+                  ask for it by tapping them, so the rows live in ReadSheet now.
+                  These three were only ever sharing that tab with the reads and
+                  are not reads themselves, so they stay in the panel rather than
+                  being deleted with it. v4 gives none of them a home of its own;
+                  they want a decision, not a silent removal. */}
+              {predictOn && (
+                <PredictBeat
+                  picked={pick ? pick.guess : null}
+                  locked={!!(pick && pick.locked)}
+                  right={pick ? pick.right : undefined}
+                  streak={pick && pick.locked ? pick.streak : getStreak()}
+                  onPick={function(guess) { setPick({ guess: guess, locked: false }); }}
                 />
               )}
+              {between && agent && agent.recentHands && agent.recentHands[0] && (
+                <RiverAttrPanel agent={agent} hand={agent.recentHands[0]} />
+              )}
+              <MuteToggle />
               {activeTab === TAB_CHAT && (
                 <ChatTab
                   agentThread={agentThread}

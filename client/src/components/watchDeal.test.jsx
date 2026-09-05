@@ -174,7 +174,8 @@ describe('W4-5: where Chat goes', () => {
     const onOpenThread = vi.fn();
     render(<WatchScreen {...props} onOpenThread={onOpenThread} />);
 
-    const tab = document.querySelector('[data-watch-tab="1"]');
+    // W4-2 removed READ, so CHAT is the panel's only tab and index 0.
+    const tab = document.querySelector('[data-watch-tab="0"]');
     await userEvent.click(tab);
     expect(onOpenThread).toHaveBeenCalled();
   });

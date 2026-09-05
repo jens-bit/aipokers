@@ -1285,3 +1285,211 @@
 @media (prefers-reduced-motion: reduce) {
   .watch-felt__hero-card { transition: none; }
 }
+
+/* ── W4-2 · seats as characters ─────────────────────────────────────────
+ * mood-watch4.jsx SeatGhost / SeatClock. A seat is a 60px stack: ghost 41,
+ * gap 2, name chip 17. The felt's bubble bands are measured off it. */
+
+.seat-ghost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.seat-ghost.is-folded { opacity: 0.34; filter: saturate(0.4); }
+.seat-ghost.is-acting { z-index: 5; }
+
+.seat-ghost__body { position: relative; display: block; }
+.seat-clock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  overflow: visible;
+  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.7));
+}
+.seat-ghost__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(100% + 20px);
+  height: calc(100% + 20px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px dashed var(--sys-teal, #00D4AA);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+  pointer-events: none;
+}
+.seat-ghost__backs {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%) rotate(-6deg);
+  z-index: -1;
+  display: flex;
+  gap: 1px;
+}
+.seat-ghost__ghost { display: block; }
+.seat-ghost__history {
+  position: absolute;
+  top: -2px;
+  left: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: rgba(19, 19, 22, 0.95);
+  border: 1px solid var(--sys-gold, #CDB380);
+  color: var(--sys-gold, #CDB380);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
+}
+
+.seat-ghost__chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 9px;
+  background: rgba(14, 17, 18, 0.8);
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  white-space: nowrap;
+  max-width: 100%;
+}
+.seat-ghost.is-acting .seat-ghost__chip { border-color: rgba(237, 237, 237, 0.4); }
+.seat-ghost__name {
+  font-size: 9.5px;
+  color: var(--sys-dim, #C3C3C6);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seat-ghost.is-acting .seat-ghost__name { color: var(--sys-text, #EDEDED); }
+.seat-ghost__stack {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px;
+  color: var(--sys-muted, #9E9EA2);
+}
+.seat-ghost__timer {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--sys-text, #EDEDED);
+}
+
+.seat-ghost__shelf {
+  display: flex;
+  flex-direction: row;
+  gap: 1.5px;
+  margin-top: 1px;
+  animation: watch-reveal 0.3s ease-out both;
+}
+.seat-ghost__shelf.is-side { flex-direction: column; }
+@keyframes watch-reveal { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── W4-2 · the read sheet ──────────────────────────────────────────────
+ * mood-watch4.jsx ReadSheet4. A read is about one person, so it opens on a
+ * seat tap and closes when you are done. */
+
+.read-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  max-height: 82%;
+  overflow-y: auto;
+  background: var(--sys-panel, #232329);
+  border-top: 1px solid rgba(0, 212, 170, 0.27);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.55);
+  padding: 9px 14px 18px;
+  animation: read-sheet-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes read-sheet-up { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.read-sheet__grab {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0 0 11px;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.read-sheet__grab-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--sys-faint, #55555C); }
+
+.read-sheet__head { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
+.read-sheet__well {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  background: #0a0f17;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.read-sheet__id { flex: 1; min-width: 0; }
+.read-sheet__name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--sys-text, #EDEDED);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.read-sheet__meta {
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #9E9EA2);
+}
+.read-sheet__stack {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sys-teal, #00D4AA);
+  flex-shrink: 0;
+}
+.read-sheet__rows { padding: 4px 0 2px; }
+.read-sheet__line {
+  margin-top: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 212, 170, 0.05);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  font-size: 12.5px;
+  color: var(--sys-text, #EDEDED);
+  line-height: 1.45;
+  font-style: italic;
+}
+.read-sheet__hint {
+  margin-top: 10px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sys-muted, #9E9EA2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .read-sheet, .seat-ghost__shelf { animation: none; }
+}
