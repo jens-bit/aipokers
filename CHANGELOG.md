@@ -5,6 +5,34 @@ Dates are UTC. Format: `[version] — date — summary`.
 
 ---
 
+## [0.9.0] — 2026-09-05 — The agent lives: server-side life, a casino floor, a character
+
+- SERVER LIFE (Tree 4): agents play on the server whether or not anyone is watching. Autonomous session loop with hand cap, bust and stall watchdog; deploy starts a session with no WebSocket open; watching became passive. `presence` is now derived from a live table rather than a stored flag (AGE-37), which is what closed BUG-16 and BUG-17. Floor channel pushes throttled FLOOR_STATE/FLOOR_GAME deltas over the socket. SIT_OUT finishes the hand, closes the table and writes a recap (AGE-33). Proven end to end by scripts/verify-server-life.js.
+- MULTI-SEAT (Tree 6): tables seat 2–6. Engine cases for 3–6 handed, between-hands seat reconciliation, mid-hand joins dealt into the next hand, side pots layered multiway, matchmaking that prefers joining an open table and prefers a same-owner felt (MST-1..5, MATCH-2). scripts/verify-multi-seat.js.
+- HOUSE CAST: six named regulars (Doyle_v3, Phil_AI, Granite, MsAllIn, TiltedTed, TheProfessor) with stable ids, wired into matchmaking (HC-1..3).
+- PERSONALITY LAYER (Tree 3.5): mood state machine with trait-scaled transitions, mood in the decision briefing, pep-talk soothing with cooldown, agent moments, session recaps and unseen-recap flags, agents proposing their own strategy changes (AGE-29..32, PROP-1).
+- OPPONENT MODEL: rolling per-opponent stat counters, opponent read injected into the briefing, grounded memory with computed stats primary (AGE-24..27).
+- TABLE TALK: template talk data, needle injection, stoic immunity, rate limits (TLK-1/2).
+- CASINO FLOOR: the mobile home is a room. Floor atoms (ghosts, chips, tickers), data-driven density, floor zoom, dioramas with board and face-up hero cards, relight token pass (FLR-1..5, FISHTANK-1, FLOOR-2/3, LIGHT-1).
+- NAV: 5-tab nav replaced by CASINO / CHATS / YOU (NAV-1a..d). CHATS roster + thread, YOU screen, birth/create flow.
+- BIRTH FLOW: BirthScreen is the one creation path; every entry point opens it (BIR-1/2).
+- WATCH: draggable three-detent sheet, multiway seat ring for 1–5 opponents, showdown held on screen until the next deal, equity rendered as a percentage not a raw fraction, an undriven AI-only table now gets adopted (WV2-1..6). Between-hands calm state and felt density pass (WCM-1/2).
+- HAND REVIEW: flagged-hand classifier, storage and API; flagged hands sheet with standup entry; hole cards stored on hand records (FLAG-1, REVIEW-1/2, HANDS-1).
+- BANKROLL: persistent bankroll with creation grant, deploy gate, buy-in/cash-out ledger, reload action, chip verify script (BNK-1..3).
+- NOTIFICATIONS: Telegram notification budget — ladder, holds, caps, rotation, quiet hours.
+- AGENT PROFILE: profile screen with sessionLog and careerStats (PROFILE-1a/b).
+- DESKTOP PORT (DSK2): desktop home with floor stage, standup rail and game tile stack; zoom and thread in the rail; watch at the desk with table stage and analysis rail; quiet night, first run and flagged rail (DSK2-1..5).
+- CHARACTER SYSTEM (ATTR-1/ATTR-2): attribute engine with six hooks, piecewise lerp so 50 is today's agent, birth generator, arena `--attributes` switch; character-system primitives and data contract, player card v2, nature reveal, growth in the thread, roster and hand review (ATTR-1a..d, ATTR-2a..d).
+- WEB LOGIN (AUTH-1): dual-scheme credential verification — Telegram Mini App initData and the Telegram Login Widget; session store in telegram.js, LoginGate, welcome-page login link and web logout (AUTH-1a..c).
+- TEST FRAMEWORK (TEST-1/TEST-2): `npm test` discovers every src/**/*.test.js and every scripts/verify-*.js instead of listing six files by hand; Vitest + Testing Library for the client with fixtures built from the real API shapes; CI gate on every push and PR before deploy. Split into a fast pre-commit suite (1.3s) and `npm run test:e2e` (~35s); ANTHROPIC_API_KEY stripped from every spawned suite so no test depends on a live model. Testing law written into CLAUDE.md.
+- CACHE: index.html no-store, hashed assets immutable forever (CACHE-2).
+- MOBILE: Telegram viewport height tracked so the keyboard no longer eats the chat (KEY-1); Telegram vertical swipe disabled so the sheet owns its gesture (SWIPE-1); landing viewport discipline (LAND-4).
+- CHAT: hard brevity law — 1–2 sentences, no option menus, no repetition (CHAT-1).
+- BUGS: 16, 17 resolved (server-side life). 18 (flagged review dropped the opponent's showdown cards) and 19 (flagged fetch sent no credential header) found and fixed. 20 filed (dead 14px input rule). 11 dropped — CreateAgent.jsx no longer exists.
+- DEPLOY: lockfile churn on the VPS discarded before pull, which had been blocking the pull outright.
+
+---
+
 ## [0.8.0] — 2026-08-29 — The audit session: identity, skill engine, lockdown
 
 - IDENTITY: product reframed game-first — "a Tamagotchi that plays poker" (master spec v9). Play money first; TON/real-money deferred pending legal counsel.

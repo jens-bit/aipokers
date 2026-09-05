@@ -52,6 +52,6 @@ How it is wired:
 - design-refs/ is read-only. Port, don't reinvent.
 - Engine invariants: all tests in game.test.js pass, chip conservation holds, no protocol-breaking changes to WS messages.
 - No new npm dependencies without a stated reason in the PR/commit.
-- Never commit secrets. TELEGRAM_BOT_TOKEN / ANTHROPIC_API_KEY live in env (.bashrc on VPS).
+- Never commit secrets. Env lives in .bashrc on the VPS: `TELEGRAM_BOT_TOKEN` (secret — also the switch that turns `isOwner()` from "always true" into a real check), `ANTHROPIC_API_KEY` (secret), `TELEGRAM_BOT_USERNAME` (public, served by GET /api/auth/config so the web Login Widget can render; empty means web login is off on that deployment), `LOGIN_MAX_AGE_S` (optional, how long a web login stays valid — default 30 days).
 - Windows contributors: never use PowerShell `>` redirect into source files (UTF-16 corruption); git autocrlf=input; watch for CRLF "everything modified" ghosts.
 - LLM-spending endpoints (/api/agents/chat, /build) stay behind auth. Anything that triggers a model call must be rate-limited.

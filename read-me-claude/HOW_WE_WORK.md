@@ -105,13 +105,15 @@ But this is rarely the right call — fresh branches are safer.
 **Running Claude Code in a worktree:**
 ```powershell
 cd C:\Projects\ai-poker-myfeature
-claude --dangerously-skip-permissions --model claude-sonnet-4-6
+claude --dangerously-skip-permissions --model opus
 ```
 
-**Model selection:**
-- `claude-sonnet-4-6` — standard UI work, CSS, component porting, most tasks
-- `claude-opus-4-6` — complex architecture, new backend systems, anything that requires deep reasoning
-- `claude-haiku-4-5` — trivial single-file fixes only
+**Model selection:** `--model opus` for everything. That is what we actually
+run - the short alias, not a dated model id, so the terminal follows the
+current Opus without anyone editing this file. `/model opus` inside a running
+session does the same thing and saves it as the default for new sessions.
+Only reach for `--model sonnet` or `--model haiku` deliberately, for a batch
+of trivial single-file edits where speed matters more than judgement.
 
 **Prompt format for Claude Code agents:**
 
@@ -356,10 +358,23 @@ When Cowork chat says `[Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY"
 
 ## How Jens Likes Prompts Delivered to Him
 
+**Two hard rules, learned the hard way:**
+
+1. **A prompt from Cowork is pasted into Claude, never into the terminal.**
+   The prompt is text for the agent to read, not shell input. Pasting a
+   multi-line prompt straight at a PowerShell prompt runs its first line as a
+   command and throws the rest away. Start Claude first, then paste.
+2. **The branch switch is always the prompt's first line.** Every prompt opens
+   by naming the branch and telling the agent to confirm it with
+   `git branch --show-current` and stop if it is anything else. A worktree gets
+   reused across tasks, so whichever branch it happens to be on is never an
+   assumption worth making — the cost of finding out late is a pile of commits
+   on the wrong branch.
+
 When Claude (in Cowork/chat mode) writes a prompt for Jens to paste into a Claude Code terminal, it must include:
 
 1. **Which directory to be in** — exact `cd` command
-2. **Which command to run** — exact `claude --dangerously-skip-permissions --model X` command
+2. **Which command to run** — exact `claude --dangerously-skip-permissions --model opus` command
 3. **The prompt itself** — in a code block, ready to paste
 4. **What to do once done** — exact git and deploy commands
 
@@ -368,7 +383,7 @@ Example format:
 Terminal 1 — ai-poker-home (feature/home-redesign)
 
 cd C:\Projects\ai-poker-home
-claude --dangerously-skip-permissions --model claude-sonnet-4-6
+claude --dangerously-skip-permissions --model opus
 
 [paste this prompt:]
 ---
