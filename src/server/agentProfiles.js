@@ -30,6 +30,7 @@ import {
   ensureAttributes,
   birthAttributes,
   effectiveAttrs,
+  restedFatigue,
   logAttrChange,
   firstWordsFor,
   applySessionGrowth,
@@ -818,9 +819,12 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     }
   }
 
-  // Fatigue is a within-session STATE and the session is over. He is fresh
-  // again by the time the owner next looks at him — the bar did its job.
-  agent.fatigue = 'fresh';
+  // RIDERS-1: fatigue survives the session now. It used to be reset to 'fresh'
+  // here, which meant an agent who had just ground out four hundred hands
+  // looked box-fresh the instant he stood up, and the floor's WORN pip could
+  // never fire at the bar. The stage he finished on is kept and recovers with
+  // time instead — see presentAgent.
+  agent.restedAt = Date.now();
   agent.sessionHands = 0;
   agent.wornSaidAtHand = null;
 
@@ -1067,8 +1071,18 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     ? (liveGame?.heroSessionHands ?? liveGame?.handsThisSession ?? 0)
     : 0;
   const live = effectiveAttrs(agent, { sessionHands });
-  const fatigue = presence === 'playing' ? live.fatigue : 'fresh';
-  if (presence === 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
+  // RIDERS-1: at the table the live reading wins; away from it the STORED stage
+  // stands and recovers with the hours since he left. It is never overwritten
+  // with 'fresh' just because he is idle — that is what made a worn agent look
+  // rested the moment the session ended.
+  let fatigue;
+  if (presence === 'playing') {
+    fatigue = live.fatigue;
+    if (agent.fatigue !== fatigue) agent.fatigue = fatigue;
+  } else {
+    const since = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
+    fatigue = restedFatigue(agent.fatigue ?? 'fresh', since);
+  }
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;
@@ -1797,6 +1811,14 @@ export function installAgentProfileRoutes(app) {
       ...h,
       holeCards: owner ? (h.holeCards ?? []) : [],
       // opponentShowdownCards exposed as-is — public information from the showdown
+      // RIDERS-1: a hand flagged before pot/allIn were recorded reads them as
+      // null rather than undefined, so the replay sees "not stored" instead of
+      // a missing key and falls back to its own approximation.
+      streets: (h.streets ?? []).map((st) => ({
+        pot: null,
+        allIn: null,
+        ...st,
+      })),
     }));
     res.json({ flaggedHands: hands, count: hands.length });
   });

@@ -20,7 +20,7 @@ import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
-import { BirthScreen, MaterializingOccupant } from './screens/BirthScreen.jsx';
+import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
 
 function resolveWsUrl() {
@@ -45,6 +45,7 @@ export default function App() {
     chatMessages, sendChat,
     sitOut,
     lastDecision,
+    paceFrame,
   } = table;
   const displayNames = useMemo(() => {
     const names = {};
@@ -328,8 +329,15 @@ export default function App() {
               onCreateAgent={() => setIsCreating(true)}
               onChat={openAgentChat}
               onProfile={openAgentProfile}
+              // WIRE-1 (FLOW-1 F-4): the floor offers "watch him" the moment
+              // this one sits down for the first time. It is the link between
+              // building an agent and seeing him play, and it is only ever on
+              // offer for the hand right after a birth.
+              newbornId={newlyBornAgent?.id ?? null}
               onWatch={async (agent) => {
                 if (!agent?.activeTableId) return;
+                // Taking the offer spends it — a second hand is just poker.
+                setNewlyBornAgent(null);
                 let memoryContext = '';
                 try {
                   const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
@@ -417,14 +425,10 @@ export default function App() {
           )}
           {activeTab === 'you' && <YouScreen />}
 
-          {/* Newly born ghost materialises on the CASINO floor for ~5 s */}
-          {newlyBornAgent && activeTab === 'casino' && (
-            <MaterializingOccupant
-              name={newlyBornAgent.name}
-              phase={0.72}
-              onDone={() => setNewlyBornAgent(null)}
-            />
-          )}
+          {/* WIRE-1: the newborn's arrival is CasinoFloor's own (FLOOR-2 FL-3) —
+              it notices an id that was not in the roster it first saw and walks
+              him in. This overlay drew a second body for the same agent on top
+              of that one. One body per agent; the floor keeps his. */}
         </div>
         <nav className="tab-bar">
           <button
@@ -460,6 +464,11 @@ export default function App() {
         game={game}
         mySeat={mySeat}
         lastDecision={lastDecision}
+        // WIRE-1 (W3-6): the staged runout, forwarded rather than picked up off
+        // the view model. useTable merges it onto `game` too, and WatchScreen
+        // prefers this prop — the merge stays as the fallback for any container
+        // that has not been given the frame.
+        paceFrame={paceFrame}
         chatMessages={chatMessages}
         sendChat={sendChat}
         displayNames={displayNames}

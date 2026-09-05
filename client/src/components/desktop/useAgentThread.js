@@ -11,11 +11,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 
-function openerFor(hands) {
+// WIRE-1: the opener is HIS, and the server writes it — MOOD-2c puts it on the
+// agent as `opener`, chosen by how hot he is and by the one hand he cannot let
+// go of. The client stopped composing a greeting out of a win/loss tally: a
+// scoreboard is not a hello, and three surfaces each building their own meant
+// three different agents saying three different things about one session.
+//
+// The tally survives only as the fallback for a record written before MOOD-2c.
+function legacyOpener(hands) {
   if (!hands.length) return 'Ready to play. Describe any changes to my strategy, or deploy me to start.';
   const won = hands.filter((h) => h.won).length;
   const lost = hands.length - won;
   return `Hey — I just finished ${hands.length} hand${hands.length === 1 ? '' : 's'}. Won ${won}, lost ${lost}. Want to review any hands or adjust my strategy?`;
+}
+
+export function openerFor(agent, hands = []) {
+  const served = agent?.opener;
+  if (typeof served === 'string' && served.trim()) return served;
+  return legacyOpener(hands);
 }
 
 export function useAgentThread(agent) {
@@ -39,7 +52,7 @@ export function useAgentThread(agent) {
 
     const seed = (hands) => {
       if (cancelled) return;
-      const msgs = [mkMsg('assistant', openerFor(hands))];
+      const msgs = [mkMsg('assistant', openerFor(agent, hands))];
       if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
       setChat(msgs);
     };

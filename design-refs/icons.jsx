@@ -24,7 +24,7 @@ const Icon = ({ name, size = 20, color = 'currentColor', strokeWidth = 1.7 }) =>
     case 'spade':
       return (
         <svg {...common} fill={color} stroke="none">
-          <path d="M12 2 C12 2, 4 9, 4 14 C4 17, 6 19, 9 19 C10.5 19, 11.5 18.3, 12 17.3 C12.5 18.3, 13.5 19, 15 19 C18 19, 20 17, 20 14 C20 9, 12 2, 12 2 Z M11 18 L9.5 22 L14.5 22 L13 18 Z"/>
+          <path d="M12 2.4 C12 2.4 4.6 8.8 4.6 13.9 C4.6 16.7 6.5 18.7 9 18.7 C10.1 18.7 11 18.3 11.6 17.6 C11.7 19.6 11 21.2 9.4 22.2 L14.6 22.2 C13 21.2 12.3 19.6 12.4 17.6 C13 18.3 13.9 18.7 15 18.7 C17.5 18.7 19.4 16.7 19.4 13.9 C19.4 8.8 12 2.4 12 2.4 Z"/>
         </svg>
       );
     case 'agent':
@@ -92,6 +92,34 @@ const Icon = ({ name, size = 20, color = 'currentColor', strokeWidth = 1.7 }) =>
           <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/>
         </svg>
       );
+    case 'edit':
+      return <svg {...common}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>;
+    case 'info':
+      return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v5h1"/></svg>;
+    case 'templates':
+      return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
+    case 'send':
+      return <svg {...common}><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>;
+    case 'shield':
+      return <svg {...common}><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>;
+    case 'target':
+      return <svg {...common}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill={color}/></svg>;
+    case 'scales':
+      return <svg {...common}><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 6h6l-3-6z"/><path d="M19 7l-3 6h6l-3-6z"/><path d="M8 21h8"/></svg>;
+    case 'clock':
+      return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+    case 'risk':
+      return <svg {...common}><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5"/><path d="M12 18h.01"/></svg>;
+    case 'tilt':
+      return <svg {...common}><path d="M3 12c3-4 6-4 9 0s6 4 9 0"/></svg>;
+    case 'bet':
+      return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 1 1 0 3h-3a1.5 1.5 0 1 0 0 3h4"/></svg>;
+    case 'percent':
+      return <svg {...common}><circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/><path d="M19 5L5 19"/></svg>;
+    case 'plus':
+      return <svg {...common}><path d="M12 5v14M5 12h14"/></svg>;
+    case 'chevron-down':
+      return <svg {...common}><path d="M6 9l6 6 6-6"/></svg>;
     default:
       return null;
   }
