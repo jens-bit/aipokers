@@ -18,6 +18,7 @@ superseded.
 | 23 | Mobile · Forward Motion | The draft→birth→floor→watch chain, floor v2 |
 | 24 | Mobile · First Five Minutes | The complete first-run path and every empty state |
 | 25 | Mobile · Notifications | The ladder, the budget board, the violations board |
+| 26 | Mobile · Watch v5 | Seated hero, the fist system, seat anatomy, table sizes |
 | 30 | Desktop · Command Center | The 1440 shell — stage, rail, roster |
 | 31 | Desktop · Parity | The audit, the missing states, one desktop matrix |
 | 40 | Marketing · Landing | The public page |
@@ -35,7 +36,9 @@ its own dependencies.
 | `mood-atoms` | Tokens, `MoodGhost` + the face system, `MoodBand`, `LiveBar`, shells |
 | `mood-screens-a…f` | Mobile screen sets (thread, watch, floor, hand review) |
 | `mood-casino` `mood-casino2` | The floor: layouts, dioramas, occupants; v2 adds heat/walk-in |
-| `mood-watch` `mood-watch3` `mood-watch4` `mood-watch4b` | Watch v1 → v4b |
+| `mood-watch` `-2` `-3` `-4` `-4b` `-4c` `-5` | Watch v1 → v5 |
+| `mood-hands` | The hand reference sheet (geometry lives in `mood-atoms`) |
+| `mood-replay` `mood-notify` `mood-ww-ref` | Replay theatre, notifications, the watch/wallet matrix |
 | `mood-desktop` `-2` `-3` | The desktop shell and its screen sets |
 | `mood-desk-parity` `-parity2` | The wave-39 audit, heat, and the missing desktop states |
 | `mood-birth` `-2` `-3` | The draft and birth flow |
@@ -47,8 +50,18 @@ its own dependencies.
 | `mood-system` `mood-system2` | The design-system sheets |
 | `mood-landing` | The landing page sections |
 
-`design-refs/` is a handoff snapshot, not a live source — it is a copy taken at
-wave 33 and refreshed occasionally. Edit the root files.
+Nothing outside `archive/` is dead: every `.jsx` at the root is loaded by at least
+one board. The pre-mood prototype layer (`table`, `analysis`, `home`, `play`,
+`profile`, `desktop-home*`, `desktop-spectate*` and the rest) now lives in
+`archive/` beside the boards that load it.
+
+## archive/
+
+| | Holds |
+|---|---|
+| `archive/*.html` | Superseded boards — the pre-mood prototype and the desktop v1–v3 line |
+| `archive/*.jsx` | The component layer those boards load, plus a copy of the four primitives so they still render in place |
+| `archive/handoff-wave33/` | The wave-33 handoff snapshot. A frozen copy, never a source — edit the root files |
 
 ## Naming rules, so this stays clean
 
@@ -58,6 +71,10 @@ wave 33 and refreshed occasionally. Edit the root files.
   `Watch &amp; Wallet.html` because an HTML entity got into the name.
 - **Component files** keep their `mood-`/`char-` prefix and their suffix number.
   Do not rename them: every board's `<script src>` list points at these paths.
-- **Superseded boards** move to `archive/` rather than being deleted. Their
-  relative `.jsx` paths no longer resolve from that folder, which is fine — they
-  are kept as a record of the direction, not as working files.
+- **Superseded boards** move to `archive/` rather than being deleted, **with the
+  `.jsx` they load** — a board whose sources stay at the root is a board that
+  silently breaks the day those sources change under it.
+- **The live component layer stays flat at the root.** Board filenames contain a
+  `·`, which the file tooling cannot address, so moving sources into folders
+  would mean renaming all fifteen boards first. Worth doing if the layer grows
+  again; not worth it for 50 files with a documented prefix scheme.

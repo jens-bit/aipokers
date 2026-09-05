@@ -59,12 +59,31 @@ const BUBBLE_BAND = {
 const SIDE_ROW_Y = BUBBLE_BAND.oppSide + OPP_BUBBLE_H + 14;   // 170
 
 const W4_SEATS = [
-  { id: 'granite',  name: 'Granite',   stack: '2,104', pos: 'BB',  x: 74,  y: 56,  mood: 'neutral',    accent: M_GOLD,   house: true, history: 3, show: [['K', 'd'], ['9', 's']] },
+  { id: 'granite',  name: 'Granite',   stack: '2,104', pos: 'BB',  x: 74,  y: 56,  dealer: true,  mood: 'neutral',    accent: M_GOLD,   house: true, history: 3, show: [['K', 'd'], ['9', 's']] },
   { id: 'phil',     name: 'Phil_AI',   stack: '1,960', pos: 'SB',  x: 195, y: 48,  mood: 'confident',  accent: M_TEAL,   house: true, show: [['J', 'h'], ['J', 'c']] },
   { id: 'doyle',    name: 'doyle_v3',  stack: '1,290', pos: 'CO',  x: 316, y: 56,  mood: 'sulking',    accent: M_PINK,   folded: true },
   { id: 'nash',     name: 'nash_eq',   stack: '3,410', pos: 'UTG', x: 48,  y: SIDE_ROW_Y, mood: 'frustrated', accent: M_PURPLE, agent: true, show: [['A', 'c'], ['Q', 'd']] },
   { id: 'ivey',     name: 'ivey_bot',  stack: '880',   pos: 'HJ',  x: 344, y: SIDE_ROW_Y, mood: 'tilted',     accent: M_RED,    folded: true },
 ];
+
+const SEAT_ORDER = ['granite', 'phil', 'doyle', 'nash', 'ivey'];
+
+// x/y per ring, hand-placed so no two 64px stacks touch at 390 wide and every pile
+// still banks clear of its own pill. Top row 56 (centre 48, which reads as depth);
+// side row 170 for the rings that need one.
+const SEAT_RINGS = {
+  2: [{ x: 195, y: 56 }],
+  3: [{ x: 100, y: 56 }, { x: 290, y: 56 }],
+  4: [{ x: 74, y: 56 }, { x: 195, y: 48 }, { x: 316, y: 56 }],
+  5: [{ x: 92, y: 52 }, { x: 298, y: 52 }, { x: 48, y: SIDE_ROW_Y }, { x: 344, y: SIDE_ROW_Y }],
+  6: [{ x: 74, y: 56 }, { x: 195, y: 48 }, { x: 316, y: 56 }, { x: 48, y: SIDE_ROW_Y }, { x: 344, y: SIDE_ROW_Y }],
+};
+
+// handed = players AT the table, hero included — so 6 returns five opponents.
+const seatsFor = (handed = 6, cast = W4_SEATS) => {
+  const ring = SEAT_RINGS[handed] || SEAT_RINGS[6];
+  return ring.map((p, i) => ({ ...cast[i], ...p }));
+};
 
 // ── the bubble ────────────────────────────────────────────────────────────
 // Two registers, one shape. HIS is teal-edged and carries his 13px voice; an
@@ -110,60 +129,83 @@ const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
   );
 };
 
-// ── acting is a shape, not a colour ──────────────────────────────────────
-// Teal is an accent and Phil_AI wears it, so a role signal cannot live there. The
-// ring IS the clock: a faint white circle for "acting", a bright arc on the same
-// radius for time left, and the count in the chip at mono 9 — no scaled numeral.
-const SeatClock = ({ d = 47, left = 9, of = 12 }) => {
-  const r = (d - 2) / 2, c = 2 * Math.PI * r;
+const SEAT_BODY = 40, SEAT_GAP = 6, SEAT_PILL = 18;
+const SEAT_H = SEAT_BODY + SEAT_GAP + SEAT_PILL;   // 64
+const POT_C = { x: 195, y: 215 };
+
+// top corners bank BELOW the pill (nothing to clear once you are past row 2); the
+// side seats bank BESIDE the body, inside, at row-1 height. The bet spot is the
+// midpoint of pile and pot, so it always reads as money travelling.
+const seatSlot = s => {
+  const top = s.y < 120;
+  const inside = s.x < POT_C.x ? 1 : -1;
+  const pile = top
+    ? { x: 18 * inside, y: SEAT_H + 6 }
+    : { x: 35 * inside, y: 6 };
+  const px = s.x + pile.x, py = s.y + pile.y;
+  return { pile, bet: { x: (px + POT_C.x) / 2 - s.x - 6, y: (py + POT_C.y) / 2 - s.y - 6 }, top, inside };
+};
+
+const DealerBtn = () => (
+  <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#EDEDED', color: '#0E1112', fontFamily: OSWALD, fontSize: 8, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>D</span>
+);
+
+const SeatRing = ({ d = 22, left = 9, of = 12 }) => {
+  const r = (d - 3) / 2, c = 2 * Math.PI * r;
   return (
-    <svg width={d} height={d} viewBox={`0 0 ${d} ${d}`} style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-90deg)', overflow: 'visible', filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.7))' }}>
-      <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke="rgba(237,237,237,0.3)" strokeWidth="1"/>
-      <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke="#EDEDED" strokeWidth="1.6" strokeLinecap="round"
+    <svg width={d} height={d} viewBox={`0 0 ${d} ${d}`} style={{ flexShrink: 0, transform: 'rotate(-90deg)' }}>
+      <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke="rgba(237,237,237,0.28)" strokeWidth="1.5"/>
+      <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke="#EDEDED" strokeWidth="1.8" strokeLinecap="round"
         strokeDasharray={`${(c * left / of).toFixed(1)} ${c.toFixed(1)}`}/>
     </svg>
   );
 };
 
-// `reveal` turns their backs face up at showdown, in seat order. Backs while the
-// hand is live — the fish-tank law is untouched by this wave.
-const SeatGhost = ({ s, acting, selected, dealt, reveal, size = 34, timer = 9, order = 0 }) => (
+const SeatGhost = ({ s, acting, selected, dealt, reveal, size = SEAT_BODY, timer = 9, order = 0 }) => (
   <div style={{ position: 'absolute', left: s.x, top: s.y, transform: 'translateX(-50%)', zIndex: acting ? 5 : 3, cursor: 'pointer' }}>
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <div style={{ position: 'relative' }}>
-        {acting && <SeatClock d={size + 13} left={timer}/>}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SEAT_GAP }}>
+
+      {/* ROW 1 — the body. The face is clear: cards start at 60% down and fan out,
+          the fists hang under their bottom corners. */}
+      <div style={{ position: 'relative', width: size, height: size }}>
         {selected && (
-          <div style={{ position: 'absolute', left: '50%', top: '50%', width: size + 20, height: size + 20, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: `1px dashed ${M_TEAL}`, boxShadow: `0 0 12px ${M_TEAL}66` }}/>
-        )}
-        {/* CARDS IN FRONT, over the lower third of the body. Behind the shoulder at
-            z-index −1 they read as furniture rather than as something he is holding,
-            which is the whole point of a seat having cards at all. */}
-        {dealt && !s.folded && !(reveal && s.show) && (
-          <div style={{ position: 'absolute', left: '50%', top: size * 0.5, transform: 'translateX(-50%)', zIndex: 4, display: 'flex', gap: 1.5 }}>
-            <div style={{ transform: 'rotate(-7deg)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={17} h={23}/></div>
-            <div style={{ transform: 'rotate(7deg)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={17} h={23}/></div>
-          </div>
+          <div style={{ position: 'absolute', left: '50%', top: '50%', width: size + 16, height: size + 16, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: `1px dashed ${M_TEAL}`, boxShadow: `0 0 12px ${M_TEAL}66` }}/>
         )}
         <div style={{ opacity: s.folded ? 0.34 : 1, filter: s.folded ? 'saturate(0.4)' : 'none' }}>
           <FloorGhost mood={s.mood} accent={s.accent} size={size} speed={s.mood === 'tilted' ? 3.2 : 5.6}/>
-          {/* SeatGhost draws FloorGhost, which takes no hands prop — so the seat
-              overlays the hand layer itself, at the four poses an opponent gets. */}
-          <svg width={size} height={size} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: size * 0.16, overflow: 'visible', pointerEvents: 'none', zIndex: 3 }}>
-            {ghostHands({ pose: s.folded ? 'rest' : dealt ? 'hold' : 'rest', size })}
-          </svg>
         </div>
+        {/* a folded seat has no cards at all — and therefore no hands on cards */}
+        {dealt && !s.folded && !(reveal && s.show) && (
+          <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', zIndex: 4, display: 'flex', gap: 3 }}>
+            {[0, 1].map(i => (
+              <div key={i} style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={15} h={20}/></div>
+            ))}
+          </div>
+        )}
+        <svg width={size} height={size} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 5, opacity: s.folded ? 0.34 : 1 }}>
+          {ghostHands({ pose: s.folded ? 'rest' : dealt ? 'hold' : 'rest', size, grip: SEAT_GRIP })}
+        </svg>
         {s.history && (
-          <span style={{ position: 'absolute', top: -2, left: -6, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 7, background: 'rgba(19,19,22,0.95)', border: `1px solid ${M_GOLD}`, color: M_GOLD, fontFamily: MONO, fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 6px ${M_GOLD}44` }}>{s.history}</span>
+          <span style={{ position: 'absolute', top: -2, left: -7, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 7, background: 'rgba(19,19,22,0.95)', border: `1px solid ${M_GOLD}`, color: M_GOLD, fontFamily: MONO, fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 6px ${M_GOLD}44` }}>{s.history}</span>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 6px', borderRadius: 9, background: 'rgba(14,17,18,0.8)', border: `1px solid ${acting ? '#EDEDED66' : M_BORDER}`, opacity: s.folded ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-        <span style={{ fontSize: 9.5, color: acting ? M_TEXT : M_DIM, fontWeight: 500 }}>{s.name}</span>
-        <span style={{ fontFamily: MONO, fontSize: 8.5, color: M_MUTED }}>{s.stack}</span>
-        {acting && <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: M_TEXT }}>{timer}s</span>}
+
+      {/* ROW 2 — one pill, name and stack on one line. Ring and button attach to its
+          LEFT EDGE. A folded seat keeps it at full opacity: whatever else goes quiet,
+          you can always read who is sitting there. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: SEAT_PILL }}>
+        {acting && <SeatRing d={SEAT_PILL - 2} left={timer}/>}
+        {s.dealer && <DealerBtn/>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, height: SEAT_PILL, padding: '0 7px', borderRadius: SEAT_PILL / 2, background: 'rgba(14,17,18,0.88)', border: `1px solid ${acting ? '#EDEDED66' : M_BORDER}`, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 9.5, color: acting ? M_TEXT : M_DIM, fontWeight: 500 }}>{s.name}</span>
+          <span style={{ fontSize: 8, color: M_MUTED }}>·</span>
+          <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: s.folded ? M_MUTED : M_DIM }}>${s.stack}</span>
+        </div>
       </div>
-      {/* the shelf: only at showdown, and only for a seat that reached it */}
+
+      {/* showdown only: the shelf, and only for a seat that reached it */}
       {reveal && s.show && !s.folded && (
-        <div style={{ display: 'flex', flexDirection: s.y >= SIDE_ROW_Y ? 'column' : 'row', gap: 1.5, marginTop: 1, animation: `bubblein 0.3s ease-out ${order * 0.14}s both` }}>
+        <div style={{ display: 'flex', flexDirection: s.y >= SIDE_ROW_Y ? 'column' : 'row', gap: 1.5, animation: `bubblein 0.3s ease-out ${order * 0.14}s both` }}>
           {s.show.map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={22} h={31}/>)}
         </div>
       )}
@@ -443,7 +485,7 @@ const TableTab = ({ log = TABLE_LOG, draft }) => (
 );
 
 Object.assign(window, {
-  W4_HERO, W4_SEATS, PACE4, READ_BOOK, TABLE_LOG, BUBBLE_BAND,
-  Bubble, SeatClock, SeatGhost, W4Header, BetweenStrip4, HeroCards4, HeroRow4, Felt4,
+  W4_HERO, W4_SEATS, SEAT_ORDER, SEAT_RINGS, seatsFor, PACE4, READ_BOOK, TABLE_LOG, BUBBLE_BAND,
+  Bubble, SEAT_BODY, SEAT_GAP, SEAT_PILL, SEAT_H, POT_C, seatSlot, DealerBtn, SeatRing, SeatGhost, W4Header, BetweenStrip4, HeroCards4, HeroRow4, Felt4,
   ReadSheet4, TableRow, TableTab,
 });

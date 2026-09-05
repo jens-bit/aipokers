@@ -43,10 +43,11 @@ const V5_BOARD_TOP = 243; // board spans x75–315, so it clears them horizontal
 // neighbours instead of landing on them — the lesson v4b paid eleven defects for.
 const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 'hold',
                   hole = [['A', 's'], ['K', 'h']], equity = 87, stack = '1,847',
-                  street = 'TURN', toCall, action, timer, cost, event, bet, won, over, bare }) => (
+                  street = 'TURN', toCall, action, timer, cost, event, bet, won, over, bare, gone }) => (
   <div style={{
     position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 5,
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+    visibility: gone ? 'hidden' : 'visible',
   }}>
     {/* his bubble, above his head — band reserved whether or not he speaks */}
     <div style={{ minHeight: 0, display: 'flex', justifyContent: 'center', width: '100%' }}>
@@ -67,17 +68,17 @@ const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 
     <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: '100%' }}>
       <div style={{ position: 'absolute', left: '50%', top: '46%', width: 190, height: 190, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${MOODS[mood].color}${heat > 66 ? '2E' : '1A'}, transparent 68%)`, pointerEvents: 'none' }}/>
       <MoodGhost mood={mood} accent={accent} size={96} heat={heat} event={event} ring={false}/>
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, zIndex: 6, visibility: bare ? 'hidden' : 'visible' }}>
+      <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', display: 'flex', gap: 8, zIndex: 6, visibility: bare ? 'hidden' : 'visible' }}>
         {hole.map((c, i) => (
-          <div key={i} style={{ transform: `rotate(${i ? 6 : -6}deg)`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))' }}>
-            <PlayingCard rank={c[0]} suit={c[1]} w={40} h={55}/>
+          <div key={i} style={{ transform: `rotate(${i ? 14 : -14}deg)`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))' }}>
+            <PlayingCard rank={c[0]} suit={c[1]} w={36} h={50}/>
           </div>
         ))}
       </div>
       {/* the hand layer, OVER the cards — he is holding them, not standing behind
           them. Inside the ghost's own svg it sat under the z-index-6 card pair. */}
       <svg width={96} height={96} viewBox="0 0 80 80" style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)', overflow: 'visible', pointerEvents: 'none', zIndex: 7 }}>
-        {ghostHands({ pose: hands, size: 96, bet, won })}
+        {ghostHands({ pose: hands, size: 96, bet, won, grip: HERO_GRIP })}
       </svg>
     </div>
 
@@ -87,34 +88,51 @@ const V5Hero = ({ says, mood = 'confident', accent = M_TEAL, heat = 45, hands = 
     {!bare && <div style={{ width: '100%', padding: '0 32px' }}><TugBar equity={equity}/></div>}
 
     {/* the strip: stack, street or to-call, his action */}
-    {!bare && <V5Glass pad="8px 11px" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9 }}>
+    {!bare && <V5Glass pad="8px 11px" style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', gap: 9 }}>
+      {/* STACK moved to the pile — the chips ARE the stack, so stating it here too
+          made the number the truth and the chips a decoration. */}
+      {toCall && (
+        <>
+          <div>
+            <Lbl size={8.5}>To call</Lbl>
+            <div><Num size={12.5} weight={700} color={M_GOLD}>${toCall}</Num></div>
+          </div>
+          <div style={{ width: 1, height: 20, background: V5GLASS.edge }}/>
+        </>
+      )}
       <div>
-        <Lbl size={8.5}>Stack</Lbl>
-        <div><Num size={12.5} weight={700}>${stack}</Num></div>
-      </div>
-      <div style={{ width: 1, height: 20, background: V5GLASS.edge }}/>
-      <div>
-        <Lbl size={8.5}>{toCall ? 'To call' : 'Street'}</Lbl>
-        <div><Num size={12.5} weight={700} color={toCall ? M_GOLD : M_DIM}>{toCall ? `$${toCall}` : street}</Num></div>
+        <Lbl size={8.5}>Street</Lbl>
+        <div><Num size={12.5} weight={700} color={M_DIM}>{street}</Num></div>
       </div>
       <div style={{ flex: 1 }}/>
       {action && <span style={{ padding: '5px 10px', borderRadius: 5, background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{action}</span>}
       {timer != null && <SeatTimerRing value={timer}/>}
+      {/* collapsed state: a 6px amber dot at the strip's right edge. Tapping it
+          re-shows the toast. It sits INSIDE the strip, so it costs no height. */}
+      {cost === 'dot' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 7px ${M_GOLD}`, flexShrink: 0 }}/>}
+      {/* the toast rides OVER the strip for 4s — same glass, amber left border.
+          Absolute, so the felt geometry is identical with and without it. */}
+      {cost === 'toast' && (
+        <div style={{
+          position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 3,
+          display: 'flex', alignItems: 'center', gap: 9, padding: '0 11px',
+          background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur,
+          border: `1px solid ${V5GLASS.edgeUp}`, borderLeft: `3px solid ${M_GOLD}`, borderRadius: 13,
+          animation: 'bubblein 0.2s ease-out both',
+        }}>
+          <span style={{ flex: 1, fontSize: 11.5, color: M_GOLD, lineHeight: 1.3 }}>He misjudged equity by 7% on the river</span>
+          <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.13em', color: M_GOLD, border: `1px solid ${M_GOLD}88`, borderRadius: 3, padding: '2px 5px', flexShrink: 0 }}>FOCUS</span>
+        </div>
+      )}
     </V5Glass>}
 
-    {/* the cost line, PINNED under his strip until the next flop */}
-    {cost && (
-      <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '7px 11px', borderRadius: 10, background: `${M_GOLD}14`, border: `1px solid ${M_GOLD}55` }}>
-        <span style={{ flex: 1, fontSize: 11.5, color: M_GOLD, lineHeight: 1.35 }}>He misjudged equity by 7% on the river</span>
-        <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.13em', color: M_GOLD, border: `1px solid ${M_GOLD}88`, borderRadius: 3, padding: '2px 5px' }}>FOCUS</span>
-      </div>
-    )}
+
   </div>
 );
 
 // ── the felt, full-screen ────────────────────────────────────────────────
 const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seats = W4_SEATS,
-                 acting, selected, reveal, oppSays, stackBand = 'mid', betOut, dim }) => (
+                 acting, selected, reveal, oppSays, stackBand = 'mid', stackAmt = '1,847', betOut, potBand = 'mid', dim, oppBet }) => (
   <div style={{
     position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden',
     background: 'radial-gradient(ellipse at 50% 40%, #2f4d48 0%, #1d2e2c 58%, #131f1e 100%)',
@@ -142,6 +160,10 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
     <div style={{ position: 'absolute', top: V5_POT_TOP, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 2, opacity: dim ? 0.25 : 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 39, boxSizing: 'border-box', padding: '3px 13px', borderRadius: 18, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
         <Lbl size={9}>Pot</Lbl>
+        <div style={{ position: 'relative', width: 15, height: potBand === 'big' ? 17 : potBand === 'small' ? 8 : 12, flexShrink: 0 }}>
+          {(CHIP_BANDS[potBand] || CHIP_BANDS.mid).slice(0, potBand === 'big' ? 5 : potBand === 'small' ? 2 : 3)
+            .map((d, i) => <Chip key={i} d={d} w={15} i={i} step={2.6}/>)}
+        </div>
         {/^[\d.,]+$/.test(String(pot))
           ? <Amt size={22}>${pot}</Amt>
           : <Num size={15} weight={700} color={M_MUTED}>{pot}</Num>}
@@ -153,13 +175,33 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
         : <CardBack key={i} w={44} h={61} branded/>)}
     </div>
 
+    {/* every seat banks its own chips beside its name chip — the hero's is just the
+        one big enough to label. Without them only he appeared to have money. */}
+    {/* the pile and the bet spot are the SEAT's geometry (SEAT_SLOTS), not a
+        felt-level guess at an offset — that guess is what put $2,104 on Granite's
+        name and nash_eq's chips on its own pill. */}
+    {seats.map((s, i) => {
+      const g = seatSlot(s);
+      return (
+        <React.Fragment key={'bk' + s.id}>
+          <div style={{ position: 'absolute', left: s.x + g.pile.x, top: s.y + g.pile.y, zIndex: 3, opacity: dim ? 0.25 : s.folded ? 0.4 : 1 }}>
+            <ChipStack band={i % 3 === 0 ? 'big' : i % 3 === 1 ? 'mid' : 'small'} w={13}/>
+          </div>
+          {oppBet && oppBet.includes(s.id) && (
+            <div style={{ position: 'absolute', left: s.x + g.bet.x, top: s.y + g.bet.y, zIndex: 3 }}>
+              <BetSpot band="mid" w={12}/>
+            </div>
+          )}
+        </React.Fragment>
+      );
+    })}
     {/* his chips live ON THE FELT, to his left — and the bet spot in front of him */}
     <div style={{ position: 'absolute', left: 16, bottom: 150, zIndex: 4, opacity: dim ? 0.25 : 1 }}>
-      <ChipStack n={CHIP_BANDS[stackBand] || 6} w={26} label="HIS STACK"/>
+      <ChipStack band={stackBand} w={26} label="STACK" amt={stackAmt}/>
     </div>
     {betOut && (
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 258, display: 'flex', justifyContent: 'center', zIndex: 4 }}>
-        <BetSpot n={BET_BANDS[betOut] || 2} w={22} amt="240"/>
+        <BetSpot band={betOut} w={22} amt="240"/>
       </div>
     )}
     {hero}
@@ -294,7 +336,7 @@ const V5Ceremony = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Gran
           <div style={{ position: 'absolute', left: '50%', top: '46%', width: 240, height: 240, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${key}${hot ? '3D' : '26'}, transparent 68%)` }}/>
           <MoodGhost mood={mood} accent={key} size={96} heat={heat} event={won ? 'smug' : 'stunned'} ring={false}/>
           <svg width={96} height={96} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
-            {ghostHands({ pose: 'cover', size: 96, won })}
+            {ghostHands({ pose: won ? 'raise' : 'cover', size: 96, won })}
           </svg>
         </div>
         {/* the next hand starts in 3s anyway — the button only makes it now, which
@@ -314,40 +356,47 @@ Object.assign(window, {
   V5_THREAD, V5Row, V5ThreadSheet, V5ReadSheet, V5Ceremony,
 });
 
-const CHIP_BANDS = { small: 3, mid: 6, big: 10 };
-const BET_BANDS = { small: 1, mid: 2, big: 4 };
+// white 1 · red 5 · blue 10 · green 25 · black 100
+const CHIP_D = { w: '#D8D4CC', r: '#B4353A', b: '#2F5C93', g: '#2E7D53', k: '#1A1A1E' };
+const CHIP_BANDS = { small: ['w','w','r'], mid: ['w','r','r','b','b','g'], big: ['r','b','b','g','g','g','k','k','k','k'] };
+const BET_BANDS = { small: ['w'], mid: ['r','r'], big: ['g','g','b','r'] };
 
 // a stack standing on the felt — his own, to his left
-const ChipStack = ({ n = 6, w = 26, label }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-    <div style={{ position: 'relative', height: n * 3.4 + 6, width: w }}>
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} style={{
-          position: 'absolute', left: 0, bottom: i * 3.4, width: w, height: w * 0.42,
-          borderRadius: '50%', background: i % 2 ? '#4A5E73' : '#33424F',
-          border: '1.5px solid #04070B', boxSizing: 'border-box',
-        }}/>
-      ))}
-    </div>
-    {label && <Num size={8} color={M_MUTED} weight={600}>{label}</Num>}
-  </div>
+const Chip = ({ d = 'r', w = 26, i = 0, step = 3.4 }) => (
+  <div style={{
+    position: 'absolute', left: 0, bottom: i * step, width: w, height: w * 0.42,
+    borderRadius: '50%', background: CHIP_D[d], boxSizing: 'border-box',
+    border: '1.5px solid rgba(0,0,0,0.55)',
+    boxShadow: `inset 0 ${w * 0.06}px 0 rgba(255,255,255,0.28), 0 1px 2px rgba(0,0,0,0.5)`,
+  }}/>
 );
 
-// where a bet lands: in front of his cards, on the felt, not in a panel
-const BetSpot = ({ n = 2, w = 22, amt }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-    <div style={{ position: 'relative', height: n * 3.2 + 5, width: w }}>
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} style={{
-          position: 'absolute', left: 0, bottom: i * 3.2, width: w, height: w * 0.44,
-          borderRadius: '50%', background: i % 2 ? '#4A5E73' : '#33424F',
-          border: '1.5px solid #04070B', boxSizing: 'border-box',
-        }}/>
-      ))}
+const ChipStack = ({ band = 'mid', chips, w = 26, label, amt }) => {
+  const set = chips || CHIP_BANDS[band] || CHIP_BANDS.mid;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <div style={{ position: 'relative', height: set.length * 3.4 + w * 0.42, width: w }}>
+        {set.map((d, i) => <Chip key={i} d={d} w={w} i={i}/>)}
+      </div>
+      {label && <Num size={7.5} color={M_MUTED} weight={600}>{label}</Num>}
+      {/* the figure belongs UNDER the chips it describes, not in a panel elsewhere */}
+      {amt && <Num size={amt.length > 5 ? 10 : 11} weight={700} color={M_TEXT}>${amt}</Num>}
     </div>
-    {amt && <Num size={10.5} weight={700} color={M_GOLD}>${amt}</Num>}
-  </div>
-);
+  );
+};
+
+// where a bet lands: in front of his cards, on the felt, not in a panel
+const BetSpot = ({ band = 'mid', chips, w = 22, amt }) => {
+  const set = chips || BET_BANDS[band] || BET_BANDS.mid;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <div style={{ position: 'relative', height: set.length * 3.2 + w * 0.44, width: w }}>
+        {set.map((d, i) => <Chip key={i} d={d} w={w} i={i} step={3.2}/>)}
+      </div>
+      {amt && <Num size={10.5} weight={700} color={M_GOLD}>${amt}</Num>}
+    </div>
+  );
+};
 
 // 4 frames: pick off the stack, carry, place, and the spot slides to the pot
 const HERO_BET = [
@@ -387,14 +436,177 @@ const HeroBetStripM = () => (
   </div>
 );
 
+// an opponent's bet — same objects, no hand, three frames
+const OPP_BET = [
+  { t: '0ms', off: 0, note: 'his bank stands beside his name chip' },
+  { t: '120ms', off: 0.5, note: 'chips leave the bank — no hand at seat scale, the stack simply parts' },
+  { t: '240ms', off: 1, note: 'set down on his bet spot, in front of his pair' },
+];
+
+const OppBetStripM = () => (
+  <div style={{ width: 390, background: 'linear-gradient(180deg, #1d2e2c 0%, #162423 100%)', fontFamily: INTER, padding: '14px 0 16px', borderRadius: 4 }}>
+    <div style={{ padding: '0 14px 12px' }}>
+      <V5Lbl color={M_TEXT}>An opponent bets</V5Lbl>
+      <div style={{ fontSize: 11.5, color: M_MUTED, lineHeight: 1.45, marginTop: 5 }}>
+        240ms, three frames. Same chips and the same spot — but no hand, because at 40px a hand carrying two chips is mush.
+      </div>
+    </div>
+    {OPP_BET.map((f, i) => (
+      <div key={f.t} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <Num size={9} color={i === 0 ? M_TEAL : M_MUTED} weight={600}>{f.t}</Num>
+        <div style={{ position: 'relative', width: 118, height: 56, flexShrink: 0 }}>
+          <div style={{ position: 'absolute', left: 4, top: 6 }}><FloorGhost mood="confident" accent={M_TEAL} size={26} speed={6}/></div>
+          <div style={{ position: 'absolute', left: 34, bottom: 8, opacity: 1 - f.off * 0.45 }}><ChipStack band="mid" w={12}/></div>
+          {f.off > 0 && <div style={{ position: 'absolute', left: 34 + f.off * 40, bottom: 8 + f.off * 4 }}><BetSpot band="mid" w={12}/></div>}
+        </div>
+        <div style={{ flex: 1, fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>{f.note}</div>
+      </div>
+    ))}
+  </div>
+);
+
+// street end: every spot sweeps in, and the pot's chip grows one band
+const SWEEP = [
+  { t: '0ms', p: 0, band: 'mid', note: 'four bet spots out, one per seat that acted' },
+  { t: '180ms', p: 0.55, band: 'mid', note: 'all of them travel together — one sweep, not four animations' },
+  { t: '320ms', p: 1, band: 'big', note: 'absorbed. The pot pill\u2019s chip gains a band.' },
+];
+
+const SweepStripM = () => (
+  <div style={{ width: 390, background: 'linear-gradient(180deg, #1d2e2c 0%, #162423 100%)', fontFamily: INTER, padding: '14px 0 16px', borderRadius: 4 }}>
+    <div style={{ padding: '0 14px 12px' }}>
+      <V5Lbl color={M_TEXT}>Street end: the sweep</V5Lbl>
+      <div style={{ fontSize: 11.5, color: M_MUTED, lineHeight: 1.45, marginTop: 5 }}>
+        320ms. Every spot moves at once, so the table resolves in one gesture.
+      </div>
+    </div>
+    {SWEEP.map((f, i) => (
+      <div key={f.t} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <Num size={9} color={i === 0 ? M_TEAL : M_MUTED} weight={600}>{f.t}</Num>
+        <div style={{ position: 'relative', width: 128, height: 56, flexShrink: 0 }}>
+          <div style={{ position: 'absolute', left: 48, top: 16, display: 'flex', alignItems: 'center', gap: 5, padding: '3px 7px', borderRadius: 12, background: 'rgba(23,27,27,0.6)', border: `1px solid ${M_BORDER}` }}>
+            <div style={{ position: 'relative', width: 11, height: f.band === 'big' ? 13 : 9 }}>
+              {(CHIP_BANDS[f.band]).slice(0, f.band === 'big' ? 4 : 3).map((d, k) => <Chip key={k} d={d} w={11} i={k} step={2.2}/>)}
+            </div>
+            <Num size={8.5} weight={700} color={M_TEXT}>POT</Num>
+          </div>
+          {[[6, 4], [12, 40], [96, 4], [104, 40]].map(([lx, ly], k) => (
+            <div key={k} style={{ position: 'absolute', left: lx + (48 - lx) * f.p, bottom: ly + (18 - ly) * f.p, opacity: f.p === 1 ? 0 : 1 }}>
+              <BetSpot band="small" w={11}/>
+            </div>
+          ))}
+        </div>
+        <div style={{ flex: 1, fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>{f.note}</div>
+      </div>
+    ))}
+  </div>
+);
+
+// ── the seat anatomy sheet, at 3x with the pixel grid ────────────────────
+const ANAT_ROWS = [
+  ['Row 1', `${SEAT_BODY} px`, 'body. Face and brow always clear: cards from 60% down, fists under their bottom corners.'],
+  ['Gap', `${SEAT_GAP} px`, 'the only vertical space in the seat.'],
+  ['Row 2', `${SEAT_PILL} px`, 'one pill — name regular, stack mono, one line. Ring and dealer button attach to its left edge.'],
+  ['Total', `${SEAT_H} px`, `if it will not fit, the pill drops to 16 — never the body.`],
+];
+
+const SeatAnatomyM = () => {
+  const Z = 3, spec = { id: 'granite', name: 'Granite', stack: '2,104', x: 0, y: 0, mood: 'neutral', accent: M_GOLD, history: 3, dealer: true };
+  const g = seatSlot({ x: 74, y: 56 });
+  return (
+    <div style={{ width: 390, background: '#101817', fontFamily: INTER, borderRadius: 4, padding: '14px 0 16px' }}>
+      <div style={{ padding: '0 14px 12px' }}>
+        <V5Lbl color={M_TEXT}>Seat anatomy</V5Lbl>
+        <div style={{ fontSize: 11.5, color: M_MUTED, lineHeight: 1.45, marginTop: 5 }}>
+          Two rows and two satellites, at 3×. Every element used to be positioned against the body, so at six seat coordinates they landed on each other.
+        </div>
+      </div>
+      {/* the grid: 8px minor, 40px major, at 3x */}
+      <div style={{ position: 'relative', height: SEAT_H * Z + 96, background: '#1d2e2c', overflow: 'hidden', borderTop: `1px solid ${M_BORDER}`, borderBottom: `1px solid ${M_BORDER}` }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: `${8 * Z}px ${8 * Z}px` }}/>
+        <div style={{ position: 'absolute', left: 118, top: 24, width: 0, height: 0, transform: `scale(${Z})`, transformOrigin: 'top left' }}>
+          <SeatGhost s={spec} dealt acting timer={9}/>
+        </div>
+        {/* the two row bands, called out on the left */}
+        {[[0, SEAT_BODY, 'ROW 1'], [SEAT_BODY, SEAT_GAP, 'GAP'], [SEAT_BODY + SEAT_GAP, SEAT_PILL, 'ROW 2']].map(([t, h, l]) => (
+          <div key={l} style={{ position: 'absolute', left: 0, top: 24 + t * Z, width: 108, height: h * Z, borderTop: `1px dashed ${M_TEAL}55`, display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+            <Num size={8.5} color={M_TEAL} weight={600}>{l} · {h}px</Num>
+          </div>
+        ))}
+        <div style={{ position: 'absolute', left: 0, top: 24 + SEAT_H * Z, width: 108, borderTop: `1px dashed ${M_TEAL}55` }}/>
+      </div>
+      {ANAT_ROWS.map(([k, v, note]) => (
+        <div key={k} style={{ display: 'flex', gap: 9, padding: '9px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ width: 42, flexShrink: 0 }}><Num size={9} color={M_TEAL} weight={600}>{k}</Num></div>
+          <div style={{ width: 42, flexShrink: 0 }}><Num size={9.5} color={M_TEXT} weight={700}>{v}</Num></div>
+          <div style={{ flex: 1, fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>{note}</div>
+        </div>
+      ))}
+      <div style={{ padding: '11px 14px 0', borderTop: `1px solid ${M_BORDER}`, fontSize: 11.5, color: M_MUTED, lineHeight: 1.55 }}>
+        <b style={{ color: M_DIM }}>The satellites.</b> The chip pile sits beside the seat on the felt side, never under the name, and the bet spot is the midpoint of pile and pot — so money always reads as travelling. Top-corner seats bank <b style={{ color: M_DIM }}>below the pill</b> (x{g.pile.x > 0 ? '+' : ''}{g.pile.x}, y+{g.pile.y}); side seats bank <b style={{ color: M_DIM }}>beside the body, inside</b> (x±35, y+6).
+        <div style={{ marginTop: 8 }}><b style={{ color: M_DIM }}>Folded.</b> The body dims to 34% and the cards are gone entirely — no cards, no hands on cards. <b style={{ color: M_DIM }}>The pill stays at full opacity:</b> whatever else goes quiet, you can always read who is sitting there.</div>
+      </div>
+    </div>
+  );
+};
+
+const RING_NOTES = {
+  2: ['Heads-up', 'One opponent, dead centre. The empty corners are the point — a two-hander should feel like a duel, not a table with gaps in it.'],
+  3: ['3-handed', 'Two seats, wide. No side row: at three players nobody sits level with the hero.'],
+  4: ['4-handed', 'The full top row. The centre seat rides 8px higher, which reads as depth rather than a misalignment.'],
+  5: ['5-handed', 'Two top, two side, symmetrical. The top pair pulls in to 92/298 so their piles clear the side seats\u2019 pills.'],
+  6: ['6-max', 'The proven ring. Three top, two side, five piles, no collisions.'],
+};
+
+const TableSizesM = () => (
+  <div style={{ width: 390, background: '#101817', fontFamily: INTER, borderRadius: 4, padding: '14px 0 16px' }}>
+    <div style={{ padding: '0 14px 12px' }}>
+      <V5Lbl color={M_TEXT}>Table sizes</V5Lbl>
+      <div style={{ fontSize: 11.5, color: M_MUTED, lineHeight: 1.45, marginTop: 5 }}>
+        The anatomy was proven at 6-max only. One ring per handed count, every seat on the same 64px stack.
+      </div>
+    </div>
+    {[2, 3, 4, 5, 6].map(n => (
+      <div key={n} style={{ borderTop: `1px solid ${M_BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '10px 14px 6px' }}>
+          <Num size={10} color={M_TEAL} weight={700}>{n}</Num>
+          <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: M_TEXT }}>{RING_NOTES[n][0]}</span>
+          <span style={{ fontFamily: MONO, fontSize: 8.5, color: M_MUTED }}>{n - 1} opp</span>
+        </div>
+        {/* the felt at 0.55 — enough to judge collisions, small enough to compare */}
+        <div style={{ position: 'relative', height: 176, margin: '0 14px 4px', borderRadius: 8, overflow: 'hidden', background: 'radial-gradient(ellipse at 50% 46%, #2f4d48 0%, #1d2e2c 62%, #131f1e 100%)' }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, width: 390, height: 320, transform: 'scale(0.55)', transformOrigin: 'top left' }}>
+            {seatsFor(n).map((s, i) => (
+              <React.Fragment key={s.id}>
+                <SeatGhost s={s} dealt acting={i === 0}/>
+                <div style={{ position: 'absolute', left: s.x + seatSlot(s).pile.x, top: s.y + seatSlot(s).pile.y }}>
+                  <ChipStack band={i % 3 === 0 ? 'big' : i % 3 === 1 ? 'mid' : 'small'} w={13}/>
+                </div>
+              </React.Fragment>
+            ))}
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 244, display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 11px', borderRadius: 14, background: 'rgba(23,27,27,0.72)', border: `1px solid ${M_BORDER}` }}>
+                <Lbl size={8}>Pot</Lbl><Num size={11} weight={700}>$480</Num>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: '2px 14px 11px', fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>{RING_NOTES[n][1]}</div>
+      </div>
+    ))}
+  </div>
+);
+
 // ── the opponent muck ───────────────────────────────────────────────────
 // A seat folding is not the hero folding: 250ms rather than 350, a flatter arc, and
 // it ends at THE MUCK — one fixed spot beside the pot, so a table of six folds
 // resolves to one pile instead of six directions.
+// the HAND follows the throw and comes back — a fold is a gesture, not a fade, so
+// nothing loses opacity at any frame and the hand always returns to rest.
 const OPP_MUCK = [
-  { t: '0ms', x: 0, y: 0, r: 0, s: 1, o: 1, note: 'at his seat, face down, in front of him' },
-  { t: '130ms', x: 34, y: 26, r: -12, s: 0.88, o: 0.95, note: 'slid toward the muck — a flatter arc than the hero toss' },
-  { t: '250ms', x: 68, y: 46, r: -22, s: 0.74, o: 0.5, note: 'landed on the pile beside the pot' },
+  { t: '0ms', x: 0, y: 0, r: 0, s: 1, o: 1, hand: 'hold', note: 'at his seat, face down, his hand on the pair' },
+  { t: '130ms', x: 34, y: 26, r: -12, s: 0.88, o: 1, hand: 'toss', note: 'thrown — the hand follows the throw out, flatter arc than the hero' },
+  { t: '250ms', x: 68, y: 46, r: -22, s: 0.74, o: 1, hand: 'rest', note: 'landed on the pile; the hand is already back at rest' },
 ];
 
 const OppMuckStripM = () => (
@@ -413,7 +625,12 @@ const OppMuckStripM = () => (
             <div style={{ width: 30, height: 15, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: '1px dashed rgba(255,255,255,0.14)' }}/>
             <Num size={7.5} color={M_FAINT} weight={600}>MUCK</Num>
           </div>
-          <div style={{ position: 'absolute', left: 6, top: 2, opacity: 0.5 }}><FloorGhost mood="sulking" accent={M_PINK} size={26} speed={7}/></div>
+          <div style={{ position: 'absolute', left: 6, top: 2 }}>
+            <FloorGhost mood="sulking" accent={M_PINK} size={30} speed={7}/>
+            <svg width={30} height={30} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: 5, overflow: 'visible' }}>
+              {ghostHands({ pose: f.hand, size: 40 })}
+            </svg>
+          </div>
           <div style={{ position: 'absolute', left: 10, top: 16, display: 'flex', gap: 1.5, transform: `translate(${f.x}px, ${f.y}px) rotate(${f.r}deg) scale(${f.s})`, transformOrigin: 'center', opacity: f.o }}>
             <CardBack w={15} h={21}/><CardBack w={15} h={21}/>
           </div>
@@ -422,7 +639,7 @@ const OppMuckStripM = () => (
       </div>
     ))}
     <div style={{ padding: '12px 14px 0', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11.5, color: M_MUTED, lineHeight: 1.5 }}>
-      Never face up, at any frame. <b style={{ color: M_DIM }}>A folded opponent's cards are the one thing the fish tank never shows</b> — not in motion, not at rest, not at showdown.
+Never face up, and <b style={{ color: M_DIM }}>nothing fades</b> — a fold that dissolves reads as a bug, so the pair keeps full opacity all the way to the pile and the hand returns to rest on its own.
     </div>
   </div>
 );
@@ -438,7 +655,7 @@ const V5Shell = ({ children, draft }) => (
 
 const V5CalmScreenM = () => (
   <V5Shell>
-    <V5Felt acting="granite" oppSays={{ id: 'granite', text: 'Again?' }} stackBand="mid" betOut="mid"
+    <V5Felt acting="granite" oppSays={{ id: 'granite', text: 'Again?' }} stackBand="mid" betOut="mid" oppBet={['granite', 'phil']}
       hero={<V5Hero says="He checked twice. He's got nothing." toCall="240" action="BET $240" timer={9} hands="push" bet="mid"/>}/>
   </V5Shell>
 );
@@ -478,16 +695,17 @@ const V5ReadScreenM = () => (
 
 const V5CostScreenM = () => (
   <V5Shell>
-    <V5Felt board={B5F} flip={5} pot="3,694" reveal
-      hero={<V5Hero street="RIVER" equity={0} mood="frustrated" accent={M_PURPLE} heat={62}
-        hands="clench" cost says="He had the ace of clubs the whole way."/>}/>
+    <V5Felt acting="granite" stackBand="mid" betOut="mid" potBand="big"
+      hero={<V5Hero toCall="240" action="BET $240" timer={9} hands="push" bet="mid"
+        mood="frustrated" accent={M_PURPLE} heat={62} cost="toast"
+        says="He had the ace of clubs the whole way."/>}/>
   </V5Shell>
 );
 
 const V5CeremonyWonScreenM = () => (
   <V5Shell>
     <V5Felt board={B5F} flip={5} pot="3,694" reveal dim
-      hero={<V5Hero street="RIVER" equity={100} hands="hold" bare/>}>
+      hero={<V5Hero street="RIVER" equity={100} hands="hold" gone/>}>
       <V5Ceremony won pot="3,694" heat={54}/>
     </V5Felt>
   </V5Shell>
@@ -496,9 +714,17 @@ const V5CeremonyWonScreenM = () => (
 const V5CeremonyLostScreenM = () => (
   <V5Shell>
     <V5Felt board={B5F} flip={5} pot="3,694" reveal dim
-      hero={<V5Hero street="RIVER" equity={0} mood="tilted" accent={M_PURPLE} heat={88} hands="hold" bare/>}>
+      hero={<V5Hero street="RIVER" equity={0} mood="tilted" accent={M_PURPLE} heat={88} hands="hold" gone/>}>
       <V5Ceremony pot="3,694" winner="Granite" mood="tilted" heat={88}/>
     </V5Felt>
+  </V5Shell>
+);
+
+const V5CostDotScreenM = () => (
+  <V5Shell>
+    <V5Felt acting="granite" stackBand="mid" betOut="mid" potBand="big"
+      hero={<V5Hero toCall="240" action="BET $240" timer={9} hands="push" bet="mid"
+        mood="frustrated" accent={M_PURPLE} heat={62} cost="dot"/>}/>
   </V5Shell>
 );
 
@@ -567,7 +793,7 @@ const D9V5ScreenM = () => (
 );
 
 Object.assign(window, {
-  CHIP_BANDS, BET_BANDS, ChipStack, BetSpot, HERO_BET, HeroBetStripM,
+  RING_NOTES, TableSizesM, ANAT_ROWS, SeatAnatomyM, OPP_BET, OppBetStripM, SWEEP, SweepStripM, CHIP_D, Chip, V5CostDotScreenM, CHIP_BANDS, BET_BANDS, ChipStack, BetSpot, HERO_BET, HeroBetStripM,
   OPP_MUCK, OppMuckStripM, V5Shell, V5CalmScreenM, V5HoldScreenM, V5WhisperScreenM, V5ThreadScreenM,
   V5ReadScreenM, V5CostScreenM, V5CeremonyWonScreenM, V5CeremonyLostScreenM, D9V5ScreenM,
 });
