@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { WatchFelt, feltGeometry } from '../WatchScreen.jsx';
+import { ShareButton } from '../share/ShareButton.jsx';
 import { PlayingCard } from '../system/PlayingCard.jsx';
 import { Scrubber } from './Scrubber.jsx';
 import { beatAt, buildTimeline, snapshotFor } from './timeline.js';
@@ -131,6 +132,8 @@ export function ReplayTheatre({ hand, onBack, onOpenHand, autoPlay = true }) {
           </svg>
         </button>
         <span className="replay-theatre__title">Replay</span>
+        {/* SHARE-1 — the hand you just watched, as a card someone else can see. */}
+        <ShareButton hand={hand} agentName={hand?.agentName} mood={hand?.mood} style={{ marginLeft: 'auto' }} />
       </div>
 
       <div className="replay-theatre__stage">
