@@ -14,10 +14,19 @@ import {
   finishAgentSession,
   addFlaggedHand,
 } from './agentProfiles.js';
-import { classifyHand, buildFlaggedEntry } from './flaggedHands.js';
+import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
-import { effectiveAttrs, readMinHands, attrCostsForHand, wornMomentFor } from '../agent/attributes.js';
+import {
+  effectiveAttrs,
+  readMinHands,
+  attrCostsForHand,
+  wornMomentFor,
+  newEvidence,
+  addEvidence,
+  decisionEvidence,
+  handEvidence,
+} from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
 import {
   applyEvent as applyMoodEvent,
@@ -100,22 +109,6 @@ export { HOUSE_TAG, HOUSE_STATION, HOUSE_STRATEGY, HOUSE_PROFILE, pickComplement
 // contract with EVIDENCE_FIELD in attributes.js — what trains each attribute,
 // in the ref's own words: showdowns seen, decision volume, big folds made
 // correctly, beats survived, bluffs that got through, hands at the table.
-// How far off the true equity a briefing has to be before it counts as a
-// misjudgment rather than a rounding. Five points is the smallest gap that can
-// flip a marginal call into a fold at a normal price.
-const FOCUS_MISJUDGE_EQUITY = 0.05;
-
-function newAttrEvidence() {
-  return {
-    hands: 0,
-    readsFormed: 0,
-    tiltSurvived: 0,
-    deviationsResisted: 0,
-    bluffsThrough: 0,
-    misjudgmentsAvoided: 0,
-  };
-}
-
 export class Table {
   constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
@@ -164,7 +157,7 @@ export class Table {
     // ATTR-3: what each seat has EARNED this session, per attribute. Growth is
     // drawn from this at the end of the session, so an agent grows from how he
     // was deployed rather than from how long the app was left open.
-    this.attrEvidence = Array.from({ length: maxSeats }, () => newAttrEvidence());
+    this.attrEvidence = Array.from({ length: maxSeats }, () => newEvidence());
     // Opponents this seat has actually formed a read on this session — a Set so
     // the same opponent is not counted every hand.
     this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
@@ -251,7 +244,7 @@ export class Table {
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
-    ['attrEvidence',      () => newAttrEvidence()],   // ATTR-3
+    ['attrEvidence',      () => newEvidence()],   // ATTR-3
     ['attrReadSubjects',  () => new Set()],           // ATTR-3
     ['seatAccentColors',       () => null],
     ['seatTalkLines',          () => null],
@@ -797,7 +790,7 @@ export class Table {
     // it is actually dealt into.
     this.seatJoinedAtHand[free] = this.handsThisSession;
     // A new session for this seat: fatigue and evidence both start at zero.
-    this.attrEvidence[free] = newAttrEvidence();
+    this.attrEvidence[free] = newEvidence();
     this.attrReadSubjects[free] = new Set();
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
@@ -822,20 +815,13 @@ export class Table {
   _collectAttrEvidence(seat, action, ctx, gs) {
     const ev = this.attrEvidence[seat];
     if (!ev) return;
-
-    // FOCUS is trained by sheer decision volume — but only the decisions where
-    // the arithmetic actually held. A misjudgment big enough to move the spot
-    // teaches him nothing except that he cannot count.
-    if (Number.isFinite(gs.equity) && Number.isFinite(ctx.seenEquity)) {
-      if (Math.abs(ctx.seenEquity - gs.equity) < FOCUS_MISJUDGE_EQUITY) ev.misjudgmentsAvoided++;
-    }
-
-    // DISCIPLINE is trained by big folds made correctly: the die said he MAY
-    // leave the strategy behind, the hand was outside his range, and he folded
-    // it anyway. That is the whole attribute in one decision.
-    if (ctx.deviationDie && ctx.inRange === false && action?.type === 'fold') {
-      ev.deviationsResisted++;
-    }
+    addEvidence(ev, decisionEvidence({
+      trueEquity: gs.equity,
+      seenEquity: ctx.seenEquity,
+      deviationDie: ctx.deviationDie,
+      inRange: ctx.inRange,
+      actionType: action?.type ?? null,
+    }));
   }
 
   hasHumanPlayer() {
@@ -1430,16 +1416,9 @@ export class Table {
   _collectHandEvidence(seat, decisions, { won, resultType }) {
     const ev = this.attrEvidence[seat];
     if (!ev) return;
-    ev.hands++;
-
-    // DECEPTION is trained by bluffs that get through UNCALLED — he bet or
-    // raised with a hand that could not win a showdown, and was not called.
-    if (won && resultType !== 'showdown') {
-      const bluffed = decisions.some((d) =>
-        (d.action?.type === 'bet' || d.action?.type === 'raise') &&
-        Number.isFinite(d.equity) && d.equity < THRESHOLDS.BLUFF_MAX_EQUITY);
-      if (bluffed) ev.bluffsThrough++;
-    }
+    addEvidence(ev, handEvidence({
+      decisions, won, resultType, bluffMaxEquity: THRESHOLDS.BLUFF_MAX_EQUITY,
+    }));
   }
 
   // Classify the just-completed hand for each AI seat and store notable ones

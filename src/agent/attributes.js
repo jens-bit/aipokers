@@ -449,6 +449,58 @@ export function growthCause(key, count) {
   return t ? t(Math.max(1, Math.round(Number(count) || 0))) : 'played.';
 }
 
+// The evidence rules themselves, pure and in one place. table.js calls these on
+// the live path and scripts/verify-growth.js calls the same ones offline — a
+// verification that re-implements the rule it is verifying proves nothing.
+
+export function newEvidence() {
+  return {
+    hands: 0,
+    readsFormed: 0,
+    tiltSurvived: 0,
+    deviationsResisted: 0,
+    bluffsThrough: 0,
+    misjudgmentsAvoided: 0,
+  };
+}
+
+export function addEvidence(target, delta) {
+  if (!target || !delta) return target;
+  for (const k of Object.keys(delta)) target[k] = (target[k] ?? 0) + (delta[k] ?? 0);
+  return target;
+}
+
+// What one decision earns him. FOCUS is trained by sheer decision volume — but
+// only the decisions where the arithmetic actually held; a misjudgment big
+// enough to move the spot teaches him nothing except that he cannot count.
+// DISCIPLINE is trained by big folds made correctly: the die said he MAY leave
+// the strategy behind, the hand was outside his range, and he folded it anyway.
+export function decisionEvidence({ trueEquity = null, seenEquity = null, deviationDie = false, inRange = null, actionType = null } = {}) {
+  const ev = {};
+  if (Number.isFinite(trueEquity) && Number.isFinite(seenEquity) &&
+      Math.abs(seenEquity - trueEquity) < ATTR_COST_EQUITY_GAP) {
+    ev.misjudgmentsAvoided = 1;
+  }
+  if (deviationDie && inRange === false && actionType === 'fold') {
+    ev.deviationsResisted = 1;
+  }
+  return ev;
+}
+
+// What one finished hand earns him. DECEPTION is trained by bluffs that get
+// through UNCALLED — he bet or raised a hand that could not win a showdown, and
+// nobody paid to find out.
+export function handEvidence({ decisions = [], won = false, resultType = null, bluffMaxEquity = 0.40 } = {}) {
+  const ev = { hands: 1 };
+  if (won && resultType !== 'showdown') {
+    const bluffed = decisions.some((d) =>
+      (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+      Number.isFinite(d.equity) && d.equity < bluffMaxEquity);
+    if (bluffed) ev.bluffsThrough = 1;
+  }
+  return ev;
+}
+
 // ── The scouted ceiling ──────────────────────────────────────────────────────
 // Bands narrow from HANDS PLAYED, never from wins (char-system2.jsx S3: "Narrow
 // the band from hands played, not from wins"), in visible jumps, and never
