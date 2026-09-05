@@ -111,6 +111,10 @@ svg{display:block;flex-shrink:0}
 .shot--floor-mobile .shot-inner{transform:scale(0.82)}
 
 /* ── wide shot: 1440 base scale=0.72 → 1037×648 ── */
+/* LAND-4: display lives here, not inline — an inline display:flex outranks the
+   `.floor-desktop{display:none}` in the ≤768 block, which left the 893px-wide
+   desktop shot in layout on mobile and blew out document.scrollWidth. */
+.floor-desktop{display:flex;justify-content:center}
 .wide-shot{overflow:hidden;flex-shrink:0;border-radius:10px;border:1px solid rgba(205,179,128,0.16);box-shadow:0 30px 80px rgba(0,0,0,0.6)}
 .wide-shot-inner{transform-origin:top left;width:1440px;height:900px}
 .wide-shot--floor{width:1037px;height:648px}
@@ -649,7 +653,7 @@ footer{padding:44px 72px 50px}
   <div class="sec-sub">Agents at the felts, agents at the bar, one sulking in the corner. Open the app and you are walking back into something already in progress — not starting it.</div>
 
   <!-- desktop/1280: WideShot -->
-  <div class="floor-desktop" style="display:flex;justify-content:center">
+  <div class="floor-desktop">
     <div class="wide-shot wide-shot--floor">
       <div class="wide-shot-inner ps-wide">
         <div style="display:flex;height:100%">
