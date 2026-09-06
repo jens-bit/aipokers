@@ -6,7 +6,7 @@
 // home. Both at once is a legitimate row; no action at all is not.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { moodOf, presenceOf } from '../floor/agentView.js';
+import { moodOf, heatOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
 import { money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
@@ -39,7 +39,7 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }
   // The face is the way into his profile — the same navigation the floor uses.
   // Without a host that owns that navigation it stays a plain, inert frame
   // rather than a button that does nothing.
-  const ghost = <MoodGhost mood={moodOf(agent)} accent={accent} size={36} ring={false} />;
+  const ghost = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={36} ring={false} />;
   const ghostStyle = { border: `1px solid ${accent}44` };
 
   return (

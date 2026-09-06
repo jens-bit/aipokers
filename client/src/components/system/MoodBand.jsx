@@ -7,7 +7,7 @@
 import { MoodGhost } from './MoodGhost.jsx';
 import { MoodChip, StateTag } from '../floor/atoms.jsx';
 
-export function MoodBand({ accent = '#00D4AA', mood = 'neutral', cause, state = 'resting', action, onAction }) {
+export function MoodBand({ accent = '#00D4AA', mood = 'neutral', heat = 45, cause, state = 'resting', action, onAction }) {
   const moodColors = {
     confident: '#00D4AA',
     neutral:   '#888888',
@@ -29,7 +29,7 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', cause, state = 
         boxShadow: `0 0 14px ${mColor}33`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} accent={accent} size={36} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={36} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

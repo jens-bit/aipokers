@@ -11,17 +11,17 @@ import { MoodGhost } from '../system/MoodGhost.jsx';
 import { AttrCluster } from '../system/AttrCluster.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../system/CharacterAtoms.jsx';
 import { accentFor } from '../floor/atoms.jsx';
-import { moodOf } from '../floor/agentView.js';
+import { moodOf, heatOf } from '../floor/agentView.js';
 import { normalizeAttrs, seriesFor, ATTR_META } from '../../lib/attributes.js';
 import { RailBody } from './panelParts.jsx';
 
-function Identity({ agent, accent, mood, nature, size = 56, nameSize = 20, centred }) {
+function Identity({ agent, accent, mood, heat = 45, nature, size = 56, nameSize = 20, centred }) {
   const hands = agent?.careerStats?.hands ?? 0;
   const born = hands > 0 ? `${hands.toLocaleString()} HANDS` : 'BORN TODAY · 0 HANDS';
   return (
     <div className="dsk-pcard__id" style={{ alignItems: centred ? 'center' : 'flex-start' }}>
       <div className="dsk-pcard__ghost" style={{ width: size, height: size, borderColor: `${accent}44` }}>
-        <MoodGhost mood={mood} accent={accent} size={size - 2} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={size - 2} ring={false} />
       </div>
       <div className="dsk-pcard__id-text">
         <div className="dsk-pcard__name" style={{ fontSize: nameSize }}>{agent.name}</div>
@@ -86,7 +86,7 @@ export function PlayerCardRail({ agent, accentIndex }) {
 
   return (
     <RailBody pad={14}>
-      <Identity agent={agent} accent={accent} mood={mood} nature={character.nature} />
+      <Identity agent={agent} accent={accent} mood={mood} heat={heatOf(agent)} nature={character.nature} />
 
       {/* His nature in one sentence — the card's only line of voice, and it is
           about who he is rather than what he just did. Hidden while a bar is
@@ -140,6 +140,7 @@ export function BirthCardRail({ agent, onDealIn }) {
         agent={agent}
         accent={accent}
         mood={moodOf(agent)}
+        heat={heatOf(agent)}
         nature={nature}
         nameSize={21}
         centred

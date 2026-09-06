@@ -27,6 +27,16 @@ export function moodOf(agent) {
   return safeMood(agent?.mood?.state);
 }
 
+// BIRTH-4: heat rides in the same served object as the state, so any reader
+// that has the mood already has the tier. There is exactly one place that
+// knows the shape, and one fallback: an older projection with no heat gets 45,
+// the canon middle — the face the atom drew before tiers existed.
+export function heatOf(agent) {
+  const h = agent?.mood?.heat;
+  if (!Number.isFinite(h)) return 45;
+  return Math.max(0, Math.min(100, h));
+}
+
 // Only real when the API supplies it — never invented from stats.
 export function causeOf(agent) {
   const cause = agent?.mood?.cause;

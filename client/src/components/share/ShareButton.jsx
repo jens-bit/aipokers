@@ -154,10 +154,10 @@ function pickerlessNav() {
 }
 
 /**
- * @param {{ hand: object, agentName?: string, mood?: string, label?: string,
+ * @param {{ hand: object, agentName?: string, mood?: string, heat?: number, label?: string,
  *           style?: object }} props
  */
-export function ShareButton({ hand, agentName, mood, label = 'Share', style }) {
+export function ShareButton({ hand, agentName, mood, heat, label = 'Share', style }) {
   const [open, setOpen] = useState(false);
   if (!hand) return null;
 
@@ -171,7 +171,7 @@ export function ShareButton({ hand, agentName, mood, label = 'Share', style }) {
       >{label}</button>
       {open && (
         <ShareSheet
-          model={buildShareModel(hand, { agentName, mood })}
+          model={buildShareModel(hand, { agentName, mood, heat })}
           onClose={() => setOpen(false)}
         />
       )}

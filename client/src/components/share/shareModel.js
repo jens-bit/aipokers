@@ -68,9 +68,9 @@ function knownCards(cards) {
 
 /**
  * @param {object} hand one flagged-hand entry
- * @param {{ agentName?: string, mood?: string }} who
+ * @param {{ agentName?: string, mood?: string, heat?: number }} who
  * @returns {{
- *   name: string, mood: string, moodColor: string,
+ *   name: string, mood: string, moodColor: string, heat: number,
  *   flag: { label: string, tone: string, color: string },
  *   holeCards: string[], board: string[],
  *   won: boolean, amount: string, hand: string|null, result: string,
@@ -78,7 +78,7 @@ function knownCards(cards) {
  *   stamp: string|null, mark: string,
  * }}
  */
-export function buildShareModel(hand, { agentName, mood } = {}) {
+export function buildShareModel(hand, { agentName, mood, heat } = {}) {
   const timeline = buildTimeline(hand);
   // The board as it finished — the last beat is the end of the hand, and its
   // board is the one that decided it.
@@ -86,6 +86,9 @@ export function buildShareModel(hand, { agentName, mood } = {}) {
   const holeCards = knownCards(timeline.holeCards).slice(0, 2);
 
   const moodKey = MOOD_COLOR[mood] ? mood : 'neutral';
+  // BIRTH-4: the poster carries his tier too, so the shared face is the face
+  // that was on the felt. The PNG serializes this same node, so both agree.
+  const heatValue = Number.isFinite(heat) ? Math.max(0, Math.min(100, heat)) : 45;
   const amount = formatAmount(timeline.pot, timeline.won);
   // Two hole cards and three board cards are the least that names a hand. Show
   // his hand, not the board's — so the name is only offered when his own cards
@@ -100,6 +103,7 @@ export function buildShareModel(hand, { agentName, mood } = {}) {
       || 'Your agent',
     mood: moodKey,
     moodColor: MOOD_COLOR[moodKey],
+    heat: heatValue,
     flag: { ...timeline.flag, color: TONE_COLOR[timeline.flag.tone] ?? TONE_COLOR.teal },
     holeCards,
     board,

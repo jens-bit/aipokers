@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MoodBand } from '../system/MoodBand.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { accentFor, MOODS } from '../floor/atoms.jsx';
-import { moodOf, causeOf, stateOf } from '../floor/agentView.js';
+import { moodOf, heatOf, causeOf, stateOf } from '../floor/agentView.js';
 import { GameTile } from './GameTile.jsx';
 import { PanelHead, PComposer } from './panelParts.jsx';
 import { PlayerCardRail } from './PlayerCardRail.jsx';
@@ -18,19 +18,19 @@ const PROFILE_LABELS = {
   bluffFreq: 'Bluff freq', discipline: 'Discipline',
 };
 
-function MsgAvatar({ mood, accent }) {
+function MsgAvatar({ mood, accent, heat = 45 }) {
   return (
     <div className="dsk-msg__avatar" style={{ borderColor: `${accent}44` }}>
-      <MoodGhost mood={mood} accent={accent} size={27} ring={false} />
+      <MoodGhost mood={mood} heat={heat} accent={accent} size={27} ring={false} />
     </div>
   );
 }
 
-function AgentBubble({ mood, accent, children }) {
+function AgentBubble({ mood, accent, heat = 45, children }) {
   const moodColor = MOODS[mood]?.color ?? 'var(--dsk-muted)';
   return (
     <div className="dsk-msg">
-      <MsgAvatar mood={mood} accent={accent} />
+      <MsgAvatar mood={mood} accent={accent} heat={heat} />
       <div className="dsk-msg__body">
         <div
           className="dsk-msg__bubble"
@@ -51,11 +51,11 @@ function OwnerBubble({ children }) {
   );
 }
 
-function TypingBubble({ mood, accent }) {
+function TypingBubble({ mood, accent, heat = 45 }) {
   const moodColor = MOODS[mood]?.color ?? 'var(--dsk-muted)';
   return (
     <div className="dsk-msg">
-      <MsgAvatar mood={mood} accent={accent} />
+      <MsgAvatar mood={mood} accent={accent} heat={heat} />
       <div className="dsk-msg__body">
         <div
           className="dsk-msg__bubble dsk-msg__bubble--typing"
@@ -135,6 +135,7 @@ export function ThreadPanel({
 
   const accent = accentFor(agent, accentIndex);
   const mood = moodOverride ?? moodOf(agent);
+  const heat = heatOf(agent);
   const cause = causeOverride ?? causeOf(agent);
   const state = stateOf(agent);
   const isLive = state === 'live';
@@ -208,7 +209,7 @@ export function ThreadPanel({
           if (m.role === 'proposal') {
             return (
               <div className="dsk-msg" key={m._id}>
-                <MsgAvatar mood={mood} accent={accent} />
+                <MsgAvatar mood={mood} accent={accent} heat={heat} />
                 <div className="dsk-msg__body">
                   <ProposalCard
                     proposal={m.proposal}
@@ -222,9 +223,9 @@ export function ThreadPanel({
               </div>
             );
           }
-          return <AgentBubble key={m._id} mood={mood} accent={accent}>{m.content}</AgentBubble>;
+          return <AgentBubble key={m._id} mood={mood} accent={accent} heat={heat}>{m.content}</AgentBubble>;
         })}
-        {sending && <TypingBubble mood={mood} accent={accent} />}
+        {sending && <TypingBubble mood={mood} accent={accent} heat={heat} />}
       </div>
 
       </>

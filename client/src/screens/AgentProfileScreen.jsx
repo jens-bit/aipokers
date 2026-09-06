@@ -13,7 +13,7 @@ import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
-import { moodOf, stateOf, causeOf } from '../components/floor/agentView.js';
+import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
 import { collectFrom, pocketOf } from '../lib/wallet.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
@@ -202,7 +202,7 @@ function CareerGrid({ careerStats }) {
 // Port of IdentityBlock from char-profile.jsx. The nature badge is beside the
 // name, always — and when the server has not assigned one it says so rather
 // than guessing: a nature is never invented on the client.
-function IdentityBlock({ agent, accent, mood, nature, compact }) {
+function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
   const hands = agent.careerStats?.hands ?? agent.stats?.handsPlayed ?? 0;
   const born = hands > 0 ? `${hands.toLocaleString()} HANDS` : 'BORN TODAY · 0 HANDS';
   return (
@@ -212,7 +212,7 @@ function IdentityBlock({ agent, accent, mood, nature, compact }) {
         background: '#0A0F17', border: `1px solid ${accent}44`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} accent={accent} size={52} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={52} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: PLAYFAIR, fontSize: 19, fontWeight: 600, color: M_TEXT, letterSpacing: '-0.01em' }}>
@@ -278,6 +278,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
 
   const accent  = accentFor(agent);
   const mood    = moodOf(agent);
+  const heat    = heatOf(agent);
   const state   = stateOf(agent);
   const cause   = causeOf(agent);
   const isLive  = state === 'live';
@@ -337,6 +338,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
           agent={agent}
           accent={accent}
           mood={mood}
+          heat={heat}
           nature={character.nature}
           compact={!!expand}
         />

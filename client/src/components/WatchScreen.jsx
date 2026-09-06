@@ -607,6 +607,7 @@ export function WatchFelt({
               stack={o.stack}
               accent={o.accent}
               mood={o.mood}
+              heat={Number.isFinite(o.heat) ? o.heat : 45}
               folded={o.folded}
               acting={o.acting}
               selected={selectedSeat === o.seat}

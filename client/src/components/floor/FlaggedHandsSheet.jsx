@@ -120,7 +120,7 @@ function SheetHeader({ title, onBack, action }) {
 // SHARE-1 puts a ghost Share beside the row, so the row itself is no longer
 // one button — a button inside a button is not a thing the DOM allows. The tap
 // target is unchanged: everything but the Share still opens the review.
-function HandListRow({ hand, agentName, agentMood, onClick }) {
+function HandListRow({ hand, agentName, agentMood, agentHeat, onClick }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
@@ -151,12 +151,12 @@ function HandListRow({ hand, agentName, agentMood, onClick }) {
           <path d="M9 18l6-6-6-6" />
         </svg>
       </button>
-      <ShareButton hand={hand} agentName={agentName} mood={agentMood} />
+      <ShareButton hand={hand} agentName={agentName} mood={agentMood} heat={agentHeat} />
     </div>
   );
 }
 
-function ListView({ agentName, agentMood, hands, onSelect, onReplay, onBack }) {
+function ListView({ agentName, agentMood, agentHeat, hands, onSelect, onReplay, onBack }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 9,
@@ -182,6 +182,7 @@ function ListView({ agentName, agentMood, hands, onSelect, onReplay, onBack }) {
                 hand={hand}
                 agentName={agentName}
                 agentMood={agentMood}
+                agentHeat={agentHeat}
                 onClick={() => onSelect(hand)}
               />
             ))}
@@ -314,7 +315,7 @@ function StreetRow({ street, board, action, equity, matched, reason, attr, last,
 }
 
 // Verdict band — same anatomy as MoodBand from design-refs/mood-screens-f.
-function VerdictBand({ hand, agentName, mood = 'neutral' }) {
+function VerdictBand({ hand, agentName, mood = 'neutral', heat = 45 }) {
   const pnl = Number.isFinite(hand.pot) ? hand.pot : 0;
   const pnlLabel = hand.won ? `+${pnl}` : `−${pnl}`;
   const pnlColor = hand.won ? M_TEAL : M_RED;
@@ -332,7 +333,7 @@ function VerdictBand({ hand, agentName, mood = 'neutral' }) {
         boxShadow: `0 0 14px ${M_RED}33`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} accent={M_PURPLE} size={40} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={M_PURPLE} size={40} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -433,7 +434,7 @@ function OpponentShowdownRow({ opponents }) {
   );
 }
 
-function HandReview({ hand, agentName, agentMood, onBack, onReplay }) {
+function HandReview({ hand, agentName, agentMood, agentHeat, onBack, onReplay }) {
   const streets = hand.streets ?? [];
   const { byStreet: attrByStreet, loose: looseAttrs } = splitAttrCosts(hand);
 
@@ -448,7 +449,7 @@ function HandReview({ hand, agentName, agentMood, onBack, onReplay }) {
         onBack={onBack}
         action={onReplay ? { label: 'Watch it', onClick: onReplay } : null}
       />
-      <VerdictBand hand={hand} agentName={agentName} mood={agentMood} />
+      <VerdictBand hand={hand} agentName={agentName} mood={agentMood} heat={agentHeat} />
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <HoleCardsRow holeCards={hand.holeCards} />
@@ -598,6 +599,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
 
   const agentName = agent?.name ?? 'Agent';
   const agentMood = agent?.mood?.state ?? 'neutral';
+  const agentHeat = Number.isFinite(agent?.mood?.heat) ? agent.mood.heat : 45;
 
   if (hands === null) return <LoadingState onBack={onBack} />;
 
@@ -619,6 +621,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
         hand={selectedHand}
         agentName={agentName}
         agentMood={agentMood}
+        agentHeat={agentHeat}
         onBack={() => setSelectedHand(null)}
         onReplay={() => setReplayHand(selectedHand)}
       />
@@ -629,6 +632,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
     <ListView
       agentName={agentName}
       agentMood={agentMood}
+      agentHeat={agentHeat}
       hands={hands}
       onSelect={setSelectedHand}
       onReplay={setReplayHand}

@@ -2,7 +2,7 @@
 // design-refs/mood-desktop2.jsx D2IdleScreenM and mood-desktop3.jsx
 // D3HomeOneScreenM: PanelHead → standup card → tile stack → roster → composer.
 import { accentFor } from '../floor/atoms.jsx';
-import { moodOf, stateOf, lastMomentOf } from '../floor/agentView.js';
+import { moodOf, heatOf, stateOf, lastMomentOf } from '../floor/agentView.js';
 import { GameTile } from './GameTile.jsx';
 import { PStandupCard } from './PStandupCard.jsx';
 import { PanelHead, RailBody, PComposer, PRosterRow, DraftPanel } from './panelParts.jsx';
@@ -113,6 +113,7 @@ export function StandupPanel({
                   name={agent.name}
                   accent={accentFor(agent, i)}
                   mood={moodOf(agent)}
+                  heat={heatOf(agent)}
                   state={stateOf(agent)}
                   line={lastMomentOf(agent)}
                   pnl={fmtNet(agent.careerStats?.net)}

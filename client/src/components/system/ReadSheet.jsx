@@ -56,7 +56,8 @@ export function ReadSheet({ entry, seat, onClose }) {
 
       <div className="read-sheet__head">
         <div className="read-sheet__well">
-          <MoodGhost mood={seat?.mood || 'neutral'} accent={seat?.accent || '#00D4AA'} size={38} ring={false} />
+          <MoodGhost mood={seat?.mood || 'neutral'} heat={Number.isFinite(seat?.heat) ? seat.heat : 45}
+            accent={seat?.accent || '#00D4AA'} size={38} ring={false} />
         </div>
         <div className="read-sheet__id">
           <div className="read-sheet__name">{name}</div>

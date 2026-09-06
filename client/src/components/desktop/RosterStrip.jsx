@@ -13,7 +13,7 @@
 // replaced it outright — the who-is-playing glance was not merely narrowed, it
 // was gone. The strip gives it back at 68px: 68 + stage + 520 = 1440 exactly.
 import { accentFor } from '../floor/atoms.jsx';
-import { moodOf, stateOf } from '../floor/agentView.js';
+import { moodOf, heatOf, stateOf } from '../floor/agentView.js';
 import { PHood } from './panelParts.jsx';
 
 export function RosterStrip({ agents = [], activeId, onSelect }) {
@@ -37,7 +37,7 @@ export function RosterStrip({ agents = [], activeId, onSelect }) {
               className={`dsk-strip__row${activeId === agent.id ? ' is-active' : ''}`}
               onClick={() => onSelect?.(agent)}
             >
-              <PHood size={34} accent={accentFor(agent, i)} mood={moodOf(agent)} />
+              <PHood size={34} accent={accentFor(agent, i)} mood={moodOf(agent)} heat={heatOf(agent)} />
               {state === 'live' && <span className="dsk-strip__dot dsk-dot" aria-hidden />}
               {state === 'recap' && <span className="dsk-strip__dot dsk-strip__dot--recap" aria-hidden />}
             </button>

@@ -43,10 +43,10 @@ export function RailBody({ children, pad = 14, bodyRef }) {
 }
 
 // Small hood avatar — the mobile MoodGhost atom in a 6px-radius tile.
-export function PHood({ size = 22, accent = '#00D4AA', mood = 'confident' }) {
+export function PHood({ size = 22, accent = '#00D4AA', mood = 'confident', heat = 45 }) {
   return (
     <div className="dsk-phood" style={{ width: size, height: size, borderColor: `${accent}44` }}>
-      <MoodGhost mood={safeMood(mood)} accent={accent} size={size - 1} ring={false} />
+      <MoodGhost mood={safeMood(mood)} heat={heat} accent={accent} size={size - 1} ring={false} />
     </div>
   );
 }
@@ -140,7 +140,7 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
   );
 }
 
-export function PRosterRow({ name, accent, mood, state, line, pnl, grew, active, onClick }) {
+export function PRosterRow({ name, accent, mood, heat = 45, state, line, pnl, grew, active, onClick }) {
   const m = safeMood(mood);
   const down = typeof pnl === 'string' && (pnl.startsWith('−') || pnl.startsWith('-'));
   return (
@@ -149,7 +149,7 @@ export function PRosterRow({ name, accent, mood, state, line, pnl, grew, active,
       className={`dsk-roster-row${active ? ' is-active' : ''}`}
       onClick={onClick}
     >
-      <PHood size={34} accent={accent} mood={m} />
+      <PHood size={34} accent={accent} mood={m} heat={heat} />
       <div className="dsk-roster-row__text">
         <div className="dsk-roster-row__name-line">
           <span className="dsk-roster-row__name">{name}</span>

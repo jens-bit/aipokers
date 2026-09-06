@@ -12,6 +12,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { M_TEAL } from '../components/floor/atoms.jsx';
+import { moodOf, heatOf } from '../components/floor/agentView.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
@@ -402,15 +403,18 @@ function NatureReveal({ name, first, nature }) {
 // F-2 also gives the ghost a PLACE. The well sits half out of the sheet's top
 // edge and the card rises from it, so there is exactly one ghost on screen at
 // any moment rather than a reveal ghost being covered by a card ghost.
-function BirthCardSheet({ name, nature, firstWords, character, onDealIn, first = true }) {
+function BirthCardSheet({ name, nature, firstWords, character, mood = 'neutral', heat = 45, onDealIn, first = true }) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="birth-card3">
-      {/* his place: the header well, half out of the sheet */}
+      {/* BIRTH-4: his place is a full slot INSIDE the sheet. The well used to
+          hang half out of the top edge, which the sheet's own overflow then cut
+          straight through his head. He gets the whole 96px and the glow around
+          it; the sheet's top padding is what makes room. */}
       <div className="birth-card3__well-row">
         <div className="birth-card3__well">
-          <MoodGhost mood="neutral" accent={M_TEAL} size={64} ring={false} />
+          <MoodGhost mood={mood} heat={heat} accent={M_TEAL} size={96} ring={false} />
         </div>
       </div>
 
@@ -618,6 +622,10 @@ export function BirthScreen({ onBack, onBirth, agent }) {
     // firstWords live on the record, so the raw nature rides along too.
     setBorn({
       ...newborn,
+      // BIRTH-4: his face on the card is the served face. A newborn's mood is
+      // whatever the server gave him a second ago — read, never invented here.
+      mood: moodOf(record),
+      heat: heatOf(record),
       first: record?.firstWords ?? character.nature.line,
       nature: { ...character.nature, builtFor: record?.nature?.builtFor ?? null },
       character,
@@ -959,6 +967,8 @@ export function BirthScreen({ onBack, onBirth, agent }) {
             <BirthCardSheet
               name={born.name}
               nature={born.nature}
+              mood={born.mood}
+              heat={born.heat}
               firstWords={born.first}
               character={born.character}
               first={firstAgent}
