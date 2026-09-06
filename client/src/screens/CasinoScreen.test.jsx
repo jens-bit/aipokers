@@ -107,9 +107,61 @@ describe('CASINO-1 what counts as hot', () => {
 describe('CASINO-1 the building', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('draws one doorway per room, in ladder order', async () => {
+  // CASINO-2 job 3 split the doorway in two. AT REST the rooms are three small
+  // doors under the sign — the building's own organisation, the only navigation
+  // on the screen, and 60px rather than 152 because a door you are walking
+  // through is not a decision. The TALL doorway is the DEPLOY choice and is
+  // asserted with somebody in the tray, below, where it now lives.
+  it('draws one door per room, in ladder order, under the sign', async () => {
     routeFloor();
     const { container } = renderCasino();
+
+    await waitFor(() => expect(container.querySelectorAll('.csn-room-door')).toHaveLength(3));
+    expect([...container.querySelectorAll('.csn-room-door')].map((d) => d.dataset.room))
+      .toEqual(['floor', 'upstairs', 'backroom']);
+    expect(screen.getByText('THE FLOOR')).toBeInTheDocument();
+    expect(screen.getByText('UPSTAIRS')).toBeInTheDocument();
+    // A row of signs, not a row of sentences: the article goes when what is
+    // left is still more than one word.
+    expect(screen.getByText('BACK ROOM')).toBeInTheDocument();
+  });
+
+  it('each door says what it costs to sit and how many are in there', async () => {
+    routeFloor();
+    renderCasino();
+
+    await screen.findByText('THE FLOOR');
+    expect(screen.getByText('10/20')).toBeInTheDocument();
+    expect(screen.getByText('25/50')).toBeInTheDocument();
+    expect(screen.getByText('50/100')).toBeInTheDocument();
+    expect(screen.getByText('17 in')).toBeInTheDocument();
+    // A room always exists; the quiet back room reports zeroes.
+    expect(screen.getByText('0 in')).toBeInTheDocument();
+  });
+
+  it('and marks the room one of yours is in', async () => {
+    routeFloor({ agents: [withPocket(playingAgent, 3_000)] });
+    const { container } = renderCasino();
+
+    await waitFor(() => {
+      const floor = container.querySelector('.csn-room-door[data-room="floor"]');
+      expect(floor.dataset.mine).toBe('true');
+      expect(within(floor).getByText(/1 yours/)).toBeInTheDocument();
+    });
+    expect(container.querySelector('.csn-room-door[data-room="upstairs"]').dataset.mine)
+      .toBeUndefined();
+  });
+
+  it('the sign over the door is lit, and dark over a building with nothing in it', async () => {
+    routeFloor();
+    const { container } = renderCasino();
+    await waitFor(() => expect(container.querySelector('.csn-marquee').dataset.lit).toBe('true'));
+    expect(screen.getByText('The casino')).toBeInTheDocument();
+  });
+
+  it('the tall doorways are the deploy choice, and they arrive with the tray', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    const { container } = renderCasino({ deployAgent: fundedCannon });
 
     await waitFor(() => expect(container.querySelectorAll('.csn-door')).toHaveLength(3));
     expect([...container.querySelectorAll('.csn-door')].map((d) => d.dataset.room))
@@ -125,8 +177,11 @@ describe('CASINO-1 the building', () => {
   });
 
   it('puts your agent in the doorway of the room he is sitting in', async () => {
-    routeFloor({ agents: [withPocket(playingAgent, 3_000, { pnl: 1_240 })] });
-    const { container } = renderCasino();
+    // With the tray, because that is where the tall doorway lives since
+    // CASINO-2 job 3 — and it is the moment the fact matters most: you are
+    // about to put another man somewhere, and one of yours is already there.
+    routeFloor({ agents: [fundedCannon, withPocket(playingAgent, 3_000, { pnl: 1_240 })] });
+    const { container } = renderCasino({ deployAgent: fundedCannon });
 
     await waitFor(() => {
       const floor = container.querySelector('.csn-door[data-room="floor"]');
@@ -193,13 +248,17 @@ describe('CASINO-1 the building', () => {
     expect(onSpectate).toHaveBeenCalledWith('tbl-hot');
   });
 
-  it('with nobody to place, no doorway is a decision and there is no tray', async () => {
+  it('with nobody to place there is no tray, and no room is shut', async () => {
     routeFloor();
     const { container } = renderCasino();
 
-    await waitFor(() => expect(container.querySelectorAll('.csn-door')).toHaveLength(3));
+    await waitFor(() => expect(container.querySelectorAll('.csn-room-door')).toHaveLength(3));
     expect(container.querySelector('.csn-tray')).toBeNull();
-    expect(container.querySelector('.csn-door[data-shut]')).toBeNull();
+    // Not one tall doorway either: with nothing to place there is no choice to
+    // give a third of the screen to, and a room's price is a fact about a
+    // pocket that is not in the room.
+    expect(container.querySelectorAll('.csn-door')).toHaveLength(0);
+    expect(container.querySelector('[data-shut]')).toBeNull();
   });
 });
 

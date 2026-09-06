@@ -33,7 +33,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
+  CasinoDoor, CasinoHead, DeployTray, RoomDoors, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
 import { FloorBoard } from '../components/casino/FloorBoard.jsx';
 import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
@@ -200,6 +200,13 @@ export function CasinoScreen({
   const mineByRoom = useMemo(() => agentsByRoom(rooms, agents, roomOf), [rooms, agents, roomOf]);
   const mineIds = useMemo(() => new Set(agents.map((a) => String(a.id))), [agents]);
   const focus = useMemo(() => hotFocus(rooms, hotTables, agents), [rooms, hotTables, agents]);
+  // CASINO-2 job 3: which rooms the small doors mark as hot. Same answer the
+  // tall doorway gets from isRoomHot, asked once for the row rather than once
+  // per door, so the two sizes of door can never disagree.
+  const hotRoomIds = useMemo(
+    () => new Set(rooms.filter((r) => isRoomHot(r, hotTables)).map((r) => r.id)),
+    [rooms, hotTables],
+  );
 
   const seated = totalSeated(rooms);
   const minePlaying = agents.filter((a) => a.liveGame).length;
@@ -353,9 +360,11 @@ export function CasinoScreen({
     />
   );
 
+  // CASINO-2 job 3: the sign is dark when there is no building behind it.
   const head = (
     <CasinoHead
         sub={sub}
+        lit={rooms.length > 0}
         right={trayAgent ? (
           <button
             type="button"
@@ -411,25 +420,52 @@ export function CasinoScreen({
           </div>
         )}
 
-        {/* K2 · the board, then the stairs that say the building has floors. On
-            the desk the board is in the rail and the stairs stay here, because
-            what they say is about the building and not about the evening. */}
-        {!trayAgent && !desktop && board}
-        {!trayAgent && <Stairs />}
+        {/* CASINO-2 job 3 · THE THREE DOORS, DIRECTLY UNDER THE SIGN.
+            They are the building's own organisation, they are the only
+            navigation on this screen, and they never scroll off — so they are
+            the first thing under the header and they are 60px tall rather than
+            152, because a door you are walking through is not a decision.
 
-        {/* FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
+            The TALL doorway is still here and is still board 27: it is the
+            DEPLOY choice, below, and it earns a third of the screen because
+            placing a man is the one decision made in this room. */}
+        {!trayAgent && (
+          <RoomDoors
+            rooms={rooms}
+            mineByRoom={mineByRoom}
+            hotRooms={hotRoomIds}
+            onOpen={lookIntoRoom}
+          />
+        )}
+
+        {/* K2 · the board, split by tense. On the desk it is in the rail. */}
+        {!trayAgent && !desktop && board}
+
+        {rooms.length === 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
+            The floor has not opened yet.
+          </div>
+        )}
+
+        {/* K1 · placing him. The stairs say the building has floors, and the
+            tall doorways are the rooms he can be put in — his crowd drawn, your
+            other men standing in them, the price on the ones his pocket cannot
+            cover.
+
+            FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
             stacks them because it has one column and a doorway you scroll past
             is still a doorway; 1440 has room to show the whole building at
             once, and a column of three in the middle of it is the phone's
             layout with air poured down both sides. */}
-        {rooms.length === 0 ? (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
-            The floor has not opened yet.
-          </div>
-        ) : desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
+        {trayAgent && rooms.length > 0 && (
+          <>
+            <Stairs />
+            {desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
+          </>
+        )}
 
-        {/* K1 · the board stays reachable while you are placing him, but the
-            decision is the tray, so it reads as two lines and not as five. On
+        {/* The board stays reachable while you are placing him, but the
+            decision is the tray, so it reads as two lines and not as seven. On
             the desk it never left: the rail is not the stage, so it does not
             have to stand down for the tray. */}
         {trayAgent && !desktop && board}

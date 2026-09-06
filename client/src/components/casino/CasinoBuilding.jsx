@@ -416,27 +416,141 @@ export function Stairs() {
 
 // ── The head ───────────────────────────────────────────────────────────────
 
-export function CasinoHead({ sub, right }) {
+/**
+ * THE SIGN OVER THE DOOR — CASINO-2 job 3.
+ *
+ * It was type in a header: the same Playfair line every other screen puts its
+ * title in, which said "this is a tab called The casino" rather than "you have
+ * walked into a building". A casino's name is the one piece of signage in the
+ * world that is never quiet about being a sign, and the whole identity of this
+ * screen is that it is somewhere you go.
+ *
+ * So it is a lit marquee: bulbs over the words, on a gold plate, running left
+ * to right the way a real one does — the bulbs chase rather than blink
+ * together, because a row that flashes in unison is a warning light and a row
+ * that runs is an invitation.
+ *
+ * `lit` is not decoration. A floor that has not opened gets a dark sign, which
+ * is what an unlit marquee has always meant, and is more honest than a bright
+ * sign over a building with nothing in it.
+ *
+ * NOT A PILL. It never takes a pill's rounded capsule, because the two would
+ * then be the same object at different sizes: this screen's pills are LIVE
+ * STATE (a net, a HOT badge, a count) and they change all evening. The sign is
+ * the one thing on the screen that does not.
+ */
+export function Marquee({ lit = true }) {
   return (
-    <div style={{
-      flexShrink: 0, height: 46, display: 'flex', alignItems: 'center', gap: 9,
-      padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
+    <span className="csn-marquee" data-lit={lit ? 'true' : 'false'}>
+      <span className="csn-marquee__bulbs" aria-hidden>
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <i key={i} style={{ animationDelay: `${i * 0.17}s` }} />
+        ))}
+      </span>
+      {/* CASINO-2 job 2: "The casino" NEVER WRAPS. At 390 with a long sub-line
+          under it — "1,604 playing · 3 of yours in" — the flex row gave the
+          title a narrow column and the sign broke across two lines as "The"
+          over "casino", which is a broken sign rather than a small one. It is
+          two words; it keeps them. */}
+      <span className="csn-marquee__word">The casino</span>
+    </span>
+  );
+}
+
+export function CasinoHead({ sub, right, lit = true }) {
+  return (
+    <div className="csn-head" style={{
+      flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
+      padding: '6px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* CASINO-2 job 2: "The casino" NEVER WRAPS. At 390 with a long
-            sub-line under it — "1,604 playing · 3 of yours in" — the flex row
-            gave the title a narrow column and the sign broke across two lines
-            as "The" over "casino", which is a broken sign rather than a small
-            one. It is two words; it keeps them. */}
-        <div style={{
-          fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT,
-          lineHeight: 1.1, whiteSpace: 'nowrap',
-        }}>
-          The casino
-        </div>
-        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>{sub}</div>
+        <Marquee lit={lit} />
+        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 2 }}>{sub}</div>
       </div>
       {right}
+    </div>
+  );
+}
+
+// ── The three doors ────────────────────────────────────────────────────────
+
+/**
+ * The room's name as it is written on its door.
+ *
+ * THE FLOOR · UPSTAIRS · BACK ROOM. A leading "the" is dropped when what is
+ * left is still more than one word, which is the difference between a sign and
+ * a sentence — three signs in a row read as a row of signs, and "THE BACK
+ * ROOM" beside "THE FLOOR" reads as prose. "the floor" keeps its article,
+ * because "FLOOR" alone is a storey rather than a room.
+ *
+ * A rule rather than a table, so a deployment that adds a rung gets a door
+ * with a name on it instead of a blank one.
+ */
+export function doorLabel(room) {
+  const name = String(room?.name ?? '').trim();
+  if (!name) return '';
+  const stripped = name.replace(/^the\s+/i, '');
+  const label = stripped.includes(' ') ? stripped : name;
+  return label.toUpperCase();
+}
+
+/** The blinds as a door says them: 10/20, not $10/$20. */
+export function doorStakes(room) {
+  const s = room?.stakes;
+  if (!s) return '';
+  return `${s.smallBlind}/${s.bigBlind}`;
+}
+
+/**
+ * THREE DOORS UNDER THE SIGN — CASINO-2 job 3.
+ *
+ * The building has three rooms and they are the thing it is organised by, so
+ * they are the first thing under the sign and they never scroll off: at rest
+ * this screen is a board, three doors and your own table, and the doors are
+ * the only navigation on it.
+ *
+ * This is NOT the tall doorway (CasinoDoor, above). That one is the DEPLOY
+ * choice — a room seen through its doorway, its crowd drawn, your own men
+ * standing in it, the price on it when his pocket cannot cover the buy-in —
+ * and it earns a third of the screen because placing a man is the one decision
+ * made here. A door you are only walking through does not, and three of those
+ * at 152px each is the whole phone.
+ *
+ * Each door says the three things that decide which one you want: what it is
+ * called, what it costs to sit, and how many are in there. Hot is a fourth,
+ * and it is the only one that changes on its own.
+ */
+export function RoomDoors({ rooms = [], mineByRoom = {}, hotRooms = new Set(), onOpen = null }) {
+  if (rooms.length === 0) return null;
+  return (
+    <div className="csn-doors" role="group" aria-label="The rooms">
+      {rooms.map((room) => {
+        const mine = mineByRoom[room.id] ?? [];
+        const hot = hotRooms.has(room.id);
+        const label = doorLabel(room);
+        return (
+          <button
+            key={room.id}
+            type="button"
+            className="csn-room-door"
+            data-room={room.id}
+            data-hot={hot ? 'true' : undefined}
+            data-mine={mine.length ? 'true' : undefined}
+            aria-label={`${room.name}, ${room.stakes.label} — ${room.seated} in${hot ? ', hot' : ''}. Go in.`}
+            onClick={onOpen ? () => onOpen(room) : undefined}
+          >
+            <span className="csn-room-door__name">
+              {label}
+              {hot && <span className="csn-room-door__ember" aria-hidden />}
+            </span>
+            <span className="csn-room-door__stakes">{doorStakes(room)}</span>
+            <span className="csn-room-door__in">
+              {`${count(room.seated)} in`}
+              {mine.length > 0 && <b>{` · ${mine.length} yours`}</b>}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

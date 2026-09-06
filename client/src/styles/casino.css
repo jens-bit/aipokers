@@ -218,3 +218,161 @@
 @media (prefers-reduced-motion: reduce) {
   .csn-live__tick { animation: none; }
 }
+
+/* ── CASINO-2 job 3 · the sign, and the three doors under it ────────────────
+ *
+ * THE MARQUEE. Bulbs over the words on a gold plate, chasing left to right.
+ * They chase rather than blink together because a row flashing in unison is a
+ * warning light and a row that runs is an invitation — and because a marquee
+ * that pulses as one object would beat against the LIVE dot two rows below it,
+ * which is the one thing on this screen that IS meant to pulse.
+ *
+ * It is deliberately not a pill: no capsule, no fill. This screen's pills are
+ * live state — a net, a HOT badge, a count — and they change all evening. The
+ * sign is the one thing on it that does not. */
+.csn-marquee {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 3px 9px 4px;
+  border: 1px solid rgba(205, 179, 128, 0.42);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(205, 179, 128, 0.10) 0%, rgba(205, 179, 128, 0.02) 100%);
+  box-shadow: 0 0 18px rgba(205, 179, 128, 0.14), inset 0 0 12px rgba(205, 179, 128, 0.06);
+  max-width: 100%;
+}
+
+.csn-marquee__bulbs {
+  display: flex;
+  gap: 4px;
+  padding-left: 1px;
+}
+
+.csn-marquee__bulbs i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(205, 179, 128, 0.28);
+  animation: casino-bulb 2.1s ease-in-out infinite;
+}
+
+.csn-marquee__word {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #EDEDED;
+  text-shadow: 0 0 14px rgba(205, 179, 128, 0.34);
+}
+
+/* An unlit sign over a building with nothing in it. More honest than a bright
+   one, and it is what a dark marquee has always meant. */
+.csn-marquee[data-lit="false"] {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: none;
+  box-shadow: none;
+}
+.csn-marquee[data-lit="false"] .csn-marquee__word {
+  color: #6B6B6B;
+  text-shadow: none;
+}
+.csn-marquee[data-lit="false"] .csn-marquee__bulbs i {
+  animation: none;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+@keyframes casino-bulb {
+  0%, 70%, 100% { background: rgba(205, 179, 128, 0.26); box-shadow: none; }
+  22%           { background: #CDB380; box-shadow: 0 0 6px rgba(205, 179, 128, 0.9); }
+}
+
+/* THE THREE DOORS. A row, never a column and never a scroller: three is the
+   ladder, they all fit at 390, and a door you have to swipe to find is a door
+   you will not use. */
+.csn-doors {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.csn-room-door {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.csn-room-door__name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: #6B6B6B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.csn-room-door__stakes {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #EDEDED;
+}
+
+.csn-room-door__in {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 8px;
+  color: #6B6B6B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.csn-room-door__in b { color: #00D4AA; font-weight: 400; }
+
+/* Yours is in there. The teal edge is the same one the tall doorway uses for
+   the same fact, so the two say it the same way at two sizes. */
+.csn-room-door[data-mine] { border-color: rgba(0, 212, 170, 0.34); }
+
+/* And hot, which is the only thing on a door that changes on its own. */
+.csn-room-door[data-hot] {
+  border-color: rgba(205, 179, 128, 0.5);
+  background: rgba(205, 179, 128, 0.07);
+}
+.csn-room-door[data-hot] .csn-room-door__name { color: #CDB380; }
+.csn-room-door__ember {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #CDB380;
+  box-shadow: 0 0 6px #CDB380;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* On the desk the doors have a whole stage to sit across, so they breathe
+   rather than stretch: the same three signs, larger type, and the row capped
+   so it does not become three billboards. */
+.csn--desk .csn-doors { gap: 10px; max-width: 640px; }
+.csn--desk .csn-room-door { padding: 9px 12px 10px; }
+.csn--desk .csn-room-door__name { font-size: 9px; }
+.csn--desk .csn-room-door__stakes { font-size: 14px; }
+.csn--desk .csn-room-door__in { font-size: 9.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-marquee__bulbs i,
+  .csn-room-door__ember { animation: none; }
+}

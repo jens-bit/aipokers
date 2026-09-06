@@ -75,8 +75,9 @@ describe('App shell', () => {
 
     await user.click(tab('CASINO'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
-    // The building names its rooms; the flat has none.
-    expect(await screen.findByText('the back room')).toBeInTheDocument();
+    // The building names its rooms; the flat has none. CASINO-2 job 3: at rest
+    // the name is on the small door under the sign, in the house's sign case.
+    expect(await screen.findByText('BACK ROOM')).toBeInTheDocument();
 
     await user.click(tab('HOME'));
     expect(await bootedOnHome()).toBeInTheDocument();

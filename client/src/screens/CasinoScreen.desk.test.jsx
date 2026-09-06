@@ -56,16 +56,20 @@ beforeEach(() => {
 });
 
 describe('DESK-2 · the casino on the desk', () => {
+  // CASINO-2 job 3: at rest the rooms are the three small doors under the sign
+  // (the tall doorway is the deploy choice — see the tray tests below). The
+  // rule this asserts is unchanged and is the one that matters here: the rooms
+  // are on the stage, the board is in the rail, and there is exactly one board.
   it('is two columns: the building on the stage, the ticker in the rail', async () => {
     routeFloor();
     render(<CasinoScreen desktop />);
 
-    await waitFor(() => expect(document.querySelectorAll('.csn-door').length).toBe(rooms.length));
+    await waitFor(() => expect(document.querySelectorAll('.csn-room-door').length).toBe(rooms.length));
     expect(stage()).not.toBeNull();
     expect(rail()).not.toBeNull();
 
-    // Every doorway is on the stage; the board is not.
-    for (const door of document.querySelectorAll('.csn-door')) {
+    // Every door is on the stage; the board is not.
+    for (const door of document.querySelectorAll('.csn-room-door')) {
       expect(stage().contains(door)).toBe(true);
     }
     const boards = document.querySelectorAll('.csn-board');
@@ -134,9 +138,11 @@ describe('DESK-2 · the casino on the desk', () => {
 describe('FIX-6 · the building across the desk', () => {
   beforeEach(() => { telegram.signIn(); });
 
+  // Since CASINO-2 job 3 this is the DEPLOY view: the tall doorways arrive with
+  // the tray. What FIX-6 fixed is unchanged — three across, all one height.
   it('lays the rooms out as three cards side by side, not a column', async () => {
-    routeFloor();
-    render(<CasinoScreen desktop />);
+    routeFloor({ agents: [fundedCannon] });
+    render(<CasinoScreen desktop deployAgent={fundedCannon} />);
 
     const row = await waitFor(() => {
       const el = document.querySelector('.csn-rooms__row');
@@ -154,8 +160,8 @@ describe('FIX-6 · the building across the desk', () => {
   });
 
   it('the phone keeps its stack — nothing about this is a change to the phone', async () => {
-    routeFloor();
-    render(<CasinoScreen />);
+    routeFloor({ agents: [fundedCannon] });
+    render(<CasinoScreen deployAgent={fundedCannon} />);
 
     await waitFor(() => expect(document.querySelectorAll('.csn-door').length).toBe(rooms.length));
     expect(document.querySelector('.csn-rooms__row')).toBeNull();
