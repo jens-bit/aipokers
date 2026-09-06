@@ -33,11 +33,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  CasinoBoard, CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
+  CasinoDoor, CasinoHead, DeployTray, RoomDoors, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
-import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
+import { FloorBoard } from '../components/casino/FloorBoard.jsx';
+import { YourTables } from '../components/casino/YourTables.jsx';
+import { FloorView } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
-import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
+import { useCasinoRooms, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
@@ -128,6 +130,8 @@ export function CasinoScreen({
   deployAgent = null,
   onDeployed = null,
   onSpectate = null,
+  onReplay = null,
+  onPlace = null,
   onCancelDeploy = null,
   desktop = false,
 }) {
@@ -142,7 +146,10 @@ export function CasinoScreen({
   // more important meaning of the tap.
   const [openRoomId, setOpenRoomId] = useState(null);
 
-  const { rooms } = useCasinoRooms({ wsUrl });
+  // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
+  // the server's table -> room map. The doorways are still drawn from `rooms`;
+  // everything that names a particular felt now reads the felts.
+  const { rooms, felts, roomOf } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
 
   // The roster, on the same 10s beat the floor uses. It is what puts your own
@@ -192,9 +199,16 @@ export function CasinoScreen({
     [rooms, selectedRoomId],
   );
 
-  const mineByRoom = useMemo(() => agentsByRoom(rooms, agents), [rooms, agents]);
+  const mineByRoom = useMemo(() => agentsByRoom(rooms, agents, roomOf), [rooms, agents, roomOf]);
   const mineIds = useMemo(() => new Set(agents.map((a) => String(a.id))), [agents]);
   const focus = useMemo(() => hotFocus(rooms, hotTables, agents), [rooms, hotTables, agents]);
+  // CASINO-2 job 3: which rooms the small doors mark as hot. Same answer the
+  // tall doorway gets from isRoomHot, asked once for the row rather than once
+  // per door, so the two sizes of door can never disagree.
+  const hotRoomIds = useMemo(
+    () => new Set(rooms.filter((r) => isRoomHot(r, hotTables)).map((r) => r.id)),
+    [rooms, hotTables],
+  );
 
   const seated = totalSeated(rooms);
   const minePlaying = agents.filter((a) => a.liveGame).length;
@@ -206,9 +220,12 @@ export function CasinoScreen({
   // The stake chip beside a ticker line. Only hot tables and each room's
   // biggest pot are named on the wire, so most lines have no room to name and
   // simply carry no chip — see the note in useCasinoRooms.js.
+  // The stake chip beside a line. CASINO-2 made this answer for every live
+  // table rather than only for the two kinds ROOMS-1 names, because the
+  // table -> room map is now stated on the wire — see useCasinoRooms.
   const stakesForTable = useCallback(
-    (tableId) => roomForTable(rooms, tableId)?.stakes.label ?? null,
-    [rooms],
+    (tableId) => roomForTable(rooms, tableId, roomOf)?.stakes.label ?? null,
+    [rooms, roomOf],
   );
 
   // FIX-6 job 2 · A DOORWAY WITH SOMEBODY IN THE TRAY IS THE DEAL, NOT A PICK.
@@ -322,20 +339,34 @@ export function CasinoScreen({
 
   const openRoom = rooms.find((r) => r.id === openRoomId) ?? null;
 
+  // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
+  // (pots being built), TONIGHT off the ticker (hands that are over), and both
+  // are ranked by money rather than by recency.
+  //
+  // With somebody in the tray it shrinks to its live half plus the headline:
+  // the decision is the tray, so the board reads as two lines and not as
+  // seven. It never disappears, because "where is the action" is exactly the
+  // question an owner about to place a man is asking.
   const board = (
-    <CasinoBoard
+    <FloorBoard
+      felts={felts}
       events={events}
       mineIds={mineIds}
+      rooms={rooms}
       playing={seated}
-      full={!trayAgent}
+      liveLimit={trayAgent ? 2 : 3}
+      rows={trayAgent ? 0 : 3}
       stakesFor={stakesForTable}
-      onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+      onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+      onReplay={onReplay ?? null}
     />
   );
 
+  // CASINO-2 job 3: the sign is dark when there is no building behind it.
   const head = (
     <CasinoHead
         sub={sub}
+        lit={rooms.length > 0}
         right={trayAgent ? (
           <button
             type="button"
@@ -391,40 +422,106 @@ export function CasinoScreen({
           </div>
         )}
 
-        {/* K2 · the board, then the stairs that say the building has floors. On
-            the desk the board is in the rail and the stairs stay here, because
-            what they say is about the building and not about the evening. */}
-        {!trayAgent && !desktop && board}
-        {!trayAgent && <Stairs />}
+        {/* CASINO-2 job 3 · THE THREE DOORS, DIRECTLY UNDER THE SIGN.
+            They are the building's own organisation, they are the only
+            navigation on this screen, and they never scroll off — so they are
+            the first thing under the header and they are 60px tall rather than
+            152, because a door you are walking through is not a decision.
 
-        {/* FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
+            The TALL doorway is still here and is still board 27: it is the
+            DEPLOY choice, below, and it earns a third of the screen because
+            placing a man is the one decision made in this room. */}
+        {!trayAgent && (
+          <RoomDoors
+            rooms={rooms}
+            mineByRoom={mineByRoom}
+            hotRooms={hotRoomIds}
+            onOpen={lookIntoRoom}
+          />
+        )}
+
+        {/* K2 · the board, split by tense. On the desk it is in the rail. */}
+        {!trayAgent && !desktop && board}
+
+        {/* CASINO-2 job 4 · YOUR TABLE, once per man.
+            Everything above this is about strangers — three rooms with
+            hundreds of people in them, and a board of pots that are almost all
+            somebody else's. This is the block the owner opened the screen to
+            see, so it takes what is left of it. */}
+        {!trayAgent && rooms.length > 0 && (
+          <YourTables
+            agents={agents}
+            felts={felts}
+            onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+            onSend={onPlace ?? null}
+          />
+        )}
+
+        {rooms.length === 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
+            The floor has not opened yet.
+          </div>
+        )}
+
+        {/* K1 · placing him. The stairs say the building has floors, and the
+            tall doorways are the rooms he can be put in — his crowd drawn, your
+            other men standing in them, the price on the ones his pocket cannot
+            cover.
+
+            FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
             stacks them because it has one column and a doorway you scroll past
             is still a doorway; 1440 has room to show the whole building at
             once, and a column of three in the middle of it is the phone's
             layout with air poured down both sides. */}
-        {rooms.length === 0 ? (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
-            The floor has not opened yet.
-          </div>
-        ) : desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
+        {trayAgent && rooms.length > 0 && (
+          <>
+            <Stairs />
+            {desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
+          </>
+        )}
 
-        {/* K1 · the board stays reachable while you are placing him, but the
-            decision is the tray, so it reads as two lines and not as five. On
+        {/* The board stays reachable while you are placing him, but the
+            decision is the tray, so it reads as two lines and not as seven. On
             the desk it never left: the rail is not the stage, so it does not
             have to stand down for the tray. */}
         {trayAgent && !desktop && board}
       </div>
   );
 
-  // BUGS-A: tapping a room opens its tables. Extracted the way DESK-2
-  // extracted the tray just below, so both shells render it and neither has to
-  // repeat it — it was written when this screen still had one return.
-  const roomSheet = openRoom && !trayAgent ? (
-    <RoomTablesSheet
+  // CASINO-2 job 5 — TAPPING A DOOR TAKES YOU IN.
+  //
+  // BUGS-A job 7 opened a sheet listing what the client could name in there,
+  // which was the honest answer while the wire carried no table list. Job 1
+  // gave it one, and once every table in a room can be named the room stops
+  // being a list and becomes a place: felts on a floor, tiny ghosts in the
+  // seats, and the board by the stairs on the way out.
+  //
+  // A DESTINATION, NOT A SHEET, on both platforms. It replaces the building
+  // rather than sitting over it — which is also why the desk does not put it
+  // in the rail (FIX-6 job 5's law is about sheets, and a sheet is a panel
+  // about something you can still see behind it). It takes the board with it
+  // so the ticker is not lost on the way in.
+  const floorView = openRoom && !trayAgent ? (
+    <FloorView
       room={openRoom}
-      variant={desktop ? 'rail' : 'sheet'}
+      desktop={desktop}
+      felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
       events={events}
+      board={(
+        <FloorBoard
+          felts={feltsIn(felts, openRoom.id)}
+          events={events}
+          mineIds={mineIds}
+          rooms={rooms}
+          playing={openRoom.seated}
+          liveLimit={desktop ? 6 : 2}
+          rows={desktop ? 12 : 2}
+          stakesFor={stakesForTable}
+          onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+          onReplay={onReplay ?? null}
+        />
+      )}
       onClose={() => setOpenRoomId(null)}
       onWatch={(tableId) => { setOpenRoomId(null); onSpectate?.(tableId); }}
     />
@@ -442,10 +539,25 @@ export function CasinoScreen({
     />
   ) : null;
 
+  // CASINO-2 job 5: a room you have walked into is the whole screen, on both
+  // platforms. There is no building behind it to keep visible — that is the
+  // difference between a destination and a sheet, and it is why this returns
+  // before either shell rather than being drawn over one.
+  if (floorView) {
+    return (
+      <div
+        className={`csn${desktop ? ' csn--desk-room' : ''}`}
+        style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: M_BG }}
+      >
+        {floorView}
+      </div>
+    );
+  }
+
   // DESK-2 — the building on the stage, the ticker in the rail. Board 31's
   // frame: the shell's top bar is already across the top, so this is the body.
   if (desktop) {
-    // FIX-6 job 5 — EVERY SHEET OPENS IN THE RAIL. A bottom sheet at 1440 is a
+    // FIX-6 job 5 — HIS CHIPS OPEN IN THE RAIL. A bottom sheet at 1440 is a
     // full-width strip across a two-column layout: it covers the doorway it is
     // about, it covers the ticker it is not about, and it makes the desk read
     // like a phone that got bigger. The rail is the desk's answer to a sheet
@@ -460,15 +572,18 @@ export function CasinoScreen({
           {tray}
         </div>
         <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
-          {fund ?? roomSheet ?? (
-            <CasinoBoard
+          {fund ?? (
+            <FloorBoard
+              felts={felts}
               events={events}
               mineIds={mineIds}
+              rooms={rooms}
               playing={seated}
-              full
-              max={30}
+              liveLimit={6}
+              rows={20}
               stakesFor={stakesForTable}
-              onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+              onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+              onReplay={onReplay ?? null}
             />
           )}
         </aside>
@@ -484,7 +599,6 @@ export function CasinoScreen({
       {head}
       {roomsColumn}
       {tray}
-      {roomSheet}
     </div>
   );
 }

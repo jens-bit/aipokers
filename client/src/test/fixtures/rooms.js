@@ -84,3 +84,62 @@ export const eventsResponse = {
   ],
   lastId: 3,
 };
+
+// ── the felts ───────────────────────────────────────────────────────────────
+// CASINO-2's ROOM_TABLES record, exactly as roomTables.js sends it: one public
+// snapshot per live table. Seats, stacks, faces, the community cards and the
+// money in the middle — and nobody's hole cards, ever, which is the one thing
+// about this payload worth remembering when writing a fixture for it.
+
+export function feltSeat(over = {}) {
+  return {
+    seat: 0,
+    name: 'House regular',
+    agentId: null,
+    stack: 1_820,
+    accentColor: null,
+    mood: { state: 'neutral', heat: 30 },
+    fatigue: 'fresh',
+    drinking: false,
+    inHand: true,
+    ...over,
+  };
+}
+
+export function felt(over = {}) {
+  return {
+    tableId: 'tbl-fixture',
+    room: 'floor',
+    blinds: '10/20',
+    smallBlind: 10,
+    bigBlind: 20,
+    street: 'flop',
+    board: ['Ah', 'Kd', '7c'],
+    pot: 640,
+    toAct: 1,
+    handNumber: 12,
+    hot: false,
+    seated: 3,
+    maxSeats: 6,
+    seats: [
+      feltSeat({ seat: 0, name: 'Ozymandias' }),
+      feltSeat({ seat: 1, name: 'Granite', stack: 980 }),
+      feltSeat({ seat: 3, name: 'Nightjar', stack: 2_400 }),
+    ],
+    ...over,
+  };
+}
+
+/** A felt with one of YOUR agents at it — the fixtures' `playingAgent`. */
+export function myFelt(over = {}) {
+  return felt({
+    tableId: 'tbl-mine',
+    seats: [
+      feltSeat({ seat: 0, name: 'Ozymandias' }),
+      feltSeat({ seat: 2, name: 'The Grinder', agentId: 'agent_grinder', accentColor: '#00D4AA' }),
+    ],
+    ...over,
+  });
+}
+
+export const felts = [felt(), myFelt({ pot: 940 })];

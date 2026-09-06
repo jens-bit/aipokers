@@ -338,6 +338,35 @@ export default function App() {
     [sitting, homeRoom.lines],
   );
 
+  // CASINO-2 job 2 · a TONIGHT line opens the hand it is about.
+  //
+  // The board's law is that the verb has to be true: WATCH on a finished hand
+  // is a lie, so those rows say REPLAY. Which means this has to actually
+  // produce a replay, and a replay is the flagged record — owner-scoped, per
+  // agent, driven by its `streets`. That is why only your own lines are
+  // tappable on the board at all.
+  //
+  // A hand that has aged out of the flagged list lands on the agent's thread
+  // instead, which is the same fallback a shared link takes and is the whole
+  // message anyway: this happened, and it was his.
+  const replayEvent = useCallback(async (row) => {
+    for (const agentId of row?.agentIds ?? []) {
+      // The same resolver a shared link goes through, and deliberately so: a
+      // board line and a link are the same ask — "open this hand" — and one of
+      // them owning a second lookup is how the two would start disagreeing
+      // about which hands can be opened. It answers null for an agent who is
+      // not ours, so this loop is also the ownership check.
+      let opened = null;
+      try { opened = await resolveDeepLink({ kind: 'hand', agentId: String(agentId), handId: row.handNumber }); }
+      catch { opened = null; }
+      if (!opened) continue;
+      if (opened.kind === 'hand') { setDeepLinkHand(opened); return; }
+      setAgentProfileTarget(null);
+      openAgentChat(opened.agent);
+      return;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useDeepLink((route) => {
     resolveDeepLink(route)
       .then((opened) => {
@@ -561,6 +590,8 @@ export default function App() {
         wsUrl={WS_URL}
         deployAgent={deployTarget?.agent ?? null}
         onCancelDeploy={() => setDeployTarget(null)}
+        onReplay={replayEvent}
+        onPlace={placeInCasino}
         onSpectate={(tableId) => {
           if (!tableId) return;
           setDesktopWatchAgent(null);
@@ -766,6 +797,8 @@ export default function App() {
               wsUrl={WS_URL}
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}
+              onReplay={replayEvent}
+              onPlace={placeInCasino}
               onSpectate={(tableId) => {
                 if (!tableId) return;
                 watchOriginRef.current = hereOrigin();

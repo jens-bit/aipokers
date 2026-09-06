@@ -145,6 +145,39 @@ export const ServerMsg = Object.freeze({
   // client that ignores this message sees exactly what it saw before it
   // existed.
   FLOOR_ROOMS: 'floor_rooms', // { type, rooms }
+  // CASINO-2 (additive): what is actually RUNNING on the floor — one entry per
+  // live table, each with enough on it to draw a miniature of the real game.
+  // FLOOR_ROOMS is the building (three rooms, a count each); this is the felts
+  // inside it, which is the question you have the moment you walk through a
+  // doorway and the one a count cannot answer.
+  //
+  // Each entry is
+  //   { tableId, room, blinds, smallBlind, bigBlind, street, board, pot,
+  //     toAct, handNumber, hot, seated, maxSeats,
+  //     seats: [{ seat, name, agentId, stack, accentColor, mood, fatigue,
+  //               drinking, inHand }] }
+  // ordered by how loudly a felt is asking for you: hot first, then by the
+  // money in the middle, then the ones with anybody at them. `room` is the
+  // stakes-tier room id (floor | upstairs | backroom) — the table→room map
+  // ROOMS-1 never sent, stated rather than inferred, so a client no longer has
+  // to reverse-engineer it from which table ids a room happened to name. It
+  // also rides the payload as `rooms` ({ [tableId]: roomId }) for callers that
+  // want the map alone.
+  //
+  // PUBLIC AND UNFILTERED, on the same grounds as the ticker and FLOOR_ROOMS:
+  // seats, stacks, faces, the community cards and the pot are what a person
+  // standing in the doorway can see. NOBODY'S HOLE CARDS ARE ON IT — not the
+  // subscriber's own, however well he proved himself. The fish-tank law lifts
+  // for a man's own felt, which is FLOOR_GAME's job and stays there.
+  //
+  // Pushed on change, at most one per second for the whole floor with a
+  // trailing send (identical throttle to FLOOR_ROOMS, and global rather than
+  // per-subscriber for the same reason: the payload is identical for
+  // everybody). One is sent on subscribe so a fresh lobby has felts without a
+  // second request. The same list is served per room by
+  // GET /api/rooms/:id/tables. A client that ignores this message sees exactly
+  // what it saw before it existed.
+  ROOM_TABLES: 'room_tables', // { type, tables, rooms }
   // SERVER-3 (additive): one agent's stay at a table is over. Sent to every
   // socket at the table (his owner's spectator is the one that runs the
   // ceremony with it) and, separately, to that owner's floor subscribers — the
