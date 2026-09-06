@@ -129,7 +129,13 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
     const el = trackRef.current;
     setPage(i);
     if (!el) return;
-    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' });
+    const left = i * el.clientWidth;
+    // CI #82: not every scroller has scrollTo. jsdom has none at all, and a
+    // browser too old for smooth behaviour is the same shape of problem — the
+    // dot must still land on the page, it just arrives without the glide.
+    // Setting scrollLeft is the fallback the API itself degrades to.
+    if (typeof el.scrollTo === 'function') el.scrollTo({ left, behavior: 'smooth' });
+    else el.scrollLeft = left;
   }, []);
 
   if (agents.length === 0) {

@@ -9,8 +9,9 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import {
-  BodyBars, Bottle, HEAT_COLD, HEAT_HOT, HEAT_WARM, STAMINA_FULL, STAMINA_SPENT,
-  heatColor, isDrinking, staminaColor, staminaOf,
+  BodyBars, Bottle, HEAT_EMBER, HEAT_FIRE, HEAT_HOT, HEAT_WARM,
+  STAMINA_AMBER, STAMINA_FULL, STAMINA_LOW, STAMINA_SPENT,
+  heatColor, isDrinking, staminaColor, staminaOf, staminaPct,
 } from './FeltBodyBars.jsx';
 
 const bars = (props) => render(<BodyBars {...props} />).container;
@@ -27,18 +28,30 @@ describe('the two bars', () => {
     expect(track(c, 'heat')).toBeTruthy();
   });
 
-  // The same 3 / 2 / 1 the block meter already uses, so two readings of fatigue
-  // on two surfaces cannot disagree.
-  it('reads stamina off fatigue, in the meter\'s own thirds', () => {
+  // HOME-2 job 2 · THREE STAGES, THREE PICTURES.
+  //
+  // The thirds this replaces (1 / 2/3 / 1/3) were arithmetic rather than a
+  // reading, and against the ref's step ramp they broke: fresh at 100 and
+  // settled at 67 are BOTH above the green threshold, so two of the three
+  // stages drew the same bar in the same colour. Each stage lands in a band of
+  // its own now — the whole bar in green, half of it in amber, and the short
+  // red stub the ref describes.
+  it('reads stamina off fatigue, one band per stage', () => {
     expect(staminaOf('fresh')).toBe(1);
-    expect(staminaOf('settled')).toBeCloseTo(2 / 3);
-    expect(staminaOf('worn')).toBeCloseTo(1 / 3);
+    expect(staminaOf('settled')).toBeCloseTo(0.52);
+    expect(staminaOf('worn')).toBeCloseTo(0.16);
     expect(staminaOf(undefined)).toBeNull();
     expect(staminaOf('nonsense')).toBeNull();
 
     expect(fill(bars({ fatigue: 'fresh' }), 'stamina').style.width).toBe('100%');
-    expect(fill(bars({ fatigue: 'worn' }), 'stamina').style.width)
-      .toMatch(/^33\.33/);
+    expect(fill(bars({ fatigue: 'settled' }), 'stamina').style.width).toBe('52%');
+    expect(fill(bars({ fatigue: 'worn' }), 'stamina').style.width).toBe('16%');
+  });
+
+  it('and the three stages are three different colours', () => {
+    const seen = ['fresh', 'settled', 'worn'].map((f) => staminaColor(staminaOf(f)).toUpperCase());
+    expect(seen).toEqual([STAMINA_FULL, STAMINA_AMBER, STAMINA_SPENT]);
+    expect(new Set(seen).size).toBe(3);
   });
 
   it('fills heat from 0 to 100', () => {
@@ -50,34 +63,47 @@ describe('the two bars', () => {
     expect(fill(bars({ heat: -20 }), 'heat').style.width).toBe('0%');
   });
 
-  // BUGS-A job 10 changed the spent end of stamina from grey to red, which put
-  // both bars in the same family — so the rule above them had to be kept
-  // explicitly: spent stamina is the dull blood red of a losing chip, boiling
-  // heat is the fiery red of an alarm, and an owner must never have to work out
-  // which cause a colour is for.
-  it('runs green to blood red and teal to fiery red, and the two never meet', () => {
-    expect(staminaColor(1).toUpperCase()).toBe(STAMINA_FULL);
-    expect(staminaColor(0).toUpperCase()).toBe(STAMINA_SPENT);
-    expect(heatColor(0).toUpperCase()).toBe(HEAT_COLD);
-    expect(heatColor(100).toUpperCase()).toBe(HEAT_HOT);
+  // HOME-2 job 2 · the ref's two step functions, verbatim. Stamina runs green
+  // → amber → red as it SHORTENS; heat runs ember → red as it GROWS. Both are
+  // taken from design-refs/mood-home.jsx and this is the assertion that they
+  // were taken rather than approximated.
+  it('is the ref own ramp, step for step', () => {
+    expect([100, 61, 60, 36, 35, 19, 18, 0].map((v) => staminaPct(v).toUpperCase()))
+      .toEqual([
+        STAMINA_FULL, STAMINA_FULL, STAMINA_AMBER, STAMINA_AMBER,
+        STAMINA_LOW, STAMINA_LOW, STAMINA_SPENT, STAMINA_SPENT,
+      ]);
+    expect([0, 29, 30, 54, 55, 79, 80, 100].map((h) => heatColor(h).toUpperCase()))
+      .toEqual([
+        HEAT_EMBER, HEAT_EMBER, HEAT_WARM, HEAT_WARM,
+        HEAT_HOT, HEAT_HOT, HEAT_FIRE, HEAT_FIRE,
+      ]);
+  });
 
-    const stam = [0, 0.5, 1].map((v) => staminaColor(v).toUpperCase());
-    const hot = [0, 25, 50, 75, 100].map((h) => heatColor(h).toUpperCase());
+  // BUGS-A job 10's separation, kept through the replacement. Two causes must
+  // never share a colour: both ramps end in red and the two reds are different
+  // ones — the dull blood red of an empty man, the fiery one of a furious one.
+  it('the two ramps end in two different reds, and never meet anywhere', () => {
+    expect(STAMINA_SPENT).not.toBe(HEAT_FIRE);
+    const stam = [0, 20, 40, 60, 80, 100].map((v) => staminaPct(v).toUpperCase());
+    const hot = [0, 20, 40, 60, 80, 100].map((h) => heatColor(h).toUpperCase());
     for (const s of stam) expect(hot).not.toContain(s);
   });
 
-  // Straight across, teal and red meet at khaki — a midpoint that reads as
-  // neither end and as no state the system has a name for. Gold is already the
-  // warning colour on this screen and it is the heat bands' own middle.
-  it('passes through gold rather than through mud', () => {
-    expect(heatColor(50).toUpperCase()).toBe(HEAT_WARM);
-    // Every step is more red than the one before it, and none of them is grey.
-    const reds = [0, 25, 50, 75, 100].map((h) => parseInt(heatColor(h).slice(1, 3), 16));
-    for (let i = 1; i < reds.length; i++) expect(reds[i]).toBeGreaterThan(reds[i - 1]);
-    for (const h of [25, 50, 75]) {
+  // Heat's empty end is NOTHING, not a good reading. Teal there said "he is
+  // fine"; an ember says "there is barely anything to read", which is what an
+  // accumulation at zero actually is.
+  it('never touches green — an unbothered agent is an ember, not a teal', () => {
+    for (const h of [0, 10, 29, 50, 100]) {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(heatColor(h).slice(i, i + 2), 16));
-      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeGreaterThan(40);
+      expect(r, `heat ${h} is warmer than it is green`).toBeGreaterThan(g);
+      expect(g).toBeGreaterThan(b);
     }
+    // The ref's four stops are not a monotonic climb in any one channel — they
+    // are four chosen colours — so what is asserted is the two ENDS and the
+    // family, not an ordering the ref never claimed.
+    expect(heatColor(0).toUpperCase()).toBe(HEAT_EMBER);
+    expect(heatColor(100).toUpperCase()).toBe(HEAT_FIRE);
   });
 
   // A House regular has no agent behind him: no fatigue, no heat. Drawing a

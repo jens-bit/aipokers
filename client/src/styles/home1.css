@@ -141,32 +141,72 @@
 }
 
 /* the television */
+/* ── HOME-2 job 4 · the tape room, at the bottom of the room ───────────────
+   One television. There is no second set in the left corner any more — the
+   room has one screen and it shows the casino, which is what lets you see the
+   building from the sofa without leaving it. */
 .home-flat__tv {
   position: absolute;
   padding: 0;
-  border-radius: 4px;
-  background: #08100F;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 3px;
+  background: #070C0C;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   cursor: pointer;
+  min-height: 0;
 }
 .home-flat__tv-screen {
-  position: absolute; inset: 5px;
+  position: absolute; inset: 4px;
   border-radius: 2px;
-  background: radial-gradient(ellipse at 50% 44%, #2f4d48 0%, #16231F 74%);
+  background: linear-gradient(180deg, #101A18 0%, #0A1211 100%);
+  overflow: hidden;
 }
-.home-flat__tv-felt {
-  position: absolute; left: 50%; top: 46%;
-  width: 40px; height: 15px; margin-left: -20px;
-  border-radius: 50%;
-  background: rgba(47, 77, 72, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+/* the armchair, below the screen it faces */
+.home-flat__tv-chair {
+  position: absolute;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2E241C 0%, #1F1913 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
-.home-flat__tv-shimmer {
-  position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0, 212, 170, 0.055), transparent 60%);
-  animation: home-shimmer 3.6s ease-in-out infinite;
+
+/* What is on it. Either the casino board — three rooms, their stakes and how
+   many tables are running — or, when one of yours is in a hand, that hand:
+   MiniFelt, the same miniature the away frame draws. */
+.home-tv__board {
+  position: absolute;
+  inset: 0;
+  display: block;
 }
+.home-tv__title {
+  position: absolute; left: 7px; top: 5px;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 6.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-muted, #6B6B6B);
+}
+.home-tv__rooms {
+  position: absolute; left: 7px; right: 7px; top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.home-tv__room { display: flex; align-items: baseline; gap: 5px; }
+.home-tv__stakes {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  color: var(--gold, #CDB380);
+}
+.home-tv__tables { font-size: 7px; color: var(--text-muted, #6B6B6B); }
+.home-tv__live-dot {
+  position: absolute; right: 6px; top: 6px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent, #00D4AA);
+  animation: home-shimmer 2.2s ease-in-out infinite;
+}
+/* MiniFelt is authored against a frame's box; on the set it fills the screen. */
+.home-tv__live { position: absolute; inset: 0; display: block; }
+.home-tv__live .home-frame__picture { position: absolute; inset: 0; }
 
 .home-flat__couch {
   position: absolute;
@@ -226,7 +266,46 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: #CDB380; opacity: 0.6;
 }
 
-/* the safe, under the frames — not from a ref, see flat.js */
+/* ── HOME-2 job 4 · the sign above the door ────────────────────────────────
+   A LIT MARQUEE, not a pill. A pill is a label ABOUT a thing; this is a thing
+   in the room, and it is switched on — which is why it carries a glow behind
+   it and a hairline over and under it rather than a border all the way round.
+
+   Anchored by its RIGHT edge, which is the one anchor that cannot clip: the
+   door starts at x356 of 390, so anything laid out rightward from the door
+   leaves the screen. Board 29 measured the old tag at 38px off frame. */
+.home-flat__sign {
+  position: absolute;
+  right: 6px;
+  z-index: 3;
+  padding: 4px 9px 5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #241F16 0%, #16120C 100%);
+  border-top: 1px solid rgba(205, 179, 128, 0.55);
+  border-bottom: 1px solid rgba(205, 179, 128, 0.3);
+  box-shadow: 0 0 14px rgba(205, 179, 128, 0.28);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.home-flat__sign-glow {
+  position: absolute;
+  inset: -6px -4px;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(205, 179, 128, 0.22), transparent 70%);
+}
+.home-flat__sign-word {
+  position: relative;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  /* All caps, and the letters are the light: a marquee is read by its glow at
+     this size, not by its box. */
+  color: #F2E2BE;
+  text-shadow: 0 0 6px rgba(205, 179, 128, 0.9), 0 0 14px rgba(205, 179, 128, 0.45);
+}
+
+/* the safe, against the left wall under the frames */
 .home-flat__safe {
   position: absolute;
   padding: 0;
@@ -248,7 +327,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* the fridge, beside the table — not from a ref, see flat.js */
+/* the fridge, on the kitchen wall */
 .home-flat__fridge {
   position: absolute;
   padding: 0;
@@ -392,6 +471,52 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-one.is-walking { z-index: 900 !important; }
 .home-one.is-walking .home-one__body { animation: home-walkbob 0.5s ease-in-out infinite; }
 
+/* ── HOME-2 job 5 · in the owner's hand ────────────────────────────────────
+   A lift is 1.1 and a shadow, and both of them say the same thing in the one
+   language a room seen from above has: he is NEARER. Scale is distance from
+   the camera; a shadow is distance from the floor. Nothing about the body
+   itself changes, because he is the same man — you are just holding him.
+
+   The walk transition is dropped while he is held. It is what makes a position
+   change a crossing rather than a cut, and a finger is not a crossing: a man
+   who eased toward the thumb over 1.6s would trail it across the whole room. */
+.home-one.is-carried {
+  transition: none;
+  cursor: grabbing;
+  /* A man in your hand is not pacing, and not leaning at a television. The
+     routine animations write the body's own transform, so the lift has to
+     stop them or it is overwritten by whatever he was doing a moment ago. */
+  animation: none;
+}
+.home-one.is-carried .home-one__body {
+  animation: none;
+  transform: scale(1.1);
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55));
+  transition: transform 140ms ease-out;
+}
+/* Over a fixture, the thing under him lights: the drop has somewhere to land
+   and the room says so before the finger lets go. */
+.home-one.is-carried[data-over] .home-one__body {
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.6));
+}
+.home-flat:has(.home-one[data-over='couch']) .home-flat__couch,
+.home-flat:has(.home-one[data-over='fridge']) .home-flat__fridge,
+.home-flat:has(.home-one[data-over='door']) .home-flat__door,
+.home-flat:has(.home-one[data-over='tv']) .home-flat__tv,
+.home-flat:has(.home-one[data-over='table']) .home-flat__table {
+  outline: 1px solid rgba(205, 179, 128, 0.65);
+  outline-offset: 2px;
+}
+
+/* A long press on a body must not select the name inside it or raise the
+   platform's own "copy / look up" sheet halfway through the gesture. */
+.home-one {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .home-one__body { position: relative; display: block; }
 .home-one__hands {
   position: absolute; left: 0; top: 0;
@@ -425,31 +550,44 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-pill--news { border-color: rgba(205, 179, 128, 0.5); }
 .home-pill__name { font-size: 8.5px; font-weight: 600; letter-spacing: 0.02em; }
-.home-pill__lines { display: flex; align-items: center; gap: 5px; }
 
-/* stamina runs DOWN — three blocks fresh, one worn */
-.home-pill__stamina { display: flex; gap: 1.5px; }
-.home-pill__stamina i {
-  width: 4px; height: 3px; border-radius: 1px;
-  background: rgba(255, 255, 255, 0.12);
+/* ── HOME-2 job 2 · both bars anchored at the left wall ────────────────────
+   Stamina full is the WHOLE bar and its right end recedes leftward as it
+   drains; heat empty is nothing and its fill grows rightward. Two opposite
+   directions, so a worn tilted agent is a short stub over a long bar and the
+   two causes can never be read as one.
+
+   44 x 2 with 2px between them, which is the ref's own pill scale
+   (design-refs/mood-home.jsx, `ResourceBars` at w=44 h=2 gap=2). The COLOURS
+   are inline, off the one pair of ramps in the product — a rule here would be
+   a fifth definition of them. */
+.home-pill__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.home-pill__stamina i.is-on { background: rgba(237, 237, 237, 0.55); }
-.home-pill[data-fatigue='worn'] .home-pill__stamina i.is-on { background: #CDB380; }
-
-/* heat runs UP — a rule, so it is never read as a second stamina */
-.home-pill__heat {
+.home-pill__bar {
   position: relative;
-  width: 22px; height: 2px;
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  width: 44px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
   overflow: hidden;
 }
-.home-pill__heat i {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  background: #6B6B6B;
+.home-pill__bar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  /* Heat moves while you are looking at it; a jump between renders is a number
+     nobody sees change. */
+  transition: width 400ms ease-out, background 400ms linear;
 }
-.home-pill[data-heat='warm'] .home-pill__heat i { background: #CDB380; }
-.home-pill[data-heat='hot'] .home-pill__heat i { background: #FF4D4F; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-pill__bar i { transition: none; }
+}
 
 /* ── The bubble that flips rather than clips ─────────────────────────────── */
 
@@ -561,14 +699,18 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 
 /* the tape room: what he is watching plays on the television */
-.home1__tape {
+/* HOME-2 job 4 · a hand being reviewed, ON the set. This used to be pinned at
+   a fixed point in the left corner where the old television was, so it was one
+   more thing that had to be moved by hand whenever the furniture did. It is
+   inside the screen now and moves with it. */
+.home-tv__tape {
   position: absolute;
-  left: 30px; top: 236px;
-  display: flex; gap: 3px;
-  z-index: 3;
+  left: 50%; top: 46%;
+  margin-left: -14px;
+  display: flex; gap: 2px;
 }
-.home1__tape i {
-  width: 7px; height: 10px;
+.home-tv__tape i {
+  width: 6px; height: 9px;
   border-radius: 1px;
   background: rgba(237, 237, 237, 0.75);
   animation: home-rise 1.4s ease-in-out infinite;
@@ -650,9 +792,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex;
   flex-direction: column;
   border-radius: 16px 16px 0 0;
-  background: rgba(10, 15, 15, 0.86);
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  /* HOME-2 job 8: the sheet every other one in this room is measured against,
+     on the tokens rather than on its own numbers. */
+  background: var(--v5-raised);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border: 1px solid var(--v5-edge-up);
   border-bottom: none;
   animation: home-sheetup 0.24s ease-out both;
 }
@@ -689,15 +834,27 @@ button.home-flat__table:active { filter: brightness(1.12); }
 
 /* ── The want toast ──────────────────────────────────────────────────────── */
 
+/* HOME-2 job 8 · a toast takes `panel`, with its own edge over the top of it.
+   The gold is what makes it a WANT — it is the one thing in the room waiting on
+   an answer — and it is a tint on the glass rather than the material itself. */
 .home-want {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(205, 179, 128, 0.28);
-  background: rgba(205, 179, 128, 0.09);
+  background:
+    linear-gradient(rgba(205, 179, 128, 0.09), rgba(205, 179, 128, 0.09)),
+    var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border-top: 1px solid rgba(205, 179, 128, 0.42);
 }
-.home-want.is-dangerous { border-top-color: rgba(255, 77, 79, 0.35); background: rgba(255, 77, 79, 0.07); }
+.home-want.is-dangerous {
+  border-top-color: rgba(255, 77, 79, 0.42);
+  background:
+    linear-gradient(rgba(255, 77, 79, 0.08), rgba(255, 77, 79, 0.08)),
+    var(--v5-panel);
+}
 .home-want__who {
   flex-shrink: 0;
   font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
@@ -744,8 +901,13 @@ button.home-flat__table:active { filter: brightness(1.12); }
   z-index: 2;
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0px));
   border-radius: 18px 18px 0 0;
-  background: rgba(14, 20, 19, 0.97);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  /* HOME-2 job 8 · THE ONE GLASS. This was the flat panel in the room: 0.97
+     opaque with no blur at all, which is a grey card butted against the flat
+     rather than something raised over it. A sheet takes `raised`. */
+  background: var(--v5-raised);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border-top: 1px solid var(--v5-edge-up);
   animation: home-sheetup 0.24s ease-out both;
 }
 .home-sheet__head { display: flex; align-items: center; padding: 6px 0 10px; }
@@ -855,12 +1017,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   .home-one--shuffles .home-prop--cards,
   .home-one--counts .home-prop--chips,
   .home-one--tape .home-one__body,
-  .home-flat__tv-shimmer,
+  .home-tv__live-dot,
   .home-frame__seat,
   .home-frame__card,
   .home-frame__glow,
   .home-prop--zzz span,
-  .home1__tape i,
+  .home-tv__tape i,
   .home-bubble,
   .home-thread__sheet,
   .home-sheet__panel {
@@ -1188,6 +1350,20 @@ button.home-flat__table:active { filter: brightness(1.12); }
   font-size: 10.5px;
   color: #6B6B6B;
 }
+/* HOME-2 job 6 · BIRTH-5's line, where the refusal lands. Gold rather than
+   grey: it is the one sentence on this sheet that is an ANSWER to something the
+   owner tried, not a caption on something he is looking at. */
+.table-sheet__refusal {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.09);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #CDB380;
+}
+
 .table-sheet__full,
 .table-sheet__foot {
   margin: 14px 0 0;
@@ -1201,3 +1377,72 @@ button.home-flat__table:active { filter: brightness(1.12); }
  * panel head names it and .dsk-rail-body does the scrolling. What is left here
  * is the room's own sheet, over the room, on the phone. */
 .home1 .safe--sheet { z-index: 60; }
+
+/* ── HOME-2 job 7 · the chairs round the table ─────────────────────────────
+   An empty chair, from above: a dashed outline where a body would be. One per
+   agent the owner has and never fewer than one, so "nobody yet" is ONE CHAIR
+   and a retire is ONE CHAIR FEWER — both of them pictures rather than
+   sentences. A chair with somebody in it is not drawn at all; the body is the
+   chair being taken. */
+.home-chair {
+  position: absolute;
+  width: 28px;
+  height: 23px;
+  transform: translate(-50%, -100%);
+  border-radius: 4px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* ── HOME-2 job 7 · nobody yet ─────────────────────────────────────────────
+   Under the table, so the eye lands on the one empty chair on its way to the
+   one thing to press. Board 29 F01: "the line under the chair is an
+   observation rather than an instruction, and the only action names what
+   happens next." */
+.home1__ftu {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 240;
+  white-space: nowrap;
+}
+.home1__ftu-line {
+  font-size: 11.5px;
+  color: var(--text-muted, #6B6B6B);
+}
+.home1__ftu-draft {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--gold, #CDB380);
+  background: rgba(205, 179, 128, 0.09);
+  border: 1px solid rgba(205, 179, 128, 0.47);
+  border-radius: 11px;
+  padding: 10px 18px;
+  min-height: 0;
+  cursor: pointer;
+}
+
+/* HOME-2 job 8 · the safe is a whole surface rather than a couple of rows, so
+   its sheet takes the height a sheet can take. The glass is the same one. */
+.home-sheet--tall .home-sheet__panel {
+  top: 12vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.home-sheet--tall .money-sheet { flex: 1; min-height: 0; }
+/* MoneySheet paints its own solid ground and its own solid header band for the
+   YOU screen. Over the room the sheet's glass IS the ground — see its
+   `variant` prop — and the blocks inside it drop to a tint on that glass
+   rather than each carrying a panel of its own. */
+.money-sheet--glass .wal-block,
+.money-sheet--glass .wal-row {
+  background: rgba(255, 255, 255, 0.04);
+}

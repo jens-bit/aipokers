@@ -48,17 +48,22 @@ import { useHomeState } from '../hooks/useHomeState.js';
 import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
-import { HomeGameTable, useHomeTable } from '../components/home/HomeGame.jsx';
+import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
 import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
+import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
-import { homePositions, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
+import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
+import { identitiesFor } from '../lib/identity.js';
+import { placeAgent } from '../lib/place.js';
+import { useCarry } from '../hooks/useCarry.js';
+import { verbFor } from '../components/home/carry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
@@ -285,6 +290,10 @@ export function HomeScreen({
   onProfile,
   onDeploy,
   onCreateAgent,
+  // HOME-2 job 1 · the casino is the door. There is no bottom bar to reach it
+  // by any more, so the room carries the only way in — and the phone is the
+  // only shell that needs it: the desk has the building beside it in a rail.
+  onCasino,
   onOpenWallet,
   onOpenThread,
   onSend,
@@ -327,6 +336,9 @@ export function HomeScreen({
   const focusId = focusIdProp ?? focusIdLocal;
   const setFocusId = onFocusId ?? setFocusIdLocal;
   const [fridgeOpen, setFridgeOpen] = useState(false);
+  // HOME-2 job 8: the safe, as a sheet over the room rather than a screen away
+  // from it. `wallet` is read when it is opened, not on every mount — the same
+  // rule the table sheet's useSlots follows.
   // SAFE-2 — the safe opens IN THE ROOM, the way the fridge does. It used to
   // send the owner to the YOU tab, which answered "how much is in the safe"
   // with a screen change and a second tap; board 29 F12 opens it where he is
@@ -345,6 +357,14 @@ export function HomeScreen({
   // once the first agent moved in.
   const [roomEl, setRoomEl] = useState(null);
   const [deskScale, setDeskScale] = useState(1);
+  // HOME-2 job 5 · the flat itself, for the scale a carried body is measured
+  // by. Not `roomEl`: that is the CONTAINER, which is taller than the room and
+  // carries the floor below it, so a point measured against it is off by
+  // however much slack the phone had.
+  const [flatEl, setFlatEl] = useState(null);
+  // What he said when he was put down: { id, text }. One at a time, and it
+  // clears itself — a refusal is a moment, not a state.
+  const [saidOnDrop, setSaidOnDrop] = useState(null);
   const rail = panel ?? railLocal;
   const setRail = onPanel ?? setRailLocal;
   // BIRTH-5 — the phone's own answer to the same fixture: a sheet over the room
@@ -382,6 +402,16 @@ export function HomeScreen({
     [game],
   );
 
+  // HOME-2 job 3 · WHO EVERYBODY IS, rolled once for the whole household.
+  //
+  // Rolled here rather than inside each body because the ROSTER is the
+  // authority and a body cannot see the roster: four agents drawn from six
+  // hoods collide about half the time however good the hash is, so a hood
+  // already worn in this room is taken and the next free one along is worn
+  // instead. `agents` is the roster in birth order, which is what makes the
+  // claim mean "claimed at birth".
+  const identities = useMemo(() => identitiesFor(agents), [agents]);
+
   const settled = useMemo(
     () => homePositions(agents, { gameAgentIds }),
     [agents, gameAgentIds],
@@ -414,7 +444,12 @@ export function HomeScreen({
     const at = positions.get(String(agent.id));
     if (!at) return null;
     const seated = at.seat !== null && at.seat !== undefined;
-    return { id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46, name: agent.name };
+    // `nickname` is what the pill writes when the name is too long for it
+    // (HOME-2 job 2), so the queue has to measure the same box the room draws.
+    return {
+      id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46,
+      name: agent.name, nickname: agent.nickname ?? null,
+    };
   }).filter(Boolean), [home, positions]);
 
   // ONE line per man, ranked. He can easily have three at once — an unanswered
@@ -449,6 +484,52 @@ export function HomeScreen({
   // At most two on screen, one per man, nothing drawn over anything. The rest
   // wait their turn — see roomBubbles.js.
   const bubbles = useRoomBubbles(speakers, bodies);
+
+  // ── HOME-2 job 5 · carrying him ───────────────────────────────────────────
+  //
+  // Long-press lifts him, the finger carries him, and the fixture under the
+  // finger when it lets go is what happens next. Off on the desk: DESK-2's room
+  // is a picture beside a rail rather than a thing you put your hand into, and
+  // a drag there is a mouse selecting text.
+  const onDrop = useCallback(async (agentId, fixture) => {
+    // Nowhere is a real answer. He goes back where he was, and the room says
+    // nothing — a drop on the floor is not a mistake to be reported.
+    if (!fixture) return;
+    const agent = home.find((a) => String(a.id) === String(agentId));
+    if (!agent) return;
+
+    // The refusal is the SERVER's now. This used to be checked here first,
+    // because there was no route that could answer it and "In a hand" was the
+    // only honest thing the room could say on its own. SERVER-5's /place
+    // answers 409 `inHand` with a line of his — "I am in a hand. Give me a
+    // minute." — so the room shows what he said rather than a state it worked
+    // out about him, which is the rule it keeps everywhere else.
+
+    // The door is where the OWNER is going, with the man in his hand. CASINO-1:
+    // a deploy is decided in the building, so this hands him over rather than
+    // opening a socket from the living room — the same thing a want's yes does.
+    if (fixture === 'door') { onDeploy?.(agent, { room: null }); return; }
+
+    const res = await placeAgent(agentId, fixture);
+    // His line, when the server sends one — a refusal has one, and so does a
+    // snack. `unsupported` is the pre-SERVER-5 answer for a fixture with no
+    // route of its own: nothing happened, so nothing is claimed.
+    if (res.line) setSaidOnDrop({ id: String(agentId), text: res.line, gold: !res.ok });
+    if (res.ok) refresh();
+  }, [home, positions, game, onDeploy, refresh]);
+
+  const { carry, bind: bindCarry } = useCarry({
+    roomEl: flatEl,
+    onDrop,
+    enabled: !desktop,
+  });
+
+  // The line clears itself; it lands once, the way the money line does.
+  useEffect(() => {
+    if (!saidOnDrop) return undefined;
+    const t = setTimeout(() => setSaidOnDrop(null), ARRIVAL_MS);
+    return () => clearTimeout(t);
+  }, [saidOnDrop]);
 
   // Who the thread band is pointed at. An agent with something to say outranks
   // whoever happens to be first: an unread recap is the reason he is standing by
@@ -503,9 +584,23 @@ export function HomeScreen({
   // the flat is there whether or not anybody is standing in it, and bodies
   // walking in a moment later is exactly what this screen already does. The
   // empty state waits for the roster to ANSWER, and to answer with zero.
-  if (loaded && agents.length === 0) {
+  //
+  // HOME-2 job 7 · AND WHEN IT DOES, THE ANSWER IS STILL THE ROOM.
+  //
+  // An empty room is still a room: floorboards, the safe, the frames, the
+  // television showing the casino, the door. One chair and one thing to press
+  // (board 29 F01). What this replaces is a centred card on a blank screen —
+  // which is exactly what FTU-1's own rule forbids ("an empty state is a room
+  // that breathes, not a placeholder sentence"), and the room had been built
+  // since then without the empty state being moved into it.
+  //
+  // The DESK keeps the card. DeskHome's stage is a room beside a rail rather
+  // than a room you are standing in, and its empty state is the shell's
+  // business (DESK-2) — this queue is the phone.
+  const nobodyYet = loaded && agents.length === 0;
+  if (nobodyYet && desktop) {
     return (
-      <div className={`home1${desktop ? ' home1--desk home1--empty' : ''}`} data-testid="home-screen">
+      <div className="home1 home1--desk home1--empty" data-testid="home-screen">
         <NotYet
           fact="Nobody lives here yet."
           voice="Make one and he moves in."
@@ -528,8 +623,17 @@ export function HomeScreen({
   const flat = (
     <HomeFlat
       lit={lit}
+      // HOME-2 job 8 · THE SAFE OPENS THE MONEY, over the room. Board 29 F12:
+      // "a small safe on the floor with the balance on its door. Tapping it
+      // opens the money sheet." It used to navigate to the YOU screen, which
+      // was the only place the money lived before YOU-2 extracted the sheet;
+      // now the sheet can rise over the room in the room's own glass, like
+      // every other fixture's, and it is the SAME surface either door opens.
       onSafe={desktop ? () => setRail('safe') : () => setSafeOpen(true)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
+      // Never on the desk: DeskHome keeps the casino a rail away and a door
+      // that navigated out of the room would take the rail with it.
+      onDoor={!desktop && onCasino ? () => onCasino() : undefined}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
       // Three trees wanted this tap and all three are now sections of the sheet
@@ -548,14 +652,21 @@ export function HomeScreen({
       // always opened the rail panel from this tap; the phone now agrees with it.
       onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
       tableLabel={game?.state === 'running' ? 'The table' : 'The chairs'}
+      // The tape room is a man doing something, so on the desk it opens HIM in
+      // the rail — the same place tapping his body puts him. With nobody
+      // studying the set is showing the casino, so it is a second door into it.
       onTv={studying ? (
-        // The tape room is a man doing something, so on the desk it opens HIM
-        // in the rail — the same place tapping his body puts him.
         desktop
           ? () => { setFocusId(studying.id); setRail('agent'); }
           : () => onProfile?.(studying)
-      ) : undefined}
+      ) : (!desktop && onCasino ? () => onCasino() : undefined)}
       tvLabel={studying ? `${studying.name} is watching a hand back` : null}
+      // HOME-2 job 4 · WHAT IS ON THE SET. A hand being reviewed if somebody is
+      // reviewing one — the ref's own `tape` state — and otherwise the casino:
+      // his table in miniature when one of yours is in a hand, the board when
+      // none is. Drawing a felt nobody is sitting at would be the one outright
+      // lie on the screen.
+      tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
       // DRAFT-2: the wave-53 law makes the door the way to the casino ("CASINO
       // is the door"), and the ref hangs the tag over it on every HOME frame
       // (design-refs/mood-nav.jsx `navRoom`). It is a label, not a control — the
@@ -575,29 +686,68 @@ export function HomeScreen({
         <HomeGameTable board={[]} seatCount={0} running={false} />
       )}
 
-      {/* the tape room: what he is watching is on the television */}
-      {studying ? (
-        <span className="home1__tape" data-testid="home-tape">
-          {[0, 1, 2].map((i) => <i key={i} style={{ animationDelay: `${i * 0.45}s` }} />)}
-        </span>
+      {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
+          Nobody yet is one chair, nobody in it; a retire is one chair fewer.
+          Both are pictures rather than sentences. */}
+      <TableChairs taken={gameAgentIds.length} of={Math.max(1, agents.length)} />
+
+      {/* Nobody yet: the line under the table and the one thing to press. The
+          line is an OBSERVATION rather than an instruction — the only action
+          names what happens next, which is the rule the whole first-five-
+          minutes chain is built on. */}
+      {nobodyYet ? (
+        <div
+          className="home1__ftu"
+          style={{ left: FLAT.table.cx, top: FLAT.table.cy + 74 }}
+          data-testid="home-ftu"
+        >
+          <span className="home1__ftu-line">One chair, nobody in it.</span>
+          <button type="button" className="home1__ftu-draft" onClick={onCreateAgent}>
+            DRAFT YOUR FIRST AGENT
+          </button>
+        </div>
       ) : null}
 
       {home.map((agent) => {
         const at = positions.get(String(agent.id));
         if (!at) return null;
+        const id = String(agent.id);
         const seated = at.seat !== null && at.seat !== undefined;
+        const size = seated ? 50 : 46;
+        const held = carry?.id === id ? carry : null;
+        // HOME-2 job 5 · HIS LINE, WHEN HE IS IN YOUR HAND.
+        //
+        // Three sources, in the order they stop being true. What he SAID when
+        // you put him down is the newest thing in the room and outranks
+        // everything. Then, while he is held, the line he already has —
+        // FIX-6's queue lets at most two men speak at once, and the man in
+        // your hand is not waiting his turn behind anybody. That is what "his
+        // line if worn or hot" is: a worn man's want IS "I am done for
+        // tonight" and a hot one's IS "let me back in there" (the ref phrases
+        // every want from state), so holding him shows the line he already
+        // had rather than a sentence this screen made up for him.
+        const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
+        const own = speakers.find((sp) => sp.id === id);
+        const bubble = dropped
+          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(held?.x ?? at.x) }
+          : (held && own)
+            ? { text: own.text, gold: own.gold, side: bubbleSide(held.x) }
+            : (bubbles.get(id) ?? null);
         return (
           <HomeOne
             key={agent.id}
             agent={agent}
             at={at}
+            identity={identities.get(id) ?? null}
             accent={accentFor(agent, agents.indexOf(agent))}
-            size={seated ? 50 : 46}
-            dealt={seated}
-            walking={walking.has(String(agent.id))}
+            size={size}
+            dealt={seated && !held}
+            walking={walking.has(id)}
+            carried={held}
+            carryHandlers={bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.
-            bubble={bubbles.get(String(agent.id)) ?? null}
+            bubble={bubble}
             news={!!(agent.want || agent.unseenRecap)}
             onClick={() => tapAgent(agent)}
           />
@@ -615,7 +765,7 @@ export function HomeScreen({
         : { aspectRatio: `${F_W} / ${F_H}` }}
       data-dim={dimmed ? 'true' : 'false'}
     >
-      <div className="home1__scale" style={{ width: F_W, height: F_H }}>
+      <div className="home1__scale" style={{ width: F_W, height: F_H }} ref={setFlatEl}>
         {flat}
       </div>
     </div>

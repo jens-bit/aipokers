@@ -223,7 +223,7 @@ function ReplayRow({ cards, label, meta, amount, color }) {
 // here to deal with money (the profile's "Give him chips", the watch screen's
 // end-of-session Fund) lands him on the sheet rather than one tap short of it.
 // He can still close it, and closing it does not fight the host to stay shut.
-export function YouScreen({ onOpenProfile, openMoney = false }) {
+export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
   const userId  = getUserId();
   const name    = getTelegramDisplayName() || 'Player';
   const initials = name.slice(0, 2).toUpperCase();
@@ -361,6 +361,23 @@ export function YouScreen({ onOpenProfile, openMoney = false }) {
           a summary now: who you are, what the balance is, and one tap to the
           money sheet — the same sheet any other surface opens. No second wallet
           UI, so there is one place for a money bug to be fixed. */}
+      {/* HOME-2 job 1 · no bottom bar. This screen used to be a tab and had no
+          way out of its own; it is reached from the roster sheet's ledger line
+          now, and back from anywhere is the room. */}
+      {onBack ? (
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '8px 14px 0' }}>
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back home"
+            style={{
+              background: 'none', border: 'none', padding: '4px 4px 4px 0', cursor: 'pointer',
+              fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM,
+            }}
+          >← HOME</button>
+        </div>
+      ) : null}
+
       <div style={{ margin: '14px 14px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, flexShrink: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 16px' }}>
           <div style={{

@@ -20,6 +20,11 @@ import { GLASS, Glass, GlassLabel } from './Glass.jsx';
 
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const css = readFileSync(resolve(clientRoot, 'src/styles/watch6.css'), 'utf8');
+// HOME-2 job 8 moved the NUMBERS to tokens.css so the room's sheets and the
+// felt's panels cannot drift apart; watch6.css names them. Following the token
+// to its definition is a stronger assertion than a literal here would be — it
+// proves there is ONE definition rather than two that happen to agree today.
+const tokens = readFileSync(resolve(clientRoot, 'src/styles/tokens.css'), 'utf8');
 const rule = (selector) => {
   const found = new RegExp(`${selector.replace(/[.\-]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
   return found ? found[1] : '';
@@ -40,18 +45,25 @@ describe('the glass tokens', () => {
   // blur. A flat opaque panel here is the bug this material exists to fix.
   it('the stylesheet draws them, and it is translucent and blurred', () => {
     const base = rule('.glass');
-    expect(base).toMatch(/background:\s*rgba\(13,\s*23,\s*21,\s*0\.72\)/);
-    expect(base).toMatch(/backdrop-filter:\s*blur\(18px\) saturate\(1\.2\)/);
+    expect(base).toMatch(/background:\s*var\(--v5-panel\)/);
+    expect(base).toMatch(/backdrop-filter:\s*var\(--v5-blur\)/);
     expect(base).toMatch(/-webkit-backdrop-filter:/);
-    expect(base).toMatch(/border:\s*1px solid rgba\(255,\s*255,\s*255,\s*0\.11\)/);
+    expect(base).toMatch(/border:\s*1px solid var\(--v5-edge\)/);
     // No opaque hex anywhere in it.
     expect(base).not.toMatch(/#[0-9A-Fa-f]{6}/);
+
+    // ...and the tokens are still v5's own numbers.
+    expect(tokens).toMatch(/--v5-panel:\s*rgba\(13,\s*23,\s*21,\s*0\.72\)/);
+    expect(tokens).toMatch(/--v5-blur:\s*blur\(18px\) saturate\(1\.2\)/);
+    expect(tokens).toMatch(/--v5-edge:\s*rgba\(255,\s*255,\s*255,\s*0\.11\)/);
   });
 
   it('the raised panel is the raised token, not a lighter guess', () => {
     const up = rule('.glass--up');
-    expect(up).toMatch(/rgba\(18,\s*30,\s*28,\s*0\.84\)/);
-    expect(up).toMatch(/rgba\(255,\s*255,\s*255,\s*0\.17\)/);
+    expect(up).toMatch(/var\(--v5-raised\)/);
+    expect(up).toMatch(/var\(--v5-edge-up\)/);
+    expect(tokens).toMatch(/--v5-raised:\s*rgba\(18,\s*30,\s*28,\s*0\.84\)/);
+    expect(tokens).toMatch(/--v5-edge-up:\s*rgba\(255,\s*255,\s*255,\s*0\.17\)/);
   });
 
   // "On glass the small-caps label reads as chrome, and this half of the screen

@@ -10,12 +10,15 @@
 
 import { StrictMode } from 'react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
 import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
+import { LONG_PRESS_MS } from '../components/home/carry.js';
+import { lockedSeatLine } from '../lib/slots.js';
+import { FLAT, TV_SCREEN, F_W, F_H } from '../components/home/flat.js';
 
 const WS = 'ws://localhost:8765';
 
@@ -93,21 +96,27 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     // The flat is on screen and the claim about the owner is not made.
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
     expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Make an agent' })).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'DRAFT YOUR FIRST AGENT' })).toBeNull();
 
     // ...and when it answers with a household, the household is what appears.
     answer({ agents: [mkAgent('a1', 'The Clock')] });
     expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
   });
 
+  // HOME-2 job 7: and the answer is still the ROOM. An empty room is a room —
+  // this used to be a centred card on a blank screen, which is the one thing
+  // FTU-1's own rule forbids.
   it('a roster that answers with zero is the one thing that shows the empty state', async () => {
     defaults();
     serve([]);
     render(<HomeScreen wsUrl={WS} />);
-    expect(await screen.findByText(/Nobody lives here yet/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Make an agent' })).toBeInTheDocument();
+    expect(await screen.findByTestId('home-ftu')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT' })).toBeInTheDocument();
+    // Still the room, with its furniture in it.
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(screen.getByTestId('home-safe')).toBeInTheDocument();
   });
 
   it('a roster request that FAILS keeps the room, because a 500 is not an answer', async () => {
@@ -116,7 +125,7 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     render(<HomeScreen wsUrl={WS} />);
     const room = await screen.findByTestId('home-screen');
     await waitFor(() => expect(within(room).getByTestId('home-fridge')).toBeInTheDocument());
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
   });
 });
 
@@ -193,17 +202,64 @@ describe('HOME-1 · the room', () => {
     const pill = body.querySelector('.home-pill');
     expect(pill).toBeTruthy();
     expect(pill).toHaveAttribute('data-fatigue', 'worn');
-    expect(pill).toHaveAttribute('data-heat', 'hot');
+    // HOME-2 job 2: the four steps have one vocabulary now, the ref's own.
+    expect(pill).toHaveAttribute('data-heat', 'fire');
     // Above: the pill precedes the body in document order, which is what the
     // column-flex renders as "over his head".
     const ghost = body.querySelector('.home-one__body');
     expect(pill.compareDocumentPosition(ghost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('BUGS-A job 1: the pill writes his whole name, not its first word', async () => {
+  // HOME-2 job 2 · SIX CHARACTERS OVER HIS HEAD.
+  //
+  // BUGS-A job 1's rule is unchanged and is the reason this is a CUT and not
+  // `name.split(' ')[0]`: a first word is a different name, and "The Clock"
+  // and "The Grinder" both became "The". Six characters of a name is still
+  // that name's beginning. The plate and the roster still write it whole —
+  // this rule is the pill's alone, because the pill hangs over a 46px body
+  // with two 44px bars inside it.
+  it('the pill writes six characters, and never a first word', async () => {
     await boot([mkAgent('a1', 'The Clock')]);
     const body = await screen.findByRole('button', { name: /The Clock — / });
-    expect(body.querySelector('.home-pill__name').textContent).toBe('The Clock');
+    expect(body.querySelector('.home-pill__name').textContent).toBe('The Cl');
+  });
+
+  it('a name that already fits is written whole, with no ellipsis', async () => {
+    await boot([mkAgent('a1', 'Rocky')]);
+    const body = await screen.findByRole('button', { name: /Rocky — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('Rocky');
+  });
+
+  // The server does not send a nickname yet. It is read the moment it does —
+  // the same forward read job 3 makes of `identity`.
+  it('prefers the nickname the server gives over the first six', async () => {
+    await boot([mkAgent('a1', 'The Clock', { nickname: 'Tick' })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('Tick');
+  });
+
+  // HOME-2 job 2 · the two bars run in opposite directions, and both start at
+  // the left wall. A worn, tilted agent is a short red stub over a long red
+  // bar — two opposite shapes, which is what separates the two causes.
+  it('draws a short stamina stub over a long heat bar for a worn, tilted man', async () => {
+    await boot([mkAgent('a1', 'The Clock', { fatigue: 'worn', mood: { state: 'tilted', heat: 82 } })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    const stam = body.querySelector('[data-bar="stamina"] i');
+    const heat = body.querySelector('[data-bar="heat"] i');
+    expect(stam.style.width).toBe('16%');
+    expect(heat.style.width).toBe('82%');
+    // Both fills start at the left edge of their own track, so the empty end
+    // of both bars is the same end.
+    for (const el of [stam, heat]) {
+      expect(window.getComputedStyle(el).left).toBe('0px');
+    }
+  });
+
+  it('and a fresh, cold man is the opposite pair', async () => {
+    await boot([mkAgent('a1', 'The Clock', { fatigue: 'fresh', mood: { state: 'neutral', heat: 8 } })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('[data-bar="stamina"] i').style.width).toBe('100%');
+    expect(body.querySelector('[data-bar="heat"] i').style.width).toBe('8%');
   });
 });
 
@@ -634,6 +690,7 @@ describe('HOME-1 · the safe and the fridge', () => {
     await boot([mkAgent('a1', 'The Clock')]);
     const safe = await screen.findByTestId('home-safe');
     expect(safe.textContent).toBe('');
+
     await userEvent.click(safe);
     expect(await screen.findByTestId('safe-sheet')).toBeInTheDocument();
     // Over the room, not instead of it.
@@ -751,6 +808,50 @@ describe('BIRTH-5 · the table, on the phone', () => {
     expect(await screen.findByTestId('home-table-locked')).toHaveTextContent('38,000 to go');
     expect(screen.queryByTestId('home-table-draft')).not.toBeInTheDocument();
     expect(created).toBe(0);
+  });
+
+  // HOME-2 job 6 · AND IT SAYS IT IN BIRTH-5's WORDS.
+  //
+  // The two surfaces where an owner meets a locked seat are the birth screen's
+  // 409 slotLocked and this sheet — which that refusal SENDS HIM TO. One
+  // sentence, one function (lib/slots.js lockedSeatLine), so the price he is
+  // turned away with and the price he then comes and looks at cannot be two
+  // different numbers phrased two different ways.
+  it('HOME-2 job 6: a locked chair says BIRTH-5 own line', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+
+    const refusal = await screen.findByTestId('home-table-refusal');
+    expect(refusal).toHaveTextContent(lockedSeatLine(SLOTS.next));
+    expect(refusal).toHaveTextContent('3rd seat costs 50,000 won');
+    expect(refusal).toHaveTextContent('you have 12,000');
+  });
+
+  it('HOME-2 job 6: an unlocked chair has nothing to refuse', async () => {
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 26_000, unlocked: true } });
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+    await screen.findByTestId('home-table-draft');
+    expect(screen.queryByTestId('home-table-refusal')).toBeNull();
+  });
+
+  // ONE SHEET. Three trees wanted the table's tap — watch the game, price the
+  // chair, sit down — and all three are sections of this one surface.
+  it('HOME-2 job 6: the table opens ONE sheet, with every section in it', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
+      { onSitTable: () => {}, onWatchTable: () => {} },
+    );
+    await userEvent.click(await screen.findByTestId('home-table'));
+
+    expect(document.querySelectorAll('[data-testid="home-table-sheet"]')).toHaveLength(1);
+    const sheet = await screen.findByTestId('home-table-sheet');
+    expect(within(sheet).getByTestId('home-table-watch')).toBeInTheDocument();
+    expect(within(sheet).getByTestId('home-table-sit')).toBeInTheDocument();
+    expect(within(sheet).getByText('Create an agent')).toBeInTheDocument();
   });
 
   it('an unlocked chair drafts him, and the sheet gets out of the way', async () => {

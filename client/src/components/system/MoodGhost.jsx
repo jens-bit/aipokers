@@ -1,6 +1,22 @@
 // Port of MoodGhost from design-refs/mood-atoms.jsx.
 // The chat / list / band / hero ghost — viewBox 0 0 80 80, no floor bob animation.
-// Identity accent = rim. Mood = eyes + glow.
+//
+// ── HOME-2 job 3 · MOOD MOVES THE FACE, NEVER THE COLOUR ───────────────────
+//
+// `hood` and `glow` are WHO HE IS: rolled at birth from his id (lib/identity.js)
+// and fixed for life. The hood fills the body, the glow lights the eyes and the
+// rim and the aura. Everything else in here is what he FEELS, and it is all
+// geometry — eye shape, lids, brow, the slump.
+//
+// The two channels are deliberately separate, and the separation is the whole
+// reason identity is drawn at all: you have to be able to tell four agents
+// apart while all four of them are tilted, which is exactly the moment an owner
+// most needs to. A body whose colour answered mood would make a tilted room
+// four copies of one man.
+//
+// Both are optional. Without them this draws precisely what it always drew —
+// the near-black hood, `accent` on the rim — so every surface that has not been
+// handed an identity is unchanged.
 //
 // WATCH-6 brings the atom up to the wave-41/42 vehicle the v5 hero and the
 // ceremony are drawn with: `heat` picks the face's intensity tier, `event`
@@ -42,12 +58,20 @@ const MOODS = {
 
 export function MoodGhost({
   mood = 'neutral', accent = '#00D4AA', size = 40, ring = true,
-  tone, heat = 45, event, hands, bet, won, brow, hood, glow: glowCol,
+  tone, heat = 45, event, hands, bet, won, brow,
+  // HOME-2 job 3 — who he is. `hood` is one of lib/identity.js's six; `glow` is
+  // the colour string off one of its six glows.
+  hood = null, glow: glowCol = null,
 }) {
   const uid = useId().replace(/:/g, '');
   const m = MOODS[mood] || MOODS.neutral;
+  // His own colour outranks the mood's. The ref's order exactly: an agent with
+  // an identity is that colour whatever he is feeling, and `tone` (the felt's
+  // deliberate override for a seat it is dimming) still outranks both.
   const mc = glowCol || tone || m.color;
   const eye = glowCol || tone || (mood === 'neutral' ? accent : m.color);
+  const rim = glowCol || accent;
+  const cloth = hood ?? { top: '#141A22', bot: '#0A0F17' };
   const slump = mood === 'sulking';
   const cy = slump ? 46 : 42;
   // The glow answers heat too, bounded so the low tier is never invisible.
@@ -56,6 +80,7 @@ export function MoodGhost({
   return (
     <svg width={size} height={size} viewBox="0 0 80 80" className="mood-ghost"
       data-mood={mood} data-hands={hands || null} data-event={event || null}
+      data-hood={hood?.id || null}
       style={{ display: 'block', overflow: 'visible' }}>
       <defs>
         <radialGradient id={`mg${uid}`} cx="50%" cy="54%" r="52%">
@@ -63,16 +88,16 @@ export function MoodGhost({
           <stop offset="1" stopColor={mc} stopOpacity="0" />
         </radialGradient>
         <linearGradient id={`mh${uid}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={(hood || HOOD_DEFAULT).top} />
-          <stop offset="1" stopColor={(hood || HOOD_DEFAULT).bot} />
+          <stop offset="0" stopColor={cloth.top} />
+          <stop offset="1" stopColor={cloth.bot} />
         </linearGradient>
       </defs>
       <ellipse cx="40" cy="44" rx="44" ry="42" fill={`url(#mg${uid})`} />
       {slump
         ? <path d="M40 20 C27 20 20 32 20 48 L17 80 L63 80 L60 48 C60 32 53 20 40 20 Z"
-            fill={`url(#mh${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4" />
+            fill={`url(#mh${uid})`} stroke={ring ? `${rim}66` : 'transparent'} strokeWidth="1.4" />
         : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z"
-            fill={`url(#mh${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4" />}
+            fill={`url(#mh${uid})`} stroke={ring ? `${rim}66` : 'transparent'} strokeWidth="1.4" />}
       <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
       {ghostFace({ mood, heat, size, event, eye, cy })}
       {brow && ghostBrow({ brow, eye, cy })}

@@ -129,3 +129,69 @@ describe('BUGS-A job 9 · the sheet', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+// ── HOME-2 job 1 ────────────────────────────────────────────────────────────
+//
+// YOU is this sheet, and the money is behind it — as ONE LINE, which is the
+// ref's own shape (mood-nav.jsx: "the money is a line, not a section: the
+// wallet screen lives behind it"). Neither tap draws money here; both are doors
+// onto YOU-2's single money surface.
+
+describe('HOME-2 job 1 · the money is a line at the foot of the roster', () => {
+  it('states the balance and offers the two doors behind it', async () => {
+    fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock')] });
+    fetchMock.route('/api/wallet', { balance: 4280, staked: 0, entries: [] });
+    render(
+      <RosterSheet
+        onOpenThread={() => {}}
+        onClose={() => {}}
+        onOpenMoney={() => {}}
+        onOpenLedger={() => {}}
+      />,
+    );
+
+    expect(await screen.findByText('YOUR WALLET')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('roster-wallet')).toHaveTextContent('4,280'));
+    expect(screen.getByTestId('roster-ledger')).toBeInTheDocument();
+  });
+
+  it('the two doors are the caller’s, and the sheet only opens them', async () => {
+    const user = userEvent.setup();
+    const onOpenMoney = vi.fn();
+    const onOpenLedger = vi.fn();
+    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/wallet', { balance: 4280, staked: 0, entries: [] });
+    render(
+      <RosterSheet
+        onOpenThread={() => {}}
+        onClose={() => {}}
+        onOpenMoney={onOpenMoney}
+        onOpenLedger={onOpenLedger}
+      />,
+    );
+
+    await user.click(await screen.findByTestId('roster-wallet'));
+    expect(onOpenMoney).toHaveBeenCalled();
+    await user.click(screen.getByTestId('roster-ledger'));
+    expect(onOpenLedger).toHaveBeenCalled();
+  });
+
+  // A deployment with no wallet answers nothing, and the line says so rather
+  // than inventing a balance — WUI-1's law, unchanged.
+  it('a deployment with no wallet shows a dash, not a zero', async () => {
+    fetchMock.route('/api/agents', { agents: [] });
+    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} onOpenMoney={() => {}} />);
+
+    await waitFor(() => expect(screen.getByTestId('roster-wallet')).toHaveTextContent('—'));
+  });
+
+  // BUGS-A job 9's sheet is still reachable from callers that know nothing
+  // about money: no handlers, no line.
+  it('draws no money line for a caller that offers no door', async () => {
+    fetchMock.route('/api/agents', { agents: [] });
+    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
+
+    await screen.findByText('Nobody works for you yet.');
+    expect(screen.queryByTestId('roster-wallet')).toBeNull();
+  });
+});

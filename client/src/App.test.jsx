@@ -1,7 +1,7 @@
 // client/src/App.test.jsx — TEST-1
 //
-// The shell: three tabs, and BirthScreen as the only way to make an agent.
-// These assert on what the user sees after a click, not on component internals.
+// The shell, and BirthScreen as the only way to make an agent. These assert on
+// what the user sees after a click, not on component internals.
 //
 // CASINO-1 changed the nav these tests navigate BY — HOME · CASINO · YOU, with
 // CHATS off the bar and its thread reached from Home and from a profile — and
@@ -15,6 +15,14 @@
 // is. The floor is not on a mobile tab at all any more (DesktopHome still draws
 // it), so the tests that used to reach an agent through a floor ghost reach him
 // through his body in the room instead. Again: same rules, new routes.
+//
+// HOME-2 job 1 then took the bar itself away, which is the one place in this
+// file where a RULE changed rather than a route: "renders the three tabs" and
+// "marks the active tab" asserted a bottom bar, and wave 53 retired it — the
+// bar sat under the home composer, so the screen ended in two stacked bars with
+// the composer the smaller of them. The three destinations are things in the
+// world now (avatar, door, the room you are in), so the navigation assertions
+// below are made through those and every screen carries its own way home.
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -30,10 +38,6 @@ import { fetchMock, socketMock, telegram } from './test/harness.js';
 import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
 
-function tab(name) {
-  return screen.getByRole('button', { name });
-}
-
 // HOME-1: the app boots into the room. This is what `Standup` used to be.
 const bootedOnHome = () => screen.findByTestId('home-screen');
 
@@ -47,15 +51,22 @@ describe('App shell', () => {
     fetchMock.route('/api/agents', agentsResponse);
   });
 
-  it('renders the three tabs', async () => {
+  // HOME-2 job 1 · THERE IS NO BOTTOM BAR.
+  //
+  // The rule this replaces ("renders the three tabs") is the one wave 53
+  // retired, and it was retired for a measured reason rather than a taste: the
+  // bar sat directly under the home thread's composer, so the screen ended in
+  // two stacked bars and the composer — the one thing you type into — was the
+  // smaller of them. The three destinations are things in the world now: YOU is
+  // the avatar top-right, CASINO is the door, HOME is where you already are.
+  it('HOME-2 job 1: no bottom bar — the three destinations are in the world', async () => {
     render(<App />);
     await bootedOnHome();
-    const nav = document.querySelector('.tab-bar');
-    expect(within(nav).getByText('HOME')).toBeInTheDocument();
-    expect(within(nav).getByText('CASINO')).toBeInTheDocument();
-    expect(within(nav).getByText('YOU')).toBeInTheDocument();
-    // CASINO-1: the thread is not a place you go, it is a person you open.
-    expect(within(nav).queryByText('CHATS')).not.toBeInTheDocument();
+
+    expect(document.querySelector('.tab-bar')).toBeNull();
+    // ...and the two that are not "where you already are" are reachable.
+    expect(screen.getByRole('button', { name: 'Your agents' })).toBeInTheDocument();
+    expect(screen.getByTestId('home-door')).toBeInTheDocument();
   });
 
   it('opens on HOME, which is the room', async () => {
@@ -66,20 +77,22 @@ describe('App shell', () => {
     expect(screen.queryByText('Standup')).not.toBeInTheDocument();
   });
 
-  it('switches to CASINO and back to HOME', async () => {
+  // Same rule as the old "switches to CASINO and back to HOME", by the routes
+  // wave 53 leaves: the door out, and ← HOME back.
+  it('HOME-2 job 1: the door is the casino, and back from it is the room', async () => {
     const user = userEvent.setup();
     fetchMock.route('/api/rooms', roomsResponse);
     fetchMock.route('/api/events', { events: [], lastId: 0 });
     render(<App />);
     await bootedOnHome();
 
-    await user.click(tab('CASINO'));
+    await user.click(screen.getByTestId('home-door'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
     // The building names its rooms; the flat has none. CASINO-2 job 3: at rest
     // the name is on the small door under the sign, in the house's sign case.
     expect(await screen.findByText('BACK ROOM')).toBeInTheDocument();
 
-    await user.click(tab('HOME'));
+    await user.click(screen.getByRole('button', { name: 'Back home' }));
     expect(await bootedOnHome()).toBeInTheDocument();
   });
 
@@ -95,26 +108,55 @@ describe('App shell', () => {
     expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
   });
 
-  it('switches to YOU', async () => {
+  // The old "switches to YOU". YOU is the avatar, the roster is what it opens,
+  // and the money and the record sit behind it as one line.
+  it('HOME-2 job 1: YOU is the avatar, with the money behind the roster', async () => {
     const user = userEvent.setup();
+    fetchMock.route('/api/wallet', wallet);
     render(<App />);
     await bootedOnHome();
 
-    await user.click(tab('YOU'));
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    expect(await screen.findByTestId('roster-sheet')).toBeInTheDocument();
+
+    await user.click(await screen.findByTestId('roster-ledger'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
     // YouScreen greets the Telegram user by name.
     expect(await screen.findByText(/Jens/)).toBeInTheDocument();
   });
 
-  it('marks the active tab so the user can tell where they are', async () => {
+  // "the money sheet behind it": the wallet line is one tap deeper than the
+  // roster and it lands on YOU-2's own sheet, not on a second copy of it.
+  it('HOME-2 job 1: the roster wallet line opens the money sheet', async () => {
     const user = userEvent.setup();
+    fetchMock.route('/api/wallet', wallet);
     render(<App />);
     await bootedOnHome();
 
-    expect(tab('HOME')).toHaveClass('tab-bar__tab--active');
-    await user.click(tab('YOU'));
-    expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
-    expect(tab('HOME')).not.toHaveClass('tab-bar__tab--active');
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    await user.click(await screen.findByTestId('roster-wallet'));
+
+    // SAFE-2 renamed the surface this opens: MoneySheet's "Your wallet" is
+    // SafeSheet's "In the safe". Same door, same rule — the roster line opens
+    // the money — and the sheet behind it is the one that ships.
+    expect(await screen.findByText('In the safe')).toBeInTheDocument();
+  });
+
+  // The bar used to be the way back. Every screen you can reach now carries its
+  // own way home, so "back from anywhere returns to the room" is a rule about
+  // the screens rather than about a bar over them.
+  it('HOME-2 job 1: back from YOU returns to the room', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/wallet', wallet);
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    await user.click(await screen.findByTestId('roster-ledger'));
+    await screen.findByText(/Jens/);
+
+    await user.click(await screen.findByRole('button', { name: 'Back home' }));
+    expect(await bootedOnHome()).toBeInTheDocument();
   });
 
   // KEY-1 through the real app: App calls initViewportTracking() on mount, so
@@ -273,10 +315,11 @@ describe('agent creation is BirthScreen and nothing else', () => {
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
 
-    // HOME-1: nobody lives here yet, and there is one thing to do about it.
-    // (The floor's first-time stool is asserted where the floor now lives:
-    // CasinoFloor.test.jsx and the desktop shell.)
-    const only = await screen.findAllByRole('button', { name: /Make an agent/i });
+    // HOME-2 job 7: nobody lives here yet, and there is one thing to do about
+    // it — inside the ROOM, under its one empty chair. (The floor's first-time
+    // stool is asserted where the floor now lives: CasinoFloor.test.jsx and the
+    // desktop shell.)
+    const only = await screen.findAllByRole('button', { name: /DRAFT YOUR FIRST AGENT/i });
     expect(only).toHaveLength(1);
     await user.click(only[0]);
 
@@ -290,7 +333,7 @@ describe('agent creation is BirthScreen and nothing else', () => {
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Make an agent/i }));
+    await user.click(await screen.findByRole('button', { name: /DRAFT YOUR FIRST AGENT/i }));
     await screen.findByPlaceholderText(/Describe how it should play/i);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -331,10 +374,11 @@ describe('the profile card can reach the funding sheet', () => {
     const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
-    // The YOU screen owns the money, and SAFE-2 made what opens there the
-    // safe: one number, and the three verbs under it.
+    // Two truths from two branches: SAFE-2 renamed the surface the YOU screen
+    // opens ("In the safe", one number and three verbs), and HOME-2 job 1 took
+    // the bottom bar away — so the arrival is the screen itself, and there is
+    // no lit tab left to assert on. `tab-bar__tab` no longer exists in App.jsx.
     expect(await screen.findByText('In the safe')).toBeInTheDocument();
-    expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
   });
 });
 
@@ -457,10 +501,11 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     await user.click(screen.getByRole('button', { name: 'Chat' }));
 
     // Off the watch screen, and into his thread — the roster is not what we
-    // land on. CASINO-1: no tab is lit, because a thread is a person and not a
-    // tab; what proves we arrived is his composer.
+    // land on. CASINO-1: a thread is a person and not a tab, and HOME-2 job 1
+    // left no bar for one to be lit in; what proves we arrived is his composer,
+    // over a room that is no longer on screen.
     await waitFor(() => expect(document.querySelector('.watch-screen')).toBeNull());
-    expect(tab('HOME')).not.toHaveClass('tab-bar__tab--active');
+    expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument();
     expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
     expect(screen.getAllByText('The Grinder').length).toBeGreaterThan(0);
@@ -615,16 +660,20 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
   });
 
-  it('CHAT-2: a tab the owner actually taps still wins over the origin', async () => {
+  // HOME-2 job 1: the tap that used to be a tab is Back out of the thread. The
+  // rule is unchanged — a move the owner MAKES beats the origin the watch was
+  // holding for him — and it now runs through the door BUGS-A job 4 gave the
+  // thread, which is the only way left out of one.
+  it('CHAT-2: a move the owner actually makes still wins over the origin', async () => {
     const user = userEvent.setup();
     render(<App />);
     await bootedOnHome();
 
     await deployFromThread(user);
-    // The watch screen has no tab bar; leave first, then choose.
+    // The watch screen has no bar of any kind; leave first, then choose.
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
     await screen.findByPlaceholderText('Message Loose Cannon…');
-    await user.click(tab('HOME'));
+    await user.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
   });

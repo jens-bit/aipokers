@@ -125,6 +125,17 @@ jobs:
           SMOKE_SHOT_DIR: smoke-shots
         run: npm run smoke:browser
 
+      # HOME-2 · the phone, measured. The smoke run above proves the shipped
+      # bundle MOUNTS; this one is a ruler — nothing overlaps a name pill, the
+      # door sign is fully in frame, a long press and a drag land him on the
+      # couch. jsdom performs no layout, so none of those can be asserted
+      # anywhere else. Same server, one viewport, so it costs seconds.
+      - name: HOME-2 phone layout
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:8765
+          HOME2_SHOT_DIR: home2-shots
+        run: npm run test:home2
+
       # Always: a red run is exactly when the pictures and the server log are
       # worth having.
       - name: Server log
@@ -136,7 +147,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: smoke-screenshots
-          path: smoke-shots/
+          path: |
+            smoke-shots/
+            home2-shots/
           if-no-files-found: warn
           retention-days: 14
 

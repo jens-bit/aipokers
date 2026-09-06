@@ -18,6 +18,7 @@
     "export:json": "node scripts/export-json.js",
     "smoke": "node scripts/smoke-hand.js",
     "smoke:browser": "playwright test -c playwright.smoke.config.js",
+    "test:home2": "playwright test -c playwright.home2.config.js",
     "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"
   },

@@ -457,12 +457,25 @@ export function Marquee({ lit = true }) {
   );
 }
 
-export function CasinoHead({ sub, right, lit = true }) {
+export function CasinoHead({ sub, right, lit = true, onBack = null }) {
   return (
     <div className="csn-head" style={{
       flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
       padding: '6px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
+      {/* HOME-2 job 1 · through the door, and still no bottom bar: ← HOME is
+          where the back button goes (board 29 F07). */}
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back home"
+          style={{
+            flexShrink: 0, background: 'none', border: 'none', padding: '4px 4px 4px 0', cursor: 'pointer',
+            fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM,
+          }}
+        >← HOME</button>
+      ) : null}
       <div style={{ flex: 1, minWidth: 0 }}>
         <Marquee lit={lit} />
         <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 2 }}>{sub}</div>

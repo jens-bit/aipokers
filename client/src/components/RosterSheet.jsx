@@ -36,8 +36,9 @@ import { useSheetDrag } from '../hooks/useSheetDrag.js';
 import { accentFor } from './floor/atoms.jsx';
 import { heatOf, moodOf, presenceOf, stackOf, hasUnseenRecap } from './floor/agentView.js';
 import { roomLabel } from './home/AwayWall.jsx';
+import { identityOf } from '../lib/identity.js';
 import { pillName } from '../lib/names.js';
-import { money } from '../lib/wallet.js';
+import { fetchWallet, money } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 import '../styles/roster.css';
 
@@ -65,6 +66,9 @@ export function hasUnread(agent) {
 export function RosterRow({ agent, index, onOpen }) {
   const stack = stackOf(agent);
   const unread = hasUnread(agent);
+  // HOME-2 job 3: the same creature the room draws. A row that tinted him
+  // differently from his body would be a second man with his name on it.
+  const id = identityOf(agent);
   return (
     <li>
       <button
@@ -81,6 +85,8 @@ export function RosterRow({ agent, index, onOpen }) {
             accent={accentFor(agent, index)}
             size={34}
             ring={false}
+            hood={id.hood}
+            glow={id.glow.c}
           />
           {unread ? <span className="roster__dot" data-testid={`roster-unread-${agent.id}`} /> : null}
         </span>
@@ -94,10 +100,31 @@ export function RosterRow({ agent, index, onOpen }) {
   );
 }
 
-export function RosterSheet({ onOpenThread, onClose, onCreateAgent }) {
+/**
+ * HOME-2 job 1 — YOU IS THIS SHEET, AND THE MONEY IS BEHIND IT.
+ *
+ * Wave 53 took HOME · CASINO · YOU off the bottom of the screen. YOU is the
+ * avatar top-right, and the ref (design-refs/mood-nav.jsx, `RosterSheet`) is
+ * explicit about the shape: "the money is a LINE, not a section: the wallet
+ * screen lives behind it". So the roster ends in one line — what you have, and
+ * the way to the ledger — and neither of them is a second wallet UI. Both are
+ * doors onto the surfaces YOU-2 already built: the money sheet is where money
+ * MOVES, the record is where it turns out to have moved.
+ */
+export function RosterSheet({ onOpenThread, onClose, onCreateAgent, onOpenMoney, onOpenLedger }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  // WUI-1's law, unchanged: null until asked, and null forever on a deployment
+  // with no wallet. The line then states the stable's own chips rather than
+  // quoting a balance nobody keeps.
+  const [wallet, setWallet] = useState(null);
   const drag = useSheetDrag(onClose);
+
+  useEffect(() => {
+    let alive = true;
+    fetchWallet().then((w) => { if (alive) setWallet(w); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -151,6 +178,35 @@ export function RosterSheet({ onOpenThread, onClose, onCreateAgent }) {
             ))}
           </ul>
         )}
+
+        {/* The money, as one line. See the note on the component. */}
+        {onOpenMoney || onOpenLedger ? (
+          <div className="roster__money">
+            <button
+              type="button"
+              className="roster__wallet"
+              onClick={onOpenMoney}
+              disabled={!onOpenMoney}
+              aria-label="Your wallet"
+              data-testid="roster-wallet"
+            >
+              <span className="roster__wallet-label">YOUR WALLET</span>
+              <span className="roster__wallet-amount">
+                {wallet ? money(wallet.balance) : '—'}
+              </span>
+            </button>
+            {onOpenLedger ? (
+              <button
+                type="button"
+                className="roster__ledger"
+                onClick={onOpenLedger}
+                data-testid="roster-ledger"
+              >
+                LEDGER
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BodyBars, HeatBar, heatBand } from './BodyBars.jsx';
 import { AttrCluster } from './AttrCluster.jsx';
-import { STAMINA_FULL, STAMINA_SPENT } from './FeltBodyBars.jsx';
+import { HEAT_EMBER, HEAT_FIRE, STAMINA_FULL, STAMINA_SPENT } from './FeltBodyBars.jsx';
 
 const staminaRow = { key: 'STAMINA', cur: 63, lo: 64, hi: 70, fatigued: false, narrowed: false };
 
@@ -48,14 +48,18 @@ describe('HeatBar', () => {
   // The polarity is the whole reason heat cannot be a seventh row in the
   // cluster: at 82 it is red, and skill teal at 82 would read as an
   // achievement.
-  it('is coloured by band, not in skill teal', () => {
+  it('is coloured by what it reads, not in skill teal', () => {
     const { container } = render(<HeatBar heat={82} composure={44} />);
-    expect(track(container).style.getPropertyValue('--heat-color')).toBe('#FF4D4F');
+    expect(track(container).style.getPropertyValue('--heat-color')).toBe(HEAT_FIRE);
   });
 
-  it('is teal only when he is cold, which is the one time a full-looking bar is calm', () => {
+  // HOME-2 job 2 · heat's empty end is NOTHING, not a good reading. It was
+  // teal here, which said "he is fine" — an accumulation at zero has nothing to
+  // say, and an ember is what that looks like. Same ramp as the felt and the
+  // pill, so the card cannot disagree with the room about a man.
+  it('is an ember when he is cold, and never a teal', () => {
     const { container } = render(<HeatBar heat={8} />);
-    expect(track(container).style.getPropertyValue('--heat-color')).toBe('#00D4AA');
+    expect(track(container).style.getPropertyValue('--heat-color')).toBe(HEAT_EMBER);
     expect(screen.getByText('cold')).toBeInTheDocument();
   });
 

@@ -282,10 +282,9 @@
   .dr-app-header,
   .dr-game-header { grid-area: header; }
 
-  /* Pre-game layout has no sidebar — both children span the full grid width so
-     .pre-game fills row 2 (1fr) and .tab-bar sits in row 3 (auto) */
+  /* Pre-game layout has no sidebar — the pane spans the full grid width and
+     fills row 2 (1fr). HOME-2 job 1: there is no row 3 any more. */
   .pre-game { grid-column: 1 / -1; }
-  .tab-bar   { grid-column: 1 / -1; }
 
   .app__main {
     grid-area: main;
@@ -698,46 +697,14 @@
   flex-direction: column;
 }
 
-.tab-bar {
-  display: flex;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--edge);
-  padding-bottom: var(--safe-bottom);
-  flex-shrink: 0;
-}
-
-.tab-bar__tab {
-  flex: 1;
-  height: 56px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-label);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  transition: color 120ms;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 0 8px;
-}
-
-.tab-bar__tab svg {
-  width: 20px;
-  height: 20px;
-}
-
-.tab-bar__tab--active {
-  color: var(--accent);
-}
-
-.tab-bar__tab:hover:not(.tab-bar__tab--active) {
-  color: var(--text-secondary);
-}
+/* HOME-2 job 1 · THE BOTTOM BAR IS GONE.
+   Wave 53 retired HOME · CASINO · YOU as tabs: the bar sat directly under the
+   home thread's composer, so the screen ended in two stacked bars and the
+   composer — the one thing you type into — was the smaller of them. The three
+   destinations are things in the world instead (the avatar, the door, the room
+   you are already standing in), and the composer is the only thing at the
+   bottom of the screen. Its rules are deleted rather than left unused, because
+   a class nothing renders is a class the next port will render again. */
 
 /* Design-ref system styles, ported from client/src/design-ref/design-ref.css.
    The original .dr-app rule also forced height/display/background; we drop those because

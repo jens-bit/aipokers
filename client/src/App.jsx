@@ -748,6 +748,11 @@ function AppShell({ guest }) {
               setRosterOpen(false);
               openAgentChat(agent);
             }}
+            // HOME-2 job 1 · the money sheet, behind the roster. Both are the
+            // surfaces YOU-2 already owns — the sheet where money moves, and
+            // the screen where the record of it is kept. No second wallet UI.
+            onOpenMoney={() => { setRosterOpen(false); navigateToMoney(); }}
+            onOpenLedger={() => { setRosterOpen(false); navigateTo('you'); }}
           />
         )}
         <div className="pre-game" style={{ position: 'relative' }}>
@@ -821,6 +826,9 @@ function AppShell({ guest }) {
               // yes from a want walks him over with the agent already chosen
               // rather than opening a socket from the living room.
               onDeploy={placeInCasino}
+              // HOME-2 job 1: the door. HOME · CASINO · YOU are things in the
+              // world now, and this is the CASINO one.
+              onCasino={() => navigateTo('casino')}
             />
           )}
 
@@ -831,6 +839,9 @@ function AppShell({ guest }) {
               wsUrl={WS_URL}
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}
+              // HOME-2 job 1: you came in through the door; ← HOME is the way
+              // back out of it.
+              onBack={() => navigateTo('home')}
               onReplay={replayEvent}
               onPlace={placeInCasino}
               onSpectate={(tableId) => {
@@ -877,36 +888,20 @@ function AppShell({ guest }) {
               onOpenProfile={openAgentProfile}
             />
           )}
-          {activeTab === 'you' && <YouScreen onOpenProfile={openAgentProfile} openMoney={youMoneyOpen} />}
+          {activeTab === 'you' && (
+            <YouScreen
+              onOpenProfile={openAgentProfile}
+              openMoney={youMoneyOpen}
+              // HOME-2 job 1: back from anywhere is the room.
+              onBack={() => navigateTo('home')}
+            />
+          )}
 
           {/* WIRE-1: the newborn's arrival is CasinoFloor's own (FLOOR-2 FL-3) —
               it notices an id that was not in the roster it first saw and walks
               him in. This overlay drew a second body for the same agent on top
               of that one. One body per agent; the floor keeps his. */}
         </div>
-        <nav className="tab-bar">
-          <button
-            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('home')}
-          >
-            <HomeIcon />
-            <span>HOME</span>
-          </button>
-          <button
-            className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('casino')}
-          >
-            <CasinoIcon />
-            <span>CASINO</span>
-          </button>
-          <button
-            className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('you')}
-          >
-            <YouIcon />
-            <span>YOU</span>
-          </button>
-        </nav>
       </div>
     );
   }
@@ -1073,26 +1068,6 @@ function AppShell({ guest }) {
         history={history}
         displayNames={displayNames}
       />
-      <nav className="tab-bar">
-        <button
-          className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); navigateTo('home'); }}
-        >
-          <HomeIcon /><span>HOME</span>
-        </button>
-        <button
-          className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); navigateTo('casino'); }}
-        >
-          <CasinoIcon /><span>CASINO</span>
-        </button>
-        <button
-          className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); navigateTo('you'); }}
-        >
-          <YouIcon /><span>YOU</span>
-        </button>
-      </nav>
     </div>
   );
 }
@@ -1315,36 +1290,6 @@ function ProfilePlaceholder() {
         <p className="placeholder-screen__sub">Profile · Coming soon</p>
       </div>
     </div>
-  );
-}
-
-// CASINO-1: the three tabs are HOME · CASINO · YOU. The icons are NAV3's,
-// from design-refs/mood-home.jsx.
-function HomeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 10.5 12 3l9 7.5" />
-      <path d="M5.5 9.5V20h13V9.5" />
-      <path d="M10 20v-5.5h4V20" />
-    </svg>
-  );
-}
-
-function CasinoIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M10 2C8 6.5 4 7.5 4 11a3 3 0 006 0 3 3 0 006 0C16 7.5 12 6.5 10 2z" />
-      <rect x="8.5" y="14" width="3" height="4" rx="1" />
-    </svg>
-  );
-}
-
-function YouIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <circle cx="10" cy="6" r="3.5" />
-      <path d="M3 17.5c0-3.9 3.1-7 7-7s7 3.1 7 7H3z" />
-    </svg>
   );
 }
 
