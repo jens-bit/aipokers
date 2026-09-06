@@ -14,7 +14,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 ## Commands
 - Run locally: `npm start` (builds client + serves on :8765). Dev client hot-reload: `npm run dev` in client/.
 - Tests: `npm test` (server, <15s) + `npm run test:client` — MUST pass before any commit; `npm run test:all` runs both. `npm run test:e2e` (~40s) MUST pass before any merge to main. See **Testing law** below.
-- Smoke: `npm run smoke`
+- Smoke: `npm run smoke` (one hand, no browser). `npm run smoke:browser` is CI-2's browser smoke — start the app first (`npm start`), then it walks HOME/CASINO/YOU/WATCH at 390×844 and 1440×900 in chromium and drops a screenshot per screen in `smoke-shots/`.
 - Deploy: push to main → SSH root@46.62.169.246 → /opt/aipokers → git pull → pm2 restart all --update-env. Gotcha: data/agents.json on the VPS is live prod data; back it up, checkout, pull, restore (see project memory / HOW_WE_WORK).
 
 ## Architecture map
@@ -44,6 +44,7 @@ Non-negotiable. A test suite only protects you if it is trusted, and it is only 
 How it is wired:
 - Discovery, not lists. `src/test/legacy.test.js` spawns every `src/**/*.test.js`; `src/test/verifyScripts.test.js` and `src/test/e2e.test.js` split every `scripts/verify-*.js` between the fast and slow commands. Adding a test file is enough to have it run — nothing to register. A new verify script lands in the fast group by default; move it by naming it in `src/test/helpers/verifyGroups.js`, with a reason.
 - Each spawned suite runs in a scratch cwd, so nothing writes to `data/`.
+- **CI-2: the browser smoke is its own CI job and deploy waits on it too.** `scripts/smoke.spec.js` boots the built client behind the real server (scratch cwd, no keys) and loads it in chromium at both widths, failing on any console error. It is the only thing in the repo that ever loads `client/dist` — everything else asserts against jsdom or the server — so a screen that only breaks once Vite has minified it has nowhere left to hide. Screenshots upload as the `smoke-screenshots` artifact; they are not a pixel baseline, they are there to be looked at when a run goes red.
 - **No live model calls in any automated suite.** The runner strips `ANTHROPIC_API_KEY` from every child's environment and each e2e script re-checks it at startup. With a key the agents play real hands, hands differ every run, and `verify-multi-seat.js` failed intermittently depending on whose shell had the key exported (TEST-2). A flaky test is worse than no test: it teaches people to re-run instead of to look.
 - Server style: node:test + `node:assert/strict`. Client style: Vitest + Testing Library, files named `*.test.jsx`, assertions on what the user sees.
 - `npm run test:live` is the only thing that talks to a real model, and nothing runs it automatically. `npm run test:data` checks the local `data/agents.json` ledger and is likewise not in CI.

@@ -13,3 +13,9 @@ data/*
 # are committed on purpose (they are the deliverable); the run artefacts are not.
 client/test-results/
 client/playwright-report/
+
+# CI-2: the browser smoke run — screenshots, traces and the runner scratch.
+# The screenshots are a workflow artifact, not a committed baseline.
+smoke-shots/
+test-results/
+playwright-report/
