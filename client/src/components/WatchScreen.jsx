@@ -61,6 +61,7 @@ import {
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 import { attrCostOf } from '../lib/attributes.js';
+import { isReconnect, mergeThread, rowsFromThread, threadUrl } from '../lib/thread.js';
 import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -1182,6 +1183,10 @@ function useStackTick(target, delta, key) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // WATCH-8 · job 1: the socket's own status, so the thread can be refetched
+  // when the connection comes back. The sheet the owner left is not the sheet
+  // the table has been writing while he was gone.
+  connection = null,
   onOpenThread,
   paceFrame,
   paceLag,
@@ -1222,6 +1227,47 @@ export function WatchScreen({
     var id = setInterval(load, 10000);
     return function() { cancelled = true; clearInterval(id); };
   }, [agentId]);
+
+  // ── WATCH-8 · job 1 · THE THREAD SURVIVES ────────────────────────────────
+  // The sheet used to be assembled from whatever the socket happened to be
+  // awake for, so a reconnect got an empty sheet and a look back an hour later
+  // got nothing at all. SERVER-3 stores the lines; these are them. Fetched when
+  // the sheet is opened and again whenever the connection comes back, because
+  // the record the table wrote while the owner was gone is exactly the part he
+  // cannot have heard.
+  var sessionId = game ? game.sessionId : null;
+  var [storedRows, setStoredRows] = useState([]);
+  var threadReqRef = useRef(0);
+
+  var loadThread = useCallback(function () {
+    var url = threadUrl({ agentId: agentId, sessionId: sessionId, userId: getUserId() });
+    if (!url) return;
+    var seq = ++threadReqRef.current;
+    fetch(url, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        // A slower earlier request must not overwrite a newer answer.
+        if (!data || seq !== threadReqRef.current) return;
+        setStoredRows(rowsFromThread(data));
+      })
+      .catch(function () {});
+  }, [agentId, sessionId]);
+
+  // A new stay is a new thread. Dropping what the last one said is the point:
+  // "it is his stay that ended, and his stay the ceremony summarises."
+  var sessionSeenRef = useRef(sessionId);
+  useEffect(function () {
+    if (sessionSeenRef.current === sessionId) return;
+    sessionSeenRef.current = sessionId;
+    setStoredRows([]);
+  }, [sessionId]);
+
+  var connSeenRef = useRef(connection);
+  useEffect(function () {
+    var prev = connSeenRef.current;
+    connSeenRef.current = connection;
+    if (isReconnect(prev, connection)) loadThread();
+  }, [connection, loadThread]);
 
   var mood   = agent ? moodOf(agent)   : 'neutral';
   var cause  = agent ? causeOf(agent)  : null;
@@ -1583,27 +1629,44 @@ export function WatchScreen({
     setThreadOpen(true);
   }, [onOpenThread]);
 
+  // Opening the sheet is the other moment the record has to be current.
+  useEffect(function () {
+    if (threadOpen) loadThread();
+  }, [threadOpen, loadThread]);
+
   // ── the thread, in one ordered list ─────────────────────────────────────
   // HIM / YOU / TABLE, plus an opponent under their own name. Everything the
   // felt showed and everything it had to let go, in the order it happened.
-  var threadRows = tableRecord.map(function(u) {
-    var who = u.mine
-      ? 'HIM'
-      : (Number.isInteger(u.seat) && game && game.seats && game.seats[u.seat]
-        ? (game.seats[u.seat].displayName || displayNames[u.seat] || 'TABLE')
-        : 'TABLE').toUpperCase();
-    return { id: u.id, who: who, text: u.text, t: u.at };
+  // WATCH-8: the register each live row is drawn in is stated rather than
+  // inferred from its label, so a seat called "TABLE" cannot borrow the room's
+  // voice here either — the same rule the stored lines already carry.
+  var liveRows = tableRecord.map(function(u) {
+    var named = Number.isInteger(u.seat) && game && game.seats && game.seats[u.seat]
+      ? (game.seats[u.seat].displayName || displayNames[u.seat] || null)
+      : null;
+    return {
+      id: u.id,
+      kind: u.mine ? 'him' : (named ? 'opponent' : 'table'),
+      who: (u.mine ? 'HIM' : (named || 'TABLE')).toUpperCase(),
+      text: u.text,
+      t: u.at,
+    };
   })
     .concat(agentThread.map(function(m, i) {
-      return { id: 'c' + i, who: m.role === 'user' ? 'YOU' : 'HIM', text: m.content, t: m.t };
+      var you = m.role === 'user';
+      return { id: 'c' + i, kind: you ? 'you' : 'him', who: you ? 'YOU' : 'HIM', text: m.content, t: m.t };
     }))
     .concat(attrRecord.map(function(a) {
       return {
-        id: a.id, who: 'TABLE', cost: true, t: a.t,
+        id: a.id, kind: 'table', who: 'TABLE', cost: true, t: a.t,
         text: [a.line, a.key].filter(Boolean).join(' · '),
       };
-    }))
-    .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
+    }));
+
+  // The record and what is being said now, as one ordered list: one row per id,
+  // and where the store and the socket both have a line the STORED copy wins,
+  // because it is the one carrying the server's clock.
+  var threadRows = mergeThread(storedRows, liveRows);
 
   function handleSitOutConfirm() {
     setSitOutPending(false);

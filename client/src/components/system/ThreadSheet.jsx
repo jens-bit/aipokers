@@ -18,11 +18,17 @@ function clockOf(t) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// WATCH-8: the register is the server's closed `kind` when the row carries one
+// — a stored line from a seat that renamed itself "TABLE" must not be drawn in
+// the room's voice. A live row that has no kind is read off its label, exactly
+// as it always was.
 export function ThreadRow({ row }) {
-  const him = row.who === 'HIM';
-  const you = row.who === 'YOU';
-  const table = row.who === 'TABLE';
-  const kind = him ? 'him' : you ? 'you' : table ? 'table' : 'them';
+  const kind = row.kind
+    ? (row.kind === 'opponent' ? 'them' : row.kind)
+    : (row.who === 'HIM' ? 'him' : row.who === 'YOU' ? 'you' : row.who === 'TABLE' ? 'table' : 'them');
+  const him = kind === 'him';
+  const you = kind === 'you';
+  const table = kind === 'table';
   return (
     <div className={`thread-row thread-row--${kind}${row.cost ? ' is-cost' : ''}`}>
       <span className="thread-row__who">{row.who}</span>

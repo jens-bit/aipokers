@@ -632,6 +632,10 @@ export default function App() {
         chatMessages={paced.chatMessages}
         sendChat={sendChat}
         displayNames={displayNames}
+        // WATCH-8: the socket's own status. The thread refetches when the
+        // connection comes back, because the record the table wrote while the
+        // owner was disconnected is exactly the part he cannot have heard.
+        connection={status}
         onLeave={handleLeave}
         onSitOut={sitOut}
         // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,
