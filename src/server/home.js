@@ -238,11 +238,15 @@ export function isHome(location) {
  * Only the fields the HOME screen draws: this rides the same socket as
  * FLOOR_STATE and there is no reason to send a strategy prompt twice.
  *
- * SERVER-4 added one more thing to it: `thread` — { unreadSince }, the
- * room's own unread marker (see below). The HOME screen was having to ask
- * a second route for something it draws on the first paint.
+ * SERVER-4 added two more things to it, both for the same reason — the HOME
+ * screen was having to ask a second route for something it draws on the first
+ * paint:
+ *
+ *   thread  { unreadSince } — the room's own unread marker (see below)
+ *   fridge  { beer, snack } — what is on the shelves, so the flat can draw a
+ *           full or an empty fridge without a second call
  */
-export function homeStateMessage(userId, agents, game = null, { thread = null } = {}) {
+export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null } = {}) {
   return {
     userId: String(userId ?? 'anon'),
     agents: (agents ?? []).map(homeAgentProjection),
@@ -253,7 +257,16 @@ export function homeStateMessage(userId, agents, game = null, { thread = null } 
     // client say "3 lines since 21:40" rather than only that there is a dot.
     // null means nothing is waiting.
     thread: { unreadSince: thread?.unreadSince ?? null },
+    fridge: fridgeCounts(fridge),
   };
+}
+
+// The counts only. Prices and labels are GET /api/fridge's job — they never
+// change, so pushing them down a live socket on every home change would be
+// the same three constants over and over.
+function fridgeCounts(fridge) {
+  const n = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.floor(Number(v))) : 0);
+  return { beer: n(fridge?.beer), snack: n(fridge?.snack) };
 }
 
 function homeAgentProjection(agent) {

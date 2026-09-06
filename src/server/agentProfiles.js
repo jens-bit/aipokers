@@ -1755,9 +1755,11 @@ export function floorSnapshot(userId, { owner = false } = {}) {
 // about tables; floorChannel hands in whatever homeGame.js reports.
 export function homeSnapshot(userId, { owner = false, game = null } = {}) {
   return homeStateMessage(userId, presentedRoster(userId, { owner }), game, {
-    // SERVER-4: the room's unread marker — something the HOME screen draws
-    // on its first paint and used to cost it a second request.
+    // SERVER-4: the room's unread marker and the fridge's counts. Both are
+    // things the HOME screen draws on its first paint and both used to cost it
+    // a second request; neither is worth a route of its own to keep current.
     thread: { unreadSince: homeThreadUnread(userId) },
+    fridge: walletFor(userId)?.fridge ?? null,
   });
 }
 
@@ -2233,6 +2235,13 @@ export function wantView(agent, { now = Date.now(), wallet = null } = {}) {
     outOfStock: out || undefined,
     dangerous: !!want.dangerous,
     item: want.item ?? null,
+    // SERVER-4: what the item costs to stock, and how many are on the shelf.
+    // The client used to carry its own copy of the price list to draw "BUY 6 ·
+    // 1200", which meant a price change was a deploy of two things that had to
+    // land together. The prices are the server's, so they travel with the ask.
+    // Null for a want that is not about an item at all.
+    price: item && isFridgeItem(item) ? priceOf(item) : null,
+    stock: item && isFridgeItem(item) && wallet ? fridgeCountOf(wallet, item) : null,
     room: want.room ?? null,
     mood: want.mood ?? null,
     at: want.at ?? null,
