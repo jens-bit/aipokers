@@ -140,16 +140,22 @@ test('GUEST-1: POST /api/guest mints an owner and an httpOnly cookie', async () 
   assert.match(setCookie, /Path=\//);
   // Thirty days, in seconds.
   assert.match(setCookie, new RegExp(`Max-Age=${30 * 24 * 60 * 60}`));
-  // The token in the body is the token in the cookie — the deep link needs it
-  // and a page cannot read an httpOnly cookie to build one.
-  assert.equal(tokenOf(setCookie), body.token);
+  // And the token is NOT in the body: it is httpOnly on purpose, and handing
+  // the page a second copy of the same secret would undo that.
+  assert.equal(body.token, undefined);
+  assert.ok(tokenOf(setCookie).length >= 40);
 });
 
 test('GUEST-1: the token is not derivable from the owner id, and vice versa', async () => {
-  const { body } = await post('/api/guest');
-  assert.ok(body.token.length >= 40, `token was ${body.token.length} chars`);
-  assert.ok(!body.token.includes(body.ownerId.slice(2)));
-  assert.ok(!body.ownerId.includes(body.token.slice(0, 8)));
+  const { body, setCookie } = await post('/api/guest');
+  const token = tokenOf(setCookie);
+  assert.ok(token.length >= 40, `token was ${token.length} chars`);
+  assert.ok(!token.includes(body.ownerId.slice(2)));
+  assert.ok(!body.ownerId.includes(token.slice(0, 8)));
+  // And it fits inside a Telegram /start parameter, which is capped at 64
+  // characters of [A-Za-z0-9_-]. The deep link in job 5 depends on it.
+  assert.ok((guest.GUEST_START_PREFIX + token).length <= 64);
+  assert.match(token, /^[A-Za-z0-9_-]+$/);
 });
 
 test('GUEST-1: parseCookies survives every shape a browser sends', () => {
@@ -166,7 +172,7 @@ test('GUEST-1: parseCookies survives every shape a browser sends', () => {
 
 test('GUEST-1: the cookie is a credential, and it is only his own', async () => {
   const made = await post('/api/guest');
-  const cookie = `${guest.GUEST_COOKIE}=${made.body.token}`;
+  const cookie = `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}`;
 
   const mine = await get(`/probe/${made.body.ownerId}`, { cookie });
   assert.equal(mine.status, 200);
@@ -195,7 +201,7 @@ test('GUEST-1: a guest passes the middleware a bot token would 401', async () =>
     const blocked = await get('/probe/anybody');
     assert.equal(blocked.status, 401);
     const allowed = await get(`/probe/${made.body.ownerId}`, {
-      cookie: `${guest.GUEST_COOKIE}=${made.body.token}`,
+      cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}`,
     });
     assert.equal(allowed.status, 200);
     assert.equal(allowed.body.owner, true);
@@ -212,9 +218,10 @@ test('GUEST-1: a garbage cookie is nobody, not an error', async () => {
 
 test('GUEST-1: a claimed token is spent', async () => {
   const made = await post('/api/guest');
-  store.markGuestClaimed(made.body.token, '4242');
+  const token = tokenOf(made.setCookie);
+  store.markGuestClaimed(token, '4242');
   const r = await get(`/probe/${made.body.ownerId}`, {
-    cookie: `${guest.GUEST_COOKIE}=${made.body.token}`,
+    cookie: `${guest.GUEST_COOKIE}=${token}`,
   });
   assert.equal(r.body.guest, null);
 });
@@ -223,7 +230,7 @@ test('GUEST-1: a claimed token is spent', async () => {
 
 test('GUEST-1: /api/guest/me answers who the cookie is, and 404s when it is nobody', async () => {
   const made = await post('/api/guest');
-  const me = await get('/api/guest/me', { cookie: `${guest.GUEST_COOKIE}=${made.body.token}` });
+  const me = await get('/api/guest/me', { cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}` });
   assert.equal(me.status, 200);
   assert.equal(me.body.ownerId, made.body.ownerId);
   assert.equal(me.body.sessionsToday, 0);
@@ -278,4 +285,47 @@ test('GUEST-1: yesterday does not count against today', () => {
   store.insertGuest({ token: 'tok-old', ownerId: 'g_old', ip: '10.0.0.9', now: old });
   assert.equal(store.countGuestsFromIp('10.0.0.9', Date.now() - guest.DAY_MS), 0);
   assert.equal(store.countGuestsFromIp('10.0.0.9', old - 1000), 1);
+});
+
+// ── The deep link ───────────────────────────────────────────────────────────
+
+test('GUEST-1: /api/guest/link builds the bot link server-side', async () => {
+  const made = await post('/api/guest');
+  const cookie = `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}`;
+
+  process.env.TELEGRAM_BOT_USERNAME = '@AigenicPokerBot';
+  try {
+    const link = await get('/api/guest/link', { cookie });
+    assert.equal(link.status, 200);
+    assert.equal(link.body.bot, 'AigenicPokerBot');
+    // `start`, not `startapp`: start opens a chat with the bot and delivers
+    // the parameter as `/start <param>`, which is what job 5 reads.
+    assert.match(link.body.url, /^https:\/\/t\.me\/AigenicPokerBot\?start=guest_/);
+    // The whole parameter fits inside Telegram's 64-character limit.
+    const param = new URL(link.body.url).searchParams.get('start');
+    assert.ok(param.length <= 64, `start param was ${param.length} chars`);
+    assert.match(param, /^[A-Za-z0-9_-]+$/);
+    assert.equal(guest.tokenFromStartParam(param), tokenOf(made.setCookie));
+  } finally {
+    delete process.env.TELEGRAM_BOT_USERNAME;
+  }
+});
+
+test('GUEST-1: no bot username is a null url, not a link to nowhere', async () => {
+  const made = await post('/api/guest');
+  delete process.env.TELEGRAM_BOT_USERNAME;
+  const link = await get('/api/guest/link', { cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}` });
+  assert.equal(link.status, 200);
+  assert.equal(link.body.url, null);
+});
+
+test('GUEST-1: the link needs a live cookie', async () => {
+  assert.equal((await get('/api/guest/link')).status, 404);
+});
+
+test('GUEST-1: tokenFromStartParam only answers for our own prefix', () => {
+  assert.equal(guest.tokenFromStartParam('guest_abc'), 'abc');
+  assert.equal(guest.tokenFromStartParam('agent_abc'), '');
+  assert.equal(guest.tokenFromStartParam(''), '');
+  assert.equal(guest.tokenFromStartParam(null), '');
 });

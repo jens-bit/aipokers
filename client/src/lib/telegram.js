@@ -2,6 +2,8 @@
 // index.html. Safe to call outside Telegram (returns null) so the app still
 // works when opened directly in a browser for development.
 
+import { getGuestOwner } from './guest.js';
+
 export function getWebApp() {
   return typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
 }
@@ -145,6 +147,13 @@ export function getUserId() {
   if (tgId) return tgId;
   const webId = getWebLogin()?.id;
   if (webId !== null && webId !== undefined && webId !== '') return String(webId);
+  // GUEST-1: a guest session, third and last of the real identities. It sits
+  // BELOW both Telegram ids on purpose — a browser that has just claimed still
+  // holds a stale guest id for a moment, and the account it became must win —
+  // and ABOVE the random local id, which is not an identity at all, only a way
+  // for a keyless dev box to keep its own agents apart.
+  const guestId = getGuestOwner();
+  if (guestId) return guestId;
   let id = localStorage.getItem('agentic_uid');
   if (!id) {
     id = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

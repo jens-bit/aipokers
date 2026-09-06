@@ -1,0 +1,342 @@
+/* guest.css — GUEST-1 job 4.
+ *
+ * The claim wall, and the guest room's landing hero (job 6).
+ *
+ * The wall uses the product's own risen-sheet language — a dimmed room behind,
+ * one glass panel over the lower band — rather than a modal card floating in
+ * the middle of nothing. The room stays visible because the room is the
+ * argument: he is standing in it. */
+
+.claim-wall {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 10, 12, 0.72);
+  backdrop-filter: blur(3px);
+  animation: claim-wall-in 220ms ease-out;
+}
+
+@keyframes claim-wall-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.claim-wall__sheet {
+  width: 100%;
+  max-width: var(--max-w-mobile, 420px);
+  max-height: 92%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 26px 22px 20px;
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, #232329 0%, #1A1A1E 100%);
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  animation: claim-sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes claim-sheet-up {
+  from { transform: translateY(22px); }
+  to   { transform: translateY(0); }
+}
+
+.claim-wall__head {
+  margin: 0;
+  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.05;
+  color: var(--text-primary, #EDEDED);
+}
+
+.claim-wall__face {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 6px;
+}
+
+.claim-wall__name {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-primary, #EDEDED);
+}
+
+/* The evidence for the ask. Gold is this product's word for a moment that
+ * mattered, and it is the one place on this screen it appears. */
+.claim-wall__result {
+  margin-top: 5px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--gold-reward, #CDB380);
+}
+
+.claim-wall__limits {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.claim-wall__limit {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text-secondary, #A1A1A1);
+}
+
+.claim-wall__forgotten {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted, #6B6B6B);
+}
+
+.claim-wall__actions {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.claim-wall__btn {
+  position: relative;
+  min-height: var(--tap, 44px);
+  padding: 0 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text-primary, #EDEDED);
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.claim-wall__btn--primary {
+  border-color: transparent;
+  background: var(--accent, #00D4AA);
+  color: #08110F;
+}
+
+.claim-wall__btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.claim-wall__soon {
+  margin-left: 8px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--text-muted, #6B6B6B);
+}
+
+.claim-wall__error {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--error, #FF4D4F);
+}
+
+/* Always present, never dressed as the primary action, and never smaller than
+ * a tap target. The way out of this wall is real. */
+.claim-wall__out {
+  margin-top: 16px;
+  min-height: var(--tap, 44px);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #6B6B6B);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.claim-wall__out:hover { color: var(--text-secondary, #A1A1A1); }
+
+/* ── The landing hero (job 6) ─────────────────────────────────────────────── */
+/* Marketing burgundy and gold, and the product's teal in exactly one place:
+ * the two card backs he is holding. Ported from design-refs/mood-landing2.jsx
+ * (`L2Hero`, `L2Hand`, `L2Cta`, `L2Masthead`). */
+
+.guest-landing {
+  position: relative;
+  background: var(--marketing-bg, #150710);
+  color: var(--marketing-text, #F4EBDD);
+}
+
+.guest-hero {
+  position: relative;
+  min-height: 100dvh;
+  min-height: var(--tg-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.guest-hero__wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 62% 34%,
+    var(--marketing-bg-highlight, #3A1424) 0%,
+    var(--marketing-bg-depth, #2A0E18) 44%,
+    var(--marketing-bg, #150710) 82%);
+  pointer-events: none;
+}
+
+.guest-hero__masthead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px;
+}
+
+.guest-hero__wordmark {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: var(--marketing-text, #F4EBDD);
+}
+
+.guest-hero__bot {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: rgba(244, 235, 221, 0.6);
+}
+
+.guest-hero__body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 22px;
+  padding: 0 24px 32px;
+}
+
+.guest-hero__head {
+  margin: 0;
+  font-family: 'Rozha One', var(--font-display, Georgia), serif;
+  font-weight: 400;
+  font-size: 46px;
+  line-height: 0.98;
+  letter-spacing: 0.005em;
+  color: var(--marketing-text, #F4EBDD);
+}
+
+.guest-hero__lede {
+  margin: 0;
+  max-width: 470px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(244, 235, 221, 0.62);
+}
+
+.guest-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(180deg,
+    var(--marketing-gold-highlight, #E8D5A8) 0%,
+    var(--marketing-gold, #CDB380) 100%);
+  box-shadow: 0 10px 30px rgba(205, 179, 128, 0.18);
+  color: #1A0A10;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+.guest-hero__free {
+  display: block;
+  margin-top: 9px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: rgba(244, 235, 221, 0.6);
+}
+
+.guest-hero__creature {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  height: 250px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.guest-hero__felt {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 84px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(205, 179, 128, 0.16) 0%, rgba(205, 179, 128, 0) 70%);
+}
+
+.guest-hero__ghost {
+  position: relative;
+  z-index: 2;
+  padding-bottom: 46px;
+  animation: guest-bob 5.5s ease-in-out infinite;
+}
+
+@keyframes guest-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* His hand, held: two backs fanned at chest height so the face stays clear.
+ * 55% of the hood's width each — the sizing the brief calls for. */
+.guest-hero__hand {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.guest-hero__card {
+  position: absolute;
+  top: 0;
+  border-radius: 5px;
+  background: linear-gradient(150deg, #123C36 0%, #08211E 100%);
+  border: 1px solid rgba(0, 212, 170, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(0, 212, 170, 0.16), 0 14px 34px rgba(0, 0, 0, 0.62);
+  transform-origin: 50% 100%;
+}
+
+.guest-hero__card::after {
+  content: '';
+  position: absolute;
+  inset: 9%;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 212, 170, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-hero__ghost,
+  .claim-wall,
+  .claim-wall__sheet { animation: none; }
+}

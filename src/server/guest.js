@@ -88,6 +88,20 @@ export const GUEST_PER_IP_PER_DAY = 5;
 
 export const GUEST_COOKIE = 'ap_guest';
 
+/**
+ * The /start parameter's prefix. One constant, because the link is built in
+ * guest.js and read in the bot handler, and a prefix spelled out twice is a
+ * deep link that works until somebody renames one of them.
+ */
+export const GUEST_START_PREFIX = 'guest_';
+
+/** The token inside a /start parameter, or '' when it is not one of ours. */
+export function tokenFromStartParam(param) {
+  const s = typeof param === 'string' ? param.trim() : '';
+  if (!s.startsWith(GUEST_START_PREFIX)) return '';
+  return s.slice(GUEST_START_PREFIX.length);
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The day a timestamp belongs to, UTC — the same key rustNight and homeNight use. */
@@ -360,14 +374,14 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
     res.setHeader('Set-Cookie', guestCookieHeader(token, { secure: isSecureRequest(req) }));
     res.setHeader('Cache-Control', 'no-store');
     console.log(`[guest] new guest ${ownerId}`);
-    // The token is in the BODY as well as the cookie, and only for one reason:
-    // the deep link into the bot carries it as the /start parameter, and a
-    // page cannot put an httpOnly cookie into a link. It is the same secret
-    // either way — the cookie is where it lives, the body is where the client
-    // reads it once to build one URL.
+    // The token is NOT in the body. It is the whole identity, and a token the
+    // page can read is a token an injected script can post somewhere — which
+    // is the entire reason the cookie is httpOnly, and handing the same secret
+    // back through the front door would undo it. The one thing that genuinely
+    // needs the token in a URL is the deep link into the bot, and that is
+    // built server-side by GET /api/guest/link below.
     res.json({
       ownerId,
-      token,
       kind: 'guest',
       limits: {
         agents: GUEST_AGENT_CAP,
@@ -375,6 +389,36 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
         talk: false,
         forgottenAfterDays: GUEST_STALE_DAYS,
       },
+    });
+  });
+
+  // GET /api/guest/link — the deep link the claim wall's CONTINUE IN TELEGRAM
+  // button opens.
+  //
+  // Built HERE rather than on the page, because the page cannot read the token
+  // (it is httpOnly, deliberately) and must not be given a second copy of it.
+  // The server holds the cookie, so the server builds the URL.
+  //
+  // `?start=<param>` and not `?startapp=` — start opens a CHAT with the bot and
+  // delivers the parameter as `/start <param>`, which is the update job 5's
+  // handler reads. startapp would open the Mini App and hand the parameter to
+  // the page, which is the browser that already has the cookie and does not
+  // need a link at all.
+  //
+  // Telegram caps a start parameter at 64 characters of [A-Za-z0-9_-]. The
+  // token is 43 (32 bytes, base64url — an alphabet that is already inside that
+  // set) and the prefix makes 49, so it fits with room to spare. A null url is
+  // an honest answer on a deployment with no TELEGRAM_BOT_USERNAME set: the
+  // client draws the button disabled rather than a link to nowhere.
+  app.get('/api/guest/link', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!guestsEnabled()) return res.status(404).json({ error: 'guestDisabled' });
+    const row = loadGuestByToken(tokenFrom(req));
+    if (!row || row.claimedBy) return res.status(404).json({ error: 'noGuest' });
+    const bot = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
+    res.json({
+      url: bot ? `https://t.me/${bot}?start=${GUEST_START_PREFIX}${row.token}` : null,
+      bot: bot || null,
     });
   });
 

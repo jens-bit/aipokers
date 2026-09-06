@@ -31,6 +31,8 @@ import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
 import { CasinoScreen } from './screens/CasinoScreen.jsx';
 import { ReplayTheatre } from './components/replay/ReplayTheatre.jsx';
 import { rowsFromThread } from './lib/thread.js';
+import { useGuestSession } from './hooks/useGuestSession.js';
+import { ClaimWall } from './components/guest/ClaimWall.jsx';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -58,7 +60,29 @@ function agentHandsApiUrl(agentId) {
   return `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`;
 }
 
-export default function App() {
+// GUEST-1: the wall has to sit over EVERY branch below — the desk, the draft,
+// a profile overlay, the room — and AppShell returns from four different
+// places. So the guest session is held out here, one level up, and the shell
+// is handed what it needs. Nothing else about the shell moved.
+export default function App({ guestBoot = null }) {
+  const guest = useGuestSession({ guestBoot });
+  return (
+    <>
+      <AppShell guest={guest} />
+      {guest.wall && (
+        <ClaimWall
+          agent={guest.wallAgent}
+          arrival={guest.wallArrival}
+          reason={guest.wall}
+          onClose={guest.closeWall}
+          onClaimed={guest.onClaimed}
+        />
+      )}
+    </>
+  );
+}
+
+function AppShell({ guest }) {
   const table = useTable({ wsUrl: WS_URL });
   const {
     game, mySeat, legalActions, history,
@@ -110,7 +134,11 @@ export default function App() {
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
   const [agentProfileTarget, setAgentProfileTarget] = useState(null);
-  const [isCreating, setIsCreating]       = useState(false);
+  // GUEST-1 (G1): a guest who has just been minted opens straight into the
+  // flat with the recruiter sheet already talking — wave 61's rule that the
+  // landing IS the game only holds if the first thing on screen is the draft
+  // and not a button that opens one.
+  const [isCreating, setIsCreating]       = useState(guest.draftOnBoot);
   const [newlyBornAgent, setNewlyBornAgent] = useState(null);
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
@@ -717,6 +745,12 @@ export default function App() {
               // SIT-1 · the other verb for the same table. onWatchTable opens a
               // spectator socket; this one takes a seat.
               onSitTable={sitTable}
+              // GUEST-1 (G4): his stay ended. The room already holds the
+              // arrival — it draws the money line over his head from it — so
+              // the wall is told from here rather than opening a second socket
+              // to hear the same message twice. A no-op for an owner with an
+              // account; the hook refuses anything that is not a guest.
+              onArrival={guest.noteSessionEnd}
               onWatchTable={(tableId) => {
                 if (!tableId) return;
                 watchOriginRef.current = hereOrigin();

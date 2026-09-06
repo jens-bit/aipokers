@@ -122,12 +122,18 @@ function createFetch() {
     const raw = route ? await route.respond(call) : { status: 404, body: {} };
     const { status = 200, body: payload = raw } = (raw && typeof raw === 'object' && 'status' in raw) ? raw : {};
 
-    return {
+    // GUEST-1: `clone()` is part of the real Response and the guest claim
+    // catcher uses it — it reads a refusal's body without consuming the one
+    // the caller asked for. A stub without it would make that path untestable
+    // and would throw inside the wrapper the moment a test returned a 403.
+    const response = {
       ok: status >= 200 && status < 300,
       status,
       json: async () => (route ? payload : {}),
       text: async () => JSON.stringify(route ? payload : {}),
     };
+    response.clone = () => ({ ...response, clone: response.clone });
+    return response;
   };
 
   return {

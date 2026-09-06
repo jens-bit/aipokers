@@ -6,6 +6,14 @@
 //
 // main.jsx runs this at module scope, so each case re-imports the module with
 // vi.resetModules() and a location stubbed to the domain under test.
+//
+// GUEST-1 made the decision asynchronous — which of the four doors a visitor
+// came through now depends on whether the server has the guest door open — so
+// each case awaits the module's exported `booted` promise. `await import()`
+// alone resolves when the module has EVALUATED, which is now before the
+// decision has been made. Not one assertion below changed: the rules being
+// held are still "a redirected visitor never mounts the app and never
+// initialises the SDK", and they would still fail if either happened.
 
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,7 +56,7 @@ describe('LAND-2 landing-page guard', () => {
     telegram.signOut();
     const root = mountPoint();
 
-    await import('./main.jsx');
+    await (await import('./main.jsx')).booted;
 
     expect(replace).toHaveBeenCalledWith('/welcome');
     expect(root).toBeEmptyDOMElement();
@@ -61,7 +69,7 @@ describe('LAND-2 landing-page guard', () => {
     telegram.signIn();
     const root = mountPoint();
 
-    await act(async () => { await import('./main.jsx'); });
+    await act(async () => { await (await import('./main.jsx')).booted; });
 
     expect(replace).not.toHaveBeenCalled();
     expect(telegram.webApp.readyCalls).toBe(1);
@@ -79,7 +87,7 @@ describe('LAND-2 landing-page guard', () => {
     telegram.signOut();
     const root = mountPoint();
 
-    await act(async () => { await import('./main.jsx'); });
+    await act(async () => { await (await import('./main.jsx')).booted; });
 
     expect(replace).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(root).not.toBeEmptyDOMElement());

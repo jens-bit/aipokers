@@ -276,6 +276,11 @@ export function HomeScreen({
   // a different socket — that one WATCHes, this one JOINs — so it is a second
   // prop rather than a flag on the first.
   onSitTable,
+  // GUEST-1 (G4): his stay ended, with the agent it was. The room hears this
+  // already — the arrival is what the money line over his head is drawn from —
+  // so anybody else who needs the same moment is told from here rather than
+  // opening a second socket to receive the same message.
+  onArrival,
   onProfile,
   onDeploy,
   onCreateAgent,
@@ -358,6 +363,13 @@ export function HomeScreen({
     const t = setTimeout(() => clearArrival(), ARRIVAL_MS);
     return () => clearTimeout(t);
   }, [arrival, clearArrival]);
+
+  // GUEST-1 (G4): and whoever asked to be told, is told — with the man it was
+  // about, looked up here because this screen is the one holding the roster.
+  useEffect(() => {
+    if (!arrival || !onArrival) return;
+    onArrival(arrival, agents.find((a) => String(a.id) === String(arrival.agentId)) ?? null);
+  }, [arrival, onArrival, agents]);
 
   const gameAgentIds = useMemo(
     () => (game?.state === 'running' ? (game.seats ?? []).map((s) => s.agentId).filter(Boolean) : []),

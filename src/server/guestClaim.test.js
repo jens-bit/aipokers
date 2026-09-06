@@ -55,6 +55,9 @@ const agent = (id, over = {}) => ({
 /** initData as Telegram sends it, unsigned — this suite runs with no bot token. */
 const initDataFor = (id) => `user=${encodeURIComponent(JSON.stringify({ id: Number(id), first_name: 'A' }))}&auth_date=1`;
 
+/** The token out of a Set-Cookie header — the only place the client ever sees it. */
+const tokenOf = (setCookie) => decodeURIComponent(String(setCookie).split(';')[0].split('=')[1] ?? '');
+
 const post = (p, body, headers = {}) => fetch(`${base}${p}`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', ...headers },
@@ -248,7 +251,7 @@ test('GUEST-1: POST /api/guest/claim takes the cookie and clears it', async () =
   assert.equal(profiles.agentsOf(ownerId).length, 1);
 
   const claimed = await post('/api/guest/claim', {}, {
-    cookie: `${guest.GUEST_COOKIE}=${made.body.token}`,
+    cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}`,
     'x-telegram-init-data': initDataFor('5550100'),
   });
   assert.equal(claimed.status, 200);
@@ -261,7 +264,7 @@ test('GUEST-1: POST /api/guest/claim takes the cookie and clears it', async () =
   assert.match(claimed.setCookie, /HttpOnly/);
 
   // And the spent cookie no longer resolves to anybody.
-  const me = await fetch(`${base}/api/guest/me`, { headers: { cookie: `${guest.GUEST_COOKIE}=${made.body.token}` } });
+  const me = await fetch(`${base}/api/guest/me`, { headers: { cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}` } });
   assert.equal(me.status, 404);
 });
 
@@ -272,7 +275,7 @@ test('GUEST-1: the token may come in the body — the bot has no cookie', async 
   assert.equal(profiles.agentsOf(ownerId).length, 1);
 
   const claimed = await post('/api/guest/claim',
-    { token: made.body.token, initData: initDataFor('5550101') });
+    { token: tokenOf(made.setCookie), initData: initDataFor('5550101') });
   assert.equal(claimed.status, 200);
   assert.deepEqual(profiles.agentsOf('5550101').map((a) => a.id), ['botman']);
 });
@@ -285,7 +288,7 @@ test('GUEST-1: no token at all is a 400', async () => {
 
 test('GUEST-1: no credential is a 400 rather than a claim by nobody', async () => {
   const made = await post('/api/guest', {});
-  const out = await post('/api/guest/claim', {}, { cookie: `${guest.GUEST_COOKIE}=${made.body.token}` });
+  const out = await post('/api/guest/claim', {}, { cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}` });
   assert.equal(out.status, 400);
   assert.equal(out.body.error, 'noTelegramUser');
 });
@@ -295,7 +298,7 @@ test('GUEST-1: with a bot token configured, a forged credential is refused', asy
   process.env.TELEGRAM_BOT_TOKEN = 'test-token-not-a-real-one';
   try {
     const out = await post('/api/guest/claim', {}, {
-      cookie: `${guest.GUEST_COOKIE}=${made.body.token}`,
+      cookie: `${guest.GUEST_COOKIE}=${tokenOf(made.setCookie)}`,
       'x-telegram-init-data': initDataFor('5550103'),
     });
     assert.equal(out.status, 401);
@@ -321,7 +324,7 @@ test('GUEST-1: a seat mid-session is re-pointed, not left naming a dead owner', 
     table.agentUserIds[0] = ownerId;
     table.agentIds[0] = 'seatedman';
 
-    const out = claimMod.claimGuest(made.body.token, '5550200');
+    const out = claimMod.claimGuest(tokenOf(made.setCookie), '5550200');
     assert.equal(out.status, 200);
     assert.equal(table.agentUserIds[0], '5550200',
       'the seat files the rest of this session under the owner who exists');
