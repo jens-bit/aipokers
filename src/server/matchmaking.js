@@ -24,6 +24,7 @@
 
 import { normalizeProfile } from '../agent/policy.js';
 import { pickCastMember } from './houseCast.js';
+import { roomForBigBlind } from './rooms.js';
 
 // Neutral shape for a seat we know nothing about.
 const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
@@ -32,10 +33,23 @@ const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 }
 // deploy creates a fresh one instead.
 export const JOIN_MIN_SCORE = Number(process.env.MATCHMAKING_MIN_SCORE ?? 25);
 
-// Bonus applied when a deploying agent is joining a table that already holds
-// one of their own agents (same userId). Keeps owner agents together and
-// skips the JOIN_MIN_SCORE gate so a same-owner join always beats a fresh table.
-export const SAME_OWNER_SCORE_BONUS = 50;
+// MATCH-1: two agents of the same owner never sit at the same casino table.
+//
+// MATCH-2 did the opposite — it paid a bonus to keep an owner's agents
+// together — and the playtest that followed is the reason this reverses. A
+// stable of four sharing one felt is a man playing himself: the pots move
+// chips from his left hand to his right, every read in the room is a read on
+// somebody he already owns, and the one thing the casino is FOR — his
+// character meeting somebody else's — never happens. Worse, the table looks
+// busy while nothing is at stake, which is the most expensive kind of nothing:
+// six seats of model calls buying no game.
+//
+// So it is a REFUSAL, not a penalty. A soft ranking would still seat them
+// together on a quiet floor, which is exactly the floor where it matters most.
+// The home game is where an owner's agents play each other, and it is a
+// different table with different rules (no pocket, no record, no room) —
+// joinBlocker refuses those by name a few lines below.
+const OWNER_ALREADY_HERE = 'another agent of the same owner is already here';
 
 // A table with fewer hands than this left in its session cap would give a
 // joiner a pointless few-hand stay, so it is skipped.
@@ -95,8 +109,16 @@ export function actionPotential(profiles) {
 
 // ── Table selection ─────────────────────────────────────────────────────────
 
+/** True when one of `userId`'s agents already holds a seat at this table. */
+export function seatsAgentOf(table, userId) {
+  if (!table || userId == null || userId === '') return false;
+  const owner = String(userId);
+  return (table.agentUserIds ?? []).some((uid, seat) =>
+    uid != null && String(uid) === owner && (table.agentIds ?? [])[seat] != null);
+}
+
 // Why a table cannot host this agent, or null when it can.
-export function joinBlocker(table, { agentId } = {}) {
+export function joinBlocker(table, { agentId, userId = null } = {}) {
   if (!table || table.closed) return 'closed';
   // HOME-STATE-1: a home game is somebody's living room. It is AI-only and
   // self-dealing, which is every other test a candidate has to pass, so it has
@@ -108,6 +130,9 @@ export function joinBlocker(table, { agentId } = {}) {
   if (!(table.autoPlay || table.isAiOnly?.())) return 'not server-driven';
   if (table.seatedCount?.() < 1) return 'empty';
   if (agentId && (table.agentIds ?? []).includes(agentId)) return 'agent already seated';
+  // MATCH-1. Above the remaining-hands check on purpose: "your own man is
+  // sitting there" is the more useful reason to log when both are true.
+  if (seatsAgentOf(table, userId)) return OWNER_ALREADY_HERE;
   const remaining = (table.maxHands ?? 0) - (table.handsThisSession ?? 0);
   if (remaining < MIN_REMAINING_HANDS) return `only ${remaining} hand(s) left in the session`;
   return null;
@@ -128,24 +153,30 @@ export function scoreTableForJoin(table, joinerProfile) {
 // concentrates into one lively felt instead of drifting into several quiet
 // ones. `candidates` is any iterable of Tables.
 //
-// MATCH-2: when `userId` is supplied, tables that already hold one of the
-// owner's agents get SAME_OWNER_SCORE_BONUS added and bypass JOIN_MIN_SCORE
-// entirely — any open own-table with a free seat beats creating a fresh table.
-export function pickTableToJoin(candidates, { profile = null, agentId = null, userId = null } = {}) {
+// MATCH-1: `userId` no longer buys a bonus — it disqualifies every table one
+// of that owner's agents is already sitting at (see joinBlocker). `room` is
+// the room the deploy is FOR, as a room id from rooms.js, and it sorts ahead
+// of the action score: a man turned away from his stablemate's table should
+// find another one in the same room, not be sent up a floor because the game
+// happens to look livelier there. It is a preference and not a filter — a
+// seat in the wrong room still beats standing up an empty table nobody joins.
+export function pickTableToJoin(candidates, { profile = null, agentId = null, userId = null, room = null } = {}) {
   const joiner = profile ? normalizeProfile(profile) : NEUTRAL;
   const ranked = [];
   for (const table of candidates ?? []) {
-    const blocker = joinBlocker(table, { agentId });
+    const blocker = joinBlocker(table, { agentId, userId });
     if (blocker) continue;
-    const isOwnTable = !!userId &&
-      (table.agentUserIds ?? []).some((uid) => uid != null && uid === userId);
-    const base = scoreTableForJoin(table, joiner);
-    const score = isOwnTable ? base + SAME_OWNER_SCORE_BONUS : base;
-    if (!isOwnTable && score < JOIN_MIN_SCORE) continue;
-    ranked.push({ table, score, seated: table.seatedCount() });
+    const score = scoreTableForJoin(table, joiner);
+    if (score < JOIN_MIN_SCORE) continue;
+    ranked.push({
+      table,
+      score,
+      seated: table.seatedCount(),
+      sameRoom: room != null && roomForBigBlind(table.bigBlind)?.id === room ? 1 : 0,
+    });
   }
   if (ranked.length === 0) return null;
-  ranked.sort((a, b) => (b.score - a.score) || (b.seated - a.seated));
+  ranked.sort((a, b) => (b.sameRoom - a.sameRoom) || (b.score - a.score) || (b.seated - a.seated));
   return ranked[0];
 }
 

@@ -2999,7 +2999,11 @@ export function installAgentProfileRoutes(app) {
     let joinedExisting = false;
     let sessionStarted = false;
 
-    let candidate = liveTables?.findJoinableTable?.({ profile: agent.profile ?? null, agentId: agent.id, userId });
+    // MATCH-1: chosen AFTER the pocket gate below, not before it, because the
+    // matchmaker now needs to know which ROOM this deploy is for — a man turned
+    // away from his own stablemate's table is offered another table in the same
+    // room, and the room is whatever his pocket buys into.
+    let candidate = null;
 
     // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
     // The pocket picks the stakes and decides whether he sits down at all.
@@ -3045,6 +3049,15 @@ export function installAgentProfileRoutes(app) {
       }
 
       stakes = stakesFor(pocket.balance);
+      candidate = liveTables.findJoinableTable?.({
+        profile: agent.profile ?? null,
+        agentId: agent.id,
+        // MATCH-1: this is the refusal, not a preference. Every table already
+        // seating one of this owner's agents is out of the running, and the
+        // deploy either finds another one in the same room or opens one.
+        userId,
+        room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
+      });
       // A table stays at the lowest rung any seated agent could afford, so he
       // may only join one whose buy-in his pocket already covers.
       if (candidate?.table && !canAffordTable(pocket.balance, candidate.table.bigBlind)) {

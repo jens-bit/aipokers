@@ -28,6 +28,7 @@ import { FloorGhost, safeMood } from '../floor/atoms.jsx';
 import { PlayingCard, CardBack } from './PlayingCard.jsx';
 import { SeatClock } from './SeatClock.jsx';
 import { GhostHandLayer, SEAT_GRIP } from './GhostHands.jsx';
+import { BodyBars, Bottle } from './FeltBodyBars.jsx';
 
 export const SEAT_BODY = 40;
 // The ref calls this 6 and the stack 64. It cannot be both: SEAT_GRIP puts a
@@ -56,6 +57,11 @@ export function SeatGhost({
   folded, acting, selected,
   dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
   dealer = false, action = null,
+  // WATCH-8 job 2: the body, on his own name pill. `fatigue` is null for a seat
+  // with no agent behind it and `drinking` is FRIDGE-1's field, which may not
+  // exist yet — both are absent rather than defaulted, so neither invents a
+  // reading the server never gave.
+  fatigue = null, drinking = false,
   size = SEAT_BODY, side = false, order = 0, onSelect,
 }) {
   const m = safeMood(mood);
@@ -119,6 +125,11 @@ export function SeatGhost({
           <span className="seat-ghost__name">{name}</span>
           <span className="seat-ghost__sep" aria-hidden>·</span>
           <span className="seat-ghost__stack">{`$${stack}`}</span>
+          {/* FRIDGE-1: beside his stack, because that is what it cost. */}
+          {drinking === true && <Bottle size={10} className="seat-ghost__bottle" />}
+          {/* The two bars, along the pill's bottom edge — the pill already
+              names him, so the body costs the seat no height. */}
+          <BodyBars compact fatigue={fatigue} heat={heat} />
         </span>
       </span>
 

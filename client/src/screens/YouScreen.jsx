@@ -1,15 +1,25 @@
 // NAV-1c — full port of YouScreenM from design-refs/mood-screens-d.jsx.
 // Balance card · Lifetime 2×2 stats · Replays · Settings
+//
+// YOU-2 — the money moved out. The wallet block, the pocket rows and the
+// funding sheet were assembled here, which made this screen the only place
+// money could be worked on: anything else that wanted to open the money had to
+// build a second copy of it. They live in MoneySheet now, and what is left here
+// is a SUMMARY — the balance, how much of it is out, and one tap to that sheet.
+//
+// What YOU keeps is the record rather than the controls: the ledger, which the
+// wallet has been sending since WUI-1 and which nothing has ever drawn, and the
+// settings rows. The split is the point — the sheet is where money MOVES, this
+// is where it turns out to have moved.
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
-import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, hasPocket, pocketOf } from '../lib/wallet.js';
+import { fetchWallet, money } from '../lib/wallet.js';
 import { fetchNotifyBudget } from '../lib/notifyApi.js';
-import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
-import { PocketList } from '../components/wallet/PocketRow.jsx';
-import { FundSheet } from '../components/wallet/FundSheet.jsx';
+import { fetchSlots, slotsLine } from '../lib/slots.js';
+import { MoneySheet } from '../components/wallet/MoneySheet.jsx';
+import { LedgerList } from '../components/wallet/LedgerList.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
-import { presenceOf } from '../components/floor/agentView.js';
 
 // ── Design tokens ────────────────────────────────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -60,6 +70,18 @@ function BellGlyph() {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={M_DIM} strokeWidth="1.7" strokeLinecap="round" style={{ display: 'block', flexShrink: 0 }} aria-hidden>
       <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 3h16l-2-3z" />
       <path d="M10 21a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+// YOU-2 — seats at a table, which is what a slot is: a chair with somebody in
+// it. icons.jsx has no such glyph, so it is drawn inline like the bell above.
+function SeatGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={M_DIM} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flexShrink: 0 }} aria-hidden>
+      <path d="M6 19v-3M18 19v-3" />
+      <path d="M5 16h14a1 1 0 0 0 1-1v-2a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2a1 1 0 0 0 1 1z" />
+      <path d="M7 11V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v5" />
     </svg>
   );
 }
@@ -197,7 +219,11 @@ function ReplayRow({ cards, label, meta, amount, color }) {
 }
 
 // ── YouScreen ────────────────────────────────────────────────────────────
-export function YouScreen({ onOpenProfile }) {
+// `openMoney` is an INTENT, not a controlled prop: a host that sent the owner
+// here to deal with money (the profile's "Give him chips", the watch screen's
+// end-of-session Fund) lands him on the sheet rather than one tap short of it.
+// He can still close it, and closing it does not fight the host to stay shut.
+export function YouScreen({ onOpenProfile, openMoney = false }) {
   const userId  = getUserId();
   const name    = getTelegramDisplayName() || 'Player';
   const initials = name.slice(0, 2).toUpperCase();
@@ -215,6 +241,10 @@ export function YouScreen({ onOpenProfile }) {
   // notifier: the row then reads as it always did rather than quoting a cap
   // nobody is enforcing.
   const [notifyBudget, setNotifyBudget] = useState(null);
+  // YOU-2 — seats. Read like the wallet is read: null until the answer arrives,
+  // and null forever on a deployment whose server has no /api/slots. The row is
+  // then simply not there, rather than inventing a seat count.
+  const [slots, setSlots] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -225,6 +255,12 @@ export function YouScreen({ onOpenProfile }) {
   useEffect(() => {
     let cancelled = false;
     fetchNotifyBudget().then((b) => { if (!cancelled) setNotifyBudget(b); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSlots().then((sl) => { if (!cancelled) setSlots(sl); });
     return () => { cancelled = true; };
   }, []);
 
@@ -278,13 +314,12 @@ export function YouScreen({ onOpenProfile }) {
     return max > 0 ? max : null;
   })();
 
-  // WUI-1 — pockets only exist for agents the backend has given one. On a
-  // deployment without the wallet this list is empty and nothing renders.
-  const pocketAgents = agents.filter(hasPocket);
-  const playingCount = agents.filter((a) => presenceOf(a) === 'playing').length;
-
-  const [fundTarget, setFundTarget] = useState(null);
-  const [busyAgentId, setBusyAgentId] = useState(null);
+  // YOU-2 — the money surface is MoneySheet's now, and so are the three verbs
+  // that live on it. What is left here is the re-read the sheet asks for when
+  // something has moved, because the summary and the ledger on this screen are
+  // reading the same two things the sheet is.
+  const [moneyOpen, setMoneyOpen] = useState(openMoney);
+  useEffect(() => { if (openMoney) setMoneyOpen(true); }, [openMoney]);
 
   async function refreshMoney() {
     const [w, res] = await Promise.all([
@@ -297,52 +332,29 @@ export function YouScreen({ onOpenProfile }) {
     if (res?.agents) setAgents(res.agents);
   }
 
-  async function handleFund(decision) {
-    if (!fundTarget) return;
-    try { await fundAgent(fundTarget.id, decision); await refreshMoney(); setFundTarget(null); }
-    catch { /* the sheet stays open, the choice is not lost */ }
-  }
-
-  async function handleCollect(agent) {
-    if (busyAgentId) return;
-    setBusyAgentId(agent.id);
-    // WALLET-7: Collect takes the winnings. A called-in pocket is the one that
-    // hands back all of it — he is not sitting down again.
-    const all = collectsEverything(pocketOf(agent));
-    try { await collectFrom(agent.id, { all }); await refreshMoney(); }
-    catch { /* the row simply stays as it was */ }
-    finally { setBusyAgentId(null); }
-  }
-
-  // WALLET-7 — the second verb. He finishes the hand he is in, takes a seat at
-  // the bar, and everything in the pocket comes back to the wallet.
-  async function handleCallIn(agent) {
-    if (busyAgentId) return;
-    setBusyAgentId(agent.id);
-    try { await callInAgent(agent.id); await refreshMoney(); }
-    catch { /* the row simply stays as it was */ }
-    finally { setBusyAgentId(null); }
-  }
+  // The ledger names the agent an entry was about; the roster is what turns an
+  // id into a name. An agent who has since been retired keeps his entry and
+  // loses his name, which is the honest outcome — the money still moved.
+  const nameOf = (id) => agents.find((a) => a.id === id)?.name ?? null;
 
   function formatHands(n) {
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     return String(n);
   }
 
-  // WUI-2: the funding sheet takes the whole screen, the way the floor zoom
-  // does. It is a decision, not a popover on top of a scrolling list.
-  if (fundTarget) {
+  // YOU-2: the money takes the whole screen, the way the funding sheet inside
+  // it always has. It is a decision, not a popover on top of a scrolling list —
+  // and it is the SAME sheet any other surface opens, so there is one place
+  // where money is worked on rather than one per screen that wants to.
+  if (moneyOpen) {
     return (
-      <div className="wal dr-app" style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
-        <FundSheet
-          agent={fundTarget}
-          wallet={wallet}
-          index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
-          onCancel={() => setFundTarget(null)}
-          onConfirm={handleFund}
-          onOpenProfile={onOpenProfile}
-        />
-      </div>
+      <MoneySheet
+        wallet={wallet}
+        agents={agents}
+        onRefresh={refreshMoney}
+        onClose={() => setMoneyOpen(false)}
+        onOpenProfile={onOpenProfile}
+      />
     );
   }
 
@@ -351,9 +363,14 @@ export function YouScreen({ onOpenProfile }) {
       className="wal dr-app"
       style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG }}
     >
-      {/* ── Balance card ─────────────────────────────────────────── */}
-      <div style={{ margin: '14px 14px 14px', padding: '14px 16px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      {/* ── YOU-2 · the summary ──────────────────────────────────────
+          The wallet block and the pocket rows used to be assembled right here,
+          which made this screen the only place money could be worked on. It is
+          a summary now: who you are, what the balance is, and one tap to the
+          money sheet — the same sheet any other surface opens. No second wallet
+          UI, so there is one place for a money bug to be fixed. */}
+      <div style={{ margin: '14px 14px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, flexShrink: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 16px' }}>
           <div style={{
             width: 42, height: 42, borderRadius: '50%',
             background: 'linear-gradient(135deg, #00D4AA 0%, #00A8BA 100%)',
@@ -370,41 +387,34 @@ export function YouScreen({ onOpenProfile }) {
               </Num>
             </div>
           </div>
-          <button
-            type="button"
-            style={{
-              height: 28, padding: '0 11px', borderRadius: 7, flexShrink: 0,
-              border: `1px solid rgba(255,255,255,0.14)`, background: 'transparent',
-              color: M_TEXT, fontSize: 12, fontFamily: 'Inter,-apple-system,sans-serif',
-              cursor: 'pointer',
-            }}
-          >
-            Add chips
-          </button>
         </div>
-        {/* WUI-1: superseded by the wallet block when there is a wallet. Two
-            balance figures on one screen is two answers to one question. */}
-        {!wallet && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
+
+        {/* The money line, and the only way in. It reads the same on a
+            deployment with no wallet — the stable's chips, which is what this
+            screen showed before there was one — so the tap target never
+            disappears and never lies about which number it is. */}
+        <button
+          type="button"
+          className="you-money"
+          onClick={() => setMoneyOpen(true)}
+          aria-label="Money"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+            padding: '12px 16px 13px', background: 'transparent', cursor: 'pointer',
+            border: 'none', borderTop: `1px solid ${M_BORDER}`, textAlign: 'left',
+          }}
+        >
           <ChipGlyph />
-          <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, color: M_TEXT }}>
-            {stableBankroll > 0 ? stableBankroll.toLocaleString() : '—'}
+          <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700, color: M_TEXT }}>
+            {wallet ? money(wallet.balance) : (stableBankroll > 0 ? stableBankroll.toLocaleString() : '—')}
           </span>
           <div style={{ flex: 1 }} />
-          <Lbl size={9}>Balance</Lbl>
-        </div>
-        )}
+          {wallet && wallet.staked > 0 && (
+            <Num size={11} color={M_GOLD} weight={600}>{money(wallet.staked)} out</Num>
+          )}
+          <ChevronRight />
+        </button>
       </div>
-
-      {/* ── WUI-1 · the wallet and the pockets ────────────────────── */}
-      <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agentCount} />
-      <PocketList
-        agents={pocketAgents}
-        onFund={setFundTarget}
-        onCollect={handleCollect}
-        onCallIn={handleCallIn}
-        onOpenProfile={onOpenProfile}
-      />
 
       {/* FTU-4: one session in, the only honest number on this screen is the
           balance. Saying so is better than four em dashes in a grid. */}
@@ -417,6 +427,14 @@ export function YouScreen({ onOpenProfile }) {
           />
         </div>
       )}
+
+      {/* ── YOU-2 · the ledger ────────────────────────────────────────
+          `wallet.ledger` has been arriving on every read since WUI-1 and going
+          straight in the bin. It stays on YOU rather than moving into the money
+          sheet, and the split is the point: the sheet is where money MOVES,
+          this is where it turns out to have moved. A statement inside the
+          wallet you spend from is a statement nobody reads. */}
+      <LedgerList entries={wallet?.ledger} nameOf={nameOf} />
 
       {/* ── Lifetime stats ────────────────────────────────────────── */}
       <div style={{ padding: '0 14px', marginBottom: 7, flexShrink: 0 }}>
@@ -481,6 +499,9 @@ export function YouScreen({ onOpenProfile }) {
           label="Notifications"
           value={notifyBudget ? `${notifyBudget.used}/${notifyBudget.max} today` : 'All agents'}
         />
+        {/* YOU-2 — seats. Absent entirely until the server grows /api/slots:
+            a stable with no seat limit must not be told it has one. */}
+        {slots && <SettingRow glyph={<SeatGlyph />} label="Slots" value={slotsLine(slots)} />}
         <SettingRow glyph={<ShieldGlyph />} label="Table limits" value="$10/$20" />
         <SettingRow glyph={<InfoGlyph />} label="Help & rules" last />
         {webLogin && <LogoutRow />}
