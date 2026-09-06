@@ -681,13 +681,21 @@ describe('HOME-1 · the safe and the fridge', () => {
     expect(room.textContent).not.toMatch(/\$/);
   });
 
+  // HOME-2 job 8: it opens the money SHEET over the room now, rather than
+  // navigating to the screen the money used to live on — board 29 F12, and the
+  // same glass every other fixture rises in. The half that has never changed is
+  // the one this test was written for: the safe carries no number on its door.
   it('the safe is the way to the money and is not a number in the room', async () => {
-    let opened = false;
-    await boot([mkAgent('a1', 'The Clock')], null, { onOpenWallet: () => { opened = true; } });
+    fetchMock.route('/api/wallet', { balance: 4280, staked: 0, entries: [] });
+    await boot([mkAgent('a1', 'The Clock')]);
     const safe = await screen.findByTestId('home-safe');
     expect(safe.textContent).toBe('');
+
     await userEvent.click(safe);
-    expect(opened).toBe(true);
+    expect(await screen.findByTestId('home-safe-sheet')).toBeInTheDocument();
+    // YOU-2's own surface, not a second copy of it.
+    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    expect(screen.getByText('The safe')).toBeInTheDocument();
   });
 });
 

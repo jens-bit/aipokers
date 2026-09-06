@@ -65,7 +65,8 @@ import { placeAgent } from '../lib/place.js';
 import { useCarry } from '../hooks/useCarry.js';
 import { midHand, verbFor } from '../components/home/carry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { signedMoney } from '../lib/wallet.js';
+import { MoneySheet } from '../components/wallet/MoneySheet.jsx';
+import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import '../styles/home1.css';
 
 // A crossing, not a cut. The ref times the walk out at 1.8s and the walk home at
@@ -330,6 +331,10 @@ export function HomeScreen({
   const focusId = focusIdProp ?? focusIdLocal;
   const setFocusId = onFocusId ?? setFocusIdLocal;
   const [fridgeOpen, setFridgeOpen] = useState(false);
+  // HOME-2 job 8: the safe, as a sheet over the room rather than a screen away
+  // from it. `wallet` is read when it is opened, not on every mount — the same
+  // rule the table sheet's useSlots follows.
+  const [safeOpen, setSafeOpen] = useState(false);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
@@ -606,7 +611,13 @@ export function HomeScreen({
   const flat = (
     <HomeFlat
       lit={lit}
-      onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
+      // HOME-2 job 8 · THE SAFE OPENS THE MONEY, over the room. Board 29 F12:
+      // "a small safe on the floor with the balance on its door. Tapping it
+      // opens the money sheet." It used to navigate to the YOU screen, which
+      // was the only place the money lived before YOU-2 extracted the sheet;
+      // now the sheet can rise over the room in the room's own glass, like
+      // every other fixture's, and it is the SAME surface either door opens.
+      onSafe={desktop ? () => setRail('safe') : () => setSafeOpen(true)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
       // Never on the desk: DeskHome keeps the casino a rail away and a door
       // that navigated out of the room would take the rail with it.
@@ -799,6 +810,17 @@ export function HomeScreen({
         />
       ) : null}
 
+      {/* HOME-2 job 8 · the safe. YOU-2's one money surface, in the room's own
+          glass chrome — the same frame the fridge and the table rise in. */}
+      {safeOpen ? (
+        <MobileSafeSheet
+          agents={agents}
+          onClose={() => setSafeOpen(false)}
+          onRefresh={refresh}
+          onOpenProfile={onProfile}
+        />
+      ) : null}
+
       {/* BIRTH-5 · the table, and the price of the next chair at it. The SAME
           TableSheet the desk raises in its rail (DESK-2) — one surface prices a
           chair, and the phone puts it in the chrome the fridge already uses
@@ -823,6 +845,45 @@ export function HomeScreen({
             : undefined}
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * HOME-2 job 8 — the safe, in the phone's chrome.
+ *
+ * The sheet itself is YOU-2's MoneySheet, unchanged and unforked: one surface
+ * where money moves, two doors into it. What is here is the frame — the room's
+ * glass, the scrim and the drag — and the one read the sheet needs, paid when
+ * the safe is opened rather than on every mount of the room.
+ */
+function MobileSafeSheet({ agents = [], onClose, onRefresh, onOpenProfile }) {
+  const [wallet, setWallet] = useState(null);
+  const [roster, setRoster] = useState(agents);
+
+  const reload = useCallback(async () => {
+    const w = await fetchWallet().catch(() => null);
+    setWallet(w);
+    await onRefresh?.();
+  }, [onRefresh]);
+
+  useEffect(() => { fetchWallet().then(setWallet).catch(() => {}); }, []);
+  useEffect(() => { setRoster(agents); }, [agents]);
+
+  return (
+    <div className="home-sheet home-sheet--tall" role="dialog" aria-label="The safe" data-testid="home-safe-sheet">
+      <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+      <div className="home-sheet__panel">
+        <MoneySheet
+          wallet={wallet}
+          agents={roster}
+          onRefresh={reload}
+          onClose={onClose}
+          onOpenProfile={onOpenProfile}
+          title="The safe"
+          variant="sheet"
+        />
+      </div>
     </div>
   );
 }

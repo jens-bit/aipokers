@@ -11,17 +11,17 @@
    to the felt." Every panel on this screen is now the same glass — translucent
    over the felt's own colour, a thin light border, a display-font label. */
 .glass {
-  background: rgba(13, 23, 21, 0.72);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border: 1px solid var(--v5-edge);
   border-radius: 13px;
   padding: 11px 13px;
 }
 
 .glass--up {
-  background: rgba(18, 30, 28, 0.84);
-  border-color: rgba(255, 255, 255, 0.17);
+  background: var(--v5-raised);
+  border-color: var(--v5-edge-up);
 }
 
 .glass-lbl {
@@ -143,8 +143,11 @@
   z-index: 7;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(10, 16, 15, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  /* HOME-2 job 8: a toast takes `panel`, not a glass of its own. */
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border: 1px solid var(--v5-edge);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   pointer-events: none;
   white-space: nowrap;

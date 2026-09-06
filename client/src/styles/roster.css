@@ -41,10 +41,11 @@
   flex-direction: column;
   padding: 0 0 calc(10px + env(safe-area-inset-bottom, 0px));
   border-radius: 18px 18px 0 0;
-  background: rgba(13, 23, 21, 0.86);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  /* HOME-2 job 8: the one glass. A sheet takes `raised`. */
+  background: var(--v5-raised);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border-top: 1px solid var(--v5-edge-up);
   animation: roster-up 0.24s ease-out both;
   transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;

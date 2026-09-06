@@ -472,8 +472,144 @@ test.describe('HOME-2 job 6 · one sheet, and no money on the table', () => {
 
     await tapTable(page);
     await expect(page.getByTestId('home-table-sheet')).toBeVisible({ timeout: 20_000 });
-    await page.locator('.home-sheet__scrim').click();
+    // Near the TOP of the scrim, which is the part of it an owner can actually
+    // see and reach: the scrim fills the viewport and the sheet stands on the
+    // bottom of it, so its geometric centre is behind the panel.
+    await page.locator('.home-sheet__scrim').click({ position: { x: 195, y: 90 } });
     await expect(page.getByTestId('home-table-sheet')).toHaveCount(0);
     await expect(page.getByTestId('home-screen')).toBeVisible();
+  });
+});
+
+// ── HOME-2 job 8 · one glass ────────────────────────────────────────────────
+//
+// A stylesheet test can prove every surface NAMES the token; only a browser can
+// prove the browser resolved it — a token defined in a file the bundle does not
+// load resolves to nothing, and `background: var(--missing)` is transparent
+// rather than an error.
+
+test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
+  test.beforeEach(async ({ page }) => { await asOwner(page); });
+
+  /** The computed ground and blur of one element. */
+  const material = (locator) => locator.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      background: s.backgroundColor,
+      image: s.backgroundImage,
+      blur: s.backdropFilter || s.webkitBackdropFilter,
+    };
+  });
+
+  /** rgba(r, g, b, a) → a, and 1 for an opaque colour. */
+  const alpha = (colour) => {
+    const m = /rgba?\(([^)]+)\)/.exec(colour);
+    if (!m) return 1;
+    const parts = m[1].split(',').map((n) => parseFloat(n));
+    return parts.length > 3 ? parts[3] : 1;
+  };
+
+  test('the fridge rises in glass, not on a grey card', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await page.getByTestId('home-fridge').click();
+    await expect(page.getByTestId('home-fridge-sheet')).toBeVisible({ timeout: 20_000 });
+
+    const panel = page.locator('.home-sheet__panel').first();
+    const m = await material(panel);
+    // Translucent...
+    expect(alpha(m.background)).toBeGreaterThan(0);
+    expect(alpha(m.background)).toBeLessThan(0.9);
+    // ...and actually blurred. A panel that does not blur is a card.
+    expect(m.blur).toContain('blur');
+    await shot(page, 'job8-fridge');
+  });
+
+  test('the safe is the money, over the room, in the same glass', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await page.getByTestId('home-safe').click();
+    await expect(page.getByTestId('home-safe-sheet')).toBeVisible({ timeout: 20_000 });
+    // YOU-2's own surface, not a second copy of it.
+    await expect(page.getByText('Your wallet')).toBeVisible();
+
+    const m = await material(page.locator('.home-sheet__panel').first());
+    expect(alpha(m.background)).toBeLessThan(0.9);
+    expect(m.blur).toContain('blur');
+    // The sheet's own header band drops its solid ground over the room.
+    const inner = await material(page.locator('.money-sheet').first());
+    expect(alpha(inner.background)).toBe(0);
+    await shot(page, 'job8-safe');
+  });
+
+  test('the roster and the table sheet are the same material', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await page.getByRole('button', { name: 'Your agents' }).click();
+    await expect(page.getByTestId('roster-sheet')).toBeVisible({ timeout: 20_000 });
+    const rosterGlass = await material(page.locator('.roster__panel'));
+    expect(alpha(rosterGlass.background)).toBeLessThan(0.9);
+    expect(rosterGlass.blur).toContain('blur');
+
+    await page.locator('.roster__scrim').click();
+    const table = page.getByTestId('home-table');
+    const box = await table.boundingBox();
+    await table.click({ position: { x: box.width * 0.22, y: box.height / 2 } });
+    await expect(page.getByTestId('home-table-sheet')).toBeVisible({ timeout: 20_000 });
+    const tableGlass = await material(page.locator('.home-sheet__panel').first());
+
+    // The SAME glass, not two that happen to look alike.
+    expect(tableGlass.background).toBe(rosterGlass.background);
+    expect(tableGlass.blur).toBe(rosterGlass.blur);
+  });
+
+  // The want toast only exists while somebody is asking for something, which is
+  // not a state a seeded room can be put into on demand — so what is measured
+  // is the RULE, resolved by the real browser against the real bundle. That is
+  // the half jsdom cannot do: a token defined in a file the bundle never loads
+  // resolves to nothing, and `background: var(--missing)` is transparent rather
+  // than an error.
+  test('the want toast is glass too, with its gold as a tint on it', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const m = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.className = 'home-want';
+      document.body.appendChild(probe);
+      const s = getComputedStyle(probe);
+      const out = {
+        background: s.backgroundColor,
+        image: s.backgroundImage,
+        blur: s.backdropFilter || s.webkitBackdropFilter,
+      };
+      probe.remove();
+      return out;
+    });
+
+    // V5GLASS's panel, resolved: rgba(13, 23, 21, 0.72).
+    expect(m.background).toBe('rgba(13, 23, 21, 0.72)');
+    expect(m.blur).toContain('blur');
+    // The gold rides ON the glass rather than replacing it.
+    expect(m.image).toContain('gradient');
+  });
+
+  // And the token really is defined where the bundle can see it — the whole
+  // point of doing this in a browser.
+  test('the glass tokens resolve at all, which is what a stylesheet test cannot say', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const tokens = await page.evaluate(() => {
+      const s = getComputedStyle(document.documentElement);
+      return ['--v5-panel', '--v5-raised', '--v5-edge', '--v5-edge-up', '--v5-blur']
+        .map((k) => [k, s.getPropertyValue(k).trim()]);
+    });
+    for (const [name, value] of tokens) {
+      expect(value, `${name} resolves`).not.toBe('');
+    }
   });
 });

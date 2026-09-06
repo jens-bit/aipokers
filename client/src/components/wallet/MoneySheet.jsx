@@ -41,7 +41,20 @@ const PLAYFAIR = '"Playfair Display",Georgia,serif';
  * @param onClose       back out of the sheet
  * @param onOpenProfile tap-through from a pocket row to his card
  */
-export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProfile, title = 'Money' }) {
+/**
+ * HOME-2 job 8 — `variant`.
+ *
+ * 'screen' is what this has always been: a surface that fills the phone, on its
+ * own solid ground, with a solid header band. 'sheet' is the same surface risen
+ * over the ROOM, where the ground and the band both have to get out of the way
+ * — the glass under them is what the owner is meant to see the flat through,
+ * and a solid header inside a glass sheet is a flat grey panel with a blur
+ * around it. Nothing else differs; there is still one money surface.
+ */
+export function MoneySheet({
+  wallet, agents = [], onRefresh, onClose, onOpenProfile, title = 'Money', variant = 'screen',
+}) {
+  const onGlass = variant === 'sheet';
   const [fundTarget, setFundTarget] = useState(null);
   const [busyAgentId, setBusyAgentId] = useState(null);
   // BUGS-A job 5: the safe answers the same gesture as the fridge, the read
@@ -85,7 +98,13 @@ export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProf
   // does. It is a decision, not a popover on top of a scrolling list.
   if (fundTarget) {
     return (
-      <div className="wal dr-app money-sheet" style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
+      <div
+        className={`wal dr-app money-sheet${onGlass ? ' money-sheet--glass' : ''}`}
+        style={{
+          flex: 1, position: 'relative', display: 'flex', flexDirection: 'column',
+          overflow: 'hidden', background: onGlass ? 'transparent' : M_BG,
+        }}
+      >
         <FundSheet
           agent={fundTarget}
           wallet={wallet}
@@ -100,14 +119,18 @@ export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProf
 
   return (
     <div
-      className={`wal dr-app money-sheet${drag.dragging ? ' is-dragging' : ''}`}
+      className={`wal dr-app money-sheet${onGlass ? ' money-sheet--glass' : ''}${drag.dragging ? ' is-dragging' : ''}`}
       ref={drag.ref}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG, ...drag.style }}
+      style={{
+        flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto',
+        background: onGlass ? 'transparent' : M_BG, ...drag.style,
+      }}
       {...drag.handlers}
     >
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
+        padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`,
+        background: onGlass ? 'transparent' : M_PANEL,
       }}>
         <button
           type="button"

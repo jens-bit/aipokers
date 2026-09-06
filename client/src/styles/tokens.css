@@ -13,6 +13,29 @@
  */
 
 :root {
+  /* ── HOME-2 job 8 · V5GLASS, the one material over a felt or a room ───────
+   *
+   * "Two different materials meeting at a hard line is why it looked cheap next
+   * to the felt." Board 29 wave 56 counted SEVENTEEN hand-tuned glasses in this
+   * product — opacities from 0.92 to 0.97, blurs from 14 to 18px, five
+   * different border alphas — and replaced them with one set of numbers. These
+   * are those numbers (design-refs/mood-watch5.jsx, `V5GLASS`), and they are
+   * tokens rather than a rule so a sheet, a strip and a toast cannot drift.
+   *
+   *   panel    strips and toasts
+   *   raised   sheets — the thing on top is the lighter one
+   *   edge     the hairline on a panel
+   *   edgeUp   the hairline on a sheet
+   *
+   * Anything over the room or the felt uses these. A flat grey panel over
+   * either is the bug this exists to prevent.
+   */
+  --v5-panel: rgba(13, 23, 21, 0.72);
+  --v5-raised: rgba(18, 30, 28, 0.84);
+  --v5-edge: rgba(255, 255, 255, 0.11);
+  --v5-edge-up: rgba(255, 255, 255, 0.17);
+  --v5-blur: blur(18px) saturate(1.2);
+
   /* Product surfaces */
   --bg-primary: #1A1A1E;
   --bg-secondary: #232329;
