@@ -45,7 +45,12 @@ export async function giveItem(agentId, item) {
   return { ok: res.ok, body };
 }
 
-export function FridgeSheet({ agents = [], onClose, onGiven }) {
+// DESK-2: `variant` is 'sheet' (the phone: glass over the room, with a scrim)
+// or 'rail' (the desk: the same panel, inline in the rail, no glass because the
+// room beside it is not covered). Nothing inside it differs — the fridge is the
+// fridge, and only the thing it is mounted in changes.
+export function FridgeSheet({ agents = [], onClose, onGiven, variant = 'sheet' }) {
+  const inRail = variant === 'rail';
   const [target, setTarget] = useState(() => agents[0]?.id ?? null);
   const [busy, setBusy] = useState(null);
   const [said, setSaid] = useState(null);
@@ -62,8 +67,15 @@ export function FridgeSheet({ agents = [], onClose, onGiven }) {
   };
 
   return (
-    <div className="home-sheet" role="dialog" aria-label="The fridge" data-testid="home-fridge-sheet">
-      <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+    <div
+      className={`home-sheet${inRail ? ' home-sheet--rail' : ''}`}
+      role={inRail ? 'group' : 'dialog'}
+      aria-label="The fridge"
+      data-testid="home-fridge-sheet"
+    >
+      {inRail ? null : (
+        <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+      )}
       <div className="home-sheet__panel">
         <div className="home-sheet__head">
           <span className="home-sheet__title">The fridge</span>

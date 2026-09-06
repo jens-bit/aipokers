@@ -815,3 +815,319 @@
     transition: none !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DESK-2 · HOME at 1440. Board 31 P15-P18, from design-refs/mood-home-desk.jsx.
+ *
+ * THE SAME ROOM, BIGGER. Nothing below moves a fixture or redraws a body: the
+ * flat is still authored at 390x470 in flat.js and every coordinate in it is
+ * untouched. The desk scales it once (the ref's own HD_SCALE, 1.34) and stands
+ * a rail beside it. That is the entire difference, which is the ref's claim.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.home1--desk {
+  flex-direction: row;
+  align-items: stretch;
+  background: #0C1110;
+}
+
+.home1--desk .home1__room {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  container-type: normal;
+  padding: 20px;
+  transition: filter 0.18s ease;
+}
+
+/* The room becomes a lit card in a dark stage, the way the ref frames it —
+ * HdRoom's own border, radius and drop shadow. */
+.home1--desk .home1__scale {
+  --home-desk-scale: 1.34;
+  flex-shrink: 0;
+  transform: scale(var(--home-desk-scale));
+  transform-origin: center center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  background: radial-gradient(ellipse at 52% 58%, #1C2523 0%, #141B1A 62%, #0F1514 100%);
+}
+
+/* The floorboards do not run past the flat's edge here: on the desk the room
+ * has a frame, and a boarded floor outside the frame reads as a bug. */
+.home1--desk .home1__room::after { display: none; }
+
+/* P16 — a fixture panel DIMS the room instead of covering it. Half brightness,
+ * the ref's own figure, and the room keeps playing behind it. */
+.home1--desk .home1__room[data-dim='true'] { filter: brightness(0.5); }
+
+/* A shorter desk (1280x800, and the 900-tall laptop once the top bar is off it)
+ * cannot hold 470 x 1.34 plus the padding, so the scale comes down rather than
+ * the room being cropped. One number, one place, every coordinate still valid. */
+@media (max-height: 760px) {
+  .home1--desk .home1__scale { --home-desk-scale: 1.12; }
+}
+@media (max-height: 640px) {
+  .home1--desk .home1__scale { --home-desk-scale: 1; }
+}
+
+/* The rail. Its width is the shell's (.dsk-panel, 520) rather than the ref's
+ * 360 — see the header of DeskHome.jsx for why. The panels inside it bring
+ * their own chrome, so this is only the slot. */
+.home1__rail {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.home1__rail > * { flex: 1; min-height: 0; }
+
+.home1--empty { align-items: center; justify-content: center; }
+
+/* The fridge, mounted in the rail instead of as glass over the room. Same
+ * panel, same stock, same copy — it is simply not covering anything. */
+.home-sheet--rail { position: static; z-index: auto; }
+.home-sheet--rail .home-sheet__panel {
+  position: static;
+  padding: 4px 14px 16px;
+  border-radius: 0;
+  border-top: none;
+  background: transparent;
+  animation: none;
+}
+
+/* ── THE ROOM's thread (RoomThread) ─────────────────────────────────────── */
+
+.room-thread {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.room-thread__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 46px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.room-thread__title {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: #00D4AA;
+}
+.room-thread__sub { font-size: 11px; color: #6B6B6B; }
+
+.room-thread__toast { flex-shrink: 0; padding: 10px 12px 0; position: relative; }
+
+.room-thread__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px 16px;
+}
+.room-thread__empty { margin: 0; font-size: 12px; color: #6B6B6B; }
+
+.room-thread__line { display: flex; flex-direction: column; gap: 3px; }
+/* Attribution is the point of THREAD-2, so it is the thing that reads first:
+ * who to whom, above the sentence, in the label face the product already uses
+ * for every other "this is a fact about the row" line. */
+.room-thread__who {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #6B6B6B;
+}
+.room-thread__text { font-size: 12.5px; line-height: 1.5; color: #A1A1A1; }
+.room-thread__line.is-you .room-thread__text { color: #EDEDED; }
+.room-thread__line.is-you .room-thread__who { color: #CDB380; }
+
+.room-thread__night {
+  border: 1px solid rgba(205, 179, 128, 0.28);
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.05);
+  overflow: hidden;
+}
+.room-thread__night-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.room-thread__night-label {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #CDB380;
+}
+.room-thread__night-count {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9px;
+  color: #6B6B6B;
+}
+.room-thread__night-peek {
+  margin: 0;
+  padding: 0 11px 9px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6B6B6B;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.room-thread__night-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 0 11px 11px;
+}
+
+.room-thread__composer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.room-thread__input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.24);
+  color: #EDEDED;
+  font-size: 12.5px;
+}
+.room-thread__input::placeholder { color: #4a4a4a; }
+.room-thread__send {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 170, 0.4);
+  background: rgba(0, 212, 170, 0.1);
+  color: #00D4AA;
+  cursor: pointer;
+}
+.room-thread__send:disabled { opacity: 0.35; cursor: default; }
+.room-thread__foot {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 11px;
+  color: #6B6B6B;
+}
+
+/* ── THE TABLE (TableSheet) ─────────────────────────────────────────────── */
+
+.table-sheet { padding: 14px 16px 18px; }
+
+.table-sheet__felt {
+  position: relative;
+  height: 104px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%);
+}
+.table-sheet__felt-label {
+  position: absolute;
+  top: 9px;
+  right: 11px;
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: #6B6B6B;
+}
+.table-sheet__felt-line {
+  position: absolute;
+  left: 11px;
+  bottom: 9px;
+  font-size: 11px;
+  color: #A1A1A1;
+}
+
+.table-sheet__next {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 2px 0;
+}
+.table-sheet__next-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.table-sheet__next-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #EDEDED;
+}
+.table-sheet__next-sub { font-size: 11px; color: #6B6B6B; }
+.table-sheet__ordinal {
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #6B6B6B;
+}
+.table-sheet__price {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: #CDB380;
+}
+.table-sheet__draft {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(205, 179, 128, 0.4);
+  background: rgba(205, 179, 128, 0.08);
+  color: #CDB380;
+  font-family: Oswald, Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.table-sheet__locked {
+  flex-shrink: 0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  color: #6B6B6B;
+}
+.table-sheet__full,
+.table-sheet__foot {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6B6B6B;
+}
+.table-sheet__foot b { color: #A1A1A1; font-weight: 600; }
+
+/* The safe is MoneySheet, which is authored for a phone screen and fills it.
+ * In the rail it is the panel, so it stops being a scrolling page inside a
+ * scrolling page. */
+.dsk-panel--safe { overflow: hidden; }
+.dsk-panel--safe .money-sheet { flex: 1; min-height: 0; }

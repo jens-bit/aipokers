@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
-import { CasinoFloor } from '../floor/CasinoFloor.jsx';
+import { DeskHome } from './DeskHome.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { StandupPanel } from './StandupPanel.jsx';
 import { ThreadPanel } from './ThreadPanel.jsx';
@@ -60,7 +60,23 @@ export function DesktopHome({
   const [wallet, setWallet] = useState(null);
   // CASINO-1: 'floor' (today's room) or 'casino' (the building). Local to the
   // desk because the desktop shell has no tab bar to hold it.
+  //
+  // DESK-2: 'floor' is now HOME — the flat, which is what the HOME tab shows on
+  // the phone and what the top bar has always called this stage. The old
+  // CasinoFloor is not drawn on the desk any more: it answered "who is playing",
+  // the room answers "where is everybody", and two rooms is the one thing board
+  // 31 says desktop must not have.
   const [stage, setStage] = useState('floor');
+  // DESK-2: which panel the HOME rail is showing. It lives here because two of
+  // the things that move it are the shell's — the top bar's Standup button, and
+  // Escape — and because the shell has to be able to take the rail away
+  // entirely when it puts one of its OWN panels beside the room.
+  const [homePanel, setHomePanel] = useState('thread');
+  // Which man the HOME rail is pointed at. Up here for the same reason the panel
+  // is: the collapsed roster strip is one of the ways it changes, and the strip
+  // is the shell's, not the room's.
+  const [homeFocusId, setHomeFocusId] = useState(null);
+  const homeStage = stage !== 'casino';
 
   useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
 
@@ -75,7 +91,11 @@ export function DesktopHome({
   // was not in the previous roster is a newborn, and it is shown once.
   const [bornId, setBornId] = useState(null);
   const knownIds = useRef(null);
-  const draftKey = deskTableId ?? selectedId ?? IDLE_KEY;
+  // Whose composer is on screen. DESK-2: on the HOME stage the open thread is
+  // the rail's, so the key follows the rail's focus — and only while the rail is
+  // actually showing a man, because the standup's own composer is the idle one.
+  const homeDraftKey = homeStage && homePanel === 'agent' ? homeFocusId : null;
+  const draftKey = deskTableId ?? homeDraftKey ?? selectedId ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
   }, [draftKey]);
@@ -125,11 +145,15 @@ export function DesktopHome({
       if (flaggedAgent) { setFlaggedAgent(null); return; }
       if (bornId) { setBornId(null); return; }
       if (deskTableId) { setDeskTableId(null); return; }
+      if (walletOpen) { setWalletOpen(false); return; }
+      // DESK-2: on the HOME stage Escape backs the rail out to the room, which
+      // is the resting panel there the way the standup was on the old floor.
+      if (homeStage && homePanel !== 'thread') { setHomePanel('thread'); return; }
       setSelectedId(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [flaggedAgent, deskTableId, bornId]);
+  }, [flaggedAgent, deskTableId, bornId, walletOpen, homeStage, homePanel]);
 
   useEffect(() => {
     if (loading) return;
@@ -162,7 +186,12 @@ export function DesktopHome({
       standupLine={playing.length === 0 ? topLine : null}
       net={topNet}
       flagged={topFlagged}
-      onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
+      // DESK-2: on the HOME stage the standup is a rail panel, so the button
+      // that has always been called Standup opens the standup. Elsewhere it
+      // keeps CASINO-1's behaviour — straight to the flagged hands.
+      onStandup={homeStage
+        ? () => { setWalletOpen(false); setBornId(null); setHomePanel('standup'); }
+        : (firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined)}
       onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
       stage={stage}
@@ -181,7 +210,16 @@ export function DesktopHome({
   }, [watchedId, onWatchAgent]);
 
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
-  const panelOpen = !!born || !!selected || walletOpen;
+  // FIX-2c's rule, still: when a panel takes the roster's place, the collapsed
+  // strip gives the who-is-playing glance back at 68px.
+  //
+  // DESK-2 adds the room's own two exceptions. The ROOM is a roster — every
+  // agent is either a body in it or a frame on its wall — so the strip is not
+  // drawn while the rail is showing the room's thread; and the STANDUP holds
+  // the full roster itself, which is what the strip would be a collapse of.
+  const homeRailIsRoster = homeStage && (homePanel === 'thread' || homePanel === 'standup');
+  const panelOpen = !!born || !!selected || walletOpen
+    || (homeStage && !walletOpen && !born && !homeRailIsRoster);
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -242,8 +280,15 @@ export function DesktopHome({
         {panelOpen && (
           <RosterStrip
             agents={agents}
-            activeId={selectedId ?? bornId}
-            onSelect={(agent) => { setBornId(null); setWalletOpen(false); setSelectedId(agent.id); }}
+            activeId={homeStage && !walletOpen && !born ? homeFocusId : (selectedId ?? bornId)}
+            onSelect={(agent) => {
+              setBornId(null);
+              setWalletOpen(false);
+              // On the HOME stage the thread the strip opens is the rail's, in
+              // the room — there is no second panel for it to land in.
+              if (homeStage) { setHomeFocusId(agent.id); setHomePanel('agent'); return; }
+              setSelectedId(agent.id);
+            }}
           />
         )}
         <div className="dsk-stage">
@@ -263,15 +308,35 @@ export function DesktopHome({
               onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
             />
           ) : (
-            <CasinoFloor
-              desktopMode
-              selectedAgentId={selectedId}
-              onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
-              onChat={(agent) => setSelectedId(agent.id)}
+            // DESK-2 — the flat, and its rail. DeskHome carries its own 520 rail
+            // (the room's thread, or a fixture, or one man), so the HOME stage
+            // spans the body and the panels below are not drawn beside it.
+            <DeskHome
+              wsUrl={wsUrl}
+              wallet={wallet}
+              game={game}
+              lastDecision={lastDecision}
+              watchedId={watchedId}
+              drafts={drafts}
+              onDraftChange={setDraft}
+              onRefreshWallet={refreshWallet}
               onWatch={onWatchAgent}
-              onProfile={() => {}}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
+              onFocusTable={openTable}
+              onOpenFlagged={(agent, hand) => {
+                // A row names its hand: that one goes to the theatre. VIEW ALL
+                // has no hand, so it opens the sheet with the whole list.
+                if (hand) setReplay({ agent, hand });
+                else setFlaggedAgent(agent);
+              }}
+              // One rail at a time: the shell's own panel (the wallet, a birth
+              // card) takes the 520 and the room's rail stands down, because
+              // 520 + 520 + a 523-wide room does not fit in 1440.
+              panel={walletOpen || bornId ? 'none' : homePanel}
+              onPanel={setHomePanel}
+              focusId={homeFocusId}
+              onFocusId={setHomeFocusId}
             />
           )}
         </div>
@@ -305,7 +370,7 @@ export function DesktopHome({
             />
             <BirthCardRail agent={born} onDealIn={() => { setBornId(null); onDeployAgent(born); }} />
           </div>
-        ) : selected ? (
+        ) : homeStage ? null : selected ? (
           <ThreadPanel
             key={selected.id}
             agent={selected}
