@@ -100,7 +100,12 @@ function AgentsCountPill() {
     function load() {
       fetch('/api/stats')
         .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((data) => { if (!cancelled) setCount(data.totalAgents ?? null); })
+        // BUGS-B/7: the pill is the FLOOR's number, not the roster's.
+        // `activeAgents` is how many are seated this instant; `totalAgents`
+        // counts every agent that exists, so it read "11 agents live" to a
+        // room with every chair empty. Nullish, not `||`: a floor with nobody
+        // on it says 0, and only a server too old to send the field says "—".
+        .then((data) => { if (!cancelled) setCount(data.activeAgents ?? null); })
         .catch(() => {});
     }
     load();
