@@ -23,26 +23,14 @@ const WANT_CHIPS = [
 // the dare reads as a dare through HEAT, not through a red border: the bubble's rim
 // warms with his heat and the words get bigger. At 82 it is a challenge; the same
 // component at 12 is a mumble.
-const WantBubble = ({ w, x }) => {
-  const side = bubbleSide(x);
+const WantBubble = ({ w, side = 'right', maxW = H_BUB_MAX }) => {
   // one rim tint at most, and no glow: same box as any other bubble in the room
   const rim = w.heat >= 70 ? `${M_RED}55` : w.tone === 'flat' ? M_BORDER : `${M_GOLD}55`;
+  const fill = 'rgba(20,28,27,0.94)';
   return (
-    <div style={{ position: 'relative', width: 0, height: 52 }}>
-      <div style={{
-        position: 'absolute', bottom: 0, width: 196,
-        ...(side === 'right'
-          ? (x + 9 + 196 > FLAT.door.x - 8 ? { right: x - FLAT.door.x + 8 } : { left: 9 })
-          : (x - 9 - 196 < H_EDGE ? { left: H_EDGE - x } : { right: 9 })),
-        padding: '8px 11px 10px', borderRadius: 12,
-        borderBottomLeftRadius: side === 'right' ? 3 : 12,
-        borderBottomRightRadius: side === 'left' ? 3 : 12,
-        background: 'rgba(20,28,27,0.94)',
-        border: `1px solid ${rim}`,
-        animation: 'bubblein 0.3s ease-out both',
-      }}>
+    <div style={{ position: 'relative', width: 'max-content', maxWidth: Math.min(H_BUB_MAX, maxW), padding: '7px 10px 8px', borderRadius: 12, background: fill, border: `1px solid ${rim}`, animation: 'bubblein 0.3s ease-out both' }}>
+      <span style={{ position: 'absolute', top: '50%', marginTop: -4, [side === 'right' ? 'left' : 'right']: -4, width: 7, height: 7, background: fill, borderLeft: `1px solid ${rim}`, borderBottom: `1px solid ${rim}`, transform: 'rotate(45deg)' }}></span>
         <div style={{ fontSize: 11, color: M_TEXT, lineHeight: 1.35 }}>{w.text}</div>
-      </div>
     </div>
   );
 };
@@ -219,10 +207,14 @@ const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
       </>
     ) : (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 13px' }}>
-        <MoodAvatar mood={latest.a.mood} accent={latest.a.accent} size={20}/>
-        <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          <b style={{ color: latest.a.accent, fontWeight: 600 }}>{latest.a.name.split(' ')[0]}</b> {latest.text}
-        </div>
+        {latest.sys
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_FAINT, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</span>
+          : <>
+              <MoodAvatar mood={latest.a.mood} accent={latest.a.accent} size={20}/>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <b style={{ color: latest.a.accent, fontWeight: 600 }}>{latest.a.name.split(' ')[0]}</b> {latest.text}
+              </div>
+            </>}
       </div>
     )}
     <div style={{ flexShrink: 0, padding: '8px 12px 11px', borderTop: open ? `1px solid ${M_BORDER}` : 'none' }}>
@@ -416,52 +408,59 @@ const NIGHT_DAY = {
 // ── 4 · FOUR CHAIRS ───────────────────────────────────────────────────────
 // The home has four seats at the kitchen table. A locked one shows its price in
 // chips he has WON — there is no purchase path, so the only currency is his record.
-const HOME_CHAIR_PRICES = [null, '10,000 won', '40,000 won', '150,000 won'];   // shown ONLY in the table sheet
+const HOME_CHAIR_PRICES = [null, '10,000 won', '50,000 won', '250,000 won'];   // shown ONLY in the table sheet
 
 // the chairs ARE the room's four seats: TABLE_SEATS[4], the same coordinates
 // HomeGame sits bodies on, with y as the feet. Inventing a ring put chairs where
 // nobody ever sits — on the couch, on the door, in the middle of the floor.
-const TableChairs = ({ taken = 1 }) => {
-  return TABLE_SEATS[4].map((s, i) => i < taken ? null : (
+const TableChairs = ({ taken = 1, of = 4 }) => {
+  return TABLE_SEATS[4].slice(0, of).map((s, i) => i < taken ? null : (
     <div key={i} style={{ position: 'absolute', left: s.x, top: s.y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, zIndex: 6 }}>
       <div style={{ width: 28, height: 23, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.15)' }}></div>
     </div>
   ));
 };
 
+const SheetSection = ({ label, title, sub, cta, ctaColor, children, first }) => (
+  <div style={{ padding: first ? '0 14px' : '13px 14px 0', marginTop: first ? 0 : 13, borderTop: first ? 'none' : `1px solid ${M_BORDER}` }}>
+    <div style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED, paddingBottom: 7 }}>{label}</div>
+    {children}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: children ? 9 : 0 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 14, fontWeight: 600, color: M_TEXT }}>{title}</div>
+        <div style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.4, marginTop: 2 }}>{sub}</div>
+      </div>
+      <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: ctaColor, border: `1px solid ${ctaColor}66`, background: `${ctaColor}14`, borderRadius: 11, padding: '7px 13px', cursor: 'pointer' }}>{cta}</span>
+    </div>
+  </div>
+);
+
 const TableSheet = ({ taken = 2 }) => (
   <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 16px' }}>
-    <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 10 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
-    {/* the miniature felt: the game that is running right now */}
-    <div style={{ margin: '0 14px', height: 96, borderRadius: 10, background: 'radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%)', border: `1px solid ${M_BORDER}`, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', left: '50%', top: 30, transform: 'translateX(-50%)', display: 'flex', gap: 3 }}>
-        {[['9', '♥', M_RED], ['J', '♠', '#0F1514'], ['4', '♣', '#0F1514']].map(([r, s, c]) => (
-          <span key={r + s} style={{ width: 17, height: 24, borderRadius: 2, background: '#E8E6E0', color: c, fontFamily: MONO, fontSize: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 8 }}>{s}</span></span>
+
+    <SheetSection first label="HOME GAME · LIVE" title="Watch the hand" sub={`${taken} at the table · ${4 - taken} chairs free`} cta="WATCH" ctaColor={M_TEAL}>
+      <div style={{ height: 92, borderRadius: 10, background: 'radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%)', border: `1px solid ${M_BORDER}`, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: '50%', top: 28, transform: 'translateX(-50%)', display: 'flex', gap: 3 }}>
+          {[['9', '\u2665', M_RED], ['J', '\u2660', '#0F1514'], ['4', '\u2663', '#0F1514']].map(([r, s, c]) => (
+            <span key={r + s} style={{ width: 17, height: 24, borderRadius: 2, background: '#E8E6E0', color: c, fontFamily: MONO, fontSize: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 8 }}>{s}</span></span>
+          ))}
+        </div>
+        {[[112, 64], [246, 64]].slice(0, taken).map(([x, y], i) => (
+          <div key={i} style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%,-50%)' }}>
+            <MoodAvatar mood={i ? 'confident' : 'frustrated'} accent={i ? M_TEAL : M_PURPLE} size={22}/>
+          </div>
         ))}
       </div>
-      {[[128, 66], [262, 66]].slice(0, taken).map(([x, y], i) => (
-        <div key={i} style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%,-50%)' }}>
-          <MoodAvatar mood={i ? 'confident' : 'frustrated'} accent={i ? M_TEAL : M_PURPLE} size={22}/>
-        </div>
-      ))}
-      <div style={{ position: 'absolute', right: 9, top: 8, fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>FOR NOTHING</div>
-      <div style={{ position: 'absolute', left: 9, bottom: 7, fontSize: 9.5, color: M_DIM }}>{taken} at the table · {4 - taken} chairs free</div>
-    </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px 0' }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: PLAYFAIR, fontSize: 14.5, fontWeight: 600, color: M_TEXT }}>Create an agent</div>
-        <div style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.45, marginTop: 3 }}>
-          <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM }}>{taken + 1}{['ST', 'ND', 'RD', 'TH'][taken]} SEAT</span>
-          {' · '}<span style={{ fontFamily: MONO, fontSize: 10, color: M_GOLD }}>{HOME_CHAIR_PRICES[taken]}</span>
-        </div>
-      </div>
-      <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_GOLD, border: `1px solid ${M_GOLD}66`, background: `${M_GOLD}14`, borderRadius: 11, padding: '6px 13px', cursor: 'pointer' }}>DRAFT HIM</span>
-    </div>
-    <div style={{ padding: '10px 14px 0' }}>
-      <span style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.5 }}>Paid in <b style={{ color: M_DIM }}>chips he has won</b>, never bought — the room fills as his agents win and in no other way. Drafting opens the same conversation the first agent came from.</span>
-    </div>
+    </SheetSection>
+
+    <SheetSection label="SIT DOWN" title="Take a chair" sub="Play them yourself. No money in it." cta="SIT DOWN" ctaColor={M_GOLD}/>
+
+    <SheetSection label="CREATE AN AGENT" title={`${taken + 1}${['st', 'nd', 'rd', 'th'][taken]} seat`}
+      sub={<span><span style={{ fontFamily: MONO, fontSize: 10.5, color: M_GOLD }}>{HOME_CHAIR_PRICES[taken]}</span> · chips he has won, never bought</span>}
+      cta="DRAFT HIM" ctaColor={M_TEAL}/>
   </div>
 );
 
@@ -474,10 +473,8 @@ const HomeWantM = () => (
     <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG }}>
       <HomeFlat>
         <AwayWall frames={[{ a: H_CAST.blf, line: '10/20 · −$90 · 12 min' }]} hooks={2}/>
-        <div style={{ position: 'absolute', left: 196, top: 236, transform: 'translate(-50%,-100%)', zIndex: 220 }}>
-          <WantBubble w={H_WANTS.dare} x={196}/>
-        </div>
-        <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 196, y: 300 }} size={54} routine="pace" stamina={62} heat={82}/>
+        <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 196, y: 300 }} size={54} routine="pace" stamina={62} heat={82}
+          want={<WantBubble w={H_WANTS.dare}/>}/>
         <HomeOne a={{ ...H_CAST.val, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={18} heat={30}/>
       </HomeFlat>
     </div>
@@ -670,10 +667,8 @@ const FridgeEmptyM = () => (
     <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG }}>
       <HomeFlat>
         <AwayWall hooks={3}/>
-        <div style={{ position: 'absolute', left: 208, top: 240, transform: 'translate(-50%,-100%)', zIndex: 220 }}>
-          <WantBubble w={{ text: "We're out of beer.", heat: 74, tone: 'flat' }} x={208}/>
-        </div>
-        <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 208, y: 300 }} size={50} routine="pace" stamina={54} heat={74}/>
+        <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 208, y: 300 }} size={50} routine="pace" stamina={54} heat={74}
+          want={<WantBubble w={{ text: "We're out of beer.", heat: 74, tone: 'flat' }}/>}/>
         <HomeOne a={H_CAST.bal} at={STAND.couch} routine="sleep" size={42} stamina={22} heat={16}/>
       </HomeFlat>
     </div>
@@ -767,7 +762,7 @@ const ROOM_PLAN = [
   { k: 'wall',   t: 'THE FRAMES',  n: 'the top wall · agents away at the casino, live' },
   { k: 'fridge', t: 'THE FRIDGE',  n: 'the kitchen wall by the table · beer and snacks' },
   { k: 'door',   t: 'THE DOOR',    n: 'cut into the right wall · in, out, and born' },
-  { k: 'table',  t: 'THE TABLE',   n: 'centre · the home game, four chairs, for nothing' },
+  { k: 'table',  t: 'THE TABLE',   n: 'centre · the home game, four chairs, no money' },
   { k: 'couch',  t: 'THE COUCH',   n: 'left · where worn and busted end up' },
   { k: 'tape',   t: 'THE TV',      n: 'bottom · tape review, or the casino ticker' },
 ];
@@ -782,6 +777,198 @@ const PLAN_PIP = {
   couch:  { x: FLAT.couch.x + FLAT.couch.w + 12, y: FLAT.couch.y + FLAT.couch.h / 2 },
   tape:   { x: FLAT.tape.x + FLAT.tape.w / 2,    y: FLAT.tape.y - 12 },
 };
+
+// The rule proved: adjacent seats, both talking, bubbles opening away from each
+// other. Nothing above either head but his own name pill.
+const TwoTalkersM = () => (
+  <PhoneShell>
+    <HomeHead sub="both of them have an opinion"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG }}>
+      <HomeFlat>
+        <AwayWall hooks={2}/>
+        <TableChairs taken={2}/>
+        <HomeGame ring={[TABLE_SEATS[4][0], TABLE_SEATS[4][1]]}
+          players={[{ a: { ...H_CAST.agg, mood: 'frustrated' }, stamina: 62, heat: 58 }, { a: H_CAST.bal, stamina: 82, heat: 16 }]}
+          says={[{ i: 0, text: 'That is the third time you did that.', side: 'left' },
+                 { i: 1, text: 'And it worked all three times.', side: 'right' }]}/>
+      </HomeFlat>
+    </div>
+    <HomeThread latest={{ a: H_CAST.bal, text: 'And it worked all three times.' }}/>
+  </PhoneShell>
+);
+
+// The owner in a chair: the same felt, four verbs in the glass language, no money —
+// and the agent across from him reads HIM the way he reads anyone.
+const OwnerSeatM = () => (
+  <PhoneShell>
+    <HomeHead sub="you are in the game · for nothing"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG }}>
+      <HomeFlat>
+        <AwayWall hooks={2}/>
+        <TableChairs taken={3}/>
+        <HomeGame ring={[TABLE_SEATS[4][0], TABLE_SEATS[4][1]]}
+          players={[{ a: { ...H_CAST.bal, mood: 'confident' }, stamina: 80, heat: 18 }, { a: H_CAST.val, stamina: 56, heat: 24 }]}
+          says={[{ i: 0, text: 'You never fold a river bet, boss.', side: 'left' }]}/>
+        {/* the owner's own seat: a chair with cards in it and no ghost */}
+        <div style={{ position: 'absolute', left: TABLE_SEATS[4][2].x, top: TABLE_SEATS[4][2].y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 300 }}>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {[['A', '\u2660', '#0F1514'], ['K', '\u2666', M_RED]].map(([r, s, c]) => (
+              <span key={r} style={{ width: 19, height: 27, borderRadius: 2.5, background: '#E8E6E0', color: c, fontFamily: MONO, fontSize: 10, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 9 }}>{s}</span></span>
+            ))}
+          </div>
+          <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: M_TEAL }}>YOU</span>
+        </div>
+      </HomeFlat>
+    </div>
+    {/* the verbs, in the glass language, over the collapsed thread */}
+    <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.92)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderTop: '1px solid rgba(255,255,255,0.14)', padding: '11px 13px 13px' }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[['FOLD', M_MUTED], ['CHECK', M_DIM], ['CALL', M_TEAL], ['BET', M_GOLD]].map(([v, c]) => (
+          <span key={v} style={{ flex: 1, textAlign: 'center', fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: c, background: c === M_MUTED ? 'rgba(255,255,255,0.04)' : `${c}12`, border: `1px solid ${c === M_MUTED ? 'rgba(255,255,255,0.12)' : `${c}55`}`, borderRadius: 9, padding: '9px 0' }}>{v}</span>
+        ))}
+      </div>
+    </div>
+  </PhoneShell>
+);
+
+// ── SITTING DOWN · the camera, not a screen ──────────────────────────────
+// Playing them yourself happens in the room. The camera pushes in on the kitchen
+// table once, and from then on it is manual: tap outside the felt to pull back,
+// tap the table to push in. It never pushes in on its own again.
+const CAM = { w: F_W, h: 452, k: 1.6 };   // felt fills the width; tighter than this
+                                          // turns the room into a keyhole and no
+                                          // bubble fits beside a head
+
+const TableCam = ({ children, zoom = true, tape, lit = true }) => {
+  // the camera takes whatever room the layout has left, so no fixed height can
+  // leave a band under the hand; the visible slice follows the measured height
+  const ref = React.useRef(null);
+  const [vh, setVh] = React.useState(CAM.h);
+  React.useLayoutEffect(() => {
+    const r = ref.current && ref.current.getBoundingClientRect().height;
+    if (r) setVh(r);
+  }, []);
+  const k = zoom ? CAM.k : 1;
+  const tx = zoom ? -(FLAT.table.cx * k - CAM.w / 2) : 0;
+  const ty = zoom ? -((FLAT.table.cy - 6) * k - vh / 2) : 0;
+  return (
+    <div ref={ref} style={{ position: 'relative', flex: 1, minHeight: 0, width: CAM.w, overflow: 'hidden', background: '#0C1110' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, width: F_W, height: F_H, transform: `translate(${tx}px,${ty}px) scale(${k})`, transformOrigin: '0 0', transition: 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' }}>
+        <H_BOUND.Provider value={zoom ? { min: FLAT.table.cx - CAM.w / (2 * k), max: FLAT.table.cx + CAM.w / (2 * k), edge: H_EDGE / k } : null}>
+          <HomeFlat tape={tape} lit={lit}>{children}</HomeFlat>
+        </H_BOUND.Provider>
+      </div>
+    </div>
+  );
+};
+
+// your own two cards, large, and what they are worth right now
+const OwnerHand = ({ cards = [['A', '\u2660', '#0F1514'], ['K', '\u2666', M_RED]], win = 62 }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px 0' }}>
+    <div style={{ display: 'flex', gap: 5 }}>
+      {cards.map(([r, s, c]) => (
+        <span key={r + s} style={{ width: 46, height: 64, borderRadius: 5, background: '#E8E6E0', color: c, fontFamily: MONO, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, boxShadow: '0 3px 10px rgba(0,0,0,0.45)' }}>
+          <span style={{ fontSize: 20 }}>{r}</span><span style={{ fontSize: 17 }}>{s}</span>
+        </span>
+      ))}
+    </div>
+    <div>
+      <div style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>YOU WIN</div>
+      <div style={{ marginTop: 1 }}><Num size={26} weight={700} color={M_TEAL}>{win}%</Num></div>
+    </div>
+  </div>
+);
+
+// the action row: the same four verbs whether you act from the felt or the room
+const ActionRow = ({ raised, sub }) => (
+  <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderTop: `1px solid ${raised ? `${M_GOLD}55` : 'rgba(255,255,255,0.14)'}`, padding: '10px 13px 13px', animation: raised ? 'bubblein 0.3s ease-out both' : 'none' }}>
+    {sub && <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingBottom: 8 }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>YOUR TURN</span>
+      <span style={{ fontSize: 10.5, color: M_MUTED }}>{sub}</span>
+    </div>}
+    <div style={{ display: 'flex', gap: 6 }}>
+      {[['FOLD', M_MUTED], ['CHECK', M_DIM], ['CALL', M_TEAL], ['BET', M_GOLD]].map(([v, c]) => (
+        <span key={v} style={{ flex: 1, textAlign: 'center', fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: c, background: c === M_MUTED ? 'rgba(255,255,255,0.04)' : `${c}12`, border: `1px solid ${c === M_MUTED ? 'rgba(255,255,255,0.12)' : `${c}55`}`, borderRadius: 9, padding: '10px 0' }}>{v}</span>
+      ))}
+    </div>
+  </div>
+);
+
+// your chair: cards, a name pill that glows on your turn, a draining timer ring
+const OwnerChair = ({ at, turn, secs = 12, of = 20 }) => {
+  const c = 2 * Math.PI * 21;
+  return (
+    <div style={{ position: 'absolute', left: at.x, top: at.y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 300 }}>
+      <div style={{ padding: '2.5px 8px 3.5px', borderRadius: 8, background: turn ? `${M_GOLD}1E` : 'rgba(8,12,12,0.9)', border: `1px solid ${turn ? M_GOLD : M_BORDER}`, boxShadow: turn ? `0 0 12px ${M_GOLD}55` : 'none' }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', color: turn ? M_GOLD : M_DIM }}>YOU</span>
+      </div>
+      <div style={{ position: 'relative', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: 2 }}>
+          {[['A', '\u2660', '#0F1514'], ['K', '\u2666', M_RED]].map(([r, s, cc]) => (
+            <span key={r} style={{ width: 17, height: 24, borderRadius: 2.5, background: '#E8E6E0', color: cc, fontFamily: MONO, fontSize: 9.5, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 8.5 }}>{s}</span></span>
+          ))}
+        </div>
+        {turn && <svg width="44" height="44" viewBox="0 0 44 44" style={{ position: 'absolute', left: 0, top: 0, transform: 'rotate(-90deg)' }}>
+          <circle cx="22" cy="22" r="21" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
+          <circle cx="22" cy="22" r="21" fill="none" stroke={M_GOLD} strokeWidth="1.5" strokeDasharray={c} strokeDashoffset={c * (1 - secs / of)} strokeLinecap="round"/>
+        </svg>}
+      </div>
+      <span style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.12em', color: M_FAINT, cursor: 'pointer' }}>SIT OUT</span>
+    </div>
+  );
+};
+
+const OWNER_RING = [TABLE_SEATS[4][0], TABLE_SEATS[4][1]];
+
+const ownerTable = ({ turn, secs }) => (
+  <>
+    <TableChairs taken={3}/>
+    {turn && <div style={{ position: 'absolute', left: FLAT.table.cx, top: FLAT.table.cy, transform: 'translate(-50%,-50%)', width: FLAT.table.rx * 2 + 26, height: FLAT.table.ry * 2 + 26, borderRadius: '50%', border: `1px solid ${M_GOLD}44`, boxShadow: `0 0 26px ${M_GOLD}22 inset`, pointerEvents: 'none', zIndex: 30 }}></div>}
+    <HomeGame ring={OWNER_RING}
+      players={[{ a: { ...H_CAST.bal, mood: 'confident' }, stamina: 80, heat: 18 }, { a: H_CAST.val, stamina: 56, heat: 24 }]}
+      says={[{ i: 0, text: 'You never fold a river bet, boss.' }]}/>
+    <OwnerChair at={TABLE_SEATS[4][2]} turn={turn} secs={secs}/>
+  </>
+);
+
+// Y1 · you sat down: the one automatic push-in of the game
+const OwnerSitDownM = () => (
+  <PhoneShell>
+    <HomeHead sub="you are in the game · no money"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, display: 'flex', flexDirection: 'column' }}>
+      <TableCam>{ownerTable({ turn: false })}</TableCam>
+      <div style={{ flexShrink: 0 }}><OwnerHand win={62}/></div>
+    </div>
+    <ActionRow/>
+  </PhoneShell>
+);
+
+// Y2 · pulled back to the room, and you can still act from here
+const OwnerPulledBackM = () => (
+  <PhoneShell>
+    <HomeHead sub="the room · you are still in the hand"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG }}>
+      <HomeFlat>
+        <AwayWall hooks={2}/>
+        {ownerTable({ turn: true, secs: 12 })}
+        <HomeOne a={{ ...H_CAST.blf, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={20} heat={16}/>
+      </HomeFlat>
+    </div>
+    <ActionRow raised sub="12s · timeout checks for you"/>
+  </PhoneShell>
+);
+
+// Y3 · you tapped the table: pushed in again, on your terms this time
+const OwnerPushedInM = () => (
+  <PhoneShell>
+    <HomeHead sub="river · you tapped the table"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, display: 'flex', flexDirection: 'column' }}>
+      <TableCam>{ownerTable({ turn: true, secs: 16 })}</TableCam>
+      <div style={{ flexShrink: 0 }}><OwnerHand win={38}/></div>
+    </div>
+    <ActionRow raised sub="16s · he has bet 80"/>
+  </PhoneShell>
+);
 
 const RoomPlanM = () => (
   <div style={{ width: 390, fontFamily: INTER }}>
@@ -819,7 +1006,7 @@ const WalkSulkStripM = () => <WalkStrip kind="sulk"/>;
 Object.assign(window, {
   H_WANTS, WANT_CHIPS, WantBubble, TOASTS, HomeToast, WALKS, WalkStrip, H_SHEET,
   NIGHT_DAY, HomeNightly, HOME_CHAIR_PRICES, TableChairs, HomeThreadLine, YouLine, HomeThread,
-  HOME_POCKETS, HomeMoneySheet, HOME_STOCK, FridgeSheet, HOME_SKILLS, HomeProfileHeadM, HOME_READ_BOOK, ReadBookSheet, BODY_SCALES, BodyBarsRefM, HomeWantM, HomeSleepM, HomeThreadOpenM, HomeTapeM,
+  SheetSection, HOME_POCKETS, HomeMoneySheet, HOME_STOCK, FridgeSheet, HOME_SKILLS, HomeProfileHeadM, HOME_READ_BOOK, ReadBookSheet, BODY_SCALES, BodyBarsRefM, HomeWantM, HomeSleepM, HomeThreadOpenM, HomeTapeM,
   TableSheetM, BIRTH_WALK, BirthWalkInStripM, ROOM_PLAN, RoomPlanM, FromFixture, SafeOpenM, FridgeOpenM, FRIDGE_WALK, FridgeWalkStripM, BeerSeatM, FridgeEmptyM, NightlyCollapsedM, ChairsM,
   WalkOutStripM, WalkHomeStripM, WalkGameStripM, WalkSulkStripM,
 });
