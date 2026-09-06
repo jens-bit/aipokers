@@ -154,6 +154,11 @@ export function HomeOne({
   news = false,
   dealt = false,
   walking = false,
+  // HOME-2 job 5 · he is off the floor, in the owner's hand. `carried` is
+  // { x, y, over } in room coordinates; the body follows the finger instead of
+  // his own spot, and `over` is what dropping him there would mean.
+  carried = null,
+  carryHandlers = null,
   onClick,
 }) {
   const r = presentRoutine(agent);
@@ -168,14 +173,23 @@ export function HomeOne({
   return (
     <button
       type="button"
-      className={`home-one${walking ? ' is-walking' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
+      className={`home-one${walking ? ' is-walking' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
       data-spot={at?.spot}
       data-walking={walking ? 'true' : 'false'}
-      style={{ left: at.x, top: at.y, zIndex: Math.round(at.y) }}
+      data-carried={carried ? 'true' : 'false'}
+      data-over={carried?.over ?? null}
+      // Carried, he is where the FINGER is, and above everything: a man in your
+      // hand is nearer the viewer than any wall he is passing over. Walking is
+      // an animation and carrying is not — the transition is dropped while he
+      // is held, or he would lag a frame behind the thumb.
+      style={carried
+        ? { left: carried.x, top: carried.y, zIndex: 950 }
+        : { left: at.x, top: at.y, zIndex: Math.round(at.y) }}
       onClick={onClick}
       aria-label={`${agent?.name ?? 'Agent'} — ${r.label}`}
+      {...(carryHandlers ?? {})}
     >
       {bubble ? (
         <HomeBubble

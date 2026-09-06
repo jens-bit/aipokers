@@ -276,3 +276,133 @@ test.describe('HOME-2 job 4 · nothing clips at 390 wide', () => {
     }
   });
 });
+
+// ── HOME-2 job 5 · carrying him ─────────────────────────────────────────────
+//
+// The one gesture in the product that is direct manipulation rather than a tap,
+// and the one thing in this queue jsdom cannot even approximate: it has no
+// PointerEvent, so the component tests fire a MouseEvent wearing a pointer's
+// type. This is the real thing — a real finger, a real hold, a real drag.
+
+test.describe('HOME-2 job 5 · pick him up and put him down', () => {
+  test.beforeEach(async ({ page }) => { await asOwner(page); });
+
+  /** Where a room point is on the screen, through whatever scale the room has. */
+  async function roomPoint(page, x, y) {
+    const flat = await page.locator('.home-flat').boundingBox();
+    const scale = flat.width / 390;
+    return { x: flat.x + x * scale, y: flat.y + y * scale };
+  }
+
+  /** Long-press him, drag him to a room point, and let go. */
+  async function carry(page, body, to) {
+    const from = await body.boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    // The hold. Under this it is a tap and opens his thread instead.
+    await page.waitForTimeout(600);
+    await expect(page.locator('.home-one.is-carried')).toHaveCount(1);
+    // In steps, because a single jump is a teleport and would not exercise the
+    // move handler the room reads the fixture under the finger from.
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+  }
+
+  test('a long press lifts him — bigger, with a shadow — and a tap does not', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+    const body = page.locator('.home-one').first();
+
+    const before = await body.boundingBox();
+    const from = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+
+    const lifted = page.locator('.home-one.is-carried');
+    await expect(lifted).toHaveCount(1);
+    // scale(1.1) and a shadow: the two ways a room seen from above says NEARER.
+    const ghost = lifted.locator('.home-one__body');
+    const transform = await ghost.evaluate((el) => getComputedStyle(el).transform);
+    expect(transform).toMatch(/matrix\(1\.1/);
+    const shadow = await ghost.evaluate((el) => getComputedStyle(el).filter);
+    expect(shadow).toContain('drop-shadow');
+    await shot(page, 'job5-lifted');
+
+    await page.mouse.up();
+    await expect(page.locator('.home-one.is-carried')).toHaveCount(0);
+    // ...and the tap that would have opened his thread did not fire behind it.
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+  });
+
+  // THE ONE THE QUEUE NAMES: drag-drop on the couch changes his state.
+  //
+  // And the state it changes to depends on what he was doing, which is the
+  // rule rather than a caveat. A live server stands the kitchen table up for
+  // anybody home and idle — one man alone plays the House — so on this seeded
+  // room he is usually IN A HAND when you pick him up, and the answer to a
+  // drop is the refusal job 5 names: he says so and walks back, and the room
+  // never asks. Both branches are asserted, and which one is taken is read off
+  // the room rather than assumed.
+  test('drop on the couch changes his state', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+    const body = page.locator('.home-one').first();
+    const before = await body.getAttribute('data-spot');
+
+    const posts = [];
+    page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
+
+    // The couch: x8..104, y330..446 in room coordinates.
+    await carry(page, body, await roomPoint(page, 56, 388));
+
+    // He is on the floor again either way — a carry ends.
+    await expect(page.locator('.home-one.is-carried')).toHaveCount(0);
+
+    const midHand = before.startsWith('table:');
+    if (midHand) {
+      // He refuses, says so, and walks back to the chair he was in.
+      await expect(page.locator('.home-bubble').filter({ hasText: 'In a hand' })).toBeVisible();
+      await expect(page.locator('.home-one').first()).toHaveAttribute('data-spot', before);
+      expect(posts.filter((u) => /\/place\?|\/give\?/.test(u))).toHaveLength(0);
+    } else {
+      // Nothing else in the room POSTs on a drop, so this is the drop.
+      await expect.poll(() => posts.filter((u) => /\/place\?/.test(u)).length).toBeGreaterThan(0);
+    }
+    await shot(page, 'job5-couch');
+  });
+
+  test('the fixture under him lights before the finger lets go', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+    const body = page.locator('.home-one').first();
+    const from = await body.boundingBox();
+
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+    const over = await roomPoint(page, 56, 388);
+    await page.mouse.move(over.x, over.y, { steps: 12 });
+
+    await expect(page.locator('.home-one.is-carried')).toHaveAttribute('data-over', 'couch');
+    await shot(page, 'job5-over-couch');
+    await page.mouse.up();
+  });
+
+  test('dropping him on the floor puts him back where he was, and asks nobody', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+    const body = page.locator('.home-one').first();
+    const before = await body.getAttribute('data-spot');
+
+    const posts = [];
+    page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
+
+    // Open floor: above the table's catch, below the wall, clear either side.
+    await carry(page, body, await roomPoint(page, 180, 130));
+
+    await expect(page.locator('.home-one.is-carried')).toHaveCount(0);
+    await expect(page.locator('.home-one').first()).toHaveAttribute('data-spot', before);
+    expect(posts.filter((u) => /\/place\?|\/give\?|\/study/.test(u))).toHaveLength(0);
+  });
+});

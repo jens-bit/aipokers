@@ -56,11 +56,14 @@ import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
 import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
-import { homePositions, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
+import { homePositions, bubbleSide, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 import { identitiesFor } from '../lib/identity.js';
+import { placeAgent } from '../lib/place.js';
+import { useCarry } from '../hooks/useCarry.js';
+import { midHand, verbFor } from '../components/home/carry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { signedMoney } from '../lib/wallet.js';
 import '../styles/home1.css';
@@ -340,6 +343,14 @@ export function HomeScreen({
   // once the first agent moved in.
   const [roomEl, setRoomEl] = useState(null);
   const [deskScale, setDeskScale] = useState(1);
+  // HOME-2 job 5 · the flat itself, for the scale a carried body is measured
+  // by. Not `roomEl`: that is the CONTAINER, which is taller than the room and
+  // carries the floor below it, so a point measured against it is off by
+  // however much slack the phone had.
+  const [flatEl, setFlatEl] = useState(null);
+  // What he said when he was put down: { id, text }. One at a time, and it
+  // clears itself — a refusal is a moment, not a state.
+  const [saidOnDrop, setSaidOnDrop] = useState(null);
   const rail = panel ?? railLocal;
   const setRail = onPanel ?? setRailLocal;
   // BIRTH-5 — the phone's own answer to the same fixture: a sheet over the room
@@ -452,6 +463,56 @@ export function HomeScreen({
   // At most two on screen, one per man, nothing drawn over anything. The rest
   // wait their turn — see roomBubbles.js.
   const bubbles = useRoomBubbles(speakers, bodies);
+
+  // ── HOME-2 job 5 · carrying him ───────────────────────────────────────────
+  //
+  // Long-press lifts him, the finger carries him, and the fixture under the
+  // finger when it lets go is what happens next. Off on the desk: DESK-2's room
+  // is a picture beside a rail rather than a thing you put your hand into, and
+  // a drag there is a mouse selecting text.
+  const onDrop = useCallback(async (agentId, fixture) => {
+    // Nowhere is a real answer. He goes back where he was, and the room says
+    // nothing — a drop on the floor is not a mistake to be reported.
+    if (!fixture) return;
+    const agent = home.find((a) => String(a.id) === String(agentId));
+    if (!agent) return;
+
+    // THE REFUSAL COMES FIRST, because the room can see it without asking. He
+    // is in a hand; whatever the server would eventually say, the answer is no
+    // and he walks back. What is shown is the fact rather than a sentence — the
+    // room has never put words in his mouth, and until the server sends a line
+    // there is no line of his to show.
+    const seated = positions.get(String(agentId))?.seat != null;
+    if (midHand(agent, { seated, gameRunning: game?.state === 'running' })) {
+      setSaidOnDrop({ id: String(agentId), text: 'In a hand', gold: false });
+      return;
+    }
+
+    // The door is where the OWNER is going, with the man in his hand. CASINO-1:
+    // a deploy is decided in the building, so this hands him over rather than
+    // opening a socket from the living room — the same thing a want's yes does.
+    if (fixture === 'door') { onDeploy?.(agent, { room: null }); return; }
+
+    const res = await placeAgent(agentId, fixture);
+    // His line, when the server sends one — a refusal has one, and so does a
+    // snack. `unsupported` is the pre-SERVER-5 answer for a fixture with no
+    // route of its own: nothing happened, so nothing is claimed.
+    if (res.line) setSaidOnDrop({ id: String(agentId), text: res.line, gold: !res.ok });
+    if (res.ok) refresh();
+  }, [home, positions, game, onDeploy, refresh]);
+
+  const { carry, bind: bindCarry } = useCarry({
+    roomEl: flatEl,
+    onDrop,
+    enabled: !desktop,
+  });
+
+  // The line clears itself; it lands once, the way the money line does.
+  useEffect(() => {
+    if (!saidOnDrop) return undefined;
+    const t = setTimeout(() => setSaidOnDrop(null), ARRIVAL_MS);
+    return () => clearTimeout(t);
+  }, [saidOnDrop]);
 
   // Who the thread band is pointed at. An agent with something to say outranks
   // whoever happens to be first: an unread recap is the reason he is standing by
@@ -586,20 +647,43 @@ export function HomeScreen({
       {home.map((agent) => {
         const at = positions.get(String(agent.id));
         if (!at) return null;
+        const id = String(agent.id);
         const seated = at.seat !== null && at.seat !== undefined;
+        const size = seated ? 50 : 46;
+        const held = carry?.id === id ? carry : null;
+        // HOME-2 job 5 · HIS LINE, WHEN HE IS IN YOUR HAND.
+        //
+        // Three sources, in the order they stop being true. What he SAID when
+        // you put him down is the newest thing in the room and outranks
+        // everything. Then, while he is held, the line he already has —
+        // FIX-6's queue lets at most two men speak at once, and the man in
+        // your hand is not waiting his turn behind anybody. That is what "his
+        // line if worn or hot" is: a worn man's want IS "I am done for
+        // tonight" and a hot one's IS "let me back in there" (the ref phrases
+        // every want from state), so holding him shows the line he already
+        // had rather than a sentence this screen made up for him.
+        const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
+        const own = speakers.find((sp) => sp.id === id);
+        const bubble = dropped
+          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(held?.x ?? at.x) }
+          : (held && own)
+            ? { text: own.text, gold: own.gold, side: bubbleSide(held.x) }
+            : (bubbles.get(id) ?? null);
         return (
           <HomeOne
             key={agent.id}
             agent={agent}
             at={at}
-            identity={identities.get(String(agent.id)) ?? null}
+            identity={identities.get(id) ?? null}
             accent={accentFor(agent, agents.indexOf(agent))}
-            size={seated ? 50 : 46}
-            dealt={seated}
-            walking={walking.has(String(agent.id))}
+            size={size}
+            dealt={seated && !held}
+            walking={walking.has(id)}
+            carried={held}
+            carryHandlers={bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.
-            bubble={bubbles.get(String(agent.id)) ?? null}
+            bubble={bubble}
             news={!!(agent.want || agent.unseenRecap)}
             onClick={() => tapAgent(agent)}
           />
@@ -617,7 +701,7 @@ export function HomeScreen({
         : { aspectRatio: `${F_W} / ${F_H}` }}
       data-dim={dimmed ? 'true' : 'false'}
     >
-      <div className="home1__scale" style={{ width: F_W, height: F_H }}>
+      <div className="home1__scale" style={{ width: F_W, height: F_H }} ref={setFlatEl}>
         {flat}
       </div>
     </div>

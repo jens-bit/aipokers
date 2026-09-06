@@ -10,12 +10,14 @@
 
 import { StrictMode } from 'react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
 import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
+import { LONG_PRESS_MS } from '../components/home/carry.js';
+import { FLAT, TV_SCREEN, F_W, F_H } from '../components/home/flat.js';
 
 const WS = 'ws://localhost:8765';
 
@@ -730,6 +732,174 @@ describe('HOME-2 job 4 · the room has furniture in it', () => {
     await boot([mkAgent('a1', 'Rocky')]);
     await screen.findByTestId('home-tv-board');
     expect(document.querySelector('.home-flat').textContent).not.toMatch(/\$/);
+  });
+});
+
+// ── HOME-2 job 5 · carrying him ─────────────────────────────────────────────
+
+describe('HOME-2 job 5 · pick him up and put him down', () => {
+  // jsdom performs no layout, so the room reports a zero-sized box and every
+  // point measured against it is meaningless. This is the one thing the gesture
+  // needs from a browser and the only thing stubbed: the room is 390x470 at the
+  // origin, which is what it is at 390 wide.
+  function measureRoom() {
+    const flat = document.querySelector('.home1__scale');
+    flat.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: F_W, height: F_H, right: F_W, bottom: F_H, x: 0, y: 0,
+    });
+    return flat;
+  }
+
+  const bodyFor = (name) => screen.findByRole('button', { name: new RegExp(`^${name} — `) });
+
+  // jsdom has no PointerEvent, and @testing-library's fallback drops clientX
+  // with it — so a pointermove fired the usual way arrives with no coordinates
+  // and every drop lands on the floor. A MouseEvent carrying the pointer's type
+  // is the same event to a 'pointermove' listener and does have them.
+  function pointer(target, type, x, y) {
+    const ev = new window.MouseEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+    });
+    Object.defineProperty(ev, 'pointerId', { value: 1 });
+    fireEvent(target, ev);
+  }
+
+  /** Long-press him, carry him to a room point, and let go. */
+  async function carryTo(body, x, y) {
+    measureRoom();
+    pointer(body, 'pointerdown', 100, 100);
+    // The hold. Under it, this is a tap and opens his thread instead.
+    await act(async () => { await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 60)); });
+    await act(async () => { pointer(window, 'pointermove', x, y); });
+    await act(async () => { pointer(window, 'pointerup', x, y); });
+  }
+
+  const middleOf = (box) => [box.x + box.w / 2, box.y + box.h / 2];
+
+  it('a long press lifts him off the floor', async () => {
+    await boot([mkAgent('a1', 'Rocky')]);
+    const body = await bodyFor('Rocky');
+    measureRoom();
+
+    expect(body).toHaveAttribute('data-carried', 'false');
+    pointer(body, 'pointerdown', 120, 380);
+    await act(async () => { await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 60)); });
+
+    expect(await bodyFor('Rocky')).toHaveAttribute('data-carried', 'true');
+    await act(async () => { pointer(window, 'pointerup', 120, 380); });
+  });
+
+  // A tap is how you open his thread and has been since HOME-1. A press under
+  // the threshold must stay a tap, and a press over it must NOT also be one.
+  it('a short press is still a tap, and a carry is not', async () => {
+    const onOpenThread = vi.fn();
+    await boot([mkAgent('a1', 'Rocky')], null, { onOpenThread });
+    const body = await bodyFor('Rocky');
+    measureRoom();
+
+    await userEvent.click(body);
+    expect(onOpenThread).toHaveBeenCalledTimes(1);
+
+    onOpenThread.mockClear();
+    await carryTo(body, ...middleOf(FLAT.couch));
+    expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  // ── one test per target ──────────────────────────────────────────────────
+
+  it('drop on the COUCH asks the server to rest him', async () => {
+    let placed = null;
+    fetchMock.route(/\/place\?/, ({ body }) => { placed = body; return { ok: true }; }, { method: 'POST' });
+    await boot([mkAgent('a1', 'Rocky')]);
+    await carryTo(await bodyFor('Rocky'), ...middleOf(FLAT.couch));
+
+    await waitFor(() => expect(placed).toEqual(expect.objectContaining({ fixture: 'couch' })));
+  });
+
+  it('drop on the TABLE asks him to join the home game', async () => {
+    let placed = null;
+    fetchMock.route(/\/place\?/, ({ body }) => { placed = body; return { ok: true }; }, { method: 'POST' });
+    await boot([mkAgent('a1', 'Rocky')]);
+    await carryTo(await bodyFor('Rocky'), FLAT.table.cx, FLAT.table.cy);
+
+    await waitFor(() => expect(placed).toEqual(expect.objectContaining({ fixture: 'table' })));
+  });
+
+  it('drop on the FRIDGE is a snack, and falls back to the give route', async () => {
+    let gave = null;
+    fetchMock.route(/\/give\?/, ({ body }) => { gave = body; return { moment: { text: 'That helps. Thanks.' } }; }, { method: 'POST' });
+    await boot([mkAgent('a1', 'Rocky')]);
+    await carryTo(await bodyFor('Rocky'), ...middleOf(FLAT.fridge));
+
+    // No /place on this server, so the fixture's own route answers.
+    await waitFor(() => expect(gave).toEqual(expect.objectContaining({ item: 'snack' })));
+    expect(await screen.findByText('That helps. Thanks.')).toBeInTheDocument();
+  });
+
+  it('drop on the TV puts a hand back on, off the tape room route', async () => {
+    let studied = null;
+    fetchMock.route(/\/flagged\?/, { flaggedHands: [{ handId: 'h7' }] });
+    fetchMock.route(/\/study$/, ({ body }) => { studied = body; return { study: { handNumber: 7 } }; }, { method: 'POST' });
+    await boot([mkAgent('a1', 'Rocky')]);
+    await carryTo(await bodyFor('Rocky'), ...middleOf(TV_SCREEN));
+
+    await waitFor(() => expect(studied).toEqual(expect.objectContaining({ handId: 'h7' })));
+  });
+
+  it('drop on the DOOR walks him to the casino, and asks nobody', async () => {
+    const onDeploy = vi.fn();
+    await boot([mkAgent('a1', 'Rocky')], null, { onDeploy });
+    await carryTo(await bodyFor('Rocky'), ...middleOf(FLAT.door));
+
+    await waitFor(() => expect(onDeploy).toHaveBeenCalled());
+    expect(fetchMock.posts.filter((c) => /\/place\?/.test(c.url))).toHaveLength(0);
+  });
+
+  // ── the two refusals ─────────────────────────────────────────────────────
+
+  it('dropping him anywhere else puts him down where he was', async () => {
+    await boot([mkAgent('a1', 'Rocky')]);
+    const body = await bodyFor('Rocky');
+    const spot = body.getAttribute('data-spot');
+
+    // Open floor: above the table's own catch, below the wall, and clear of
+    // the safe, the fridge and the door on either side.
+    await carryTo(body, 180, 130);
+
+    const after = await bodyFor('Rocky');
+    expect(after).toHaveAttribute('data-carried', 'false');
+    expect(after).toHaveAttribute('data-spot', spot);
+    expect(fetchMock.posts.filter((c) => /\/place\?|\/give\?|\/study/.test(c.url))).toHaveLength(0);
+  });
+
+  // MID-HAND HE REFUSES AND WALKS BACK, and the room can see it without asking
+  // — so nothing is sent at all.
+  it('mid-hand he refuses, and the room never asks', async () => {
+    // In a seat at the kitchen table with a game running on it. An agent who is
+    // AWAY is not a body in the room at all — he is a frame on the wall — so
+    // the home game is where a carried man can be mid-hand.
+    await boot(
+      [mkAgent('a1', 'Rocky'), mkAgent('a2', 'Blade')],
+      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
+    );
+    const body = await bodyFor('Rocky');
+    await carryTo(body, ...middleOf(FLAT.couch));
+
+    expect(fetchMock.posts.filter((c) => /\/place\?|\/give\?/.test(c.url))).toHaveLength(0);
+    expect(await screen.findByText('In a hand')).toBeInTheDocument();
+    expect(await bodyFor('Rocky')).toHaveAttribute('data-carried', 'false');
+  });
+
+  // DESK-2's room is a picture beside a rail rather than a thing you put your
+  // hand into, and a drag there is a mouse selecting text.
+  it('is a phone gesture — the desk does not lift anybody', async () => {
+    await boot([mkAgent('a1', 'Rocky')], null, { desktop: true });
+    const body = await bodyFor('Rocky');
+    measureRoom();
+    pointer(body, 'pointerdown', 120, 380);
+    await act(async () => { await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 60)); });
+
+    expect(await bodyFor('Rocky')).toHaveAttribute('data-carried', 'false');
   });
 });
 

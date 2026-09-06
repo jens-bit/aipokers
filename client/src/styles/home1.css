@@ -471,6 +471,52 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-one.is-walking { z-index: 900 !important; }
 .home-one.is-walking .home-one__body { animation: home-walkbob 0.5s ease-in-out infinite; }
 
+/* ── HOME-2 job 5 · in the owner's hand ────────────────────────────────────
+   A lift is 1.1 and a shadow, and both of them say the same thing in the one
+   language a room seen from above has: he is NEARER. Scale is distance from
+   the camera; a shadow is distance from the floor. Nothing about the body
+   itself changes, because he is the same man — you are just holding him.
+
+   The walk transition is dropped while he is held. It is what makes a position
+   change a crossing rather than a cut, and a finger is not a crossing: a man
+   who eased toward the thumb over 1.6s would trail it across the whole room. */
+.home-one.is-carried {
+  transition: none;
+  cursor: grabbing;
+  /* A man in your hand is not pacing, and not leaning at a television. The
+     routine animations write the body's own transform, so the lift has to
+     stop them or it is overwritten by whatever he was doing a moment ago. */
+  animation: none;
+}
+.home-one.is-carried .home-one__body {
+  animation: none;
+  transform: scale(1.1);
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55));
+  transition: transform 140ms ease-out;
+}
+/* Over a fixture, the thing under him lights: the drop has somewhere to land
+   and the room says so before the finger lets go. */
+.home-one.is-carried[data-over] .home-one__body {
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.6));
+}
+.home-flat:has(.home-one[data-over='couch']) .home-flat__couch,
+.home-flat:has(.home-one[data-over='fridge']) .home-flat__fridge,
+.home-flat:has(.home-one[data-over='door']) .home-flat__door,
+.home-flat:has(.home-one[data-over='tv']) .home-flat__tv,
+.home-flat:has(.home-one[data-over='table']) .home-flat__table {
+  outline: 1px solid rgba(205, 179, 128, 0.65);
+  outline-offset: 2px;
+}
+
+/* A long press on a body must not select the name inside it or raise the
+   platform's own "copy / look up" sheet halfway through the gesture. */
+.home-one {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .home-one__body { position: relative; display: block; }
 .home-one__hands {
   position: absolute; left: 0; top: 0;
