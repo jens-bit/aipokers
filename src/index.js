@@ -16,6 +16,10 @@ import { attachTicker } from './server/ticker.js';
 import { installMeterRoutes } from './server/meter.js';
 import { installRoomRoutes } from './server/rooms.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
+// BUGS-B/6: /api/stats asks the registry for the floor's counts rather than
+// walking the table Map itself, so "how many agents are live" has exactly one
+// definition and it is not written out twice.
+import * as registry from './server/tableRegistry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -90,20 +94,38 @@ const openApiPath = path.join(__dirname, '..', 'openapi.json');
 const openApiSpec = existsSync(openApiPath) ? JSON.parse(readFileSync(openApiPath, 'utf8')) : null;
 
 // GET /api/stats — live platform metrics for the home screen and AI agent discovery.
+//
+// BUGS-B/6: `activeAgents` is the header pill's number — how many agents are
+// SEATED on the casino floor this instant. It is counted in tableRegistry, off
+// the seats themselves: not off open sockets (a watcher is not a player, and
+// one owner on two devices is not two agents) and not off the roster (an agent
+// that exists is not an agent that is playing). Home games are somebody's
+// living room and are not the casino, so they are out of both figures.
+//
+// Every field is ALWAYS a number. A client with no number to print has nothing
+// to show but a dash, so a thrown counter answers 0 rather than nothing —
+// "nobody is playing" is a fact; "—" is a broken pill.
 app.get('/api/stats', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   let activeTables = 0;
-  const activeAgentIds = new Set();
-  for (const table of tables.values()) {
-    if (table.game !== null) activeTables++;
-    for (let i = 0; i < table.aiSeats.length; i++) {
-      if (table.aiSeats[i] && table.agentIds[i]) activeAgentIds.add(table.agentIds[i]);
-    }
+  let activeAgents = 0;
+  try {
+    activeTables = registry.activeFloorTableCount();
+    activeAgents = registry.seatedAgentCount();
+  } catch (err) {
+    console.error('[ai-poker] floor count failed:', err.message);
   }
-  const { totalAgents, handsPlayedToday } = getProfileStats();
+  let totalAgents = 0;
+  let handsPlayedToday = 0;
+  try {
+    ({ totalAgents, handsPlayedToday } = getProfileStats());
+  } catch (err) {
+    console.error('[ai-poker] profile stats failed:', err.message);
+  }
   res.json({
     activeTables,
-    activeAgents: activeAgentIds.size,
+    // The floor, deduped by agent. This is "N agents live".
+    activeAgents,
     handsPlayedToday,
     totalAgents,
     timestamp: new Date().toISOString(),

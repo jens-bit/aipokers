@@ -1,5 +1,6 @@
 import { Dealer } from './deck.js';
 import { pickWinners } from './hand.js';
+import { UNCONTESTED } from './handName.js';
 
 export const Streets = Object.freeze({
   PREFLOP: 'preflop',
@@ -447,7 +448,10 @@ export class Game {
     this.result = {
       type: 'uncontested',
       pot: this.pot,
-      winners: [{ seat, playerId: winner.playerId, amount: this.pot }],
+      // BUGS-B/5: every winner carries `hand`. Nobody showed a card here, so
+      // the honest answer is that there is no hand to name — not a guess at
+      // what he might have had.
+      winners: [{ seat, playerId: winner.playerId, amount: this.pot, hand: UNCONTESTED }],
       deltas: this._deltas(new Map([[seat, this.pot]])),
     };
     this.pot = 0;
@@ -514,7 +518,7 @@ export class Game {
     const pots = this._buildSidePots();
     const N = this.seats.length;
 
-    const payoutsBySeat = new Map(); // seat -> { seat, playerId, amount, descr, name }
+    const payoutsBySeat = new Map(); // seat -> { seat, playerId, amount, descr, name, hand }
 
     for (const pot of pots) {
       const eligible = allContestants.filter((c) => pot.eligibleSeats.includes(c.seat));
@@ -545,6 +549,8 @@ export class Game {
             amount,
             descr: w.descr,
             name: w.name,
+            // BUGS-B/5: "a pair of nines", not "Pair, 9's".
+            hand: w.hand,
           });
         }
       });
