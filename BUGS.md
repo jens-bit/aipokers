@@ -15,12 +15,13 @@ Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
 
 ---
 
-### BUG-37 — The felt formats a stack with `toLocaleString`, not the wallet's own formatter
+### BUG-37 — Money outside the watch felt is still spelled by `toLocaleString`
 **Severity:** Low (two spellings of the same number, in the same screen)
-**Where:** `client/src/components/desktop/DeskTableStage.jsx:170` and `:236`, `client/src/components/desktop/GameTile.jsx:59` and `:81`, `client/src/components/floor/atoms.jsx:123`, `client/src/components/PlayerSeat.jsx:90`
-**What:** `client/src/lib/wallet.js` exports `money()` and every money surface goes through it — that is why a pocket and a ledger agree on how a number looks. The felt does not: it calls `(stack ?? 0).toLocaleString()` directly in six places, so a stack is spelled by the browser's locale while the wallet beside it is spelled by ours.
+**Where:** `client/src/components/desktop/DeskTableStage.jsx:170`, `:188`, `:236` and `:245`, `client/src/components/desktop/GameTile.jsx:59`, `:66` and `:81`, `client/src/components/floor/atoms.jsx:123`, `client/src/components/PlayerSeat.jsx:90` and `:108`
+**What:** `client/src/lib/wallet.js` exports `money()` and every money surface goes through it — that is why a pocket and a ledger agree on how a number looks. These call `toLocaleString()` directly, so a stack is spelled by the browser's locale while the wallet beside it is spelled by ours.
 **Found by:** the WATCH report, on the hero stack.
-**Fix:** route them through `money()`. Check first whether the felt wants the currency mark at all — if it deliberately does not, the answer is an option on `money()` rather than six call sites that opted out of it.
+**Partly fixed:** WATCH-10 job 4 closed the whole of the WATCH FELT — the hero's pile, every opponent's pile, the pot, to-call, the bet spots, the read sheet and the session ceremony, on both the phone felt and SIT-1's. The answer to the question the entry asked is that the felt does want the mark in most places and not beside a chip that is already the currency, so `lib/wallet.js` now exports `group()` — `money()` without the dollar — rather than letting a call site opt out of the rule. Asserted in `client/src/components/watch10.test.jsx` ("BUG-37").
+**Still open:** the DESKTOP stage and tile, the casino floor chip, and `PlayerSeat.jsx` (the pre-v5 felt). Same fix: `money()` where the mark belongs, `group()` where it does not.
 
 ---
 

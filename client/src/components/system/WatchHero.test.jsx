@@ -62,12 +62,18 @@ describe('the column', () => {
 
 describe('him', () => {
   it('is twice an opponent seat', () => {
-    // HANDS-1: 52m settles the seat at a 40px body, and the ratio is measured
-    // body to body — a hero measured against a seat's whole 68px stack (body +
-    // gap + pill) was comparing him to a column of chrome, not to a character.
+    // HANDS-1: the ratio is measured body to body — a hero measured against a
+    // seat's whole stack (body + gap + pill) was comparing him to a column of
+    // chrome, not to a character.
+    //
+    // WATCH-10 job 1 took an opponent to 80% (32px body, 58px stack) and left
+    // HIM exactly where he was, which is the whole point of taking the space:
+    // "twice an opponent" is a FLOOR, not a target, and he now stands at three
+    // times one. What must not move is the 96 — that is his size, and the ratio
+    // is a consequence of it.
     expect(HERO_GHOST).toBe(96);
-    expect(OPP_GHOST).toBe(40);
-    expect(OPP_SEAT).toBe(68);
+    expect(OPP_GHOST).toBe(32);
+    expect(OPP_SEAT).toBe(58);
     expect(HERO_GHOST / OPP_GHOST).toBeGreaterThanOrEqual(2);
     const { container } = draw();
     expect(container.querySelector('.mood-ghost').getAttribute('width'))

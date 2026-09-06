@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
-import { ChipStack, BetSpot, PotChip, potBand, stackBand } from './system/Chips.jsx';
+import { ChipStack, BetSpot, PotChip, potBand, stackBand, SEAT_PILE_CHIPS } from './system/Chips.jsx';
 import { Bottle, isDrinking } from './system/FeltBodyBars.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
@@ -50,9 +50,16 @@ import { OwnerHero } from './system/OwnerHero.jsx';
 import { SitStrip } from './system/SitStrip.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
 import { handResult } from '../lib/handResult.js';
-import { money as potMoney } from '../lib/wallet.js';
+// WATCH-10 job 4: ONE THOUSANDS SEPARATOR ON THE FELT. Every figure on this
+// screen went through toLocaleString, which groups by the device's locale — so
+// the same pot read "$4 180" in the pot pill and "$4,180" in the result pill
+// three lines under it, on the same phone, in the same hand. money() groups by
+// hand and always the same way; group() is money() without the dollar, for the
+// figures beside chips that are already the currency.
+import { money as potMoney, group as groupChips } from '../lib/wallet.js';
 import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
 import { onFelt, record } from '../lib/bubbles.js';
+import { sidesById } from '../lib/feltBubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
@@ -470,6 +477,11 @@ function useFlyTo(rootRef, targets, deps) {
 export function SessionCeremony({
   won, busted, agentName, net, stack, hands, reason, mood, heat, accent,
   onFund, onFloor, onTalk, talkLabel,
+  // WATCH-10 job 3 · the last hand, NAMED. lib/handResult.js's parts, exactly
+  // as the felt's own result pill takes them, so the sentence the owner read a
+  // beat ago on the felt is the sentence he reads here. Absent when the session
+  // ended between hands, which is a thing that happens and is not a gap.
+  handLine = null,
 }) {
   var hot = Number.isFinite(heat) && heat > 66;
   var netText = money(net);
@@ -499,7 +511,7 @@ export function SessionCeremony({
           )}
           <span className="watch-ceremony__stack-lbl">stack</span>
           <span className="watch-ceremony__stack">
-            {'$' + (Number.isFinite(stack) ? stack.toLocaleString() : '—')}
+            {potMoney(stack)}
           </span>
         </div>
 
@@ -511,6 +523,21 @@ export function SessionCeremony({
             reason ? String(reason).toUpperCase() : null,
           ].filter(Boolean).join(' · ')}
         </div>
+
+        {/* WATCH-10 job 3. The night's figure says how it went; this says how
+            it ENDED, and it is the same sentence, from the same namer, as the
+            felt's result pill — "Granite took $30 with a pair of nines". The
+            ceremony is the one place an owner reads the evening back, and
+            "LOST · 41 HANDS" with no last hand in it was a scoreboard. */}
+        {handLine && (
+          <div className="watch-ceremony__hand" aria-label={handLine.line}>
+            <span className="watch-ceremony__hand-who">{handLine.who + ' took'}</span>
+            <span className="watch-ceremony__hand-amt">{handLine.amount}</span>
+            {handLine.tail
+              ? <span className="watch-ceremony__hand-with">{handLine.tail}</span>
+              : null}
+          </div>
+        )}
 
         {/* 52g / 52h — "the grammar of the pair reads at a glance: hands go UP
             AND OUT on a win, IN OVER THE FACE on a loss." The pose lives HERE
@@ -597,7 +624,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
         <span className="watch-felt__hero-lbl">{toCall > 0 ? 'To call' : 'Street'}</span>
         <div>
           <span className={'watch-felt__hero-num ' + (toCall > 0 ? 'is-gold' : 'is-dim')}>
-            {toCall > 0 ? '$' + toCall.toLocaleString() : (street || '—')}
+            {toCall > 0 ? potMoney(toCall) : (street || '—')}
           </span>
         </div>
       </div>
@@ -757,7 +784,11 @@ export function WatchFelt({
       fatigue: s.fatigue || null,
       drinking: isDrinking(s),
       name: s.displayName || ('Seat ' + (si + 1)),
-      stack: s.stack ? s.stack.toLocaleString() : '0',
+      // Kept as a NUMBER. It used to be grouped here with toLocaleString(),
+      // which groups by the device's locale — the same defect job 4 names on
+      // the hero's pile, one line of the same felt away. Every surface below
+      // formats it with lib/wallet's money().
+      stack: Number.isFinite(s.stack) ? s.stack : 0,
       band: stackBand(s.stack || 0, avgStack),
       pos: posLabel(si, game),
       acting: game.toAct === si,
@@ -774,6 +805,11 @@ export function WatchFelt({
     });
   }
   var slots = slotsFor(opponentSeats.length);
+  // WATCH-10 job 2: what lib/feltBubbles.js needs to model a name pill — a slot
+  // and the name written in it. Nothing else about a seat has a box.
+  var feltSeats = opponentSeats.slice(0, slots.length).map(function (o, i) {
+    return { slot: slots[i], name: o.name };
+  });
 
   // The pile on the muck: one pair per opponent who has thrown one away and had
   // it land. Capped at three — after that it is a pile, not a count.
@@ -830,7 +866,13 @@ export function WatchFelt({
   var heroStackRaw = Number.isFinite(heroStackShown)
     ? heroStackShown
     : (heroData && heroData.stack != null ? heroData.stack : null);
-  var heroStack = '$' + (heroStackRaw != null ? heroStackRaw.toLocaleString() : '--');
+  // WATCH-10 job 4. lib/wallet's money(), not toLocaleString(): the device's
+  // locale decides what toLocaleString groups with, so his pile read "$1 847"
+  // on a Swedish phone and "$1,847" in the pot pill two inches above it. One
+  // screen, one separator — the law the pot line already follows, and the
+  // reason lib/wallet.js does its own grouping. money() also answers an absent
+  // stack with an em dash rather than the "$--" this used to print.
+  var heroStack = potMoney(heroStackRaw);
   var heroMuck  = !!mucking[heroSeat];
   var mine = bubbles.filter(function(b) { return b.mine; });
   var heroSays = mine.length ? mine[mine.length - 1].text : null;
@@ -863,9 +905,12 @@ export function WatchFelt({
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}
             data-align={alignFor(slot)}>
+            {/* WATCH-10 job 1: on the felt his money IS his chips, and the
+                figure stands beside them (the pile, below). The boxed felt has
+                no room to bank a pile, so there the pill still carries it. */}
             <SeatGhost
               name={o.name}
-              stack={o.stack}
+              stack={geom ? potMoney(o.stack) : null}
               accent={o.accent}
               mood={o.mood}
               heat={Number.isFinite(o.heat) ? o.heat : 45}
@@ -889,10 +934,22 @@ export function WatchFelt({
             />
             {/* His bank stands beside his name chip, on the felt side: top
                 corners bank BELOW the pill, the rails bank BESIDE the body,
-                inside. Never under the name — that was the pile-up 52m ends. */}
+                inside. Never under the name — that was the pile-up 52m ends.
+
+                WATCH-10 job 1: ONE STACK, WITH THE NUMBER BESIDE IT. A banded
+                pile is up to ten chips tall, and five of them at the top of a
+                390px felt was the densest thing on the table — a wall of
+                counters standing in for money nobody could actually read. So
+                the pile is capped at the top three chips of its band (the
+                DENOMINATIONS still say big or small: three blacks is not three
+                whites) and the figure it used to only imply is stated next to
+                it. Same trade the hero's pile made when STACK left his strip,
+                only the other way round: there the number followed the chips,
+                here the chips stop pretending to be the number. */}
             {!geom && (
               <div className={'watch-felt__seat-pile' + (o.folded ? ' is-folded' : '')} aria-hidden>
-                <ChipStack band={o.band} w={13} />
+                <ChipStack band={o.band} w={11} cap={SEAT_PILE_CHIPS}
+                  className="is-seat" amt={potMoney(o.stack)} />
               </div>
             )}
             {/* And the bet spot in front of his pair. At street end it sweeps
@@ -901,7 +958,7 @@ export function WatchFelt({
               <div className={'watch-felt__seat-bet' + (o.sweeping ? ' is-sweeping' : '')}
                 data-fly={o.sweeping ? 'pot' : null} data-fly-var="--sweep">
                 <BetSpot band={o.betBand} w={12}
-                  amt={o.bet > 0 ? o.bet.toLocaleString() : null} />
+                  amt={o.bet > 0 ? groupChips(o.bet) : null} />
               </div>
             )}
           </div>
@@ -911,17 +968,41 @@ export function WatchFelt({
       {/* W4-3 · speech. At most two on the felt, one per seat, and a bubble
           that would be cut off is not shown at all — the record has it either
           way. HIS is now part of the hero column below (above his head, so it
-          moves him rather than landing on him); an opponent's sits over their
-          own ghost and its tail points back at them. */}
-      {bubbles.filter(function(b) { return !b.mine; }).map(function(b) {
-        var idx = opponentSeats.findIndex(function(o) { return o.seat === b.seat; });
-        if (idx < 0) return null;
-        return (
-          <div key={b.id} className={'watch-felt__bubble watch-felt__bubble--' + slots[idx]}>
-            <Bubble text={b.text} at={0} w={142} flow />
-          </div>
-        );
-      })}
+          moves him rather than landing on him); an opponent's sits in his
+          slot's band and its tail points back at him.
+
+          WATCH-10 job 2: WHICH WAY it opens is a placement decision now, not a
+          fixed corner per slot. A bubble is up to 150px wide on a 390px felt,
+          so tl pinned at left:6 ran to 156 and tc began at 120 — any two of the
+          three top seats speaking at once drew one man's words over another's.
+          lib/feltBubbles.js takes FIX-6's room rule (first side that is clear
+          of the edge, of every name pill and of every bubble already placed)
+          and gives it the felt's geometry. A bubble with no clear side is not
+          drawn at all — which is this law's own last clause, applied to being
+          cut off by a neighbour rather than by the edge. */}
+      {(function () {
+        var theirs = [];
+        bubbles.forEach(function (b) {
+          if (b.mine) return;
+          var idx = opponentSeats.findIndex(function (o) { return o.seat === b.seat; });
+          if (idx < 0 || idx >= slots.length) return;
+          theirs.push({ id: b.id, text: b.text, slot: slots[idx] });
+        });
+        if (!theirs.length) return null;
+        // Newest first, because "the newest win" is the law onFelt already
+        // applies and place() fills in the order it is handed.
+        var sides = sidesById(theirs.slice().reverse(), feltSeats);
+        return theirs.map(function (b) {
+          var side = sides.get(b.id);
+          if (!side) return null;
+          return (
+            <div key={b.id}
+              className={'watch-felt__bubble watch-felt__bubble--' + b.slot + ' is-' + side}>
+              <Bubble text={b.text} side={side} flow />
+            </div>
+          );
+        });
+      })()}
 
       {!settled && (
         <div className="watch-felt__pot">
@@ -932,7 +1013,7 @@ export function WatchFelt({
                 before you read a figure. */}
             {!between && <PotChip band={potBand(pot, game ? game.bigBlind : null)} w={13} />}
             <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
-              {between ? '—' : ('$' + pot.toLocaleString())}
+              {between ? '—' : potMoney(pot)}
             </span>
           </div>
         </div>
@@ -1027,7 +1108,7 @@ export function WatchFelt({
           <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
             <span data-fly={heroSweeping ? 'pot' : null} data-fly-var="--sweep">
               <BetSpot band={betBand(heroContrib, pot)} w={22}
-                amt={heroContrib > 0 ? heroContrib.toLocaleString() : null} />
+                amt={heroContrib > 0 ? groupChips(heroContrib) : null} />
             </span>
           </div>
         )}
@@ -1202,7 +1283,9 @@ function seatSummary(game, seat) {
   if (!s) return null;
   return {
     name: s.displayName || ('Seat ' + (seat + 1)),
-    stack: s.stack != null ? s.stack.toLocaleString() : null,
+    // The read sheet writes its own dollar, so this is the digits only —
+    // grouped by lib/wallet either way, never by the device's locale.
+    stack: s.stack != null ? groupChips(s.stack) : null,
     accent: s.accentColor || '#00D4AA',
     mood: moodStateOf(s),
     heat: moodHeatOf(s),
@@ -1810,6 +1893,18 @@ export function WatchScreen({
     var handsPlayed = Number.isFinite(sessionEnd.hands)
       ? sessionEnd.hands
       : (game && Number.isFinite(game.handNumber) ? game.handNumber : null);
+    // WATCH-10 job 3 · the last hand, named — from BUGS-A job 12's namer and
+    // from the board and showdown the felt was drawing a beat ago, so the
+    // ceremony and the felt's own result pill can never say different things
+    // about the same hand. Null between hands: there is nothing to name.
+    var lastResult = (game && game.result) ? game.result : null;
+    var ceremonyHand = lastResult
+      ? handResult(lastResult, {
+        seats: (game && game.seats) || [],
+        community: (game && game.community) || [],
+        money: potMoney,
+      })
+      : null;
     ceremonyNode = (
       <SessionCeremony
         won={!busted && Number.isFinite(sessionNet) && sessionNet >= 0}
@@ -1822,6 +1917,7 @@ export function WatchScreen({
         mood={heroMood}
         heat={heroHeat}
         accent={heroAccent}
+        handLine={ceremonyHand}
         talkLabel={'Talk to ' + (agentName || 'your agent') + ' about tonight'}
         onTalk={function () { openChat(); }}
         onFund={function () { if (onFund) onFund(); else if (onLeave) onLeave(); }}

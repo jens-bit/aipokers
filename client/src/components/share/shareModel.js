@@ -17,6 +17,7 @@
 
 import { buildTimeline } from '../replay/timeline.js';
 import { handName } from './handName.js';
+import { UNCONTESTED } from '../../lib/handResult.js';
 
 export const MARK = 'agenticpoker.app';
 
@@ -96,6 +97,19 @@ export function buildShareModel(hand, { agentName, mood, heat } = {}) {
   const named = holeCards.length === 2 && board.length >= 3
     ? handName([...holeCards, ...board])
     : null;
+  // WATCH-10 job 3 · the result line names the hand EVERYWHERE, and a pot he
+  // took with nobody left to call is still an answer to "with what". The felt
+  // has said "uncontested" since BUGS-A job 12; a card off the same hand used
+  // to show the amount and nothing, which reads as a hand the app could not
+  // work out rather than one nobody contested. Only when he WON: a hand he
+  // lost with no showdown is one he folded, and there is nothing to name.
+  //
+  // "No opponent showdown cards" is the same fact replay/timeline.js already
+  // treats as "this hand had no showdown"; the word here is not a second guess,
+  // it is that one, said out loud.
+  const contested = Array.isArray(hand?.opponentShowdownCards)
+    && hand.opponentShowdownCards.length > 0;
+  const handWord = named || (timeline.won && !contested ? UNCONTESTED : null);
 
   return {
     name: (typeof agentName === 'string' && agentName.trim())
@@ -109,8 +123,8 @@ export function buildShareModel(hand, { agentName, mood, heat } = {}) {
     board,
     won: timeline.won,
     amount,
-    hand: named,
-    result: named ? `${amount} · ${named}` : amount,
+    hand: handWord,
+    result: handWord ? `${amount} · ${handWord}` : amount,
     resultColor: timeline.won ? WON_COLOR : LOST_COLOR,
     talk: talkLine(hand),
     stamp: timeline.handNumber != null ? `HAND #${timeline.handNumber}` : null,

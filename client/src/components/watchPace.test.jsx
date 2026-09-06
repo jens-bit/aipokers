@@ -283,7 +283,13 @@ describe('WATCH-7: a hand ends quietly', () => {
       expect(mid).toBeLessThan(1340);
 
       act(() => { vi.advanceTimersByTime(STACK_TICK_MS + 100); });
-      expect(stackText()).toBe('$' + (1340).toLocaleString());
+      // WATCH-10 job 4: written out rather than built with toLocaleString().
+      // The assertion used to agree with the product by using the same wrong
+      // function — so it was green on a machine where the figure printed
+      // "$1 340" and green on one where it printed "$1,340", and it could not
+      // have caught either. lib/wallet's money() groups with a comma wherever
+      // the phone is, and that is what this now says.
+      expect(stackText()).toBe('$1,340');
     } finally {
       vi.useRealTimers();
     }
@@ -372,7 +378,11 @@ describe('WATCH-7: the ceremony belongs to the end of the session', () => {
     expect(block.querySelector('.watch-ceremony__head').textContent).toBe('WON');
     // spectatorConfig buys in for 1,000.
     expect(block.querySelector('.watch-ceremony__delta-amt').textContent).toBe('+$340');
-    expect(block.textContent).toContain('$' + (1340).toLocaleString());
+    // WATCH-10 job 4: written out, not built with toLocaleString(). An
+    // assertion that formats the expectation with the same function the product
+    // used cannot tell "$1,340" from "$1 340" — it was green either way, which
+    // is why nobody saw the two separators on one felt.
+    expect(block.textContent).toContain('$1,340');
     expect(block.querySelector('.watch-ceremony__took').textContent).toContain('42 HANDS');
   });
 

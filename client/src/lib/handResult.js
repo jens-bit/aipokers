@@ -35,6 +35,17 @@ import { handName } from '../components/share/handName.js';
 const NO_ARTICLE = /^(four|three|two pair)\b|\sfull of\s|-high$/;
 
 /**
+ * What there is to say when there is no hand to name: everyone else folded.
+ *
+ * Rule 3 of the three above, as a word rather than as a gap, and exported
+ * because the share card reaches the same dead end from a different payload —
+ * SHARE-1's flagged hand carries no `winners` for handResult() to read. Two
+ * surfaces, one vocabulary; otherwise the felt says "uncontested" about a hand
+ * and the card shipped from that same hand says nothing at all.
+ */
+export const UNCONTESTED = 'uncontested';
+
+/**
  * The hand name as it reads inside a sentence.
  *
  * SHARE-1's handName() writes names to sit after a middot on a share card —
@@ -107,7 +118,7 @@ export function handResult(result, { seats = [], community = [], money = String 
   let tail = '';
   if (winners.length === 1) {
     if (result?.type === 'uncontested') {
-      tail = 'uncontested';
+      tail = UNCONTESTED;
     } else {
       const named = winningHand(winners[0], { showdown: result?.showdown, community });
       tail = named ? `with ${withArticle(named)}` : '';
