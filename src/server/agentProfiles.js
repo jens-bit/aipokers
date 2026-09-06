@@ -15,6 +15,7 @@ import {
   moodPromptLine,
   restAtBar,
   restingHeat,
+  clampHeat,
   ownerDriftCause,
   isSoothable as isMoodSoothable,
   applyItem as applyMoodItem,
@@ -26,6 +27,10 @@ import { notifyEvent } from './notify.js';
 // METER-1: the chat and build routes are the LLM-spending endpoints, and this
 // is where their spend gets a name on it.
 import { recordAnthropicCall, Kind as MeterKind } from './meter.js';
+// COST-1: the tape's ranking, and what the hand he keeps rewatching does to
+// where he rests. Pure — see salience.js; this file owns the record and the
+// save and nothing else.
+import { rankHands, mostRewatched, tapePhrase, tapeHeatDrift } from './salience.js';
 import {
   ATTR_KEYS,
   ensureAttributes,
@@ -991,18 +996,37 @@ export function getMemoryContext(agentId, userId) {
 export function openerForAgent(agent) {
   if (!agent) return null;
   const stored = agent.sessionRecap?.opener;
-  if (typeof stored === 'string' && stored.trim()) return stored.trim();
+  if (typeof stored === 'string' && stored.trim()) return withTapeClause(agent, stored.trim());
   const handsPlayed = Number(agent.stats?.handsPlayed) || 0;
   const played = handsPlayed > 0
     || (Array.isArray(agent.recentHands) && agent.recentHands.length > 0)
     || (Array.isArray(agent.sessionLog) && agent.sessionLog.length > 0);
-  return formatOpener({
+  return withTapeClause(agent, formatOpener({
     mood: agent.mood,
     flagged: Array.isArray(agent.sessionFlagged) ? agent.sessionFlagged : [],
     seed: handsPlayed,
     nature: agent.nature,
     played,
-  });
+  }));
+}
+
+// COST-1: the hand he has been rewatching, said out loud.
+//
+// "Still thinking about that flush against Granite" — and it is said whether
+// he WON it or lost it, which is the same law the ranking is built on
+// (salience.js rule 1). A man who replays the pot he took off somebody is
+// exactly as recognisable as one who replays the beat, and an agent who only
+// ever brings up his defeats is a depressive rather than a character.
+//
+// Appended rather than replacing: the opener is his mood in his own voice and
+// that is still the sentence. This is the thing he cannot let go of, after it.
+export function withTapeClause(agent, opener) {
+  if (typeof opener !== 'string' || !opener.trim()) return opener;
+  const obsession = tapeObsession(agent);
+  const phrase = obsession?.phrase;
+  // Once is a man with something on his mind; the first watch is just watching.
+  if (!phrase || (obsession.count ?? 0) < 2) return opener;
+  return `${opener.trim()} Still thinking about ${phrase}.`;
 }
 
 // Programmatic version of the /finish endpoint — used by table.js when a
@@ -1073,6 +1097,10 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     biggestPot: Math.max(0, Number(sessionEnd?.biggestPot) || 0),
   });
   if (agent.sessionLog.length > 10) agent.sessionLog = agent.sessionLog.slice(-10);
+  // COST-1: the scale the tape reads a pot against. Recorded here because this
+  // is the one place that knows what he sat down with, and the ranking needs
+  // it long after the table is gone.
+  if (Number.isFinite(buyInAmount) && buyInAmount > 0) ensureTape(agent).stack = buyInAmount;
   agent.stats.netWon = (agent.stats.netWon ?? 0) + (typeof sessionPnl === 'number' ? sessionPnl : 0);
 
   // Bankroll: credit the chips the agent walked away with. buyIn was already
@@ -1142,11 +1170,16 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       // cannot be moved by an absence, so this is not guilt machinery: an
       // owner who does nothing scores null and the target is plain neutral.
       const toneScore = ownerToneScore(agent);
+      // COST-1: and by the hand he cannot stop watching. Under half a
+      // HEAT_STEP either way, on top of the owner drift, which is already
+      // capped at ten — the two together still cannot outweigh a single event
+      // at the felt, which is the rule the whole mood machine rests on.
+      const tape = tapeObsession(agent);
       agent.mood = restAtBar(agent.mood, {
         hours,
         composure: agent.attrs?.COMPOSURE ?? null,
         profile: agent.profile ?? null,
-        restingTarget: restingHeat(toneScore),
+        restingTarget: clampHeat(restingHeat(toneScore) + (tape?.drift ?? 0)),
       });
     }
   }
@@ -1683,6 +1716,145 @@ export function getAgentHome(agentId, userId) {
 // Narrow accessors, in the style of setAgentMood / noteAgentFatigue: the tape
 // room owns the ninety seconds and the vocabulary, and this file owns the
 // record and the save. Neither imports the other.
+
+
+// ── COST-1 · the tape ───────────────────────────────────────────────────────
+//
+// FLAG-1 gave the review sheet a list of notable hands in the order they
+// happened, which is a list nobody reads past the third entry, and it gave the
+// tape room a button with no opinion behind it: the owner had to choose, and
+// an agent who only ever watches what he is told to watch does not have a
+// memory, he has a video player.
+//
+// So the hands are RANKED (salience.js — intensity × recency), and the ranking
+// is his as much as it is the owner's: he picks the top one himself when he is
+// home with nothing to do (tapeIdle.js), and the one he keeps going back to
+// shows up in where he rests and in the first thing he says.
+//
+// The ledger below is the only new state: hand number -> how many times he has
+// actually watched it, when he last did, and the two facts the opener and the
+// heat drift need without re-reading the hand (whether he won it, what it was,
+// and who was across the table). Bounded at TAPE_LEDGER_MAX entries, oldest
+// visit evicted, because a record that grows for the life of an agent is a
+// record that eventually is the agent.
+
+export const TAPE_LEDGER_MAX = 20;
+
+function ensureTape(agent) {
+  if (!agent.tape || typeof agent.tape !== 'object') agent.tape = {};
+  if (!agent.tape.watches || typeof agent.tape.watches !== 'object') agent.tape.watches = {};
+  // COST-1: how many times he has picked a hand FOR HIMSELF today. The owner's
+  // button is unlimited — it is his agent and his ninety seconds — and this
+  // bounds only the studying he does unprompted. See tapeIdle.js.
+  if (!agent.tape.self || typeof agent.tape.self !== 'object') agent.tape.self = { day: null, count: 0 };
+  // The buy-in of the session the flagged hands came from. It is what makes "a
+  // big pot" mean the same thing at 10/20 and at 100/200, and there was
+  // nowhere else on the record it already lived — see finishAgentSession,
+  // which is the one place that knows it.
+  if (!Number.isFinite(agent.tape.stack)) agent.tape.stack = null;
+  return agent.tape;
+}
+
+/**
+ * Note that he watched one hand.
+ *
+ * Written when a study STARTS rather than when it finishes, because starting
+ * one is the act: an owner who closes the app forty seconds in still went and
+ * looked, and a rewatch counter that only counted completions would undercount
+ * exactly the hands somebody could not sit through.
+ */
+export function noteTapeWatch(agentId, userId, hand, { subject = null, now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent || hand?.handNumber == null) return null;
+  const tape = ensureTape(agent);
+  const key = String(hand.handNumber);
+  const prev = tape.watches[key];
+  tape.watches[key] = {
+    count: (Number(prev?.count) || 0) + 1,
+    lastAt: now,
+    won: !!hand.won,
+    flagType: hand.flagType ?? null,
+    subject: subject ?? prev?.subject ?? null,
+  };
+  // Bounded: the least recently visited hand goes first, which is the one he
+  // has most obviously stopped thinking about.
+  const keys = Object.keys(tape.watches);
+  if (keys.length > TAPE_LEDGER_MAX) {
+    keys
+      .sort((a, b) => (tape.watches[a].lastAt ?? 0) - (tape.watches[b].lastAt ?? 0))
+      .slice(0, keys.length - TAPE_LEDGER_MAX)
+      .forEach((k) => delete tape.watches[k]);
+  }
+  saveStore(userId ?? 'anon');
+  return tape.watches[key];
+}
+
+/** His rewatch ledger, or an empty one. */
+export function getTapeWatches(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return {};
+  return ensureTape(agent).watches;
+}
+
+/**
+ * How many hands he has picked for himself today, and a claim on the next one.
+ *
+ * `claim` is what makes the twice-a-day cap real: it stamps the day and the
+ * count BEFORE the study starts, so two ticks arriving in the same second
+ * cannot both decide he is free to watch something.
+ */
+export function claimSelfStudy(agentId, userId, { limit = 2, now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return false;
+  const tape = ensureTape(agent);
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (tape.self.day !== day) tape.self = { day, count: 0 };
+  if (tape.self.count >= limit) return false;
+  tape.self.count++;
+  saveStore(userId ?? 'anon');
+  return true;
+}
+
+/**
+ * The tape, ranked, for one agent. What GET /api/agents/:id/tape answers and
+ * what the idle driver at home reads to pick a hand.
+ *
+ * The reference stack is his buy-in for the session those hands came from,
+ * which is what makes "a big pot" mean the same thing at 10/20 and at 100/200.
+ * His nemesis rides in as a playerId set, so a hand against the man he has
+ * history with scores above the same pot against a stranger.
+ */
+export function getAgentTape(agentId, userId, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureBio(agent);
+  const tape = ensureTape(agent);
+  const nemesisIds = new Set();
+  const nemesis = agent.bio?.nemesis?.playerId;
+  if (nemesis) nemesisIds.add(String(nemesis));
+
+  return rankHands(agent.sessionFlagged ?? [], {
+    now,
+    stack: Number(tape.stack) > 0 ? tape.stack : null,
+    nemesisIds,
+    watches: tape.watches,
+  });
+}
+
+/**
+ * The hand he has been going back to this week, with the sentence the opener
+ * uses for it. Null when he has not rewatched anything.
+ */
+export function tapeObsession(agent, { now = Date.now() } = {}) {
+  if (!agent) return null;
+  const watched = mostRewatched(ensureTape(agent).watches, { now });
+  if (!watched) return null;
+  return { ...watched, phrase: tapePhrase(watched), drift: tapeHeatDrift(watched) };
+}
 
 /**
  * Put him in the tape room, or take him out of it (`study: null`).
@@ -3622,6 +3794,36 @@ export function installAgentProfileRoutes(app) {
       if (wrote) saveStore(userId);
     }
     res.json({ flaggedHands: hands, count: hands.length });
+  });
+
+  // COST-1 — GET /api/agents/:agentId/tape?userId=...
+  //
+  // The same hands /flagged returns, RANKED by salience (intensity × recency)
+  // with the rewatch count on each. What the tape room's list is drawn from,
+  // and what he reads himself when he picks one at home.
+  //
+  // Owner-gated in full rather than field by field, unlike /flagged. That
+  // route has a public half — a spectator can see the shape of a session — and
+  // this one has none: what he keeps going back to is the most private thing
+  // about him, the same class as his reasoning (AGE-33) and his read book.
+  app.get('/api/agents/:agentId/tape', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'not your agent' });
+    const hands = getAgentTape(agentId, userId);
+    if (hands === null) return res.status(404).json({ error: 'Agent not found' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      agentId,
+      hands,
+      count: hands.length,
+      // The one he cannot let go of, which is also the one in his opener and
+      // the one nudging where he rests. Named here so a client does not have
+      // to re-derive it from the list.
+      obsession: tapeObsession(agent),
+    });
   });
 
   // GET /api/agents/:agentId/memory?userId=...

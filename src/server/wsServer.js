@@ -10,6 +10,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as tapeIdle from './tapeIdle.js';
 import * as thread from './thread.js';
 
 const { getOrCreateTable } = registry;
@@ -51,6 +52,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // exactly the question a standing change answers.
   setAgentChangeListener((userId) => {
     try {
+      // COST-1: before the home game is reconciled, not after. An agent who
+      // has just put a tape on himself is no longer eligible for the kitchen
+      // table (homeGame.eligible excludes a man who is studying), and syncing
+      // first would seat him and then take him straight back out of a hand.
+      // Free by construction — the tape room contains no model call.
+      tapeIdle.sweep(userId, presentedRoster(userId, { owner: true }));
       homeGame.sync(userId);
       const roster = presentedRoster(userId, { owner: true });
       homeNight.noteHousehold(userId, roster);
@@ -204,12 +211,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             if (!msg.text || !String(msg.text).trim()) return;
             const text = String(msg.text).trim();
             table.sendChat(effectiveSeat, text, false);
-            // Maybe trigger AI seats to respond to the human chat.
-            for (let i = 0; i < table.aiSeats.length; i++) {
-              if (table.aiSeats[i] && table.pending[i]) {
-                table._maybeGenerateAiChat(i, 'human_chat', text);
-              }
-            }
+            // COST-1: this used to be one model call per AI seat, per typed
+            // message, to answer a sentence. The line is now queued on each
+            // agent instead, where the decision router reads it as a reason to
+            // spend — so he answers in his next decision, holding both the
+            // spot and what was said to him, on a call that was happening
+            // anyway. See Table._hearFromTable.
+            table._hearFromTable(text, effectiveSeat);
             return;
           }
 

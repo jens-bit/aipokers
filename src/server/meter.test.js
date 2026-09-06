@@ -22,7 +22,8 @@ import express from 'express';
 import http from 'node:http';
 
 import {
-  recordModelCall, recordAnthropicCall, ownerMeter, adminMeter,
+  recordModelCall, recordAnthropicCall, recordDecisionRoute, foldRoutes,
+  ownerMeter, adminMeter,
   installMeterRoutes, dayKey, sinceDay, Kind, HOUSE, DEFAULT_DAYS,
 } from './meter.js';
 
@@ -118,6 +119,54 @@ test('METER-1: recording never throws into the hand that was making the call', (
 });
 
 // ── Slicing ──────────────────────────────────────────────────────────────────
+
+// ── COST-1 · where the decisions went ────────────────────────────────────────
+
+test('COST-1: a decision that cost nothing is still filed — that is the point', () => {
+  const me = owner();
+  recordDecisionRoute({ ownerId: me, route: 'policy', reason: 'clear', at: TODAY });
+  recordDecisionRoute({ ownerId: me, route: 'policy', reason: 'clear', at: TODAY });
+  recordDecisionRoute({ ownerId: me, route: 'model', reason: 'river', at: TODAY });
+
+  const bill = ownerMeter(me, { now: TODAY });
+  assert.equal(bill.routes.decisions, 3);
+  assert.equal(bill.routes.policy, 2);
+  assert.equal(bill.routes.model, 1);
+  assert.equal(bill.routes.policyShare, 0.667);
+  assert.deepEqual(bill.routes.byReason, { clear: 2, river: 1 });
+  // And none of it touched the dollars: a route is not a call.
+  assert.equal(bill.totals.calls, 0);
+  assert.equal(bill.totals.usd, 0);
+});
+
+test('COST-1: a routed decision with no owner behind it is the house, not a hole', () => {
+  recordDecisionRoute({ ownerId: null, route: 'policy', reason: 'clear', at: TODAY });
+  const floor = adminMeter({ now: TODAY });
+  assert.ok(floor.routes.decisions > 0);
+  const house = ownerMeter(HOUSE, { now: TODAY });
+  assert.ok(house.routes.decisions > 0);
+});
+
+test('COST-1: a route with nothing to say is rejected rather than filed as blank', () => {
+  assert.equal(recordDecisionRoute({ ownerId: owner(), route: '', reason: 'clear' }), false);
+  assert.equal(recordDecisionRoute({ ownerId: owner(), route: 'policy', reason: '' }), false);
+  assert.equal(recordDecisionRoute({}), false);
+});
+
+test('COST-1: an owner who has played nothing has no share rather than a zero', () => {
+  const empty = foldRoutes([]);
+  assert.equal(empty.decisions, 0);
+  assert.equal(empty.policyShare, null, 'nothing divided by nothing is not 0%');
+  assert.equal(ownerMeter(owner(), { now: TODAY }).routes.policyShare, null);
+});
+
+test('COST-1: a route from yesterday is outside a one-day window, same as a call', () => {
+  const me = owner();
+  recordDecisionRoute({ ownerId: me, route: 'policy', reason: 'clear', at: TODAY - DAY });
+  recordDecisionRoute({ ownerId: me, route: 'model', reason: 'heat', at: TODAY });
+  assert.equal(ownerMeter(me, { days: 1, now: TODAY }).routes.decisions, 1);
+  assert.equal(ownerMeter(me, { days: 2, now: TODAY }).routes.decisions, 2);
+});
 
 test('METER-1: a day is a day, and the window only reaches back as far as it is asked to', () => {
   const me = owner();
