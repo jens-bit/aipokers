@@ -48,6 +48,18 @@ export const ThreadKind = Object.freeze({
 
 const KINDS = new Set(Object.values(ThreadKind));
 
+// HOME-STATE-1: where the line was said. `table` is every line that predates
+// the home and every line a felt produces; `home` is the nightly exchange
+// between two agents who spent the evening in — a conversation with no table
+// under it, filed against a synthetic session id so it reads back through the
+// same route the felt's thread does.
+export const ThreadSource = Object.freeze({
+  TABLE: 'table',
+  HOME: 'home',
+});
+
+const SOURCES = new Set(Object.values(ThreadSource));
+
 // Only `him` is private. `you` is the owner's own line coming back to him —
 // harmless to him, but it is still his, so it travels with the private half.
 const PRIVATE_KINDS = new Set([ThreadKind.HIM, ThreadKind.YOU]);
@@ -66,8 +78,11 @@ export const LINE_MAX = 280;
  *   text       the line
  *   ts         server clock, defaulted here so no caller can supply a
  *              client's idea of the time
+ *   source     one of ThreadSource — where it was said. Anything unrecognised
+ *              falls back to 'table' rather than being stored, so a caller
+ *              cannot invent a fifth provenance the client has to switch on.
  */
-export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null } = {}) {
+export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE } = {}) {
   if (!sessionId || !agentId) return null;
   if (!KINDS.has(kind)) return null;
   if (typeof text !== 'string') return null;
@@ -85,6 +100,7 @@ export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, 
       kind,
       who: label,
       text: trimmed,
+      source: SOURCES.has(source) ? source : ThreadSource.TABLE,
     });
   } catch (err) {
     console.error('[thread] append failed:', err.message);

@@ -61,6 +61,36 @@ const handTag = (ctx) => {
   return 'that one';
 };
 
+
+// WANTS-1: how each ask is paraphrased in the ledger.
+//
+// A PARAPHRASE, never the line he said. Same rule as the `needle` writer above
+// and for the same reason: what survives into his memory is the shape of what
+// happened between you, not a transcript of either side of it. It also means
+// the ledger reads the same however the want was worded, so retuning
+// ASK_LINES never rewrites history.
+const ASK_GRANTED = Object.freeze({
+  rest:    'let me sit one out when I was cooked',
+  deploy:  'put me in when I asked',
+  beer:    'got me a beer when I asked',
+  back_in: 'let me go straight back in',
+  fund:    'fronted me when I was cleaned out',
+  brag:    'sat and heard me out about a hand',
+  nemesis: 'sent me after him when I asked',
+});
+
+const ASK_ASKED_FOR = Object.freeze({
+  rest:    'to sit one out',
+  deploy:  'to be put in',
+  beer:    'for a beer',
+  back_in: 'to go straight back in',
+  fund:    'for a stake',
+  brag:    'to tell him about a hand',
+  nemesis: 'to be sent after him',
+});
+
+const askedFor = (kind) => ASK_ASKED_FOR[kind] ?? 'for something';
+
 export const WRITERS = Object.freeze({
   // — messages he received —
   needle: {
@@ -132,6 +162,41 @@ export const WRITERS = Object.freeze({
     tone: TONE.HOSTILE,
     ownerAct: 'declined a want he had raised',
     line: (ctx) => `I asked for ${ctx.item === 'beer' ? 'a beer' : 'something'}. Nothing.`,
+  },
+  // — WANTS-1: answering an ask (§ the want as an ask) —
+  //
+  // Every answer writes a line, including `later` and including `no`. That is
+  // deliberate and it is the point: the ledger is his read on how you treat
+  // him, and "he asks and I say no" is a real way to treat someone. What it is
+  // NOT is a punishment — `want_refused` and `want_snoozed` are NEUTRAL, so a
+  // week of saying no to things you were right to say no to does not drift his
+  // resting heat at all. The only hostile want line in the table is
+  // RELATE-1d's `want_ignored`, which is the one raised by a rough night and
+  // then declined; a refused ASK is a decision, not a slight.
+  //
+  // The dangerous yes gets a type of its own rather than a flag on
+  // `want_granted`, because the thing a later feature wants to find is exactly
+  // "the times he asked to sit back down steaming and was let". A distinct
+  // type is findable; a flag inside a formatted string is not.
+  want_granted: {
+    tone: TONE.DECENT,
+    ownerAct: 'said yes to something he asked for',
+    line: (ctx) => ASK_GRANTED[ctx?.kind] ?? 'said yes when I asked for something',
+  },
+  want_snoozed: {
+    tone: TONE.NEUTRAL,
+    ownerAct: 'said later to something he asked for',
+    line: (ctx) => `said later when I asked ${askedFor(ctx?.kind)}`,
+  },
+  want_refused: {
+    tone: TONE.NEUTRAL,
+    ownerAct: 'said no to something he asked for',
+    line: (ctx) => `said no when I asked ${askedFor(ctx?.kind)}`,
+  },
+  want_yes_dangerous: {
+    tone: TONE.NEUTRAL,
+    ownerAct: 'said yes to an ask he had flagged as a bad idea',
+    line: () => 'let me sit straight back down when I was steaming',
   },
 });
 

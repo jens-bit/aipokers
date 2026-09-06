@@ -99,8 +99,11 @@ export const ServerMsg = Object.freeze({
                             //   rows: [{ k, label, value, confidence, formed }] }] }
   // AGE-38 floor channel (server → subscriber).
   FLOOR_STATE: 'floor_state', // { type, userId, agents: [{ id, name, presence, mood,
-                              //   lastMoment, sessionRecap, unseenRecap, proposal,
-                              //   activeTableId, liveGame }], rooms: [...] }
+                              //   lastMoment, want, sessionRecap, unseenRecap,
+                              //   proposal, activeTableId, liveGame }], rooms: [...] }
+                              // WANTS-1 (additive): `want` is the one thing
+                              // that agent is asking for, or null — the same
+                              // object the WANT message carries. See there.
                               // ROOMS-1 (additive): `rooms` is the same array
                               // GET /api/rooms serves — see FLOOR_ROOMS below.
                               // It rides the snapshot so a client that has
@@ -162,6 +165,55 @@ export const ServerMsg = Object.freeze({
   // exactly what it saw before it existed.
   SESSION_END: 'session_end', // { type, sessionId, agentId, tableId, reason,
                               //   hands, net, biggestPot, duration, endedAt }
+  // HOME-STATE-1 (additive): where this owner's agents are and what they are
+  // doing, pushed to his floor subscribers whenever it changes. OWNER-SCOPED,
+  // like FLOOR_STATE and unlike the ticker: it is a description of one man's
+  // living room.
+  //
+  //   agents  one entry per active agent —
+  //     { id, name, nature, mood, location: { where, tableId, room, since },
+  //       routine: { key, label }, fatigue, unseenRecap,
+  //       study: { handNumber, startedAt, endsAt } | null }
+  //     `where` is home | casino | table. `room` is the stakes-tier room id
+  //     (floor | upstairs | backroom) when he is out, null when he is home.
+  //     `since` is server epoch ms — when he arrived where he is.
+  //   game    the home game, or null —
+  //     { tableId, state, seats: [{ agentId, name }], handsPlayed }
+  //     `state` is running | paused. `tableId` is a normal table id: WATCH it
+  //     the way you watch any other. It is at no stakes, in no room, and on
+  //     no ladder, so it never appears in FLOOR_ROOMS.
+  //
+  // A client that ignores this message sees exactly what it saw before it
+  // existed.
+  HOME_STATE: 'home_state',   // { type, userId, agents, game }
+  // WANTS-1 (additive): the one thing an agent is asking his owner for has
+  // changed. Owner-filtered like FLOOR_STATE — a want is a private thing
+  // between a man and his backer, and it names rooms and money.
+  //
+  //   { type, userId, agentId, want }
+  //
+  // `want` is null when he has stopped asking (answered, snoozed, or the world
+  // gave him what he wanted), and otherwise
+  //   { kind, text, needs, dangerous, item, room, mood, at }
+  // where `kind` is one of
+  //   rest     he is worn and wants to sit one out
+  //   deploy   he is fresh, at home, and wants to be put in
+  //   beer     he is hot at home (the RELATE-1d item, 200 chips)
+  //   back_in  he is hot and just left a table — he wants to sit straight back
+  //            down. ALWAYS carries dangerous: true; it is the only kind that
+  //            does, and the client is expected to say so out loud.
+  //   fund     he is busted and wants a stake
+  //   brag     he had a night worth telling you about
+  //   nemesis  the man he cannot beat is seated somewhere; `room` says where
+  // `needs` is what the CLIENT must do if the owner answers yes — 'deploy'
+  // (open the casino with him selected, in `room` when it is set), 'fund'
+  // (open the wallet) or 'thread' (open the thread) — and null when the server
+  // does the whole thing itself. At most one want per agent, ever.
+  //
+  // The same want rides GET /api/agents, GET /api/agents/:id and FLOOR_STATE,
+  // so a client that ignores this message is never wrong, only late. It is
+  // answered over POST /api/agents/:agentId/want { answer: yes|later|no }.
+  WANT: 'want',             // { type, userId, agentId, want }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

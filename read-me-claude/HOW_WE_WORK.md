@@ -1,6 +1,6 @@
 # How We Work — Agentic Poker
 
-The operating protocol as it actually ran on 2026-09-05/06. Read it at the start of every session.
+The operating protocol as it actually ran on 2026-09-05/06, with the queue/integrator rules added 2026-09-06. Read it at the start of every session.
 
 ## Who is Jens
 
@@ -14,7 +14,7 @@ One numbered terminal tab per role. The numbers are stable across a session; the
 
 | Tab | What it is |
 |-----|-----------|
-| **1** | Main repo, plain PowerShell in `C:\Projects\ai-poker`. **Git only** — merges, branch cleanup, push, `git worktree add`. No Claude runs here. |
+| **1** | **Integrator.** Main repo, `C:\Projects\ai-poker`. Merges the queue, runs the installs and the tests, fixes what is red, cleans up branches, `git worktree add`. A Claude tab since 2026-09-06 — see *The integrator tab* below. **It never pushes**: Jens pushes, because the push is the deploy. |
 | **2–6, 9–11** | Claude Code worktrees, one per tree. Current roster: `ai-poker-backend`, `-frontend`, `-platform`, `-watch`, `-events`, `-share`, `-notify`, `-tableview`, `-redesign`. |
 | **7** | Arena. `node scripts/arena.js` runs, results land in `data/arena/`. Nothing else. |
 | **8** | SSH to the VPS. Deploy and `pm2 logs`. Nothing else. |
@@ -38,11 +38,21 @@ git -C ../ai-poker-<domain> log --oneline -1   # must match main's HEAD
 
 Worktree directories are named after the DOMAIN, not the feature, and they survive the whole session. Don't create one per prompt — that is how a session ends with fifteen dead worktrees.
 
-## One prompt per tab
+## One queue per tab
 
 Jens pastes prompts. He does not type instructions of his own and he does not answer questions mid-run — a tab that stops to ask has stalled until he comes back to it. So each prompt is self-contained and ends with everything the tab needs.
 
-Every prompt is shaped:
+**Since 2026-09-06, a tab gets a QUEUE, not a prompt.** One paste carries every job that tab will do, numbered and in order, and the tab works them start to finish and **reports once, at the end**. It does not stop between jobs to ask what comes next, and it does not report after each one — a tab that reports three times is a tab Jens has to come back to three times, and coming back mid-run is the thing he cannot do.
+
+```
+Job 1 — <TREE-ID>: <task, exact file paths>. Commit.
+Job 2 — <TREE-ID>: <task>. Commit.
+Job 3 — when 1 and 2 are green, <finishing step>, then stop and report.
+```
+
+Jobs in a queue run **sequentially** and each ends in its own commit, so a bad job can be reverted alone. If one job is blocked, the tab skips it, finishes the rest, and says so in the single report — it does not stall the whole queue on one blocked item. The queue is also where a tab is told what to do when something goes wrong (which branch to fix on, whether to retry), because there is nobody to ask.
+
+Each job inside the queue is shaped:
 
 ```
 STEP 0: run `git checkout -B <branch> main` in this worktree before anything else.
@@ -62,12 +72,41 @@ Bigger trees get a megaprompt: one READ FIRST list, N sub-tasks, one commit each
 
 ## What tabs never do
 
-- **Never push.** Only tab 1 pushes, and only after the merge.
+- **Never push.** Nobody in a tab pushes — not even the integrator. Jens pushes, after the merges are in and green.
 - **Never commit `client/dist`.** It is gitignored; a tab that force-adds it poisons every later merge.
 - **Never modify `design-refs/`.** It is read-only. Ports go one way: `design-refs/` → `client/src/`. Port, don't redesign, don't "improve while I'm in there."
 - **Never merge.** Tabs commit and report; tab 1 sequences.
 
-## Merging, in tab 1
+## The integrator tab
+
+Tab 1 is the integrator. It is given the merge order in its queue and follows it — it does not invent one. When a branch in the queue is not ready yet (`git log --oneline main..feature/x` is empty), it **skips it and comes back to it** rather than waiting on it.
+
+After every merge, in this order:
+
+```powershell
+git merge feature/x --no-edit
+npm install
+cd client; npm install; cd ..
+npm run test:all
+```
+
+Both `npm install`s, every time: a merged branch may have brought a new dependency into either `package.json`, and a stale `node_modules` becomes a test failure that has nothing to do with the code.
+
+**On a conflict, or on a red test caused by the merge, the fix happens in the offending branch's own worktree — never in main.** The integrator aborts, goes to `C:\Projects\ai-poker-<name>`, merges main into that branch there, resolves keeping both sides whole, gets `npm run test:all` green, commits, comes back and merges again — which now fast-forwards. Resolving in main instead buries the resolution in a merge commit nobody reviews and leaves the branch itself still broken.
+
+```powershell
+git merge --abort
+cd C:\Projects\ai-poker-<name>
+git merge main            # resolve here, keep BOTH sides whole
+npm run test:all
+git commit
+cd C:\Projects\ai-poker
+git merge feature/x --no-edit
+```
+
+A red test that is *not* a conflict gets its own `fix/` branch off main, with a test that fails before the fix and passes after (Testing law #3), merged like any other branch.
+
+**The integrator never pushes.** It merges, tests, fixes, and stops with the final line for Jens: `git push`. On this project the push is the deploy, so it is Jens's call, not a step in a queue.
 
 Merge order is **server before client, smallest diff first.** Server branches change the shape of the data the client renders; taking them first means the client branches merge against the truth instead of against a guess. Within each group, smallest first — small merges that land clean shrink the conflict surface for the big one.
 
@@ -80,7 +119,7 @@ npm test && npm run test:client
 
 Before any merge to main: `npm run test:e2e` (~40s). See the Testing law in CLAUDE.md — it is not negotiable, and loosening an assertion to reach green is the one thing never allowed.
 
-**Conflicts are resolved by the owning tab, not by tab 1.** Tab 1 stops, and the tab that owns the branch merges main into its own branch and fixes it there, with its file context still loaded:
+When a conflicting branch's owning tab is still live, that tab can do the resolution itself instead — same pattern, same worktree, with its file context still loaded:
 
 ```
 git fetch && git merge main
@@ -88,9 +127,17 @@ git fetch && git merge main
 git commit -m "Merge branch 'main' into feature/x (MERGE-n)"
 ```
 
-Then tab 1 retries the merge and it fast-forwards. That is the MERGE-n pattern — MERGE-2 and MERGE-3 on 2026-09-05 both went this way. Tab 1 never hand-edits a conflicted file it doesn't own.
+Then the integrator retries the merge and it fast-forwards. That is the MERGE-n pattern — MERGE-2 and MERGE-3 on 2026-09-05 both went this way. Either way the resolution lands on the feature branch, not in main.
 
-After each merge, in tab 1: `git branch -d feature/x` (safe delete) and `git worktree prune`. Fredrik's platform work lands as GitHub PRs instead; nobody force-pushes main.
+After each merge: `git branch -d feature/x` (safe delete) and `git worktree prune`. Fredrik's platform work lands as GitHub PRs instead; nobody force-pushes main.
+
+## Issues to PRs: the Claude Code GitHub app
+
+The Claude Code GitHub app is installed on the repo. **Mention `@claude` in a GitHub issue, or in a comment on one, and it opens a PR for it** — the work happens in the cloud, on its own branch, and arrives as an ordinary pull request.
+
+Those PRs are **gated by the Tests job** in `.github/workflows/deploy.yml`: `npm test`, `npm run test:client` and `npm run test:e2e` run on every PR, and a PR whose Tests job is red does not merge — whoever, or whatever, wrote it. The bot clears exactly the same bar a tab does, which is the point. It is a way to get small, well-specified work started without occupying a terminal, not a way around the Testing law.
+
+A good `@claude` issue reads like a tab prompt: one tree, exact file paths, the test that must pass. Vague issues come back as vague PRs.
 
 ## Design waves
 

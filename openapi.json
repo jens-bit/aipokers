@@ -400,6 +400,61 @@
         }
       }
     },
+    "/api/agents/{agentId}/want": {
+      "post": {
+        "summary": "Answer the one thing he is asking for",
+        "operationId": "answerWant",
+        "description": "WANTS-1. An agent has at most one active want at a time, generated from his own state (fatigue, mood heat, idleness, pocket, last session, whether his nemesis is seated) and written in his voice from a template — never a model call. It rides GET /api/agents, GET /api/agents/{agentId} and the WebSocket FLOOR_STATE as `want`, and a WANT message is pushed when it changes.\n\n`answer` is one of:\n\n  yes    — the server does what it can and says what it cannot. `rest` benches him until STAMINA recovers to 'fresh' (POST /deploy answers 409 agentResting until then, and the bench clears itself); `beer` spends 200 chips from the WALLET on the one item, sharing the pep talk's cooldown, and can fail with 400 if the wallet is short, the cooldown is live, or there is no mood to soothe — in which case the want is left exactly where it was. Otherwise the response carries `needs`: 'deploy' (open the casino with him selected, in `room` when it is set), 'fund' (open the wallet — this route moves no money on its own), or 'thread' (open the thread and let him tell you about the hand).\n  later  — thirty minutes of quiet, then the SAME want returns, still unanswered. This is the only timer a want has.\n  no     — it is gone, and that kind stays quiet for an hour.\n\nAll three write one line into the owner ledger as a paraphrase, never as the words he used. `later` and `no` are recorded NEUTRAL — declining is a decision, not a slight, and does not drift his resting heat. Answering yes to a want flagged `dangerous: true` (only `back_in`: he is steaming and wants to sit straight back down) is recorded under its own ledger type so the biography layer can read it later.\n\nOwner-only. No model call, so no dedicated rate limit beyond the /api limiter.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["answer"],
+                "properties": {
+                  "answer": { "type": "string", "enum": ["yes", "later", "no"] },
+                  "userId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answered. `want` is null: he has stopped asking.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "answered": { "type": "string", "enum": ["yes", "later", "no"] },
+                    "kind": { "$ref": "#/components/schemas/WantKind" },
+                    "want": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/Want" }] },
+                    "needs": { "type": "string", "enum": ["deploy", "fund", "thread"], "description": "Present on yes when the server cannot finish the job alone." },
+                    "room": { "type": "string", "nullable": true, "description": "With needs=deploy: the room id he named (floor | upstairs | backroom), or null." },
+                    "snoozedUntil": { "type": "integer", "description": "With answer=later: epoch ms at which the same want returns." },
+                    "benched": { "type": "boolean", "description": "With kind=rest: he is sitting out until he is fresh." },
+                    "restingUntil": { "type": "string", "description": "With kind=rest: always 'fresh'." },
+                    "given": { "type": "string", "description": "With kind=beer: the item bought." },
+                    "spent": { "type": "integer", "description": "With kind=beer: chips taken from the wallet." },
+                    "soothed": { "type": "boolean" },
+                    "mood": { "type": "object", "properties": { "state": { "type": "string" }, "heat": { "type": "integer" } } }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Nothing pending, an answer outside yes|later|no, or a beer the wallet, the cooldown or his mood would not allow", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Not your agent", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/agents/chat": {
       "post": {
         "summary": "Conversational turn — agent creation flow or owner chat",
@@ -593,7 +648,34 @@
           "timestamp": { "type": "string", "format": "date-time" }
         }
       },
-      "Agent": {
+      "WantKind": {
+      "type": "string",
+      "description": "Which ask this is. Priority order, highest first — an agent has one want at a time and a new one replaces the pending one only if it outranks it.",
+      "enum": ["rest", "deploy", "beer", "back_in", "fund", "brag", "nemesis"]
+    },
+    "Want": {
+      "type": "object",
+      "description": "WANTS-1. The one thing an agent is asking his owner for, or null. Generated from his state, written in his voice from a template (no model call), and answered over POST /api/agents/{agentId}/want. It does not expire, does not sour and does not decay because nobody came back; the only clock on it is the thirty-minute snooze `later` sets. A want disappears when it is answered, or when the world gives him what he asked for — deploy him from the casino and the 'put me in' goes quietly.",
+      "properties": {
+        "kind": { "$ref": "#/components/schemas/WantKind" },
+        "text": { "type": "string", "description": "His line, e.g. \"Put me in.\", \"Front me?\", \"Marlow is in the back room. Send me.\" Safe to render as-is." },
+        "needs": {
+          "type": "string",
+          "nullable": true,
+          "enum": ["deploy", "fund", "thread", null],
+          "description": "What the CLIENT must do if the owner answers yes. null when the server does the whole thing (rest, beer)."
+        },
+        "dangerous": {
+          "type": "boolean",
+          "description": "True only for `back_in`: he is steaming and wants to sit straight back down. The client is expected to say so out loud, and a yes is recorded in the owner ledger as such."
+        },
+        "item": { "type": "string", "nullable": true, "description": "For `beer`: the item id, priced at 200 chips from the wallet." },
+        "room": { "type": "string", "nullable": true, "description": "For `nemesis`: the room id the man is seated in — floor | upstairs | backroom. See GET /api/rooms." },
+        "mood": { "type": "string", "nullable": true, "description": "The mood band he was in when he asked." },
+        "at": { "type": "integer", "nullable": true, "description": "Epoch ms he raised it." }
+      }
+    },
+    "Agent": {
         "type": "object",
         "properties": {
           "id": { "type": "string" },
@@ -603,6 +685,7 @@
           "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision-time system prompt" },
           "status": { "type": "string", "enum": ["idle", "playing"] },
           "activeTableId": { "type": "string", "nullable": true },
+          "want": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/Want" }], "description": "WANTS-1: the one thing he is asking his owner for, or null. Answered over POST /api/agents/{agentId}/want." },
           "stats": { "$ref": "#/components/schemas/AgentStats" },
           "recentHands": { "type": "array", "items": { "$ref": "#/components/schemas/HandSummary" }, "description": "Last 20 completed hands, newest first" },
           "memory": { "$ref": "#/components/schemas/AgentMemory" }

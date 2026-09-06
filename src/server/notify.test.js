@@ -31,7 +31,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import http from 'node:http';
 
-import { attachNotify, detachNotify, notifyEvent, _flushNow, LADDER, BUDGET } from './notify.js';
+import { attachNotify, detachNotify, notifyEvent, notifyBudget, _flushNow, LADDER, BUDGET } from './notify.js';
 import { listNotificationHolds, saveProfile } from './store.js';
 
 // ── The fake bot ─────────────────────────────────────────────────────────────
@@ -293,12 +293,15 @@ test('a muted agent sends nothing and spends nothing', async () => {
 // through the creation chat, because that path costs a model call and this
 // route does not care how the agent came to exist.
 
-async function withRouteServer(fn) {
-  saveProfile('route-owner', { agents: [{ id: 'agent-1', name: 'Grinder' }], chat: [] });
+// The ledger is the REAL store and it is not emptied between tests, so a suite
+// that wants a clean day has to ask for one: its own owner, and its own day on
+// the clock. Everything below states both rather than inheriting them.
+async function withRouteServer(fn, { owner = 'route-owner', day = 10 } = {}) {
+  saveProfile(owner, { agents: [{ id: 'agent-1', name: 'Grinder' }], chat: [] });
 
   const app = express();
   app.use(express.json());
-  clock = localAt(10, 10, 0);
+  clock = localAt(day, 10, 0);
   bot = fakeBot();
   attachNotify({ bot, app, now: () => clock, tzOffsetFor: () => TZ, enabled: true });   // real mute lookup
 
@@ -306,14 +309,22 @@ async function withRouteServer(fn) {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  const post = (agentId, body) => fetch(`${base}/api/agents/${agentId}/notify?userId=route-owner`, {
+  const post = (agentId, body) => fetch(`${base}/api/agents/${agentId}/notify?userId=${owner}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: await res.json() }));
 
+  const getBudget = (userId = owner) =>
+    fetch(`${base}/api/notifications/budget?userId=${userId}`)
+      .then(async (res) => ({ status: res.status, body: await res.json() }));
+
+  const fire = (type, ctx = {}) => notifyEvent(type, {
+    ownerId: owner, agentId: 'agent-1', agentName: 'Grinder', ...ctx,
+  });
+
   try {
-    await fn(post);
+    await fn(post, getBudget, fire);
   } finally {
     detachNotify();
     await new Promise((r) => server.close(r));
@@ -344,4 +355,67 @@ test('the mute route rejects a missing agent and a non-boolean', async () => {
     assert.equal((await post('agent-1', { muted: 'yes' })).status, 400);
     assert.equal((await post('agent-1', {})).status, 400);
   });
+});
+
+// ── The budget route (DEEPLINK-1) ────────────────────────────────────────────
+//
+// GET /api/notifications/budget. The YOU screen reports the cap rather than
+// offering a dial, so what it reports has to be the SAME arithmetic decide()
+// does — same ledger, same owner-local day. A row and a notifier that disagree
+// about what "today" is would be worse than no row at all.
+
+test('GET /api/notifications/budget counts what today has already spent', async () => {
+  await withRouteServer(async (post, getBudget, fire) => {
+    const fresh = await getBudget();
+    assert.equal(fresh.status, 200);
+    assert.equal(fresh.body.used, 0);
+    assert.equal(fresh.body.max, BUDGET.maxPerDay);
+    assert.equal(fresh.body.enabled, true, 'the notifier is attached in this fixture');
+
+    await fire('busted', { buyIn: 2000, hands: 12, endedAt: clock });
+    assert.equal(bot.sent.length, 1);
+
+    assert.equal((await getBudget()).body.used, 1, 'a send the owner actually got is a slot spent');
+  }, { owner: 'budget-owner-1', day: 11 });
+});
+
+test('the budget route counts a HOLD as unspent, because it has not arrived', async () => {
+  await withRouteServer(async (post, getBudget, fire) => {
+    await fire('busted', { buyIn: 2000, hands: 12, endedAt: clock });
+    // Inside the 30-minute gap: the second one waits rather than going out.
+    clock += 60_000;
+    await fire('biggest_pot', { pot: 900, handNumber: 4 });
+
+    const board = (await getBudget()).body;
+    assert.equal(board.used, 1, 'one sent');
+    assert.equal(board.held, 1, 'one waiting, and it has not spent a slot yet');
+  }, { owner: 'budget-owner-2', day: 12 });
+});
+
+test('the budget route answers per owner', async () => {
+  await withRouteServer(async (post, getBudget, fire) => {
+    await fire('busted', { buyIn: 2000, hands: 12, endedAt: clock });
+    assert.equal((await getBudget()).body.used, 1);
+    assert.equal((await getBudget('budget-stranger')).body.used, 0, "another owner's day is his own");
+  }, { owner: 'budget-owner-3', day: 13 });
+});
+
+test("today's count starts over on the owner's own next day", async () => {
+  await withRouteServer(async (post, getBudget, fire) => {
+    await fire('busted', { buyIn: 2000, hands: 12, endedAt: clock });
+    assert.equal((await getBudget()).body.used, 1);
+
+    // 10:00 local the following morning — a new day by the same boundary
+    // decide() uses, which is the whole point of reading it off one helper.
+    clock = localAt(15, 10, 0);
+    assert.equal((await getBudget()).body.used, 0);
+  }, { owner: 'budget-owner-4', day: 14 });
+});
+
+test('notifyBudget answers on a deployment with the notifier switched off', () => {
+  detachNotify();
+  const board = notifyBudget('nobody-here');
+  assert.equal(board.used, 0);
+  assert.equal(board.max, BUDGET.maxPerDay);
+  assert.equal(board.enabled, false, 'the cap is real, nothing is sending, and both are said out loud');
 });
