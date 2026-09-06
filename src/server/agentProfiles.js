@@ -88,7 +88,14 @@ import {
   draftProfile,
   isGoSignal,
   slidersFromBrief,
+  // BUGS-B/4: the one question the draft always asks, and how to read the
+  // answer back out of the transcript.
+  withNameQuestion,
+  nameAnswerFrom,
 } from './draftGuard.js';
+// BUGS-B/4: whatever the owner types becomes a name that fits on a seat plate
+// — never empty, never a bare article.
+import { coinName, ensureName, NAME_MAX } from './naming.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -239,11 +246,13 @@ OUTPUT RULES — these are absolute:
 
 A VAGUE BRIEF IS STILL A BRIEF. If they say something like 'be sporadic and chaotic', 'make him scary', 'something boring' — do NOT ask what they mean. Translate it into how he will play and say so in ONE line, so they can correct you if you read it wrong. For example: 'Chaos it is — he plays almost anything, bets and raises constantly, bluffs often, and treats the strategy as a suggestion.'
 
-Ask at most ONE follow-up question in the whole conversation, and only when you genuinely cannot tell whether he should be loose or selective. Never ask a second one.
+Ask at most ONE follow-up question about HOW HE PLAYS in the whole conversation, and only when you genuinely cannot tell whether he should be loose or selective. Never ask a second one.
+
+THE NAME IS THE EXCEPTION, and it is the one question you always ask. Once you know how he plays, ask what he is called — "One more — what's my name?" — and then stop asking things. Whatever they answer becomes his name: at most ${NAME_MAX} characters, in his voice, never a bare 'The' and never blank. If they answer with a description rather than a name, coin one from it and say it back.
 
 When they say they are ready — 'lets go', 'do it', 'build it' — the agent is built for them. Say one short line confirming who he is. Do not ask anything further.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<IF THE OWNER ANSWERED THE NAME QUESTION, THAT ANSWER IS THE NAME — use it, tidied into at most ${NAME_MAX} characters, and coin one from it if he answered with a description rather than a name. Only when he named nobody, invent one a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max, ${NAME_MAX} characters max, never a bare 'The' and never blank. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
 Calibration hints — pick numbers that MATCH the style and the strategy text you just wrote:
 - A tight nit ≈ tightness 85-95, aggression 40-60, bluffFreq 3-10, discipline 80-95.
 - A calling station ≈ tightness 10-20, aggression 5-15, bluffFreq 0-5, discipline 30-50.
@@ -277,6 +286,11 @@ function extractProfile(agentData) {
 function commitAgent(profile, existingAgentId, agentData) {
   let agent = { ...agentData };
   const numericProfile = extractProfile(agentData);
+  // BUGS-B/4: the last gate before a name is written down. buildFromDraft
+  // already coins one, but this is the other door into a record (the PATCH
+  // path, and anything that ever calls this directly), and a rule that only
+  // holds on one path is not a rule.
+  agent.name = coinName(agent.name);
   if (existingAgentId) {
     const existing = profile.agents.find((a) => a.id === existingAgentId);
     if (existing) {
@@ -1417,6 +1431,11 @@ function applyProposalPatch(agent, patch) {
 // gates heroHole in liveGame.
 export function presentAgent(agent, { owner = false, walletBalance = null, wallet = null } = {}) {
   if (!agent) return agent;
+  // BUGS-B/4: `name` is the only field every surface in the product shows, so
+  // it is repaired on the way out. Records predate coinName and one of them
+  // may carry '', 'The', or nothing at all; ensureName fixes it in place the
+  // first time anybody looks, rather than leaving it bad forever.
+  ensureName(agent);
   ensureMood(agent);
   ensureStats(agent);
   ensureProfile(agent);
@@ -2475,6 +2494,10 @@ function inferFallback(text) {
 // balanced agent is the same bug as a code fence, just harder to see.
 async function buildFromDraft(profile, brief) {
   const vague = slidersFromBrief(brief);
+  // BUGS-B/4: what the owner typed when he was asked what to call him. Read
+  // deterministically out of the transcript, so a build with no model behind
+  // it still uses HIS answer rather than a canned archetype name.
+  const chosen = coinName(nameAnswerFrom(profile.chat), { fallback: null });
   let agent = null;
   try {
     const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
@@ -2501,7 +2524,17 @@ async function buildFromDraft(profile, brief) {
     Object.assign(agent, vague.profile);
   }
 
-  const name = agent.name || 'The Understudy';
+  // BUGS-B/4: the owner named him, so that is his name. It goes through
+  // coinName like everything else — tidied, cased, clamped to a seat plate —
+  // which is the whole of "turned into a name in his voice". Only when he
+  // named nobody does the model's invention stand, and only when there is no
+  // model does the archetype the brief implies.
+  //
+  // Every branch ends at coinName, so what reaches the record can never be
+  // blank and can never be a bare 'The'.
+  agent.name = chosen
+    ?? coinName(agent.name, { fallback: coinName(vague?.name ?? inferFallback(brief).name) });
+  const name = agent.name;
   const line = vague
     ? `${name} it is — ${vague.line.replace(/^[^—]*—\s*/, '')}`
     : `${name} is ready — ${String(agent.style || 'balanced').toLowerCase()}, ${String(agent.risk || 'medium').toLowerCase()} risk.`;
@@ -3406,7 +3439,9 @@ export function installAgentProfileRoutes(app) {
         agentId: agent.id,
         agentName: agent.name,
         strategy: agent.strategy,
-        displayName: 'Agent',
+        // BUGS-B/4: his name, not the word "agent". This response is what the
+        // client seats him under, and it was handing back a literal.
+        displayName: agent.name,
         memoryContext: getAgentMemoryContext(agent),
         alreadyPlaying: true,
       });
@@ -3573,7 +3608,9 @@ export function installAgentProfileRoutes(app) {
       agentId: agent.id,
       agentName: agent.name,
       strategy: agent.strategy,
-      displayName: 'Agent',
+      // BUGS-B/4: his name, not the word "agent". This response is what the
+      // client seats him under, and it was handing back a literal.
+      displayName: agent.name,
       memoryContext: getAgentMemoryContext(agent),
       sessionStarted,
       joinedExisting,
@@ -3970,9 +4007,15 @@ export function installAgentProfileRoutes(app) {
     if (guarded.guarded) {
       console.warn(`[agentProfiles] draft reply rejected (${guarded.guarded}) — sent ${guarded.source}`);
     }
-    profile.chat.push({ role: 'assistant', content: guarded.text });
-    saveStore(userId);
     const draft = draftState();
+    // BUGS-B/4: the draft always asks what he is called, exactly once, the
+    // moment there is enough of a character to hang a name on. Folded in here
+    // rather than left to the system prompt because a model that ignores an
+    // instruction has to be caught, not forwarded — the same reason the reply
+    // above is guarded rather than trusted.
+    const reply = withNameQuestion(guarded.text, { chat: profile.chat, ready: draft.ready });
+    profile.chat.push({ role: 'assistant', content: reply });
+    saveStore(userId);
     return res.json({
       chat: profile.chat,
       natureHint: draft.nature,
