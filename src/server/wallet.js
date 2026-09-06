@@ -73,7 +73,34 @@ const chips = (n) => (Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
 // ── Records ──────────────────────────────────────────────────────────────────
 
 export function emptyWallet(ownerId) {
-  return { ownerId: String(ownerId), balance: 0, ledger: [] };
+  return { ownerId: String(ownerId), balance: 0, earned: 0, ledger: [] };
+}
+
+// SLOTS-1: what his agents have WON, ever. The sum of positive session nets
+// across the whole stable, and the only number an agent slot can be unlocked
+// with. It is not a balance and it is not spendable: funding, collecting and
+// the seed float never touch it, and nothing ever subtracts from it. See
+// slots.js for why it has to be earnings rather than money.
+export function ensureEarned(wallet) {
+  if (!wallet) return 0;
+  if (!Number.isFinite(wallet.earned) || wallet.earned < 0) wallet.earned = 0;
+  return wallet.earned;
+}
+
+/**
+ * Credit one finished session. Losing and break-even sessions are NOT debits —
+ * they are simply not credits, which is what makes the counter a lifetime
+ * record of what was won rather than a P&L that can take a slot back.
+ *
+ * Returns the new total.
+ */
+export function recordEarned(wallet, sessionNet) {
+  if (!wallet) return 0;
+  ensureEarned(wallet);
+  const net = Number(sessionNet);
+  if (!Number.isFinite(net) || net <= 0) return wallet.earned;
+  wallet.earned += Math.floor(net);
+  return wallet.earned;
 }
 
 export function emptyPocket({ mode = 'topup', cap = null, balance = 0 } = {}) {

@@ -33,12 +33,26 @@ function row(name) {
   return screen.getByText(name).closest('.wal-row');
 }
 
+// YOU-2 — the wallet block and the pocket rows moved behind one tap. YOU is a
+// summary now and the money is a sheet: the SAME sheet any other surface opens,
+// so there is one money UI rather than one per screen that wants money on it.
+//
+// Every assertion in this file is the one it always was. What changed is that
+// the money has to be opened before it can be asserted on, which is why this
+// helper exists and why the tests below are async.
+async function openMoney(props = {}) {
+  const user = userEvent.setup();
+  const out = render(<YouScreen {...props} />);
+  await user.click(await screen.findByRole('button', { name: 'Money' }));
+  return out;
+}
+
 describe('WUI-1 — the wallet block', () => {
   beforeEach(() => { telegram.signIn(); });
 
   it('leads with one number: the wallet balance', async () => {
     withWallet();
-    const { container } = render(<YouScreen />);
+    const { container } = await openMoney();
 
     await waitFor(() => expect(container.querySelector('.wal-block')).toBeTruthy());
     expect(within(container.querySelector('.wal-block')).getByText('$2,340.50')).toBeInTheDocument();
@@ -46,7 +60,7 @@ describe('WUI-1 — the wallet block', () => {
 
   it('says where the rest of it currently is', async () => {
     withWallet();
-    const { container } = render(<YouScreen />);
+    const { container } = await openMoney();
     const block = await waitFor(() => {
       const el = container.querySelector('.wal-block');
       expect(el).toBeTruthy();
@@ -62,12 +76,16 @@ describe('WUI-1 — the wallet block', () => {
     expect(within(block).getByText('2 of 4')).toBeInTheDocument();
   });
 
+  // YOU-2 kept this rule and changed its shape. The screen carries exactly one
+  // money figure — the summary — and the block that carries the other one is
+  // behind the tap, so the two can no longer be on screen together at all.
   it('does not show two balances at once', async () => {
     withWallet();
     const { container } = render(<YouScreen />);
-    await waitFor(() => expect(container.querySelector('.wal-block')).toBeTruthy());
+    const summary = await screen.findByRole('button', { name: 'Money' });
 
-    // The legacy balance card's money footer stands down when a wallet exists.
+    await waitFor(() => expect(within(summary).getByText('$2,340.50')).toBeInTheDocument());
+    expect(container.querySelector('.wal-block')).toBeNull();
     expect(screen.queryByText('Balance')).not.toBeInTheDocument();
   });
 });
@@ -84,15 +102,18 @@ describe('WUI-1 — graceful absence', () => {
     expect(container.querySelector('.wal-pockets')).toBeNull();
 
     // Everything the screen showed before the wallet existed is still there.
-    expect(screen.getByText('Balance')).toBeInTheDocument();
+    // YOU-2 moved the balance onto the summary and took the "Balance" label
+    // off it — the button is the label now — so the assertion follows it there
+    // rather than standing down.
+    expect(screen.getByRole('button', { name: 'Money' })).toBeInTheDocument();
     expect(screen.getByText('Hands played')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
   it('draws no pocket rows for agents that have no pocket', async () => {
     withoutWallet();
-    const { container } = render(<YouScreen />);
-    await screen.findByText('Lifetime');
+    const { container } = await openMoney();
+    await screen.findByText('Money');
     expect(container.querySelectorAll('.wal-row')).toHaveLength(0);
   });
 });
@@ -104,7 +125,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('draws one row per pocket, in roster order', async () => {
-    const { container } = render(<YouScreen />);
+    const { container } = await openMoney();
     await waitFor(() => expect(container.querySelectorAll('.wal-row')).toHaveLength(4));
 
     const names = [...container.querySelectorAll('.wal-row__name')].map((el) => el.textContent);
@@ -112,7 +133,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('states the pocket, the stakes it buys and the P&L', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     const balanced = row('Balanced v2.1');
@@ -131,7 +152,7 @@ describe('WUI-1 — pocket rows', () => {
   // is left is what the two verbs and the one toggle produce — a staked pocket,
   // a refilling one, and one that has been called in.
   it('tags how each one gets money', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     expect(within(row('Balanced v2.1')).getByText('REFILLS')).toBeInTheDocument();
@@ -143,7 +164,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('draws the pocket bar against the roll he was given', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     // 640 of a 1000 cap.
@@ -159,7 +180,7 @@ describe('WUI-1 — pocket rows', () => {
   // he gets money. Giving him chips is unconditional now; Collect joins it when
   // he is up, and "Call him in" while he is seated.
   it('always offers to give him chips, whatever else the row offers', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     for (const name of ['Balanced v2.1', 'Aggressive v1.3', 'Bluff Master', 'Value Bot']) {
@@ -168,7 +189,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('offers Collect beside it only for the ones who are up', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     for (const [name, collect] of [
@@ -183,7 +204,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('offers Call him in on the rows that are at a table', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     for (const [name, callIn] of [
@@ -198,7 +219,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 
   it('draws the broke row quieter, never redder — no guilt', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     const broke = row('Value Bot');
@@ -222,7 +243,7 @@ describe('WUI-1 — the row actions', () => {
   it('Collect takes the winnings and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
@@ -241,7 +262,7 @@ describe('WUI-1 — the row actions', () => {
   it('a refused collect leaves the row exactly as it was', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', () => ({ status: 500, body: {} }), { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
@@ -257,7 +278,7 @@ describe('WUI-1 — the row actions', () => {
   it('Call him in POSTs the verb and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { collected: 6400 }, { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
@@ -272,7 +293,7 @@ describe('WUI-1 — the row actions', () => {
   it('a refused call-in leaves the row exactly as it was', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', () => ({ status: 500, body: {} }), { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
@@ -283,7 +304,7 @@ describe('WUI-1 — the row actions', () => {
 
   it('giving him chips raises the intent for the sheet, and POSTs nothing on its own', async () => {
     const user = userEvent.setup();
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
@@ -302,7 +323,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
 
   it('opens the sheet for that agent', async () => {
     const user = userEvent.setup();
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
@@ -315,7 +336,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
   it('confirming gives him the chips and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { ok: true }, { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
@@ -336,7 +357,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
 
   it('cancelling funds nothing and returns to the pockets', async () => {
     const user = userEvent.setup();
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
@@ -350,7 +371,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
   it('a refused fund keeps the sheet open so the choice is not lost', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', () => ({ status: 402, body: {} }), { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Value Bot');
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
@@ -381,7 +402,7 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
   // and "Call him in" is the button that brings the roll home.
   it('keeps the chips button on a topped-up row, and calls none of it winnings', async () => {
     withAgents([toppedUpAgent]);
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Topped Up');
 
     const r = within(row('Topped Up'));
@@ -394,7 +415,7 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
     // The same pocket, at a table: one press ends the session and empties it.
     withAgents([{ ...toppedUpAgent, presence: 'playing', activeTableId: 'tbl-1' }]);
     fetchMock.route('/fund', { collected: 4000 }, { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Topped Up');
 
     await user.click(within(row('Topped Up')).getByRole('button', { name: 'Call him in' }));
@@ -405,7 +426,7 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
 
   it('draws all three actions when he is staked, up, and still playing', async () => {
     withAgents([upAndSeatedAgent]);
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Up And Seated');
 
     const r = within(row('Up And Seated'));
@@ -422,7 +443,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   });
 
   it('badges him CALLED IN and greys the stakes he is not going to play', async () => {
-    const { container } = render(<YouScreen />);
+    const { container } = await openMoney();
     await screen.findByText('Loose Cannon');
 
     const r = row('Loose Cannon');
@@ -437,7 +458,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   });
 
   it("says what happens next, in the funding sheet's own words", async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Loose Cannon');
     expect(within(row('Loose Cannon')).getByText('finishes this hand then sits at the bar'))
       .toBeInTheDocument();
@@ -447,7 +468,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
     // The same pocket, at the bar. The promise was about the next few minutes
     // and would be a lie a day later.
     withAgents([{ ...cutPlayingAgent, presence: 'resting', activeTableId: null }]);
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Loose Cannon');
 
     const r = within(row('Loose Cannon'));
@@ -458,7 +479,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   it('collects all of it — he is not sitting down again, so none of it is his to keep', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 4000 }, { method: 'POST' });
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Loose Cannon');
 
     await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Collect' }));
@@ -483,7 +504,7 @@ describe('WALLET-7 — the sheet opens on where he actually stands', () => {
   // backing his next bust.
   it('reopens on the size he was set at and the state of the toggle', async () => {
     const user = userEvent.setup();
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Topped Up');
 
     await user.click(within(row('Topped Up')).getByRole('button', { name: 'Give him chips' }));
@@ -503,7 +524,7 @@ describe('WALLET-5 — his face opens his profile', () => {
   it('taps through from a pocket row', async () => {
     const user = userEvent.setup();
     const onOpenProfile = vi.fn();
-    render(<YouScreen onOpenProfile={onOpenProfile} />);
+    await openMoney({ onOpenProfile });
     await screen.findByText('Bluff Master');
 
     await user.click(within(row('Bluff Master')).getByRole('button', { name: /profile/i }));
@@ -515,7 +536,7 @@ describe('WALLET-5 — his face opens his profile', () => {
   it("taps through from the sheet's header row too", async () => {
     const user = userEvent.setup();
     const onOpenProfile = vi.fn();
-    render(<YouScreen onOpenProfile={onOpenProfile} />);
+    await openMoney({ onOpenProfile });
     await screen.findByText('Bluff Master');
 
     await user.click(within(row('Bluff Master')).getByRole('button', { name: 'Give him chips' }));
@@ -528,7 +549,7 @@ describe('WALLET-5 — his face opens his profile', () => {
   });
 
   it('leaves the face inert when no host owns that navigation', async () => {
-    render(<YouScreen />);
+    await openMoney();
     await screen.findByText('Bluff Master');
     expect(screen.queryByRole('button', { name: /profile/i })).toBeNull();
   });

@@ -48,7 +48,16 @@ export function useThread(agentId, { enabled = true } = {}) {
   const [loading, setLoading] = useState(false);
   const aliveRef = useRef(true);
 
-  useEffect(() => () => { aliveRef.current = false; }, []);
+  // Re-armed on EVERY mount, not just the first. StrictMode mounts, unmounts
+  // and mounts again, so a ref that is only ever set to false by the cleanup
+  // stays false for the life of the real component — and every fetch below
+  // then throws its answer away and leaves the sheet reading LOADING forever.
+  // The screenshots caught this; the unit tests could not, because Testing
+  // Library does not render in StrictMode and the app does.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     if (!agentId || !enabled) return;

@@ -210,6 +210,7 @@ const FACE_EVENTS = {
   bored:    { label: 'Bored',      when: 'card dead',              hold: '6s' },
   wary:     { label: 'Wary',       when: 'a nemesis sits down',    hold: '4s' },
   pleased:  { label: 'Pleased',    when: 'given the snack',        hold: '3s' },
+  asleep:   { label: 'Asleep',     when: 'worn, resting at home',  hold: 'until woken' },
 };
 
 // eyes(state, tier) + brows(state, tier). Both take the eye colour and the eye-line
@@ -265,6 +266,16 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
           <ellipse cx={R + 1.6} cy={cy} rx="2.2" ry="2" fill={eye}/>
           {d > 0 && <><path d={`M30 ${cy - 5.6} L37 ${cy - 6.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round"/>
           <path d={`M50.4 ${cy - 6.8} L43.4 ${cy - 5.6}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round"/></>}
+        </g>
+      ),
+      // closed lids curving DOWN, with a lash tick. Pleased curves up; these two are
+      // the only closed-eye faces in the set and must not read as each other.
+      asleep: (
+        <g>
+          <path d={`M30 ${cy - 1.4} Q${L} ${cy + 3.4} 37 ${cy - 1.4}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+          <path d={`M43 ${cy - 1.4} Q${R} ${cy + 3.4} 50 ${cy - 1.4}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+          {d > 0 && <><path d={`M29.4 ${cy + 1.2} L27.8 ${cy + 3}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round"/>
+          <path d={`M50.6 ${cy + 1.2} L52.2 ${cy + 3}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round"/></>}
         </g>
       ),
       // closed, curving up: the only genuinely warm face in the set

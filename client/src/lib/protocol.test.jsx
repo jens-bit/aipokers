@@ -39,7 +39,11 @@ describe('protocol', () => {
       ERROR: 'error',
       PONG: 'pong',
       EVENT: 'event',
-      // HOME-1 / HOME-STATE-1: the room's own three, on the floor channel.
+      // CASINO-1 mirrored the two frames ROOMS-1 already sends: the floor
+      // snapshot that rides a subscribe, and the rooms push after it.
+      FLOOR_STATE: 'floor_state',
+      FLOOR_ROOMS: 'floor_rooms',
+      // HOME-1 / HOME-STATE-1: the room's own three, on the same channel.
       HOME_STATE: 'home_state',
       WANT: 'want',
       SESSION_END: 'session_end',

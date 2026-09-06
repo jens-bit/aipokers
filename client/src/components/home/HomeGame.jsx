@@ -84,10 +84,12 @@ export function HomeGameTable({ board = [], seatCount = 2, running = true }) {
         style={running
           // Left of the felt, which is empty at every seat count this table runs.
           ? { left: FLAT.table.cx - FLAT.table.rx + 8, top: FLAT.table.cy - 2 }
-          // With nobody at it there are no bodies to duck, and the middle of the
-          // felt is where the two waiting card backs are — so it goes under the
-          // table, centred, the way the ref draws its own empty room.
-          : { left: FLAT.table.cx, top: FLAT.table.cy + FLAT.table.ry + 14, transform: 'translateX(-50%)' }}
+          // With nobody at it there are no bodies at the SEATS to duck — but the
+          // band just under the table is where the idle floor spots put their
+          // name pills, so "under the table" collides with whoever is standing
+          // in the room. It goes on the felt instead, below the two waiting
+          // card backs and above the rim.
+          : { left: FLAT.table.cx, top: FLAT.table.cy + 24, transform: 'translateX(-50%)' }}
         data-testid="home-game-label"
       >
         {running ? 'FOR NOTHING' : 'NOBODY AT THE TABLE'}

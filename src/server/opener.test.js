@@ -30,6 +30,13 @@ const TALLY = /just finished|Won \d+, lost \d+|adjust my strategy/i;
 let server;
 let base;
 const userId = 'opener-e2e-user';
+// SLOTS-1: agent slots are earned now — the second, third and fourth cost
+// 10k / 50k / 250k in winnings. This suite needs several agents for reasons that
+// have nothing to do with slots, so its owner is seeded as somebody whose
+// stable has already won them. The ladder itself is asserted in slots.test.js.
+import { saveWallet } from './store.js';
+saveWallet('opener-e2e-user', { ownerId: 'opener-e2e-user', balance: 0, earned: 250_000, ledger: [] });
+
 
 async function post(path, body) {
   return fetch(`${base}${path}`, {

@@ -3,12 +3,14 @@
 // End-to-end verification of the watch tree's server-side promises.
 //
 // Walk:
-//   1. WV2-1 — two owned agents deployed with NO spectator: they share a
-//      table and hands advance unattended.
-//   2. WV2-1 — the shape that actually hung: two owned agents assembled at one
-//      felt by WATCH alone (agent vs agent, no House). Nothing owned the tempo,
-//      the table sat at WAITING forever, and the floor still reported it as
-//      playing because liveGameView only asks isAiOnly().
+//   1. WV2-1 / MATCH-1 — two agents of the SAME owner deployed with no
+//      spectator: they get a table EACH (MATCH-1 refuses a stable a shared
+//      felt) and both advance hands unattended.
+//   2. WV2-1 — the shape that actually hung: two agents assembled at one felt
+//      by WATCH alone (agent vs agent, no House). Nothing owned the tempo, the
+//      table sat at WAITING forever, and the floor still reported it as
+//      playing because liveGameView only asks isAiOnly(). Two OWNERS now, plus
+//      MATCH-1's other door: a second agent of the first owner is turned away.
 //   3. WV2-5 — the showdown payload a spectator receives: revealed cards on
 //      result.showdown and on the terminal STATE, folded seats absent from
 //      both, winners named. This is what the felt renders the reveal from.
@@ -94,6 +96,16 @@ const userId = 'e2e-watch-v2-user';
 // One shared owner was only ever one fewer thing to type; the sections do not
 // interact, so the hero gets his own. Nothing asserted here changes.
 const heroUserId = 'e2e-watch-v2-hero';
+// SLOTS-1: the second, third and fourth agent slots are EARNED — 10,000 /
+// 50,000 / 250,000 in winnings (src/server/slots.js). This suite needs several
+// agents for reasons that have nothing to do with slots, so every owner in it
+// is seeded as somebody whose stable has already won them. Seeding has to
+// happen before the first request for that owner, because agentProfiles caches
+// a wallet the first time it is asked for one. The ladder itself is asserted in
+// src/server/slots.test.js.
+const { saveWallet } = await import('../src/server/store.js');
+const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+
 
 // AGENTS-2 caps a roster at four. Sections 1 and 2 spend all four between
 // them, so section 6 — added later, by SERVER-3 — was building a fifth and
@@ -102,6 +114,12 @@ const heroUserId = 'e2e-watch-v2-hero';
 // have a roster of its own; the default is the file's, so sections 1-5 are
 // unchanged.
 const newAgent = async (label, owner = userId) => {
+  // SLOTS-1, before the first request for this owner. Named owners used to be
+  // unlocked one by one up top; MATCH-1 then added a section with an owner of
+  // its own (ownerA, two agents on purpose) and its second build came back
+  // slotLocked. Unlocking whoever is actually being built for is the version
+  // that does not need editing again the next time a section brings a backer.
+  unlockSlots(owner);
   await j('POST', '/api/agents/chat/reset', { userId: owner });
   const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;
@@ -129,8 +147,8 @@ const describeTable = (t) => t
   ? `autoPlay=${t.autoPlay} isAiOnly=${t.isAiOnly()} seated=${t.seatedCount()} hands=${t.handsThisSession} street=${t.game ? t.game.street : 'no game'}`
   : 'no table';
 
-// ── 1) WV2-1: two deploys, nobody watching ───────────────────────────────────
-console.log('\n[verify] 1) WV2-1 — two owned agents deploy, no spectator, hands advance');
+// ── 1) WV2-1 + MATCH-1: two deploys, nobody watching ─────────────────────────
+console.log('\n[verify] 1) WV2-1/MATCH-1 — two agents of one owner deploy, no spectator, hands advance');
 {
   const a = await newAgent('agent A');
   const b = await newAgent('agent B');
@@ -139,33 +157,50 @@ console.log('\n[verify] 1) WV2-1 — two owned agents deploy, no spectator, hand
   const ra = await j('POST', `/api/agents/${a}/deploy`, { userId });
   const rb = await j('POST', `/api/agents/${b}/deploy`, { userId });
   check('both deploys accepted', ra.status === 200 && rb.status === 200, `${ra.status}/${rb.status}`);
-  check('both agents land at ONE table', ra.body.tableId === rb.body.tableId,
+  // MATCH-1 reverses what this line used to assert. Two agents of one owner
+  // sharing a felt is a man playing himself, so the second deploy is refused
+  // the shared table and opens one of its own — in the same room, at the same
+  // stakes his pocket buys into.
+  check('the two agents land at DIFFERENT tables', ra.body.tableId !== rb.body.tableId,
         `${ra.body.tableId} vs ${rb.body.tableId}`);
+  check('the second one opened a table rather than joining', rb.body.joinedExisting !== true,
+        JSON.stringify(rb.body.joinedExisting));
 
-  const table = registry.getTable(ra.body.tableId);
-  check('the table is server-driven', !!table && table.autoPlay === true, describeTable(table));
-  check('no spectator is attached', (table?.spectators?.length ?? -1) === 0);
+  const tables = [registry.getTable(ra.body.tableId), registry.getTable(rb.body.tableId)];
+  check('both tables are server-driven', tables.every((t) => t?.autoPlay === true),
+        tables.map(describeTable).join(' | '));
+  check('both are at the same stakes — the same room', tables[0]?.bigBlind === tables[1]?.bigBlind,
+        `${tables[0]?.bigBlind} vs ${tables[1]?.bigBlind}`);
+  check('no spectator is attached to either', tables.every((t) => (t?.spectators?.length ?? -1) === 0));
 
-  const advanced = await waitFor(
-    'hands advance unattended',
-    async () => table.handsThisSession,
-    (n) => n >= 2,
-  );
-  check('hands advance with nobody watching', advanced.ok, `stuck at ${advanced.value} hand(s) — ${describeTable(table)}`);
+  for (const [i, table] of tables.entries()) {
+    const advanced = await waitFor(
+      'hands advance unattended',
+      async () => table.handsThisSession,
+      (n) => n >= 2,
+    );
+    check(`table ${i + 1} advances hands with nobody watching`, advanced.ok,
+          `stuck at ${advanced.value} hand(s) — ${describeTable(table)}`);
+  }
   check('both agents report playing', (await getAgent(a))?.status === 'playing' && (await getAgent(b))?.status === 'playing');
 }
 
 // ── 2) WV2-1: the hang — two agents assembled by WATCH, no House ─────────────
-console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (no House)');
+console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no House)');
 {
-  const a = await newAgent('watcher A');
-  const b = await newAgent('watcher B');
-  const A = await getAgent(a);
-  const B = await getAgent(b);
+  // MATCH-1: two OWNERS. A WATCH-assembled table is still a casino table, so
+  // the same rule holds on it — a stable cannot assemble a felt of its own
+  // either. The refusal is asserted at the end of this section.
+  const ownerA = 'e2e-watch-v2-pvp-a';
+  const ownerB = 'e2e-watch-v2-pvp-b';
+  const a = await newAgent('watcher A', ownerA);
+  const b = await newAgent('watcher B', ownerB);
+  const A = await getAgent(a, ownerA);
+  const B = await getAgent(b, ownerB);
   check('two more agents created', !!A && !!B);
 
   const tableId = 'watch-v2-pvp';
-  const watch = (agent) => new Promise((resolve, reject) => {
+  const watch = (agent, owner) => new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     ws.on('error', reject);
     ws.on('open', () => {
@@ -173,7 +208,7 @@ console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (
         type: ClientMsg.WATCH,
         tableId,
         agentId: agent.id,
-        userId,
+        userId: owner,
         displayName: agent.name,
         agentStrategy: agent.strategy ?? '',
       }));
@@ -181,9 +216,9 @@ console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (
     });
   });
 
-  const wsA = await watch(A);
+  const wsA = await watch(A, ownerA);
   await sleep(250);
-  const wsB = await watch(B);
+  const wsB = await watch(B, ownerB);
   await sleep(250);
 
   const table = registry.getTable(tableId);
@@ -215,6 +250,51 @@ console.log('\n[verify] 2) WV2-1 — two owned agents assembled by WATCH alone (
   check('and it is a real agent mood, read off the same record the header reads',
         (live?.seats ?? []).every((s) => ['confident', 'neutral', 'frustrated', 'tilted', 'sulking'].includes(s.mood.state)),
         JSON.stringify((live?.seats ?? []).map((s) => s.mood.state)));
+
+  // MATCH-1: the other door, on a felt that is still assembling. Two agents of
+  // ONE owner cannot build a table between them: the first WATCH seats his
+  // man, the second is refused and told why rather than being handed a seat.
+  // (Once the table is running, a WATCH for an unseated agent is an ordinary
+  // spectator attaching to a seat — it takes no seat and nothing is refused.)
+  {
+    const soloTableId = 'watch-v2-same-owner';
+    const first = await getAgent(await newAgent('same-owner 1', ownerA), ownerA);
+    const second = await getAgent(await newAgent('same-owner 2', ownerA), ownerA);
+    const openWatch = async (agent) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+      const seen = [];
+      await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
+      ws.on('message', (d) => { try { seen.push(JSON.parse(d.toString())); } catch { /* ignore */ } });
+      ws.send(JSON.stringify({
+        type: ClientMsg.WATCH,
+        tableId: soloTableId,
+        agentId: agent.id,
+        userId: ownerA,
+        displayName: agent.name,
+        agentStrategy: agent.strategy ?? '',
+      }));
+      return { ws, seen };
+    };
+
+    const one = await openWatch(first);
+    await sleep(250);
+    const solo = registry.getTable(soloTableId);
+    check('the first of the pair took a seat', solo?.seatedCount() === 1, describeTable(solo));
+
+    const two = await openWatch(second);
+    const refused = await waitFor('the refusal',
+      async () => two.seen.find((m) => m.type === ServerMsg.ERROR) ?? null, (m) => !!m, 5_000, 40);
+    check('a second agent of the same owner is refused the felt', refused.ok,
+          JSON.stringify(two.seen.map((m) => m.type)));
+    check('and told why', /already at this table/i.test(refused.value?.message ?? ''),
+          refused.value?.message);
+    check('no seat was taken doing it', solo?.seatedCount() === 1, describeTable(solo));
+
+    one.ws.close();
+    two.ws.close();
+    await sleep(100);
+    registry.getTable(soloTableId)?.closeTable('same-owner check finished', { recap: 'test over' });
+  }
 
   wsA.close();
   wsB.close();

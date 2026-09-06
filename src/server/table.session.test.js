@@ -314,6 +314,53 @@ test('SERVER-3: the acting seat\'s deadline rides the state broadcast', () => {
   table.closeTable('done');   // an AI seat arms the 60s inactivity reaper
 });
 
+// ── WATCH-8 · the body on the felt ──────────────────────────────────────────
+// The felt draws two bars, and one of them had nowhere to read from: mood.heat
+// was already public per seat (SEAT-1a) and fatigue was not on the wire at all.
+
+test('WATCH-8: every seat says how worn it is', () => {
+  const { table, sockets } = seatedTable();
+  table.maybeStartHand({ clientDriven: true });
+
+  const state = sockets[0].of('state').at(-1).state;
+  // HERO's STAMINA is on the floor, so he is worn inside a hand rather than
+  // after two hundred; the point of the assertion is that the FIELD is there
+  // and carries one of the three stages the meter knows.
+  assert.ok('fatigue' in state.seats[0], 'the seat carries it');
+  assert.ok(['fresh', 'settled', 'worn'].includes(state.seats[0].fatigue),
+    `one of the three stages, got ${state.seats[0].fatigue}`);
+  // And it is public, for the same reason mood is: you can see across a real
+  // table that somebody has been sitting there all night.
+  assert.ok('fatigue' in state.seats[1], 'for the opponent too');
+});
+
+test('WATCH-8: a seat with no agent behind it is not made to look fresh', () => {
+  const { table, sockets } = seatedTable();
+  table.agentIds[1] = null;
+  table.maybeStartHand({ clientDriven: true });
+
+  const state = sockets[0].of('state').at(-1).state;
+  assert.equal(state.seats[1].fatigue, null,
+    'a House regular has no fatigue, and inventing one would be a lie on the felt');
+});
+
+// Fatigue is read for every seat on every broadcast, so it is memoised per
+// (seat, hand, occupant). The occupant is in that key because a seat changes
+// hands between deals, and serving the last agent's fatigue to the next one
+// would be the felt telling a lie about somebody who just sat down.
+test("WATCH-8: a seat that changes hands does not inherit the last agent's fatigue", () => {
+  const { table, sockets } = seatedTable();
+  table.maybeStartHand({ clientDriven: true });
+  const worn = sockets[0].of('state').at(-1).state.seats[0].fatigue;
+  assert.ok(worn, 'the hero has one to inherit');
+
+  // Somebody else takes the chair, and no hand has been played since.
+  table.agentIds[0] = null;
+  table._broadcastState();
+  assert.equal(sockets[0].of('state').at(-1).state.seats[0].fatigue, null,
+    'the memo is keyed on who is sitting there, not only on the hand count');
+});
+
 test('SERVER-3: a human seat gets no ring, because nothing would enforce it', () => {
   const { table, sockets } = seatedTable();
   table.maybeStartHand({ clientDriven: true });

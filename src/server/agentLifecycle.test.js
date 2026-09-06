@@ -13,6 +13,9 @@
 //           draft finish inside /api/agents/chat and /api/agents/build — answer
 //           409 { error: 'agentCap', cap: 4 } beyond it, and the check runs
 //           BEFORE the model call so a full roster is never billed for one.
+//           SLOTS-1 later put a price on the second, third and fourth of those
+//           slots; this owner is seeded with them all earned, so what is under
+//           test here is still the ceiling and nothing else.
 //
 // The growth pace, the third rule in AGENTS-2, is a pure function and is
 // asserted where the rest of the attribute engine is: src/agent/attributes.test.js.
@@ -108,7 +111,11 @@ test('AGENTS-2: retire, the cap, and what a retired agent is', async (t) => {
   try {
     await withServer(async (base) => {
       const store = await import('./store.js');
-      store.saveWallet('u1', { ownerId: 'u1', balance: 1_000, ledger: [] });
+      // SLOTS-1: the four slots are EARNED now (10k / 50k / 250k of winnings),
+      // and this test is about the CEILING, not the ladder — so the owner is
+      // seeded with every slot already unlocked. The ladder itself is pinned in
+      // slots.test.js, which asserts the refusals this owner has bought past.
+      store.saveWallet('u1', { ownerId: 'u1', balance: 1_000, earned: 250_000, ledger: [] });
       store.saveProfile('u1', {
         userId: 'u1',
         chat: [],

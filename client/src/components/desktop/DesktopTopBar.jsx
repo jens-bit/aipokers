@@ -9,7 +9,7 @@ function initialsOf(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel }) {
+export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
@@ -65,6 +65,26 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup,
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
+
+      {/* CASINO-1: which room the stage is showing. Board 31's frame keeps the
+          top bar and the rail and swaps only the stage, so this is the one
+          control that says which of the two is on it. Absent props draw
+          nothing, exactly like the wallet below. */}
+      {onStage && (
+        <div className="dsk-top__stage" role="group" aria-label="Stage">
+          {[['floor', 'HOME'], ['casino', 'CASINO']].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`dsk-btn dsk-btn--ghost dsk-top__stage-tab${stage === id ? ' is-on' : ''}`}
+              aria-pressed={stage === id}
+              onClick={() => onStage(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* DP-2: the wallet is reached from the number it is about. When there
           is no wallet on this deployment there is nothing to open, and the

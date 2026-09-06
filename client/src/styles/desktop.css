@@ -2066,10 +2066,12 @@
   min-width: 420px;
   max-width: 620px;
   box-sizing: border-box;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 9px 13px;
+  /* WATCH-8: the bottom six pixels belong to the body bars. */
+  padding: 9px 13px 15px;
   border-radius: 13px;
   background: rgba(13, 23, 21, 0.72);
   backdrop-filter: blur(18px) saturate(1.2);
@@ -2121,3 +2123,45 @@
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
   border-color: rgba(255, 255, 255, 0.11);
 }
+
+/* CASINO-1 — which room the stage is showing. Board 31's frame keeps the top
+   bar and the rail and swaps only the stage, so this is one pair of tabs, on
+   one line, sized like the wallet button beside it. Without the explicit row
+   the two buttons wrapped and spilled out of the 56px bar. */
+.dsk-top__stage {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dsk-top__stage-tab {
+  white-space: nowrap;
+}
+
+.dsk-top__stage-tab.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+
+/* ── WATCH-8 job 3 · the body, at desk scale ──────────────────────────────
+   The same two bars the phone draws, from the same atom: STAMINA green → grey
+   from volume, HEAT teal → gold → red from outcomes. They ride the bottom edge
+   of whatever already names the agent — his strip, and every seat chip — so
+   the stage keeps its geometry.
+
+   The chip's bars are inset past its 18px radius rather than clipped by an
+   overflow: the dealer pip hangs off the top corner and a clip would cut it in
+   half. */
+.seat-chip { position: relative; }
+.seat-chip .felt-bars { left: 12px; right: 12px; bottom: 3px; }
+
+/* Beside his stack, and never wider than the figure it stands next to. */
+.dtb__hero-stack {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.dtb__bottle { align-self: center; }

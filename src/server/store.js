@@ -162,6 +162,14 @@ function applySchema(d) {
   // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
   addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
 
+  // SLOTS-1: what this owner's agents have won, ever — the sum of positive
+  // session nets, and the only currency an agent slot can be unlocked with.
+  // A column rather than a ledger fold for the same reason pocket.realised is
+  // a counter: the ledger is capped at 100 entries, and a lifetime total that
+  // quietly forgets its own first year is not a lifetime total. ALTER rather
+  // than a CREATE TABLE column: wallets from WALLET-1 exist.
+  addColumnIfMissing(d, 'wallets', 'earned', 'INTEGER NOT NULL DEFAULT 0');
+
   // NOTIFY-2: the caps folded in from the legacy notifier are per agent and
   // per period ("one broke alert a day", "one milestone ever"), which the
   // (owner, type, ts) triple cannot express. One nullable column carries the
@@ -585,9 +593,18 @@ export function deleteNotificationHold(id) {
 // ── Wallets (WALLET-1) ───────────────────────────────────────────────────────
 
 export function loadWallet(ownerId) {
-  const row = conn().prepare('SELECT owner_id, balance, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
+  const row = conn().prepare('SELECT owner_id, balance, earned, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
   if (!row) return null;
-  return { ownerId: row.owner_id, balance: row.balance ?? 0, ledger: jsonParse(row.ledger, []) };
+  // SLOTS-1: `earned` is a lifetime total and a wallet written before the
+  // column existed reads as zero — which understates a long-lived owner and is
+  // the only safe direction to be wrong in, since it can never take a slot
+  // away that somebody is already using.
+  return {
+    ownerId: row.owner_id,
+    balance: row.balance ?? 0,
+    earned: row.earned ?? 0,
+    ledger: jsonParse(row.ledger, []),
+  };
 }
 
 export function saveWallet(ownerId, wallet) {
@@ -596,10 +613,17 @@ export function saveWallet(ownerId, wallet) {
 
 function putWalletRow(d, ownerId, wallet) {
   d.prepare(`
-    INSERT INTO wallets (owner_id, balance, ledger, updated_at) VALUES (?, ?, ?, ?)
+    INSERT INTO wallets (owner_id, balance, earned, ledger, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(owner_id) DO UPDATE SET
-      balance = excluded.balance, ledger = excluded.ledger, updated_at = excluded.updated_at
-  `).run(String(ownerId), Math.max(0, Math.floor(wallet?.balance ?? 0)), JSON.stringify(wallet?.ledger ?? []), Date.now());
+      balance = excluded.balance, earned = excluded.earned,
+      ledger = excluded.ledger, updated_at = excluded.updated_at
+  `).run(
+    String(ownerId),
+    Math.max(0, Math.floor(wallet?.balance ?? 0)),
+    Math.max(0, Math.floor(wallet?.earned ?? 0)),
+    JSON.stringify(wallet?.ledger ?? []),
+    Date.now(),
+  );
 }
 
 // Total chips sitting in this owner's pockets — the wallet screen's "in

@@ -8,6 +8,7 @@
 // screen's contract is with the server, and that is what a regression would
 // break.
 
+import { StrictMode } from 'react';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -321,14 +322,47 @@ describe('HOME-1 · the thread', () => {
     expect(screen.getByTestId('home-wall')).toBeInTheDocument();
   });
 
-  it('tapping an agent opens HIS thread', async () => {
-    await boot([
-      mkAgent('a1', 'The Clock'),
-      mkAgent('a2', 'River Rat', { routine: { key: 'counts', label: 'counting chips' } }),
-    ]);
+  it('the sheet still loads under StrictMode, which is how the app renders', async () => {
+    // The app mounts inside <StrictMode>, which mounts, unmounts and mounts
+    // again. An alive-ref armed only by its initial value is false for the
+    // whole life of the real component after that, and every fetch throws its
+    // answer away — the sheet reads LOADING forever. Testing Library does not
+    // render in StrictMode, so nothing else in this file can see it.
+    defaults();
+    fetchMock.route(/\/thread\?/, () => ({
+      sessionId: 's1',
+      lines: [{ id: 1, kind: 'him', who: 'HIM', text: 'Long night in here.', ts: 1, source: 'home' }],
+      count: 1,
+    }));
+    const roster = serve([mkAgent('a1', 'The Clock')]);
+    render(<StrictMode><HomeScreen wsUrl={WS} /></StrictMode>);
+    const sock = await waitFor(() => { const x = socketMock.last(); expect(x).toBeTruthy(); return x; });
+    sock.open();
+    sock.emit({ type: 'home_state', userId: 'u1', agents: roster.agents, game: null });
+
+    await userEvent.click(await screen.findByTestId('home-thread-line'));
+    expect(await screen.findByTestId('home-thread-rows')).toHaveTextContent('Long night in here.');
+  });
+
+  it('tapping an agent opens HIS thread screen', async () => {
+    // CASINO-1 took CHATS off the tab bar on the promise that the thread is
+    // reached from Home and from a profile. In the room, from the man.
+    let opened = null;
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat', { routine: { key: 'counts', label: 'counting chips' } })],
+      null,
+      { onOpenThread: (agent) => { opened = agent.id; } },
+    );
     await userEvent.click(await screen.findByRole('button', { name: /River Rat/ }));
-    const sheet = await screen.findByRole('dialog', { name: /River Rat/i });
-    expect(sheet).toBeInTheDocument();
+    expect(opened).toBe('a2');
+  });
+
+  it('with nowhere to send him, the band is the thread', async () => {
+    // Standalone (no onOpenThread), the room keeps the conversation in itself
+    // rather than dropping the tap on the floor.
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByRole('button', { name: /The Clock/ }));
+    expect(await screen.findByRole('dialog', { name: /The Clock/i })).toBeInTheDocument();
   });
 
   it('the composer never inserts a row — the server writes it', async () => {

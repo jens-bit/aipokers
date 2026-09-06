@@ -139,6 +139,7 @@ export function HomeScreen({
   onDeploy,
   onCreateAgent,
   onOpenWallet,
+  onOpenThread,
   onSend,
   sending = false,
 }) {
@@ -201,10 +202,18 @@ export function HomeScreen({
     else if (needs === 'thread') { setFocusId(agent.id); setThreadOpen(true); }
   }, [onDeploy, onOpenWallet]);
 
+  // Tapping a body opens HIS THREAD — the screen, not the band. CASINO-1 took
+  // CHATS off the tab bar on the promise that the thread is reached from Home
+  // and from a profile, and the man himself is the obvious way to reach it.
+  //
+  // The band below is the other thing, and it is not the same thing: one line
+  // and a composer for whoever the room is pointed at, expanding to a sheet
+  // over the room. Quick word here, whole conversation there.
   const tapAgent = useCallback((agent) => {
     setFocusId(agent.id);
-    setThreadOpen(true);
-  }, []);
+    if (onOpenThread) onOpenThread(agent);
+    else setThreadOpen(true);
+  }, [onOpenThread]);
 
   if (agents.length === 0) {
     return (

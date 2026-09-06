@@ -6,6 +6,16 @@ Last updated: 2026-09-05 (0.10.0 sweep) — 4 open, 26 resolved
 
 ## OPEN
 
+### BUG-32 — The newborn does not walk into the room
+**Severity:** Low (a beat that is missing, not a screen that is wrong)
+**Where:** client/src/screens/HomeScreen.jsx; the wiring that used to be `newbornId={newlyBornAgent?.id}` in client/src/App.jsx
+**What:** FLOOR-2 (FL-3) gave the casino floor a walk-in for an agent it had not seen before: he comes through the door and takes the room for a few seconds, which is the pay-off for having just built him. CASINO-1 left the floor standing in on the HOME tab and that beat kept working. HOME-1 replaced the floor with the flat, and the walk-in did not come with it — App no longer passes `newbornId` anywhere on mobile, so a freshly-built agent simply appears at his idle spot. The room already has the machinery: a door, a DOOR_SPOT, and a walk on every position change (`useWalks`). Nothing tells it who is new.
+The floor still does this on the desktop shell (DesktopHome renders CasinoFloor with `newbornId`), so the loss is mobile-only.
+**Found by:** HOME-1's merge. `it.todo('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx — the WIRE-1 rule is kept, not deleted.
+**Fix:** Pass the newborn id into HomeScreen and start him at DOOR_SPOT for one placement pass, so `useWalks` gives him the crossing it already gives everybody else. Then un-todo the test.
+
+---
+
 ### BUG-20 — Dead 14px input rule waiting to be reused
 **Severity:** Low (latent — nothing renders it today)
 **Where:** client/src/styles/layout.css — `.dr-form-field input { font-size: 14px }`

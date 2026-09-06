@@ -19,9 +19,9 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -29,6 +29,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      # Node 22 and a full install, so the tools allowed below can actually
+      # build and test. Same version and cache as the Tests job in deploy.yml —
+      # a PR that passes here has to mean the same thing as one that passes
+      # there.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci && cd client && npm ci
 
       - name: Run Claude Code
         id: claude
@@ -43,8 +54,8 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          # The tool list is wrapped in inner quotes because several patterns
+          # contain a space — unquoted, `Bash(npm install)` would be split into
+          # two arguments and neither would match anything.
+          claude_args: '--allowedTools "Bash(npm install),Bash(npm ci),Bash(npm run build),Bash(npm test),Bash(npm run test:*),Bash(npx playwright install chromium),Bash(npx playwright *),Bash(node scripts/*),Bash(git *)"'
 

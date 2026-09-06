@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { ChipStack, BetSpot, PotChip, potBand, stackBand } from './system/Chips.jsx';
+import { Bottle, isDrinking } from './system/FeltBodyBars.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { Streets } from '../lib/protocol.js';
@@ -61,6 +62,8 @@ import {
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 import { attrCostOf } from '../lib/attributes.js';
+import { mergeThread } from '../lib/thread.js';
+import { useTableThread } from '../hooks/useTableThread.js';
 import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -616,7 +619,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
 export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
-  agentMood, agentHeat, agentAccent,
+  agentMood, agentHeat, agentAccent, agentFatigue = null,
   // WATCH-7: the hand-end receipt, drawn over his strip rather than over the
   // felt, and the ticking stack number under it. Both are the watch screen's;
   // the replay theatre passes neither and is unchanged.
@@ -741,6 +744,10 @@ export function WatchFelt({
       // SERVER-3: the face he is pulling, from the trigger the server sent —
       // one name, one expression, whichever message carried it.
       event: faceOf(si, faceDecision, result),
+      // WATCH-8 job 2: the body. `fatigue` is null for a seat with no agent
+      // behind it; `drinking` is FRIDGE-1's, and may not be on the wire at all.
+      fatigue: s.fatigue || null,
+      drinking: isDrinking(s),
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
       band: stackBand(s.stack || 0, avgStack),
@@ -811,6 +818,11 @@ export function WatchFelt({
   var heroBetOut  = live && heroContrib > 0;
   var heroSweeping = !!(sweep && sweep.seats.indexOf(heroSeat) >= 0);
   var heroFace = faceOf(heroSeat, faceDecision, result);
+  // WATCH-8 job 2 · his body. Fatigue comes off his seat where the server puts
+  // it; the agent record is the fallback for the moment before the first
+  // snapshot lands, which is the same order his mood already resolves in.
+  var heroFatigue = (heroData && heroData.fatigue) || agentFatigue || null;
+  var heroDrinking = isDrinking(heroData);
 
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
@@ -835,6 +847,8 @@ export function WatchFelt({
               mood={o.mood}
               heat={Number.isFinite(o.heat) ? o.heat : 45}
               event={o.event}
+              fatigue={o.fatigue}
+              drinking={o.drinking}
               folded={o.folded}
               acting={o.acting}
               selected={selectedSeat === o.seat}
@@ -972,6 +986,10 @@ export function WatchFelt({
         <div className="watch-felt__hero-stack">
           <ChipStack band={stackBand(heroStackRaw || 0, avgStack)} w={26}
             label="STACK" amt={heroStack} />
+          {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
+          {heroDrinking && (
+            <span className="watch-felt__hero-bottle"><Bottle size={16} /></span>
+          )}
         </div>
         {(heroBetOut || heroSweeping) && (
           <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
@@ -987,6 +1005,7 @@ export function WatchFelt({
           accent={agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : 45}
           event={heroFace}
+          fatigue={heroFatigue}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
           timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
           pose={heroPose({
@@ -1182,6 +1201,10 @@ function useStackTick(target, delta, key) {
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
+  // WATCH-8 · job 1: the socket's own status, so the thread can be refetched
+  // when the connection comes back. The sheet the owner left is not the sheet
+  // the table has been writing while he was gone.
+  connection = null,
   onOpenThread,
   paceFrame,
   paceLag,
@@ -1223,6 +1246,14 @@ export function WatchScreen({
     return function() { cancelled = true; clearInterval(id); };
   }, [agentId]);
 
+  // ── WATCH-8 · job 1 · THE THREAD SURVIVES ────────────────────────────────
+  // The sheet used to be assembled from whatever the socket happened to be
+  // awake for, so a reconnect got an empty sheet and a look back an hour later
+  // got nothing at all. SERVER-3 stores the lines; useTableThread fetches them
+  // — here when the sheet is opened, and on the desk for a rail that is always
+  // open. One hook, so the two surfaces cannot disagree about what was said.
+  var sessionId = game ? game.sessionId : null;
+
   var mood   = agent ? moodOf(agent)   : 'neutral';
   var cause  = agent ? causeOf(agent)  : null;
   var state  = agent ? stateOf(agent)  : 'live';
@@ -1234,6 +1265,12 @@ export function WatchScreen({
   var heroHeat = heroSeatRow && Number.isFinite(moodHeatOf(heroSeatRow))
     ? moodHeatOf(heroSeatRow) : 45;
   var heroAccent = (heroSeatRow && heroSeatRow.accentColor) || '#00D4AA';
+  // WATCH-8 job 2: how worn he is. The seat carries it, and the polled agent
+  // record is the fallback for the moment before the first snapshot lands —
+  // the same order his mood already resolves in.
+  var heroFatigueStage = (heroSeatRow && heroSeatRow.fatigue)
+    || (agent && agent.fatigue)
+    || null;
 
   // FIX-1g: the hero's last known equity for the hand in progress.
   var handEquityRef = useRef({ hand: null, equity: null });
@@ -1583,27 +1620,45 @@ export function WatchScreen({
     setThreadOpen(true);
   }, [onOpenThread]);
 
+  // Opening the sheet is the moment the record has to be current; a reconnect
+  // is the other one, and the hook owns both.
+  var storedRows = useTableThread({
+    agentId: agentId, sessionId: sessionId, connection: connection, want: threadOpen,
+  });
+
   // ── the thread, in one ordered list ─────────────────────────────────────
   // HIM / YOU / TABLE, plus an opponent under their own name. Everything the
   // felt showed and everything it had to let go, in the order it happened.
-  var threadRows = tableRecord.map(function(u) {
-    var who = u.mine
-      ? 'HIM'
-      : (Number.isInteger(u.seat) && game && game.seats && game.seats[u.seat]
-        ? (game.seats[u.seat].displayName || displayNames[u.seat] || 'TABLE')
-        : 'TABLE').toUpperCase();
-    return { id: u.id, who: who, text: u.text, t: u.at };
+  // WATCH-8: the register each live row is drawn in is stated rather than
+  // inferred from its label, so a seat called "TABLE" cannot borrow the room's
+  // voice here either — the same rule the stored lines already carry.
+  var liveRows = tableRecord.map(function(u) {
+    var named = Number.isInteger(u.seat) && game && game.seats && game.seats[u.seat]
+      ? (game.seats[u.seat].displayName || displayNames[u.seat] || null)
+      : null;
+    return {
+      id: u.id,
+      kind: u.mine ? 'him' : (named ? 'opponent' : 'table'),
+      who: (u.mine ? 'HIM' : (named || 'TABLE')).toUpperCase(),
+      text: u.text,
+      t: u.at,
+    };
   })
     .concat(agentThread.map(function(m, i) {
-      return { id: 'c' + i, who: m.role === 'user' ? 'YOU' : 'HIM', text: m.content, t: m.t };
+      var you = m.role === 'user';
+      return { id: 'c' + i, kind: you ? 'you' : 'him', who: you ? 'YOU' : 'HIM', text: m.content, t: m.t };
     }))
     .concat(attrRecord.map(function(a) {
       return {
-        id: a.id, who: 'TABLE', cost: true, t: a.t,
+        id: a.id, kind: 'table', who: 'TABLE', cost: true, t: a.t,
         text: [a.line, a.key].filter(Boolean).join(' · '),
       };
-    }))
-    .sort(function(a, b) { return (a.t || 0) - (b.t || 0); });
+    }));
+
+  // The record and what is being said now, as one ordered list: one row per id,
+  // and where the store and the socket both have a line the STORED copy wins,
+  // because it is the one carrying the server's clock.
+  var threadRows = mergeThread(storedRows, liveRows);
 
   function handleSitOutConfirm() {
     setSitOutPending(false);
@@ -1732,6 +1787,7 @@ export function WatchScreen({
         game={game} mySeat={mySeat} lastDecision={lastDecision}
         handEquity={handEquity} flipped={faceUp} line={feltLine}
         agentMood={heroMood} agentHeat={heroHeat} agentAccent={heroAccent}
+        agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
         onTapHero={function() { openChat(); }}
