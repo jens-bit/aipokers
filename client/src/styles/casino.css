@@ -376,3 +376,121 @@
   .csn-marquee__bulbs i,
   .csn-room-door__ember { animation: none; }
 }
+
+/* ── CASINO-2 job 4 · your table, once per man ──────────────────────────────
+ *
+ * A scroll-snap track, which is to say: the browser does the flick. A carousel
+ * driven by React state and transforms has to reimplement momentum, rubber
+ * banding and the point at which a drag becomes a page — all of which the
+ * platform already does, better, and with the right feel on the device the
+ * finger is actually on. React only reads which page it landed on.
+ *
+ * The block takes what is left of the screen rather than a fixed height: it is
+ * the thing the owner opened the screen for, so it gets the room the board and
+ * the doors did not want. */
+.csn-your {
+  flex: 1;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.csn-your__track {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.csn-your__track::-webkit-scrollbar { display: none; }
+
+.csn-your__page {
+  flex: 0 0 100%;
+  min-width: 100%;
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+}
+
+/* The felt fills its page. TableFelt is absolutely positioned inside, so the
+   page is what gives it a height at all. */
+.csn-your__page > .csn-felt { flex: 1; min-height: 0; }
+
+/* He is not at a felt, so this says where he is instead of drawing a quiet
+   table with him at it. Bordered but not gold: it is not a game. */
+.csn-your__away {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0E1413;
+}
+
+.csn-your--none {
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  padding: 18px;
+}
+
+/* The dots: how many men, and which one you are looking at. Tappable, because
+   a dot you can see and cannot press is a worse control than no dot — and 18px
+   of hit area around a 5px dot, because the dot is the target's centre and not
+   its size. */
+.csn-your__dots {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.csn-your__dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+.csn-your__dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.20);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.csn-your__dot[data-on]::after {
+  background: #CDB380;
+  box-shadow: 0 0 6px rgba(205, 179, 128, 0.7);
+}
+.csn-your__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* On the desk the carousel is beside the doors rather than under them: 1440
+   has the width for a felt at reading size AND the room the board left, and a
+   page that stretches to 900px is a felt with its ring pulled apart. */
+.csn--desk .csn-your { max-width: 640px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-your__track { scroll-behavior: auto; }
+}

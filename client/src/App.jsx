@@ -591,6 +591,7 @@ export default function App() {
         deployAgent={deployTarget?.agent ?? null}
         onCancelDeploy={() => setDeployTarget(null)}
         onReplay={replayEvent}
+        onPlace={placeInCasino}
         onSpectate={(tableId) => {
           if (!tableId) return;
           setDesktopWatchAgent(null);
@@ -797,6 +798,7 @@ export default function App() {
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}
               onReplay={replayEvent}
+              onPlace={placeInCasino}
               onSpectate={(tableId) => {
                 if (!tableId) return;
                 watchOriginRef.current = hereOrigin();

@@ -262,6 +262,44 @@ describe('CASINO-1 the building', () => {
   });
 });
 
+// ── CASINO-2 job 4 · your table ─────────────────────────────────────────────
+
+describe('CASINO-2 job 4 · your table, once per man', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  const atFelt = {
+    ...playingAgent,
+    activeTableId: 'tbl-mine',
+    liveGame: { ...playingAgent.liveGame, tableId: 'tbl-mine' },
+  };
+
+  it('draws his real game off the felts, at the foot of the screen', async () => {
+    routeFloor({ agents: [atFelt], felts: [myFelt({ pot: 940 })] });
+    renderCasino();
+
+    const block = await screen.findByTestId('your-tables');
+    expect(within(block).getByText('YOUR TABLE · 10/20')).toBeInTheDocument();
+    expect(within(block).getByText('$940')).toBeInTheDocument();
+  });
+
+  it('and says where he is instead when he is at no felt — never a ghost at a table', async () => {
+    routeFloor({ agents: [restingAgent], felts: [] });
+    renderCasino();
+
+    const block = await screen.findByTestId('your-tables');
+    expect(within(block).getByText(/Loose Cannon is /)).toBeInTheDocument();
+    expect(block.querySelector('.csn-felt')).toBeNull();
+  });
+
+  it('is not on the screen while you are placing somebody — that screen is the tray', async () => {
+    routeFloor({ agents: [atFelt, fundedCannon], felts: [myFelt()] });
+    renderCasino({ deployAgent: fundedCannon });
+
+    await screen.findByText('placing Loose Cannon');
+    expect(screen.queryByTestId('your-tables')).toBeNull();
+  });
+});
+
 // ── Deploy ──────────────────────────────────────────────────────────────────
 
 describe('CASINO-1 deploy', () => {

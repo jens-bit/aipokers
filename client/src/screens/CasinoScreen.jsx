@@ -36,6 +36,7 @@ import {
   CasinoDoor, CasinoHead, DeployTray, RoomDoors, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
 import { FloorBoard } from '../components/casino/FloorBoard.jsx';
+import { YourTables } from '../components/casino/YourTables.jsx';
 import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
@@ -130,6 +131,7 @@ export function CasinoScreen({
   onDeployed = null,
   onSpectate = null,
   onReplay = null,
+  onPlace = null,
   onCancelDeploy = null,
   desktop = false,
 }) {
@@ -440,6 +442,20 @@ export function CasinoScreen({
 
         {/* K2 · the board, split by tense. On the desk it is in the rail. */}
         {!trayAgent && !desktop && board}
+
+        {/* CASINO-2 job 4 · YOUR TABLE, once per man.
+            Everything above this is about strangers — three rooms with
+            hundreds of people in them, and a board of pots that are almost all
+            somebody else's. This is the block the owner opened the screen to
+            see, so it takes what is left of it. */}
+        {!trayAgent && rooms.length > 0 && (
+          <YourTables
+            agents={agents}
+            felts={felts}
+            onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+            onSend={onPlace ?? null}
+          />
+        )}
 
         {rooms.length === 0 && (
           <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
