@@ -539,3 +539,22 @@
   background: rgba(0, 212, 170, 0.08);
   border-color: rgba(0, 212, 170, 0.27);
 }
+
+/* WATCH-6 · "why the hand went wrong", as a surface rather than a hard-coded
+   grey. The default is the card it always was; on the watch rail it is the
+   same glass as everything else on that screen. */
+.attr-why {
+  padding: 11px 13px;
+  border-radius: 10px;
+  margin-top: 10px;
+  background: #28282F;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dsk-panel--watch .attr-why {
+  border-radius: 13px;
+  background: rgba(13, 23, 21, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-color: rgba(205, 179, 128, 0.33);
+}

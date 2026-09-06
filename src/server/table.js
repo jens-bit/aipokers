@@ -18,7 +18,7 @@ import {
   addFlaggedHand,
   openerForAgent,
 } from './agentProfiles.js';
-import { classifyHand, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
+import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
   PACE, paceFor, advancePace, potInBb, holdPlan, seedFor,
   raiseFloor, raisesCapped, raiseCapPerStreet,
@@ -51,12 +51,15 @@ import {
   MOOD_STATES,
   EVENT_DELTAS,
 } from '../agent/mood.js';
-import { notifyMoodAlert } from './notifications/telegram.js';
-// NOTIFY-1: the four owner-facing push events are emitted from the four places
-// in this file that already know they happened. notifyEvent is a no-op until
-// attachNotify() runs in src/index.js. MERGE-3: main's casino-event emitters
-// (emitCasinoEvent, above) now overlap these; NOTIFY-2 dedupes the two paths.
-import { notifyEvent, isAttached as notifyAttached, HEAT_TILTED } from './notify.js';
+// NOTIFY-2: the owner-facing push events are emitted from the places in this
+// file that already know they happened, and there are now two ways to say so.
+// Where a fact is ALSO a floor headline it travels on the bus, once, with the
+// owner's half hung off it as `detail` (see _emitCasinoEvents) — that is the
+// bust and the biggest pot. Where it is nobody's business but the owner's it
+// calls notifyEvent directly — the session that merely ended, the crossing
+// into tilt. Either way it is a no-op until attachNotify() runs in
+// src/index.js.
+import { notifyEvent, HEAT_TILTED } from './notify.js';
 import {
   HOUSE_TAG,
   HOUSE_STATION,
@@ -248,6 +251,14 @@ export class Table {
     // it with fewer than MIN_TO_DEAL seats.
     this._pendingSitOut = new Set();
 
+    // WALLET-6: the other way off the table. Seats in this set PLAY the current
+    // hand out normally -- no fold, no shortcut -- and are benched by
+    // _handCompleted the moment it ends. That is the promise the funding sheet
+    // makes when an owner cuts his agent off ("he finishes the hand he is in
+    // and takes a seat at the bar"), and it is why it cannot reuse
+    // _pendingSitOut, which folds out of the hand as soon as the seat acts.
+    this._benchAfterHand = new Set();
+
     // ── AGE-35: autonomous session loop ──────────────────────────────────
     // autoPlay tables deal themselves. Nothing a client does — connecting,
     // watching, leaving — advances or stops them; only the loop, a bust, the
@@ -325,6 +336,7 @@ export class Table {
     for (let i = 0; i < this.maxSeats; i++) {
       if (!this.pending[i]) continue;
       if (this.seatLeaving[i] || this._pendingSitOut.has(i)) continue;
+      if (this._benchAfterHand.has(i)) continue;
       if (this.seatStack(i) <= 0) continue;
       out.push(i);
     }
@@ -394,6 +406,11 @@ export class Table {
       if (remap.has(seat)) movedSitOuts.add(remap.get(seat));
     }
     this._pendingSitOut = movedSitOuts;
+    const movedBench = new Set();
+    for (const seat of this._benchAfterHand) {
+      if (remap.has(seat)) movedBench.add(remap.get(seat));
+    }
+    this._benchAfterHand = movedBench;
     // Seat indices moved, so whatever the Game was built from is stale.
     this._gameRoster = null;
   }
@@ -502,16 +519,24 @@ export class Table {
 
     const displayName = occupant.displayName ?? occupant.playerId;
     this._pendingSitOut.delete(seat);
+    this._benchAfterHand.delete(seat);
     this._clearSeat(seat);
     console.log(`[table:${this.tableId}] seat ${seat} freed -- ${displayName} (${recap})`);
     this._broadcast({ type: ServerMsg.SEAT_LEFT, seat, displayName, reason: recap });
   }
 
 
-  // NOTIFY-1: the two session-end pings, from the one place that knows how the
-  // seat ended. A bust and a sit-out are different messages — one is a decision
-  // for the owner, the other is a result — so they are different ladder rungs
-  // and never both fire for the same seat.
+  // NOTIFY-1: the session-end ping, from the one place that knows how the seat
+  // ended. A bust and a sit-out are different messages — one is a decision for
+  // the owner, the other is a result — so they are different ladder rungs and
+  // never both fire for the same seat.
+  //
+  // NOTIFY-2: the bust half is gone from here. A seat running out of chips is
+  // already a floor headline, emitted once in _emitCasinoEvents at the moment
+  // the hand that did it finished, and the owner's copy rides along with it as
+  // `detail`. Emitting it a second time from the retirement path is how one
+  // bust becomes two messages out of one budget. What is left here is the
+  // sit-out, which the floor has no opinion about.
   //
   // Nothing is sent for a session the owner WATCHED end: the ref's trigger for
   // the recap is "a session ends while you were not watching it", and pinging
@@ -519,14 +544,10 @@ export class Table {
   // exists to prevent.
   _notifySessionEnd({ seat, agentId, agent, buyIn, finalStack, watched, sessionHands, busted }) {
     const ownerId = this.agentUserIds[seat];
-    if (!ownerId || watched) return;
+    if (!ownerId || watched || busted) return;
     const agentName = agent?.name || this.pending[seat]?.displayName || 'Your agent';
     const endedAt = Date.now();
 
-    if (busted) {
-      notifyEvent('busted', { ownerId: String(ownerId), agentId, agentName, buyIn, hands: sessionHands, endedAt });
-      return;
-    }
     notifyEvent('session_ended', {
       ownerId: String(ownerId),
       agentId,
@@ -755,12 +776,36 @@ export class Table {
     const spectator = this.spectators.find((s) => s.ws === ws);
     const seat = seated !== -1 ? seated : (spectator ? spectator.spectatorSeat : -1);
     if (seat === -1 || !this.pending[seat]) throw new Error('not at this table');
+    return this.sitOutSeat(seat);
+  }
+
+  // WALLET-6: the same departure, addressed by seat instead of by socket, for
+  // callers that have no WebSocket to speak through -- the wallet benching an
+  // agent whose owner just cut him off.
+  //
+  // The two modes differ only in what happens to the hand in progress:
+  //
+  //   afterHand: false (the WS SIT_OUT path)  -- a STOP. The seat folds as soon
+  //     as it is its turn and is freed when the hand ends. Unchanged.
+  //   afterHand: true  (the wallet's bench)   -- he finishes the hand he is in.
+  //     No fold, no forfeited chips; the seat is freed the moment the hand
+  //     completes and the floor draws him at the bar from there.
+  //
+  // Between hands the two are the same thing, and both take the immediate path.
+  //
+  // Returns { pending, seat } while a hand is running, else
+  // { pending: false, seat, tableClosed }. Throws if the seat is empty.
+  sitOutSeat(seat, { afterHand = false } = {}) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= this.maxSeats || !this.pending[seat]) {
+      throw new Error('not at this table');
+    }
 
     const inHand = !!this.game &&
       this.game.street !== Streets.COMPLETE &&
       this.game.street !== Streets.WAITING;
     if (inHand) {
-      this._pendingSitOut.add(seat);
+      if (afterHand) this._benchAfterHand.add(seat);
+      else this._pendingSitOut.add(seat);
       return { pending: true, seat };
     }
 
@@ -772,6 +817,13 @@ export class Table {
     this._reconcileSeats();
     this._notifyStateChange();
     return { pending: false, seat, tableClosed: false };
+  }
+
+  // WALLET-6: whether an AI seat should fold out of the hand in progress rather
+  // than spend a model call on it. A seat benched *after* the hand is not on
+  // this list -- that is the whole point of it.
+  _foldsOutOfHand(seat) {
+    return this._pendingSitOut.has(seat) || this.seatLeaving[seat];
   }
 
 
@@ -1410,10 +1462,16 @@ export class Table {
     this._captureStacks();
     this._recordButton();
 
-    // Seats that asked to sit out during the hand are released now.
+    // Seats that asked to sit out during the hand are released now. Both ways
+    // off the table land here: the one that folded out of the hand and the one
+    // (WALLET-6) that was allowed to play it to the end.
     if (this._pendingSitOut.size > 0) {
       for (const seat of [...this._pendingSitOut]) this.seatLeaving[seat] = true;
       this._pendingSitOut.clear();
+    }
+    if (this._benchAfterHand.size > 0) {
+      for (const seat of [...this._benchAfterHand]) this.seatLeaving[seat] = true;
+      this._benchAfterHand.clear();
     }
 
     // A departure or a bust only ends the TABLE when it can no longer be
@@ -1603,25 +1661,18 @@ export class Table {
         console.error('[table] mood update failed:', err.message);
       }
 
-      // Mood alert: notify owner when agent enters tilted or sulking.
-      const prevState = currentMood.state;
-      const nextState = mood.state;
-      if ((nextState === 'tilted' || nextState === 'sulking') && nextState !== prevState) {
-        const ownerId = this.agentUserIds[seat];
-        if (ownerId && !notifyAttached()) {
-          // Legacy path (NOTIFY_ENABLED). It is skipped whenever NOTIFY-1 is
-          // attached so a tilt cannot go out twice from two budgets that do not
-          // know about each other.
-          notifyMoodAlert(String(ownerId), String(ownerId), agentId,
-            this.pending[seat]?.displayName || 'Your agent',
-            { moodState: nextState, cause: mood.cause || null }
-          ).catch((e) => console.error('[notify] mood alert failed:', e.message));
-        }
-      }
-
       // NOTIFY-1: tilt is only worth a ping once it is hot. `tilted` at heat 62
       // is a bad ten minutes; heat 70 is the night going wrong, and the heat is
       // the number the owner can check on the floor.
+      //
+      // NOTIFY-2: this stays a direct call rather than moving to the bus. A
+      // mood is not a floor headline — the ticker has no `tilted` event and
+      // should not get one, because "he is steaming" is a thing you may say to
+      // a man's owner and not to the room. The legacy notifier's second,
+      // looser mood alert (any crossing into tilted OR sulking, once a day per
+      // owner) was folded away here; this heat gate is the rule now.
+      const prevState = currentMood.state;
+      const nextState = mood.state;
       if (nextState === 'tilted' && prevState !== 'tilted' && mood.heat >= HEAT_TILTED) {
         const ownerId = this.agentUserIds[seat];
         if (ownerId) {
@@ -1729,6 +1780,60 @@ export class Table {
     return seats.map((s) => this.agentIds[s]).filter(Boolean);
   }
 
+  // ── NOTIFY-2 · the owner's half of a headline ────────────────────────────
+  //
+  // Both of these build records for src/server/notify.js and hand them to
+  // emitCasinoEvent as `detail`. They never enter the ring, GET /api/events or
+  // the ticker — events.js keeps them on a channel of their own — which is the
+  // only reason an owner id and a buy-in may appear in them at all.
+  //
+  // The TRIGGER rule lives here rather than in the notifier, next to the state
+  // that proves it. notify.js is told what happened and decides only whether
+  // there is budget to say it.
+
+  // Nothing for a seat the owner is watching: he is looking at the bust as it
+  // happens, and the floor headline above already fired for everyone else.
+  _bustDetail(seat) {
+    const ownerId = this.agentUserIds[seat];
+    const agentId = this.agentIds[seat];
+    if (!ownerId || !agentId) return [];
+    if (this.spectators.some((sp) => sp.spectatorSeat === seat)) return [];
+    return [{
+      type: 'busted',
+      ownerId: String(ownerId),
+      agentId,
+      agentName: this.pending[seat]?.displayName || 'Your agent',
+      buyIn: this.pending[seat]?.buyIn ?? this.defaultBuyIn(),
+      hands: Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0)),
+      endedAt: Date.now(),
+    }];
+  }
+
+  // `this.sessionBiggestPot` is still the previous high-water mark here:
+  // _classifyAndFlagHands advances it, and it runs after us in _handCompleted.
+  // That ordering is what lets both ask flaggedHands the same question and get
+  // the same answer, which is why the predicate is imported rather than
+  // written out twice.
+  _biggestPotDetail(result, pot) {
+    if (!isSessionBiggestPot(pot, this.sessionBiggestPot)) return [];
+    const out = [];
+    for (const w of (Array.isArray(result?.winners) ? result.winners : [])) {
+      const seat = w?.seat;
+      const agentId = this.agentIds[seat];
+      const ownerId = this.agentUserIds[seat];
+      if (!agentId || !ownerId) continue;
+      out.push({
+        type: 'biggest_pot',
+        ownerId: String(ownerId),
+        agentId,
+        agentName: this.pending[seat]?.displayName || 'Your agent',
+        pot,
+        handNumber: this.game?.handNumber ?? 0,
+      });
+    }
+    return out;
+  }
+
   // The hand is over: what, if anything, was worth shouting about it.
   _emitCasinoEvents(result, coolerHand) {
     const g = this.game;
@@ -1742,6 +1847,12 @@ export class Table {
       }
 
       // bigPot — three times the pot the felt already calls warm.
+      //
+      // NOTIFY-2: this is also where the owner hears about the biggest pot of
+      // his agent's night. The public headline is about the pot; the `detail`
+      // records are about the men who WON it, one per owner, and only when the
+      // pot is also the session's high-water mark. Losing the biggest pot of
+      // the night is not this message.
       if (potBb >= bigPotThresholdBb() && inHand.length > 0) {
         emitCasinoEvent({
           type: EventType.BIG_POT,
@@ -1749,6 +1860,7 @@ export class Table {
           agentIds: this._agentIdsAt(inHand),
           headline: `${this._nameList(inHand)} played a ${Math.round(potBb)}bb pot`,
           pot,
+          detail: this._biggestPotDetail(result, pot),
         });
       }
 
@@ -1785,7 +1897,8 @@ export class Table {
       }
 
       // bust — a seat with nothing left. The table closes on the next deal,
-      // so this fires exactly once per seat by construction.
+      // so this fires exactly once per seat by construction, which is what
+      // makes it safe to hang the owner's ping off it (NOTIFY-2).
       for (const seat of inHand) {
         if ((g.seats[seat]?.stack ?? 1) > 0) continue;
         emitCasinoEvent({
@@ -1794,6 +1907,7 @@ export class Table {
           agentIds: this._agentIdsAt([seat]),
           headline: `${this._seatLabel(seat)} is out of chips`,
           pot,
+          detail: this._bustDetail(seat),
         });
       }
     } catch (err) {
@@ -1986,21 +2100,11 @@ export class Table {
         sessionBiggestPot: this.sessionBiggestPot,
       });
 
-      if (flagType === 'biggestPot') {
-        this.sessionBiggestPot = pot;
-        // NOTIFY-1: news about him that asks nothing of the owner, so it enters
-        // at the bottom of the ladder and carries no button. Only when he WON
-        // it — the biggest pot of the night he paid for is not this message.
-        if (won && userId) {
-          notifyEvent('biggest_pot', {
-            ownerId: String(userId),
-            agentId,
-            agentName: this.pending[seat]?.displayName || 'Your agent',
-            pot,
-            handNumber: this.game.handNumber,
-          });
-        }
-      }
+      // NOTIFY-2: the owner's ping for this used to be emitted here as well.
+      // It now rides the bigPot bus event (_biggestPotDetail), which asks
+      // isSessionBiggestPot the same question one step earlier — before the
+      // line below moves the mark. All that is left here is the mark itself.
+      if (flagType === 'biggestPot') this.sessionBiggestPot = pot;
       if (!flagType) continue;
 
       const holeCards = [...(this.game.seats[seat]?.holeCards ?? [])];
@@ -2804,7 +2908,7 @@ export class Table {
     // MST-1: a seat that asked to sit out mid-hand folds out of it rather than
     // burning a model call. The seat itself is freed by the reconcile once the
     // hand completes.
-    if (this._pendingSitOut.has(aiSeat) || this.seatLeaving[aiSeat]) {
+    if (this._foldsOutOfHand(aiSeat)) {
       const streetBefore = g.street;
       try {
         this.game.act(aiSeat, { type: 'fold' });

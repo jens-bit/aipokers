@@ -4,6 +4,7 @@ import { isOwner } from './auth.js';
 import { getAgentProfile, setLiveTableProvider, setAgentChangeListener, reconcileActiveSessions } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
+import * as rooms from './rooms.js';
 
 const { getOrCreateTable } = registry;
 
@@ -25,6 +26,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // AGE-38: the floor channel listens to both sides — table state changes for
   // FLOOR_GAME deltas, agent standing changes for FLOOR_STATE refreshes.
   floor.configure({ liveTables: registry });
+  // ROOMS-1: the floor-by-stakes view reads the same registry, through the same
+  // kind of injected provider, so neither it nor floorChannel imports table.js.
+  rooms.configure({ liveTables: registry });
   registry.setStateHook((table) => floor.notifyTable(table));
   setAgentChangeListener((userId) => floor.notifyAgentsChanged(userId));
   const retired = reconcileActiveSessions();

@@ -15,9 +15,12 @@
 //   3. The cap is part of the design, not a setting.
 //
 // The cap here is NOTIFY-1's, which is looser than the ref board's (that board
-// predates the four triggers below and says two a day, four hours apart, quiet
-// from 00:00): three per owner per day, never two inside thirty minutes, quiet
-// hours 23:00–08:00 owner-local. The MECHANISM is the ref's, unchanged —
+// predates the triggers below and says two a day, four hours apart, quiet from
+// 00:00) and than the legacy notifier's (two a day, quiet from 00:00): three
+// per owner per day, never two inside thirty minutes, quiet hours 23:00–08:00
+// owner-local. One budget for all ten types, which is the point of folding
+// them together — two notifiers with two budgets is not a cap, it is a pair of
+// caps that add up. The MECHANISM is the ref's, unchanged —
 //   · quiet hours HOLD, they do not cancel; an overnight recap arrives at 08:00
 //     and still names the 02:14 it describes, which is why the delay does not
 //     read as a bug;
@@ -27,16 +30,30 @@
 //   · when more events qualify than the budget allows, the ladder decides, and
 //     the session recap wins every tie.
 //
-// Wiring: attachNotify() once, at the end of src/index.js. src/server/events.js
-// does not exist on main, so table.js calls notifyEvent() directly at the four
-// points that produce these events (session close, seat retire on a bust, the
-// biggest-pot flag, the mood transition into tilted). If an event bus ever
-// lands, those four call sites are the whole migration.
+// NOTIFY-2 folded the legacy NOTIFY_ENABLED notifier
+// (src/server/notifications/telegram.js) into this file. There is now ONE
+// notifier, ONE ledger and ONE budget; NOTIFY_ENABLED is what turns it on.
+// Everything that notifier could say still has a rung on the ladder below —
+// broke, proposal, collected, want, milestone, quiet win — and every cap it
+// enforced out of a bespoke state blob is now a `dedupe_key` on the ledger
+// row, so a cap and a send can no longer disagree about what happened.
+//
+// Wiring: attachNotify() once, at the end of src/index.js. Two ways in:
+//
+//   · the bus (src/server/events.js). Where a floor headline and an owner ping
+//     are the same fact — a bust, the biggest pot of the night — the table
+//     emits ONCE and hangs the owner-addressed half off the event as `detail`.
+//     attachNotify subscribes to that channel; nothing has to be kept in step
+//     by hand.
+//   · notifyEvent() directly, for the facts the bus does not carry, because
+//     they are nobody's business but the owner's: a session that merely ended,
+//     a mood crossing into tilt, a pocket that ran dry, a proposal he wrote.
 
 import {
   recordNotificationSent,
   listNotificationsSince,
   countNotificationsOfType,
+  hasNotificationKey,
   putNotificationHold,
   listNotificationHolds,
   setNotificationHoldDeliverAt,
@@ -44,6 +61,13 @@ import {
 } from './store.js';
 import { isAgentNotifyMuted, setAgentNotifyMuted } from './agentProfiles.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
+import { bus as eventBus } from './events.js';
+
+// The switch, inherited from the legacy notifier so that a deployment that had
+// notifications off keeps them off. It gates the SENDER only: the mute route
+// is registered either way, so an owner's preference is recorded on a
+// deployment that is not yet sending.
+export const ENABLED = process.env.NOTIFY_ENABLED === '1' || process.env.NOTIFY_ENABLED === 'true';
 
 // ── The ladder ───────────────────────────────────────────────────────────────
 //
@@ -53,11 +77,25 @@ import { telegramAuthMiddleware, isOwner } from './auth.js';
 // sits directly under it. Tilt is money moving badly right now. The biggest pot
 // is news about him that asks for nothing, which is what makes it safe to send
 // and the first thing to lose when the budget is tight.
+//
+// NOTIFY-2 slotted the legacy notifier's six types into the same order it had
+// them in. `broke` sits directly under `busted` because they are the same
+// shape of news one step apart — the stack is gone, then the roll behind it is
+// — and both end in a decision. A proposal is him asking to be changed, which
+// only the owner can answer. `collected` and `want` are errands. Below the
+// mood line sit the three that ask for nothing at all, and those are the first
+// to lose when the budget is tight.
 export const LADDER = {
-  session_ended: 1,
-  busted:        2,
-  tilted:        3,
-  biggest_pot:   4,
+  session_ended:  1,
+  busted:         2,
+  broke:          3,
+  proposal:       4,
+  collected:      5,
+  want:           6,
+  tilted:         7,
+  milestone:      8,
+  biggest_pot:    9,
+  quiet_win:     10,
 };
 
 export const BUDGET = {
@@ -106,6 +144,21 @@ function nextOpen(ts, offMin) {
 function hhmm(ts, offMin) {
   const d = new Date(ts + offMin * 60_000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+// YYYY-MM-DD and ISO YYYY-Www, both owner-local, both built the same way as
+// everything else here: shift the epoch, read UTC. They exist for the cap keys
+// the legacy notifier expressed as "once a day" and "once a week".
+function localDayStr(ts, offMin) {
+  return new Date(ts + offMin * 60_000).toISOString().slice(0, 10);
+}
+function localWeekStr(ts, offMin) {
+  const d = new Date(ts + offMin * 60_000);
+  // Thursday of this week decides the year and the number (ISO 8601).
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const jan1 = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const week = Math.ceil(((d.getTime() - jan1) / DAY_MS + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 const money = (n) => `$${Math.abs(Math.round(Number(n) || 0)).toLocaleString('en-US')}`;
@@ -169,12 +222,123 @@ function buildTilted(i, { agentName, heat, cause }) {
   return { text: alts[i % alts.length], button: null };
 }
 
+// ── The six folded in from the legacy notifier (NOTIFY-2) ────────────────────
+//
+// Copy kept as it was written — it had already been through the three laws —
+// with one change: `<b>` survives because this file also sends parse_mode
+// HTML, and the deep link under a button now lands on the agent's thread
+// rather than the home screen, like every other button here.
+
+function buildBroke(i, { agentName, mode }) {
+  // `cut` means the owner has already decided not to fund him. Asking again
+  // with a button would be nagging about a decision he has made.
+  const alts = mode === 'cut'
+    ? [
+        { text: `${agentName} is out and cut off. He is at the bar, and nothing he has learned is lost.`, button: null },
+        { text: `${agentName}'s pocket is empty. Cut off, so he is not asking.`, button: null },
+      ]
+    : [
+        { text: `${agentName} is out of money. He is at the bar — your call.`, button: 'Fund him' },
+        { text: `${agentName}'s pocket is empty. He keeps his reads either way.`, button: 'Fund him' },
+        { text: `That is ${agentName}'s roll gone. He takes a seat at the bar.`, button: 'Fund him' },
+      ];
+  return alts[i % alts.length];
+}
+
+function buildProposal(i, { agentName, proposalText }) {
+  const preambles = ['', 'Quick one: ', ''];
+  const text = `${preambles[i % preambles.length]}${proposalText}
+<i>— ${agentName}</i>`;
+  return { text, button: 'See his idea' };
+}
+
+function buildCollected(i, { agentName, moved }) {
+  const amt = `<b>${money(moved)}</b>`;
+  const alts = [
+    `${agentName} brought home ${amt}. It is in your wallet.`,
+    `${agentName} cashed out ${amt} to your wallet and kept his float.`,
+    `${amt} from ${agentName}. He wants to go again on what is left.`,
+  ];
+  return { text: alts[i % alts.length], button: OPEN };
+}
+
+function buildWant(i, { agentName, line }) {
+  // The line is his, so it is the message. No frame around it beyond his name.
+  return { text: `${agentName}: "${line}"`, button: 'Sort him out' };
+}
+
+function buildMilestone(i, { agentName, threshold }) {
+  const n = `<b>${Number(threshold).toLocaleString('en-US')} hands</b>`;
+  const alts = [
+    { text: `${n}. ${agentName} wants a harder table.`, button: 'Move him up' },
+    { text: `${n} played. ${agentName} is asking about the next level.`, button: 'Move him up' },
+    { text: `That is ${n}. ${agentName} thinks he has outgrown the table.`, button: null },
+  ];
+  return alts[i % alts.length];
+}
+
+function buildQuietWin(i, { agentName }) {
+  const alts = [
+    `${agentName} had a third winning night in a row. He has not mentioned it. He has mentioned it four times.`,
+    `${agentName} just posted a third profitable session. He described it as "discipline."`,
+    `${agentName} keeps winning and keeps acting like it is nothing. Third session in a row.`,
+  ];
+  return { text: alts[i % alts.length], button: null };
+}
+
 const BUILDERS = {
   session_ended: buildSessionEnded,
   busted:        buildBusted,
-  biggest_pot:   buildBiggestPot,
+  broke:         buildBroke,
+  proposal:      buildProposal,
+  collected:     buildCollected,
+  want:          buildWant,
   tilted:        buildTilted,
+  milestone:     buildMilestone,
+  biggest_pot:   buildBiggestPot,
+  quiet_win:     buildQuietWin,
 };
+
+// ── Caps (NOTIFY-2) ──────────────────────────────────────────────────────────
+//
+// The budget says how MUCH the bot may say. A cap says how often one
+// particular thing may be said, and it is a different question: three sends a
+// day is no comfort if all three are "he is broke" about the same agent.
+//
+// The legacy notifier kept one of these per type in a state blob beside the
+// ledger, which is how a cap and a send end up disagreeing after a crash. Here
+// a cap IS the ledger: the key goes on the row, and the row is only written
+// when the message actually goes out. A held message reserves its key and
+// releases it if it later loses on budget, which is right — it never arrived.
+//
+// A type with no entry has no cap of its own and is bounded by the budget
+// alone. Returning null from an entry means "not this time".
+const CAP_KEYS = {
+  // Out of money is a state, not an event. He stays out until the owner acts,
+  // and saying so twice is nagging.
+  broke:     ({ agentId }, { day }) => `broke:${agentId}:${day}`,
+  // He asks and then drops it.
+  want:      ({ agentId }, { day }) => `want:${agentId}:${day}`,
+  // Once per threshold, ever — crossing 1,000 hands does not un-happen.
+  milestone: ({ agentId, threshold }) => `milestone:${agentId}:${threshold}`,
+  // One per proposal rather than the legacy "one pending at a time", which
+  // needed an explicit clear on accept/reject and silently lost the next
+  // proposal if that clear was ever missed. A proposal's createdAt identifies
+  // it, so a new one always gets its ping and the old one never gets a second.
+  proposal:  ({ agentId, proposalAt }) => (proposalAt ? `proposal:${agentId}:${proposalAt}` : null),
+  // Owner-wide and weekly: the point of the line is that it is rare.
+  quiet_win: (_ctx, { week }) => `quiet_win:${week}`,
+};
+
+function capKeyFor(type, ctx, at, offMin) {
+  const fn = CAP_KEYS[type];
+  if (!fn) return null;
+  try {
+    return fn(ctx, { day: localDayStr(at, offMin), week: localWeekStr(at, offMin) }) || null;
+  } catch {
+    return null;
+  }
+}
 
 // ── The default Telegram sender ──────────────────────────────────────────────
 //
@@ -218,6 +382,7 @@ const defaultStore = {
   recordNotificationSent,
   listNotificationsSince,
   countNotificationsOfType,
+  hasNotificationKey,
   putNotificationHold,
   listNotificationHolds,
   setNotificationHoldDeliverAt,
@@ -236,7 +401,18 @@ export function attachNotify({
   now = () => Date.now(),
   tzOffsetFor = () => DEFAULT_TZ_OFFSET_MIN,
   muted = (agentId, ownerId) => isAgentNotifyMuted(agentId, ownerId),
+  enabled = ENABLED,
 } = {}) {
+  // The mute route is not a send. It stands whether or not the bot is talking,
+  // so an owner who silences an agent while notifications are off still has
+  // that on record when they are turned on.
+  if (app) installNotifyRoutes(app);
+
+  if (!enabled) {
+    console.log('[notify] NOTIFY_ENABLED is not set — notifier off, mute route still installed');
+    return null;
+  }
+
   const n = {
     store,
     bot: bot || defaultBot(),
@@ -248,7 +424,11 @@ export function attachNotify({
   };
   active = n;
 
-  if (app) installNotifyRoutes(app);
+  // NOTIFY-2: the bus half of the wiring. off-then-on is idempotent because
+  // `onBusDetail` is a stable module-level function, so a process that
+  // composes several servers (the tests do) still has exactly one listener.
+  eventBus.off('detail', onBusDetail);
+  eventBus.on('detail', onBusDetail);
 
   // A hold that came due while the process was down still goes out, and one
   // that has not gets its timer back. Held, not cancelled, survives a restart.
@@ -261,8 +441,17 @@ export function attachNotify({
   return n;
 }
 
+// A record on the bus's private channel is a notification request that a table
+// has already decided is worth making — the trigger rules live at the emit
+// site, next to the state that proves them. This end only budgets it.
+function onBusDetail(record) {
+  if (!record || !record.type) return;
+  notifyEvent(record.type, record);
+}
+
 // Tests only: drop the notifier so the next attach starts clean.
 export function detachNotify() {
+  eventBus.off('detail', onBusDetail);
   if (!active) return;
   for (const t of active.timers.values()) clearTimeout(t);
   active = null;
@@ -339,7 +528,7 @@ async function send(ownerId, type, payload, at) {
   // A failed send is not written to the ledger: it did not spend a slot, and
   // the owner did not get a message. It is simply gone.
   if (ok === false) return false;
-  active.store.recordNotificationSent(ownerId, type, at);
+  active.store.recordNotificationSent(ownerId, type, at, payload.key ?? null);
   console.log(`[notify] sent ${type} to ${ownerId}`);
   return true;
 }
@@ -371,7 +560,11 @@ async function flushDue(ownerId, at) {
   }
 }
 
-// ── The one entry point table.js calls ───────────────────────────────────────
+// ── The one entry point ──────────────────────────────────────────────────────
+//
+// Reached either directly, from the code that knows the fact, or from the bus
+// via onBusDetail. Both land here, so there is one budget and one ledger no
+// matter which door the event came through.
 //
 // A no-op when nothing is attached, which is every test that is not this
 // module's own and every script that imports table.js without booting a server.
@@ -396,14 +589,23 @@ export function notifyEvent(type, { ownerId, agentId, agentName, ...ctx } = {}) 
       const held = active.store.listNotificationHolds(owner).filter((h) => h.type === type).length;
       const idx  = active.store.countNotificationsOfType(owner, type) + held;
 
+      // A cap that has already been spent stops here, before the message is
+      // built and before it can take a budget slot from something the owner
+      // has not already heard.
+      const key = capKeyFor(type, { agentId: String(agentId), ...ctx }, at, off);
+      if (key && active.store.hasNotificationKey(owner, key)) {
+        console.log(`[notify] capped ${type} for ${owner} — ${key} already spent`);
+        return;
+      }
+
       const msg = BUILDERS[type](idx, { agentName: agentName || 'Your agent', tzOffsetMin: off, ...ctx });
-      const payload = { text: msg.text, button: msg.button, agentId: String(agentId), agentName };
+      const payload = { text: msg.text, button: msg.button, agentId: String(agentId), agentName, key };
 
       await flushDue(owner, at);
 
       const d = decide(owner, at);
       if (d.holdUntil) {
-        active.store.putNotificationHold(owner, type, d.holdUntil, payload);
+        active.store.putNotificationHold(owner, type, d.holdUntil, payload, key);
         scheduleFlush(owner, d.holdUntil);
         console.log(`[notify] held ${type} for ${owner} until ${hhmm(d.holdUntil, off)} local`);
         return;

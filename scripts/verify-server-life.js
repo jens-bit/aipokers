@@ -9,7 +9,8 @@
 //   3. poll the REST API until 3+ hands have completed server-side
 //   4. connect a WebSocket MID-HAND — assert a full snapshot arrives and that
 //      arriving did not restart the hand
-//   5. FLOOR_SUB — assert FLOOR_STATE and throttled FLOOR_GAME deltas
+//   5. FLOOR_SUB — assert FLOOR_STATE (with the rooms floor on it) and
+//      throttled FLOOR_GAME / FLOOR_ROOMS deltas, and GET /api/rooms agreeing
 //   6. disconnect — assert hands keep completing
 //   7. SIT_OUT — assert graceful close, presence flips to resting,
 //      activeTableId cleared
@@ -61,6 +62,7 @@ const {
   reconcileActiveSessions,
 } = await import('../src/server/agentProfiles.js');
 const registry = await import('../src/server/tableRegistry.js');
+const { installRoomRoutes } = await import('../src/server/rooms.js');
 const { setPersistEnabled: setOpponentStatsPersist } = await import('../src/server/opponentStats.js');
 const { ClientMsg, ServerMsg } = await import('../src/server/protocol.js');
 
@@ -80,6 +82,9 @@ app.use(express.json());
 installAgentProfileRoutes(app);
 const httpServer = http.createServer(app);
 const { wss } = createServer({ server: httpServer, defaultBlinds: { smallBlind: 10, bigBlind: 20 } });
+// ROOMS-1: registered after createServer(), which is where the table registry
+// is wired into rooms.js — same order as src/index.js.
+installRoomRoutes(app);
 await new Promise((res) => httpServer.listen(0, '127.0.0.1', res));
 const port = httpServer.address().port;
 const base = `http://127.0.0.1:${port}`;
@@ -219,6 +224,28 @@ console.log('\n[verify] 4) FLOOR_SUB → FLOOR_STATE + throttled FLOOR_GAME delt
   check('FLOOR_STATE carries mood',                     !!floorAgent?.mood?.state);
   check('FLOOR_STATE carries lastMoment',               !!floorAgent?.lastMoment?.text);
 
+  // ROOMS-1: the floor grouped by stakes tier rides the snapshot, and the
+  // REST route serves the same thing to a client that would rather poll.
+  const stateRooms = floorState?.rooms ?? [];
+  const stateFloor = stateRooms.find((r) => r.id === 'floor');
+  check('FLOOR_STATE carries the rooms floor', stateRooms.length === 3,
+    `${stateRooms.length} rooms`);
+  check('the live 10/20 table is in the floor room', (stateFloor?.tables ?? 0) >= 1,
+    `${stateFloor?.tables} tables, ${stateFloor?.seated} seated`);
+  check('the room reports its seats filled', (stateFloor?.seated ?? 0) >= 2,
+    `${stateFloor?.seated} seated`);
+
+  const roomsRes = await j('GET', '/api/rooms');
+  const restFloor = (roomsRes.body?.rooms ?? []).find((r) => r.id === 'floor');
+  check('GET /api/rooms answers 200',            roomsRes.status === 200);
+  check('GET /api/rooms names the three rooms',
+    JSON.stringify((roomsRes.body?.rooms ?? []).map((r) => r.id)) === '["floor","upstairs","backroom"]',
+    JSON.stringify((roomsRes.body?.rooms ?? []).map((r) => r.id)));
+  check('GET /api/rooms agrees with FLOOR_STATE', (restFloor?.tables ?? 0) >= 1,
+    `${restFloor?.tables} tables`);
+  check('the room carries its stakes',           restFloor?.stakes?.bigBlind === 20 && restFloor?.stakes?.label === '$10/$20',
+    JSON.stringify(restFloor?.stakes));
+
   const deltaWait = await waitFor(
     'floor_game deltas',
     async () => floorMsgs.filter((m) => m.msg.type === ServerMsg.FLOOR_GAME),
@@ -229,6 +256,16 @@ console.log('\n[verify] 4) FLOOR_SUB → FLOOR_STATE + throttled FLOOR_GAME delt
   check('FLOOR_GAME deltas stream in', deltas.length >= 3, `saw ${deltas.length}`);
   check('deltas carry board/pot/street', deltas.every((d) => Array.isArray(d.msg.board) && Number.isFinite(d.msg.pot) && !!d.msg.street));
   check('deltas carry heroHole for the owner', deltas.some((d) => (d.msg.heroHole ?? []).length === 2));
+
+  // ROOMS-1: the floor is live too — a pot growing at a table moves the room
+  // it is in, and that lands as FLOOR_ROOMS without another request.
+  const roomDeltas = floorMsgs.filter((m) => m.msg.type === ServerMsg.FLOOR_ROOMS);
+  check('FLOOR_ROOMS deltas stream in while hands run', roomDeltas.length >= 1,
+    `saw ${roomDeltas.length}`);
+  const roomGaps = roomDeltas.slice(1).map((d, i) => d.at - roomDeltas[i].at);
+  const minRoomGap = roomGaps.length ? Math.min(...roomGaps) : Infinity;
+  check('FLOOR_ROOMS throttled to <= 1/s', minRoomGap >= 950,
+    `min gap ${minRoomGap === Infinity ? 'n/a' : minRoomGap + 'ms'}`);
 
   const gaps = deltas.slice(1).map((d, i) => d.at - deltas[i].at);
   const minGap = gaps.length ? Math.min(...gaps) : Infinity;

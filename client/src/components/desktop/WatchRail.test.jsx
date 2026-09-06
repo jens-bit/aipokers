@@ -45,9 +45,24 @@ describe('WatchRail mid-hand', () => {
     expect(screen.queryByText(/0\.874/)).not.toBeInTheDocument();
   });
 
+  // WATCH-6 re-expressed: board 31 puts THE TABLE at the top of the rail, so
+  // his line is now in two places on purpose — the record keeps it, and the
+  // analysis panel still leads with it. Both are his voice; neither is a
+  // paraphrase.
   it('carries his reasoning in his own voice', () => {
-    renderRail();
-    expect(screen.getByText(/He is capped/)).toBeInTheDocument();
+    const { container } = renderRail();
+    expect(container.querySelector('.dsk-apanel__voice').textContent)
+      .toContain('He is capped');
+    const row = [...container.querySelectorAll('.thread-row')]
+      .find((el) => el.textContent.includes('He is capped'));
+    expect(row.querySelector('.thread-row__who').textContent).toBe('HIM');
+  });
+
+  it('leads with the record, per board 31', () => {
+    const { container } = renderRail();
+    const titles = [...container.querySelectorAll('.dsk-apanel .dsk-label')]
+      .map((el) => el.textContent);
+    expect(titles[0]).toBe('The table');
   });
 
   it('holds the unmodelled reads open with an em dash rather than hiding them', () => {

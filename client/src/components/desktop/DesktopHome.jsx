@@ -310,7 +310,7 @@ export function DesktopHome({
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
 function DeskWatch({ agent, game, lastDecision, draft, onDraftChange, onBack, onSitOut }) {
-  const { sending, send } = useAgentThread(agent);
+  const { chat, sending, send } = useAgentThread(agent);
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agent.name);
   const heroSeat = named >= 0 ? named : 0;
@@ -330,6 +330,7 @@ function DeskWatch({ agent, game, lastDecision, draft, onDraftChange, onBack, on
         lastDecision={lastDecision}
         heroSeat={heroSeat}
         hands={agent.recentHands}
+        thread={chat}
         draft={draft}
         sending={sending}
         onDraftChange={onDraftChange}

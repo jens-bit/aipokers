@@ -138,6 +138,13 @@ function applySchema(d) {
   // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
   addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
 
+  // NOTIFY-2: the caps folded in from the legacy notifier are per agent and
+  // per period ("one broke alert a day", "one milestone ever"), which the
+  // (owner, type, ts) triple cannot express. One nullable column carries the
+  // caller's own cap key instead of six bespoke state fields.
+  addColumnIfMissing(d, 'notifications', 'dedupe_key', 'TEXT');
+  d.exec('CREATE INDEX IF NOT EXISTS notifications_key ON notifications (owner_id, dedupe_key)');
+
   d.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)')
     .run('schema_version', SCHEMA_VERSION);
 }
@@ -441,6 +448,12 @@ export function saveOpponentStats(stats) {
 }
 
 // ── Notification state ───────────────────────────────────────────────────────
+//
+// NOTIFY-2: nothing writes this table any more. The legacy NOTIFY_ENABLED
+// notifier that owned it was folded into src/server/notify.js, whose state is
+// the `notifications` ledger below. It is kept because SQLITE-1 migrated
+// data/notifications.json into it and scripts/export-json.js still writes that
+// history back out — it is the rollback parachute, not live state.
 
 export function loadNotificationState() {
   const out = {};
@@ -470,9 +483,21 @@ export function saveNotificationState(state) {
 // 'held' row is a message waiting for the window to open and is deleted the
 // moment it either goes out (as a fresh 'sent' row) or loses on budget.
 
-export function recordNotificationSent(ownerId, type, ts) {
-  conn().prepare("INSERT INTO notifications (owner_id, type, ts, state) VALUES (?, ?, ?, 'sent')")
-    .run(String(ownerId), String(type), Math.floor(ts));
+export function recordNotificationSent(ownerId, type, ts, key = null) {
+  conn().prepare("INSERT INTO notifications (owner_id, type, ts, state, dedupe_key) VALUES (?, ?, ?, 'sent', ?)")
+    .run(String(ownerId), String(type), Math.floor(ts), key == null ? null : String(key));
+}
+
+// NOTIFY-2: has this owner already been sent — or is he already queued — a
+// message under this cap key? Held rows count, so an event that qualifies
+// twice inside one quiet window queues once. A held row that later loses on
+// budget is deleted, which correctly frees the key again: it never arrived.
+export function hasNotificationKey(ownerId, key) {
+  if (!key) return false;
+  const row = conn().prepare(
+    'SELECT 1 AS hit FROM notifications WHERE owner_id = ? AND dedupe_key = ? LIMIT 1',
+  ).get(String(ownerId), String(key));
+  return !!row;
 }
 
 // Every send for this owner at or after `sinceTs`, oldest first. The daily
@@ -492,10 +517,11 @@ export function countNotificationsOfType(ownerId, type) {
   return row?.n ?? 0;
 }
 
-export function putNotificationHold(ownerId, type, deliverAt, payload) {
+export function putNotificationHold(ownerId, type, deliverAt, payload, key = null) {
   const info = conn().prepare(
-    "INSERT INTO notifications (owner_id, type, ts, state, deliver_at, payload) VALUES (?, ?, ?, 'held', ?, ?)",
-  ).run(String(ownerId), String(type), Date.now(), Math.floor(deliverAt), JSON.stringify(payload ?? {}));
+    "INSERT INTO notifications (owner_id, type, ts, state, deliver_at, payload, dedupe_key) VALUES (?, ?, ?, 'held', ?, ?, ?)",
+  ).run(String(ownerId), String(type), Date.now(), Math.floor(deliverAt),
+        JSON.stringify(payload ?? {}), key == null ? null : String(key));
   return Number(info.lastInsertRowid);
 }
 
@@ -503,8 +529,8 @@ export function putNotificationHold(ownerId, type, deliverAt, payload) {
 // restart flush walks), soonest first.
 export function listNotificationHolds(ownerId = null) {
   const rows = ownerId === null
-    ? conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload FROM notifications WHERE state = 'held' ORDER BY deliver_at").all()
-    : conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload FROM notifications WHERE state = 'held' AND owner_id = ? ORDER BY deliver_at").all(String(ownerId));
+    ? conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload, dedupe_key FROM notifications WHERE state = 'held' ORDER BY deliver_at").all()
+    : conn().prepare("SELECT id, owner_id, type, ts, deliver_at, payload, dedupe_key FROM notifications WHERE state = 'held' AND owner_id = ? ORDER BY deliver_at").all(String(ownerId));
   return rows.map((r) => ({
     id: r.id,
     ownerId: r.owner_id,
@@ -512,6 +538,7 @@ export function listNotificationHolds(ownerId = null) {
     queuedAt: r.ts,
     deliverAt: r.deliver_at,
     payload: jsonParse(r.payload, {}),
+    key: r.dedupe_key ?? null,
   }));
 }
 

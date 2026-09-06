@@ -54,40 +54,37 @@ const MOODS = {
 // mitten, ~22% of body width (the body spans 44 of the 80 viewBox, so ~9.6 units).
 // Fingers are separate circles unioned into a palm — the same construction the club
 // glyph uses, because overlapping fills have no seams.
-const HAND_INK = '#2E3B4A';        // the body ink, one step up so it reads on the body
-const HAND_LINE = '#04070B';       // the heavy outline that makes it a Madness hand
-const HAND_R = 4.6;                // one radius, every pose — a hand is not a scale
-// SIZE: 22% of BODY WIDTH means 22% of the 80-unit sprite, not of the 44-unit torso —
-// the first cut measured against the torso and rendered 11.5px at size 96 instead of
-// the 21px intended. 17.6 units = 22% of 80 = 21px at 96.
-const HAND_W = 17.6;
-const HAND_F = 17.6 / 9.6;         // the poses were authored at 9.6; scale them up
+const HAND_FILL = '#BDBDBD';
+const HAND_LINE = '#16191B';
+// authored extent: x −9→12.3 (thumb included), y 0→14.6. Origin = top centre.
+const HAND_BOX = 21.3;
+const handW = size => (size >= 72 ? 26 : 12);
+const handScale = size => (handW(size) * (80 / size)) / HAND_BOX;
+const handStroke = size => (size >= 72 ? 3 : 1.5);
 
-// detail drops with size exactly as the face's does: below seat scale the fingers
-// are sub-pixel, so the hand becomes a plain mitten rather than a smudge
-const handDetail = size => (size >= 72 ? 2 : size >= 34 ? 1 : 0);
+// the whole drawing: a rounded fist, a small thumb bump, two knuckle strokes
+const Fist = ({ size = 96 }) => {
+  const sw = handStroke(size);
+  return (
+    <g>
+      <path d="M-4 0 L 4 0 A 5 5 0 0 1 9 5 L 9 5.5 A 3.3 3.3 0 0 1 9 12.1 A 3 3 0 0 1 6 14.6 L -4 14.6 A 5 5 0 0 1 -9 9.6 L -9 5 A 5 5 0 0 1 -4 0 Z"
+        fill={HAND_FILL} stroke={HAND_LINE} strokeWidth={sw} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+      {[-3.2, 2.2].map(kx => (
+        <path key={kx} d={`M${kx} 4.2 L ${kx} 7.4`} fill="none" stroke={HAND_LINE}
+          strokeWidth={sw * 0.6} strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+      ))}
+    </g>
+  );
+};
 
-const Mitten = ({ x, y, r = 0, d = 1, clenched, ink = HAND_INK }) => (
-  <g transform={`translate(${x} ${y}) rotate(${r})`}>
-    {/* the two nubs go down first so the blob's outline closes over their roots */}
-    {d > 0 && !clenched && [-2.6, 1.4].map((fx, i) => (
-      <circle key={fx} cx={fx} cy={-3.5} r="1.9" fill={ink} stroke={HAND_LINE} strokeWidth="1.25" strokeLinejoin="round"/>
-    ))}
-    <circle cx="0" cy="0" r={HAND_R} fill={ink} stroke={HAND_LINE} strokeWidth="1.25"/>
-    {d > 0 && !clenched && [-2.6, 1.4].map(fx => (
-      <circle key={'f' + fx} cx={fx} cy={-3.5} r="1.9" fill={ink} stroke="none"/>
-    ))}
-  </g>
-);
-
-const Chips = ({ x, y, n = 4, ink = HAND_INK }) => (
-  <g>
-    {Array.from({ length: n }).map((_, i) => (
-      <ellipse key={i} cx={x} cy={y - i * 1.9} rx="5.4" ry="2.1" fill={i === n - 1 ? '#4A5E73' : '#33424F'}
-        stroke={HAND_RIM} strokeWidth="0.5"/>
-    ))}
-  </g>
-);
+const Hand = ({ x, y, r = 0, size = 96, flip }) => {
+  const s = handScale(size);
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${r}) scale(${flip ? -s : s} ${s})`}>
+      <Fist size={size}/>
+    </g>
+  );
+};
 
 const MiniBack = ({ x, y, r = 0, s = 1 }) => (
   <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
@@ -95,83 +92,58 @@ const MiniBack = ({ x, y, r = 0, s = 1 }) => (
   </g>
 );
 
-// EIGHT POSES AND NO MORE. Each is a fixed arrangement; nothing is procedural, so
-// nothing can drift into a ninth pose by accident.
+// GRIPS are the fanned pair's bottom OUTER corners, measured not guessed: the hero's
+// 36×50 cards at ±14° put those corners at x12/x68 of the sprite with their bottom
+// edge at y93, so a top-anchored fist at y91 overlaps the card edge by 2px and puts
+// nothing on the face. A seat's cards are proportionally larger, so it carries its
+// own grip — one number set per card layout, not one for the whole system.
+const HERO_GRIP = { l: 12, r: 68, y: 89 };
+const SEAT_GRIP = { l: 7, r: 73, y: 84 };
+
 const HAND_POSES = {
-  rest:   { label: 'Rest',   note: 'hovering at the sides, 2s idle drift', when: 'between hands, at the bar, on the floor' },
-  hold:   { label: 'Hold',   note: 'both hands on the card backs, low and in front', when: 'the default while he is in a hand' },
-  peek:   { label: 'Peek',   note: 'one hand lifts a corner toward the face', when: 'dealt, and once when heat rises' },
-  push:   { label: 'Push',   note: 'both hands slide a stack forward; stack height IS the bet band', when: 'bet or raise' },
-  toss:   { label: 'Toss',   note: 'one hand flicks both cards away', when: 'fold — pairs with the wave-42 toss strip' },
-  drum:   { label: 'Drum',   note: 'fingers tap the felt twice', when: 'check' },
-  clench: { label: 'Clench', note: 'both hands ball up', when: 'all-in, or heat ≥ 70' },
-  cover:  { label: 'Cover',  note: 'both hands over the face — on a win, one rakes instead', when: 'lost a big pot' },
+  rest:   { label: 'Rest',   note: 'hanging at the sides, 2s idle drift', when: 'between hands, at the bar, on the floor' },
+  hold:   { label: 'Hold',   note: 'both fists under the pair\u2019s bottom corners', when: 'the default while he is in a hand' },
+  peek:   { label: 'Peek',   note: 'one holds, one turns up at the near corner', when: 'dealt, and once when heat rises' },
+  push:   { label: 'Push',   note: 'the same fist, moved in and forward', when: 'bet or raise' },
+  toss:   { label: 'Toss',   note: 'the same fist, out past the corner after the throw', when: 'fold' },
+  drum:   { label: 'Drum',   note: 'both fists flat on the felt, tapping twice', when: 'check' },
+  clench: { label: 'Clench', note: 'both drawn in tight and level', when: 'all-in, or heat \u2265 70' },
+  cover:  { label: 'Cover',  note: 'both up over the face', when: 'lost a big pot' },
+  raise:  { label: 'Raise',  note: 'both fists above the head, wide of it', when: 'won \u2014 the whole hand-end celebration' },
 };
 
-const OPP_POSES = ['rest', 'hold', 'toss', 'push'];   // an opponent gets four
+const OPP_POSES = ['rest', 'hold', 'toss', 'push'];
 
-const ghostHands = ({ pose = 'rest', size = 40, bet = 'mid', won }) => {
-  const d = handDetail(size);
-  const n = bet === 'small' ? 2 : bet === 'big' ? 7 : 4;
-  const drift = { animation: 'drift 2s ease-in-out infinite' };
-
-  if (pose === 'hold') return (
+// every pose: the SAME fist, mirrored left/right at opposite corners. The offset
+// system it replaces let the second hand drift onto the card face.
+const ghostHands = ({ pose = 'rest', size = 96, bet, won, grip = HERO_GRIP }) => {
+  const P = { size };
+  const pair = (dl, dr) => (
     <g>
-      <Mitten x="29" y="79" r={-18} d={d}/>
-      <Mitten x="51" y="79" r={18} d={d}/>
+      <Hand {...P} x={grip.l + (dl.x || 0)} y={grip.y + (dl.y || 0)} r={dl.r || 0}/>
+      <Hand {...P} x={grip.r - (dr.x || 0)} y={grip.y + (dr.y || 0)} r={-(dr.r || 0)} flip/>
     </g>
   );
-  if (pose === 'peek') return (
-    <g>
-      <Mitten x="29" y="79" r={-18} d={d}/>
-      <Mitten x="49" y="68" r={44} d={d}/>
-    </g>
-  );
-  if (pose === 'push') return (
-    <g>
-      <Mitten x="29" y="79" r={-18} d={d}/>
-      <Mitten x="47" y="70" r={30} d={d}/>
-    </g>
-  );
+  if (pose === 'hold')   return pair({ r: -8 }, { r: -8 });
+  if (pose === 'peek')   return pair({ r: -8 }, { x: 3, y: -1, r: -26 });
+  if (pose === 'push')   return pair({ r: -8 }, { x: 7, y: 3, r: -14 });
+  if (pose === 'drum')   return pair({ y: 2, r: -4 }, { y: 2, r: -4 });
+  if (pose === 'clench') return pair({ x: 4, y: -2 }, { x: 4, y: -2 });
   if (pose === 'toss') return (
     <g>
-      <MiniBack x="62" y="52" r={-38} s={0.9}/>
-      <MiniBack x="68" y="47" r={-52} s={0.86}/>
-      <Mitten x="29" y="79" r={-18} d={d}/>
-      <Mitten x="55" y="63" r={-46} d={d}/>
+      <MiniBack x={grip.r + 4} y={grip.y - 30} r={-40} s={0.9}/>
+      <MiniBack x={grip.r + 10} y={grip.y - 36} r={-54} s={0.86}/>
+      {pair({ r: -8 }, { x: -6, y: -8, r: 24 })}
     </g>
   );
-  if (pose === 'drum') return (
-    <g>
-      <Mitten x="27" y="80" r={-8} d={d}/>
-      <Mitten x="53" y="76" r={10} d={d}/>
-      {d > 0 && [50, 58].map((tx, i) => (
-        <ellipse key={tx} cx={tx} cy="70" rx="2.2" ry="0.7" fill="rgba(255,255,255,0.10)" opacity={i ? 0.5 : 1}/>
-      ))}
-    </g>
-  );
-  if (pose === 'clench') return (
-    <g>
-      <Mitten x="28" y="78" clenched/>
-      <Mitten x="52" y="78" clenched/>
-    </g>
-  );
-  if (pose === 'cover') return won ? (
-    <g>
-      <Mitten x="50" y="72" r={26} d={d}/>
-      <Mitten x="27" y="80" r={-8} d={d}/>
-    </g>
-  ) : (
-    <g>
-      <Mitten x="32" y="44" r={-16} d={d}/>
-      <Mitten x="48" y="44" r={16} d={d}/>
-    </g>
-  );
-  // rest
+  if (pose === 'cover') return pair({ x: 18, y: -46, r: -18 }, { x: 18, y: -46, r: -18 });
+  // arms up, wide of the head and clear of the brow — the ceremony has no cards to
+  // hold, so the hands are free to say something
+  if (pose === 'raise') return pair({ x: -47, y: -104, r: -34 }, { x: -47, y: -104, r: -34 });
   return (
-    <g style={drift}>
-      <Mitten x="20" y="70" r={-10} d={d}/>
-      <Mitten x="60" y="70" r={10} d={d}/>
+    <g style={{ animation: 'drift 2s ease-in-out infinite' }}>
+      <Hand {...P} x={grip.l - 4} y={grip.y - 20} r={-6}/>
+      <Hand {...P} x={grip.r + 4} y={grip.y - 20} r={6} flip/>
     </g>
   );
 };
@@ -792,7 +764,8 @@ const BackHeader = ({ children, right }) => (
 
 Object.assign(window, {
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
-  HAND_INK, HAND_LINE, HAND_R, HAND_W, handDetail, Mitten, Chips, MiniBack, HAND_POSES, OPP_POSES, ghostHands,
+  HAND_FILL, HAND_LINE, HAND_BOX, handW, handScale, handStroke, Fist, Hand,
+  MiniBack, HERO_GRIP, SEAT_GRIP, HAND_POSES, OPP_POSES, ghostHands,
   BROW_TRIGGERS, ghostBrow,
   M_BG, M_PANEL, M_PANEL_2, M_SURF, M_BORDER, M_BORDER_2, M_TEXT, M_DIM, M_MUTED, M_FAINT,
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,

@@ -64,7 +64,12 @@ export const ServerMsg = Object.freeze({
   // AGE-38 floor channel (server → subscriber).
   FLOOR_STATE: 'floor_state', // { type, userId, agents: [{ id, name, presence, mood,
                               //   lastMoment, sessionRecap, unseenRecap, proposal,
-                              //   activeTableId, liveGame }] }
+                              //   activeTableId, liveGame }], rooms: [...] }
+                              // ROOMS-1 (additive): `rooms` is the same array
+                              // GET /api/rooms serves — see FLOOR_ROOMS below.
+                              // It rides the snapshot so a client that has
+                              // just subscribed has the floor without a
+                              // second request.
   FLOOR_GAME: 'floor_game',   // { type, tableId, agentId, street, board, heroHole,
                               //   pot, toAct, actionDeadline, handNumber }
                               // heroHole is null unless the subscriber proved
@@ -80,6 +85,21 @@ export const ServerMsg = Object.freeze({
   // monotonic so a client can reconcile the two. A client that ignores this
   // message sees exactly what it saw before it existed.
   EVENT: 'event',           // { type, event }
+  // ROOMS-1 (additive): the floor grouped by stakes tier, pushed to every
+  // subscriber whenever it changes (at most one per second, trailing-edge, so
+  // the last state of a busy floor always lands). Not filtered by owner, for
+  // the same reason the ticker is not: it is counts and table ids, nothing
+  // owner-scoped. Each entry is
+  //   { id, name, rung, stakes: { smallBlind, bigBlind, buyIn, label },
+  //     tables, seated, hot: [tableId], biggestPot: { tableId, pot } | null }
+  // in ladder order, lowest stakes first — floor / upstairs / back room. A
+  // room with nothing in it reports zeroes rather than disappearing. `hot` is
+  // the tables that fired a `hot` EVENT in the last 20s; `biggestPot` is the
+  // largest pot in the air in that room right now, or null when no hand is
+  // live. The same array is served by GET /api/rooms and rides FLOOR_STATE. A
+  // client that ignores this message sees exactly what it saw before it
+  // existed.
+  FLOOR_ROOMS: 'floor_rooms', // { type, rooms }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

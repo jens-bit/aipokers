@@ -68,10 +68,14 @@ describe('DeskTableStage between hands (WCM-1)', () => {
     expect(cardFaces()).toHaveLength(0);
   });
 
+  // WATCH-6 re-expressed: board 31 gives the strip a permanent Equity column,
+  // so the label is always on screen. The rule this test exists for is that
+  // there is no stale NUMBER between hands — the readout says nothing rather
+  // than repeating the last hand's.
   it('waits for the deal instead of printing a stale equity', () => {
-    render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
+    const { container } = render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
     expect(screen.getByText(/waiting for the deal/i)).toBeInTheDocument();
-    expect(screen.queryByText(/equity/i)).not.toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val').textContent).toBe('—');
   });
 });
 
@@ -122,11 +126,32 @@ describe('DP-1 — the rope under the board', () => {
     expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
   });
 
-  it('sits directly under the board, not below the fold', () => {
+  // WATCH-6 re-expressed: board 31 moves the rope out of the centre and into
+  // HIS column, between him and his strip — the same place the phone puts it.
+  // "Directly under the board" was always shorthand for "on the axis between
+  // the board and him, never below the fold", and that is what is asserted.
+  it('sits between him and his strip, not below the fold', () => {
     const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
-    const centre = container.querySelector('.dtb__center');
-    const kids = [...centre.children].map((el) => el.className);
-    expect(kids.indexOf('dtb__board')).toBeLessThan(kids.indexOf('dtb__tug'));
+    const hero = container.querySelector('.dtb__hero');
+    const kids = [...hero.children].map((el) => el.className);
+    expect(kids.indexOf('dtb__hero-body')).toBeLessThan(kids.indexOf('dtb__tug'));
+    expect(kids.indexOf('dtb__tug')).toBeLessThan(kids.indexOf('dtb__strip'));
+    // And the centre of the felt is the pot and the board and nothing else.
+    const centre = [...container.querySelector('.dtb__center').children]
+      .map((el) => el.className.split(' ')[0]);
+    expect(centre).toEqual(['dtb__pot', 'dtb__board']);
+  });
+
+  // Board 31: he is SEATED at the bottom, facing the room, cards in front.
+  it('WATCH-6: seats him at the bottom with his cards in front of him', () => {
+    const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
+    const body = container.querySelector('.dtb__hero-body');
+    expect(body.querySelector('.mood-ghost')).toBeTruthy();
+    const cards = body.querySelector('.dtb__hero-cards');
+    expect(cards).toBeTruthy();
+    // Drawn after him, so they are in front of him and not behind.
+    expect(cards.compareDocumentPosition(body.querySelector('.mood-ghost'))
+      & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
   it('reads the snapshot first, then falls back to the last decision', () => {

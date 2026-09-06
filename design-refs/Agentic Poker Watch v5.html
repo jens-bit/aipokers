@@ -90,9 +90,14 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fa"><b>Tapping an opponent opens the existing read sheet in the same glass, at the same height, with the same cards-on-top rule.</b> One material, two contents — so the gesture teaches itself: anything that slides up from the bottom is history, and the hand carries on underneath either way.</div>
 </div>
 <div class="frame" style="left:2900px;top:80px">
-  <div class="fh" style="margin-top:118px"><span class="fn">52f</span><span class="ft">A cost, pinned</span><span class="fb red">until the next flop</span></div>
+  <div class="fh" style="margin-top:118px"><span class="fn">52f</span><span class="ft">A cost, as a toast</span><span class="fb red">4s, then a dot</span></div>
   <div id="v6"></div>
-  <div class="fa"><b>The cost line is pinned directly under his strip rather than given a card of its own</b> — it belongs to him, so it sits on him. It holds until the next flop, then folds into the thread as a TABLE entry (52d), which is how it stops being a thing to dismiss. Hands clenched, heat 62: the hand cost him something and he knows it.</div>
+  <div class="fa"><b>Nothing on this screen may insert a row.</b> The cost line was a pinned panel under his strip, which pushed the felt up and made 52f a different screen from 52a. It is now a <b>toast riding over the strip</b> — same glass, amber left border, absolutely positioned so it costs no height — for four seconds. The felt geometry here is <b>identical to 52a</b>.</div>
+</div>
+<div class="frame" style="left:3360px;top:80px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52k</span><span class="ft">…collapsed to a dot</span><span class="fb">until the next flop</span></div>
+  <div id="v11"></div>
+  <div class="fa"><b>After four seconds the toast collapses to a 6px amber dot at the strip's right edge</b>, inside the strip, so again no height changes. Tapping it re-shows the toast. It holds until the next flop and then folds into the thread as a TABLE entry — which is how a cost stops being a thing to dismiss and becomes part of the record.</div>
 </div>
 
 <div class="frame" style="left:600px;top:1300px">
@@ -117,6 +122,19 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fh" style="margin-top:118px"><span class="fn">52j</span><span class="ft">A bet, as objects</span><span class="fb gold">520ms · 4 frames</span></div>
   <div id="v10"></div>
   <div class="fa"><b>Chips were part of his body before this — drawn inside the push pose, so they moved when he did.</b> Now they are things on a felt: his stack stands to his left at a height set by his stack band, one hand picks 1–4 chips off the top (the count <i>is</i> the bet band), carries them in front of his cards, and the bet spot slides into the pot at street end. <b>The pot pill grows one step per band</b>, so a table that has been betting big looks different from one that has been limping before you read a figure. Opponents get the stack, spot and slide at seat scale without the hand.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2500px">
+  <div class="grouphdr">One seat anatomy</div>
+  <div class="groupsub">Six slots were six different pile-ups: chips under names, names under cards, hands over faces. <b>The face and brow are never covered</b> — by cards, hands, chips or bubbles — and every satellite's offset is a function of the slot rather than one shared guess.</div>
+  <div class="fh" style="margin-top:118px"><span class="fn">52m</span><span class="ft">The anatomy</span><span class="fb teal">3× · 64px</span></div>
+  <div id="v12"></div>
+  <div class="fa">Two rows — <b>40 body + 6 gap + 18 pill = 64px</b> — and two satellites. The timer ring and the dealer button attach to the pill's left edge rather than orbiting the body, so nothing sits on the face. If the seat will not fit, <b>the pill drops to 16px, never the body</b>.</div>
+</div>
+<div class="frame" style="left:1060px;top:2500px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52n</span><span class="ft">Table sizes</span><span class="fb">2 → 6 handed</span></div>
+  <div id="v13"></div>
+  <div class="fa">The anatomy was proven at <b>6-max only</b>, so every smaller ring would have been a fresh pile-up — heads-up would have marooned one seat at Granite's corner with the whole top row empty. <b>One ring per handed count</b>, each seat on the same 64px stack, the cast keeping its seating order so a name never moves between sizes.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -156,6 +174,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['v8', V5CeremonyLostScreenM],
   ['v9', OppMuckStripM],
   ['v10', HeroBetStripM],
+  ['v11', V5CostDotScreenM],
+  ['v12', SeatAnatomyM],
+  ['v13', TableSizesM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
   if (el) ReactDOM.createRoot(el).render(<Comp/>);

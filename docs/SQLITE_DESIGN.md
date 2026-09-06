@@ -219,6 +219,9 @@ without spawning.
 - `src/server/handHistory.js` — both functions, same signatures.
 - `src/server/opponentStats.js` — load + `scheduleSave` write target only.
 - `src/server/notifications/telegram.js` — load + `saveNotifState` only.
+  (NOTIFY-2 has since folded this module into `src/server/notify.js`; the
+  `notification_state` table it owned is no longer written, and is kept only
+  for the `export-json.js` rollback path.)
 - `scripts/export-json.js` — rollback path. New.
 - `scripts/verify-chips.js` — reads the store instead of `agents.json`.
 - `.gitignore` — `data/*` already covers `app.db`, `-wal` and `-shm`; asserted,

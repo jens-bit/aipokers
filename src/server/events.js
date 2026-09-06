@@ -84,6 +84,22 @@ export const EVENT_RING_SIZE = 200;
 // than kept forever: this map is a live view, not a record.
 const HEATER_MEMORY_AGENTS = 500;
 
+// Two signals ride this emitter, and the difference between them is the whole
+// of rule 1 above.
+//
+//   'event'  (event)          — the public headline. It is what the ring
+//                               stores, what GET /api/events answers, and what
+//                               floorChannel fans out to every subscriber.
+//   'detail' (record, event)  — NOTIFY-2: the owner-addressed half of the same
+//                               fact, passed in as `detail` and delivered
+//                               ONLY here. It never enters the ring, never
+//                               reaches /api/events and never reaches the
+//                               ticker, which is what lets it carry an owner
+//                               id and a buy-in that rule 1 forbids in a
+//                               headline. events.js does not read these
+//                               records; it only carries them, so what a
+//                               record means is entirely between the table
+//                               that emits it and notify.js, which subscribes.
 export const bus = new EventEmitter();
 // Every floor subscriber does NOT get its own listener (floorChannel attaches
 // exactly one and fans out itself), but tests and future surfaces attach their
@@ -108,8 +124,10 @@ const heaterWindows = new Map();
  *                            real, it just cannot be filtered by agent)
  * @param {string} headline  short, plain words, no cards
  * @param {number} pot       the pot in chips at the moment it fired
+ * @param {object[]} detail  NOTIFY-2: the private half of the same fact — see
+ *                           the note above `bus`
  */
-export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline = '', pot = 0 } = {}) {
+export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline = '', pot = 0, detail = [] } = {}) {
   if (!TYPES.has(type)) throw new Error(`unknown event type: ${type}`);
 
   const chips = Number(pot);
@@ -133,6 +151,19 @@ export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline 
   } catch (err) {
     console.error('[events] listener threw:', err.message);
   }
+
+  // NOTIFY-2: the owner-addressed half, one signal per record, on a channel of
+  // its own. Emitted after the public event so the ticker is never behind a
+  // notifier, and separately wrapped so a slow or throwing subscriber cannot
+  // cost the floor its headline.
+  for (const d of Array.isArray(detail) ? detail : []) {
+    if (!d) continue;
+    try {
+      bus.emit('detail', d, event);
+    } catch (err) {
+      console.error('[events] detail listener threw:', err.message);
+    }
+  }
   return event;
 }
 
@@ -149,6 +180,31 @@ export function eventsSince(since = 0, { limit = EVENT_RING_SIZE } = {}) {
     : EVENT_RING_SIZE;
   const out = ring.filter((e) => e.id > after);
   return out.slice(Math.max(0, out.length - cap));
+}
+
+// ROOMS-1: how recently a table must have shouted `hot` for the floor to still
+// be pointing at it. Short on purpose — the whole value of the flag is that
+// there is still time to walk over and watch, so a stale one is worse than
+// none. It is the ticker's own deadline read a second way.
+export const HOT_RECENT_MS = Number(process.env.ROOMS_HOT_WINDOW_MS ?? 20_000);
+
+/**
+ * The tableIds that fired a `hot` event inside the last `windowMs`, most
+ * recent first. Deduped: a table that went hot three times in the window is
+ * one entry, because the caller is asking "which tables", not "how often".
+ */
+export function hotTableIds({ windowMs = HOT_RECENT_MS, now = Date.now() } = {}) {
+  const span = Number(windowMs);
+  const cutoff = Number(now) - (Number.isFinite(span) && span > 0 ? span : HOT_RECENT_MS);
+  const ids = new Set();
+  // The ring is in time order, so the first event older than the cutoff ends
+  // the walk — this stays O(events in the window), not O(200), on every push.
+  for (let i = ring.length - 1; i >= 0; i--) {
+    const event = ring[i];
+    if (event.ts < cutoff) break;
+    if (event.type === EventType.HOT && event.tableId) ids.add(event.tableId);
+  }
+  return [...ids];
 }
 
 /** The id a client should send back as `since` next time. */

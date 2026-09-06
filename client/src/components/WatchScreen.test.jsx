@@ -112,10 +112,44 @@ describe('WatchScreen mid-hand', () => {
 
   // The fish-tank law: the owner watches their own agent play, so the hero's
   // two cards are face up. getPublicState already withholds every other seat's.
+  // WATCH-6 re-expressed: his cards are no longer slots in a chrome row. They
+  // are face up IN FRONT OF HIM, over the lower part of his body, in the hero
+  // column at the bottom edge. The law is untouched; the anchor moved.
   it('shows the hero hole cards face up', () => {
     const { container } = renderWatch(midHandGame);
-    const hero = container.querySelector('.watch-felt__hero');
+    const hero = container.querySelector('.watch-hero');
     expect(faceUpRanks(hero)).toEqual(['6', '6']);
+  });
+
+  it('WATCH-6: he is seated at the bottom, at twice an opponent seat', () => {
+    const { container } = renderWatch(midHandGame);
+    const hero = container.querySelector('.watch-hero');
+    expect(hero).toBeTruthy();
+
+    const his = hero.querySelector('.mood-ghost');
+    const theirs = container.querySelector('.watch-felt__seat .seat-ghost__ghost svg');
+    expect(Number(his.getAttribute('width')))
+      .toBeGreaterThanOrEqual(2 * Number(theirs.getAttribute('width')));
+
+    // And his cards are drawn after him, so they are in front and not behind.
+    const cards = hero.querySelector('.watch-hero__cards');
+    expect(cards).toBeTruthy();
+    expect(cards.compareDocumentPosition(his) & Node.DOCUMENT_POSITION_PRECEDING)
+      .toBeTruthy();
+  });
+
+  // The column is a flow: bubble, him, rope, strip, cost. Nothing in it is
+  // positioned against the felt, so a two-line bubble moves its neighbours
+  // instead of landing on them.
+  it('WATCH-6: the hero column is one flow, in the ref\'s order', () => {
+    const { container } = renderWatch(midHandGame, {
+      lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.5, reasoning: 'He is done.' },
+    });
+    const hero = container.querySelector('.watch-hero');
+    const order = [...hero.children].map((el) => el.className.split(' ')[0]);
+    expect(order).toEqual([
+      'watch-hero__says', 'watch-hero__body', 'watch-hero__tug', 'glass',
+    ]);
   });
 
   it('keeps the opponents\' hole cards face down', () => {
@@ -395,34 +429,36 @@ describe('W3-2 the panel', () => {
     fetchMock.route('/api/agents', agentsResponse);
   });
 
-  const tabLabels = (container) =>
-    [...container.querySelectorAll('.watch-tabs__tab')].map((el) => el.textContent);
-
-  // W4-2 re-expressed: READ is gone. A read is about one person and you ask for
-  // it by tapping them, so its rows moved into ReadSheet and the panel is left
-  // with the one thing that is genuinely a list.
-  it('W4-2: offers exactly one tab, and READ is not it', () => {
+  // WATCH-6 re-expressed: there is no tab bar to count tabs in. The felt fills
+  // the screen and the one list there ever was — the record — is a glass layer
+  // over its lower 70%. What W3-2/W4-2 protect is that NOTHING ELSE has crept
+  // back under the felt, and that is asserted directly.
+  it('W4-2: there is no tab bar under the felt at all', () => {
     const { container } = renderWatch(midHandGame);
-    // W4-4 named it TABLE: it is the ordered record of everything said here,
-    // not a chat window.
-    expect(tabLabels(container)).toEqual(['Table']);
-    expect(tabLabels(container).join(' ').toLowerCase()).not.toContain('read');
+    expect(container.querySelector('.watch-tabs')).toBeNull();
+    expect(container.querySelector('.watch-sheet')).toBeNull();
+    // Header, felt, composer. Nothing else.
+    const shell = [...container.querySelector('.watch-screen').children]
+      .map((el) => el.className.split(' ')[0]);
+    expect(shell).toEqual(['watch-screen__header', 'watch-felt', 'watch-composer']);
   });
 
-  it('W3-2: RANGE and HISTORY are gone, not hidden', () => {
+  it('W3-2: RANGE, HISTORY and ANALYSIS are gone, not hidden', () => {
     const { container } = renderWatch(midHandGame);
-    const labels = tabLabels(container).join(' ').toLowerCase();
-    expect(labels).not.toContain('range');
-    expect(labels).not.toContain('history');
-    expect(labels).not.toContain('analysis');
+    const text = container.textContent.toLowerCase();
+    expect(text).not.toContain('range');
+    expect(text).not.toContain('analysis');
     expect(screen.queryByText('Range analysis coming soon.')).not.toBeInTheDocument();
     expect(screen.queryByText('No hands played yet.')).not.toBeInTheDocument();
   });
 
-  it('W4-2: the panel opens on its only tab', () => {
+  it('W4-2: the record opens over the felt, and the reads are not in it', async () => {
+    const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
-    expect(container.querySelector('.watch-tabs__tab.is-active').textContent).toBe('Table');
-    // The reads are not in the panel any more; they open over the felt.
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(container.querySelector('.thread-sheet')).toBeTruthy();
+    // The reads are not in the record; they open on a seat tap, in the same
+    // glass, over the same 70%.
     expect(container.querySelector('.read-panel')).toBeNull();
   });
 
@@ -431,11 +467,11 @@ describe('W3-2 the panel', () => {
     expect(screen.queryByText(/waiting for (the )?first action/i)).not.toBeInTheDocument();
   });
 
-  it('W3-2: the Chat action still reaches the chat tab', async () => {
+  it('W3-2: the Chat action still reaches the record', async () => {
     const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
     await user.click(screen.getByRole('button', { name: 'Chat' }));
-    expect(container.querySelector('.dr-chat-tab')).toBeTruthy();
+    expect(container.querySelector('.thread-sheet')).toBeTruthy();
     expect(container.querySelector('.read-panel')).toBeNull();
   });
 });
@@ -894,9 +930,13 @@ describe('W3-3 the beats', () => {
     expect(haptics).toEqual([]);
   });
 
-  it('W3-3: the panel carries a sound switch, and it remembers', async () => {
+  // WATCH-6 re-expressed: there is no panel under the felt. The switch is in
+  // the record's own head — one tap from anywhere on the screen, and no longer
+  // a grey row on a green table.
+  it('W3-3: the record carries a sound switch, and it remembers', async () => {
     const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
 
     const toggle = screen.getByRole('button', { name: /sound on/i });
     expect(isMuted()).toBe(false);
@@ -920,15 +960,24 @@ describe('W3-4 the prediction beat', () => {
 
   const enable = () => window.localStorage.setItem('ap_predict', '1');
 
+  // WATCH-6: the felt is the performance and nothing but the game is drawn on
+  // it, so the beat moved with the rest of the furniture into the record.
+  // Opening it is what these tests do first; the flag is still the gate.
+  const openRecord = () => {
+    act(() => { screen.getByRole('button', { name: 'Chat' }).click(); });
+  };
+
   it('W3-4: is absent unless the flag is set', () => {
     const { container } = renderWatch(midHandGame);
+    openRecord();
     expect(container.querySelector('.predict')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Raise' })).not.toBeInTheDocument();
   });
 
-  it('W3-4: appears in the panel with the flag on, framed as a bet on him', () => {
+  it('W3-4: appears in the record with the flag on, framed as a bet on him', () => {
     enable();
     const { container } = renderWatch(midHandGame);
+    openRecord();
     expect(container.querySelector('.predict')).toBeTruthy();
     // The verb is his. This is not a control the owner is operating.
     expect(screen.getByText('He’s going to…')).toBeInTheDocument();
@@ -939,6 +988,7 @@ describe('W3-4 the prediction beat', () => {
     enable();
     const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
+    openRecord();
 
     await user.click(screen.getByRole('button', { name: 'Raise' }));
     const chips = [...container.querySelectorAll('.predict__chip')];
@@ -951,6 +1001,7 @@ describe('W3-4 the prediction beat', () => {
     enable();
     const user = userEvent.setup();
     const { container, rerender } = renderWatch(midHandGame);
+    openRecord();
 
     await user.click(screen.getByRole('button', { name: 'Raise' }));
 
@@ -971,6 +1022,7 @@ describe('W3-4 the prediction beat', () => {
     enable();
     const user = userEvent.setup();
     const { container, rerender } = renderWatch(midHandGame);
+    openRecord();
 
     await user.click(screen.getByRole('button', { name: 'Fold' }));
     rerender(
@@ -988,6 +1040,7 @@ describe('W3-4 the prediction beat', () => {
   it('W3-4: there is nothing to spend and no reward but the number', () => {
     enable();
     const { container } = renderWatch(midHandGame);
+    openRecord();
     const text = container.querySelector('.predict').textContent.toLowerCase();
     for (const banned of ['coin', 'chips left', 'claim', 'reward', 'bonus', 'x2']) {
       expect(text).not.toContain(banned);
@@ -1055,15 +1108,28 @@ describe('FIX-3a line and rope never overlap', () => {
     expect(feltGeometry(620 / region, region)).toMatchObject({ felt: 620, pot: 168, board: 244, tug: 336 });
   });
 
-  it('FIX-3a: the rope and the line read the same geometry, not two anchors', () => {
+  // WATCH-6 re-expressed. The bug this test exists for was the rope and his
+  // line being anchored to OPPOSITE EDGES of a felt that changed height, so a
+  // short felt drew one through the other. v6 removes both halves of that: the
+  // felt no longer changes height, and the rope is not positioned against it at
+  // all — it is a row in the hero column, between him and his strip, so the
+  // browser's own flow is the single source of truth for the stack.
+  it('FIX-3a: nothing in the stack is anchored against the opposite edge', () => {
     const { container } = renderWatch(midHandGame, {
       lastDecision: { seat: 0, action: { type: 'bet', amount: 40 }, equity: 0.5, reasoning: 'He is done.' },
     });
     const felt = container.querySelector('.watch-felt');
-    // Both tops come off the felt's own custom properties; neither is anchored
-    // to the opposite edge, which is what let them cross.
-    expect(felt.style.getPropertyValue('--wv-tug')).toMatch(/^\d+px$/);
-    expect(felt.style.getPropertyValue('--wv-line')).toMatch(/^\d+px$/);
+    // The felt fills its parent and writes no per-detent height of its own.
+    expect(felt.className).toContain('watch-felt--fill');
+    expect(felt.style.height).toBe('');
+
+    // The rope and the strip are siblings in his column, in that order, so
+    // there is no arithmetic left for them to disagree about.
+    const hero = container.querySelector('.watch-hero');
+    const kids = [...hero.children].map((el) => el.className.split(' ')[0]);
+    expect(kids.indexOf('watch-hero__tug')).toBeGreaterThan(kids.indexOf('watch-hero__body'));
+    expect(kids.indexOf('glass')).toBeGreaterThan(kids.indexOf('watch-hero__tug'));
+    expect(hero.querySelector('.tug')).toBeTruthy();
   });
 });
 
@@ -1090,15 +1156,20 @@ describe('FIX-3b the chat composer clears the bottom of the screen', () => {
     expect(rule).toMatch(/8px\)/);
   });
 
-  it('FIX-3b: and the composer is still reachable on the chat tab', async () => {
+  // WATCH-6 re-expressed: the composer is no longer a form at the foot of a
+  // tab that may or may not be open. It is the screen's own last row, always
+  // there, and it asks for a whisper.
+  it('FIX-3b: and the composer is reachable whatever else is on screen', async () => {
     const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
-    await user.click(screen.getByRole('button', { name: 'Chat' }));
 
-    const chat = container.querySelector('.dr-chat-tab--fill');
-    expect(chat).toBeTruthy();
-    expect(chat.querySelector('.dr-chat-tab__form')).toBeTruthy();
-    expect(chat.querySelector('.dr-chat-tab__input')).toBeTruthy();
+    const input = () => container.querySelector('.watch-composer__input');
+    expect(input()).toBeTruthy();
+    expect(input().placeholder).toBe('Whisper to him…');
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(input()).toBeTruthy();
+    expect(container.querySelector('.thread-sheet').contains(input())).toBe(false);
   });
 });
 
@@ -1127,15 +1198,19 @@ describe('FIX-3c the collapsed header', () => {
     expect(container.querySelector('.mood-band')).toBeNull();
   });
 
-  it('FIX-3c: the chat control still reaches the chat tab', async () => {
+  it('FIX-3c: the chat control still reaches the record', async () => {
     const user = userEvent.setup();
     const { container } = renderWatch(midHandGame);
     await user.click(container.querySelector('.watch-screen__chat'));
-    expect(container.querySelector('.dr-chat-tab')).toBeTruthy();
+    expect(container.querySelector('.thread-sheet')).toBeTruthy();
   });
 
+  // WATCH-6: the strip is the record's footer now — the moment the owner is
+  // between hands and thinking about pulling him out is the moment he is in
+  // the record anyway. His cause line still rides on it.
   it('FIX-3c: his cause line moves to the between-hands strip', () => {
     const { container } = renderWatch(betweenHandsGame);
+    act(() => { screen.getByRole('button', { name: 'Chat' }).click(); });
     const strip = container.querySelector('.watch-sitout-strip');
     expect(strip).toBeTruthy();
     expect(within(strip).getByText('Between hands')).toBeInTheDocument();
@@ -1261,5 +1336,82 @@ describe('SEAT-1a seat mood', () => {
     await screen.findByText('The Grinder');
     expect(container.querySelectorAll('.seat-ghost').length).toBeGreaterThan(0);
     expect(tiltedGhosts(container).length).toBe(0);
+  });
+});
+
+// ── WATCH-6 · the whisper, end to end ───────────────────────────────────────
+//
+// "Whisper: composer placeholder 'Whisper to him…'; sent message rises as a
+// pale bubble from the bottom edge, fades over 4 s; his reply is his normal
+// bubble." The record keeps both — a whisper is transient on the felt, never
+// in the thread.
+
+describe('WATCH-6 the whisper', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it('sends as a pale bubble on the felt, and is gone in four seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(midHandGame);
+      const input = container.querySelector('.watch-composer__input');
+
+      act(() => {
+        fireEvent.change(input, { target: { value: 'Careful with him.' } });
+        fireEvent.submit(input.closest('form'));
+      });
+
+      const whisper = container.querySelector('.watch-whisper');
+      expect(whisper).toBeTruthy();
+      expect(whisper.textContent).toBe('Careful with him.');
+      // It is not his bubble: his is teal-edged and over his head.
+      expect(whisper.closest('.watch-hero')).toBeNull();
+
+      act(() => { vi.advanceTimersByTime(4100); });
+      expect(container.querySelector('.watch-whisper')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the field, so the same whisper cannot be sent twice', () => {
+    const { container } = renderWatch(midHandGame);
+    const input = container.querySelector('.watch-composer__input');
+    act(() => {
+      fireEvent.change(input, { target: { value: 'Careful with him.' } });
+      fireEvent.submit(input.closest('form'));
+    });
+    expect(input.value).toBe('');
+  });
+
+  // The strip is the loudest thing he owns. "waiting for the deal" printed over
+  // a live hand reads as him not being in it.
+  it('says nothing about waiting while the hand is live', () => {
+    const { container } = renderWatch(midHandGame);
+    expect(container.querySelector('.watch-hero .watch-felt__waiting')).toBeNull();
+
+    const between = renderWatch(betweenHandsGame);
+    expect(between.container.querySelector('.watch-hero .watch-felt__waiting').textContent)
+      .toBe('waiting for the deal');
+  });
+
+  // Item 4: a seat tap and the thread are one slot. Opening either closes the
+  // other, and the felt never moves for them.
+  it('gives the read and the thread the same slot over the felt', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWatch(midHandGame);
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(container.querySelector('.thread-sheet')).toBeTruthy();
+
+    await user.click(container.querySelector('.seat-ghost'));
+    expect(container.querySelector('.thread-sheet')).toBeNull();
+    expect(container.querySelector('.read-sheet')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(container.querySelector('.read-sheet')).toBeNull();
+    expect(container.querySelector('.thread-sheet')).toBeTruthy();
   });
 });

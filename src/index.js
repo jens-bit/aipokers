@@ -12,6 +12,7 @@ import { openStore } from './server/store.js';
 import { attachNotify } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
+import { installRoomRoutes } from './server/rooms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -56,6 +57,11 @@ const { wss, tables } = createServer({
   server: httpServer,
   defaultBlinds: { smallBlind, bigBlind },
 });
+
+// ROOMS-1: GET /api/rooms — the floor grouped by stakes tier. Registered after
+// createServer() because that is where the table registry is wired into
+// rooms.js. Public counts only, no model call, inside the /api rate limiter.
+installRoomRoutes(app);
 
 // Load the OpenAPI spec once at startup so it can be served cheaply.
 const openApiPath = path.join(__dirname, '..', 'openapi.json');
@@ -173,9 +179,11 @@ const shutdown = (signal) => {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-// NOTIFY-1: the Telegram push notifier. Last line on purpose — it registers
+// NOTIFY-1/2: the Telegram push notifier — the only one, since NOTIFY-2 folded
+// the legacy NOTIFY_ENABLED sender into it. Last line on purpose: it registers
 // POST /api/agents/:id/notify, and the SPA fallback above only answers GET, so
-// a POST still reaches it. Everything else it does is out-of-band.
+// a POST still reaches it. Everything else it does is out-of-band, and it
+// sends nothing at all unless NOTIFY_ENABLED is set.
 attachNotify({ app });
 
 // SHARE-2: answer inline queries for the same cards. No-op without a bot

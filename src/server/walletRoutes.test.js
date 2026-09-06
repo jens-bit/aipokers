@@ -27,13 +27,19 @@ import path from 'node:path';
 import { _closeForTests } from './store.js';
 
 // The smallest table this needs, in the shape table.js has: which agent sits
-// in which seat, which seats are occupied, and the pending sit-out set that
+// in which seat, which seats are occupied, and the seat-scoped sit-out that
 // frees a seat once the hand in progress completes.
 function fakeTable(agentIds) {
   return {
     agentIds,
     pending: agentIds.map((id) => (id ? { playerId: `agent_${id}` } : null)),
-    _pendingSitOut: new Set(),
+    benchedAfterHand: new Set(),   // played the hand out, then benched
+    foldedOut: new Set(),          // folded out of the hand in progress
+    sitOutSeat(seat, { afterHand = false } = {}) {
+      if (!this.pending[seat]) throw new Error('not at this table');
+      (afterHand ? this.benchedAfterHand : this.foldedOut).add(seat);
+      return { pending: true, seat };
+    },
   };
 }
 
@@ -140,9 +146,11 @@ test('WALLET-5: the fund route', async (t) => {
       });
 
       await t.test('cutting him off benches his seat at the table he is at', async () => {
-        // Queued, not yanked: table.js frees a pending sit-out once the hand in
-        // progress completes, and the floor draws him at the bar from there.
-        assert.deepEqual([...table._pendingSitOut], [0], 'his seat, and nobody else’s');
+        // Queued, not yanked: table.js frees the seat once the hand in progress
+        // completes, and the floor draws him at the bar from there. WALLET-6:
+        // he plays that hand out rather than folding out of it.
+        assert.deepEqual([...table.benchedAfterHand], [0], 'his seat, and nobody else’s');
+        assert.equal(table.foldedOut.size, 0, 'he finishes the hand he is in');
       });
 
       await t.test('funding him again lifts the cut and leaves the seat alone', async () => {
@@ -153,7 +161,7 @@ test('WALLET-5: the fund route', async (t) => {
         assert.equal(res.status, 200, JSON.stringify(body));
         assert.equal(body.pocket.mode, 'allowance');
         assert.equal(body.pocket.cap, 5_000, 'an allowance is a size, and it is remembered');
-        assert.deepEqual([...table._pendingSitOut], [0], 'no second seat was touched');
+        assert.deepEqual([...table.benchedAfterHand], [0], 'no second seat was touched');
       });
     });
   } finally {

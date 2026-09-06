@@ -391,10 +391,10 @@ export function RiverAttrPanel({ agent, hand }) {
   const street = cost.street ? String(cost.street).toLowerCase() : 'hand';
 
   return (
-    <div style={{
-      padding: '11px 13px', borderRadius: 10, marginTop: 10,
-      background: '#28282F', border: '1px solid rgba(255,255,255,0.12)',
-    }}>
+    // WATCH-6: the surface is a class rather than a hard-coded #28282F, so the
+    // watch rail can draw it in the felt's own glass instead of a flat grey
+    // card on a green table.
+    <div className="attr-why">
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
         <span style={{
           fontFamily: "'Oswald', Inter, sans-serif", fontSize: 9, fontWeight: 500,
