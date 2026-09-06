@@ -18,6 +18,7 @@ import { installRoomRoutes } from './server/rooms.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 import { installPlaceRoutes } from './server/place.js';
 import { installGuestRoutes, guestsEnabled } from './server/guest.js';
+import { installClaimRoute } from './server/guestClaim.js';
 // BUGS-B/6: /api/stats asks the registry for the floor's counts rather than
 // walking the table Map itself, so "how many agents are live" has exactly one
 // definition and it is not written out twice.
@@ -55,6 +56,9 @@ app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE
 // teaches auth.js to read a guest cookie, and every route below is gated by
 // auth. All three 404 unless GUEST_ENABLED=1.
 installGuestRoutes(app);
+// GUEST-1 job 3: the claim is registered beside them but lives in its own file,
+// because it reaches the roster and guest.js is deliberately a leaf.
+installClaimRoute(app);
 installAgentProfileRoutes(app);
 // EVENT-1: GET /api/events?since=<id> - the floor ticker's poll. Public
 // headlines only, no model call, already inside the /api rate limiter above.

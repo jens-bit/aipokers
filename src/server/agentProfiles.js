@@ -83,7 +83,7 @@ import {
   Where, locationFor, routineFor, stampLocation, homeStateMessage,
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
-import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
+import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet } from './store.js';
 import { emitSessionEnd } from './sessions.js';
 import {
   readThread, latestSessionFor, appendLine as appendThreadLine,
@@ -179,6 +179,63 @@ function saveStore(userId) {
   if (!profile) return;
   const n = saveProfile(userId, profile);
   console.log(`[agents] saved profile for ${userId} — ${n} agent(s)`);
+}
+
+// ── GUEST-1 job 3 · an owner id changing underneath the cache ───────────────
+//
+// The profile table lives in memory (see `db()` above) and so do the wallets.
+// A claim re-points every row in SQL from the guest's id to the Telegram id,
+// and neither of those two objects hears about it — so without this the
+// claimed roster is invisible until a restart, and worse, the next saveStore()
+// for the guest id writes the cached copy straight back and undoes the move.
+//
+// RELOADED, NOT DROPPED. Dropping the entry looks like it should work and does
+// not: `getOrCreate` builds an EMPTY profile for an id it does not hold, so a
+// forgotten owner reads as an owner with no agents — which is exactly the
+// screen a claim must never produce. The entry is replaced with what the
+// database now says instead, and only genuinely absent owners are removed.
+//
+// Two ids, not one. The source, whose profile no longer exists; and the
+// target, whose cached copy may be a stale empty one read before the claim,
+// which would otherwise be saved back over the rows that just arrived.
+export function reloadOwners(...ownerIds) {
+  for (const raw of ownerIds) {
+    const id = String(raw ?? '');
+    if (!id) continue;
+    wallets.delete(id);          // re-read lazily by walletFor()
+    if (!store) continue;        // nothing cached yet — the next db() is fresh
+    let fresh = null;
+    try { fresh = loadProfileRow(id); }
+    catch (err) { console.error(`[agents] reload of ${id} failed:`, err.message); continue; }
+    if (fresh) store[id] = fresh;
+    else delete store[id];
+  }
+}
+
+// GUEST-1 job 3: and the seats that are mid-session.
+//
+// A live Table remembers whose each seat is, in `agentUserIds`, captured when
+// he sat down. The claim wall normally rises AFTER a session has ended so
+// there is nothing seated to fix — but a claim from the bot can arrive at any
+// moment, and a seat still carrying the old id would file the whole session
+// (its thread, its meter rows, its wallet settlement) under an owner who no
+// longer exists, resurrecting the guest profile this claim just emptied.
+//
+// One pass over the live tables, re-pointing the seats that name him.
+export function reassignSeats(fromId, toId) {
+  const from = String(fromId);
+  const to = String(toId);
+  let moved = 0;
+  const tables = liveTables?.allTables?.();
+  if (!tables) return 0;
+  for (const table of tables.values()) {
+    for (let seat = 0; seat < (table.maxSeats ?? 0); seat++) {
+      if (table.agentUserIds?.[seat] !== from) continue;
+      table.agentUserIds[seat] = to;
+      moved++;
+    }
+  }
+  return moved;
 }
 
 // ── SERVER-5 job 2 · the nightly pass's three accessors ─────────────────────

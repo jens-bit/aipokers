@@ -529,6 +529,29 @@ export function loadAgentStore() {
   return out;
 }
 
+// ONE owner's profile, in the same shape. GUEST-1's claim needs it: after the
+// rows have been re-pointed, agentProfiles has to replace two cached entries
+// with what the database now says, and reloading the whole building to do it
+// would make a claim cost a full table scan for every owner on the server.
+//
+// Returns null for an owner with no profile row and no agents — which is a
+// different answer from an empty profile, and the caller wants to know which:
+// an owner who does not exist must be built by getOrCreate, not cached as an
+// empty one.
+export function loadProfile(ownerId) {
+  const d = conn();
+  const owner = String(ownerId);
+  const row = d.prepare('SELECT owner_id, chat, home_thread_unread_since FROM profiles WHERE owner_id = ?').get(owner);
+  const agents = d.prepare('SELECT data FROM agents WHERE owner_id = ? ORDER BY created_at, id').all(owner);
+  if (!row && agents.length === 0) return null;
+  return {
+    userId: owner,
+    agents: agents.map((a) => jsonParse(a.data, {})),
+    chat: jsonParse(row?.chat, []),
+    homeThreadUnreadSince: row?.home_thread_unread_since || null,
+  };
+}
+
 // Persists one owner's profile: the chat log plus every agent, and deletes
 // agent rows that are no longer in the array (a retire/delete). One
 // transaction, which is the write-atomicity the JSON rewrite never had.
