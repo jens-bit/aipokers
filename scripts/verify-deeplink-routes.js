@@ -40,7 +40,7 @@ function assert(label, ok, detail = '') {
 }
 
 if (!existsSync(DIST)) {
-  console.error('client/dist not found — run `npm run build` first');
+  console.error('client/dist not found — run `npm run build:client` first');
   process.exit(1);
 }
 

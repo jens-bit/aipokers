@@ -1,0 +1,440 @@
+/* client/src/styles/draft2.css — DRAFT-2
+ *
+ * THE DRAFT, ON GLASS. Board 29 frames F02 / F02b / F03 (wave 56), drawn from
+ * design-refs/mood-sit.jsx `DraftSheetM`.
+ *
+ * ONE GLASS, AND IT IS THE THREAD'S. Wave 56's law: "Every panel over the felt
+ * or the room is one glass — V5GLASS from board 26's ThreadSheet. Sheets take
+ * `raised`, strips and toasts take `panel`, the hairline is `edgeUp`." So the
+ * numbers below are the same numbers watch6.css's .thread-sheet uses, named
+ * here as variables so the two surfaces cannot drift apart the next time one of
+ * them is touched. If these ever need to change, they change for both.
+ *
+ * THE ROOM NEVER RESIZES FOR THE SHEET. Same rule the whisper thread obeys: the
+ * sheet is a LAYER over the room, positioned absolutely inside it, and the room
+ * behind it keeps its own box. The moment the room shrinks to make space, the
+ * sheet has become a different screen — which is exactly what the grey chat
+ * screen this replaces was.
+ */
+
+:root {
+  --glass-panel: rgba(13, 23, 21, 0.72);
+  --glass-raised: rgba(18, 30, 28, 0.84);
+  --glass-edge: rgba(255, 255, 255, 0.11);
+  --glass-edge-up: rgba(255, 255, 255, 0.17);
+  --glass-blur: blur(18px) saturate(1.2);
+}
+
+/* ── the screen ──────────────────────────────────────────────────────────── */
+
+.draft2 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #1A1A1E;
+  position: relative;
+}
+
+/* The room, and the sheet over it. Everything below is inside this box, so the
+   sheet's `bottom: 0` is the room's bottom and not the viewport's. */
+.draft2__stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #1A1A1E;
+}
+
+/* the room itself, dimmed to almost nothing: he is not in it yet */
+.draft2__room {
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* The room is a fixed 390x470 coordinate space, scaled to whatever box it is
+   given — the same container-query trick .home1__scale uses, so the draft's room
+   and HOME's room are the same room at the same arithmetic and neither can drift
+   from flat.js. */
+.draft2__stage { container-type: inline-size; }
+
+.draft2__room-scale {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 390px;
+  height: 470px;
+  transform-origin: top left;
+  transform: scale(calc(100cqw / 390));
+}
+
+.draft2__veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 10, 10, 0.55) 0%, rgba(6, 10, 10, 0.8) 100%);
+  pointer-events: none;
+}
+
+/* ── him, forming over the table ─────────────────────────────────────────── */
+
+.draft2__forming {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 34px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.draft-forming {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.draft-forming__halo {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.draft-forming__body {
+  animation: draft-formin 0.5s ease-out both;
+}
+
+@keyframes draft-formin {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-forming__body { animation: none; }
+}
+
+/* The caption under him, and his name once he has one. The ref draws the
+   caption muted at every stage and gold at the last, which is the one moment
+   the screen is allowed to look like an announcement. */
+.draft2__cap {
+  font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-muted, #6B6B6B);
+  white-space: nowrap;
+}
+
+.draft2__cap[data-named='true'] { color: var(--sys-gold, #CDB380); }
+
+/* ── the sheet ───────────────────────────────────────────────────────────── */
+
+.draft-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 206px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: var(--glass-raised);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-edge-up);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  animation: draft-sheet-in 0.28s ease-out both;
+}
+
+@keyframes draft-sheet-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-sheet { animation: none; }
+}
+
+.draft-sheet__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
+}
+
+.draft-sheet__grab {
+  width: 30px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.draft-sheet__spacer { flex: 1; }
+
+.draft-sheet__count {
+  font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--sys-muted, #6B6B6B);
+  white-space: nowrap;
+}
+
+/* `hidden auto`, never a bare overflow-y — FIX-1a's rule. A box that declares
+   only one axis has the other computed from `visible` to `auto`, which is what
+   let the old draft screen be dragged sideways. */
+.draft-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 2px 14px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.draft-sheet__foot {
+  flex-shrink: 0;
+  padding: 9px 12px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── the two registers ───────────────────────────────────────────────────── */
+
+.draft-row {
+  display: flex;
+  padding: 4px 0;
+}
+
+.draft-row--sys { justify-content: flex-start; }
+.draft-row--you { justify-content: flex-end; }
+
+.draft-row__bubble {
+  max-width: 268px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 13px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  /* An unbreakable token wraps rather than widening the sheet — FIX-1a. */
+  overflow-wrap: anywhere;
+}
+
+.draft-row--sys .draft-row__bubble {
+  background: var(--glass-raised);
+  border: 1px solid var(--glass-edge);
+  color: var(--sys-dim, #A1A1A1);
+}
+
+.draft-row--you .draft-row__bubble {
+  background: rgba(0, 212, 170, 0.11);
+  border: 1px solid rgba(0, 212, 170, 0.30);
+  color: var(--sys-text, #EDEDED);
+}
+
+/* ── the composer, and the one gold button that replaces it ──────────────── */
+
+.draft-sheet__composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-edge);
+  padding: 0 8px 0 14px;
+  box-sizing: border-box;
+}
+
+.draft-sheet__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--sys-text, #EDEDED);
+  /* 16px or iOS zooms the whole Mini App on focus. */
+  font-size: 16px;
+  font-family: inherit;
+}
+
+/* No font-size here. BUG-02: any text field under 16px on mobile makes iOS
+   Safari zoom the whole Mini App on focus, and a ::placeholder rule counts —
+   the placeholder and its input are the same box. The ref draws this line at
+   12.5px; 12.5px is not available to us on a real phone. */
+.draft-sheet__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+
+.draft-sheet__send {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 15px;
+  background: rgba(0, 212, 170, 0.15);
+  border: 1px solid rgba(0, 212, 170, 0.33);
+  color: #00D4AA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.draft-sheet__send:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: var(--sys-muted, #6B6B6B);
+  cursor: default;
+}
+
+/* What sits between the conversation and the action: the dials the server sent
+   and the temperament they add up to. */
+.draft-sheet__above {
+  flex-shrink: 0;
+  padding: 8px 14px 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* THE ONE GOLD BUTTON — the ref's F03: "answering it turns the composer into one
+   gold button". The button itself is `NextAction`, unchanged, because it already
+   carries the two things the ref's static frame has no way to draw: the line
+   saying WHY the action is offered, and the link that demotes talking instead of
+   removing it. So the sheet only relights it. It is the only gold fill on the
+   screen, which is what makes it the primary action without a word of chrome
+   saying so. */
+.draft-sheet .next-action {
+  border-top: none;
+  background: none;
+  padding: 0;
+}
+
+.draft-sheet .next-action__btn {
+  height: 48px;
+  min-height: 48px;
+  border-radius: 12px;
+  background: var(--sys-gold, #CDB380);
+  color: #120C04;
+  font-size: 12.5px;
+  box-shadow: 0 4px 18px rgba(205, 179, 128, 0.27);
+}
+
+.draft-sheet .next-action__btn:hover { background: #DCC69B; }
+
+/* BIRTH-5's price line, under the action. It is not an error and must not read
+   as one: the seat is a price the owner is on his way to, not a wall. */
+.draft-sheet__price {
+  margin: 9px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--sys-dim, #A1A1A1);
+}
+
+.draft-sheet__price-act {
+  margin-top: 7px;
+  height: 30px;
+  min-height: 0;
+  padding: 0 13px;
+  border-radius: 11px;
+  background: rgba(205, 179, 128, 0.08);
+  border: 1px solid rgba(205, 179, 128, 0.40);
+  color: var(--sys-gold, #CDB380);
+  font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ── the door tag ────────────────────────────────────────────────────────── */
+/* design-refs/mood-nav.jsx `DoorTap`. It sits above the door, and the sheet's
+   top edge is below it — that is the clearance client/e2e/draft-2.spec.js
+   measures at both widths. */
+.home-flat__door-tag {
+  position: absolute;
+  z-index: 260;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(8, 12, 12, 0.9);
+  border: 1px solid rgba(0, 212, 170, 0.40);
+  color: #00D4AA;
+  font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+/* ── the desk: the same sheet, in the rail ───────────────────────────────── */
+/* Board 31's rule for every panel: desktop does not redraw it, it puts it in a
+   permanent rail instead of a sheet that has to be dismissed. So the sheet stops
+   being absolutely positioned and fills the rail; nothing else about it changes,
+   which is the point of it being one component. */
+.draft2--desk .draft-sheet {
+  position: static;
+  border-radius: 0;
+  border-top: none;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.draft2--desk .draft-sheet__grab { display: none; }
+
+/* The rail carries the SHEET. The room is DeskHome's own, full size and lit,
+   beside it — so the draft's dimmed copy of it would be a second room on the
+   same screen. He still forms, at the head of the panel, because watching him
+   form is the point on both shells. */
+.draft2--desk .draft2__room,
+.draft2--desk .draft2__veil { display: none; }
+
+.draft2--desk .draft2__forming {
+  position: static;
+  padding: 14px 0 10px;
+}
+
+.draft2--desk .draft2__stage {
+  display: flex;
+  flex-direction: column;
+}
+
+.draft2--desk .draft-sheet__foot {
+  padding: 12px 0 4px;
+}
+
+.draft2--desk .draft-sheet__body { padding: 2px 0 0; }
+
+/* Somewhere to start, for an owner with no words ready. Teal because they are
+   the composer's, not the action's — a chip is a sentence you did not have to
+   type, and the only gold on this screen is the one thing that ends the draft. */
+.draft-sheet__chip {
+  height: 28px;
+  min-height: 0;
+  padding: 0 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+  background: rgba(0, 212, 170, 0.05);
+  color: #00D4AA;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.draft-sheet__chip:hover { background: rgba(0, 212, 170, 0.11); }

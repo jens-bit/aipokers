@@ -1,19 +1,10 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
+Last updated: 2026-09-06 (WATCH-10) — 7 open, 30 resolved
 
 
 ---
 
 ## OPEN
-
-### BUG-38 — `verify-home-routes.js` points at a script that does not exist
-**Severity:** Low (a wrong hint costs the next person a minute, and it is one word)
-**Where:** `scripts/verify-home-routes.js:43`
-**What:** With no built client the script bails with ``client/dist not found — run `npm run build` first``. There is no `build` script at the root — `package.json` defines `build:client` (which is what `start` itself runs). Following the hint verbatim gets `Missing script: "build"`.
-**Found by:** the WATCH report; the names were the other way round there — the hint says `npm run build`, and `npm run build:client` is the one that exists.
-**Fix:** say `npm run build:client`. Worth a grep for the same sentence in the other verify scripts before closing it.
-
----
 
 ### BUG-37 — Money outside the watch felt is still spelled by `toLocaleString`
 **Severity:** Low (two spellings of the same number, in the same screen)
@@ -31,15 +22,6 @@ Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
 **What:** Fails inside a full `npm run test:all`, passes on its own and on a re-run. Seen once in this session's integration runs; the suite passed 14/14 immediately afterwards, and three consecutive `npm test` runs were clean.
 **Found by:** the WATCH report, and independently by the integrator during the COST-1 merge.
 **Fix:** unknown. `scripts/stress-suites.js` (BUG-34) is the tool — run this suite under it rather than guessing. Note BUG-34 ruled out the obvious shared-resource causes, so a timing assumption inside the test is the likelier answer.
-
----
-
-### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three
-**Severity:** Medium (the e2e gate is the one before a merge to main, so a one-in-three flake is a coin toss on every merge)
-**Where:** `scripts/verify-watch-v2.js`
-**What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
-**Found by:** the WATCH report.
-**Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
 
 ---
 
@@ -116,6 +98,22 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three — RESOLVED 2026-09-06 (TEST)
+Not a race in the product: a race in the suite. The five WATCH-9 push checks read `of(ServerMsg.THREAD_LINE)` — a snapshot of the socket buffer taken at whatever instant execution reached that line. Under load the hero's session had played about five hands by then and the HIM line, which is written per DECISION rather than per hand, had not landed yet. The wire worked; the sample was early.
+
+Fixed by waiting rather than sampling, with the file's own `waitFor`, the way the WATCHING check at the top of the same section already did. A HIM line is the right thing to hold for because it is the last of the four kinds to appear — the room talks before he has decided anything — so once it is in, all five checks read a settled buffer. No assertion was weakened; the same five still run, on a buffer that is allowed to fill.
+
+No model needed: every decision carrying reasoning writes a HIM line (`table.js`, `_threadTo` on `ThreadKind.HIM`), and the no-key path returns "no API key configured — defaulting to a safe action" as its reasoning, so the deterministic fallback already exercises this wire. Nothing in the fallback had to change.
+
+**Proof:** 10 consecutive runs green with a full `npm run test:e2e` running concurrently, every one reaching ALL CHECKS PASSED. In a first attempt under two concurrent suites the assertion never failed either — the three reds there were the machine killing processes outright (truncated logs, no assertion output, and the two load generators died at discovery as well), which is BUG-34's territory, not this one.
+
+---
+
+### BUG-38 — `verify-home-routes.js` points at a script that does not exist — RESOLVED 2026-09-06 (CI)
+Fixed while chasing the CI red it sat next to. Three scripts said ``run `npm run build` first`` and there is no root `build` script; all three now say `build:client`. The CI failure itself was the other half of the same file: verify-home-routes.js EXITS 1 on a missing dist where verify-cache-headers and verify-deeplink-routes skip, so it was red on CI (which runs `npm test` before any client build) and green on any laptop with a dist lying around. It is now in NEEDS_CLIENT_DIST with the other two.
+
+---
 
 ### BUG-33 — The client's ServerMsg had no PACE or READ key, so neither frame was ever handled — RESOLVED 2026-09-06
 **Where:** `client/src/lib/protocol.js`, `client/src/hooks/useTable.js`

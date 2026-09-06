@@ -238,7 +238,7 @@ const SeamCompareM = () => (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {r.facts.map(f => (
             <div key={f} style={{ display: 'flex', gap: 8, fontSize: 11.5, color: M_MUTED, lineHeight: 1.45 }}>
-              <span style={{ color: M_FAINT }}>&mdash;</span><span style={{ flex: 1 }}>{f}</span>
+              <span style={{ color: M_MUTED }}>&mdash;</span><span style={{ flex: 1 }}>{f}</span>
             </div>
           ))}
         </div>

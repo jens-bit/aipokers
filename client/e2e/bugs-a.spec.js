@@ -278,17 +278,33 @@ test.describe('BUGS-A job 5 · sheets are above the room, and a finger puts them
 // ── job 7 ───────────────────────────────────────────────────────────────────
 
 test.describe('BUGS-A job 7 · the taps that did nothing', () => {
+  // SIT-1 put a sheet between the tap and the felt. BUGS-A job 7 made the
+  // table with a game on it open the watch DIRECTLY, which was right when the
+  // table led nowhere else; the table now also holds the chairs and the seat
+  // you can take yourself, so the tap opens the sheet and the sheet offers the
+  // watch — board 31 P17's "no hidden taps anywhere". The rule BUGS-A wrote is
+  // unchanged and still asserted: a table with a game on it gets you to the
+  // felt. It is one tap further along.
   test('the kitchen table with a game on it opens the watch', async ({ page }) => {
     await open(page, { game: HOME_GAME });
     await page.getByTestId('home-table').click();
+    await expect(page.getByTestId('home-table-sheet')).toBeVisible();
+    await page.getByTestId('home-table-watch').click();
     // The watch screen replaces the room. Its own header says who it is about.
     await expect(page.getByTestId('home-screen')).toHaveCount(0);
     await page.screenshot({ path: 'e2e/__screenshots__/bugsa-7-home-table-watch.png' });
   });
 
-  test('an empty kitchen table is furniture, not a dead button', async ({ page }) => {
+  // Was 'an empty kitchen table is furniture, not a dead button', asserting the
+  // table is not a button at all without a game. BIRTH-5 gave the empty table
+  // the chairs, so it leads somewhere now. The rule BUGS-A cared about — no tap
+  // that does nothing — is what this still checks; the destination is what
+  // changed. Same correction as HomeScreen.test.jsx's unit of it.
+  test('an empty kitchen table opens the chairs rather than nothing', async ({ page }) => {
     await open(page);
-    await expect(page.getByTestId('home-table')).toHaveCount(0);
+    await page.getByTestId('home-table').click();
+    await expect(page.getByTestId('home-table-sheet')).toBeVisible();
+    await expect(page.getByTestId('home-table-watch')).toHaveCount(0);
   });
 
   test('an away frame goes to the table in the picture', async ({ page }) => {

@@ -578,6 +578,31 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
   // opened and never again, so a sheet left open went quiet while the table
   // carried on talking. These are the pushes that arrived on this socket while
   // the hands above were being played.
+  // BUG-35: these were read off `seen` at whatever instant execution reached
+  // this line, which made every check below a race against the table. Under
+  // load the hero's session had played about five hands by here and the HIM
+  // line — written on the decision, not on the hand — had not landed yet, so
+  // "and so did HIS reasoning" failed about one run in three while the code it
+  // is about worked perfectly.
+  //
+  // Nothing is loosened: the assertions are the same. The suite now WAITS for
+  // the last of them to be satisfiable, the way the WATCHING check at the top
+  // of this section already does, and reads the buffer once afterwards. A HIM
+  // line is the right thing to wait on because it is the last of the four
+  // kinds to appear — the room talks before he has decided anything — so
+  // holding for it means all four checks are reading a settled buffer.
+  //
+  // It needs no model: every decision with reasoning writes one (table.js
+  // _threadTo on ThreadKind.HIM), and the no-key path returns "no API key
+  // configured — defaulting to a safe action" as its reasoning, so the
+  // deterministic fallback exercises this exact wire.
+  const himLanded = await waitFor(
+    'a HIM line pushed over THREAD_LINE',
+    async () => of(ServerMsg.THREAD_LINE).find((m) => m.line?.kind === 'him') ?? null,
+    (m) => !!m,
+    40_000,
+  );
+
   const pushed = of(ServerMsg.THREAD_LINE);
   check('WATCH-9: the watcher was pushed the lines as they were written',
         pushed.length > 0, `${pushed.length} THREAD_LINE(s) in ${seen.length} message(s)`);
@@ -593,8 +618,10 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
         pushed.some((m) => m.line.kind === 'table'),
         JSON.stringify([...new Set(pushed.map((m) => m.line.kind))]));
   check("and so did HIS reasoning — the owner's spectator is entitled to it",
-        pushed.some((m) => m.line.kind === 'him'),
-        JSON.stringify([...new Set(pushed.map((m) => m.line.kind))]));
+        himLanded.ok && pushed.some((m) => m.line.kind === 'him'),
+        himLanded.ok
+          ? JSON.stringify([...new Set(pushed.map((m) => m.line.kind))])
+          : `timed out after 40s; kinds seen: ${JSON.stringify([...new Set(pushed.map((m) => m.line.kind))])}`);
   // Read the store again, now that the pushes have been collected: the fetch
   // above happened several lines ago and the table has not stopped talking.
   const nowStored = await j('GET', `/api/agents/${agentId}/thread?userId=${heroUserId}&session=${sessionId}`);

@@ -16,7 +16,11 @@ const M_BORDER_2 = 'rgba(255,255,255,0.18)';
 const M_TEXT = '#EDEDED';   // primary   · 12.4:1 panel
 const M_DIM = '#C3C3C6';    // secondary ·  8.2:1 panel
 const M_MUTED = '#9E9EA2';  // tertiary  ·  5.5:1 panel · 4.7:1 on tinted pills
-const M_FAINT = '#55555C';  // NOT TEXT  · dashes, rings, empty pips only
+const M_FAINT = '#55555C';  // NOT TEXT  · dashes, rings, empty pips only. Enforced in
+                            // wave 59: it had drifted onto six real lines of copy at
+                            // 2.3-2.5:1, including the only sentence on the empty room.
+                            // Raising it was the wrong fix — it would brighten ten
+                            // correct borders. Text belongs to M_MUTED.
 const M_TEAL = '#00D4AA';
 const M_GOLD = '#CDB380';
 const M_RED = '#FF6B6D';    // 5.3:1 panel
@@ -409,6 +413,23 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
 // a hood is barely 900 painted pixels, and hue does nothing at that luminance. These
 // sit at L* 26–36, still muted enough to be cloth in a dim room, far enough apart in
 // hue and lightness that a four-agent room reads as four individuals.
+// the nickname table. Anyone whose given name does not fit a pill has one; anyone
+// whose does, does not — a nickname invented for "Nash" would be noise.
+const NICKS = {
+  'Balanced v2.1': 'Bal', 'Aggressive v1.3': 'Aggro', 'Aggressive': 'Aggro',
+  'Bluff Master': 'Bluff', 'Value Bot': 'Value', 'Granite': 'Gran',
+  'Ozymandias': 'Ozy', 'Fold_Equity': 'Fold', 'Phil_AI': 'Phil',
+  'doyle_v3': 'Doyle', 'nash_eq': 'Nash', 'ivey_bot': 'Ivey', 'Nightjar': 'Night',
+};
+// what a pill shows. Never truncates: a name that does not fit gets replaced by one
+// that does, and if neither exists the first word stands.
+const pillName = (name, nick) => {
+  if (nick) return nick;
+  if (NICKS[name]) return NICKS[name];
+  const w = String(name).split(' ')[0];
+  return w.length <= 6 ? w : w.slice(0, 6);
+};
+
 const HOODS = [
   { id: 'ash',    name: 'ASH',    top: '#5A5F63', bot: '#383C40' },
   { id: 'oxblood',name: 'OXBLOOD',top: '#5E2027', bot: '#361216' },
@@ -831,7 +852,7 @@ const BackHeader = ({ children, right }) => (
 );
 
 Object.assign(window, {
-  HOODS, GLOWS, h32, idFor, rollRoster,
+  NICKS, pillName, HOODS, GLOWS, h32, idFor, rollRoster,
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
   HAND_FILL, HAND_LINE, HAND_BOX, handW, handScale, handStroke, Fist, Hand,
   MiniBack, HERO_GRIP, SEAT_GRIP, HAND_POSES, OPP_POSES, ghostHands,

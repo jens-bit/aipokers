@@ -113,12 +113,19 @@ describe('FIX-1a mobile horizontal overflow', () => {
     expect(auditAll(container)).toEqual([]);
   });
 
-  it('FIX-1a: the draft screen stays contained once the strip and forming chip are on screen', async () => {
-    // The two elements the playtest named. They only render mid-draft, after a
-    // reply has come back, so the audit has to get that far.
+  it('FIX-1a: the draft screen stays contained once he is forming over the room', async () => {
+    // The audit has to run mid-draft, not on the opening frame: the sheet, the
+    // ghost's halo and the pill under it only exist once a reply has come back,
+    // and the widest thing on the screen is whichever of them is longest.
+    //
+    // The two elements the playtest originally named here — the dial strip and
+    // the forming chip — are gone (DRAFT-2 took them off the sheet; the note in
+    // draftFlow.test.jsx says why). The RULE this test encodes is unchanged and
+    // is still the auditAll below: nothing on the draft screen scrolls sideways.
     fetchMock.route('/api/agents/chat', {
       chat: [{ role: 'assistant', content: 'Tight preflop, no multiway bluffs.' }],
       natureHint: 'Rock',
+      draftName: 'The Understudy',
     }, { method: 'POST' });
 
     const { container } = render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
@@ -126,12 +133,8 @@ describe('FIX-1a mobile horizontal overflow', () => {
     (await screen.findByRole('button', { name: 'Tight and patient' })).click();
 
     await screen.findByText(/Tight preflop, no multiway bluffs/);
-    expect(screen.getByText('Forming')).toBeInTheDocument(); // the FORMING chip
-    // F-1 renamed the strip's slots to the four dials PACE-1d actually sends
-    // (TIGHT / AGGR / BLUFF / DISC). This assertion only locates the strip; the
-    // rule the test encodes — nothing on the draft screen scrolls sideways — is
-    // unchanged and still checked by auditAll below.
-    expect(screen.getByText('TIGHT')).toBeInTheDocument();   // the profile strip
+    // The longest caption the pill can carry: a full-width name and a nature.
+    expect(screen.getByTestId('draft-cap')).toHaveTextContent('The Understudy · a Rock');
     expect(auditAll(container)).toEqual([]);
   });
 
