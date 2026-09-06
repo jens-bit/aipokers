@@ -13,6 +13,14 @@
 // the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
 // is pushed on change after that.
 //
+// HOME-STATE-1 added a fourth: HOME_STATE, the owner's living room — where
+// each of his agents is, what he is doing there, and the home game if one is
+// running. Owner-filtered like FLOOR_STATE and pushed on the same triggers,
+// plus one of its own (the home game's composition changing). The home table
+// itself is invisible to everything else on this channel: it is at no stakes,
+// in no room, and a FLOOR_GAME about it would put a kitchen table on the
+// casino floor.
+//
 // Two rules the rest of the system also obeys:
 //   * Pushes are throttled to at most one per second per table per
 //     subscriber, with a trailing send so the last state of a hand is never
@@ -24,7 +32,7 @@
 // through an injected provider so nothing here imports table.js.
 
 import { ServerMsg } from './protocol.js';
-import { floorSnapshot } from './agentProfiles.js';
+import { floorSnapshot, homeSnapshot } from './agentProfiles.js';
 import { bus as eventBus, EventType, HOT_RECENT_MS } from './events.js';
 import { currentRooms } from './rooms.js';
 import { bus as sessionBus, sessionEndMessage } from './sessions.js';
@@ -41,6 +49,9 @@ const ROOMS_PUSH_INTERVAL_MS = Number(process.env.FLOOR_ROOMS_INTERVAL_MS ?? 100
 const subs = new Map();
 
 let liveTables = null;
+// HOME-STATE-1: how the channel learns what the owner's home game is doing.
+// Injected like liveTables so nothing here imports homeGame.js.
+let homeGames = null;
 
 // ROOMS-1 push state: the last payload sent (so an unchanged floor is silent),
 // when it went, the trailing-edge timer, and the one-shot that fires when the
@@ -50,8 +61,9 @@ let roomsLastPushAt = 0;
 let roomsTimer = null;
 let hotExpiryTimer = null;
 
-export function configure({ liveTables: provider } = {}) {
+export function configure({ liveTables: provider, homeGames: homes } = {}) {
   liveTables = provider ?? null;
+  homeGames = homes ?? null;
   // EVENT-1: exactly one listener on the casino bus, no matter how many times
   // a process composes a server (tests build several). off-then-on is
   // idempotent because `relayEvent` is a stable module-level function.
@@ -80,9 +92,10 @@ export function subscribe(ws, { userId, owner = false } = {}) {
   const entry = { userId: String(userId), owner: !!owner, tables: new Map() };
   subs.set(ws, entry);
   sendFloorState(ws, entry);
+  sendHomeState(ws, entry);
   // Prime the diorama with whatever is already in flight, so a client that
   // subscribes mid-hand does not wait for the next state change.
-  for (const table of liveTables?.listTables?.() ?? []) {
+  for (const table of floorTables()) {
     if (tableBelongsTo(table, entry.userId)) pushGame(ws, entry, table, { force: true });
   }
   return entry;
@@ -111,6 +124,47 @@ function sendFloorState(ws, entry) {
   // ROOMS-1: the floor rides the snapshot so a client that has just subscribed
   // can render the lobby immediately, then keeps it current from FLOOR_ROOMS.
   send(ws, { type: ServerMsg.FLOOR_STATE, userId: entry.userId, agents, rooms: roomsPayload() });
+}
+
+// HOME-STATE-1: the casino's tables. A home game is reachable by id — that is
+// how WATCH works on it — and is on nobody's floor, so it is filtered out of
+// everything that describes one. The registry answers this directly when it
+// can; the fallback keeps a bare unit context (a plain array of literals)
+// working, which is what several of these tests are.
+function floorTables() {
+  if (liveTables?.listFloorTables) return liveTables.listFloorTables();
+  return (liveTables?.listTables?.() ?? []).filter((t) => !t?.home);
+}
+
+// ── HOME-STATE-1: the owner's living room ───────────────────────────────────
+
+function sendHomeState(ws, entry) {
+  let payload;
+  try {
+    payload = homeSnapshot(entry.userId, {
+      owner: entry.owner,
+      game: homeGames?.state?.(entry.userId) ?? null,
+    });
+  } catch (err) {
+    console.error('[floor] home snapshot failed:', err.message);
+    return;
+  }
+  send(ws, { type: ServerMsg.HOME_STATE, ...payload });
+}
+
+/**
+ * The owner's home changed — somebody came in, somebody went out, a routine
+ * moved, the home game was stood up or broken up. Same owner filter as
+ * notifyAgentsChanged, and called from the same two places: an agent's
+ * standing changing, and homeGame's own reconcile.
+ */
+export function notifyHomeChanged(userId) {
+  if (!userId) return;
+  const target = String(userId);
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== target) continue;
+    sendHomeState(ws, entry);
+  }
 }
 
 // ── ROOMS-1: the floor, by stakes tier ──────────────────────────────────────
@@ -242,6 +296,9 @@ export function notifyAgentsChanged(userId) {
   for (const [ws, entry] of subs) {
     if (entry.userId !== target) continue;
     sendFloorState(ws, entry);
+    // HOME-STATE-1: a standing that changed is a location that may have
+    // changed, and the two ride the same trigger so they can never disagree.
+    sendHomeState(ws, entry);
   }
 }
 
@@ -249,6 +306,12 @@ export function notifyAgentsChanged(userId) {
 // must stay cheap when nobody is subscribed.
 export function notifyTable(table) {
   if (subs.size === 0 || !table) return;
+  // HOME-STATE-1: a home game is not on the floor. Its state reaches the
+  // client through HOME_STATE and, if the owner is watching it, through the
+  // ordinary table socket — never as a FLOOR_GAME, which would draw a kitchen
+  // table into the casino diorama, and never as a rooms recompute, which
+  // would be a no-op anyway since it sits at no rung.
+  if (table.home) return;
   for (const [ws, entry] of subs) {
     if (!tableBelongsTo(table, entry.userId)) continue;
     pushGame(ws, entry, table);
@@ -342,4 +405,5 @@ export function reset() {
   roomsSignature = null;
   roomsLastPushAt = 0;
   liveTables = null;
+  homeGames = null;
 }

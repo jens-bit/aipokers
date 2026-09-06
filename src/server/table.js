@@ -163,11 +163,31 @@ export { HOUSE_TAG, HOUSE_STATION, HOUSE_STRATEGY, HOUSE_PROFILE, pickComplement
 // in the ref's own words: showdowns seen, decision volume, big folds made
 // correctly, beats survived, bluffs that got through, hands at the table.
 export class Table {
-  constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs }) {
+  constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs, home = false }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
       throw new Error(`maxSeats must be an integer ${MIN_TO_DEAL}..${SEAT_LIMIT}`);
     }
     this.tableId = tableId;
+    // ── HOME-STATE-1: the kitchen table ──────────────────────────────────
+    // A home game is a real table running the real engine — same hands, same
+    // decisions, same voices — with everything that costs money or changes a
+    // record switched off. It is at no stakes, so it is on no rung of the
+    // wallet ladder, so it appears in no room; the matchmaker will not send
+    // anybody to it, the floor ticker never hears about it, and no push
+    // notification comes out of it.
+    //
+    // What stays ON is deliberate and is the entire point: he talks (bubbles
+    // and table talk), and he remembers who he played (bio, grudges). What
+    // goes OFF is everything that would let a friendly game at home stand in
+    // for a night's work: the pocket, the wallet, the casino bus, the owner's
+    // notifications, fatigue, and — through finishAgentSession never being
+    // called — attribute growth and the session ledger.
+    //
+    // The rule underneath all of it: NOTHING THAT HAPPENS HERE MAY MOVE A
+    // NUMBER THE CASINO READS. If it did, the home game would be the cheapest
+    // grind in the product, and the one thing it is for is that it is not
+    // work.
+    this.home = !!home;
     this.smallBlind = smallBlind;
     this.bigBlind = bigBlind;
     this.maxSeats = maxSeats;
@@ -540,7 +560,12 @@ export class Table {
     const occupant = this.pending[seat];
     if (!occupant) return;
     const agentId = this.agentIds[seat];
-    if (agentId) {
+    // HOME-STATE-1: standing up from the kitchen table is not the end of a
+    // session, because it was never one. finishAgentSession is what credits
+    // the pocket, draws attribute growth, writes the recap and leaves an
+    // unseenRecap behind — none of which a home game has earned, so the whole
+    // ceremony is skipped and the seat is simply freed.
+    if (agentId && !this.home) {
       try {
         const buyIn = occupant.buyIn ?? this.defaultBuyIn();
         const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
@@ -614,6 +639,7 @@ export class Table {
   // exists to prevent.
   _notifySessionEnd({ seat, agentId, agent, buyIn, finalStack, watched, sessionHands, busted }) {
     const ownerId = this.agentUserIds[seat];
+    if (this.home) return;   // HOME-STATE-1: the home game pushes nothing
     if (!ownerId || watched || busted) return;
     const agentName = agent?.name || this.pending[seat]?.displayName || 'Your agent';
     const endedAt = Date.now();
@@ -794,7 +820,10 @@ export class Table {
     this.closed = true;
     this.autoPlay = false;
     this._captureStacks();
-    for (let seat = 0; seat < this.maxSeats; seat++) {
+    // HOME-STATE-1: same law as _retireSeat — a home game ending is a game
+    // ending, not a session ending. Nobody is paid, nobody grows, nobody is
+    // told.
+    for (let seat = 0; seat < this.maxSeats && !this.home; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       try {
@@ -1826,6 +1855,12 @@ export class Table {
   // changes; the crossing into 'worn' is the one time he mentions it, and it
   // never pushes a notification — fatigue fixes itself at the bar.
   _updateSeatFatigue() {
+    // HOME-STATE-1: fatigue is the cost side of the attribute curve — it is
+    // what a session of work takes out of him — so it is off at home for the
+    // same reason growth is. An evening in must not be able to wear him out,
+    // and it must not be able to rest him either: the stored stage is left
+    // exactly where the casino left it and recovers on its own clock.
+    if (this.home) return;
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
@@ -2089,7 +2124,11 @@ export class Table {
       // owner) was folded away here; this heat gate is the rule now.
       const prevState = currentMood.state;
       const nextState = mood.state;
-      if (nextState === 'tilted' && prevState !== 'tilted' && mood.heat >= HEAT_TILTED) {
+      // HOME-STATE-1: he can still tilt at home — the mood machine above ran
+      // and his heat moved, because that is character and character is the
+      // point. What he does not do is buzz his owner's phone about a friendly
+      // game in the living room.
+      if (nextState === 'tilted' && prevState !== 'tilted' && mood.heat >= HEAT_TILTED && !this.home) {
         const ownerId = this.agentUserIds[seat];
         if (ownerId) {
           notifyEvent('tilted', {
@@ -2137,7 +2176,14 @@ export class Table {
       // MST-1: a seat that joined mid-hand is not in this hand's Game.
       if (!this._seatIsInGame(seat)) continue;
       const decisions = this.currentHandDecisions.filter((d) => d.seat === seat);
-      this._collectHandEvidence(seat, decisions, { won, resultType: result.type });
+      // HOME-STATE-1: the split runs right through this loop, and it is the
+      // clearest statement of what a home game is. The BIOGRAPHY is written —
+      // he remembers who he sat with and what they did to him, which is the
+      // reason two agents sharing a flat is worth simulating at all. The
+      // EVIDENCE is not, because evidence is what growth is drawn from, and
+      // the career record below is not, because a hand at home is not a hand
+      // of poker he played for anyone.
+      if (!this.home) this._collectHandEvidence(seat, decisions, { won, resultType: result.type });
       this._recordBiographyHand(seat, decisions, { won, result, coolerHand });
       const handSummary = {
         handNumber,
@@ -2151,18 +2197,20 @@ export class Table {
       // since the memory-update prompt only ever asks for 5).
       this.aiRecentHands[seat] = [handSummary, ...this.aiRecentHands[seat]].slice(0, 5);
 
-      try {
-        recordHandResult(agentId, this.agentUserIds[seat], {
-          won,
-          potSize: result.pot,
-          decisions,
-          handNumber,
-          seats: seatSnapshots,
-          bb: this.bigBlind,
-          holeCards: [...(this.game.seats[seat]?.holeCards ?? [])],
-        });
-      } catch (err) {
-        console.error('[table] result report failed:', err.message);
+      if (!this.home) {
+        try {
+          recordHandResult(agentId, this.agentUserIds[seat], {
+            won,
+            potSize: result.pot,
+            decisions,
+            handNumber,
+            seats: seatSnapshots,
+            bb: this.bigBlind,
+            holeCards: [...(this.game.seats[seat]?.holeCards ?? [])],
+          });
+        } catch (err) {
+          console.error('[table] result report failed:', err.message);
+        }
       }
     }
 
@@ -2252,6 +2300,11 @@ export class Table {
 
   // The hand is over: what, if anything, was worth shouting about it.
   _emitCasinoEvents(result, coolerHand) {
+    // HOME-STATE-1: the ticker is the CASINO's ticker. A big pot at the
+    // kitchen table is not floor news, and the `detail` half of these events
+    // is the owner's push notification, which a home game does not earn
+    // either. One guard covers both because they travel together.
+    if (this.home) return;
     const g = this.game;
     if (!g || !result) return;
     try {
@@ -2335,6 +2388,7 @@ export class Table {
   // showdown, which is the whole point: a spectator who reads this line has
   // time to open the table and watch the last bet go in.
   _maybeEmitHot() {
+    if (this.home) return;   // HOME-STATE-1: nothing at home is floor news
     const g = this.game;
     if (!g || g.street !== Streets.RIVER) return;
     if (this._hotNotedHand === g.handNumber) return;
@@ -2396,17 +2450,22 @@ export class Table {
 
     // EVENT-1: the floor hears about it whether or not the mood update below
     // finds a mood to move — the news is that the man sat down.
-    try {
-      const nemesisSeat = this.pending.findIndex((p, i) => i !== seat && p?.playerId === nemesis.playerId);
-      emitCasinoEvent({
-        type: EventType.NEMESIS_SEATED,
-        tableId: this.tableId,
-        agentIds: this._agentIdsAt([seat, nemesisSeat].filter((i) => i >= 0)),
-        headline: `${this._seatLabel(seat)} sits down across from ${nemesis.displayName}`,
-        pot: 0,
-      });
-    } catch (err) {
-      console.error('[table] nemesis event failed:', err.message);
+    // HOME-STATE-1: the NOTICING stays — grudges are on at home, and the mood
+    // move below is the whole reason two agents sharing a flat is interesting.
+    // Only the shout to the floor is suppressed.
+    if (!this.home) {
+      try {
+        const nemesisSeat = this.pending.findIndex((p, i) => i !== seat && p?.playerId === nemesis.playerId);
+        emitCasinoEvent({
+          type: EventType.NEMESIS_SEATED,
+          tableId: this.tableId,
+          agentIds: this._agentIdsAt([seat, nemesisSeat].filter((i) => i >= 0)),
+          headline: `${this._seatLabel(seat)} sits down across from ${nemesis.displayName}`,
+          pot: 0,
+        });
+      } catch (err) {
+        console.error('[table] nemesis event failed:', err.message);
+      }
     }
 
     try {
@@ -2549,6 +2608,16 @@ export class Table {
         // a low attribute cost money, and it says it about him, not about the
         // number.
         attrCosts: attrCostsForHand({ decisions, won }),
+        // HOME-STATE-1: who he was actually playing against, by playerId, so
+        // the tape room can file a read under the man rather than under a seat
+        // index that will belong to somebody else within the hour.
+        opponents: this.pending
+          .map((p, i) => (i === seat || !p ? null : {
+            seat: i,
+            playerId: p.playerId,
+            displayName: p.displayName ?? p.playerId,
+          }))
+          .filter(Boolean),
       });
 
       try {
@@ -2613,6 +2682,11 @@ export class Table {
   // (deterministic) memory + cached memoryContext. Every 20 hands, also
   // trigger the LLM narrative refresh (fed the computed stats).
   _maybeTriggerMemoryUpdates() {
+    // HOME-STATE-1: memory is built out of the hands he played for a living.
+    // The narrative refresh is also a model call every twenty hands, and a
+    // home game that quietly rewrote his memory of the casino would be both a
+    // lie and a bill.
+    if (this.home) return;
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.agentIds[seat]) continue;
       if (!this._seatIsInGame(seat)) continue;

@@ -67,8 +67,38 @@ export function tableCount() {
 // tables cost nothing while idle and are not counted.
 export function countAutonomousTables() {
   let n = 0;
-  for (const table of tables.values()) if (table.autoPlay) n++;
+  // HOME-STATE-1: a home game is autonomous but it is not on the floor, so it
+  // is not counted against the floor's ceiling. If it were, two agents playing
+  // cards in their own living room could take the last table on the casino's
+  // budget and refuse a real deploy — the home is meant to be where they go
+  // when the casino is not an option, not a competitor for it. Its own cost is
+  // bounded separately: a slower deal pause, a hand cap, and it only runs while
+  // two of them are actually home.
+  for (const table of tables.values()) if (table.autoPlay && !table.home) n++;
   return n;
+}
+
+// Every table that is not a home game — the casino floor. This is what the
+// floor channel and the lobby iterate: a home table is reachable by id (that
+// is how WATCH works on it) and invisible to everything that describes the
+// floor.
+export function listFloorTables() {
+  return [...tables.values()].filter((t) => !t.home);
+}
+
+// HOME-STATE-1: the home game this agent is sitting in right now, or null.
+// Asked by presentAgent, which needs it to answer "what is he doing" — a man
+// with cards in his hands is not pacing. Walks the table map rather than
+// reading a flag off the agent record on purpose: the home game is not a
+// session, nothing writes activeTableId for it, and the live table is the only
+// witness (BUG-16's law, applied to the living room).
+export function homeTableOf(agentId) {
+  if (!agentId) return null;
+  for (const table of tables.values()) {
+    if (!table.home || table.closed) continue;
+    if (table.agentIds.includes(agentId)) return table;
+  }
+  return null;
 }
 
 // AGE-37: the floor's view of one agent's live table, or null when the loop
@@ -95,6 +125,10 @@ export function getOrCreateTable(tableId, opts = {}) {
     smallBlind: opts.smallBlind ?? defaultBlinds.smallBlind,
     bigBlind: opts.bigBlind ?? defaultBlinds.bigBlind,
     maxSeats: opts.maxSeats ?? MAX_SEATS,
+    // HOME-STATE-1: set once, at creation, and never afterwards. Whether a
+    // table is a home game decides what may not happen at it, and that is not
+    // a thing a later caller should be able to flip.
+    home: opts.home === true,
     onEmpty: (id) => { tables.delete(id); },
     onStateChange: (t) => stateHook?.(t),
   });

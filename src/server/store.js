@@ -166,6 +166,13 @@ function applySchema(d) {
   // per period ("one broke alert a day", "one milestone ever"), which the
   // (owner, type, ts) triple cannot express. One nullable column carries the
   // caller's own cap key instead of six bespoke state fields.
+  // HOME-STATE-1: a thread line now knows where it was said. Everything that
+  // predates the home is 'table', which is what the DEFAULT encodes — a
+  // migration that has to touch no rows. The one other value today is 'home':
+  // the nightly exchange between two agents who spent the evening in, which is
+  // a real conversation with no table under it.
+  addColumnIfMissing(d, 'session_thread', 'source', "TEXT NOT NULL DEFAULT 'table'");
+
   addColumnIfMissing(d, 'notifications', 'dedupe_key', 'TEXT');
   d.exec('CREATE INDEX IF NOT EXISTS notifications_key ON notifications (owner_id, dedupe_key)');
 
@@ -669,17 +676,17 @@ export const THREAD_CAP_PER_SESSION = 500;
  * Returns the row id, which is monotonic per database and therefore also the
  * order the sheet renders in.
  */
-export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text }) {
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table' }) {
   const d = conn();
   const sid = String(sessionId);
   let id = null;
   d.transaction(() => {
     const info = d.prepare(`
-      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sid, String(agentId), String(ownerId), tableId ?? null,
            Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
-           String(kind), String(who), String(text));
+           String(kind), String(who), String(text), String(source ?? 'table'));
     id = info.lastInsertRowid;
     d.prepare(`
       DELETE FROM session_thread
@@ -696,7 +703,7 @@ export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, 
  */
 export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
   return conn().prepare(`
-    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source
       FROM session_thread
      WHERE session_id = ?
      ORDER BY id ASC
@@ -727,6 +734,7 @@ function threadRow(r) {
     kind: r.kind,
     who: r.who,
     text: r.text,
+    source: r.source ?? 'table',
   };
 }
 

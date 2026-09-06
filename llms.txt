@@ -161,6 +161,32 @@ Receive (server → client):
                 Like the ticker it is NOT filtered by owner — it is counts and
                 table ids, nothing private. A client that ignores this message
                 sees exactly what it saw before it existed.
+  HOME_STATE  — { userId, agents: [...], game } — the owner's living room.
+                Owner-filtered like FLOOR_STATE: it rides the first subscribe
+                and is pushed whenever an agent's standing, location or routine
+                changes, or the home game is stood up or broken up.
+                Each agent is
+                  { id, name, nature, mood,
+                    location: { where, tableId, room, since },
+                    routine: { key, label } | null,
+                    fatigue, unseenRecap, study }
+                `where` is home | casino | table. `room` is the stakes-tier
+                room id (floor | upstairs | backroom) while he is out, null at
+                home. `since` is server epoch ms — when he arrived where he is,
+                and it does not move while the answer does not change, so a
+                client can print "home, 40 minutes" without a clock of its own.
+                `routine` is what he is doing AT HOME and is null anywhere else;
+                `key` is one of plays | tape | sulks | sleeps | waits | paces |
+                reads | shuffles | counts.
+                `game` is the home game or null:
+                  { tableId, state, seats: [{ seat, agentId, name, house }],
+                    handsPlayed }
+                `state` is running | paused. `tableId` is an ordinary table id
+                — WATCH it exactly as you watch any other table. It is at no
+                stakes, on no rung of the ladder and in no room, so it never
+                appears in FLOOR_ROOMS and never carries a FLOOR_GAME.
+                A client that ignores this message sees exactly what it saw
+                before it existed.
   SESSION_END — { sessionId, agentId, tableId, reason, hands, net, biggestPot,
                 duration, endedAt } — one agent's STAY at a table is over. A
                 session is not a hand and not a table: he sits down, he plays,

@@ -162,6 +162,27 @@ export const ServerMsg = Object.freeze({
   // exactly what it saw before it existed.
   SESSION_END: 'session_end', // { type, sessionId, agentId, tableId, reason,
                               //   hands, net, biggestPot, duration, endedAt }
+  // HOME-STATE-1 (additive): where this owner's agents are and what they are
+  // doing, pushed to his floor subscribers whenever it changes. OWNER-SCOPED,
+  // like FLOOR_STATE and unlike the ticker: it is a description of one man's
+  // living room.
+  //
+  //   agents  one entry per active agent —
+  //     { id, name, nature, mood, location: { where, tableId, room, since },
+  //       routine: { key, label }, fatigue, unseenRecap,
+  //       study: { handNumber, startedAt, endsAt } | null }
+  //     `where` is home | casino | table. `room` is the stakes-tier room id
+  //     (floor | upstairs | backroom) when he is out, null when he is home.
+  //     `since` is server epoch ms — when he arrived where he is.
+  //   game    the home game, or null —
+  //     { tableId, state, seats: [{ agentId, name }], handsPlayed }
+  //     `state` is running | paused. `tableId` is a normal table id: WATCH it
+  //     the way you watch any other. It is at no stakes, in no room, and on
+  //     no ladder, so it never appears in FLOOR_ROOMS.
+  //
+  // A client that ignores this message sees exactly what it saw before it
+  // existed.
+  HOME_STATE: 'home_state',   // { type, userId, agents, game }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });

@@ -44,6 +44,11 @@ import {
 import { ITEMS, isItem, priceOf, wantTrigger, buildWant } from '../agent/wants.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
+import {
+  Where, locationFor, routineFor, stampLocation, homeStateMessage,
+} from './home.js';
+import { roomForBigBlind } from './rooms.js';
+import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import { emitSessionEnd } from './sessions.js';
 import { readThread, latestSessionFor } from './thread.js';
@@ -376,6 +381,36 @@ function ensureMemory(agent) {
 // Lazily backfill bankroll for agents created before this feature. Existing
 // agents receive STARTING_GRANT + their recorded lifetime netWon so they are
 // not arbitrarily reset to 10 000 if they have played many sessions. Idempotent.
+// ── HOME-STATE-1 · the three fields the home adds to a record ───────────────
+//
+// Everything else about where he is and what he is doing is DERIVED on every
+// read (see presentAgent). These three cannot be:
+//
+//   location   only `since` is remembered — see home.js. The rest is
+//              overwritten by the derived answer on every call.
+//   study      the tape room he is in right now, if any. It has an end time on
+//              it rather than a boolean, so a process restart that loses the
+//              ninety-second timer does not leave him studying forever.
+//   readBook   what he has written down about people, per opponent playerId.
+//
+// Repairs partial records the same way ensureMood/ensureBio do: an agent born
+// before the home existed gains an empty one on his next read.
+function ensureHome(agent) {
+  if (!agent.location || typeof agent.location !== 'object') {
+    agent.location = { where: Where.HOME, tableId: null, room: null, since: Date.now() };
+  }
+  if (agent.study !== undefined && agent.study !== null && typeof agent.study !== 'object') {
+    agent.study = null;
+  }
+  if (agent.study === undefined) agent.study = null;
+  // A study whose ninety seconds ran out while the process was down is over.
+  // The tape room's own timer is the fast path; this is the one that survives
+  // a restart, and it is why `study` stores an end time and not a flag.
+  if (agent.study && !(Number(agent.study.endsAt) > Date.now())) agent.study = null;
+  if (!agent.readBook || typeof agent.readBook !== 'object') agent.readBook = {};
+  return agent;
+}
+
 function ensureBankroll(agent) {
   if (typeof agent.bankroll === 'number') return;
   const net = typeof agent.stats?.netWon === 'number' ? agent.stats.netWon : 0;
@@ -1344,6 +1379,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
   const sessionLog = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
   ensureBankroll(agent);
   ensurePocket(agent);
+  ensureHome(agent);
   // ATTR-1d: fatigue is a within-session STATE, so it only exists while he is
   // actually at a table — an agent at rest is fresh by definition, and the bar
   // is what restores him. heroSessionHands is this seat's own count, not the
@@ -1388,6 +1424,36 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;
+  // ── HOME-STATE-1: where he is, and what he is doing there ────────────────
+  //
+  // Derived here rather than stored anywhere, off the same two facts the rest
+  // of this function has already established — `presence` (which the live
+  // table, not a stored flag, decided) and `activeTableId`. The one thing that
+  // is kept is `since`, which stampLocation carries forward whenever the
+  // answer has not actually changed.
+  //
+  // The home game is deliberately NOT a location. A man at his own kitchen
+  // table is at home; it is what he is DOING that changes, which is why it
+  // lands on the routine and not on `where`.
+  const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
+  const tableBigBlind = agent.activeTableId
+    ? (liveTables?.getTable?.(agent.activeTableId)?.bigBlind ?? null)
+    : null;
+  const location = stampLocation(agent, locationFor({
+    presence,
+    tableId: agent.activeTableId ?? null,
+    room: tableBigBlind === null ? null : roomForBigBlind(tableBigBlind),
+  }));
+  const routine = routineFor({
+    nature: agent.nature,
+    where: location.where,
+    atHomeTable: !!homeTable,
+    studying: !!agent.study,
+    broke: presence === 'broke',
+    fatigue,
+    unseenRecap: !!agent.unseenRecap,
+  });
+
   const careerStats = {
     hands: agent.stats?.handsPlayed ?? 0,
     sessions: sessionLog.length,
@@ -1425,6 +1491,14 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     proposal: agent.proposal ?? null,
     presence,
     liveGame,
+    // HOME-STATE-1: `location` is where he is (home | casino | table) with the
+    // table and room he is at and when he got there; `routine` is what he is
+    // doing at home, and is null anywhere else. `study` is the tape room he is
+    // in right now, expired ones already cleared by ensureHome.
+    location,
+    routine,
+    study: agent.study ?? null,
+    homeTableId: homeTable?.tableId ?? null,
     fatigue,
     sessionHands,
     effectiveAttrs: effective,
@@ -1456,8 +1530,123 @@ export function floorSnapshot(userId, { owner = false } = {}) {
       proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
       activeTableId: p.activeTableId ?? null,
       liveGame: p.liveGame,
+      // HOME-STATE-1: the roster card draws where he is, so it rides the
+      // projection the floor already pushes rather than costing a second call.
+      location: p.location,
+      routine: p.routine,
     };
   });
+}
+
+// ── HOME-STATE-1 · the HOME_STATE snapshot ──────────────────────────────────
+//
+// The owner's living room: every active agent with his location, his routine
+// and his tape-room state, plus the home game if one is running. Owner-scoped
+// exactly like floorSnapshot and for the same reason — this is a description
+// of one man's household, and nobody else's business.
+//
+// `game` is injected rather than looked up, so this module still knows nothing
+// about tables; floorChannel hands in whatever homeGame.js reports.
+export function homeSnapshot(userId, { owner = false, game = null } = {}) {
+  return homeStateMessage(userId, presentedRoster(userId, { owner }), game);
+}
+
+/**
+ * Every active agent this owner has, fully presented — location, routine,
+ * strategy, profile, the lot.
+ *
+ * This is what homeGame.js is injected with. It needs the strategy and the
+ * policy profile to seat somebody, and the location to know whether he is home
+ * to be seated, and presentAgent is the one function that answers all of that
+ * consistently. Returning the full projection rather than a bespoke shape is
+ * what keeps the home game and the HOME screen looking at the same agent.
+ */
+export function presentedRoster(userId, { owner = false } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const walletBalance = walletFor(userId).balance;
+  return activeAgents(profile).map((agent) => presentAgent(agent, { owner, walletBalance }));
+}
+
+/**
+ * The home-facing half of one agent, or null when there is no such agent.
+ *
+ * The tape room's routes need three facts before they will send anybody to
+ * watch a tape — does he exist, is he out, is he already in there — and
+ * `getAgentProfile` answers none of them (it returns the numeric policy
+ * profile, not the record). One narrow accessor rather than exporting the
+ * record itself, in the style of getAgentMood and getAgentPocket.
+ */
+export function getAgentHome(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const p = presentAgent(agent, { owner: true, walletBalance: walletFor(userId).balance });
+  return {
+    id: p.id,
+    name: p.name,
+    location: p.location,
+    routine: p.routine,
+    study: p.study,
+    homeTableId: p.homeTableId,
+  };
+}
+
+// ── HOME-STATE-1 · the tape room's two pieces of state ──────────────────────
+//
+// Narrow accessors, in the style of setAgentMood / noteAgentFatigue: the tape
+// room owns the ninety seconds and the vocabulary, and this file owns the
+// record and the save. Neither imports the other.
+
+/**
+ * Put him in the tape room, or take him out of it (`study: null`).
+ * Returns the study that is now on the record, or null.
+ */
+export function setAgentStudy(agentId, userId, study) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureHome(agent);
+  agent.study = study ?? null;
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return agent.study;
+}
+
+/** What he is studying, with an expired session already cleared. */
+export function getAgentStudy(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureHome(agent);
+  return agent.study;
+}
+
+/**
+ * Write one line into his read book. The line itself is composed by reads.js —
+ * this only files it and saves.
+ *
+ * ATTR-3's law holds at the door: NOTHING here touches an attribute, a band or
+ * the strategy. A read book is what he thinks about a man, and thinking about
+ * a man is free.
+ */
+export function appendAgentRead(agentId, userId, entry) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureHome(agent);
+  agent.readBook = appendReadBookLine(agent.readBook, entry);
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return agent.readBook;
+}
+
+/** His read book, as the tape room serves it: one entry per opponent. */
+export function getAgentReadBook(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  ensureHome(agent);
+  return readBookProjection(agent.readBook);
 }
 
 // MOOD-2b: what the owner just said, applied to his heat. This replaces the

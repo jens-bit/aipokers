@@ -13,6 +13,7 @@ import { attachNotify } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
 import { installRoomRoutes } from './server/rooms.js';
+import { installTapeRoomRoutes } from './server/tapeRoom.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -62,6 +63,12 @@ const { wss, tables } = createServer({
 // createServer() because that is where the table registry is wired into
 // rooms.js. Public counts only, no model call, inside the /api rate limiter.
 installRoomRoutes(app);
+
+// HOME-STATE-1: POST/GET /api/agents/:id/study — the tape room and the read
+// book it fills. Owner-gated, no model call, inside the /api rate limiter
+// above. Registered here rather than with the other agent routes because the
+// home game it takes him out of is only wired once createServer() has run.
+installTapeRoomRoutes(app);
 
 // Load the OpenAPI spec once at startup so it can be served cheaply.
 const openApiPath = path.join(__dirname, '..', 'openapi.json');

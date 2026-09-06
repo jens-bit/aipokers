@@ -366,7 +366,12 @@ console.log(`\n[verify] 8) a wedged table is reaped (SESSION_STALL_MS=${process.
 {
   const stallId = await newAgent(floorUserId);
   // Section 7 filled the floor to the cap — free a slot first.
-  registry.listTables()[0]?.closeTable('making room for the stall test', { recap: 'test' });
+  // HOME-STATE-1: listFloorTables(), not listTables(). A home game is
+  // autonomous but is not counted against MAX_CONCURRENT_TABLES, so closing
+  // one frees nothing — and it sorts first in the registry, which is how this
+  // setup step silently stopped freeing a slot at all. The assertion below is
+  // unchanged; only the "free a slot on the floor" step now says the floor.
+  registry.listFloorTables()[0]?.closeTable('making room for the stall test', { recap: 'test' });
   await sleep(50);
 
   const r = await j('POST', `/api/agents/${stallId}/deploy`, { userId: floorUserId });

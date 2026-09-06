@@ -1,10 +1,15 @@
 import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
-import { getAgentProfile, setLiveTableProvider, setAgentChangeListener, reconcileActiveSessions } from './agentProfiles.js';
+import {
+  getAgentProfile, setLiveTableProvider, setAgentChangeListener,
+  reconcileActiveSessions, presentedRoster,
+} from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
+import * as homeGame from './homeGame.js';
+import * as homeNight from './homeNight.js';
 
 const { getOrCreateTable } = registry;
 
@@ -25,12 +30,39 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   setLiveTableProvider(registry);
   // AGE-38: the floor channel listens to both sides — table state changes for
   // FLOOR_GAME deltas, agent standing changes for FLOOR_STATE refreshes.
-  floor.configure({ liveTables: registry });
+  floor.configure({ liveTables: registry, homeGames: homeGame });
   // ROOMS-1: the floor-by-stakes view reads the same registry, through the same
   // kind of injected provider, so neither it nor floorChannel imports table.js.
   rooms.configure({ liveTables: registry });
+  // HOME-STATE-1: the home game reads the registry (to stand a table up) and
+  // the roster (to know who is in). Both injected, so homeGame imports neither
+  // table.js nor agentProfiles.js and the graph stays acyclic.
+  homeGame.configure({
+    liveTables: registry,
+    agentsFor: (userId) => presentedRoster(userId, { owner: true }),
+    onChange: (userId) => floor.notifyHomeChanged(userId),
+  });
   registry.setStateHook((table) => floor.notifyTable(table));
-  setAgentChangeListener((userId) => floor.notifyAgentsChanged(userId));
+  // HOME-STATE-1: an agent's standing changing is the trigger for all three —
+  // the home game reconciles first (so the snapshot the floor is about to send
+  // already reflects it), then the floor and the living room are pushed. The
+  // nightly observation rides the same tick, because "who was in together" is
+  // exactly the question a standing change answers.
+  setAgentChangeListener((userId) => {
+    try {
+      homeGame.sync(userId);
+      const roster = presentedRoster(userId, { owner: true });
+      homeNight.noteHousehold(userId, roster);
+      // Fire-and-forget: the exchange is a nightly nicety and must never be on
+      // the path of anything that made an agent's standing change. It is
+      // capped to one model call per owner per day inside.
+      homeNight.maybeRunNightly(userId, roster)
+        .catch((err) => console.error('[home-night] failed:', err.message));
+    } catch (err) {
+      console.error('[home] sync failed:', err.message);
+    }
+    floor.notifyAgentsChanged(userId);
+  });
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);
@@ -187,6 +219,19 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
                 'x-api-secret': msg.apiSecret,
               },
             }, userId);
+            // HOME-STATE-1: opening the app is the other honest moment to
+            // bring the living room up to date. Home games are started by
+            // agent changes, so after a restart an owner whose agents were
+            // already in would see no game until one of them did something.
+            // Syncing HERE and not at boot is what keeps the cost bounded to
+            // people who are actually looking: a fan-out over every owner in
+            // the database would stand up a table for each of them.
+            try {
+              homeGame.sync(userId);
+              homeNight.noteHousehold(userId, presentedRoster(userId, { owner: true }));
+            } catch (err) {
+              console.error('[home] sub sync failed:', err.message);
+            }
             floor.subscribe(ws, { userId, owner });
             ws.floorUserId = userId;
             return;

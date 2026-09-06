@@ -55,6 +55,21 @@ export const ROOMS = Object.freeze(STAKES.map((s, i) => Object.freeze({
   }),
 })));
 
+const ROOM_BY_BIG_BLIND = new Map(ROOMS.map((room) => [room.stakes.bigBlind, room]));
+
+/**
+ * The room a table at these blinds is in, by id, or null when it is in none.
+ *
+ * HOME-STATE-1 asks this to say where an agent is standing. Null is a real
+ * answer and not a failure: a bespoke heads-up game somebody stood up over the
+ * socket is at no rung, and neither is a home game — see the note in
+ * roomsSnapshot, which excludes exactly the same tables for exactly the same
+ * reason.
+ */
+export function roomForBigBlind(bigBlind) {
+  return ROOM_BY_BIG_BLIND.get(Number(bigBlind))?.id ?? null;
+}
+
 // ── The snapshot ────────────────────────────────────────────────────────────
 
 /**

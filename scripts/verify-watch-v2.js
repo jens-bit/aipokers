@@ -88,17 +88,23 @@ const j = async (method, path, body) => {
 };
 
 const userId = 'e2e-watch-v2-user';
+// AGENTS-2 caps an owner at four ACTIVE agents. Sections 1 and 3 build two
+// each, so section 6's hero was the fifth and had been failing to build ever
+// since the cap landed — `agentCap`, then a null agent, then a null deref.
+// One shared owner was only ever one fewer thing to type; the sections do not
+// interact, so the hero gets his own. Nothing asserted here changes.
+const heroUserId = 'e2e-watch-v2-hero';
 
-const newAgent = async (label) => {
-  await j('POST', '/api/agents/chat/reset', { userId });
-  const r = await j('POST', '/api/agents/build', { userId });
+const newAgent = async (label, owner = userId) => {
+  await j('POST', '/api/agents/chat/reset', { userId: owner });
+  const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;
   if (!id) console.error(`  (agent build failed for ${label}: ${JSON.stringify(r.body)})`);
   return id;
 };
 
-const getAgent = async (agentId) => {
-  const r = await j('GET', `/api/agents?userId=${userId}`);
+const getAgent = async (agentId, owner = userId) => {
+  const r = await j('GET', `/api/agents?userId=${owner}`);
   return (r.body?.agents ?? []).find((a) => a.id === agentId) ?? null;
 };
 
@@ -376,11 +382,11 @@ console.log('\n[verify] 5) SEAT-1a — seat.mood on the wire');
 // from, and the thread that survives the socket.
 console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and the thread');
 {
-  const agentId = await newAgent('server3 hero');
-  const agent = await getAgent(agentId);
+  const agentId = await newAgent('server3 hero', heroUserId);
+  const agent = await getAgent(agentId, heroUserId);
   check('an agent to watch', !!agent);
 
-  const deployed = await j('POST', `/api/agents/${agentId}/deploy`, { userId });
+  const deployed = await j('POST', `/api/agents/${agentId}/deploy`, { userId: heroUserId });
   check('deployed', deployed.status === 200, JSON.stringify(deployed.body));
   const tableId = deployed.body.tableId;
   const table = registry.getTable(tableId);
@@ -393,7 +399,7 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
     sock.on('message', (raw) => { try { seen.push(JSON.parse(raw.toString())); } catch { /* ignore */ } });
     sock.on('open', () => {
       sock.send(JSON.stringify({
-        type: ClientMsg.WATCH, tableId, agentId, userId, displayName: agent.name,
+        type: ClientMsg.WATCH, tableId, agentId, userId: heroUserId, displayName: agent.name,
       }));
       resolve(sock);
     });
@@ -457,7 +463,7 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
         JSON.stringify(results.map((r) => r.events)));
 
   // -- the thread, over the REST seam a reconnect would use --
-  const thread = await j('GET', `/api/agents/${agentId}/thread?userId=${userId}&session=${sessionId}`);
+  const thread = await j('GET', `/api/agents/${agentId}/thread?userId=${heroUserId}&session=${sessionId}`);
   check('the thread reads back for that session', thread.status === 200 && thread.body.sessionId === sessionId,
         JSON.stringify(thread.body).slice(0, 200));
   check('and it has the room in it', (thread.body.lines ?? []).some((l) => l.kind === 'table'),
@@ -465,7 +471,7 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
   check('every line carries a server timestamp to order it by',
         (thread.body.lines ?? []).every((l) => Number.isFinite(l.ts)));
   check('a reconnect that names no session gets the same one',
-        (await j('GET', `/api/agents/${agentId}/thread?userId=${userId}`)).body.sessionId === sessionId);
+        (await j('GET', `/api/agents/${agentId}/thread?userId=${heroUserId}`)).body.sessionId === sessionId);
 
   // -- SESSION_END: the owner calls him in --
   ws.send(JSON.stringify({ type: ClientMsg.SIT_OUT }));

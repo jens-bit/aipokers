@@ -98,6 +98,11 @@ export function actionPotential(profiles) {
 // Why a table cannot host this agent, or null when it can.
 export function joinBlocker(table, { agentId } = {}) {
   if (!table || table.closed) return 'closed';
+  // HOME-STATE-1: a home game is somebody's living room. It is AI-only and
+  // self-dealing, which is every other test a candidate has to pass, so it has
+  // to be refused by name — a deploying agent must never be matched into a
+  // table that pays nothing and is not on the floor.
+  if (table.home) return 'home game';
   if (!table.hasFreeSeat?.()) return 'full';
   if (table.hasHumanPlayer?.()) return 'has a human seat';
   if (!(table.autoPlay || table.isAiOnly?.())) return 'not server-driven';
