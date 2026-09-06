@@ -245,6 +245,7 @@ export function defaultShareBot(token = process.env.TELEGRAM_BOT_TOKEN || '') {
       },
       async answerInlineQuery() { return false; },
       async getUpdates() { return []; },
+      async sendMessage() { return false; },
     };
   }
 
@@ -293,6 +294,19 @@ export function defaultShareBot(token = process.env.TELEGRAM_BOT_TOKEN || '') {
       // outlast it or every poll dies on its own deadline.
       const seconds = Number(params.timeout ?? 25);
       return call('getUpdates', params, { timeoutMs: (seconds + 10) * 1000 });
+    },
+    // GUEST-1: the poller can now answer as well as listen (a /start that
+    // claims a guest replies with a way back into the app). Same shape as
+    // notify.js's sender, because there is one Bot API and it should look the
+    // same wherever it is called.
+    async sendMessage(chatId, text, opts = {}) {
+      try {
+        await call('sendMessage', { chat_id: String(chatId), text, ...opts });
+        return true;
+      } catch (err) {
+        console.error('[share] sendMessage failed:', err.message);
+        return false;
+      }
     },
   };
 }
@@ -459,11 +473,25 @@ export function startInlinePolling({
   bot = defaultShareBot(),
   token = process.env.TELEGRAM_BOT_TOKEN || '',
   enabled = process.env.SHARE_INLINE !== '0',
+  // GUEST-1: what to do with a plain message, or null to ask for none.
+  //
+  // This exists because ONLY ONE PROCESS MAY POLL getUpdates PER BOT TOKEN — a
+  // second one takes the updates from the first (see CLAUDE.md's hard rules). A
+  // /start handler with its own loop would therefore not be a second feature,
+  // it would be a race for the same updates in which the share cards
+  // intermittently stop working. So there is one loop, and anybody who needs
+  // an update kind asks this one for it.
+  //
+  // Injected rather than imported: share.js has no business knowing what a
+  // guest is, and this way `allowed_updates` still asks for exactly what
+  // somebody is listening for.
+  onMessage = null,
 } = {}) {
   if (!token || !enabled) return null;
 
   let stopped = false;
   let offset = 0;
+  const allowed = onMessage ? ['inline_query', 'message'] : ['inline_query'];
   const handle = { stop() { stopped = true; } };
 
   const wait = (ms) => new Promise((r) => { const t = setTimeout(r, ms); t.unref?.(); });
@@ -471,11 +499,22 @@ export function startInlinePolling({
   (async () => {
     while (!stopped) {
       try {
-        const updates = await bot.getUpdates({ offset, timeout: 25, allowed_updates: ['inline_query'] });
+        const updates = await bot.getUpdates({ offset, timeout: 25, allowed_updates: allowed });
         for (const update of updates ?? []) {
           offset = Math.max(offset, Number(update?.update_id ?? 0) + 1);
           if (update?.inline_query) {
             await handleInlineQuery(update.inline_query, { bot }).catch(() => {});
+          }
+          // A handler that throws must not stop the loop the share cards are
+          // riding on. Both shapes of failure are caught: a rejected promise,
+          // and a SYNCHRONOUS throw — which escapes Promise.resolve() entirely,
+          // because the call has already thrown by the time it is wrapped.
+          if (update?.message && onMessage) {
+            try {
+              await onMessage(update.message, { bot });
+            } catch (err) {
+              console.error('[share] message handler failed:', err.message);
+            }
           }
         }
       } catch (err) {
@@ -489,6 +528,6 @@ export function startInlinePolling({
     }
   })().catch((err) => console.error('[share] inline polling died:', err.message));
 
-  console.log('[share] answering inline queries');
+  console.log(`[share] polling for ${allowed.join(' + ')}`);
   return handle;
 }

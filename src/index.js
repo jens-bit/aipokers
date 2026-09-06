@@ -19,6 +19,7 @@ import { installTapeRoomRoutes } from './server/tapeRoom.js';
 import { installPlaceRoutes } from './server/place.js';
 import { installGuestRoutes, guestsEnabled } from './server/guest.js';
 import { installClaimRoute } from './server/guestClaim.js';
+import { handleStart } from './server/guestBot.js';
 // BUGS-B/6: /api/stats asks the registry for the floor's counts rather than
 // walking the table Map itself, so "how many agents are live" has exactly one
 // definition and it is not written out twice.
@@ -259,7 +260,12 @@ attachNotify();
 // SHARE-2: answer inline queries for the same cards. No-op without a bot
 // token, and SHARE_INLINE=0 turns it off on a deployment that would rather
 // drive the bot's updates some other way.
-startInlinePolling();
+//
+// GUEST-1 job 5: and `/start guest_<token>`, the other end of the claim wall's
+// deep link, rides the SAME loop. Only one process may poll getUpdates per bot
+// token, so a second poller would not be a second feature — it would be a race
+// for the same updates in which inline sharing intermittently stops working.
+startInlinePolling({ onMessage: (message, ctx) => handleStart(message, ctx) });
 
 // EVENTS-3: the public channel. Silent unless TICKER_ENABLED is set and
 // TICKER_CHANNEL_ID names a chat. `liveTables` is how a tableId becomes a room

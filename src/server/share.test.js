@@ -450,3 +450,89 @@ test('inline polling gives up on a 409 rather than looping on it', async () => {
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(polls, 1, 'a webhook on the same bot is a reason to stop, not to retry');
 });
+
+// ── 8. GUEST-1 · one loop, two kinds of update ───────────────────────────────
+//
+// Only one process may call getUpdates per bot token, so `/start` had to ride
+// this loop rather than open a second one. These pin the two halves of that:
+// the loop asks for what somebody is actually listening for, and both handlers
+// see their own updates from the same batch.
+
+test('GUEST-1: with no message handler the loop asks for inline queries alone', async () => {
+  const bot = fakeBot();
+  const asked = [];
+  let handle = null;
+  bot.getUpdates = async ({ allowed_updates }) => {
+    asked.push(allowed_updates);
+    handle?.stop();
+    return [];
+  };
+  handle = startInlinePolling({ bot, token: 'test-token' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(asked[0], ['inline_query']);
+});
+
+test('GUEST-1: a message handler makes the loop ask for messages too', async () => {
+  const bot = fakeBot();
+  const asked = [];
+  let handle = null;
+  bot.getUpdates = async ({ allowed_updates }) => {
+    asked.push(allowed_updates);
+    handle?.stop();
+    return [];
+  };
+  handle = startInlinePolling({ bot, token: 'test-token', onMessage: () => {} });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(asked[0], ['inline_query', 'message']);
+});
+
+test('GUEST-1: both handlers see their own updates out of one batch', async () => {
+  await withServer(async ({ prepare }) => { await prepare(body()); });
+
+  const bot = fakeBot();
+  const messages = [];
+  let polls = 0;
+  let handle = null;
+  bot.getUpdates = async () => {
+    polls++;
+    if (polls === 1) {
+      return [
+        { update_id: 1, inline_query: { id: 'q1', from: { id: OWNER }, query: 'hand 37' } },
+        { update_id: 2, message: { text: '/start guest_abc', chat: { id: 5 }, from: { id: 5 } } },
+      ];
+    }
+    handle?.stop();
+    return [];
+  };
+
+  handle = startInlinePolling({
+    bot, token: 'test-token',
+    onMessage: (m) => { messages.push(m.text); },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(bot.answered.length, 1, 'the share card still answered');
+  assert.deepEqual(messages, ['/start guest_abc']);
+});
+
+test('GUEST-1: a message handler that throws does not stop the share cards', async () => {
+  const bot = fakeBot();
+  let polls = 0;
+  let handle = null;
+  bot.getUpdates = async () => {
+    polls++;
+    if (polls <= 2) return [{ update_id: polls, message: { text: '/start boom', chat: { id: 5 } } }];
+    handle?.stop();
+    return [];
+  };
+
+  handle = startInlinePolling({
+    bot, token: 'test-token',
+    onMessage: () => { throw new Error('handler exploded'); },
+  });
+  await new Promise((r) => setTimeout(r, 30));
+
+  // It kept polling. A handler that can take this loop down is a handler that
+  // can take inline sharing down with it, for somebody who never tapped a link.
+  assert.ok(polls >= 3, `only polled ${polls} times`);
+});
