@@ -24,17 +24,29 @@
 //     subscribe frame, so the REST call is the pre-socket answer and the first
 //     push, not a poll.
 //
-// What the server does NOT send, and what this file therefore cannot know:
-// which room a given tableId is in. `hot` and `biggestPot` name table ids, but
-// there is no table -> room map on the wire. roomForBlinds() is the workaround
-// — an agent's liveGame carries `blinds` ("10/20"), and that string identifies
-// a rung exactly.
+// CASINO-2 ADDED THE OTHER HALF. ROOM_TABLES is one public felt per live
+// table — seats, board, pot, whose turn it is — and it rides this same
+// subscription, so this hook owns it too. It answers the question a room
+// payload structurally cannot: not how many tables are in there, but WHICH,
+// and what is happening at each of them. The rooms are still the doorways; the
+// felts are what is behind them.
+//
+// It also closes the gap the paragraph below used to describe. `rooms` on the
+// ROOM_TABLES frame is the table -> room map, stated by the server rather than
+// reverse-engineered from which table ids a room happened to name, so
+// roomForTable() now answers for every live table instead of for the two kinds
+// ROOMS-1 mentions. roomForBlinds() stays, because an agent's liveGame carries
+// `blinds` and that is still the join for an agent whose table is not yet on a
+// felt frame.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg } from '../lib/protocol.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 
 export const ROOMS_URL = '/api/rooms';
+
+/** The felts in one room, over REST. The socket is the primary path. */
+export const roomTablesUrl = (roomId) => `/api/rooms/${encodeURIComponent(roomId)}/tables`;
 
 // Same ladder as useTable and useCasinoEvents. Like the ticker, the lobby
 // never gives up: nobody is watching a hand here, so there is no user to
@@ -97,16 +109,76 @@ export function roomForBlinds(rooms, blinds) {
 }
 
 /**
- * The room a tableId is in, as far as the payload can say. Only hot tables and
- * the room's biggest pot are named on the wire, so this answers for those and
- * null for every other table — see the note at the top of the file.
+ * The room a tableId is in.
+ *
+ * CASINO-2 made this a lookup instead of a search. `map` is the server's own
+ * table -> room map off the ROOM_TABLES frame and answers for every live table;
+ * the `hot` / `biggestPot` scan behind it is what ROOMS-1 alone could say, and
+ * is still the answer before the first felt frame arrives or when the socket
+ * is down. Both read the same room list, so they cannot disagree — one just
+ * knows about more tables than the other.
  */
-export function roomForTable(rooms, tableId) {
+export function roomForTable(rooms, tableId, map = null) {
   if (!tableId) return null;
   const id = String(tableId);
+  const stated = map?.[id];
+  if (stated) return (rooms ?? []).find((r) => r.id === stated) ?? null;
   return (rooms ?? []).find(
     (r) => r.hot.includes(id) || r.biggestPot?.tableId === id,
   ) ?? null;
+}
+
+/**
+ * Normalise the felts off ROOM_TABLES. Same law as normalizeRooms: a frame
+ * that cannot be read is an empty floor, never a throw.
+ *
+ * Nothing is invented here. A felt with no seat list keeps an empty one, and
+ * the miniature draws an empty table — which is a true thing about a table
+ * between hands and is what the room actually looks like.
+ */
+export function normalizeFelts(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((t) => t && t.tableId != null)
+    .map((t) => ({
+      tableId: String(t.tableId),
+      room: t.room == null ? null : String(t.room),
+      blinds: typeof t.blinds === 'string' ? t.blinds : '',
+      smallBlind: num(t.smallBlind),
+      bigBlind: num(t.bigBlind),
+      street: typeof t.street === 'string' ? t.street : 'waiting',
+      board: Array.isArray(t.board) ? t.board.filter((c) => typeof c === 'string') : [],
+      pot: Math.max(0, num(t.pot)),
+      toAct: Number.isInteger(t.toAct) ? t.toAct : null,
+      handNumber: Math.max(0, num(t.handNumber)),
+      hot: !!t.hot,
+      seated: Math.max(0, num(t.seated)),
+      maxSeats: Math.max(0, num(t.maxSeats, 6)),
+      seats: Array.isArray(t.seats) ? t.seats.map((s, i) => ({
+        seat: Number.isInteger(s?.seat) ? s.seat : i,
+        name: typeof s?.name === 'string' ? s.name : '',
+        agentId: s?.agentId == null ? null : String(s.agentId),
+        stack: Math.max(0, num(s?.stack)),
+        accentColor: typeof s?.accentColor === 'string' ? s.accentColor : null,
+        mood: s?.mood ?? null,
+        fatigue: s?.fatigue ?? null,
+        drinking: !!s?.drinking,
+        inHand: !!s?.inHand,
+      })) : [],
+    }));
+}
+
+/** The felts in one room, in the order the server ranked them. */
+export function feltsIn(felts, roomId) {
+  if (!roomId) return [];
+  return (felts ?? []).filter((f) => f.room === String(roomId));
+}
+
+/** The felt one of your agents is sitting at, or null. */
+export function feltForAgent(felts, agent) {
+  const id = agent?.liveGame?.tableId ?? agent?.activeTableId ?? null;
+  if (id == null) return null;
+  return (felts ?? []).find((f) => f.tableId === String(id)) ?? null;
 }
 
 /**
@@ -114,12 +186,12 @@ export function roomForTable(rooms, tableId) {
  * An agent who is not at a live table is in no room, which is the honest
  * answer: he is not in the building, he is on the Home floor.
  */
-export function agentsByRoom(rooms, agents) {
+export function agentsByRoom(rooms, agents, map = null) {
   const byRoom = {};
   for (const room of rooms ?? []) byRoom[room.id] = [];
   for (const agent of agents ?? []) {
     const room = roomForBlinds(rooms, agent?.liveGame?.blinds)
-      ?? roomForTable(rooms, agent?.activeTableId);
+      ?? roomForTable(rooms, agent?.activeTableId, map);
     if (room) byRoom[room.id].push(agent);
   }
   return byRoom;
@@ -147,7 +219,10 @@ export function totalSeated(rooms) {
  *                           for the FLOOR_GAME half of the same subscription.
  * @param {boolean} enabled  false tears the socket down.
  *
- * @returns {{ rooms, status, refresh }}
+ * @returns {{ rooms, felts, roomOf, status, refresh }}
+ *   rooms   the doorways, in ladder order
+ *   felts   one public snapshot per live table, ranked by the server
+ *   roomOf  { [tableId]: roomId }, the map stated rather than inferred
  */
 export function useCasinoRooms({
   wsUrl = null,
@@ -157,6 +232,11 @@ export function useCasinoRooms({
   enabled = true,
 } = {}) {
   const [rooms, setRooms] = useState([]);
+  // CASINO-2: the felts inside those rooms, and the table -> room map that
+  // rides the same frame. A snapshot, exactly like `rooms`: the newest array
+  // wins outright and there is nothing to merge.
+  const [felts, setFelts] = useState([]);
+  const [roomOf, setRoomOf] = useState({});
   // status: idle | connecting | live | reconnecting | offline
   const [status, setStatus] = useState('idle');
 
@@ -183,18 +263,46 @@ export function useCasinoRooms({
     setRooms((prev) => (next.length === 0 && prev.length > 0 ? prev : next));
   }, []);
 
+  // CASINO-2. Unlike the rooms this is NOT merged with what we had: an empty
+  // felt list is a real floor (nothing is running), where an empty room list
+  // is a frame we could not read.
+  const ingestFelts = useCallback((raw, map) => {
+    setFelts(normalizeFelts(raw));
+    setRoomOf(map && typeof map === 'object' ? { ...map } : {});
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(ROOMS_URL);
       if (!res.ok) return;
       const body = await res.json();
       if (!aliveRef.current) return;
-      ingest(body?.rooms ?? []);
+      const next = body?.rooms ?? [];
+      ingest(next);
+
+      // CASINO-2: the socket hands the felts over on subscribe, so this is
+      // only the answer for a client that has none — one request per room,
+      // once, rather than a poll. With a socket the frame is already on its
+      // way and three more requests would only race it.
+      if (wsUrl) return;
+      const ids = normalizeRooms(next).map((r) => r.id);
+      const pages = await Promise.all(ids.map(async (id) => {
+        try {
+          const page = await fetch(roomTablesUrl(id));
+          if (!page.ok) return [];
+          return (await page.json())?.tables ?? [];
+        } catch { return []; }
+      }));
+      if (!aliveRef.current) return;
+      const all = pages.flat();
+      ingestFelts(all, Object.fromEntries(
+        all.filter((t) => t?.tableId != null && t.room).map((t) => [String(t.tableId), String(t.room)]),
+      ));
     } catch {
       // The socket is the primary path; a failed fetch is a stale lobby, not
       // an error the owner can do anything about.
     }
-  }, [ingest]);
+  }, [ingest, ingestFelts, wsUrl]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -247,6 +355,7 @@ export function useCasinoRooms({
       try { msg = JSON.parse(event.data); }
       catch { return; }
       if (msg?.type === ServerMsg.FLOOR_ROOMS) ingest(msg.rooms);
+      else if (msg?.type === ServerMsg.ROOM_TABLES) ingestFelts(msg.tables, msg.rooms);
       else if (msg?.type === ServerMsg.FLOOR_STATE && msg.rooms) ingest(msg.rooms);
     });
 
@@ -286,5 +395,5 @@ export function useCasinoRooms({
     };
   }, [enabled, wsUrl, wireUserId, wireInitData, apiSecret, refresh, clearTimer]);
 
-  return { rooms, status, refresh };
+  return { rooms, felts, roomOf, status, refresh };
 }

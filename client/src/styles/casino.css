@@ -22,7 +22,11 @@
    and the shut room's price into a shout. Being tappable is not a reason to
    change the type: reset the chrome and let each element's own style stand. */
 .csn-door,
-.csn-board__line {
+.csn-board__line,
+.csn-live__row,
+.csn-tonight__row,
+.csn-room-door,
+.csn-felt {
   -webkit-appearance: none;
   appearance: none;
   font: inherit;
@@ -32,7 +36,11 @@
 }
 
 .csn-door:focus-visible,
-.csn-board__line:focus-visible {
+.csn-board__line:focus-visible,
+.csn-live__row:focus-visible,
+.csn-tonight__row:focus-visible,
+.csn-room-door:focus-visible,
+.csn-felt:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -139,23 +147,74 @@
   border-radius: 0;
   background: transparent;
 }
-.csn-desk__rail .csn-board > :first-child {
+.csn-desk__rail .csn-board__head {
   flex-shrink: 0;
   height: 46px;
   padding: 0 16px;
 }
-.csn-desk__rail .csn-board > :last-child {
+.csn-desk__rail .csn-board__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
   padding: 8px 16px 14px;
 }
-.csn-desk__rail .csn-board > :last-child::-webkit-scrollbar { display: none; }
+.csn-desk__rail .csn-board__body::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .csn svg[style*="casino-bob"],
   .csn [data-felt="hot"] {
     animation: none !important;
   }
+}
+
+
+/* ── CASINO-2 job 2 · the board, split by tense ─────────────────────────────
+ *
+ * One object on a wall with two halves in it, so the frame belongs to the
+ * board and each half only draws its own rows. The gold plate and the census
+ * are mood-floor3's CasinoBoard, verbatim; what hangs under them is LIVE NOW
+ * over TONIGHT, which is mood-nav's pair.
+ *
+ * The seam between them is a gold hairline rather than the white one that
+ * separates rows inside a half: crossing from a pot being built to a hand that
+ * is over is a change of TENSE, and it has to read as a bigger step than the
+ * step from one live pot to the next. */
+.csn-board {
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
+  border: 1px solid rgba(205, 179, 128, 0.18);
+}
+
+.csn-board__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-bottom: 1px solid rgba(205, 179, 128, 0.13);
+}
+
+.csn-board__body,
+.csn-live,
+.csn-tonight {
+  display: flex;
+  flex-direction: column;
+}
+
+.csn-tonight { border-top: 1px solid rgba(205, 179, 128, 0.16); }
+
+/* The tick beside a pot that just grew. It arrives rather than appears — a
+   number that pops in at full opacity reads as a layout shift, and one that
+   rises the two pixels a chip does reads as money going in. */
+.csn-live__tick { animation: casino-tick 0.22s ease-out both; }
+
+@keyframes casino-tick {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-live__tick { animation: none; }
 }

@@ -12,17 +12,17 @@
 //      says the price                         lock
 //   5. HOT is the only thing that asks now  → the badge and the shimmer
 //
-// Plus the board by the stairs: five lines, the nemesis one gold because it is
-// the only one about your agent, and a tap that goes to the felt it happened at.
+// The board by the stairs is no longer here: CASINO-2 job 2 split it in two and
+// moved it to FloorBoard.jsx. See the note where its block used to be.
 
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  CasinoDoor, CasinoBoard, DeployTray, crowdSize, noiseLevel, boardLines, tickerLabel, count,
+  CasinoDoor, DeployTray, crowdSize, noiseLevel, count,
 } from './CasinoBuilding.jsx';
-import { floorRoom, upstairsRoom, backRoom, casinoEvent } from '../../test/fixtures/rooms.js';
+import { floorRoom, upstairsRoom, backRoom } from '../../test/fixtures/rooms.js';
 import { playingAgent, restingAgent } from '../../test/fixtures/agents.js';
 
 const withPocket = (agent, over) => ({
@@ -152,97 +152,16 @@ describe('CASINO-1 the room grid', () => {
 });
 
 // ── The board by the stairs ─────────────────────────────────────────────────
-
-describe('CASINO-1 the board by the stairs', () => {
-  const mine = new Set(['agent_grinder']);
-  const feed = [
-    casinoEvent({ id: 1, type: 'bigPot', headline: 'Ozymandias cracked aces', tableId: 'tbl-a' }),
-    casinoEvent({ id: 2, type: 'cooler', headline: 'quads into a straight flush', tableId: 'tbl-b' }),
-    casinoEvent({ id: 3, type: 'heater', headline: 'Nightjar up $9k in 40 minutes', tableId: 'tbl-c' }),
-    casinoEvent({ id: 4, type: 'bust', headline: 'Fold_Equity out', tableId: 'tbl-d' }),
-    casinoEvent({ id: 5, type: 'nemesisSeated', headline: 'Granite just sat down at your table', tableId: 'tbl-e', agentIds: ['agent_grinder'] }),
-    casinoEvent({ id: 6, type: 'bigPot', headline: 'older, scrolled past', tableId: 'tbl-f' }),
-  ];
-
-  it('speaks the house vocabulary, not the wire\'s', () => {
-    expect(tickerLabel('bigPot')).toBe('BIGGEST POT');
-    expect(tickerLabel('nemesisSeated')).toBe('NEMESIS');
-    expect(tickerLabel('bust')).toBe('BUSTED');
-    expect(tickerLabel('somethingNew')).toBe('FLOOR');
-  });
-
-  it('holds five lines, newest first', () => {
-    const lines = boardLines(feed, mine, 5);
-    expect(lines).toHaveLength(5);
-    expect(lines[0].id).toBe(6);
-    // The sixth has scrolled past; a board is a wall, not a feed.
-    expect(lines.map((l) => l.id)).not.toContain(1);
-  });
-
-  it('marks the one line that is about your agent', () => {
-    const lines = boardLines(feed, mine, 5);
-    const nemesis = lines.find((l) => l.type === 'nemesisSeated');
-    expect(nemesis.mine).toBe(true);
-    expect(lines.filter((l) => l.mine)).toHaveLength(1);
-  });
-
-  it('renders the headlines and the census', () => {
-    render(<CasinoBoard events={feed} mineIds={mine} playing={1604} full />);
-    expect(screen.getByText('BY THE STAIRS')).toBeInTheDocument();
-    expect(screen.getByText('1,604 playing')).toBeInTheDocument();
-    expect(screen.getByText('Granite just sat down at your table')).toBeInTheDocument();
-  });
-
-  it('collapses to two lines beside the deploy tray', () => {
-    render(<CasinoBoard events={feed} mineIds={mine} playing={12} />);
-    expect(screen.getByText('older, scrolled past')).toBeInTheDocument();
-    expect(screen.queryByText('Fold_Equity out')).not.toBeInTheDocument();
-  });
-
-  it('tapping a line goes to the felt it happened at', async () => {
-    const onSpectate = vi.fn();
-    const user = userEvent.setup();
-    render(<CasinoBoard events={feed} mineIds={mine} playing={12} full onSpectate={onSpectate} />);
-
-    await user.click(screen.getByRole('button', { name: /Granite just sat down/ }));
-    expect(onSpectate).toHaveBeenCalledWith('tbl-e');
-  });
-
-  it('a line with no table behind it is not a destination', () => {
-    const onSpectate = vi.fn();
-    render(
-      <CasinoBoard
-        events={[casinoEvent({ id: 9, headline: 'the floor is busy', tableId: null })]}
-        playing={3}
-        full
-        onSpectate={onSpectate}
-      />,
-    );
-    expect(screen.getByText('the floor is busy')).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
-
-  it('carries the stakes chip only when the wire named the room', () => {
-    const stakesFor = (id) => (id === 'tbl-a' ? '$10/$20' : null);
-    render(
-      <CasinoBoard
-        events={[
-          casinoEvent({ id: 1, headline: 'named', tableId: 'tbl-a' }),
-          casinoEvent({ id: 2, headline: 'unnamed', tableId: 'tbl-z' }),
-        ]}
-        playing={3}
-        full
-        stakesFor={stakesFor}
-      />,
-    );
-    expect(screen.getAllByText('$10/$20')).toHaveLength(1);
-  });
-
-  it('a quiet floor says so rather than drawing an empty wall', () => {
-    render(<CasinoBoard events={[]} playing={0} full />);
-    expect(screen.getByText('The floor is quiet.')).toBeInTheDocument();
-  });
-});
+//
+// It moved to FloorBoard.test.jsx with the component, and the rule the block
+// that stood here encoded — "holds five lines, NEWEST FIRST" — is the one
+// CASINO-2 job 2 deliberately reverses. Newest is not most interesting: it put
+// a $0 bust from four seconds ago above a $14,200 pot from two minutes ago,
+// and it could not mention the pot being built right now at all, because a
+// hand that has not ended has fired no event. The replacement is two halves
+// ranked by money, and every assertion that was here has a counterpart there
+// (the house vocabulary, the gold line that is about your agent, the census,
+// the collapse beside the tray, the tap, the quiet floor).
 
 // ── The tray ────────────────────────────────────────────────────────────────
 

@@ -33,8 +33,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  CasinoBoard, CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
+  CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
+import { FloorBoard } from '../components/casino/FloorBoard.jsx';
 import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
@@ -128,6 +129,7 @@ export function CasinoScreen({
   deployAgent = null,
   onDeployed = null,
   onSpectate = null,
+  onReplay = null,
   onCancelDeploy = null,
   desktop = false,
 }) {
@@ -142,7 +144,10 @@ export function CasinoScreen({
   // more important meaning of the tap.
   const [openRoomId, setOpenRoomId] = useState(null);
 
-  const { rooms } = useCasinoRooms({ wsUrl });
+  // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
+  // the server's table -> room map. The doorways are still drawn from `rooms`;
+  // everything that names a particular felt now reads the felts.
+  const { rooms, felts, roomOf } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
 
   // The roster, on the same 10s beat the floor uses. It is what puts your own
@@ -192,7 +197,7 @@ export function CasinoScreen({
     [rooms, selectedRoomId],
   );
 
-  const mineByRoom = useMemo(() => agentsByRoom(rooms, agents), [rooms, agents]);
+  const mineByRoom = useMemo(() => agentsByRoom(rooms, agents, roomOf), [rooms, agents, roomOf]);
   const mineIds = useMemo(() => new Set(agents.map((a) => String(a.id))), [agents]);
   const focus = useMemo(() => hotFocus(rooms, hotTables, agents), [rooms, hotTables, agents]);
 
@@ -206,9 +211,12 @@ export function CasinoScreen({
   // The stake chip beside a ticker line. Only hot tables and each room's
   // biggest pot are named on the wire, so most lines have no room to name and
   // simply carry no chip — see the note in useCasinoRooms.js.
+  // The stake chip beside a line. CASINO-2 made this answer for every live
+  // table rather than only for the two kinds ROOMS-1 names, because the
+  // table -> room map is now stated on the wire — see useCasinoRooms.
   const stakesForTable = useCallback(
-    (tableId) => roomForTable(rooms, tableId)?.stakes.label ?? null,
-    [rooms],
+    (tableId) => roomForTable(rooms, tableId, roomOf)?.stakes.label ?? null,
+    [rooms, roomOf],
   );
 
   // FIX-6 job 2 · A DOORWAY WITH SOMEBODY IN THE TRAY IS THE DEAL, NOT A PICK.
@@ -322,14 +330,26 @@ export function CasinoScreen({
 
   const openRoom = rooms.find((r) => r.id === openRoomId) ?? null;
 
+  // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
+  // (pots being built), TONIGHT off the ticker (hands that are over), and both
+  // are ranked by money rather than by recency.
+  //
+  // With somebody in the tray it shrinks to its live half plus the headline:
+  // the decision is the tray, so the board reads as two lines and not as
+  // seven. It never disappears, because "where is the action" is exactly the
+  // question an owner about to place a man is asking.
   const board = (
-    <CasinoBoard
+    <FloorBoard
+      felts={felts}
       events={events}
       mineIds={mineIds}
+      rooms={rooms}
       playing={seated}
-      full={!trayAgent}
+      liveLimit={trayAgent ? 2 : 3}
+      rows={trayAgent ? 0 : 3}
       stakesFor={stakesForTable}
-      onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+      onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+      onReplay={onReplay ?? null}
     />
   );
 
@@ -461,14 +481,17 @@ export function CasinoScreen({
         </div>
         <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
           {fund ?? roomSheet ?? (
-            <CasinoBoard
+            <FloorBoard
+              felts={felts}
               events={events}
               mineIds={mineIds}
+              rooms={rooms}
               playing={seated}
-              full
-              max={30}
+              liveLimit={6}
+              rows={20}
               stakesFor={stakesForTable}
-              onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+              onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+              onReplay={onReplay ?? null}
             />
           )}
         </aside>

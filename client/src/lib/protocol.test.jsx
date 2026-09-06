@@ -43,6 +43,8 @@ describe('protocol', () => {
       // snapshot that rides a subscribe, and the rooms push after it.
       FLOOR_STATE: 'floor_state',
       FLOOR_ROOMS: 'floor_rooms',
+      // CASINO-2: and the felts inside those rooms, on the same subscription.
+      ROOM_TABLES: 'room_tables',
       // HOME-1 / HOME-STATE-1: the room's own three, on the same channel.
       HOME_STATE: 'home_state',
       WANT: 'want',

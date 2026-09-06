@@ -31,7 +31,6 @@ import { accentFor, M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { moodOf, heatOf } from '../floor/agentView.js';
 import { Num } from '../wallet/atoms.jsx';
 import { money, pocketOf } from '../../lib/wallet.js';
-import { CasinoEventType } from '../../lib/events.js';
 import { pillName } from '../../lib/names.js';
 
 // ── Design tokens (verbatim from the refs) ─────────────────────────────────
@@ -379,118 +378,16 @@ export function CasinoDoor({
 }
 
 // ── The board by the stairs ────────────────────────────────────────────────
-
-// EVENT-1's types, in the board's own vocabulary.
-const TICKER_LABELS = {
-  [CasinoEventType.BIG_POT]: 'BIGGEST POT',
-  [CasinoEventType.COOLER]: 'COOLER',
-  [CasinoEventType.HEATER]: 'HEATER',
-  [CasinoEventType.BUST]: 'BUSTED',
-  [CasinoEventType.NEMESIS_SEATED]: 'NEMESIS',
-  [CasinoEventType.HOT]: 'HOT',
-};
-
-export function tickerLabel(type) {
-  return TICKER_LABELS[type] ?? 'FLOOR';
-}
-
-/**
- * The five lines, newest first. The ref's board is a physical thing on a wall,
- * not a feed, so it holds a fixed number of lines rather than scrolling.
- *
- * `mineIds` is what makes the nemesis line gold: it is the only line that
- * concerns your agent, and the rest reads as gossip you overhear.
- */
-export function boardLines(events = [], mineIds = new Set(), limit = 5) {
-  return [...events]
-    .reverse()
-    .slice(0, limit)
-    .map((e) => ({
-      ...e,
-      mine: (e.agentIds ?? []).some((id) => mineIds.has(String(id))),
-    }));
-}
-
-export function CasinoBoard({
-  events = [], mineIds = new Set(), playing = 0, full = false, stakesFor = () => null, onSpectate = null,
-  // DESK-2: how many lines the board holds. On the phone it is five at rest and
-  // two while you are placing somebody, because it is stacked above the
-  // doorways and has to leave room for them. In the desk's rail it has a column
-  // of its own, so it holds the run of the evening instead of the top of it.
-  max = null,
-}) {
-  const lines = boardLines(events, mineIds, max ?? (full ? 5 : 2));
-
-  return (
-    <div
-      className="csn-board"
-      style={{
-        flexShrink: 0, borderRadius: 10, overflow: 'hidden',
-        background: 'linear-gradient(180deg, #171310 0%, #100D0B 100%)',
-        border: `1px solid ${M_GOLD}2E`,
-      }}
-    >
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px',
-        borderBottom: `1px solid ${M_GOLD}22`,
-      }}>
-        <LiveDot color={M_GOLD} />
-        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: M_GOLD }}>
-          BY THE STAIRS
-        </span>
-        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>
-          {count(playing)} playing
-        </span>
-      </div>
-
-      <div style={{ padding: '6px 11px 9px' }}>
-        {lines.length === 0 && (
-          <div style={{ fontSize: 10.5, color: M_MUTED, padding: '4px 0' }}>
-            The floor is quiet.
-          </div>
-        )}
-        {lines.map((line, i) => {
-          const at = stakesFor(line.tableId);
-          const row = (
-            <>
-              <span style={{
-                fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.13em',
-                color: line.mine ? M_GOLD : line.type === CasinoEventType.HOT ? M_RED : M_MUTED,
-                width: 64, flexShrink: 0, textAlign: 'left',
-              }}>{tickerLabel(line.type)}</span>
-              <span style={{ fontSize: 10.5, color: M_DIM, lineHeight: 1.4, flex: 1, textAlign: 'left' }}>
-                {line.headline}
-              </span>
-              {at && <Stake label={at} />}
-            </>
-          );
-          const style = {
-            display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0',
-            width: '100%', background: 'none', border: 'none',
-            borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.045)',
-          };
-          // Tapping a line goes to the felt it happened at. A line with no
-          // table behind it is not a destination, so it is not a button.
-          if (!onSpectate || !line.tableId) {
-            return <div key={line.id} className="csn-board__line" style={style}>{row}</div>;
-          }
-          return (
-            <button
-              key={line.id}
-              type="button"
-              className="csn-board__line"
-              style={{ ...style, cursor: 'pointer' }}
-              aria-label={`${tickerLabel(line.type)} — ${line.headline}. Watch this table.`}
-              onClick={() => onSpectate(line.tableId)}
-            >
-              {row}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+//
+// CASINO-2 job 2 moved it to FloorBoard.jsx and split it in two. The board that
+// lived here held five ticker lines newest-first, which put a $0 bust from four
+// seconds ago above a $14,200 pot from two minutes ago and had no way at all to
+// mention the pot being built right now — a hand that has not ended has fired
+// no event. LIVE NOW (off the felts) and TONIGHT (off the ticker, ranked by
+// money) are the two questions that list was answering badly at once.
+//
+// The header, the gold plate and the stairs beside it are the same object;
+// only what hangs on the wall changed.
 
 // The one piece of furniture that says the building has floors.
 export function Stairs() {
@@ -526,7 +423,15 @@ export function CasinoHead({ sub, right }) {
       padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>
+        {/* CASINO-2 job 2: "The casino" NEVER WRAPS. At 390 with a long
+            sub-line under it — "1,604 playing · 3 of yours in" — the flex row
+            gave the title a narrow column and the sign broke across two lines
+            as "The" over "casino", which is a broken sign rather than a small
+            one. It is two words; it keeps them. */}
+        <div style={{
+          fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT,
+          lineHeight: 1.1, whiteSpace: 'nowrap',
+        }}>
           The casino
         </div>
         <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>{sub}</div>

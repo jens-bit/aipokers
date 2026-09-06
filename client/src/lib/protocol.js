@@ -39,6 +39,17 @@ export const ServerMsg = Object.freeze({
   // ROOMS-1: the floor grouped by stakes tier, { type, rooms }. Not
   // owner-filtered — it is counts and table ids — and pushed on change.
   FLOOR_ROOMS: 'floor_rooms',
+  // CASINO-2: what is RUNNING inside those rooms — one public felt per live
+  // table, { type, tables, rooms }. FLOOR_ROOMS is the building; this is the
+  // felts in it, which is the question you have the moment you walk through a
+  // doorway. Each table carries { tableId, room, blinds, street, board, pot,
+  // toAct, handNumber, hot, seated, maxSeats, seats: [{ seat, name, agentId,
+  // stack, accentColor, mood, fatigue, drinking, inHand }] }, ranked hot-first
+  // then by the money in the middle. `rooms` is { [tableId]: roomId } — the
+  // table -> room map ROOMS-1 never sent. NOBODY'S HOLE CARDS ARE ON IT, not
+  // even your own: that is FLOOR_GAME's job. Pushed on change, at most one per
+  // second, and once on subscribe.
+  ROOM_TABLES: 'room_tables',
   // HOME-STATE-1 / HOME-1: the owner's living room, owner-scoped, on the same
   // subscription. { userId, agents: [{ id, name, nature, mood, location,
   // routine, fatigue, unseenRecap, study }], game }. `location.where` is

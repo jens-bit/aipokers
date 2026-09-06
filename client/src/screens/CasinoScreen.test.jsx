@@ -14,7 +14,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CasinoScreen, canAfford, defaultRoom, isRoomHot, hotFocus } from './CasinoScreen.jsx';
-import { rooms, hotRooms, roomsResponse, floorRoom, upstairsRoom, backRoom, casinoEvent } from '../test/fixtures/rooms.js';
+import {
+  rooms, hotRooms, roomsResponse, floorRoom, upstairsRoom, backRoom, casinoEvent, felt, myFelt,
+} from '../test/fixtures/rooms.js';
 import { playingAgent, restingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -30,8 +32,19 @@ const brokeCannon = withPocket(restingAgent, 400, { broke: true });
 const fundedCannon = withPocket(restingAgent, 2_500);
 const richCannon = withPocket(restingAgent, 6_000);
 
-function routeFloor({ agents = [], rooms: floor = rooms, events = [] } = {}) {
+function routeFloor({ agents = [], rooms: floor = rooms, events = [], felts = [] } = {}) {
   fetchMock.route('/api/rooms', { rooms: floor, hotWindowMs: 20_000 });
+  // CASINO-2: the felts inside those rooms. Registered after /api/rooms because
+  // routes match newest-first and this URL starts with that one. With no socket
+  // in these tests this REST path is the whole of ROOM_TABLES, which is exactly
+  // the fallback the hook is meant to have.
+  fetchMock.route(
+    /\/api\/rooms\/([^/]+)\/tables$/,
+    ({ url }) => {
+      const room = url.match(/\/api\/rooms\/([^/]+)\/tables$/)?.[1];
+      return { room, tables: felts.filter((f) => f.room === room), hotWindowMs: 20_000 };
+    },
+  );
   fetchMock.route('/api/events', { events, lastId: events.length });
   fetchMock.route('/api/agents', { agents });
   fetchMock.route('/api/wallet', { balance: 9_000, staked: 0, session: 0, ledger: [] });
@@ -134,15 +147,38 @@ describe('CASINO-1 the building', () => {
     expect(await screen.findByText('The floor has not opened yet.')).toBeInTheDocument();
   });
 
-  it('tapping a ticker line spectates that table', async () => {
+  // CASINO-2 job 2 replaced "tapping a ticker line spectates that table". The
+  // rule it encoded is one the split reverses on purpose: a ticker line is a
+  // hand that is OVER, and sending it to a live felt was the board offering to
+  // watch something that had already finished. The tap that reaches a felt is
+  // LIVE NOW's, and it is a better one — it goes to the pot being built rather
+  // than to whatever table a two-minute-old headline happened to name.
+  it('tapping a live pot watches that felt', async () => {
     const onSpectate = vi.fn();
-    routeFloor({ events: [casinoEvent({ id: 7, headline: 'Ozymandias cracked aces', tableId: 'tbl-a' })] });
+    routeFloor({ felts: [felt({ tableId: 'tbl-a', pot: 8_400 })] });
     const user = userEvent.setup();
     renderCasino({ onSpectate });
 
-    const line = await screen.findByRole('button', { name: /Ozymandias cracked aces/ });
-    await user.click(line);
+    const row = await screen.findByRole('button', { name: /Watch this table/ });
+    await user.click(row);
     expect(onSpectate).toHaveBeenCalledWith('tbl-a');
+  });
+
+  it('and tapping one of your own finished hands replays it', async () => {
+    const onReplay = vi.fn();
+    routeFloor({
+      agents: [playingAgent],
+      events: [casinoEvent({
+        id: 7, headline: 'Ozymandias cracked aces', tableId: 'tbl-a',
+        agentIds: ['agent_grinder'], handNumber: 41,
+      })],
+    });
+    const user = userEvent.setup();
+    renderCasino({ onReplay });
+
+    const line = await screen.findByRole('button', { name: /Replay this hand/ });
+    await user.click(line);
+    expect(onReplay).toHaveBeenCalledWith(expect.objectContaining({ id: 7, handNumber: 41 }));
   });
 
   it('a hot felt asks for you, and the ask is one action', async () => {
