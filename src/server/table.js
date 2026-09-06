@@ -422,6 +422,15 @@ export class Table {
     // whether a READ message goes on the wire at all, asked per decision
     // rather than per broadcast.
     this._routeReadPrint = Array(maxSeats).fill(null);
+    // COST-1: was anybody watching this session at ANY point?
+    //
+    // The end-of-session write-up is for a session nobody saw, and `isWatched()`
+    // at close time answers a different question: an owner who watched all
+    // evening and then shut his phone has an unwatched table by the time the
+    // hand cap trips, and would be handed a write-up of the session he had just
+    // sat through. This is the ONE watched-flag that is stored rather than
+    // derived, and it is stored precisely because it is a fact about the past.
+    this._everWatched = false;
     // COST-1: the hands worth mentioning, in the order they happened. The
     // input to the end-of-session write-up on an unwatched table — see
     // _writeNightRecap. One sentence per flagged hand, capped, because an
@@ -1500,7 +1509,9 @@ export class Table {
   // Derived on every call, never stored. A stored watched-flag is exactly the
   // stale-state lie BUG-16 was, and here it would be a lie about spending.
   isWatched() {
-    return this.spectators.length > 0 || this.hasHumanPlayer();
+    const watched = this.spectators.length > 0 || this.hasHumanPlayer();
+    if (watched) this._everWatched = true;
+    return watched;
   }
 
   // How long before the next deal. See UNWATCHED_HAND_PAUSE_MS.
@@ -3436,13 +3447,12 @@ export class Table {
 
     if (spoke.length === 0) return;
 
+    // The needle rides the first speaker either way, and it is handed the LINE
+    // rather than left to find it: on the model path the line does not exist
+    // yet when this returns, so reading it back off chatHistory here would
+    // needle the table with whatever somebody said three hands ago.
     if (watched) this._talkWithModel(spoke, result);
-    else this._talkFromTemplates(spoke);
-
-    // The needle rides the first speaker either way. It is queued on the
-    // OPPONENT's next briefing, so it works identically whether the line that
-    // provoked it was written or drawn.
-    this._needleOpponents(spoke[0].seat);
+    else this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
   }
 
   // TLK-1's four triggers, in priority order, unchanged.
@@ -3476,6 +3486,7 @@ export class Table {
   // The free path: TLK-1's template pools, in his mood, naming whoever at this
   // table is somebody to him.
   _talkFromTemplates(spoke) {
+    let first = null;
     for (const { seat, trigger } of spoke) {
       const agentId = this.agentIds[seat];
       const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
@@ -3485,8 +3496,9 @@ export class Table {
         role: rel?.role ?? null,
         who: rel?.who ?? null,
       });
-      if (line) this._speakOnce(seat, line);
+      if (line && this._speakOnce(seat, line) && first === null) first = line;
     }
+    return first;
   }
 
   // The paid path: one call, every speaker, the whole hand in front of it.
@@ -3522,7 +3534,19 @@ export class Table {
     const ownerId = this.agentUserIds[spoke[0].seat] ?? null;
 
     writeHandTalk(cast, hand, { ownerId })
-      .then((lines) => this._playBubbles(lines))
+      .then((lines) => {
+        if (this.closed) return;
+        // Nothing usable came back — no key, a timeout, every line rejected as
+        // solver speak. A watched table then says what an unwatched one would
+        // have said rather than going silent: the templates are already there,
+        // they cost nothing, and silence is a worse product than a plain line.
+        if (!Array.isArray(lines) || lines.length === 0) {
+          this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
+          return;
+        }
+        this._playBubbles(lines);
+        this._needleOpponents(spoke[0].seat, lines[0].text);
+      })
       .catch((err) => console.error(`[table:${this.tableId}] hand talk failed:`, err.message));
   }
 
@@ -3547,9 +3571,8 @@ export class Table {
   // TLK-1: queue the line on susceptible AI opponents and fire the needled
   // mood event once per session per seat. Unchanged except for being lifted
   // out of the loop it used to live inside.
-  _needleOpponents(fromSeat) {
-    const spoken = this.chatHistory.filter((c) => c.seat === fromSeat).at(-1)?.text;
-    if (!spoken) return;
+  _needleOpponents(fromSeat, spoken) {
+    if (typeof spoken !== 'string' || !spoken.trim()) return;
     for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
       if (oppSeat === fromSeat) continue;
       if (!this.aiSeats[oppSeat] || !this.pending[oppSeat]) continue;
@@ -3598,8 +3621,8 @@ export class Table {
   // cost money to write and nothing to read.
   _writeNightRecap() {
     if (this._recapWritten) return;
-    if (this.home) return;                 // the kitchen table never spends
-    if (this.isWatched()) return;          // he already watched it happen
+    if (this.home) return;                       // the kitchen table never spends
+    if (this.isWatched() || this._everWatched) return;   // he already watched it happen
     this._recapWritten = true;
 
     const seats = [];
@@ -3922,6 +3945,12 @@ export class Table {
     // is arithmetic and the compiled policy does arithmetic; everything else
     // — close, big, late, all-in, tilted, read, needled, a nemesis opposite —
     // is a hand somebody might watch, and it goes to the model.
+    //
+    // Note where this sits: AFTER the think delay has already been slept. The
+    // free path must not make him act instantly — SERVER-3's clock is the ring
+    // the client is drawing, and an agent who answers a spot in 0ms and the
+    // next one in 1.8s is visibly two different things. What the router
+    // changes is what it costs, never what it looks like.
     const routed = routeFor(gameState, {
       home: this.home,
       nemesis: this._roleAtTable(aiSeat)?.role === 'nemesis',

@@ -211,6 +211,21 @@ test('COST-1: a watched session is not written up — he already watched it', ()
   assert.equal(table._recapWritten, false, 'it did not even claim the write');
 });
 
+test('COST-1: a session he watched and then closed his phone on is not written up', () => {
+  const table = dealt();
+  table.spectators.push({ ws: fakeWs(), spectatorSeat: 0 });
+  assert.equal(table.isWatched(), true);
+
+  // He shuts the app. The table plays on and eventually closes with nobody
+  // attached — but the evening was watched, and handing him a write-up of the
+  // session he just sat through is worse than handing him nothing.
+  table.spectators.length = 0;
+  table.connections = table.connections.map(() => null);
+  assert.equal(table.isWatched(), false);
+  table._writeNightRecap();
+  assert.equal(table._recapWritten, false);
+});
+
 test('COST-1: the kitchen table is never written up either', () => {
   const table = dealt({ home: true });
   table.connections = table.connections.map(() => null);
