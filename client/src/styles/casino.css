@@ -363,10 +363,9 @@
   flex-shrink: 0;
 }
 
-/* On the desk the doors have a whole stage to sit across, so they breathe
-   rather than stretch: the same three signs, larger type, and the row capped
-   so it does not become three billboards. */
-.csn--desk .csn-doors { gap: 10px; max-width: 640px; }
+/* On the desk the doors have a whole stage to sit across, so they take it:
+   three signs over the room, larger type, and the width is the stage's. */
+.csn--desk .csn-doors { gap: 12px; }
 .csn--desk .csn-room-door { padding: 9px 12px 10px; }
 .csn--desk .csn-room-door__name { font-size: 9px; }
 .csn--desk .csn-room-door__stakes { font-size: 14px; }
@@ -389,8 +388,21 @@
  * the thing the owner opened the screen for, so it gets the room the board and
  * the doors did not want. */
 .csn-your {
+  /* It takes the rest of the screen, as the ref does — in NavCasinoM this block
+     ends up around 400px tall on a 390x844 phone, and that is the point: it is
+     the thing the owner opened the screen for.
+     THE MINIMUM IS GEOMETRY, NOT TASTE. The ring, the board and the hero are
+     all placed by percentage, and below about 230px the board row (61%) crosses
+     the hero's name pill (bottom-anchored). 240 clears it with room to spare;
+     the column scrolls, so a short screen loses nothing. */
   flex: 1;
-  min-height: 168px;
+  min-height: 240px;
+  /* And a CEILING, for the same reason as the floor. Everything on the felt is
+     placed by percentage, so a 700px box does not draw a bigger table — it
+     flings the seats into the corners and leaves the pot alone in the middle
+     of a field. 420 is about what the ref's block comes out at on a 390x844
+     phone, which is the proportion it was drawn to. */
+  max-height: 420px;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -486,10 +498,21 @@
 }
 .csn-your__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* On the desk the carousel is beside the doors rather than under them: 1440
-   has the width for a felt at reading size AND the room the board left, and a
-   page that stretches to 900px is a felt with its ring pulled apart. */
-.csn--desk .csn-your { max-width: 640px; }
+/* On the desk the felt is CENTRED under doors that stretch. A 900px-wide page
+   is a felt with its ring pulled apart, so it keeps a felt's width — but left
+   against a full-width row of doors that reads as a column that ran out rather
+   than as an object with air around it. The doors are signs and stretch
+   happily; the felt is the thing you are looking at, so it sits in the middle
+   of the stage. */
+.csn--desk .csn-your {
+  max-width: 640px;
+  width: 100%;
+  /* auto on all four sides, not just the sides. The felt is capped, and 1440x900
+     leaves several hundred pixels over; dumped at the bottom that reads as a
+     column that ran out, split above and below it reads as a felt with air
+     around it. */
+  margin: auto;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .csn-your__track { scroll-behavior: auto; }
@@ -592,8 +615,14 @@
   height: 40px;
   max-width: 358px;
   padding: 0 2px;
-  margin-top: auto;
 }
+
+/* On the phone the stairs are the LAST thing in the room: you look at the
+   felts and then you find the way out, so they sit at the bottom however few
+   tables there are. In the desk's board column they are a header over the
+   board and must not push it anywhere — margin-top:auto there ate the whole
+   column and dropped the board to the floor. */
+.csn-floor__room > .csn-floor__stairs { margin-top: auto; }
 .csn-floor__stairs > span {
   flex: 1;
   border-radius: 3px 3px 0 0;
@@ -640,3 +669,12 @@
   padding: 16px 18px;
 }
 .csn-floor--desk .csn-floor__board::-webkit-scrollbar { display: none; }
+
+/* A room, on the desk. The building's own shell (.csn--desk) sets height:100%
+   because the desk's stage does not hand its child a height through flex the
+   way the phone's column does — the room needs the same, or it lays out at
+   zero and its absolutely-positioned contents have nothing to fill. */
+.csn--desk-room {
+  height: 100%;
+  min-height: 0;
+}

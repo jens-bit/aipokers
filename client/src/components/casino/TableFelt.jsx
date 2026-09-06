@@ -192,10 +192,14 @@ export function TableFelt({
         </div>
       )}
 
-      {/* him, at the bottom, with his pill above and his own cards face up */}
+      {/* him, at the bottom, with his pill above and his own cards face up.
+          bottom is 26 rather than the ref's 10 because `hands` draws OUTSIDE
+          the ghost's own box: HERO_GRIP.y is 89 in an 80-unit viewBox, so at
+          size 46 his hands sit 5px below the svg and the felt clips its
+          overflow. At 10 they were sheared off along the bottom edge. */}
       {hero && (
         <div style={{
-          position: 'absolute', left: '50%', bottom: px(10), transform: 'translateX(-50%)',
+          position: 'absolute', left: '50%', bottom: px(26), transform: 'translateX(-50%)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: px(2),
         }}>
           <span style={{
@@ -204,12 +208,18 @@ export function TableFelt({
             padding: `${px(1.5)}px ${px(7)}px`, whiteSpace: 'nowrap',
           }}>{pillName(hero.name)}</span>
           <div style={{ position: 'relative' }}>
+            {/* HE CARRIES THE RIM, and he is the only one on the felt who
+                does. A dark hood on a dark felt with his own cards over his
+                face is a shape you cannot find — and finding him is the whole
+                job of this picture. The ref gives him a coloured hood from his
+                birth identity; this client says the same thing with the accent
+                rim it uses for identity everywhere else, and his name pill
+                above is already carrying that colour. */}
             <MoodGhost
               mood={moodStateOf(hero)}
               heat={heatOfSeat(hero)}
               accent={accent}
               size={heroGhost}
-              ring={false}
               hands="hold"
             />
             {(hole.length > 0 || hero.inHand) && (
