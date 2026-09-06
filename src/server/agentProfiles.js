@@ -57,7 +57,7 @@ import {
   ASK_SNOOZE_MS, ASK_REASK_MS, ASK_WEEK_MS,
   askFor, buildAsk, replaces, askSatisfied, isAnswered, isActiveWant,
 } from '../agent/wants.js';
-import { roomForBigBlind, roomPhrase } from './rooms.js';
+import { roomForBigBlind, roomPhrase, ROOMS } from './rooms.js';
 import {
   // FRIDGE-1 — the fixture the items come out of, and what one does to him.
   ensureFridge, takeOne as takeFromFridge, countOf as fridgeCountOf,
@@ -87,7 +87,7 @@ import {
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
-  ensureEarned, recordEarned,
+  ensureEarned, recordEarned, STAKES,
 } from './wallet.js';
 import { slotsProjection, slotBlocker, SLOT_CAP } from './slots.js';
 import {
@@ -207,6 +207,64 @@ function emitAgentChange(userId) {
   catch (err) { console.error('[agents] change listener failed:', err.message); }
 }
 
+// SERVER-4: the LIVING ROOM changed without anybody's standing changing — the
+// room thread's unread marker moved, and that is all. Its own listener rather
+// than a reuse of the agent-change one because that path reconciles the home
+// game, observes the household and may fire the nightly exchange, none of
+// which a badge going on or off is any reason to do.
+let homeChangeListener = null;
+
+export function setHomeChangeListener(fn) {
+  homeChangeListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitHomeChange(userId) {
+  if (!homeChangeListener) return;
+  try { homeChangeListener(String(userId ?? 'anon')); }
+  catch (err) { console.error('[home] change listener failed:', err.message); }
+}
+
+// ── SERVER-4 · the room thread's unread marker ───────────────────────────────
+//
+// Exactly parallel to an agent's `unseenRecap`, one level up: `unseenRecap` is
+// "he has something to tell you", this is "the FLAT has something to tell you".
+// It has to be its own marker rather than a fold over the agents' because the
+// two loudest things in the room thread belong to nobody in particular — the
+// nightly overheard exchange is between two of them, and a line his agents
+// wrote while he was out is not a recap of anything.
+//
+// It is a TIMESTAMP, not a boolean, and that is the whole point: the oldest
+// line he has not looked at. A dot tells him there is something; a `since`
+// lets the client say what he missed and when it started.
+//
+// The FIRST unread line wins and later ones do not move it. Three lines
+// arriving in a minute are one thing he has not read, and a marker that keeps
+// jumping forward would say "since a moment ago" about a conversation that
+// started twenty minutes back.
+
+/** His own line coming back is not news to him — see the caller in wsServer. */
+export function noteHomeThreadLine(userId, ts = Date.now()) {
+  const profile = getOrCreate(String(userId ?? 'anon'));
+  if (profile.homeThreadUnreadSince) return false;
+  profile.homeThreadUnreadSince = Number.isFinite(ts) ? Math.floor(ts) : Date.now();
+  saveStore(userId);
+  return true;
+}
+
+/** He has looked. Returns whether anything was actually cleared. */
+export function markHomeThreadSeen(userId) {
+  const profile = getOrCreate(String(userId ?? 'anon'));
+  if (!profile.homeThreadUnreadSince) return false;
+  profile.homeThreadUnreadSince = null;
+  saveStore(userId);
+  return true;
+}
+
+/** What HOME_STATE and GET /api/home/thread both report. null = nothing waiting. */
+export function homeThreadUnread(userId) {
+  return getOrCreate(String(userId ?? 'anon')).homeThreadUnreadSince || null;
+}
+
 // Retire every agent whose activeTableId points at a table that no longer
 // exists — the state a process restart always leaves behind. Returns the
 // number of agents retired.
@@ -228,6 +286,74 @@ export function reconcileActiveSessions() {
     }
   }
   return retired;
+}
+
+// ── SERVER-4 · which room he was sent to ─────────────────────────────────────
+//
+// Before this, the room an agent walked into was a CONSEQUENCE of his pocket:
+// deploy took the highest rung he could afford and that was that. CASINO-1
+// draws three rooms and lets the owner pick one, so the choice has to be
+// expressible — you send a man upstairs, you do not merely fund him until
+// upstairs happens.
+//
+// The rule is the same one that already governs joining a table already in
+// play (canAffordTable): HIS POCKET MUST COVER THE BUY-IN. It is refused
+// rather than silently downgraded, because a client that asked for the back
+// room and got the floor has been lied to, and the owner would have funded him
+// if he had been told. 409 with the number he is short against, so the client
+// can say what it costs instead of just no.
+//
+// An absent `rung` keeps the old behaviour exactly: the highest rung he can
+// afford, chosen for him.
+
+/** The requested rung as a STAKES row, or null when none was asked for. */
+function rungRequested(body) {
+  const raw = body?.rung;
+  if (raw === undefined || raw === null || raw === '') return null;
+  const rung = Number(raw);
+  if (!Number.isInteger(rung)) return { bad: true };
+  return STAKES.find((s) => s.rung === rung) ?? { bad: true };
+}
+
+/**
+ * The stakes this deploy is for. Returns { stakes } or { status, body } — the
+ * refusal shape the routes hand straight back.
+ *
+ *   no rung asked for  the highest rung the pocket covers (the old behaviour),
+ *                      or the broke answer the caller already handles
+ *   a rung asked for   that rung, if the pocket covers it; 409 cantAfford
+ *                      otherwise. Never a quiet downgrade.
+ */
+function stakesForRequest(body, pocketBalance) {
+  const asked = rungRequested(body);
+  if (!asked) return { stakes: stakesFor(pocketBalance) };
+  if (asked.bad) {
+    return {
+      status: 400,
+      body: { error: 'badRung', rungs: STAKES.map((s) => ({ rung: s.rung, label: s.label, buyIn: s.buyIn })) },
+    };
+  }
+  if (Number(pocketBalance) < asked.buyIn) {
+    return {
+      status: 409,
+      body: {
+        error: 'cantAfford',
+        buyIn: asked.buyIn,
+        rung: asked.rung,
+        label: asked.label,
+        pocket: Math.max(0, Math.floor(Number(pocketBalance) || 0)),
+      },
+    };
+  }
+  return { stakes: asked };
+}
+
+/** The room id a set of stakes belongs to, for `headingTo`. */
+function roomIdForStakes(stakes) {
+  if (!stakes) return null;
+  return ROOMS.find((r) => r.rung === stakes.rung)?.id
+    ?? roomForBigBlind(stakes.bigBlind)?.id
+    ?? null;
 }
 
 // ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
@@ -343,12 +469,19 @@ function commitAgent(profile, existingAgentId, agentData) {
   // must not render a phantom jump for it.
   agent.attrLog = [];
   const bornAt = Date.now();
-  // BIRTH-5 / BUG-32: when he came into existence, kept as a field rather than
-  // read back off `agent.id` (which encodes Date.now() in base 36 and is an
-  // implementation detail of the id, not a promise about it) or off attrLog[0]
-  // (which is the attribute record and would tie a walk-in animation to the
-  // skill engine). The room uses it to walk a newborn in through the door
-  // instead of teleporting him into a chair.
+  // SERVER-4 / BIRTH-5 / BUG-32: his birthday, on the record, under both names
+  // it is read by. ONE number, written twice: `createdAt` is the older name and
+  // the one the agents table has had a column for since SQLITE-1 (filled from
+  // the record, with the array ordinal as a fallback, so the field was
+  // half-real for a long time — written to the database, never onto the
+  // record); `bornAt` is the name the room asks for. Kept as a field rather
+  // than read back off `agent.id` (which encodes Date.now() in base 36 and is
+  // an implementation detail of the id, not a promise about it) or off
+  // attrLog[0] (which is the attribute record, and would tie a walk-in
+  // animation to the skill engine). The room uses it to walk a newborn in
+  // through the door instead of teleporting him into a chair, and the HOME
+  // screen's newborn window could never open until it was written at all.
+  agent.createdAt = bornAt;
   agent.bornAt = bornAt;
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
@@ -416,6 +549,38 @@ function ensureMemory(agent) {
 // Lazily backfill bankroll for agents created before this feature. Existing
 // agents receive STARTING_GRANT + their recorded lifetime netWon so they are
 // not arbitrarily reset to 10 000 if they have played many sessions. Idempotent.
+// ── SERVER-4 · when he was made ─────────────────────────────────────────────
+//
+// The HOME screen draws a newborn differently for his first minute — he is
+// standing in the doorway with his bag, not yet part of the furniture — and it
+// works that out from `createdAt`. Which the birth path never actually wrote.
+// The agents TABLE has had a created_at column since SQLITE-1, filled from
+// `agent.createdAt` with the array ordinal as a fallback, so the field has been
+// half-real for a long time: written to the database, never onto the record.
+//
+// So it is written at birth now, and backfilled here for everybody older.
+// The backfill reads it OFF THE ID, which is `agent_<Date.now() in base 36>` —
+// an exact answer for every agent minted since that scheme, and the only
+// source that does not require the record to have remembered anything. An id
+// that predates it, or one that was hand-written, leaves the field null, which
+// is correct: an agent whose birthday is genuinely unknown must not be drawn
+// as a newborn, and `null` fails the "younger than a minute" test in every
+// client that asks it.
+const AGENT_ID_BIRTH = /^agent_([0-9a-z]+)$/;
+
+function ensureBorn(agent) {
+  if (Number.isFinite(agent.createdAt) && agent.createdAt > 0) return agent;
+  const stamp = AGENT_ID_BIRTH.exec(String(agent.id ?? ''))?.[1];
+  const ms = stamp ? parseInt(stamp, 36) : NaN;
+  // A plausible epoch, not merely a number: base-36 parses "abc" happily, and
+  // an agent born in 1970 would read as a newborn's opposite rather than as
+  // the unknown it is.
+  agent.createdAt = Number.isFinite(ms) && ms > 1_000_000_000_000 && ms <= Date.now()
+    ? ms
+    : null;
+  return agent;
+}
+
 // ── HOME-STATE-1 · the three fields the home adds to a record ───────────────
 //
 // Everything else about where he is and what he is doing is DERIVED on every
@@ -1469,6 +1634,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // floor already makes.
   ensureAttributes(agent);
   ensureBio(agent);
+  ensureBorn(agent);
   const liveGame = agent.activeTableId
     ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
     : null;
@@ -1545,7 +1711,17 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     presence,
     tableId: agent.activeTableId ?? null,
     room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
+    // SERVER-4: the room /deploy or /queue sent him to. Consulted only when the
+    // live table cannot answer, which is exactly the queued agent's case: he
+    // has a table id, the table has not been stood up, and until this the card
+    // could only say "at the casino, somewhere".
+    headingTo: agent.headingTo ?? null,
   }));
+  // He is home, so he is not on his way anywhere. Cleared here rather than by
+  // whatever brought him back, because there are four ways home (bust, worn,
+  // called in, the table closing under him) and a stale destination that
+  // survives any one of them would put him in a room he is not in.
+  if (location.where === Where.HOME && agent.headingTo) agent.headingTo = null;
   const routine = routineFor({
     nature: agent.nature,
     where: location.where,
@@ -1615,6 +1791,11 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     location,
     routine,
     study: agent.study ?? null,
+    // SERVER-4: when he was made. See ensureBorn — `createdAt` is the stored
+    // field (the agents table has had a column for it since SQLITE-1) and
+    // `bornAt` is the same number under the name the HOME screen asks for.
+    createdAt: agent.createdAt ?? agent.bornAt ?? null,
+    bornAt: agent.createdAt ?? agent.bornAt ?? null,
     homeTableId: homeTable?.tableId ?? null,
     fatigue,
     sessionHands,
@@ -1668,7 +1849,13 @@ export function floorSnapshot(userId, { owner = false } = {}) {
 // `game` is injected rather than looked up, so this module still knows nothing
 // about tables; floorChannel hands in whatever homeGame.js reports.
 export function homeSnapshot(userId, { owner = false, game = null } = {}) {
-  return homeStateMessage(userId, presentedRoster(userId, { owner }), game);
+  return homeStateMessage(userId, presentedRoster(userId, { owner }), game, {
+    // SERVER-4: the room's unread marker and the fridge's counts. Both are
+    // things the HOME screen draws on its first paint and both used to cost it
+    // a second request; neither is worth a route of its own to keep current.
+    thread: { unreadSince: homeThreadUnread(userId) },
+    fridge: walletFor(userId)?.fridge ?? null,
+  });
 }
 
 /**
@@ -2282,6 +2469,13 @@ export function wantView(agent, { now = Date.now(), wallet = null } = {}) {
     outOfStock: out || undefined,
     dangerous: !!want.dangerous,
     item: want.item ?? null,
+    // SERVER-4: what the item costs to stock, and how many are on the shelf.
+    // The client used to carry its own copy of the price list to draw "BUY 6 ·
+    // 1200", which meant a price change was a deploy of two things that had to
+    // land together. The prices are the server's, so they travel with the ask.
+    // Null for a want that is not about an item at all.
+    price: item && isFridgeItem(item) ? priceOf(item) : null,
+    stock: item && isFridgeItem(item) && wallet ? fridgeCountOf(wallet, item) : null,
     room: want.room ?? null,
     mood: want.mood ?? null,
     at: want.at ?? null,
@@ -2302,6 +2496,22 @@ function emitWantChange(userId, agentId, want) {
   if (!wantListener) return;
   try { wantListener(String(userId ?? 'anon'), String(agentId), want); }
   catch (err) { console.error('[wants] change listener failed:', err.message); }
+}
+
+// SERVER-4: "he is answering you", injected for the third time for the third
+// identical reason. It is deliberately NOT a thread line — nothing is stored,
+// nothing is read back, and a client that missed it has missed a beat rather
+// than a sentence.
+let typingListener = null;
+
+export function setTypingListener(fn) {
+  typingListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitTyping(userId, agentId, sessionId) {
+  if (!typingListener) return;
+  try { typingListener(String(userId ?? 'anon'), String(agentId), sessionId ?? null); }
+  catch (err) { console.error('[home] typing listener failed:', err.message); }
 }
 
 // What makes two wants the same want on the wire. The timestamp is not in it:
@@ -2857,7 +3067,28 @@ export function installAgentProfileRoutes(app) {
     const sessionId = homeThreadIdFor(userId);
     const lines = readThread(sessionId, { owner: true });
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ sessionId, lines, count: lines.length });
+    // SERVER-4: reading the thread does NOT clear the marker. Fetching is not
+    // looking — the client pulls this to render a badge, on a screen the room
+    // may not even be open on — so the clear is its own deliberate act. Same
+    // reason POST /api/agents/:id/seen exists next to GET /api/agents/:id.
+    res.json({ sessionId, lines, count: lines.length, unreadSince: homeThreadUnread(userId) });
+  });
+
+  // POST /api/home/thread/seen — he has read the room.
+  //
+  // Owner-gated like everything else in the flat, and idempotent: pressing it
+  // twice, or on a thread with nothing waiting, is a 200 that cleared nothing.
+  // No model call, so nothing here to rate-limit beyond index.js's /api guard.
+  app.post('/api/home/thread/seen', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your home' });
+    const cleared = markHomeThreadSeen(userId);
+    // The badge lives on HOME_STATE, so the screen that has just cleared it
+    // has to be told — otherwise the dot survives until the next unrelated
+    // agent change. Only when something actually changed: a second press is
+    // not news.
+    if (cleared) emitHomeChange(userId);
+    res.json({ seen: true, cleared, unreadSince: null });
   });
 
   app.post('/api/home/say', chatLimiter, telegramAuthMiddleware, async (req, res) => {
@@ -2897,44 +3128,68 @@ export function installAgentProfileRoutes(app) {
     // Nobody in. Not an error: the line is in the thread and they will not
     // answer it, exactly as if you had said it to an empty flat.
     if (atHome.length === 0) {
-      return res.json({ sessionId, said: text, home: 0, replies: [] });
+      return res.json({ sessionId, said: text, home: 0, pending: [], replies: [] });
     }
 
-    const replies = [];
-    for (const { agent } of atHome) {
-      let body = null;
-      try {
-        body = await ownerChatTurn(agent, userId, text);
-      } catch (err) {
-        console.error('[home] reply failed:', err.message);
-        continue;
+    // SERVER-4: ANSWER NOW, TALK LATER.
+    //
+    // This used to await one model call per agent at home and return all the
+    // replies together, which meant saying something to three agents was a
+    // four-call round trip — nine seconds of a spinner in the worst case, and
+    // a request that could time out with the replies already written to the
+    // thread. Worse, it was not what a room sounds like: three people do not
+    // answer you in unison.
+    //
+    // So the response carries only what is already TRUE — your line is stored
+    // — plus who is in and therefore who to expect. Each reply then arrives on
+    // its own, over the floor channel, as the THREAD_LINE the write emits,
+    // with a TYPING immediately before the call that produces it. A client
+    // that is not on the socket loses nothing: every line is in the thread and
+    // GET /api/home/thread still returns all of it.
+    const pending = atHome.map(({ agent }) => ({ agentId: agent.id, name: agent.name ?? null }));
+    res.json({ sessionId, said: text, home: atHome.length, pending, replies: [] });
+
+    // Sequential, not parallel, and that is the point: they are taking turns in
+    // a room. Three at once would also be three concurrent model calls off one
+    // rate-limited request, which is the shape this endpoint's limiter exists
+    // to prevent.
+    // Everything past the response is wrapped, because there is no longer a
+    // caller to hand a 500 to: an unhandled rejection after res.json() is a
+    // process-level noise at best and a crash at worst.
+    try {
+      for (const { agent } of atHome) {
+        emitTyping(userId, agent.id, sessionId);
+        let body = null;
+        try {
+          body = await ownerChatTurn(agent, userId, text);
+        } catch (err) {
+          console.error('[home] reply failed:', err.message);
+          continue;
+        }
+        const reply = body?.chat?.[0]?.content;
+        if (!reply) continue;
+        appendThreadLine({
+          sessionId,
+          agentId: agent.id,
+          ownerId: userId,
+          kind: ThreadKind.HIM,
+          who: agent.name || 'HIM',
+          text: reply,
+          source: ThreadSource.HOME,
+          // Attributed both ways: he said it, and he said it back to you.
+          from: agent.id,
+          to: THREAD_OWNER,
+        });
       }
-      const reply = body?.chat?.[0]?.content;
-      if (!reply) continue;
-      appendThreadLine({
-        sessionId,
-        agentId: agent.id,
-        ownerId: userId,
-        kind: ThreadKind.HIM,
-        who: agent.name || 'HIM',
-        text: reply,
-        source: ThreadSource.HOME,
-        // Attributed both ways: he said it, and he said it back to you.
-        from: agent.id,
-        to: THREAD_OWNER,
-      });
-      replies.push({
-        agentId: agent.id,
-        name: agent.name ?? null,
-        text: reply,
-        mood: body.mood ?? null,
-        fromOwnerMemory: !!body.fromOwnerMemory,
-      });
-    }
 
-    saveStore(userId);
-    emitAgentChange(userId);
-    res.json({ sessionId, said: text, home: atHome.length, replies });
+      // The turn moved moods and memories, so the records are saved and the
+      // floor is told once at the end rather than per speaker — the fan-out is
+      // one event in the room, not three.
+      saveStore(userId);
+      emitAgentChange(userId);
+    } catch (err) {
+      console.error('[home] fan-out failed:', err.message);
+    }
   });
 
   // GET /api/agents?userId=... — agents array with the floor-UI fields
@@ -3582,7 +3837,11 @@ export function installAgentProfileRoutes(app) {
         });
       }
 
-      stakes = stakesFor(pocket.balance);
+      // SERVER-4: the room the owner asked for, or the highest one his pocket
+      // reaches when he asked for none. Refused, never downgraded.
+      const chosen = stakesForRequest(req.body, pocket.balance);
+      if (chosen.status) return res.status(chosen.status).json(chosen.body);
+      stakes = chosen.stakes;
       candidate = liveTables.findJoinableTable?.({
         profile: agent.profile ?? null,
         agentId: agent.id,
@@ -3667,6 +3926,11 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
+    // SERVER-4: the room he is walking into. Only ever a FALLBACK for the
+    // location the live table derives (home.js locationFor) — it answers the
+    // one window where nothing else can, between "he has been sent" and "the
+    // felt exists", which is where a queued agent lives permanently.
+    agent.headingTo = roomIdForStakes(stakes);
     // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
     // when the session ends. The old agent ledger keeps its entry too while
     // agent.bankroll is still mirrored.
@@ -3690,11 +3954,30 @@ export function installAgentProfileRoutes(app) {
       sessionStarted,
       joinedExisting,
       seat,
+      // SERVER-4: where he actually ended up. With `rung` this is what was
+      // asked for; without it, it is what his pocket chose for him — and
+      // either way the client no longer has to infer a room from blinds.
+      room: agent.headingTo,
+      stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
     });
   });
 
   // POST /api/agents/:agentId/queue — PvP matchmaking
   // Pairs two agents on the same table without manual ID sharing.
+  //
+  // SERVER-4: takes `{ rung }` like /deploy, and for the same reason — the
+  // owner picks a room, the server does not pick one for him. Two differences
+  // from deploy, both because a queued agent has no felt yet:
+  //
+  //   * THE STAKES TRAVEL WITH THE SLOT, not with a table, because the table
+  //     does not exist until somebody watches it. The second man into the slot
+  //     inherits the first man's stakes rather than his own request: they are
+  //     sitting down together, and one table cannot be at two rungs. He is
+  //     still gated on affording it, so the pairing can be refused rather than
+  //     seating somebody who cannot cover the felt he was matched onto.
+  //   * `room` comes back in the response and is remembered on the agent as
+  //     `headingTo`, which is what lets his card say where he is walking to
+  //     during the window where there is nothing to derive it from.
   app.post('/api/agents/:agentId/queue', (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
@@ -3710,24 +3993,42 @@ export function installAgentProfileRoutes(app) {
       matchmakingSlot = null;
     }
 
+    const pocket = ensurePocket(agent);
+    pocket.agentId = agent.id;
+
     let tableId;
     let matched;
+    let stakes;
 
     let opponentName = null;
 
     if (matchmakingSlot) {
-      // Match found — join the waiting table.
+      // Match found — join the waiting table, at ITS stakes.
+      stakes = matchmakingSlot.stakes ?? null;
+      if (stakes && pocket.balance < stakes.buyIn) {
+        return res.status(409).json({
+          error: 'cantAfford',
+          buyIn: stakes.buyIn,
+          rung: stakes.rung,
+          label: stakes.label,
+          pocket: Math.max(0, Math.floor(Number(pocket.balance) || 0)),
+          matched: true,
+        });
+      }
       tableId = matchmakingSlot.tableId;
       opponentName = matchmakingSlot.agentName;
       matchmakingSlot = null;
       matched = true;
       console.log(`[agents] matched ${agent.name} vs ${opponentName} on table ${tableId} (PvP)`);
     } else {
+      const chosen = stakesForRequest(req.body, pocket.balance);
+      if (chosen.status) return res.status(chosen.status).json(chosen.body);
+      stakes = chosen.stakes;
       // No one waiting — create a table and queue it.
       tableId = 'table-' + randomUUID().slice(0, 8);
-      matchmakingSlot = { tableId, agentName: agent.name, expiresAt: Date.now() + 5 * 60_000 };
+      matchmakingSlot = { tableId, agentName: agent.name, stakes, expiresAt: Date.now() + 5 * 60_000 };
       matched = false;
-      console.log(`[agents] ${agent.name} queued on table ${tableId}, waiting for opponent`);
+      console.log(`[agents] ${agent.name} queued on table ${tableId}${stakes ? ` at ${stakes.label}` : ''}, waiting for opponent`);
     }
 
     activeTables.add(tableId);
@@ -3735,8 +4036,12 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
+    agent.headingTo = roomIdForStakes(stakes);
     ensureMemory(agent);
     saveStore(userId);
+    // A man who has just left for the casino is not at home any more, and the
+    // living room has to stop drawing him there before he gets to a felt.
+    emitAgentChange(userId);
 
     res.json({
       tableId,
@@ -3746,6 +4051,13 @@ export function installAgentProfileRoutes(app) {
       agentName: agent.name,
       strategy: agent.strategy,
       memoryContext: getAgentMemoryContext(agent),
+      room: agent.headingTo,
+      // The blinds the client must WATCH this table with. Without them the
+      // socket would stand the table up at the default 10/20 and the rung
+      // would have been a suggestion.
+      stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
+      smallBlind: stakes?.smallBlind ?? null,
+      bigBlind: stakes?.bigBlind ?? null,
     });
   });
 

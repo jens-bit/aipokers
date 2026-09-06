@@ -29,6 +29,7 @@ import { classifyCooler } from './cooler.js';
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
+  hotTableIds,
 } from './events.js';
 // METER-1: every model call this table makes is filed under the owner of the
 // seat that made it. Best-effort by construction — recordModelCall swallows
@@ -209,6 +210,23 @@ function safeTakeDrink(agentId, userId, tableId) {
     return takeDrinkForSession(agentId, userId);
   } catch (err) {
     console.error(`[table:${tableId}] drink flag read failed:`, err.message);
+    return false;
+  }
+}
+
+// SERVER-4: is this table inside the `hot` window right now?
+//
+// Wrapped rather than called inline because liveGameView must never be the
+// place a hand dies: the event ring is a shared module-level structure and a
+// live frame that cannot say whether a table is hot is worth infinitely more
+// than one that throws. False is the honest fallback — a table nobody can
+// confirm is on fire is not on fire.
+function isHot(tableId) {
+  if (!tableId) return false;
+  try {
+    return hotTableIds().includes(String(tableId));
+  } catch (err) {
+    console.error('[table] hot lookup failed:', err.message);
     return false;
   }
 }
@@ -1643,6 +1661,21 @@ export class Table {
       actionDeadline: this.actionDeadline ?? null,
       handNumber: g ? g.handNumber : 0,
       dealtIn,
+      // SERVER-4: what this stay is WORTH so far — his chips right now minus
+      // what he sat down with, signed. The floor's live frame used to carry
+      // `heroStack` and nothing to measure it against, so a client that wanted
+      // to say "+340" had to remember the buy-in from a message it may never
+      // have received. Banked stack first, then the live Game, then the buy-in
+      // itself, which is the honest reading of "nothing has happened yet" — so
+      // this is 0 between hands rather than null, and it is the same
+      // arithmetic SESSION_END's `net` closes the stay with.
+      net: this._seatFinalStack(seat) - this._seatBuyIn(seat),
+      // SERVER-4: is this table on fire right now? The same flag the lobby's
+      // rooms carry, read from the same event window, so the frame on an
+      // agent's card and the flame on the room he is in can never disagree.
+      // It expires on a clock (HOT_RECENT_MS), which is why it is read here
+      // per call rather than stored on the table.
+      hot: isHot(this.tableId),
       seatCount: this.seatedCount(),
       maxSeats: this.maxSeats,
       handsThisSession: this.handsThisSession,

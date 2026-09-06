@@ -31,6 +31,17 @@
 //      thread. Every write here is wrapped; the caller is never told and never
 //      has to care.
 //
+// SERVER-4: A LINE THAT IS WRITTEN IS ALSO PUSHED. Every successful write here
+// is announced to the ONE injected listener below, and the composition root
+// hangs BOTH deliveries off it: the table's THREAD_LINE, to the sockets
+// watching that seat, and the floor's OWNER_LINE, to the owner's proved floor
+// subscribers. Before this a client learned about a line by asking again -- so
+// an agent answering something you said in the flat arrived whenever you next
+// pulled the thread, which is not what a conversation is. The listener is
+// injected for the same reason the want listener is: nothing here may import
+// back out of this module. Emitting is as best-effort as writing; a listener
+// that throws costs a push, never a line.
+//
 // Persistence is store.js's session_thread table. This module owns the
 // vocabulary, the clamping and the ownership filter; it owns no SQL.
 
@@ -66,6 +77,17 @@ const KINDS = new Set(Object.values(ThreadKind));
 // floorChannel.js takes its providers in: this module still knows about no
 // socket, no table and no registry — wsServer wires the listener to whatever
 // can deliver, and with nothing wired the writes are exactly what they were.
+//
+// SERVER-4 hung a SECOND delivery off this same sink rather than adding a
+// second sink. There are two wire names, because there are two payload shapes
+// for two audiences — THREAD_LINE at the table, OWNER_LINE on the owner's
+// floor — but one announcement behind them. A second listener here would be a
+// second copy of every line; a second sink would be a second place for the two
+// to drift apart.
+//
+// What is announced is the stored ROW, ids and all: the table half routes by
+// `agentId` and the floor half by `ownerId`, so the sink cannot strip either.
+// Each half shapes its own wire payload — see wireLine below for the floor's.
 //
 // It is announced AFTER the row is written and with the row's own id, so a
 // client can merge the push with a fetch by id rather than by guessing whether
@@ -126,6 +148,24 @@ function participant(id) {
 
 // The same clamp table chat uses. A thread line is a line, not a document.
 export const LINE_MAX = 280;
+
+// ── SERVER-4 · what an announced line looks like on the OWNER_LINE wire ─────
+//
+// The floor half of the push sends this. Deliberately the same shape readThread
+// returns — `ownerId` and `agentId` stripped, everything else kept — so a client
+// can append a pushed line to a fetched thread without reconciling two
+// vocabularies for one sentence. `cost` rides only when it is one, exactly as
+// the read route does it: a `cost: false` on every ordinary line is noise on
+// the wire and a third state for a client to think about.
+//
+// The table half does its own shaping, and a smaller one — a socket already
+// watching that seat has the table and the session and needs neither.
+export function wireLine({ id, sessionId, tableId = null, ts, kind, who, text, source, from = null, to = null, lines = null, cost = false }) {
+  const line = { id, sessionId: String(sessionId), tableId: tableId ?? null, ts, kind, who, text, source, from, to };
+  if (cost) line.cost = true;
+  if (Array.isArray(lines)) line.lines = lines;
+  return line;
+}
 
 /**
  * Append one line. Best-effort by construction — returns the row id, or null
@@ -188,12 +228,24 @@ export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, 
   return id;
 }
 
+// SERVER-4: the step between two lines of one overheard exchange.
+//
+// The whole conversation is written in a single call, so every line inside it
+// would otherwise share one timestamp — and a client keying rows by `ts`, or
+// sorting by it, cannot then tell the second line from the first. One
+// millisecond apart is the smallest honest thing that fixes both: they really
+// did all happen at once, and the offsets only ORDER them. It is deliberately
+// not a conversational gap; inventing a minute between two lines the model
+// produced together would be a lie the client would print.
+export const OVERHEARD_LINE_STEP_MS = 1;
+
 /**
  * THREAD-2: the day's overheard exchange, as one entry.
  *
- * `lines` is [{ from, to, who, text }] in the order it was said. The entry's
- * own `text` is the first line, so a client that has not been taught the new
- * kind still shows something a person said rather than an empty row.
+ * `lines` is [{ from, to, who, text }] in the order it was said, and each one
+ * comes back out with a `ts` of its own — see OVERHEARD_LINE_STEP_MS. The
+ * entry's own `text` is the first line, so a client that has not been taught
+ * the new kind still shows something a person said rather than an empty row.
  *
  * Writing a second one for the same session REPLACES the first: one exchange
  * per owner per day is a rule about what is STORED, not only about what the
@@ -214,24 +266,43 @@ export function appendOverheard({ sessionId, ownerId, lines, ts = null } = {}) {
     .filter((line) => line.text && line.from);
   if (kept.length === 0) return null;
 
+  const at = Number.isFinite(ts) ? ts : Date.now();
+  // Each line gets its own clock, in the order it was said.
+  const timed = kept.map((line, i) => ({ ...line, ts: at + i * OVERHEARD_LINE_STEP_MS }));
+
+  const row = {
+    sessionId: String(sessionId),
+    ts: at,
+    kind: ThreadKind.OVERHEARD,
+    who: timed[0].who,
+    text: timed[0].text,
+    source: ThreadSource.HOME,
+    lines: timed,
+  };
+
+  let id = null;
   try {
-    return putOverheardEntry({
-      sessionId,
+    id = putOverheardEntry({
+      ...row,
       // The row needs one agent_id and the exchange belongs to both. The first
       // speaker is the one it is filed under; every speaker is named inside
       // `lines`, which is where a reader should look for who was in it.
-      agentId: kept[0].from,
+      agentId: timed[0].from,
       ownerId: ownerId ?? 'anon',
-      ts: Number.isFinite(ts) ? ts : Date.now(),
-      who: kept[0].who,
-      text: kept[0].text,
-      lines: kept,
-      source: ThreadSource.HOME,
     });
   } catch (err) {
     console.error('[thread] overheard write failed:', err.message);
     return null;
   }
+  // SERVER-4: the nightly exchange is pushed like any other written line. It
+  // is the one line in the product nobody asked for and nobody is waiting on,
+  // which is exactly why it has to arrive on its own. It carries no tableId —
+  // nothing was said at a felt — so the table half of the sink passes over it
+  // and only the owner's floor hears it, which is the only place it belongs.
+  // The two ids ride along for the same reason they do on a felt's line: they
+  // are what the sink routes by, and wireLine strips them before the wire.
+  if (id != null) announce({ ...row, id, agentId: timed[0].from, ownerId: ownerId ?? 'anon' });
+  return id;
 }
 
 function defaultLabel(kind) {

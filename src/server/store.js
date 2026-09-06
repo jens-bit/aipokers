@@ -252,6 +252,15 @@ function applySchema(d) {
   // a real conversation with no table under it.
   addColumnIfMissing(d, 'session_thread', 'source', "TEXT NOT NULL DEFAULT 'table'");
 
+  // SERVER-4: how far back the owner's UNREAD room thread goes — the ts of the
+  // oldest line in his flat he has not looked at, or 0 for "nothing waiting".
+  // A column on `profiles` rather than a field inside the chat JSON because it
+  // is written by a thread line landing and cleared by a route, neither of
+  // which has any business rewriting the creation chat to do it. Zero, not
+  // null, so the migration touches no rows: an owner who has never had the
+  // feature has nothing unread, which is exactly true.
+  addColumnIfMissing(d, 'profiles', 'home_thread_unread_since', 'INTEGER NOT NULL DEFAULT 0');
+
   addColumnIfMissing(d, 'notifications', 'dedupe_key', 'TEXT');
   d.exec('CREATE INDEX IF NOT EXISTS notifications_key ON notifications (owner_id, dedupe_key)');
 
@@ -398,11 +407,15 @@ function migrateNotifications(d) {
 
 // ── Row writers (shared by the migration and the live accessors) ─────────────
 
-function putProfileRow(d, ownerId, chat) {
+function putProfileRow(d, ownerId, chat, homeThreadUnreadSince = 0) {
+  const unread = Number.isFinite(homeThreadUnreadSince) ? Math.max(0, Math.floor(homeThreadUnreadSince)) : 0;
   d.prepare(`
-    INSERT INTO profiles (owner_id, chat, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(owner_id) DO UPDATE SET chat = excluded.chat, updated_at = excluded.updated_at
-  `).run(String(ownerId), JSON.stringify(chat ?? []), Date.now());
+    INSERT INTO profiles (owner_id, chat, home_thread_unread_since, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(owner_id) DO UPDATE SET
+      chat = excluded.chat,
+      home_thread_unread_since = excluded.home_thread_unread_since,
+      updated_at = excluded.updated_at
+  `).run(String(ownerId), JSON.stringify(chat ?? []), unread, Date.now());
 }
 
 // The lifted columns are written from `data` and never read back into it —
@@ -461,14 +474,21 @@ function putNotificationRow(d, ownerId, state) {
 export function loadAgentStore() {
   const d = conn();
   const out = {};
-  for (const row of d.prepare('SELECT owner_id, chat FROM profiles').all()) {
-    out[row.owner_id] = { userId: row.owner_id, agents: [], chat: jsonParse(row.chat, []) };
+  for (const row of d.prepare('SELECT owner_id, chat, home_thread_unread_since FROM profiles').all()) {
+    out[row.owner_id] = {
+      userId: row.owner_id,
+      agents: [],
+      chat: jsonParse(row.chat, []),
+      // SERVER-4: 0 on the wire means nothing waiting; in memory that is null,
+      // so nobody downstream has to know which of the two sentinels they hold.
+      homeThreadUnreadSince: row.home_thread_unread_since || null,
+    };
   }
   const agents = d.prepare('SELECT owner_id, data FROM agents ORDER BY owner_id, created_at, id').all();
   for (const row of agents) {
     // An agent row without a profile row can only come from a partial import;
     // keep the agent rather than dropping it on the floor.
-    if (!out[row.owner_id]) out[row.owner_id] = { userId: row.owner_id, agents: [], chat: [] };
+    if (!out[row.owner_id]) out[row.owner_id] = { userId: row.owner_id, agents: [], chat: [], homeThreadUnreadSince: null };
     out[row.owner_id].agents.push(jsonParse(row.data, {}));
   }
   return out;
@@ -483,7 +503,7 @@ export function saveProfile(ownerId, profile) {
   const list = Array.isArray(profile?.agents) ? profile.agents : [];
 
   d.transaction(() => {
-    putProfileRow(d, owner, profile?.chat ?? []);
+    putProfileRow(d, owner, profile?.chat ?? [], profile?.homeThreadUnreadSince ?? 0);
     for (let i = 0; i < list.length; i++) putAgentRow(d, owner, list[i], i);
 
     const keep = new Set(list.map((a) => String(a?.id ?? '')));
