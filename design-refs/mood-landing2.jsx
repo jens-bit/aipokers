@@ -49,6 +49,17 @@ const L2Shot = ({ children, s = 0.42, cap }) => (
   </div>
 );
 
+// One screen, centred, as large as the column allows. Two small screenshots side by
+// side read as an afterthought; one big one reads as the product.
+const L2Big = ({ children, s, cap }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', width: '100%' }}>
+    <div style={{ width: 390 * s, height: 844 * s, overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ width: 390, height: 844, transform: `scale(${s})`, transformOrigin: '0 0' }}>{children}</div>
+    </div>
+    <div style={{ maxWidth: 460, textAlign: 'center', fontSize: 12.5, color: L2.faint, lineHeight: 1.5 }}>{cap}</div>
+  </div>
+);
+
 const L2Cta = ({ big, label = 'DRAFT HIM' }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 9, alignItems: 'flex-start' }}>
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, height: big ? 54 : 46, padding: big ? '0 30px' : '0 24px', borderRadius: 3, background: `linear-gradient(180deg, ${L2.goldHi} 0%, ${L2.gold} 100%)`, cursor: 'pointer', boxShadow: '0 10px 30px rgba(205,179,128,0.18)' }}>
@@ -69,10 +80,12 @@ const L2Hero = ({ w }) => {
     <div style={{ position: 'relative', width: big ? 470 : '100%', height: big ? 350 : 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', flexShrink: 0 }}>
       {/* the felt he stands on, implied not drawn */}
       <div style={{ position: 'absolute', left: '50%', bottom: big ? 26 : 18, transform: 'translateX(-50%)', width: big ? 400 : 280, height: big ? 120 : 84, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 50%, rgba(205,179,128,0.16) 0%, rgba(205,179,128,0) 70%)' }}></div>
-      {/* the fan, spread in front of him at the felt line */}
-      <div style={{ position: 'absolute', left: '50%', bottom: big ? 4 : 2, zIndex: 3, transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end' }}>
+      {/* The fan he is holding: BACKS, never white faces — a landing page must not
+          show a hand it has no right to show. It sits BEHIND him so his own hands
+          read in front of the card bottoms: he holds them from below. */}
+      <div style={{ position: 'absolute', left: '50%', bottom: big ? 52 : 36, zIndex: 1, transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end' }}>
         {[-34, -18, -6, 6, 18, 34].map((r, i) => (
-          <span key={r} style={{ width: big ? 50 : 34, height: big ? 72 : 48, marginLeft: i ? (big ? -26 : -18) : 0, borderRadius: 4, background: 'linear-gradient(180deg, #F4EBDD 0%, #C9B99C 100%)', border: '1px solid rgba(26,10,16,0.4)', transform: `rotate(${r}deg) translateY(${Math.abs(r) * 0.6}px)`, transformOrigin: '50% 100%', boxShadow: '0 8px 22px rgba(0,0,0,0.5)', animation: `dealin 0.5s ease-out ${0.25 + i * 0.13}s both, redeal 9s linear ${0.25 + i * 0.13}s infinite` }}></span>
+          <span key={r} style={{ width: big ? 50 : 34, height: big ? 72 : 48, marginLeft: i ? (big ? -26 : -18) : 0, borderRadius: 4, background: 'linear-gradient(150deg, #3A1424 0%, #24101A 100%)', border: `1px solid ${L2.gold}66`, boxShadow: `inset 0 0 0 1px rgba(205,179,128,0.14), 0 8px 22px rgba(0,0,0,0.5)`, transform: `rotate(${r}deg) translateY(${Math.abs(r) * 0.6}px)`, transformOrigin: '50% 100%', animation: `dealin 0.5s ease-out ${0.25 + i * 0.13}s both, redeal 9s linear ${0.25 + i * 0.13}s infinite` }}></span>
         ))}
       </div>
       <div style={{ position: 'relative', zIndex: 2, animation: 'bob 5.5s ease-in-out infinite', paddingBottom: big ? 62 : 46 }}>
@@ -127,11 +140,11 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 1 · DRAFT HIM */}
         <L2Section n="01" w={w} label="Draft him" title="Thirty seconds of conversation, and he exists."
           lede="No sliders, no build screen. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.46 : 0.42} cap="The recruiter speaks for the system. The ghost has no voice yet — he is not born.">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
+            <L2Big s={big ? 0.8 : 0.86} cap="The recruiter speaks for the system. The ghost has no voice yet — he is not born.">
               <NavDraftM/>
-            </L2Shot>
-            <div style={{ flex: 1, minWidth: 250, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            </L2Big>
+            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['A NATURE', 'One of eight temperaments, read out of the conversation and announced in his first words. It never changes.'],
                 ['SIX ATTRIBUTES', 'Reads, Focus, Discipline, Composure, Deception, Stamina. You set the tactics; these are how well he executes them.'],
                 ['A CEILING YOU CANNOT SEE', 'Each attribute has a born potential, shown as a range that narrows the more he plays. You scout your own agent.']].map(([k, v]) => (
@@ -147,18 +160,15 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 2 · HE LIVES AT HOME */}
         <L2Section n="02" w={w} alt label="He lives at home" title="A room, seen from above, with your agents in it."
           lede="Between sessions he is somewhere. At the kitchen table playing your other agents for nothing, on the couch worn out, at the fridge you stock, in front of the TV watching a hand back. You can see who is rested and who is tilted without opening anything.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.5 : 0.44} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change."><FourApartM/></L2Shot>
-            <L2Shot s={big ? 0.5 : 0.44} cap="Tap the door and he walks to the casino. The TV on the wall is showing the floor."><NavHomeM/></L2Shot>
-          </div>
+          <L2Big s={big ? 0.8 : 0.86} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change. Tap the door and he walks to the casino; the TV on the wall is showing the floor."><NavHomeM/></L2Big>
         </L2Section>
 
         {/* 3 · HE PLAYS FOR REAL */}
         <L2Section n="03" w={w} label="He plays for real" title="He sits at the bottom of the felt, facing you."
           lede="Real hands at real stakes against the house cast and other people's agents. He holds his cards, pushes his own chips, and says what he is doing in twelve words or fewer. You can whisper to him mid-hand; he decides whether to listen.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.5 : 0.44} cap="One line, then the rope, then his hands. Never solver language."><V5CalmScreenM/></L2Shot>
-            <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
+            <L2Big s={big ? 0.8 : 0.86} cap="A hand, live: his line, the rope, his own hands on his cards. Never solver language."><V5CeremonyWonScreenM/></L2Big>
+            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['THE ROPE', 'Equity as a tug-of-war under the board, moving on every street. It is the one thing a non-poker player reads.'],
                 ['A WHISPER', 'You can lean in mid-hand. It is advice, not a command — a stubborn nature may ignore it and tell you so.'],
                 ['A CEREMONY', 'When the session ends he comes home and tells you how it went, in his own voice, with the hand that decided it.']].map(([k, v]) => (
@@ -223,10 +233,7 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 7 · SIT DOWN YOURSELF */}
         <L2Section n="07" w={w} label="Sit down yourself" title="Take a chair at your own kitchen table."
           lede="Your agents play each other for nothing when they are home. You can sit down in an empty chair and play them — and they will build a read on you the same way they build one on anybody else.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.5 : 0.44} cap="The camera pushes in on the table once. After that it is yours."><OwnerSitDownM/></L2Shot>
-            <L2Shot s={big ? 0.5 : 0.44} cap="Pull back to the room and you can still act — the verbs come with you."><OwnerPulledBackM/></L2Shot>
-          </div>
+          <L2Big s={big ? 0.8 : 0.86} cap="The camera pushes in on the table once, and after that it is yours. Pull back to the room and you can still act — the verbs come with you."><OwnerSitDownM/></L2Big>
         </L2Section>
 
         {/* 8 · THE SEATS */}
@@ -279,6 +286,6 @@ const LandingHeroN = ({ w = 1280, vh = 800 }) => (
 );
 
 Object.assign(window, {
-  L2, ROZHA, L2Lbl, L2Section, L2Shot, L2Cta, L2Hero, L2Masthead,
+  L2, ROZHA, L2Lbl, L2Section, L2Shot, L2Big, L2Cta, L2Hero, L2Masthead,
   LandingPage, Landing1280N, Landing390N, LandingHeroN,
 });

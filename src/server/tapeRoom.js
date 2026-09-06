@@ -44,6 +44,7 @@ import {
   getAgentStudy,
   appendAgentRead,
   getAgentReadBook,
+  noteTapeWatch,
 } from './agentProfiles.js';
 import { getRead } from './opponentStats.js';
 import { studyLine } from '../agent/reads.js';
@@ -104,6 +105,16 @@ export function isStudying(agentId) {
  */
 export function startStudy(agentId, userId, { hand, subject, text, now = Date.now() } = {}) {
   const key = String(agentId);
+  // COST-1: the rewatch ledger, written when the study STARTS. Starting one is
+  // the act — an owner who closes the app forty seconds in still went and
+  // looked — and it is what the ranking, the opener and his resting heat all
+  // read. Best-effort: a ledger that can break the tape room is worse than no
+  // ledger.
+  try {
+    noteTapeWatch(agentId, userId, hand, { subject: subject?.displayName ?? null, now });
+  } catch (err) {
+    console.error('[tape] watch ledger write failed:', err.message);
+  }
   const study = {
     handNumber: hand?.handNumber ?? null,
     flagType: hand?.flagType ?? null,

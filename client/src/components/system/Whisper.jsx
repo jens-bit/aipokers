@@ -137,17 +137,25 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
         </Glass>
       </form>
 
-      {/* WATCH-7: the hint was a line of dead text telling you about a gesture.
-          It is a control now — a chevron above the words, and tapping either
-          opens the thread. A hint for a gesture that is hard to discover has to
-          be the thing it is hinting at. */}
-      <button type="button" className="watch-composer__hint" onClick={onOpenThread}>
-        <svg className="watch-composer__chevron" width="16" height="9" viewBox="0 0 16 9"
+      {/* WATCH-7 made the hint a control instead of a line of dead text.
+          BUGS-A job 6 finishes the job by deleting the words.
+          "SWIPE UP FOR THE THREAD" was instructions for a gesture, printed
+          under the one screen where a swipe up is the platform's own — inside
+          Telegram it is what closes the Mini App, so the app was teaching a
+          gesture that took the owner out of it. disableVerticalSwipes (see
+          lib/telegram.js) stops Telegram claiming it, but a caption telling a
+          phone user to swipe is a caption admitting the control is not
+          obvious. So the control is all that is left: a chevron, and tapping
+          it opens the thread. The swipe still works for anyone who finds it.
+          The composer's own send button is untouched — this is beside it, not
+          instead of it. */}
+      <button type="button" className="watch-composer__hint" onClick={onOpenThread}
+        aria-label="Open the thread">
+        <svg className="watch-composer__chevron" width="22" height="12" viewBox="0 0 16 9"
           fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
           strokeLinejoin="round" aria-hidden>
           <path d="M2 7l6-5 6 5" />
         </svg>
-        <span>SWIPE UP FOR THE THREAD</span>
       </button>
     </div>
   );

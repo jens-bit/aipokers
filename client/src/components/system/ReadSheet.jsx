@@ -13,12 +13,15 @@ import { useEffect, useRef, useState } from 'react';
 import { normalizeReads, noEvidenceLine } from '../../lib/reads.js';
 import { MoodGhost } from './MoodGhost.jsx';
 import { ReadBar } from './ReadPanel.jsx';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 // How long the "it just formed" treatment holds before it is simply his read.
 const FORMING_MS = 4000;
 
 export function ReadSheet({ entry, seat, onClose }) {
   const model = normalizeReads(entry);
+  // BUGS-A job 5: the same gesture every other sheet answers to.
+  const drag = useSheetDrag(onClose);
 
   // The server has no `forming` flag — it stops sending a READ message once
   // nothing has changed — so the transition is noticed here: this opponent's
@@ -49,7 +52,14 @@ export function ReadSheet({ entry, seat, onClose }) {
   const hands = model.hands || 0;
 
   return (
-    <div className="read-sheet" role="dialog" aria-label={`${name} — read`}>
+    <div
+      className={`read-sheet${drag.dragging ? ' is-dragging' : ''}`}
+      role="dialog"
+      aria-label={`${name} — read`}
+      ref={drag.ref}
+      style={drag.style}
+      {...drag.handlers}
+    >
       <button type="button" className="read-sheet__grab" onClick={onClose} aria-label="Close read">
         <span className="read-sheet__grab-bar" />
       </button>

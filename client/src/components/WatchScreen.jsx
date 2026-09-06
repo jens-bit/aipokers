@@ -47,6 +47,8 @@ import { MoodGhost } from './system/MoodGhost.jsx';
 import { GhostHandLayer } from './system/GhostHands.jsx';
 import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
+import { handResult } from '../lib/handResult.js';
+import { money as potMoney } from '../lib/wallet.js';
 import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
 import { onFelt, record } from '../lib/bubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
@@ -784,6 +786,21 @@ export function WatchFelt({
     ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
     : null;
 
+  // BUGS-A job 12. Built from the same board and the same showdown the felt is
+  // drawing, so the sentence and the cards under it can never disagree.
+  var handLine = result
+    ? handResult(result, {
+      seats: game.seats || [],
+      community: community,
+      // lib/wallet's formatter, not toLocaleString(). The machine's locale
+      // decides what toLocaleString groups with, so on a Swedish phone the
+      // same pot read "$4 180" here and "$4,180" three lines below it. One
+      // screen, one separator — the law CasinoBuilding's count() already
+      // states.
+      money: potMoney,
+    })
+    : null;
+
   var blinds = (game && game.smallBlind != null && game.bigBlind != null)
     ? ('$' + game.smallBlind + '/$' + game.bigBlind)
     : '';
@@ -946,12 +963,21 @@ export function WatchFelt({
       {settled ? (
         <>
           <div className="watch-felt__pot-trail" />
+          {/* BUGS-A job 12: the hand, named. "$30 → Granite" said how much and
+              to whom and nothing about WHY, on a screen whose whole subject is
+              watching somebody play poker. The felt already knows — the
+              showdown reveals every contested seat — and it was throwing the
+              answer away. See lib/handResult.js for where the name comes from
+              and in what order. */}
           <div className="watch-felt__won">
-            <div className="watch-felt__won-pill">
+            <div className="watch-felt__won-pill" aria-label={handLine ? handLine.line : undefined}>
+              {handLine && <span className="watch-felt__won-to">{handLine.who + ' took'}</span>}
               <span className="watch-felt__won-amt">
-                {'$' + (result.pot || 0).toLocaleString()}
+                {potMoney(result.pot || 0)}
               </span>
-              {winnerName && <span className="watch-felt__won-to">{'→ ' + winnerName}</span>}
+              {handLine && handLine.tail
+                ? <span className="watch-felt__won-with">{handLine.tail}</span>
+                : null}
             </div>
           </div>
         </>
@@ -1205,6 +1231,10 @@ export function WatchScreen({
   // when the connection comes back. The sheet the owner left is not the sheet
   // the table has been writing while he was gone.
   connection = null,
+  // WATCH-9 · the lines the server has PUSHED since this socket opened
+  // (THREAD_LINE). The fetch above is a snapshot taken when the sheet opens;
+  // this is what keeps an open sheet current without it polling.
+  threadLines = null,
   onOpenThread,
   paceFrame,
   paceLag,
@@ -1349,6 +1379,19 @@ export function WatchScreen({
   }, []);
 
   function sendToAgent(text) {
+    // BUGS-A job 11 · NOTHING IS SHOWN THAT IS NOT RECORDED.
+    //
+    // The bubble used to rise first and the guard came after it, so a whisper
+    // sent while he was still answering the last one — or at a table with no
+    // agent of yours at it — floated up the felt, was gone in four seconds, and
+    // was never in the thread. The owner had said something to nobody, and the
+    // record disagreed with what he had just watched himself do.
+    //
+    // The guard is first now, and the composer is disabled while a reply is in
+    // flight, so the whisper on the felt and the YOU line in the thread are one
+    // event with two drawings of it.
+    if (!agentId || agentLoading) return;
+
     var now = Date.now();
     var id = 'w' + (++whisperIdRef.current);
     setWhispers(function(prev) { return prev.concat([{ id: id, text: text }]); });
@@ -1356,7 +1399,6 @@ export function WatchScreen({
       setWhispers(function(prev) { return prev.filter(function(w) { return w.id !== id; }); });
     }, WHISPER_MS));
 
-    if (!agentId || agentLoading) return;
     setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now }]); });
     setAgentLoading(true);
     fetch('/api/agents/chat', {
@@ -1622,8 +1664,11 @@ export function WatchScreen({
 
   // Opening the sheet is the moment the record has to be current; a reconnect
   // is the other one, and the hook owns both.
+  // WATCH-9: and from there it is pushed, so a sheet that is already open shows
+  // the next line without being closed and opened again.
   var storedRows = useTableThread({
     agentId: agentId, sessionId: sessionId, connection: connection, want: threadOpen,
+    pushed: threadLines,
   });
 
   // ── the thread, in one ordered list ─────────────────────────────────────
@@ -1803,6 +1848,10 @@ export function WatchScreen({
         onSend={sendToAgent}
         onOpenThread={function() { openChat(); }}
         agentName={agentName}
+        // BUGS-A job 11: while he is answering, and at a table where there is
+        // no agent of yours to answer. A composer that takes a line and drops
+        // it is worse than one that says it cannot take it.
+        disabled={agentLoading || !agentId}
       />
 
       {sitOutPending && (

@@ -10,6 +10,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BodyBars, HeatBar, heatBand } from './BodyBars.jsx';
+import { AttrCluster } from './AttrCluster.jsx';
+import { STAMINA_FULL, STAMINA_SPENT } from './FeltBodyBars.jsx';
 
 const staminaRow = { key: 'STAMINA', cur: 63, lo: 64, hi: 70, fatigued: false, narrowed: false };
 
@@ -95,5 +97,33 @@ describe('BodyBars', () => {
     render(<BodyBars staminaRow={null} heat={12} />);
     expect(screen.getByText('HEAT')).toBeInTheDocument();
     expect(screen.queryByText('STAMINA')).toBeNull();
+  });
+
+  // BUGS-A job 10 · SAME TWO RULES EVERYWHERE. On the felt a spent stamina
+  // line is red and a full one is green; on this card it was skill teal at
+  // every value, so the same man read as fine here and as running on empty
+  // there.
+  it('colours STAMINA by what it says, off the felt own function', () => {
+    const { container } = render(<BodyBars staminaRow={{ ...staminaRow, cur: 100 }} heat={38} />);
+    const track = container.querySelector('.attr-cluster .attr-track');
+    expect(track.className).toContain('attr-track--tinted');
+    expect(track.style.getPropertyValue('--tint').toUpperCase()).toBe(STAMINA_FULL);
+  });
+
+  it('a man running on empty is red on this card too', () => {
+    const { container } = render(<BodyBars staminaRow={{ ...staminaRow, cur: 0 }} heat={38} />);
+    expect(container.querySelector('.attr-cluster .attr-track')
+      .style.getPropertyValue('--tint').toUpperCase()).toBe(STAMINA_SPENT);
+  });
+
+  // A skill's colour is not a verdict on its value: teal at 30 and teal at 90
+  // is the point of the cluster.
+  it('tints nothing else — every skill keeps the system teal', () => {
+    const { container } = render(
+      <AttrCluster rows={[{ key: 'READS', cur: 20, lo: 30, hi: 60 }]} />,
+    );
+    const track = container.querySelector('.attr-track');
+    expect(track.className).not.toContain('attr-track--tinted');
+    expect(track.style.getPropertyValue('--tint')).toBe('');
   });
 });

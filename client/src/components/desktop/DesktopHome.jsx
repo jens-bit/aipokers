@@ -27,6 +27,9 @@ export function DesktopHome({
   // thread when the connection comes back — the same rule the phone's sheet
   // follows, from the same hook.
   connection = null,
+  // WATCH-9: the thread lines this socket has been pushed. Only meaningful for
+  // the agent actually being watched — see the guard where DeskWatch takes it.
+  threadLines = null,
   // CASINO-1: the casino is the same screen on the desk, in the stage, per
   // board 31's frame — top bar across, rail on the right, only the stage
   // swapped. An agent handed to `deployAgent` puts it there on its own,
@@ -274,6 +277,7 @@ export function DesktopHome({
             game={watchedId === deskAgent.id ? game : null}
             lastDecision={watchedId === deskAgent.id ? lastDecision : null}
             connection={connection}
+            threadLines={watchedId === deskAgent.id ? threadLines : null}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
             onBack={() => setDeskTableId(null)}
@@ -392,7 +396,7 @@ export function DesktopHome({
 
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
-function DeskWatch({ agent, game, lastDecision, connection, draft, onDraftChange, onBack, onSitOut }) {
+function DeskWatch({ agent, game, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut }) {
   const { chat, sending, send } = useAgentThread(agent);
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agent.name);
@@ -401,11 +405,14 @@ function DeskWatch({ agent, game, lastDecision, connection, draft, onDraftChange
   // WATCH-8 job 3: the stored record of this stay. At 1440 the rail is always
   // open, so it is always wanted — where the phone asks for it when the sheet
   // comes up. Same hook, same lines, same server clock.
+  // WATCH-9: and pushed from there. The rail is always open at 1440, which is
+  // exactly the surface a fetch-on-open leaves stalest.
   const stored = useTableThread({
     agentId: agent?.id,
     sessionId: game?.sessionId ?? null,
     connection,
     want: true,
+    pushed: threadLines,
   });
 
   return (

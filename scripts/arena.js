@@ -24,6 +24,13 @@ import { getAgentAction } from '../src/agent/handler.js';
 import { newCostMeter, addCost, usdPer100Hands, formatUsd, priceFor } from '../src/agent/providers/pricing.js';
 import { providerIdFor } from '../src/agent/providers/index.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
+// COST-1: the arena is where the reduction gets a NUMBER. Both halves of the
+// decision path are here — the router that decides, and the compiled policy
+// that answers the ones it keeps — so a run reports calls per 100 hands
+// alongside bb/100, and "we cut the bill by 60%" can be checked rather than
+// asserted. `--route off` reproduces the pre-COST-1 baseline exactly.
+import { routeFor, Route, newRouteCounter, countRoute, formatRoutes } from '../src/server/router.js';
+import { chooseFromPolicy } from '../src/agent/policyPlay.js';
 import {
   ATTR_KEYS,
   effectiveAttrs,
@@ -64,6 +71,10 @@ function parseArgs(argv) {
     sb: 10, bb: 20, buyIn: 2000, reads: true, attributes: 'mid',
     // MODEL-1c: null means "whatever AI_MODEL says", which is the old behaviour.
     model: null, modelB: null,
+    // COST-1: the router, on by default. `--route off` sends every decision to
+    // the model, which is the pre-COST-1 baseline and the control half of the
+    // measurement.
+    route: true,
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -78,6 +89,8 @@ function parseArgs(argv) {
     // what turns a same-strategy TAG mirror into a model A/B. Seat A carries
     // the variable in every other arena dimension too (attributes), so the
     // convention is consistent.
+    else if (a === '--route')   out.route  = String(argv[++i] ?? '').toLowerCase() !== 'off';
+    else if (a === '--no-route') out.route = false;
     else if (a === '--model')   out.model  = argv[++i];
     else if (a === '--model-b') out.modelB = argv[++i];
     else if (a === '--attributes') {
@@ -91,7 +104,8 @@ function parseArgs(argv) {
     }
     else if (a === '--help' || a === '-h') {
       console.log('usage: node scripts/arena.js --pairs N --profiles path.json [--matchups "A,B"|"*"] [--no-reads]\n' +
-                  '         [--attributes off|low|mid|high|grow] [--model <id>] [--model-b <id>]');
+                  '         [--attributes off|low|mid|high|grow] [--model <id>] [--model-b <id>]\n' +
+                  '         [--route off]   COST-1: off = every decision to the model (the baseline)');
       process.exit(0);
     }
   }
@@ -118,6 +132,10 @@ function newStats() {
     // MODEL-1b: what this agent's decisions actually cost. Per-agent rather
     // than per-run, so a mirror pitting two models reports each side's bill.
     cost: newCostMeter(),
+    // COST-1: where this agent's decisions went. Per agent for the same reason
+    // the cost meter is: a mirror is two characters, and a Nit routes very
+    // differently from a Maniac.
+    routes: newRouteCounter(),
     model: null,
   };
 }
@@ -129,6 +147,7 @@ function collectDecisionMetrics(stats, decisions) {
   let raisedPreflop = false;
   for (const d of decisions) {
     stats.decisions++;
+    if (d.route) countRoute(stats.routes, { route: d.route, reason: d.routeReason });
     if (d.usage && d.model) {
       addCost(stats.cost, d.usage, d.model, d.provider);
       if (!stats.model) stats.model = d.model;
@@ -158,7 +177,7 @@ function collectDecisionMetrics(stats, decisions) {
 // nameBySeat is [nameForSeat0, nameForSeat1] — used as the opponentStats
 // playerId so reads follow the archetype across mirrored deck swaps.
 
-async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0, evidenceFor = null, evidence = null, modelBySeat = [null, null] }) {
+async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, buyIn, readsEnabled = true, sessionHands = 0, evidenceFor = null, evidence = null, modelBySeat = [null, null], routeEnabled = true }) {
   const game = new Game({
     tableId: 'arena',
     seats: [
@@ -271,9 +290,25 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       opponents: [{ seat: (seat + 1) % 2, stack: opp.stack, folded: opp.folded, contribThisStreet: opp.contribThisStreet }],
     };
 
+    // COST-1: the router, asked the same question table.js asks it — off the
+    // same game state, with the same gates. `--route off` forces every
+    // decision to the model, which is the pre-COST-1 baseline: run both and
+    // the difference in `calls` is the reduction, measured rather than
+    // claimed.
+    //
+    // The arena has no mood, no nemesis and no needle, so the gates that fire
+    // here are the structural ones — margin, options, pot, street, all-in.
+    // That makes it a FLOOR on the saving rather than an estimate of it: a
+    // live table has more reasons to spend, never fewer.
+    const routed = routeEnabled
+      ? routeFor(gameState, { home: false })
+      : { route: Route.MODEL, reason: 'baseline', options: 0, margin: null, tag: 'model/baseline' };
+
     // MODEL-1c: the model follows the AGENT, not the seat — the mirror swaps
     // seats, so the caller passes modelBySeat swapped for the second half.
-    const decision = await getAgentAction(gameState, bundles[seat].strategy, '', { model: modelBySeat[seat] ?? undefined });
+    const decision = routed.route === Route.POLICY
+      ? chooseFromPolicy(gameState)
+      : await getAgentAction(gameState, bundles[seat].strategy, '', { model: modelBySeat[seat] ?? undefined });
     const { action, reasoning } = decision;
     const streetAtDecision = game.street;
 
@@ -320,6 +355,9 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       usage: decision.usage ?? null,
       model: decision.model ?? null,
       provider: decision.provider ?? null,
+      // COST-1: where it went, so the per-agent roll-up needs no second path.
+      route: routed.route,
+      routeReason: routed.reason,
     });
   }
 
@@ -356,7 +394,7 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
 // ── Matchup driver: N pairs of mirrored deck matches ─────────────────────────
 
 async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn, readsEnabled, evidence = null,
-                            modelA = null, modelB = null }) {
+                            modelA = null, modelB = null, routeEnabled = true }) {
   const statsA = newStats();
   const statsB = newStats();
 
@@ -376,6 +414,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       sb, bb, buyIn, readsEnabled, sessionHands,
       evidenceFor: evidence ? nameA : null, evidence,
       modelBySeat: [modelA, modelB],
+      routeEnabled,
     });
     // Feed opponent-stats before the mirrored hand so hand 2's reads can
     // already benefit from hand 1's evidence.
@@ -393,6 +432,7 @@ async function runMatchup({ nameA, bundleA, nameB, bundleB, pairs, sb, bb, buyIn
       sb, bb, buyIn, readsEnabled, sessionHands,
       evidenceFor: evidence ? nameA : null, evidence,
       modelBySeat: [modelB, modelA],   // swapped with the seats
+      routeEnabled,
     });
     recordHandForOpponentStats({
       playerIdsBySeat: [nameB, nameA],
@@ -517,6 +557,26 @@ function summarizeAgent(agentStats, bb) {
     usd: Number(agentStats.cost.usd.toFixed(4)),
     usdPer100: per100 === null ? null : Number(per100.toFixed(4)),
     unpriced: agentStats.cost.unpriced,
+    // COST-1: the headline of the whole tree. Calls per 100 hands is the
+    // number to compare between a `--route off` run and a default one, and it
+    // is decisions-that-reached-a-model rather than dollars because it is
+    // model-independent — the same reduction is the same reduction whether it
+    // is Haiku or Opus behind it.
+    callsPer100: totalHands > 0 ? Number(((agentStats.routes.model / totalHands) * 100).toFixed(1)) : null,
+    // BEFORE, on the SAME hands: every decision was a model call, so the
+    // baseline is simply the decision rate.
+    //
+    // This is the honest comparison and a separate `--route off` run is not,
+    // because the two runs do not play the same poker: with no API key the
+    // model path returns a safe fallback, everybody folds preflop, and the
+    // baseline run produces a third of the decisions. Even WITH a key the two
+    // runs diverge after the first differing action. One run, two counters off
+    // the same decisions, is the only version of this measurement that
+    // compares like with like.
+    decisionsPer100: totalHands > 0 ? Number(((agentStats.decisions / totalHands) * 100).toFixed(1)) : null,
+    policyPct: agentStats.routes.total > 0
+      ? Number(((agentStats.routes.policy / agentStats.routes.total) * 100).toFixed(1))
+      : null,
   };
 }
 
@@ -618,6 +678,7 @@ async function main() {
       // --model X --model-b Y reads as "A on X against B on Y".
       modelA: args.model,
       modelB: args.modelB ?? args.model,
+      routeEnabled: args.route,
     });
 
     if (newborn) {
@@ -675,6 +736,25 @@ async function main() {
   // The answer to CORE_GAME_PLAN's "model tiers" question is a number next to
   // the bb/100, not an intuition. Printed per agent because a --model-b run
   // has two different bills in one table.
+  // ── COST-1: the route line ─────────────────────────────────────────────────
+  // Printed above the cost line because it is what EXPLAINS the cost line. The
+  // number to quote is callsPer100: run once with `--route off` and once
+  // without, on the same decks, and the difference is the reduction — measured
+  // rather than claimed.
+  console.log(`\nRouting (${args.route ? 'on' : 'OFF — every decision to the model, the baseline'}):`);
+  for (const [name, st] of Object.entries(perAgent)) {
+    const row = perAgentSummary[name];
+    const cut = row.decisionsPer100 > 0
+      ? (100 * (1 - row.callsPer100 / row.decisionsPer100)).toFixed(1)
+      : null;
+    console.log(
+      `  ${String(name).padEnd(18)} ${row.decisionsPer100 ?? '—'} decisions per 100 hands ` +
+      `→ ${row.callsPer100 ?? '—'} model calls per 100 hands` +
+      (cut === null ? '' : `   (${cut}% fewer)`),
+    );
+    console.log(`    ${formatRoutes(st.routes)}`);
+  }
+
   console.log('\nCost (estimated, from the shipped price table + MODEL_PRICES):');
   let anyPriced = false;
   for (const [name, row] of Object.entries(perAgentSummary)) {
@@ -711,6 +791,11 @@ async function main() {
     profiles: bundles,
     matchups: matchupSummaries,
     perAgent: perAgentSummary,
+    // COST-1: the full route split per agent, saved rather than only printed,
+    // so a `--route off` baseline and a routed run can be diffed later by
+    // something other than a person reading two terminals.
+    routes: Object.fromEntries(Object.entries(perAgent).map(([name, st]) => [name, st.routes])),
+    routeEnabled: args.route,
     elapsedSec: Number(elapsedSec),
     apiKeyPresent: !!process.env.ANTHROPIC_API_KEY,
     model: args.model || process.env.AI_MODEL || 'claude-haiku-4-5',
@@ -747,6 +832,14 @@ function mergeStats(agg, part) {
   agg.checks            += part.checks;
   agg.fallbacks         += part.fallbacks;
   if (part.model && !agg.model) agg.model = part.model;
+  if (part.routes) {
+    agg.routes.total  += part.routes.total;
+    agg.routes.policy += part.routes.policy;
+    agg.routes.model  += part.routes.model;
+    for (const [reason, n] of Object.entries(part.routes.byReason)) {
+      agg.routes.byReason[reason] = (agg.routes.byReason[reason] ?? 0) + n;
+    }
+  }
   if (part.cost) {
     agg.cost.calls             += part.cost.calls;
     agg.cost.inputTokens       += part.cost.inputTokens;

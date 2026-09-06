@@ -918,8 +918,13 @@
    the agent — his strip, or a seat's name pill. They cost the felt no height,
    which is the only reason there is room for them at all.
 
-     STAMINA  green → grey   · from VOLUME   (fatigue)
-     HEAT     teal  → red    · from OUTCOMES (mood.heat)
+     STAMINA  green → red    · from VOLUME   (fatigue), draining right to left
+     HEAT     teal  → red    · from OUTCOMES (mood.heat), filling left to right
+
+   BUGS-A job 10: two different reds, deliberately. Spent stamina is the dull
+   blood red of a losing chip; boiling heat is the fiery red of an alarm. And
+   each line says what it is in 8px underneath it, because two unlabelled
+   two-pixel rules under a name are a puzzle rather than a reading.
 
    "A confident agent can be worn; a tilted agent can be fresh." Two causes,
    two lines, two colour ranges that never meet — an owner must never have to
@@ -944,6 +949,22 @@
   overflow: hidden;
 }
 
+/* One bar and the word for it. The word sits UNDER the rule it names, at the
+   smallest size this product sets, in the label face — it is a caption on a
+   measurement, not a heading. */
+.felt-bars__row { display: block; }
+.felt-bars__label {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--sys-font-label, 'Oswald', sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: rgba(237, 237, 237, 0.42);
+}
+
+
 .felt-bars__fill {
   position: absolute;
   left: 0;
@@ -964,14 +985,21 @@
   bottom: 1px;
   gap: 1px;
 }
+/* An 18px pill has no room for a word, and the strip above it has already
+   taught the owner what a green line and a red one mean. */
+.felt-bars--seat .felt-bars__label { display: none; }
 
 /* The pill has a 9px radius; the bars are inset past it, but a fill that runs
    to 100% would still square off against the corner without this. */
 .seat-ghost__chip { overflow: hidden; }
 
 /* The strip is glass with 8px of padding; the bars sit inside it, under the
-   row, and the row gains the two pixels they need so nothing lands on them. */
-.watch-hero__strip.watch-felt__hero { padding-bottom: 12px; }
+   row, and the row gains the pixels they need so nothing lands on them.
+   BUGS-A job 10: two rules and the two words under them, rather than two
+   rules alone — 12px was the height of the pair unlabelled. Stated flat
+   rather than through :has(), because a selector the webview does not
+   understand would put the words over the row. */
+.watch-hero__strip.watch-felt__hero { padding-bottom: 26px; }
 
 @media (prefers-reduced-motion: reduce) {
   .felt-bars__fill { transition: none; }
@@ -990,4 +1018,29 @@
   margin-left: 6px;
   display: block;
   pointer-events: none;
+}
+
+
+/* ── BUGS-A job 5 · dragging a sheet down ────────────────────────────────────
+ *
+ * The travel is the hook's (useSheetDrag) and arrives as an inline transform.
+ * What lives here is the release: the sheet springs back under its own easing
+ * rather than snapping, and while a finger is on it there is no transition at
+ * all so it tracks the finger exactly.
+ *
+ * `touch-action: none` while dragging is the same fix WATCH-7 had to make for
+ * the whisper composer — without it the browser claims a vertical drag as a
+ * page pan and cancels the gesture before it has travelled far enough to
+ * mean anything. */
+.thread-sheet,
+.read-sheet {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.thread-sheet.is-dragging,
+.read-sheet.is-dragging {
+  transition: none;
+  touch-action: none;
+  /* A sheet in the owner's hand does not also animate itself in. */
+  animation: none;
 }

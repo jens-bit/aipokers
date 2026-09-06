@@ -260,6 +260,22 @@
   white-space: nowrap;
 }
 
+/* BUGS-A job 12 — what the hand was won WITH, after the amount.
+ *
+ * Sentence case and the body face, because it is the only part of this pill
+ * that is prose: "GRANITE TOOK $30 WITH A PAIR OF NINES" shouted in small caps
+ * is a headline, and the hand is a remark. It wraps rather than clipping — at
+ * 390px "aces full of kings" and a five-letter name do not both fit on one
+ * line, and a hand name cut in half is worse than a two-line pill. */
+.watch-felt__won-with {
+  font-family: var(--sys-font-body, "Inter", sans-serif);
+  font-size: 10.5px;
+  color: var(--sys-dim, #A1A1A1);
+  max-width: 42vw;
+}
+
+.watch-felt__won-pill { flex-wrap: wrap; justify-content: center; max-width: 88vw; }
+
 .watch-felt__pot-label {
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 9px;

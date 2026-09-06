@@ -1,5 +1,5 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (TEST-5) — 4 open, 27 resolved
+Last updated: 2026-09-06 (TEST-5) — 5 open, 28 resolved
 
 
 ---
@@ -79,6 +79,19 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-33 — The client's ServerMsg had no PACE or READ key, so neither frame was ever handled — RESOLVED 2026-09-06
+**Where:** `client/src/lib/protocol.js`, `client/src/hooks/useTable.js`
+**What:** `client/src/lib/protocol.js` mirrors `src/server/protocol.js` and had been missing two of its entries for as long as it has existed. `ServerMsg.PACE` and `ServerMsg.READ` were both `undefined`, which made `case ServerMsg.PACE:` in useTable a case on `undefined` — a branch nothing arriving from the server could ever reach. The server has staged the all-in runout card by card since PACE-1 and pushed a READ the moment an opponent read forms; no client had ever handled either.
+
+The visible symptom was subtle rather than broken, which is why it survived: `pace`, `potBb` and `reads` all ride the STATE snapshot too, so the felt was never blank. It just ran its OWN clock for the showdown runout (`WatchScreen`'s `flipped` interval, the fallback for "the server is not driving"), so PACE-1's whole point — every watcher turns the same card at the same moment — was never true, and the read panel only ever updated on the next snapshot rather than on the beat the read formed.
+
+**Why the tests were green:** `useTable.test.jsx` emitted `{ type: ServerMsg.PACE }` and useTable matched `case ServerMsg.PACE:`. Both sides were `undefined`, so the six W3-6 tests passed against a message the real server has never been able to deliver — a suite that emits the client's own constant tests the client against itself. `protocol.test.jsx` pinned ServerMsg with `toEqual`, so it asserted the two keys' *absence*.
+
+**Fix:** the suites were re-pinned first and watched go red (6 failures). `useTable.test.jsx` now emits a local `WIRE` table of the literal strings `src/server/protocol.js` sends, never `ServerMsg.<KEY>`, and one test walks that table asserting `ServerMsg[key] === wire` — the guard that would have caught this. `protocol.test.jsx` gained both keys. `PACE: 'pace'` and `READ: 'read'` were added to the client mirror; the PACE handler came alive unchanged, and a READ handler was written to match it (merged onto `game.reads`, which is what `WatchScreen.pickOpponent` reads, and exposed as `reads`; kept across hands, unlike `paceFrame`, because a read is accumulated knowledge and not a per-hand frame; a malformed push is ignored rather than allowed to blank the panel).
+**Test:** 11 tests in `client/src/hooks/useTable.test.jsx` (6 re-pinned, 5 new) plus `protocol.test.jsx`. End to end, `scripts/verify-pace.js` now asserts the literals on the wire itself — "the staged runout is typed `pace` on the wire", "the read arrives as its own push, not only on a snapshot", "it is typed `read` on the wire" — so the mirror and the server cannot drift apart again without a red run.
+
+---
 
 ### BUG-32 — The newborn does not walk into the room — RESOLVED 2026-09-06 (BIRTH-5)
 Fixed the other way round from the one the entry proposed, and deliberately. The suggestion was to pass the newborn id down from App the way FLOOR-2 did (`newbornId={newlyBornAgent?.id}`); what shipped is a marker on HOME_STATE — `newborn`, computed on the SERVER's clock inside a 60s window (src/server/home.js), with `bornAt` alongside it for a client on an older server. A prop from the shell only works in the session that saw the birth, from the surface that saw it; the marker survives a reload, works on the desk as well as the phone, and cannot go out of step with the roster the room is drawn from. `useBirthWalk` in HomeScreen pins him at DOOR_SPOT for one beat as `door:born` — a place of its own, never confused with the `door:away` of an agent out at the casino — and releases him, so the existing `useWalks` crosses him to his chair with no second animation and no special case. `it('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx is un-todo'd and asserts the RULE (the room is told) rather than the mechanism.

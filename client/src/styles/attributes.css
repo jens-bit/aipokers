@@ -572,6 +572,18 @@
 
 .attr-track--heat .attr-track__cap { background: var(--heat-color, #EDEDED); }
 
+/* BUGS-A job 10 — a bar coloured by its own reading.
+ *
+ * Only the BODY pair does this: STAMINA drains green -> blood red and HEAT
+ * fills teal -> fiery red, both off the same functions the felt uses. Every
+ * skill keeps the system teal, because a skill's colour is not a verdict on
+ * its value. --tint is set inline by AttrTrack. */
+.attr-track--tinted .attr-track__fill {
+  background: var(--tint, var(--sys-teal));
+  box-shadow: none;
+}
+.attr-track--tinted .attr-track__cap { background: var(--tint, #EDEDED); }
+
 .body-bars { display: flex; flex-direction: column; gap: 12px; }
 
 /* The band word and the attribute behind it, hung under the bar rather than

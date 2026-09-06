@@ -1,0 +1,492 @@
+{
+  "timestamp": "2026-09-06T15:37:15.886Z",
+  "args": {
+    "pairs": 60,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "*",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000,
+    "reads": true,
+    "attributes": "mid",
+    "model": null,
+    "modelB": null,
+    "route": true
+  },
+  "attributes": {
+    "setting": "mid",
+    "seatAValue": 50,
+    "seatBValue": 50,
+    "impact": 1
+  },
+  "profiles": {
+    "Nit": {
+      "strategy": "You are a tight, patient player. Favor premium hands and strong holdings; skip marginal spots. Follow the RANGE line the server gives you rather than a fixed hand list — 'inside your range' means you can play, 'outside' means you can fold. Value bet made hands two streets; rarely bluff.",
+      "profile": {
+        "tightness": 88,
+        "aggression": 50,
+        "bluffFreq": 8,
+        "discipline": 85
+      }
+    },
+    "Loose Cannon": {
+      "strategy": "You are a loose-aggressive pressure player. Attack pots often, but do not attack blindly — follow the sizing and BLUFF DIE hints the server gives. When the BLUFF DIE says NO or the raise counter is 2+ this street, don't just fire another raise — call, pot-control, or jam based on the spot. Calling is a legitimate action when the price is right; the goal is variance, not autoraise.",
+      "profile": {
+        "tightness": 12,
+        "aggression": 85,
+        "bluffFreq": 55,
+        "discipline": 30
+      }
+    },
+    "TAG": {
+      "strategy": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+      "profile": {
+        "tightness": 70,
+        "aggression": 70,
+        "bluffFreq": 30,
+        "discipline": 80
+      }
+    },
+    "Calling Station": {
+      "strategy": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop.",
+      "profile": {
+        "tightness": 15,
+        "aggression": 5,
+        "bluffFreq": 3,
+        "discipline": 40
+      }
+    }
+  },
+  "matchups": [
+    {
+      "a": "Nit",
+      "b": "Loose Cannon",
+      "Nit": {
+        "hands": 120,
+        "netChips": -897,
+        "bb100": -37.38,
+        "ci95": 38.79,
+        "vpip": 35.2,
+        "pfr": 3.4,
+        "af": 0.27,
+        "foldRate": 34,
+        "fallbackRate": 43.7,
+        "decisions": 206,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 75,
+        "decisionsPer100": 171.7,
+        "policyPct": 56.3
+      },
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": 897,
+        "bb100": 37.38,
+        "ci95": 38.79,
+        "vpip": 46.6,
+        "pfr": 14.8,
+        "af": 1.81,
+        "foldRate": 22.9,
+        "fallbackRate": 36.9,
+        "decisions": 179,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 55,
+        "decisionsPer100": 149.2,
+        "policyPct": 63.1
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "TAG",
+      "Nit": {
+        "hands": 120,
+        "netChips": 472,
+        "bb100": 19.67,
+        "ci95": 34.24,
+        "vpip": 36.8,
+        "pfr": 0,
+        "af": 0.43,
+        "foldRate": 21.5,
+        "fallbackRate": 43.4,
+        "decisions": 251,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 90.8,
+        "decisionsPer100": 209.2,
+        "policyPct": 56.6
+      },
+      "TAG": {
+        "hands": 120,
+        "netChips": -472,
+        "bb100": -19.67,
+        "ci95": 34.24,
+        "vpip": 43.2,
+        "pfr": 6.3,
+        "af": 1.03,
+        "foldRate": 17.2,
+        "fallbackRate": 46.4,
+        "decisions": 239,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 92.5,
+        "decisionsPer100": 199.2,
+        "policyPct": 53.6
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "Calling Station",
+      "Nit": {
+        "hands": 120,
+        "netChips": -108,
+        "bb100": -4.5,
+        "ci95": 20.93,
+        "vpip": 38.3,
+        "pfr": 5.3,
+        "af": 0.69,
+        "foldRate": 14.8,
+        "fallbackRate": 39.3,
+        "decisions": 257,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 84.2,
+        "decisionsPer100": 214.2,
+        "policyPct": 60.7
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": 108,
+        "bb100": 4.5,
+        "ci95": 20.93,
+        "vpip": 39.6,
+        "pfr": 2.2,
+        "af": 0.55,
+        "foldRate": 16.3,
+        "fallbackRate": 33.5,
+        "decisions": 257,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 71.7,
+        "decisionsPer100": 214.2,
+        "policyPct": 66.5
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "TAG",
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": 958,
+        "bb100": 39.92,
+        "ci95": 26.98,
+        "vpip": 62.4,
+        "pfr": 25.8,
+        "af": 1.3,
+        "foldRate": 25.3,
+        "fallbackRate": 35.2,
+        "decisions": 182,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 53.3,
+        "decisionsPer100": 151.7,
+        "policyPct": 64.8
+      },
+      "TAG": {
+        "hands": 120,
+        "netChips": -958,
+        "bb100": -39.92,
+        "ci95": 26.98,
+        "vpip": 46.8,
+        "pfr": 11.7,
+        "af": 0.58,
+        "foldRate": 31.7,
+        "fallbackRate": 41,
+        "decisions": 205,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 70,
+        "decisionsPer100": 170.8,
+        "policyPct": 59
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "Calling Station",
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": 307,
+        "bb100": 12.79,
+        "ci95": 41.72,
+        "vpip": 55.2,
+        "pfr": 26.4,
+        "af": 2.13,
+        "foldRate": 22.3,
+        "fallbackRate": 42.9,
+        "decisions": 184,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 65.8,
+        "decisionsPer100": 153.3,
+        "policyPct": 57.1
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": -307,
+        "bb100": -12.79,
+        "ci95": 41.72,
+        "vpip": 32.9,
+        "pfr": 1.2,
+        "af": 0.18,
+        "foldRate": 27.9,
+        "fallbackRate": 37,
+        "decisions": 219,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 67.5,
+        "decisionsPer100": 182.5,
+        "policyPct": 63
+      }
+    },
+    {
+      "a": "TAG",
+      "b": "Calling Station",
+      "TAG": {
+        "hands": 120,
+        "netChips": 718,
+        "bb100": 29.92,
+        "ci95": 23.18,
+        "vpip": 45.6,
+        "pfr": 10,
+        "af": 1.42,
+        "foldRate": 16.7,
+        "fallbackRate": 41.2,
+        "decisions": 216,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 74.2,
+        "decisionsPer100": 180,
+        "policyPct": 58.8
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": -718,
+        "bb100": -29.92,
+        "ci95": 23.18,
+        "vpip": 32.6,
+        "pfr": 0,
+        "af": 0.18,
+        "foldRate": 23.8,
+        "fallbackRate": 35.7,
+        "decisions": 244,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 72.5,
+        "decisionsPer100": 203.3,
+        "policyPct": 64.3
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 360,
+      "netChips": -533,
+      "bb100": -7.4,
+      "ci95": 18.82,
+      "vpip": 36.8,
+      "pfr": 2.9,
+      "af": 0.47,
+      "foldRate": 22.7,
+      "fallbackRate": 42,
+      "decisions": 714,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 83.3,
+      "decisionsPer100": 198.3,
+      "policyPct": 58
+    },
+    "Loose Cannon": {
+      "hands": 360,
+      "netChips": 2162,
+      "bb100": 30.03,
+      "ci95": 20.97,
+      "vpip": 54.9,
+      "pfr": 22.4,
+      "af": 1.69,
+      "foldRate": 23.5,
+      "fallbackRate": 38.3,
+      "decisions": 545,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 58.1,
+      "decisionsPer100": 151.4,
+      "policyPct": 61.7
+    },
+    "TAG": {
+      "hands": 360,
+      "netChips": -712,
+      "bb100": -9.89,
+      "ci95": 16.92,
+      "vpip": 45.2,
+      "pfr": 9.3,
+      "af": 0.94,
+      "foldRate": 21.5,
+      "fallbackRate": 43,
+      "decisions": 660,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 78.9,
+      "decisionsPer100": 183.3,
+      "policyPct": 57
+    },
+    "Calling Station": {
+      "hands": 360,
+      "netChips": -917,
+      "bb100": -12.74,
+      "ci95": 17.4,
+      "vpip": 35.1,
+      "pfr": 1.1,
+      "af": 0.3,
+      "foldRate": 22.4,
+      "fallbackRate": 35.3,
+      "decisions": 720,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 70.6,
+      "decisionsPer100": 200,
+      "policyPct": 64.7
+    }
+  },
+  "routes": {
+    "Nit": {
+      "total": 714,
+      "policy": 414,
+      "model": 300,
+      "byReason": {
+        "close": 156,
+        "clear": 414,
+        "options": 70,
+        "river": 74
+      }
+    },
+    "Loose Cannon": {
+      "total": 545,
+      "policy": 336,
+      "model": 209,
+      "byReason": {
+        "close": 120,
+        "clear": 336,
+        "options": 53,
+        "river": 36
+      }
+    },
+    "TAG": {
+      "total": 660,
+      "policy": 376,
+      "model": 284,
+      "byReason": {
+        "close": 135,
+        "clear": 376,
+        "options": 89,
+        "river": 60
+      }
+    },
+    "Calling Station": {
+      "total": 720,
+      "policy": 466,
+      "model": 254,
+      "byReason": {
+        "close": 157,
+        "clear": 466,
+        "river": 84,
+        "options": 13
+      }
+    }
+  },
+  "routeEnabled": true,
+  "elapsedSec": 81,
+  "apiKeyPresent": false,
+  "model": "claude-haiku-4-5",
+  "models": {
+    "a": "claude-haiku-4-5",
+    "b": "claude-haiku-4-5"
+  },
+  "providers": {
+    "a": "anthropic",
+    "b": "anthropic"
+  },
+  "prices": {
+    "a": {
+      "in": 1,
+      "out": 5
+    },
+    "b": {
+      "in": 1,
+      "out": 5
+    }
+  }
+}

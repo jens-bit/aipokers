@@ -184,6 +184,25 @@ function applySchema(d) {
       PRIMARY KEY (day, owner_id, kind, model)
     );
     CREATE INDEX IF NOT EXISTS model_calls_day ON model_calls (day);
+
+    -- COST-1: where the decisions WENT. One row per (day, owner, route,
+    -- reason), summed the same add-and-forget way model_calls is.
+    --
+    -- It is a second table rather than a 'policy' entry in the model column of the
+    -- first one, because a decision the router answered for nothing is not a
+    -- model call and must never be able to land in a bill. The two are read
+    -- side by side (ownerMeter) and that is where they belong together: the
+    -- dollars, and the reason there were not more of them.
+    CREATE TABLE IF NOT EXISTS decision_routes (
+      day        TEXT    NOT NULL,
+      owner_id   TEXT    NOT NULL,
+      route      TEXT    NOT NULL,
+      reason     TEXT    NOT NULL,
+      decisions  INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, owner_id, route, reason)
+    );
+    CREATE INDEX IF NOT EXISTS decision_routes_day ON decision_routes (day);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -202,6 +221,13 @@ function applySchema(d) {
   // THREAD-2: the nightly exchange is ONE entry, not a run of loose lines, so
   // the lines it is made of ride with it as JSON. Null on every other kind.
   addColumnIfMissing(d, 'session_thread', 'lines', 'TEXT');
+  // WATCH-9: the room's voice has one line in it that is not neutral — where a
+  // low attribute cost him the hand — and the sheet draws that one in gold. It
+  // was a client-side flag on a live row and nothing else, so the moment the
+  // thread was refetched (a reconnect, or opening the sheet an hour later) the
+  // line came back in the room's ordinary grey. A stored line has to be able to
+  // say what it is; this is the column that lets it.
+  addColumnIfMissing(d, 'session_thread', 'cost', 'INTEGER');
 
   // SLOTS-1: what this owner's agents have won, ever — the sum of positive
   // session nets, and the only currency an agent slot can be unlocked with.
@@ -225,6 +251,15 @@ function applySchema(d) {
   // the nightly exchange between two agents who spent the evening in, which is
   // a real conversation with no table under it.
   addColumnIfMissing(d, 'session_thread', 'source', "TEXT NOT NULL DEFAULT 'table'");
+
+  // SERVER-4: how far back the owner's UNREAD room thread goes — the ts of the
+  // oldest line in his flat he has not looked at, or 0 for "nothing waiting".
+  // A column on `profiles` rather than a field inside the chat JSON because it
+  // is written by a thread line landing and cleared by a route, neither of
+  // which has any business rewriting the creation chat to do it. Zero, not
+  // null, so the migration touches no rows: an owner who has never had the
+  // feature has nothing unread, which is exactly true.
+  addColumnIfMissing(d, 'profiles', 'home_thread_unread_since', 'INTEGER NOT NULL DEFAULT 0');
 
   addColumnIfMissing(d, 'notifications', 'dedupe_key', 'TEXT');
   d.exec('CREATE INDEX IF NOT EXISTS notifications_key ON notifications (owner_id, dedupe_key)');
@@ -372,11 +407,15 @@ function migrateNotifications(d) {
 
 // ── Row writers (shared by the migration and the live accessors) ─────────────
 
-function putProfileRow(d, ownerId, chat) {
+function putProfileRow(d, ownerId, chat, homeThreadUnreadSince = 0) {
+  const unread = Number.isFinite(homeThreadUnreadSince) ? Math.max(0, Math.floor(homeThreadUnreadSince)) : 0;
   d.prepare(`
-    INSERT INTO profiles (owner_id, chat, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(owner_id) DO UPDATE SET chat = excluded.chat, updated_at = excluded.updated_at
-  `).run(String(ownerId), JSON.stringify(chat ?? []), Date.now());
+    INSERT INTO profiles (owner_id, chat, home_thread_unread_since, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(owner_id) DO UPDATE SET
+      chat = excluded.chat,
+      home_thread_unread_since = excluded.home_thread_unread_since,
+      updated_at = excluded.updated_at
+  `).run(String(ownerId), JSON.stringify(chat ?? []), unread, Date.now());
 }
 
 // The lifted columns are written from `data` and never read back into it —
@@ -435,14 +474,21 @@ function putNotificationRow(d, ownerId, state) {
 export function loadAgentStore() {
   const d = conn();
   const out = {};
-  for (const row of d.prepare('SELECT owner_id, chat FROM profiles').all()) {
-    out[row.owner_id] = { userId: row.owner_id, agents: [], chat: jsonParse(row.chat, []) };
+  for (const row of d.prepare('SELECT owner_id, chat, home_thread_unread_since FROM profiles').all()) {
+    out[row.owner_id] = {
+      userId: row.owner_id,
+      agents: [],
+      chat: jsonParse(row.chat, []),
+      // SERVER-4: 0 on the wire means nothing waiting; in memory that is null,
+      // so nobody downstream has to know which of the two sentinels they hold.
+      homeThreadUnreadSince: row.home_thread_unread_since || null,
+    };
   }
   const agents = d.prepare('SELECT owner_id, data FROM agents ORDER BY owner_id, created_at, id').all();
   for (const row of agents) {
     // An agent row without a profile row can only come from a partial import;
     // keep the agent rather than dropping it on the floor.
-    if (!out[row.owner_id]) out[row.owner_id] = { userId: row.owner_id, agents: [], chat: [] };
+    if (!out[row.owner_id]) out[row.owner_id] = { userId: row.owner_id, agents: [], chat: [], homeThreadUnreadSince: null };
     out[row.owner_id].agents.push(jsonParse(row.data, {}));
   }
   return out;
@@ -457,7 +503,7 @@ export function saveProfile(ownerId, profile) {
   const list = Array.isArray(profile?.agents) ? profile.agents : [];
 
   d.transaction(() => {
-    putProfileRow(d, owner, profile?.chat ?? []);
+    putProfileRow(d, owner, profile?.chat ?? [], profile?.homeThreadUnreadSince ?? 0);
     for (let i = 0; i < list.length; i++) putAgentRow(d, owner, list[i], i);
 
     const keep = new Set(list.map((a) => String(a?.id ?? '')));
@@ -751,20 +797,21 @@ export const THREAD_CAP_PER_SESSION = 500;
  * Returns the row id, which is monotonic per database and therefore also the
  * order the sheet renders in.
  */
-export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null }) {
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null, cost = false }) {
   const d = conn();
   const sid = String(sessionId);
   let id = null;
   d.transaction(() => {
     const info = d.prepare(`
-      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sid, String(agentId), String(ownerId), tableId ?? null,
            Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
            String(kind), String(who), String(text), String(source ?? 'table'),
            from == null ? null : String(from),
            to == null ? null : String(to),
-           Array.isArray(lines) ? JSON.stringify(lines) : null);
+           Array.isArray(lines) ? JSON.stringify(lines) : null,
+           cost ? 1 : 0);
     id = info.lastInsertRowid;
     d.prepare(`
       DELETE FROM session_thread
@@ -781,7 +828,7 @@ export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, 
  */
 export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
   return conn().prepare(`
-    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost
       FROM session_thread
      WHERE session_id = ?
      ORDER BY id ASC
@@ -827,6 +874,11 @@ function threadRow(r) {
   // THREAD-2: only an `overheard` entry carries lines, and it always does.
   const lines = r.lines ? jsonParse(r.lines, null) : null;
   if (Array.isArray(lines)) line.lines = lines;
+  // WATCH-9: present only when it is true. Every other line in the thread is an
+  // ordinary one and a `cost: false` on all of them would be noise on the wire
+  // and a lie about how many kinds of line there are — there is one register
+  // that is gold, and a line either is it or says nothing.
+  if (r.cost) line.cost = true;
   return line;
 }
 
@@ -921,6 +973,47 @@ export function readModelCalls({ sinceDay = null, ownerId = null } = {}) {
     cachedInputTokens: r.cached_input_tokens ?? 0,
     usd: r.usd ?? 0,
     unpriced: r.unpriced ?? 0,
+  }));
+}
+
+// ── The decision router (COST-1) ─────────────────────────────────────────────
+//
+// Same add-and-forget shape as the meter above, and for the same reason: this
+// is written from inside a hand, once per decision, and nothing about it may
+// hold a lock or read before it writes.
+
+export function addDecisionRoute({ day, ownerId, route, reason, decisions = 1 } = {}) {
+  conn().prepare(`
+    INSERT INTO decision_routes (day, owner_id, route, reason, decisions, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, owner_id, route, reason) DO UPDATE SET
+      decisions  = decisions + excluded.decisions,
+      updated_at = excluded.updated_at
+  `).run(
+    String(day), String(ownerId), String(route), String(reason),
+    Math.max(0, Math.floor(decisions)),
+    Date.now(),
+  );
+}
+
+/** The rolled-up route rows, oldest day first. Same bounds as readModelCalls. */
+export function readDecisionRoutes({ sinceDay = null, ownerId = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceDay) { where.push('day >= ?'); args.push(String(sinceDay)); }
+  if (ownerId !== null) { where.push('owner_id = ?'); args.push(String(ownerId)); }
+  const rows = conn().prepare(`
+    SELECT day, owner_id, route, reason, decisions
+    FROM decision_routes
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY day, owner_id, route, reason
+  `).all(...args);
+  return rows.map((r) => ({
+    day: r.day,
+    ownerId: r.owner_id,
+    route: r.route,
+    reason: r.reason,
+    decisions: r.decisions ?? 0,
   }));
 }
 

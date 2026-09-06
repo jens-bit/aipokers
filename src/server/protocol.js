@@ -171,6 +171,24 @@ export const ServerMsg = Object.freeze({
   // exactly what it saw before it existed.
   SESSION_END: 'session_end', // { type, sessionId, agentId, tableId, reason,
                               //   hands, net, biggestPot, duration, endedAt }
+  // WATCH-9 (additive): one line was just written into a table thread.
+  //
+  // SERVER-3 made the thread survive a reconnect by STORING it; the sheet then
+  // read the store when it was opened and never again, so a sheet left open
+  // went quiet while the table kept talking, and the only cure was to close it
+  // and open it. This is the push that makes it live. The stored line is the
+  // same object GET /api/agents/:id/thread serves — { id, ts, kind, who, text,
+  // cost? } — so a client merges it by id with what it already fetched and does
+  // not have to know which door it came through.
+  //
+  // OWNER-GATED THE SAME WAY THE READ IS. `him` and `you` lines carry what the
+  // sanitized DECISION payload withholds (BUG-12/15, AGE-33), so they go only
+  // to the spectator watching that seat; the room's lines and what people said
+  // out loud go to everyone at the table, because at a real table they are
+  // audible. A client that ignores this message sees exactly what it saw
+  // before it existed — the sheet just goes back to being as fresh as its last
+  // fetch.
+  THREAD_LINE: 'thread_line', // { type, tableId, sessionId, agentId, line }
   // HOME-STATE-1 (additive): where this owner's agents are and what they are
   // doing, pushed to his floor subscribers whenever it changes. OWNER-SCOPED,
   // like FLOOR_STATE and unlike the ticker: it is a description of one man's
@@ -192,6 +210,53 @@ export const ServerMsg = Object.freeze({
   // A client that ignores this message sees exactly what it saw before it
   // existed.
   HOME_STATE: 'home_state',   // { type, userId, agents, game }
+  // SERVER-4 (additive): one line was just written into a thread of this
+  // owner's — the felt's or the flat's. OWNER-SCOPED and, unlike every other
+  // owner-filtered message on this channel, it additionally requires the
+  // subscription to have PROVED ownership in FLOOR_SUB: `him` lines carry the
+  // reasoning AGE-33 withholds from everyone but the owner's own spectator, so
+  // the push obeys the same law GET /api/agents/:id/thread does.
+  //
+  //   { type, userId, sessionId, line }
+  //
+  // THE SAME WRITE, A DIFFERENT DOOR. THREAD_LINE above is this line arriving
+  // at the FELT: it goes to the sockets watching that seat, it is scoped by
+  // table, and the sheet the watch screen has open is what consumes it. This
+  // one is the same line arriving on the owner's FLOOR — the channel he is
+  // subscribed to whether or not any table of his is open, which is the only
+  // way a line said in the flat, where there is no felt at all, can reach him
+  // live. One sink in thread.js feeds both (see setLineListener there); two
+  // names because two payload shapes, and a shape per name is the rule that
+  // keeps a client from having to sniff which `thread_line` it just got.
+  //
+  // `line` is exactly what the thread routes return for that row, minus the
+  // ids the reader is not given (ownerId, agentId) —
+  //   { id, sessionId, tableId, ts, kind, who, text, source, from, to, cost? }
+  // plus `lines` on an `overheard` entry, where each inner line carries its
+  // own `ts` (one millisecond apart: they happened together, and the offsets
+  // only order them). `kind` is the closed set thread.js owns — table | him |
+  // you | opponent | overheard — and `source` is table | home. `cost` is
+  // present, and true, only on the room's gold line about an attribute that
+  // cost him the hand. So a client can append a pushed line straight onto a
+  // fetched thread with no reconciling.
+  //
+  // Before this a line arrived when the client next asked, which meant an
+  // agent answering something said in the flat could take a poll interval to
+  // appear. A client that ignores this message is never wrong, only late.
+  OWNER_LINE: 'owner_line',   // { type, userId, sessionId, line }
+  // SERVER-4 (additive): one of this owner's agents is composing a reply, sent
+  // immediately before the model call that produces it. Owner-scoped and
+  // owner-proved, exactly like OWNER_LINE, because it announces a line only
+  // the owner will be shown.
+  //
+  //   { type, userId, agentId, sessionId }
+  //
+  // There is no matching "stopped typing": the OWNER_LINE that follows IS the
+  // end of it, and a reply that never comes (the model failed, the turn timed
+  // out) must not leave a client waiting on a second message that is not
+  // coming. A client should clear the indicator on the next OWNER_LINE from
+  // that agent, or on a timeout of its own choosing.
+  TYPING: 'typing',           // { type, userId, agentId, sessionId }
   // WANTS-1 (additive): the one thing an agent is asking his owner for has
   // changed. Owner-filtered like FLOOR_STATE — a want is a private thing
   // between a man and his backer, and it names rooms and money.

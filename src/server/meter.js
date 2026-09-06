@@ -11,6 +11,11 @@
 //   · GET /api/admin/meter?key=…   — what everybody has cost, per owner and
 //                                    in total, per day.
 //
+// COST-1 added the other half of the same answer: `routes`. A bill says what
+// was spent; the route split says how much was NOT, and why. They are read
+// together because neither is worth much alone — "$0.40 today" means nothing
+// until you know it was 900 decisions of which 340 needed a model.
+//
 // Three rules the shape of this file comes from:
 //
 //   1. A COST IS FILED UNDER AN OWNER, ALWAYS. Every model call in this
@@ -35,7 +40,7 @@ import crypto from 'node:crypto';
 
 import { costOf } from '../agent/providers/pricing.js';
 import { normaliseUsage } from '../agent/providers/index.js';
-import { addModelCall, readModelCalls } from './store.js';
+import { addModelCall, readModelCalls, addDecisionRoute, readDecisionRoutes } from './store.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
@@ -45,13 +50,14 @@ import { telegramAuthMiddleware, isOwner } from './auth.js';
 // playing, and one that is 95% `chat` is a floor that is being built.
 export const Kind = Object.freeze({
   DECISION: 'decision',   // handler.getAgentAction — the action at the felt
-  TALK: 'talk',           // handler.generateAiChatLine — trash talk
+  TALK: 'talk',           // handTalk / nightRecap — what was said at the table
   CHAT: 'chat',           // agentProfiles — the recruiter, the agent chat, the build
   MEMORY: 'memory',       // agentProfiles.runMemoryUpdate — the self-knowledge refresh
   HOME: 'home',           // homeNight — two agents talking in the flat
 });
 
-// A seat nobody owns still costs money.
+// A seat nobody owns still costs money — and a seat nobody owns whose decision
+// was answered for free is still a decision that was answered for free.
 export const HOUSE = 'house';
 
 // A month is what a bill is read in.
@@ -132,6 +138,33 @@ export function recordAnthropicCall({ ownerId, kind, model, msg, at = Date.now()
   });
 }
 
+/**
+ * COST-1: file where one decision went.
+ *
+ * Called for EVERY decision, including the ones that cost nothing — that is
+ * the entire point. A meter that only hears about the calls that happened can
+ * report a smaller bill next month and cannot tell you whether that is because
+ * the router is working or because nobody played.
+ *
+ * Best-effort, like everything else here: it is called from inside a hand.
+ */
+export function recordDecisionRoute({ ownerId = null, route, reason, at = Date.now() } = {}) {
+  try {
+    if (!route || !reason) return false;
+    addDecisionRoute({
+      day: dayKey(at),
+      ownerId: ownerId == null || ownerId === '' ? HOUSE : String(ownerId),
+      route: String(route),
+      reason: String(reason),
+      decisions: 1,
+    });
+    return true;
+  } catch (err) {
+    console.error('[meter] could not record a route:', err.message);
+    return false;
+  }
+}
+
 // ── Reading ──────────────────────────────────────────────────────────────────
 
 function emptyTotals() {
@@ -157,6 +190,22 @@ function present(totals, extra = {}) {
   return { ...totals, usd: round(totals.usd), ...extra };
 }
 
+/**
+ * The route split for a set of rows: the totals, the share that never reached
+ * a model, and the reasons behind both.
+ */
+export function foldRoutes(rows) {
+  const out = { decisions: 0, policy: 0, model: 0, policyShare: null, byReason: {} };
+  for (const row of rows ?? []) {
+    out.decisions += row.decisions;
+    if (row.route === 'policy') out.policy += row.decisions;
+    else out.model += row.decisions;
+    out.byReason[row.reason] = (out.byReason[row.reason] ?? 0) + row.decisions;
+  }
+  if (out.decisions > 0) out.policyShare = Math.round((out.policy / out.decisions) * 1000) / 1000;
+  return out;
+}
+
 function foldByDay(rows) {
   const byDay = new Map();
   for (const row of rows) {
@@ -176,6 +225,7 @@ function foldByDay(rows) {
 export function ownerMeter(ownerId, { days = DEFAULT_DAYS, now = Date.now() } = {}) {
   const since = sinceDay(days, now);
   const rows = readModelCalls({ sinceDay: since, ownerId: String(ownerId) });
+  const routeRows = readDecisionRoutes({ sinceDay: since, ownerId: String(ownerId) });
 
   const totals = emptyTotals();
   const byModel = new Map();
@@ -190,6 +240,7 @@ export function ownerMeter(ownerId, { days = DEFAULT_DAYS, now = Date.now() } = 
     since,
     days: foldByDay(rows),
     models: [...byModel.values()].map((m) => present(m)).sort((a, b) => b.usd - a.usd),
+    routes: foldRoutes(routeRows),
     totals: present(totals),
   };
 }
@@ -201,6 +252,7 @@ export function ownerMeter(ownerId, { days = DEFAULT_DAYS, now = Date.now() } = 
 export function adminMeter({ days = DEFAULT_DAYS, now = Date.now() } = {}) {
   const since = sinceDay(days, now);
   const rows = readModelCalls({ sinceDay: since });
+  const routeRows = readDecisionRoutes({ sinceDay: since });
 
   const totals = emptyTotals();
   const byOwner = new Map();
@@ -220,6 +272,7 @@ export function adminMeter({ days = DEFAULT_DAYS, now = Date.now() } = {}) {
     days: foldByDay(rows),
     owners: [...byOwner.values()].map((o) => present(o)).sort((a, b) => b.usd - a.usd),
     models: [...byModel.values()].map((m) => present(m)).sort((a, b) => b.usd - a.usd),
+    routes: foldRoutes(routeRows),
     totals: present(totals),
   };
 }

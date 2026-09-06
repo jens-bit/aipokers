@@ -3,13 +3,17 @@ import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
 import {
   getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener,
-  reconcileActiveSessions, presentedRoster,
+  reconcileActiveSessions, presentedRoster, noteHomeThreadLine,
+  setHomeChangeListener, setTypingListener,
 } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as tapeIdle from './tapeIdle.js';
+import * as thread from './thread.js';
+import { ThreadKind, ThreadSource } from './thread.js';
 
 const { getOrCreateTable } = registry;
 
@@ -50,6 +54,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // exactly the question a standing change answers.
   setAgentChangeListener((userId) => {
     try {
+      // COST-1: before the home game is reconciled, not after. An agent who
+      // has just put a tape on himself is no longer eligible for the kitchen
+      // table (homeGame.eligible excludes a man who is studying), and syncing
+      // first would seat him and then take him straight back out of a hand.
+      // Free by construction — the tape room contains no model call.
+      tapeIdle.sweep(userId, presentedRoster(userId, { owner: true }));
       homeGame.sync(userId);
       const roster = presentedRoster(userId, { owner: true });
       homeNight.noteHousehold(userId, roster);
@@ -66,6 +76,60 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // WANTS-1: the same injection for the same reason — agentProfiles must not
   // import the floor, so the floor hands it a function instead.
   setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
+  // WATCH-9 + SERVER-4: every stored thread line, pushed to whoever is
+  // entitled to it. thread.js knows about no socket, no registry and no floor;
+  // this is the one place that knows all three, so it is the one place they are
+  // joined — and it is ONE listener, because there is one write behind the two
+  // deliveries and a second sink would be a second place for them to disagree
+  // about what was said.
+  //
+  // The line goes out of TWO doors, and they are not the same door twice:
+  //
+  //   THREAD_LINE  to the felt — the sockets watching that seat. A line with
+  //                no table behind it (THREAD-2's nightly exchange in the flat)
+  //                has no felt to arrive at, so it is skipped here rather than
+  //                delivered to a table it was never said at.
+  //   OWNER_LINE   to the owner's floor — the channel he is subscribed to
+  //                whether or not a table of his is open. This is the only door
+  //                a line said at HOME can reach him through live, and the
+  //                unread mark hangs off it.
+  //
+  // A client normally has one of these open, not both; a client that has both
+  // keys on the line id, which is the row's own and identical on either door.
+  thread.setLineListener((line) => {
+    if (!line) return;
+
+    // The felt.
+    if (line.tableId) {
+      const table = registry.getTable(line.tableId);
+      if (table) table.deliverThreadLine(line);
+    }
+
+    // The floor. Two things, in this order: mark the flat's thread unread for
+    // the owner — but only when it is a line he has not just typed himself,
+    // because his own sentence coming back cannot be news to him — and then put
+    // it on the wire. Marking first means the HOME_STATE a client fetches after
+    // the push already agrees with it.
+    const userId = line.ownerId;
+    if (!userId) return;
+    try {
+      if (line.source === ThreadSource.HOME && line.kind !== ThreadKind.YOU
+          && noteHomeThreadLine(userId, line.ts)) {
+        // The marker only moves on the FIRST unread line, so this pushes a
+        // fresh HOME_STATE at most once per unread run rather than per line.
+        floor.notifyHomeChanged(userId);
+      }
+    } catch (err) {
+      console.error('[home] unread mark failed:', err.message);
+    }
+    floor.broadcastOwnerLine(userId, thread.wireLine(line));
+  });
+  // SERVER-4: the living room's own change trigger — the unread badge being
+  // cleared, and nothing else so far.
+  setHomeChangeListener((userId) => floor.notifyHomeChanged(userId));
+  // SERVER-4: he is answering you. Straight through; there is nothing to
+  // reconcile and nothing to store.
+  setTypingListener((userId, agentId, sessionId) => floor.broadcastTyping(userId, agentId, sessionId));
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);
@@ -192,12 +256,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             if (!msg.text || !String(msg.text).trim()) return;
             const text = String(msg.text).trim();
             table.sendChat(effectiveSeat, text, false);
-            // Maybe trigger AI seats to respond to the human chat.
-            for (let i = 0; i < table.aiSeats.length; i++) {
-              if (table.aiSeats[i] && table.pending[i]) {
-                table._maybeGenerateAiChat(i, 'human_chat', text);
-              }
-            }
+            // COST-1: this used to be one model call per AI seat, per typed
+            // message, to answer a sentence. The line is now queued on each
+            // agent instead, where the decision router reads it as a reason to
+            // spend — so he answers in his next decision, holding both the
+            // spot and what was said to him, on a call that was happening
+            // anyway. See Table._hearFromTable.
+            table._hearFromTable(text, effectiveSeat);
             return;
           }
 

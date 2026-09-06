@@ -50,6 +50,16 @@ export function useHomeState({
 } = {}) {
   const [agents, setAgents] = useState([]);
   const [game, setGame] = useState(null);
+  // BUGS-A job 2: has the roster ANSWERED yet?
+  //
+  // `agents.length === 0` is two different facts wearing one shape — "he has
+  // nobody" and "nobody has told us yet" — and the room read it as the first.
+  // So switching CASINO -> HOME, or coming back from a retire with agents
+  // left, flashed "Nobody lives here yet" over a household that was about to
+  // arrive. This is the other fact, and it is only ever set by an ANSWER: a
+  // 200 with an array in it, or a HOME_STATE push. A failed fetch is not an
+  // answer and must not license an empty state.
+  const [loaded, setLoaded] = useState(false);
   // The most recent homecoming, or null. Cleared by the room once it has walked
   // him in — see ARRIVAL_MS in HomeScreen.
   const [arrival, setArrival] = useState(null);
@@ -91,6 +101,7 @@ export function useHomeState({
       const body = await res.json();
       if (!aliveRef.current) return;
       if (!Array.isArray(body?.agents)) return;
+      setLoaded(true);
       const pushed = pushRef.current;
       // GET /api/agents has no home game in it — only HOME_STATE does — so the
       // REST path deliberately leaves `game` alone rather than nulling it.
@@ -143,6 +154,7 @@ export function useHomeState({
 
       if (msg?.type === ServerMsg.HOME_STATE) {
         if (Array.isArray(msg.agents)) {
+          setLoaded(true);
           pushRef.current = new Map(msg.agents.map((a) => [String(a.id), a]));
           setAgents((prev) => mergeHome(prev, msg.agents));
         }
@@ -226,6 +238,7 @@ export function useHomeState({
 
   return {
     ...homeViewFrom(agents, game),
+    loaded,
     status, refresh, setAgents, clearWant,
     arrival, clearArrival: () => setArrival(null),
   };
