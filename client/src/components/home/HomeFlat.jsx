@@ -23,7 +23,10 @@ import { FLAT, F_W, F_H } from './flat.js';
 // that gave it a tap did so for a different destination — BUGS-A job 7 watches
 // the game that is on it, BIRTH-5 opens the chairs when it is empty — so the
 // caller says where it leads and `tableLabel` says so out loud.
-export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable, tvLabel = null, tableLabel = null }) {
+export function HomeFlat({
+  lit = true, children, onSafe, onFridge, onTv, onTable, onDoor,
+  tvLabel = null, tableLabel = null,
+}) {
   const tableBox = {
     left: FLAT.table.cx - FLAT.table.rx,
     top: FLAT.table.cy - FLAT.table.ry,
@@ -74,11 +77,29 @@ export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable
         <div className="home-flat__table" style={tableBox} aria-hidden />
       )}
 
-      {/* the door, right wall line */}
-      <div className="home-flat__door" style={{ left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h }} aria-hidden>
-        <span className="home-flat__door-light" />
-        <span className="home-flat__door-knob" />
-      </div>
+      {/* HOME-2 job 1 · THE DOOR IS THE CASINO.
+          Wave 53 took HOME · CASINO · YOU off the bottom of the screen and made
+          the three of them things in the world. The casino is the door: you tap
+          it and he walks there. Without a destination it is furniture again —
+          which is what the desk still hands it, because the desk has a rail. */}
+      {onDoor ? (
+        <button
+          type="button"
+          className="home-flat__door"
+          style={{ left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h }}
+          onClick={onDoor}
+          aria-label="The door — the casino"
+          data-testid="home-door"
+        >
+          <span className="home-flat__door-light" aria-hidden />
+          <span className="home-flat__door-knob" aria-hidden />
+        </button>
+      ) : (
+        <div className="home-flat__door" style={{ left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h }} aria-hidden>
+          <span className="home-flat__door-light" />
+          <span className="home-flat__door-knob" />
+        </div>
+      )}
 
       {/* the safe, under the frames */}
       <button

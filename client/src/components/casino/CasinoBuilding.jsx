@@ -519,12 +519,25 @@ export function Stairs() {
 
 // ── The head ───────────────────────────────────────────────────────────────
 
-export function CasinoHead({ sub, right }) {
+export function CasinoHead({ sub, right, onBack }) {
   return (
     <div style={{
-      flexShrink: 0, height: 46, display: 'flex', alignItems: 'center', gap: 9,
+      flexShrink: 0, minHeight: 46, display: 'flex', alignItems: 'center', gap: 9,
       padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
+      {/* HOME-2 job 1 · through the door, and still no bottom bar: ← HOME is
+          where the back button goes (board 29 F07). */}
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back home"
+          style={{
+            flexShrink: 0, background: 'none', border: 'none', padding: '4px 4px 4px 0', cursor: 'pointer',
+            fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM,
+          }}
+        >← HOME</button>
+      ) : null}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>
           The casino

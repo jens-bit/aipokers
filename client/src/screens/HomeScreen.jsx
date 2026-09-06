@@ -279,6 +279,10 @@ export function HomeScreen({
   onProfile,
   onDeploy,
   onCreateAgent,
+  // HOME-2 job 1 · the casino is the door. There is no bottom bar to reach it
+  // by any more, so the room carries the only way in — and the phone is the
+  // only shell that needs it: the desk has the building beside it in a rail.
+  onCasino,
   onOpenWallet,
   onOpenThread,
   onSend,
@@ -512,6 +516,9 @@ export function HomeScreen({
       lit={lit}
       onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
+      // Never on the desk: DeskHome keeps the casino a rail away and a door
+      // that navigated out of the room would take the rail with it.
+      onDoor={!desktop && onCasino ? () => onCasino() : undefined}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
       // Three trees wanted this tap and all three are now sections of the sheet

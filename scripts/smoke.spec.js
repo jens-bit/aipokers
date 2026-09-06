@@ -24,7 +24,8 @@
 //      run fails.
 //
 // Two widths, because the app has two shells and they share almost nothing:
-// 390x844 is the Mini App's phone (tab bar, HomeScreen, WatchScreen) and
+// 390x844 is the Mini App's phone (HomeScreen, WatchScreen — and since HOME-2
+// job 1 no bottom bar: the casino is the door and YOU is the avatar) and
 // 1440x900 crosses useIsDesktop's 1100px line into DesktopHome (stage tabs,
 // wallet rail, DeskTableStage). Since DESK-2 the HOME stage there is the same
 // room as the phone's — HomeScreen in `home1--desk`, with DeskHome's 520 rail
@@ -198,7 +199,12 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
       });
 
       await test.step('CASINO', async () => {
-        await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+        if (desktop) {
+          await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+        } else {
+          // HOME-2 job 1: there is no bottom bar. The casino is the DOOR.
+          await page.getByTestId('home-door').click();
+        }
         await expect(page.locator('.csn').first()).toBeVisible({ timeout: 20_000 });
         await shot(page, `${shell}-casino`);
       });
@@ -210,7 +216,10 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
           await page.locator('.dsk-top__wallet').click();
           await expect(page.locator('.dsk-wallet')).toBeVisible({ timeout: 20_000 });
         } else {
-          await page.getByRole('button', { name: 'YOU', exact: true }).click();
+          // HOME-2 job 1: YOU is the avatar top-right, and the record is one
+          // line at the foot of the roster it opens.
+          await page.getByRole('button', { name: 'Your agents' }).click();
+          await page.getByTestId('roster-ledger').click();
           await expect(page.locator('.wal.dr-app')).toBeVisible({ timeout: 20_000 });
         }
         await shot(page, `${shell}-you`);

@@ -129,6 +129,10 @@ export function CasinoScreen({
   onDeployed = null,
   onSpectate = null,
   onCancelDeploy = null,
+  // HOME-2 job 1 · back from anywhere returns to the room. The phone reached
+  // the casino through the door, so the way out of it is a back arrow rather
+  // than a tab; the desk never passes one, because the desk did not leave home.
+  onBack = null,
   desktop = false,
 }) {
   const [agents, setAgents] = useState([]);
@@ -336,6 +340,7 @@ export function CasinoScreen({
   const head = (
     <CasinoHead
         sub={sub}
+        onBack={desktop ? null : onBack}
         right={trayAgent ? (
           <button
             type="button"

@@ -20,6 +20,10 @@ smoke-shots/
 test-results/
 playwright-report/
 
+# HOME-2: the phone-only ruler run (playwright.home2.config.js). Same rule as
+# the smoke shots — pictures to look at when it goes red, never a baseline.
+home2-shots/
+
 # Scratch that lands next to the repo rather than in it: screenshots and
 # exports dropped here while looking at a design. Never part of a build.
 Claude outputs/

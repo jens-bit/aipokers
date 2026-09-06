@@ -200,3 +200,58 @@
 @media (prefers-reduced-motion: reduce) {
   .roster__panel { animation: none; transition: none; }
 }
+
+/* ── HOME-2 job 1 · the money, as one line ────────────────────────────────
+   Wave 53: YOU is this sheet, and the wallet screen lives behind it. It is a
+   LINE and not a section — one number and the way to the record — because a
+   second money surface in the product is a second place for a money bug to be
+   fixed. Both taps land on YOU-2's own screens. */
+.roster__money {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  padding: 11px 16px 4px;
+  border-top: 1px solid var(--edge-2, rgba(255, 255, 255, 0.08));
+}
+.roster__wallet {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.roster__wallet:disabled { cursor: default; }
+.roster__wallet-label {
+  font-family: var(--font-label, "Oswald", sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--text-muted, #6B6B6B);
+}
+.roster__wallet-amount {
+  font-family: var(--font-display, "Rozha One", Georgia, serif);
+  font-size: 20px;
+  color: var(--gold, #CDB380);
+  letter-spacing: 0.005em;
+}
+.roster__ledger {
+  flex-shrink: 0;
+  font-family: var(--font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary, #A1A1A1);
+  background: none;
+  border: 1px solid var(--edge-2, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+}

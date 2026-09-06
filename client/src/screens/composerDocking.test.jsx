@@ -2,7 +2,11 @@
 //
 // Second mobile playtest, 17:43-17:47. Screenshot: a thread with ONE message
 // had its composer floating in the middle of the screen with dead space below
-// it, instead of sitting on the tab bar.
+// it, instead of sitting on the bottom of the screen.
+//
+// HOME-2 job 1 removed the tab bar this used to dock ONTO, which makes the
+// contract stricter rather than weaker: the composer is now the last thing on
+// the screen full stop, so there is nothing under it to hide a gap.
 //
 // Root cause: layout.css sized `.pre-game` as `flex: 1` but left it a BLOCK
 // box. Both the thread and the birth screen declare `flex: 1` plus a column on
@@ -46,22 +50,19 @@ const isFlexColumn = (el) => css(el).display === 'flex' && css(el).flexDirection
 // `flex: 1` resolves to grow 1 / shrink 1 / basis 0%; jsdom reports longhands.
 const grows = (el) => parseFloat(css(el).flexGrow || '0') > 0;
 
-// The real shell: .app is the flex column that owns --tg-h (KEY-1), .pre-game
-// is the tab pane, .tab-bar is what the composer has to sit on.
+// The real shell: .app is the flex column that owns --tg-h (KEY-1) and
+// .pre-game is the pane. Nothing below it — HOME-2 job 1.
 function Shell({ children }) {
   return (
     <div className="app">
       <div className="pre-game" style={{ position: 'relative' }}>{children}</div>
-      <div className="tab-bar" data-testid="tab-bar" />
     </div>
   );
 }
 
 /**
- * Walk the composer up to the tab pane, checking the docking contract at each
- * level. The pane is where the walk stops on purpose: the composer docks to the
- * TOP of the tab bar, and the tab bar is the pane's next sibling, not its
- * child. Returns how many levels had a slack-absorbing sibling; zero means the
+ * Walk the composer up to the pane, checking the docking contract at each
+ * level. Returns how many levels had a slack-absorbing sibling; zero means the
  * column is content-sized and the composer floats — the screenshot bug.
  */
 function auditDocking(composer, stopClass = 'pre-game') {
@@ -91,7 +92,7 @@ function auditDocking(composer, stopClass = 'pre-game') {
   return absorbers;
 }
 
-describe('FIX-2b: the thread composer docks to the tab bar', () => {
+describe('FIX-2b: the thread composer docks to the bottom of the screen', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents/a1/hands', { recentHands: [] });
@@ -119,10 +120,10 @@ describe('FIX-2b: the thread composer docks to the tab bar', () => {
     expect(auditDocking(composer)).toBeGreaterThan(0);
   });
 
-  it('the pane ends exactly where the tab bar begins', async () => {
+  it('HOME-2 job 1: the pane ends at the bottom of the shell, with nothing under it', async () => {
     await renderThread();
     const pane = document.querySelector('.pre-game');
-    expect(pane.nextElementSibling).toBe(screen.getByTestId('tab-bar'));
+    expect(pane.nextElementSibling).toBeNull();
     expect(grows(pane)).toBe(true);
   });
 

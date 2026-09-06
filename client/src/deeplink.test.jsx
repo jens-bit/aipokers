@@ -5,7 +5,7 @@
 // `?startapp=hand_<agentId>_<handId>` under every card; both landed on the home
 // screen. These assert on where the app actually stands afterwards.
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -34,16 +34,13 @@ describe('DEEPLINK-1 start params', () => {
     render(<App />);
 
     expect(await screen.findByPlaceholderText(`Message ${restingAgent.name}…`)).toBeInTheDocument();
-    // CASINO-1 took CHATS out of the bar — the nav is HOME · CASINO · YOU and
-    // the thread is reached from Home or a profile instead. 'chats' is still
-    // the tab VALUE, so the rule this test exists for is unchanged (the tap
-    // lands on the thread, not the roster and not the floor); it just cannot be
-    // read off a button that no longer exists. None of the three that remain is
-    // active while the thread is up, which says the same thing.
-    const nav = document.querySelector('.tab-bar');
-    for (const label of ['HOME', 'CASINO', 'YOU']) {
-      expect(within(nav).getByText(label).closest('button')).not.toHaveClass('tab-bar__tab--active');
-    }
+    // CASINO-1 took CHATS out of the bar — the thread is reached from Home or a
+    // profile instead — and HOME-2 job 1 took the bar itself away. 'chats' is
+    // still the tab VALUE, so the rule this test exists for is unchanged: the
+    // tap lands on the THREAD, not on the roster and not on the room. What
+    // states it now is what the deep link left off screen.
+    expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('roster-sheet')).not.toBeInTheDocument();
   });
 
   it('agent_<id>: opens the thread when the app is ALREADY open', async () => {

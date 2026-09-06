@@ -635,6 +635,36 @@ describe('HOME-1 · the safe and the fridge', () => {
   });
 });
 
+// ── HOME-2 job 1 · the door is the casino ───────────────────────────────────
+
+describe('HOME-2 job 1 · CASINO is the door', () => {
+  it('tapping the door walks him to the casino', async () => {
+    const onCasino = vi.fn();
+    await boot([mkAgent('a1', 'The Clock')], null, { onCasino });
+
+    await userEvent.click(await screen.findByTestId('home-door'));
+    expect(onCasino).toHaveBeenCalled();
+  });
+
+  // The room states its destinations, and never a bar over them.
+  it('the door says where it leads', async () => {
+    await boot([mkAgent('a1', 'The Clock')], null, { onCasino: () => {} });
+    expect(await screen.findByRole('button', { name: 'The door — the casino' })).toBeInTheDocument();
+  });
+
+  // A door with nowhere to go is furniture, which is what the desk hands it:
+  // DeskHome keeps the building a rail away, and a door that navigated out of
+  // the room would take the rail with it.
+  it('is furniture again when nothing is offered, and on the desk', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(screen.queryByTestId('home-door')).toBeNull();
+
+    document.body.innerHTML = '';
+    await boot([mkAgent('a1', 'The Clock')], null, { desktop: true, onCasino: () => {} });
+    expect(screen.queryByTestId('home-door')).toBeNull();
+  });
+});
+
 // ── BUG-32 · the newborn comes in through the door ──────────────────────────
 
 describe('BUG-32 · a birth is an arrival', () => {
