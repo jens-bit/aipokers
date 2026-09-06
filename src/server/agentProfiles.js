@@ -1494,12 +1494,26 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // table is at home; it is what he is DOING that changes, which is why it
   // lands on the routine and not on `where`.
   const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
-  const tableBigBlind = agent.activeTableId
-    ? (liveTables?.getTable?.(agent.activeTableId)?.bigBlind ?? null)
+  // BUGS-B/3: the table he is at is the one that EXISTS, not the one his
+  // record still names. home.js's first law is that location is derived and
+  // never declared, and this was the one place still handing it the stored
+  // flag: an agent whose table died under him kept `activeTableId`, so
+  // locationFor read "he has a table" and answered CASINO — forever, or until
+  // the next boot reconciliation. He was then permanently out of the flat,
+  // which is why saying something to the room reached nobody.
+  //
+  // Without a registry (routes installed with no WebSocket server) the stored
+  // flag is all there is, and it stands — the same fallback `presence` above
+  // already makes.
+  const activeTableId = liveTables
+    ? (liveTables.hasTable?.(agent.activeTableId) ? agent.activeTableId : null)
+    : (agent.activeTableId ?? null);
+  const tableBigBlind = activeTableId
+    ? (liveTables?.getTable?.(activeTableId)?.bigBlind ?? null)
     : null;
   const location = stampLocation(agent, locationFor({
     presence,
-    tableId: agent.activeTableId ?? null,
+    tableId: activeTableId ?? null,
     room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
   }));
   const routine = routineFor({

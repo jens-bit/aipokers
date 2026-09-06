@@ -225,6 +225,56 @@ test('THREAD-2: POST /api/home/say fans out, and every reply is attributed', asy
       const res = await postJson(`${base}/api/home/say`, { userId: 'u1', text: '   ' });
       assert.equal(res.status, 400);
     });
+
+    // ── BUGS-B/3 · who counts as being in ────────────────────────────────
+    //
+    // The three of them are now all pointing at 'tbl-1'. That table has never
+    // existed: it is the shape reconcileActiveSessions exists to clean up, and
+    // the shape an agent is left in whenever a table dies under him.
+    //
+    // home.js's first law is that location is DERIVED, never declared. The one
+    // place still reading the stored flag was the location itself, so a man
+    // whose table was gone read as CASINO — forever — and was permanently out
+    // of earshot of his own living room. That is a room you can say something
+    // to and get nothing back from, which is the bug.
+    try {
+      profiles.setLiveTableProvider({
+        hasTable: (id) => id === 'tbl-real',
+        getTable: (id) => (id === 'tbl-real' ? { tableId: id, bigBlind: 20 } : null),
+        getLiveGame: (id) => (id === 'tbl-real' ? { tableId: id, handsThisSession: 3 } : null),
+        homeTableOf: () => null,
+      });
+
+      await t.test('a table that no longer exists does not keep him at the casino', () => {
+        const roster = profiles.presentedRoster('u1', { owner: true });
+        assert.ok(roster.length >= 3);
+        for (const agent of roster) {
+          assert.equal(agent.location.where, 'home',
+            `${agent.name} points at a table that is not there, so he is in`);
+          assert.equal(agent.location.tableId, null);
+        }
+      });
+
+      await t.test('a table that DOES exist still keeps him out of it', () => {
+        profiles._agentRecordForTests('marlow', 'u1').activeTableId = 'tbl-real';
+        const marlow = profiles.presentedRoster('u1', { owner: true }).find((a) => a.id === 'marlow');
+        assert.equal(marlow.location.where, 'table');
+        assert.equal(marlow.location.tableId, 'tbl-real');
+      });
+
+      await t.test('so the room answers again', async () => {
+        const res = await postJson(`${base}/api/home/say`, { userId: 'u1', text: 'Anyone home?' });
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.home, 2, 'the two whose tables are gone are in; Marlow is out');
+        assert.deepEqual(body.replies.map((r) => r.agentId).sort(), ['balance', 'granite']);
+        for (const reply of body.replies) assert.ok(reply.text, 'and each of them answered');
+      });
+    } finally {
+      // Module-level state: a provider left behind would follow every later
+      // suite in this process.
+      profiles.setLiveTableProvider(null);
+    }
   });
 });
 
