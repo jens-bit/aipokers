@@ -129,6 +129,21 @@ describe('the rows', () => {
     expect(rows[0].className).not.toContain('is-cost');
   });
 
+  // WATCH-9. The gold used to come from a flag the felt put on its own LIVE
+  // row, so the same line read back off the store — a reconnect, or a look at
+  // the sheet an hour later — came back in the room's ordinary grey. It is a
+  // stored field now, and a stored row is exactly what the sheet is handed.
+  it('WATCH-9: a stored cost line is still gold', () => {
+    const row = {
+      id: 's91', kind: 'table', who: 'TABLE', stored: true, t: 1_700_000_000_000,
+      text: 'he misjudged equity by 7 points · FOCUS', cost: true,
+    };
+    const { container } = render(<ThreadRow row={row} />);
+    const el = container.querySelector('.thread-row');
+    expect(el.className).toContain('thread-row--table');
+    expect(el.className).toContain('is-cost');
+  });
+
   // A row that only has a timestamp still prints a clock, because the record is
   // ordered and an unlabelled line in an ordered list is a hole in it.
   it('reads the clock off a timestamp when it is not given one', () => {

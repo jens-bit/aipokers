@@ -19,7 +19,17 @@
 
 import { FLAT, F_W, F_H } from './flat.js';
 
-export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, tvLabel = null }) {
+// DESK-2: `onTable` is optional and the table is furniture without it. The
+// chairs are priced in one place only (TableSheet, board 31 P17) and the phone
+// has nowhere to put that sheet yet — so the table is a button exactly where
+// somebody has somewhere for it to lead, and an ordinary div everywhere else.
+export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable, tvLabel = null }) {
+  const tableBox = {
+    left: FLAT.table.cx - FLAT.table.rx,
+    top: FLAT.table.cy - FLAT.table.ry,
+    width: FLAT.table.rx * 2,
+    height: FLAT.table.ry * 2,
+  };
   return (
     <div className="home-flat" style={{ width: F_W, height: F_H }} data-lit={lit ? 'true' : 'false'}>
       {/* floorboards, running away from the viewer */}
@@ -48,16 +58,18 @@ export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, tvLabel
       </div>
 
       {/* the kitchen table, from above */}
-      <div
-        className="home-flat__table"
-        style={{
-          left: FLAT.table.cx - FLAT.table.rx,
-          top: FLAT.table.cy - FLAT.table.ry,
-          width: FLAT.table.rx * 2,
-          height: FLAT.table.ry * 2,
-        }}
-        aria-hidden
-      />
+      {onTable ? (
+        <button
+          type="button"
+          className="home-flat__table"
+          style={tableBox}
+          onClick={onTable}
+          aria-label="The kitchen table — four chairs"
+          data-testid="home-table"
+        />
+      ) : (
+        <div className="home-flat__table" style={tableBox} aria-hidden />
+      )}
 
       {/* the door, right wall line */}
       <div className="home-flat__door" style={{ left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h }} aria-hidden>

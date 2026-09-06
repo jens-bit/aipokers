@@ -13,6 +13,7 @@ import { attachNotify, installNotifyRoutes } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
 import { attachTicker } from './server/ticker.js';
+import { installMeterRoutes } from './server/meter.js';
 import { installRoomRoutes } from './server/rooms.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 // BUGS-B/6: /api/stats asks the registry for the floor's counts rather than
@@ -62,6 +63,12 @@ installShareRoutes(app);
 // answered with index.html. Registered once, above it, and attachNotify is
 // called without `app` so it does not register them a second time.
 installNotifyRoutes(app);
+// METER-1: GET /api/meter (the owner's own model spend, behind auth + the
+// owner check) and GET /api/admin/meter?key=ADMIN_KEY (everybody's). Both are
+// GETs, so like the notifier's board they have to be registered above the SPA
+// fallback or they are answered with index.html. Neither triggers a model
+// call; both are inside the /api rate limiter above.
+installMeterRoutes(app);
 
 // Build the HTTP server and attach WebSocket before registering the remaining
 // routes so that the tables Map is in scope for /api/stats.

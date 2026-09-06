@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
-import { CasinoFloor } from '../floor/CasinoFloor.jsx';
+import { DeskHome } from './DeskHome.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
-import { StandupPanel } from './StandupPanel.jsx';
-import { ThreadPanel } from './ThreadPanel.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
@@ -29,6 +27,9 @@ export function DesktopHome({
   // thread when the connection comes back — the same rule the phone's sheet
   // follows, from the same hook.
   connection = null,
+  // WATCH-9: the thread lines this socket has been pushed. Only meaningful for
+  // the agent actually being watched — see the guard where DeskWatch takes it.
+  threadLines = null,
   // CASINO-1: the casino is the same screen on the desk, in the stage, per
   // board 31's frame — top bar across, rail on the right, only the stage
   // swapped. An agent handed to `deployAgent` puts it there on its own,
@@ -38,12 +39,16 @@ export function DesktopHome({
   // the shell around it — top bar, roster, open panel — stays mounted; App
   // returning it on its own would take the desk down for the duration.
   draft = null,
+  // BIRTH-5: an INTENT, the way YouScreen's `openMoney` is one. The draft above
+  // can be turned away by a locked slot, and the one thing it can offer then is
+  // a look at the table — which on the desk is a rail panel this component owns
+  // rather than a sheet the shell could raise on its own.
+  openHomeTable = false,
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState(null);
 
-  // One draft per agent (plus the idle panel's own). Lifted above ThreadPanel
+  // One draft per agent (plus the idle panel's own). Lifted above the panels
   // so a half-typed message survives switching agents — the panel remounts,
   // this map does not.
   const [drafts, setDrafts] = useState({});
@@ -60,7 +65,23 @@ export function DesktopHome({
   const [wallet, setWallet] = useState(null);
   // CASINO-1: 'floor' (today's room) or 'casino' (the building). Local to the
   // desk because the desktop shell has no tab bar to hold it.
+  //
+  // DESK-2: 'floor' is now HOME — the flat, which is what the HOME tab shows on
+  // the phone and what the top bar has always called this stage. The old
+  // CasinoFloor is not drawn on the desk any more: it answered "who is playing",
+  // the room answers "where is everybody", and two rooms is the one thing board
+  // 31 says desktop must not have.
   const [stage, setStage] = useState('floor');
+  // DESK-2: which panel the HOME rail is showing. It lives here because two of
+  // the things that move it are the shell's — the top bar's Standup button, and
+  // Escape — and because the shell has to be able to take the rail away
+  // entirely when it puts one of its OWN panels beside the room.
+  const [homePanel, setHomePanel] = useState('thread');
+  // Which man the HOME rail is pointed at. Up here for the same reason the panel
+  // is: the collapsed roster strip is one of the ways it changes, and the strip
+  // is the shell's, not the room's.
+  const [homeFocusId, setHomeFocusId] = useState(null);
+  const homeStage = stage !== 'casino';
 
   useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
 
@@ -75,7 +96,22 @@ export function DesktopHome({
   // was not in the previous roster is a newborn, and it is shown once.
   const [bornId, setBornId] = useState(null);
   const knownIds = useRef(null);
-  const draftKey = deskTableId ?? selectedId ?? IDLE_KEY;
+  // BIRTH-5: the birth screen's refusal points at the table, and on the desk the
+  // table is this rail. The shell's own panels (the wallet, a birth card) hold
+  // the 520 when they are open, so they stand down first — otherwise the panel
+  // would be set and nothing would appear.
+  useEffect(() => {
+    if (!openHomeTable) return;
+    setWalletOpen(false);
+    setBornId(null);
+    setHomePanel('table');
+  }, [openHomeTable]);
+
+  // Whose composer is on screen. DESK-2: on the HOME stage the open thread is
+  // the rail's, so the key follows the rail's focus — and only while the rail is
+  // actually showing a man, because the standup's own composer is the idle one.
+  const homeDraftKey = homeStage && homePanel === 'agent' ? homeFocusId : null;
+  const draftKey = deskTableId ?? homeDraftKey ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
   }, [draftKey]);
@@ -108,16 +144,18 @@ export function DesktopHome({
     };
   }, [load]);
 
-  // Resolve against the latest poll so the open thread's mood/state stay fresh.
-  const selectedIndex = agents.findIndex((a) => a.id === selectedId);
-  const selected = selectedIndex >= 0 ? agents[selectedIndex] : null;
-
-  // A selected agent that has been deleted elsewhere must not strand the panel.
-  const hadSelection = useRef(false);
+  // DESK-2: an agent the room's rail is pointed at who has been deleted
+  // elsewhere must not strand the panel. This is the old selectedId guard,
+  // following the rail's focus now that the rail is where a thread opens.
+  const focusIndex = agents.findIndex((a) => a.id === homeFocusId);
+  const hadFocus = useRef(false);
   useEffect(() => {
-    if (selectedId && !loading && selectedIndex < 0 && hadSelection.current) setSelectedId(null);
-    if (selectedIndex >= 0) hadSelection.current = true;
-  }, [selectedId, selectedIndex, loading]);
+    if (homeFocusId && !loading && focusIndex < 0 && hadFocus.current) {
+      setHomeFocusId(null);
+      setHomePanel('thread');
+    }
+    if (focusIndex >= 0) hadFocus.current = true;
+  }, [homeFocusId, focusIndex, loading]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -125,11 +163,14 @@ export function DesktopHome({
       if (flaggedAgent) { setFlaggedAgent(null); return; }
       if (bornId) { setBornId(null); return; }
       if (deskTableId) { setDeskTableId(null); return; }
-      setSelectedId(null);
+      if (walletOpen) { setWalletOpen(false); return; }
+      // DESK-2: on the HOME stage Escape backs the rail out to the room, which
+      // is the resting panel there the way the standup was on the old floor.
+      if (homeStage && homePanel !== 'thread') { setHomePanel('thread'); return; }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [flaggedAgent, deskTableId, bornId]);
+  }, [flaggedAgent, deskTableId, bornId, walletOpen, homeStage, homePanel]);
 
   useEffect(() => {
     if (loading) return;
@@ -162,8 +203,13 @@ export function DesktopHome({
       standupLine={playing.length === 0 ? topLine : null}
       net={topNet}
       flagged={topFlagged}
-      onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
-      onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
+      // DESK-2: on the HOME stage the standup is a rail panel, so the button
+      // that has always been called Standup opens the standup. Elsewhere it
+      // keeps CASINO-1's behaviour — straight to the flagged hands.
+      onStandup={homeStage
+        ? () => { setWalletOpen(false); setBornId(null); setHomePanel('standup'); }
+        : (firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined)}
+      onWallet={wallet ? () => { setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
       stage={stage}
       onStage={(next) => {
@@ -181,7 +227,16 @@ export function DesktopHome({
   }, [watchedId, onWatchAgent]);
 
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
-  const panelOpen = !!born || !!selected || walletOpen;
+  // FIX-2c's rule, still: when a panel takes the roster's place, the collapsed
+  // strip gives the who-is-playing glance back at 68px.
+  //
+  // DESK-2 adds the room's own two exceptions. The ROOM is a roster — every
+  // agent is either a body in it or a frame on its wall — so the strip is not
+  // drawn while the rail is showing the room's thread; and the STANDUP holds
+  // the full roster itself, which is what the strip would be a collapse of.
+  const homeRailIsRoster = homeStage && (homePanel === 'thread' || homePanel === 'standup');
+  const panelOpen = !!born || walletOpen
+    || (homeStage && !walletOpen && !born && !homeRailIsRoster);
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -222,6 +277,7 @@ export function DesktopHome({
             game={watchedId === deskAgent.id ? game : null}
             lastDecision={watchedId === deskAgent.id ? lastDecision : null}
             connection={connection}
+            threadLines={watchedId === deskAgent.id ? threadLines : null}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
             onBack={() => setDeskTableId(null)}
@@ -242,8 +298,15 @@ export function DesktopHome({
         {panelOpen && (
           <RosterStrip
             agents={agents}
-            activeId={selectedId ?? bornId}
-            onSelect={(agent) => { setBornId(null); setWalletOpen(false); setSelectedId(agent.id); }}
+            activeId={homeStage && !walletOpen && !born ? homeFocusId : bornId}
+            onSelect={(agent) => {
+              setBornId(null);
+              setWalletOpen(false);
+              // On the HOME stage the thread the strip opens is the rail's, in
+              // the room — there is no second panel for it to land in.
+              setHomeFocusId(agent.id);
+              setHomePanel('agent');
+            }}
           />
         )}
         <div className="dsk-stage">
@@ -263,15 +326,35 @@ export function DesktopHome({
               onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
             />
           ) : (
-            <CasinoFloor
-              desktopMode
-              selectedAgentId={selectedId}
-              onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
-              onChat={(agent) => setSelectedId(agent.id)}
+            // DESK-2 — the flat, and its rail. DeskHome carries its own 520 rail
+            // (the room's thread, or a fixture, or one man), so the HOME stage
+            // spans the body and the panels below are not drawn beside it.
+            <DeskHome
+              wsUrl={wsUrl}
+              wallet={wallet}
+              game={game}
+              lastDecision={lastDecision}
+              watchedId={watchedId}
+              drafts={drafts}
+              onDraftChange={setDraft}
+              onRefreshWallet={refreshWallet}
               onWatch={onWatchAgent}
-              onProfile={() => {}}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
+              onFocusTable={openTable}
+              onOpenFlagged={(agent, hand) => {
+                // A row names its hand: that one goes to the theatre. VIEW ALL
+                // has no hand, so it opens the sheet with the whole list.
+                if (hand) setReplay({ agent, hand });
+                else setFlaggedAgent(agent);
+              }}
+              // One rail at a time: the shell's own panel (the wallet, a birth
+              // card) takes the 520 and the room's rail stands down, because
+              // 520 + 520 + a 523-wide room does not fit in 1440.
+              panel={walletOpen || bornId ? 'none' : homePanel}
+              onPanel={setHomePanel}
+              focusId={homeFocusId}
+              onFocusId={setHomeFocusId}
             />
           )}
         </div>
@@ -305,42 +388,7 @@ export function DesktopHome({
             />
             <BirthCardRail agent={born} onDealIn={() => { setBornId(null); onDeployAgent(born); }} />
           </div>
-        ) : selected ? (
-          <ThreadPanel
-            key={selected.id}
-            agent={selected}
-            accentIndex={selectedIndex}
-            game={game}
-            lastDecision={lastDecision}
-            isWatched={watchedId === selected.id}
-            draft={drafts[selected.id] ?? ''}
-            onDraftChange={setDraft}
-            onClose={() => setSelectedId(null)}
-            onWatch={onWatchAgent}
-            onDeploy={onDeployAgent}
-            onFocusTable={() => openTable(selected)}
-          />
-        ) : (
-          <StandupPanel
-            agents={agents}
-            loading={loading}
-            game={game}
-            lastDecision={lastDecision}
-            selectedId={selectedId}
-            watchedId={watchedId}
-            draft={drafts[IDLE_KEY] ?? ''}
-            onDraftChange={setDraft}
-            onSelect={(agent) => setSelectedId(agent.id)}
-            onOpenTable={openTable}
-            onDraftAgent={onCreateAgent}
-            onOpenFlagged={(agent, hand) => {
-              // A row names its hand: that one goes to the theatre. VIEW ALL
-              // has no hand, so it opens the sheet with the whole list.
-              if (hand) setReplay({ agent, hand });
-              else setFlaggedAgent(agent);
-            }}
-          />
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -348,7 +396,7 @@ export function DesktopHome({
 
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
-function DeskWatch({ agent, game, lastDecision, connection, draft, onDraftChange, onBack, onSitOut }) {
+function DeskWatch({ agent, game, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut }) {
   const { chat, sending, send } = useAgentThread(agent);
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agent.name);
@@ -357,11 +405,14 @@ function DeskWatch({ agent, game, lastDecision, connection, draft, onDraftChange
   // WATCH-8 job 3: the stored record of this stay. At 1440 the rail is always
   // open, so it is always wanted — where the phone asks for it when the sheet
   // comes up. Same hook, same lines, same server clock.
+  // WATCH-9: and pushed from there. The rail is always open at 1440, which is
+  // exactly the surface a fetch-on-open leaves stalest.
   const stored = useTableThread({
     agentId: agent?.id,
     sessionId: game?.sessionId ?? null,
     connection,
     want: true,
+    pushed: threadLines,
   });
 
   return (
