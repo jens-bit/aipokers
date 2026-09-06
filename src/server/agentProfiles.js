@@ -160,6 +160,36 @@ function saveStore(userId) {
   console.log(`[agents] saved profile for ${userId} — ${n} agent(s)`);
 }
 
+// ── SERVER-5 job 2 · the nightly pass's three accessors ─────────────────────
+//
+// Rust is the first thing in the product that walks the whole building rather
+// than one owner's roster, so it needs a door onto it. Three narrow functions
+// rather than exporting `db()`: the store is this module's, and a caller
+// holding the raw object could write a record without ever saving it.
+
+/** Every owner the store knows about. */
+export function allOwnerIds() {
+  return Object.keys(db());
+}
+
+/** One owner's agent RECORDS — the live objects, archived ones included. */
+export function agentsOf(userId) {
+  const profile = db()[String(userId)];
+  return Array.isArray(profile?.agents) ? profile.agents : [];
+}
+
+/**
+ * Persist whatever a caller changed on those records.
+ *
+ * Deliberately SILENT — no emitAgentChange. The nightly pass runs from inside
+ * the agent-change listener, so announcing from here would re-enter it, and
+ * the push that listener is already about to make carries the new numbers
+ * anyway. A job that runs inside a notification must not raise one.
+ */
+export function saveOwner(userId) {
+  saveStore(String(userId));
+}
+
 function getOrCreate(userId) {
   const store = db();
   if (!store[userId]) {
@@ -329,6 +359,10 @@ function commitAgent(profile, existingAgentId, agentData) {
   agent.attrs = born.attrs;
   agent.potential = born.potential;
   agent.nature = born.nature;
+  // SERVER-5 job 2: the six he was born with, kept as their own record for the
+  // same reason `potentialBirth` below is. Rust may never take him under these,
+  // so the floor has to survive the attrLog's 200-entry ring.
+  agent.attrsBorn = { ...born.attrs };
   // ATTR-3a: his first sentence, spoken once at the reveal. A template in his
   // own voice, chosen by nature — no model call on the birth path.
   agent.firstWords = firstWordsFor(born.nature.name);

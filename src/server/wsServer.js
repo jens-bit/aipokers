@@ -10,6 +10,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as rustNight from './rustNight.js';
 import * as thread from './thread.js';
 
 const { getOrCreateTable } = registry;
@@ -51,6 +52,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // exactly the question a standing change answers.
   setAgentChangeListener((userId) => {
     try {
+      // SERVER-5 job 2: the nightly rust pass, beside the nightly exchange and
+      // on the same tick, but FIRST — it changes stored attributes, and the
+      // roster built below has to be the one that already includes them.
+      // Once per owner per day inside, and it walks the whole building rather
+      // than this owner's roster, because the household most in need of a pass
+      // is the one that never produces a change of its own.
+      rustNight.runNightly();
       homeGame.sync(userId);
       const roster = presentedRoster(userId, { owner: true });
       homeNight.noteHousehold(userId, roster);
