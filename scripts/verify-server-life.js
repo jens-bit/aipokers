@@ -103,10 +103,18 @@ const j = async (method, path, body) => {
 };
 
 const userId = 'e2e-server-life-user';
-const cleanupAgentIds = [];
 
-const getAgent = async (agentId) => {
-  const list = await j('GET', `/api/agents?userId=${userId}`);
+// AGENTS-2: four ACTIVE agents per owner. The floor cap (section 7) and the
+// stall watchdog (section 8) between them need more agents than that, and the
+// two caps are different rules — one is per floor, the other is per owner — so
+// the sections that fill the floor get an owner of their own rather than
+// quietly leaning on the absence of a roster limit.
+const floorUserId = 'e2e-server-life-floor';
+const owners = [userId, floorUserId];
+const cleanupAgents = [];
+
+const getAgent = async (agentId, owner = userId) => {
+  const list = await j('GET', `/api/agents?userId=${owner}`);
   return (list.body?.agents ?? []).find((a) => a.id === agentId) ?? null;
 };
 const handsPlayed = async (agentId) => {
@@ -125,11 +133,11 @@ const waitFor = async (label, read, predicate, budgetMs = 60_000, everyMs = 250)
   return { ok: false, value: last, label };
 };
 
-const newAgent = async () => {
-  await j('POST', '/api/agents/chat/reset', { userId });
-  const r = await j('POST', '/api/agents/build', { userId });
+const newAgent = async (owner = userId) => {
+  await j('POST', '/api/agents/chat/reset', { userId: owner });
+  const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;
-  if (id) cleanupAgentIds.push(id);
+  if (id) cleanupAgents.push({ id, owner });
   return id;
 };
 
@@ -339,29 +347,29 @@ console.log(`\n[verify] 7) MAX_CONCURRENT_TABLES=${registry.MAX_CONCURRENT_TABLE
 const capAgentIds = [];
 {
   for (let i = 0; i < registry.MAX_CONCURRENT_TABLES; i++) {
-    const id = await newAgent();
+    const id = await newAgent(floorUserId);
     capAgentIds.push(id);
-    const r = await j('POST', `/api/agents/${id}/deploy`, { userId });
+    const r = await j('POST', `/api/agents/${id}/deploy`, { userId: floorUserId });
     check(`deploy ${i + 1}/${registry.MAX_CONCURRENT_TABLES} accepted`, r.status === 200, `got ${r.status}`);
   }
-  const overflowId = await newAgent();
+  const overflowId = await newAgent(floorUserId);
   capAgentIds.push(overflowId);
-  const refused = await j('POST', `/api/agents/${overflowId}/deploy`, { userId });
+  const refused = await j('POST', `/api/agents/${overflowId}/deploy`, { userId: floorUserId });
   check('deploy past the cap is refused', refused.status === 503, `got ${refused.status}`);
   check('refusal names the cap', /floor is full/i.test(refused.body?.error ?? ''), refused.body?.error);
-  const a = await getAgent(overflowId);
+  const a = await getAgent(overflowId, floorUserId);
   check('refused agent stays resting', a?.presence === 'resting');
 }
 
 // ── 8) boot reconciliation ───────────────────────────────────────────────────
 console.log(`\n[verify] 8) a wedged table is reaped (SESSION_STALL_MS=${process.env.SESSION_STALL_MS})`);
 {
-  const stallId = await newAgent();
+  const stallId = await newAgent(floorUserId);
   // Section 7 filled the floor to the cap — free a slot first.
   registry.listTables()[0]?.closeTable('making room for the stall test', { recap: 'test' });
   await sleep(50);
 
-  const r = await j('POST', `/api/agents/${stallId}/deploy`, { userId });
+  const r = await j('POST', `/api/agents/${stallId}/deploy`, { userId: floorUserId });
   check('stall-test deploy accepted', r.status === 200, `got ${r.status}`);
   const stallTableId = r.body?.tableId;
   const table = registry.getTable(stallTableId);
@@ -388,7 +396,7 @@ console.log(`\n[verify] 8) a wedged table is reaped (SESSION_STALL_MS=${process.
   );
   check('stall watchdog closed the wedged table', reaped.ok);
 
-  const a = await getAgent(stallId);
+  const a = await getAgent(stallId, floorUserId);
   check('wedged agent flipped to resting', a?.presence === 'resting', `got ${a?.presence}`);
   check('wedged agent released its table', !a?.activeTableId);
   check('wedged agent carries a recap',    !!a?.sessionRecap?.text);
@@ -398,7 +406,15 @@ console.log(`\n[verify] 8) a wedged table is reaped (SESSION_STALL_MS=${process.
 // ── 9) boot reconciliation ───────────────────────────────────────────────────
 console.log('\n[verify] 9) boot reconciliation retires agents whose table is gone');
 {
-  const playingBefore = (await j('GET', `/api/agents?userId=${userId}`)).body.agents.filter((a) => a.activeTableId);
+  const rosterAcrossOwners = async () => {
+    const out = [];
+    for (const owner of owners) {
+      const r = await j('GET', `/api/agents?userId=${owner}`);
+      out.push(...(r.body?.agents ?? []));
+    }
+    return out;
+  };
+  const playingBefore = (await rosterAcrossOwners()).filter((a) => a.activeTableId);
   check('agents are holding live tables before the simulated restart', playingBefore.length > 0);
 
   // A restart loses every in-memory table. Point the REST layer at an empty
@@ -415,7 +431,7 @@ console.log('\n[verify] 9) boot reconciliation retires agents whose table is gon
   const retired = reconcileActiveSessions();
   check('reconciliation retired the orphans', retired >= playingBefore.length, `retired ${retired}`);
 
-  const after = (await j('GET', `/api/agents?userId=${userId}`)).body.agents;
+  const after = await rosterAcrossOwners();
   check('no agent still points at a dead table', after.every((a) => !a.activeTableId));
   check('no ghost is left showing as playing',   after.every((a) => a.presence === 'resting'));
   const sample = after.find((a) => a.sessionRecap?.text?.includes('table closed'));
@@ -427,8 +443,8 @@ console.log('\n[verify] 9) boot reconciliation retires agents whose table is gon
 // ── cleanup ──────────────────────────────────────────────────────────────────
 console.log('\n[verify] cleanup');
 registry.resetRegistry('e2e run finished');
-for (const id of [...cleanupAgentIds]) {
-  await j('DELETE', `/api/agents/${id}?userId=${userId}`);
+for (const { id, owner } of [...cleanupAgents]) {
+  await j('DELETE', `/api/agents/${id}?userId=${owner}`);
 }
 wss.close();
 await new Promise((res) => httpServer.close(res));

@@ -434,6 +434,58 @@ function notifyBrokeOnce(userId, agent) {
 }
 
 // Append one entry to an agent's append-only ledger, capped at LEDGER_CAP.
+// ── AGENTS-2 · lifecycle ─────────────────────────────────────────────────────
+// How many agents one owner may have on the floor at once. Four is the number
+// the birth flow promises ("one open seat"), and it is a design constraint, not
+// a billing one: an owner with twelve agents has a fleet, and the game is about
+// knowing a handful of characters well enough to have opinions about them.
+export const AGENT_CAP = 4;
+
+// An archived agent is a RECORD, not a roster entry: kept in full, hidden from
+// every surface that lists who you have. Nothing here deletes anything.
+export function isArchived(agent) {
+  return !!agent?.archived;
+}
+
+// The roster, which is what the cap counts and what every list route serves.
+function activeAgents(profile) {
+  return (profile?.agents ?? []).filter((a) => !isArchived(a));
+}
+
+// The end of a career. He hands back everything he is holding — float included,
+// because a float is money set aside so he can sit down again and he is not
+// sitting down again — and the record closes. Idempotent, and there is no
+// un-retire from the API.
+function archiveAgent(profile, agent) {
+  if (!agent || agent.archived) return 0;
+  const userId = profile.userId;
+  const wallet = walletFor(userId);
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+
+  const result = walletCollect(wallet, pocket, { amount: null, leaveFloat: false });
+  const collected = result.ok ? result.moved : 0;
+  if (collected > 0) {
+    appendLedger(agent, { ts: Date.now(), type: 'retire', amount: -collected, tableId: null });
+  }
+
+  // Cut, so no refill path can quietly put a retired agent back in a seat.
+  pocket.mode = 'cut';
+  agent.retiring = false;
+  agent.archived = true;
+  agent.archivedAt = Date.now();
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  // Nothing left for the owner to answer: a retired agent does not propose a
+  // strategy change, does not ask for a beer, and has no unread recap.
+  agent.proposal = null;
+  agent.want = null;
+  agent.unseenRecap = false;
+  mirrorBankroll(agent);
+  console.log(`[agentProfiles] retired "${agent.name}" — ${collected} back to the wallet`);
+  return collected;
+}
+
 function appendLedger(agent, entry) {
   if (!Array.isArray(agent.ledger)) agent.ledger = [];
   agent.ledger.push(entry);
@@ -982,8 +1034,16 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.sessionHands = 0;
   agent.wornSaidAtHand = null;
 
+  // AGENTS-2: he was called in to retire. The session is booked in full first —
+  // the recap, the growth he earned tonight, the ledger — and only then does the
+  // pocket come home and the record close. Retiring is an ending, not a rollback.
   const hadProposalBefore = !!agent.proposal;
-  try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  if (agent.retiring && !agent.archived) {
+    archiveAgent(profile, agent);
+    saveWalletFor(userId ?? 'anon');
+  } else {
+    try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  }
   const thirdWin = typeof sessionPnl === 'number'
     ? recordSessionOutcome(agent, sessionPnl > 0)
     : false;
@@ -1000,6 +1060,9 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // one of the two.
   const ownerId = String(userId ?? 'anon');
   const agentName = agent.name || 'Your agent';
+
+  // AGENTS-2: an agent who has just retired is not owed a push notification.
+  if (agent.archived) return agent;
 
   // Proposal: freshly created this session end.
   if (!hadProposalBefore && agent.proposal) {
@@ -1321,7 +1384,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
 // liveGame and is only present when `owner` is true.
 export function floorSnapshot(userId, { owner = false } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
-  return profile.agents.map((agent) => {
+  // AGENTS-2: the floor draws the roster, and a retired agent is not on it.
+  return activeAgents(profile).map((agent) => {
     const p = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
     return {
       id: p.id,
@@ -1607,6 +1671,13 @@ export function addFlaggedHand(agentId, userId, entry) {
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
+// AGENTS-2: the agents a list route serves. Archived records are excluded
+// unless the caller explicitly asks for them with ?all=1.
+function rosterFor(req, profile) {
+  const all = String(req?.query?.all ?? '') === '1';
+  return all ? (profile.agents ?? []) : activeAgents(profile);
+}
+
 export function installAgentProfileRoutes(app) {
   // Tighter rate limit for LLM-spending endpoints (chat + build).
   const chatLimiter = rateLimiter({
@@ -1622,8 +1693,8 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.json({
       userId: profile.userId,
-      hasAgents: profile.agents.length > 0,
-      agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
+      hasAgents: activeAgents(profile).length > 0,
+      agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
       chat: profile.chat,
     });
   });
@@ -1641,7 +1712,9 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
     const walletBalance = walletFor(userId).balance;
-    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance })) });
+    // AGENTS-2: retired agents are off the roster. `?all=1` is the one way to
+    // see them, and it is what a career/archive view would ask for.
+    res.json({ agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance })) });
   });
 
   // ── WALLET-1 (spec v11 §7.1) ───────────────────────────────────────────────
@@ -1758,6 +1831,64 @@ export function installAgentProfileRoutes(app) {
       wallet: walletProjection(wallet, profile.agents),
       pocket: view,
       moment: agent.lastMoment,
+    });
+  });
+
+  // ── AGENTS-2 · POST /api/agents/:agentId/retire?userId=... ────────────────
+  //
+  // Calling him in for good. If he is in a seat he finishes the hand he is in
+  // (the wallet's bench, not a fold — no forfeited chips), and the record closes
+  // when the pocket comes home at the end of that session. If he is at the bar
+  // it all happens on this call.
+  //
+  // Archived is hidden, never deleted: he is off the floor, out of CHATS and off
+  // YOU, and every hand he played is still on his record. Cannot be undone from
+  // the API for now — an un-retire is a product decision, not a route.
+  app.post('/api/agents/:agentId/retire', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    // Retiring a retired agent is a no-op, not an error — the button may well
+    // be pressed twice on a slow connection.
+    if (agent.archived) {
+      return res.json({
+        agentId: agent.id, name: agent.name,
+        archived: true, pending: false, collected: 0,
+        archivedAt: agent.archivedAt ?? null,
+        wallet: walletProjection(walletFor(userId), profile.agents),
+      });
+    }
+
+    agent.retiring = true;
+    agent.retiringAt = Date.now();
+
+    // Seated: call him in. benchCutSeat is the wallet's own bench — he finishes
+    // the hand he is in and the seat frees the moment it completes. Between
+    // hands that path ends the session synchronously, which archives him here.
+    const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+    if (table) benchCutSeat(table, agent.id);
+
+    const stillSeated = !!agent.activeTableId && !!liveTables?.hasTable?.(agent.activeTableId);
+    let collected = 0;
+    if (!agent.archived && !stillSeated) collected = archiveAgent(profile, agent);
+
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    res.json({
+      agentId: agent.id,
+      name: agent.name,
+      archived: !!agent.archived,
+      // Still at the table: he is coming in, and the record closes when the
+      // hand he is in is over.
+      pending: !agent.archived,
+      collected,
+      archivedAt: agent.archivedAt ?? null,
+      pocket: pocketProjection(agent.pocket),
+      wallet: walletProjection(walletFor(userId), profile.agents),
     });
   });
 
@@ -1903,6 +2034,10 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    // AGENTS-2: retired is retired. And an agent who has been called in does not
+    // get a second seat on the way out.
+    if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
+    if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
 
     ensureMemory(agent);
     ensureProfile(agent);
@@ -2086,6 +2221,9 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    // AGENTS-2: the other door to a seat answers the same way deploy does.
+    if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
+    if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
 
     // Clear expired slot (5-min TTL).
     if (matchmakingSlot && Date.now() > matchmakingSlot.expiresAt) {
@@ -2427,6 +2565,13 @@ export function installAgentProfileRoutes(app) {
     const briefSoFar = ownerSaid();
     const hasBrief = profile.chat.some((m) => m.role === 'user' && !isGoSignal(m.content));
     if (isGoSignal(content) && hasBrief) {
+      // AGENTS-2: the cap is checked BEFORE the build, so a full roster costs no
+      // model call — and the draft is left intact, ready to finish the moment
+      // the owner makes room.
+      if (activeAgents(profile).length >= AGENT_CAP) {
+        saveStore(userId);
+        return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+      }
       const built = await buildFromDraft(profile, briefSoFar);
       const agent = commitAgent(profile, null, built.agent);
       const line = built.line;
@@ -2483,6 +2628,13 @@ export function installAgentProfileRoutes(app) {
     const existingAgentId = req.body?.existingAgentId ?? null;
 
     const profile = getOrCreate(userId);
+
+    // AGENTS-2: same cap, same 409, on the other door into commitAgent. A
+    // REBUILD of an agent who already exists is not a new agent and is never
+    // capped — otherwise a full roster could not edit its own agents.
+    if (!existingAgentId && activeAgents(profile).length >= AGENT_CAP) {
+      return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+    }
 
     const existingAgentForCtx = existingAgentId
       ? profile.agents.find((a) => a.id === existingAgentId)

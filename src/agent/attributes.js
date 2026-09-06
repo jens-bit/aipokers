@@ -176,6 +176,16 @@ export function ensureAttributes(agent) {
   if (!Array.isArray(agent.attrLog)) agent.attrLog = [];
   if (agent.attrLog.length > ATTR_LOG_CAP) agent.attrLog = agent.attrLog.slice(-ATTR_LOG_CAP);
 
+  // AGENTS-2: the part-point he has already earned toward his next tick, per
+  // key. Six numbers in [0,1). It is deliberately NOT presented anywhere — a
+  // visible progress bar is the thing the whole growth design refuses to be —
+  // but it has to be on the record, or the pace resets every time he stands up.
+  if (!agent.attrProgress || typeof agent.attrProgress !== 'object') agent.attrProgress = {};
+  for (const k of ATTR_KEYS) {
+    const v = agent.attrProgress[k];
+    agent.attrProgress[k] = isNum(v) ? Math.max(0, Math.min(1, Number(v))) : 0;
+  }
+
   return agent;
 }
 
@@ -384,9 +394,10 @@ export function birthAttributes({ profile = null, rand = Math.random } = {}) {
 
 // ── Growth ───────────────────────────────────────────────────────────────────
 // Permanent, single points, slow, and never without a named cause
-// (char-system2.jsx S4). A tick is drawn once per attribute at the END of a
-// session, from that attribute's own evidence in that session — so growth is a
-// consequence of how he was deployed, not of how long the app was open.
+// (char-system2.jsx S4). Each attribute earns fractional progress at the END of
+// a session, from that attribute's own evidence in that session — so growth is
+// a consequence of how he was deployed, not of how long the app was open — and
+// a whole point ticks only when that progress crosses 1.
 //
 // Three rules the shape has to obey, all from the ref:
 //   · ticks come in ONES. Never two points, never a jump.
@@ -409,9 +420,25 @@ export const EVIDENCE_FULL = Object.freeze({
   READS: 4, FOCUS: 120, DISCIPLINE: 5, COMPOSURE: 3, DECEPTION: 4, STAMINA: 200,
 });
 
-// Even a perfect session is a coin-flip at best. A character that grows every
-// time he plays is a progress bar, and this is a person.
-export const MAX_TICK_CHANCE = 0.5;
+// AGENTS-2: how much of a point a session can be worth at the very best.
+//
+// Growth used to be a per-session coin flip -- P(+1) = evidence x room, capped
+// at 0.5 -- and a lucky first evening moved an attribute 51 -> 52. One session
+// is not a lesson, and a character who can gain a point on his first night is a
+// progress bar wearing a name. So a session no longer ROLLS for a point, it
+// BUYS progress toward one: fractional, accrued on the record, and cashed in
+// for a single permanent point the moment it crosses 1.
+//
+// A third of a point is the pace at the start -- about every third session for
+// a newborn playing full sessions -- and the same diminishing curve
+// (growthProximity, untouched) scales it down from there, so the last points
+// inside the band are still a season's work.
+export const MAX_SESSION_PROGRESS = 1 / 3;
+
+// Three exact thirds sum to 0.9999999999999999. A design that says "about every
+// third session" must not quietly become a fourth because of a double, so a
+// whole point is anything within a billionth of one.
+const PROGRESS_EPSILON = 1e-9;
 
 // How willing the attribute still is to move, by where it sits against its
 // scouted band. Below the band he climbs freely; the closer he gets to the low
@@ -429,15 +456,19 @@ export function growthProximity(cur, lo, hi) {
   return 0.06 * (1 - t) * 2;                      // 0.06 → 0 across the top half
 }
 
-// P(+1) for one attribute this session.
-export function growthChance(key, evidence, cur, band) {
+// Fractional progress toward +1 that one attribute earns this session. Same
+// shape the old growthChance had -- evidence x room -- read as a RATE rather
+// than a probability, and scaled by MAX_SESSION_PROGRESS. Deterministic: two
+// identical sessions are worth exactly the same, which is what makes the pace
+// something we can state ("about every third session") instead of hope for.
+export function growthProgress(key, evidence, cur, band) {
   const need = EVIDENCE_FULL[key];
   if (!need) return 0;
   const have = Number(evidence?.[EVIDENCE_FIELD[key]] ?? 0);
   if (!Number.isFinite(have) || have <= 0) return 0;
   const earned = Math.min(1, have / need);
   const room = growthProximity(cur, band?.lo, band?.hi);
-  return Math.max(0, Math.min(MAX_TICK_CHANCE, earned * room));
+  return Math.max(0, Math.min(MAX_SESSION_PROGRESS, earned * room * MAX_SESSION_PROGRESS));
 }
 
 // The cause is the product. A tick with no cause is a number going up in a
@@ -565,7 +596,8 @@ export function scoutStageFor(handsPlayed) {
 }
 
 // ── The session's end ────────────────────────────────────────────────────────
-// Called once per finished session. Mutates the agent (ticks, bands, attrLog)
+// Called once per finished session. Mutates the agent (progress, ticks, bands,
+// attrLog)
 // and returns what happened, so the caller can put it in the recap and the
 // thread without recomputing any of it.
 //
@@ -573,7 +605,6 @@ export function scoutStageFor(handsPlayed) {
 export function applySessionGrowth(agent, {
   evidence = {},
   handsPlayed = null,
-  rand = Math.random,
   now = Date.now(),
 } = {}) {
   if (!agent) return { ticks: [], narrowed: [], stage: 0 };
@@ -584,15 +615,31 @@ export function applySessionGrowth(agent, {
     agent.potentialBirth = JSON.parse(JSON.stringify(agent.potential));
   }
 
+  // AGENTS-2: accrue, then tick. The session adds its fraction to the running
+  // total for each key; only a total that crosses 1 becomes a point, and the
+  // remainder carries into the next session rather than being thrown away.
   const ticks = [];
   for (const key of ATTR_KEYS) {
     const from = clampAttr(agent.attrs[key]);
     const band = agent.potential[key];
-    const chance = growthChance(key, evidence, from, band);
-    if (chance <= 0 || rand() >= chance) continue;
+    const gained = growthProgress(key, evidence, from, band);
+    if (gained > 0) agent.attrProgress[key] = (agent.attrProgress[key] ?? 0) + gained;
+    if (agent.attrProgress[key] < 1 - PROGRESS_EPSILON) continue;
+
     const to = Math.min(clampAttr(band?.hi ?? 100), from + 1);
-    if (to === from) continue;                    // already at the ceiling
+    if (to === from) {
+      // At the ceiling. Progress has nowhere to go, so it is not banked either:
+      // a season spent at hi must not become a free point if the band later
+      // moves. (It only ever narrows, so it never will — but the record should
+      // not depend on that.)
+      agent.attrProgress[key] = 0;
+      continue;
+    }
+    agent.attrProgress[key] = Math.max(0, agent.attrProgress[key] - 1);
     agent.attrs[key] = to;
+    // The attrLog line is written ONLY when a whole point ticks. Fractions are
+    // bookkeeping; the log is the thing he tells his owner about, and a log
+    // entry for "a third of a point of Focus" is a number going up in a game.
     const cause = growthCause(key, evidence[EVIDENCE_FIELD[key]]);
     logAttrChange(agent, { key, from, to, cause, ts: now });
     ticks.push({ key, from, to, cause });
