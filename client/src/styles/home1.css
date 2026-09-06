@@ -168,13 +168,18 @@
 .home-flat__couch span:first-child { top: 8px; }
 .home-flat__couch span:last-child { bottom: 8px; }
 
+/* DESK-2 made this a <button> where the table sheet is reachable and left it a
+   <div> where it is not, and BIRTH-5 made the phone one of the places it is
+   reachable — so the rule has to hold for both elements. */
 .home-flat__table {
   position: absolute;
+  padding: 0;
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%);
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
 }
+button.home-flat__table { cursor: pointer; -webkit-appearance: none; appearance: none; }
 
 .home-flat__door {
   position: absolute;

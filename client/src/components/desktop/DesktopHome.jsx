@@ -38,6 +38,11 @@ export function DesktopHome({
   // the shell around it — top bar, roster, open panel — stays mounted; App
   // returning it on its own would take the desk down for the duration.
   draft = null,
+  // BIRTH-5: an INTENT, the way YouScreen's `openMoney` is one. The draft above
+  // can be turned away by a locked slot, and the one thing it can offer then is
+  // a look at the table — which on the desk is a rail panel this component owns
+  // rather than a sheet the shell could raise on its own.
+  openHomeTable = false,
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +96,17 @@ export function DesktopHome({
   // was not in the previous roster is a newborn, and it is shown once.
   const [bornId, setBornId] = useState(null);
   const knownIds = useRef(null);
+  // BIRTH-5: the birth screen's refusal points at the table, and on the desk the
+  // table is this rail. The shell's own panels (the wallet, a birth card) hold
+  // the 520 when they are open, so they stand down first — otherwise the panel
+  // would be set and nothing would appear.
+  useEffect(() => {
+    if (!openHomeTable) return;
+    setWalletOpen(false);
+    setBornId(null);
+    setHomePanel('table');
+  }, [openHomeTable]);
+
   // Whose composer is on screen. DESK-2: on the HOME stage the open thread is
   // the rail's, so the key follows the rail's focus — and only while the rail is
   // actually showing a man, because the standup's own composer is the idle one.

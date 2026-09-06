@@ -21,6 +21,7 @@ import { NextAction } from '../components/system/NextAction.jsx';
 import { SheetFold } from '../components/system/SheetFold.jsx';
 import { NatureFormed } from '../components/system/NatureFormed.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
+import { fetchSlots, lockedSeatLine } from '../lib/slots.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -533,7 +534,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
 // Full draft conversation with FormingGhost gaining definition as you talk.
 // Calls onBirth(agent) when the server confirms agent creation.
 // Pass `agent` prop (existing agent object) to open in edit/rebuild mode.
-export function BirthScreen({ onBack, onBirth, agent }) {
+export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   const userId  = getUserId();
   const isEdit  = !!agent;
 
@@ -640,6 +641,24 @@ export function BirthScreen({ onBack, onBirth, agent }) {
   const CAP_LINE = (cap) =>
     `You already have ${cap || 4} agents. Retire one to make room, and I'll finish this one.`;
 
+  // BIRTH-5 / SLOTS-1: the other 409, and it is not the same refusal. The cap
+  // is a wall; a locked slot is a price, and a price the owner is ON HIS WAY to
+  // — so the line says the number, says what he has against it, and says that
+  // the draft is not lost. It used to say nothing at all: the body has no
+  // `chat`, so the reply picker below found none, and "lets go" simply did
+  // nothing forever.
+  //
+  // The refusal body carries the price and the earnings but not WHICH seat this
+  // is, so the ordinal comes from /api/slots — one extra GET, on a path that is
+  // already a dead stop, and the sentence degrades to "next seat" if it fails.
+  async function slotLockedLine(body) {
+    let index = null;
+    try { index = (await fetchSlots())?.next?.index ?? null; } catch { /* "next seat" */ }
+    const line = lockedSeatLine({ ...body, index });
+    if (!line) return null;
+    return `${line[0].toUpperCase()}${line.slice(1)}. Win the rest at the casino and I'll finish him — your draft keeps.`;
+  }
+
   async function send(content = draft) {
     const text = content.trim();
     if (!text || loading) return;
@@ -660,6 +679,21 @@ export function BirthScreen({ onBack, onBirth, agent }) {
       // this is the whole message — make room and say "lets go" again.
       if (res.status === 409 && data?.error === 'agentCap') {
         setChat((prev) => [...prev, mkMsg('assistant', CAP_LINE(data.cap))]);
+        return;
+      }
+
+      // BIRTH-5: the slot exists and has not been won yet. Same shape as the
+      // cap above — one recruiter line, draft untouched — plus the one action
+      // there is, which is to go and look at the table.
+      if (res.status === 409 && data?.error === 'slotLocked') {
+        const line = await slotLockedLine(data);
+        setChat((prev) => [...prev, {
+          // A refusal with no readable price still has to say SOMETHING, and
+          // what it says is the true part: the seat is not open yet.
+          ...mkMsg('assistant', line
+            ?? 'That seat is not open yet — it is won at the casino, not bought. Your draft keeps.'),
+          seeTable: !!onSeeTable,
+        }]);
         return;
       }
 
@@ -848,6 +882,26 @@ export function BirthScreen({ onBack, onBirth, agent }) {
                             onPrimary={() => send('Save')}
                             onSecondary={() => {}}
                           />
+                        </div>
+                      )}
+                      {/* BIRTH-5: the locked slot's one action. Not a button in
+                          the composer and not a modal — the refusal is a line in
+                          the conversation, so what to do about it belongs under
+                          that line. */}
+                      {msg.seeTable && (
+                        <div style={{ padding: '0 14px 9px 51px' }}>
+                          <button
+                            type="button"
+                            data-testid="birth-see-table"
+                            onClick={() => onSeeTable?.()}
+                            style={{
+                              fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em',
+                              color: M_GOLD, border: `1px solid ${M_GOLD}66`, background: `${M_GOLD}14`,
+                              borderRadius: 11, padding: '6px 13px', cursor: 'pointer',
+                            }}
+                          >
+                            SEE THE TABLE
+                          </button>
                         </div>
                       )}
                       {/* DraftStrip after each AI reply while still forming (create mode only) */}
