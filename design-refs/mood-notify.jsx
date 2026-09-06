@@ -80,7 +80,7 @@ const TgMsg = ({ time, button, children, sub }) => (
         </div>
       )}
       {sub && (
-        <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_FAINT, marginTop: 5, letterSpacing: '0.06em' }}>{sub}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 5, letterSpacing: '0.06em' }}>{sub}</div>
       )}
     </div>
   </div>

@@ -42,12 +42,13 @@ const TOASTS = {
 };
 
 const HomeToast = ({ a, text, want, queued = 0 }) => (
-  <div style={{ flexShrink: 0, margin: '0 10px 7px', borderRadius: 12, background: 'rgba(18,25,24,0.93)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: `1px solid ${want ? `${M_GOLD}55` : 'rgba(255,255,255,0.13)'}`, padding: '8px 10px 9px', animation: 'rise 0.3s ease-out both' }}>
+  <div style={{ flexShrink: 0, height: 0, overflow: 'visible', position: 'relative', zIndex: 40 }}>
+  <div style={{ position: 'absolute', left: 10, right: 10, bottom: 7, borderRadius: 12, background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, border: `1px solid ${want ? `${M_GOLD}55` : 'rgba(255,255,255,0.13)'}`, padding: '8px 10px 9px', animation: 'rise 0.3s ease-out both' }}>
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <div style={{ flexShrink: 0, marginTop: 1 }}><MoodAvatar mood={a.mood} accent={a.accent} size={20}/></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11.5, color: M_TEXT, lineHeight: 1.35 }}>
-          <b style={{ color: a.accent, fontWeight: 600 }}>{a.name.split(' ')[0]}</b> {text}
+          <b style={{ color: a.accent, fontWeight: 600 }}>{pillName(a.name, a.nick)}</b> {text}
         </div>
         {want && (
           <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
@@ -59,6 +60,7 @@ const HomeToast = ({ a, text, want, queued = 0 }) => (
       </div>
       {queued > 0 && <span style={{ flexShrink: 0, fontFamily: MONO, fontSize: 8, color: M_MUTED, marginTop: 3 }}>+{queued}</span>}
     </div>
+  </div>
   </div>
 );
 
@@ -158,7 +160,7 @@ const HomeNightly = ({ day, open }) => (
           <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
             <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
               <span style={{ color: l.fromAccent }}>{l.from}</span>
-              <span style={{ color: M_FAINT }}> → </span>
+              <span style={{ color: M_MUTED }}> → </span>
               <span style={{ color: l.toAccent }}>{l.to}</span>
             </span>
             <span style={{ flex: 1, fontSize: 11, color: M_DIM, lineHeight: 1.4 }}>{l.text}</span>
@@ -178,7 +180,7 @@ const HomeThreadLine = ({ a, text, sys }) => sys ? (
     <div style={{ flexShrink: 0, marginTop: 1 }}><MoodAvatar mood={a.mood} accent={a.accent} size={20}/></div>
     <div style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 9, color: a.accent, fontWeight: 600 }}>{a.name.split(' ')[0]}</span>
+        <span style={{ fontSize: 9, color: a.accent, fontWeight: 600 }}>{pillName(a.name, a.nick)}</span>
       </div>
       <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.45, marginTop: 1 }}>{text}</div>
     </div>
@@ -192,7 +194,7 @@ const YouLine = ({ text }) => (
 );
 
 const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
-  <div style={{ flexShrink: 0, height: open ? H_SHEET.open : H_SHEET.collapsed, background: 'rgba(16,22,21,0.92)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderTop: '1px solid rgba(255,255,255,0.14)', display: 'flex', flexDirection: 'column' }}>
+  <div style={{ flexShrink: 0, height: open ? H_SHEET.open : H_SHEET.collapsed, background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, display: 'flex', flexDirection: 'column' }}>
     {open ? (
       <>
         <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px 7px', borderBottom: `1px solid ${M_BORDER}` }}>
@@ -208,11 +210,11 @@ const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
     ) : (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 13px' }}>
         {latest.sys
-          ? <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_FAINT, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</span>
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</span>
           : <>
               <MoodAvatar mood={latest.a.mood} accent={latest.a.accent} size={20}/>
               <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <b style={{ color: latest.a.accent, fontWeight: 600 }}>{latest.a.name.split(' ')[0]}</b> {latest.text}
+                <b style={{ color: latest.a.accent, fontWeight: 600 }}>{pillName(latest.a.name, latest.a.nick)}</b> {latest.text}
               </div>
             </>}
       </div>
@@ -238,7 +240,7 @@ const HOME_READ_BOOK = {
 };
 
 const ReadBookSheet = ({ b = HOME_READ_BOOK }) => (
-  <div style={{ width: 390, background: 'rgba(16,22,21,0.94)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
+  <div style={{ width: 390, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
@@ -269,7 +271,7 @@ const HOME_POCKETS = [
 ];
 
 const HomeMoneySheet = ({ cast = H_CAST }) => (
-  <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
+  <div style={{ width: 390, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
@@ -285,7 +287,7 @@ const HomeMoneySheet = ({ cast = H_CAST }) => (
           <MoodAvatar mood={broke ? 'sulking' : a.mood} accent={a.accent} size={26}/>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{ fontSize: 11.5, color: M_TEXT }}>{a.name.split(' ')[0]}</span>
+              <span style={{ fontSize: 11.5, color: M_TEXT }}>{pillName(a.name, a.nick)}</span>
               <Num size={11} weight={700} color={broke ? M_MUTED : M_TEXT}>{broke ? '$0' : `$${p.have.toLocaleString()}`}</Num>
             </div>
             <div style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.12em', color: broke ? M_RED : M_MUTED, marginTop: 2 }}>{p.rule.toUpperCase()}</div>
@@ -321,13 +323,13 @@ const HOME_STOCK = [
 ];
 
 const FridgeSheet = ({ empty }) => (
-  <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
+  <div style={{ width: 390, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 14px 8px' }}>
       <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE FRIDGE</span>
-      <span style={{ fontSize: 10.5, color: M_FAINT }}>bought from the safe</span>
+      <span style={{ fontSize: 10.5, color: M_MUTED }}>bought from the safe</span>
     </div>
     {HOME_STOCK.map(s => {
       const n = empty && s.k === 'BEER' ? 0 : s.n;
@@ -436,7 +438,7 @@ const SheetSection = ({ label, title, sub, cta, ctaColor, children, first }) => 
 );
 
 const TableSheet = ({ taken = 2 }) => (
-  <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 16px' }}>
+  <div style={{ width: 390, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 16px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 10 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
@@ -476,11 +478,11 @@ const HomeWantM = () => (
         <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 196, y: 300 }} size={54} routine="pace" stamina={62} heat={82}
           want={<WantBubble w={H_WANTS.dare}/>}/>
         <HomeOne a={{ ...H_CAST.val, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={18} heat={30}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeToast a={{ ...H_CAST.agg, mood: 'tilted' }} text="wants back in. 25/50." want queued={1}/>
     <HomeThread latest={{ a: H_CAST.val, text: 'Wake me when someone comes home.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -496,10 +498,10 @@ const HomeSleepM = () => (
         <div style={{ position: 'absolute', ...clearOf(FLAT.door, 'left', 14), top: 196, zIndex: 30 }}>
           <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>214 HANDS TODAY</span>
         </div>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.val, text: 'Wake me when someone comes home.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -524,7 +526,6 @@ const HomeThreadOpenM = () => (
         { a: H_CAST.bal, text: 'His pocket is $1,240. That is one buy-in. I would not.' },
         { sys: true, text: 'BLUFF MASTER CAME HOME · +$2,740' },
       ]}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -539,10 +540,10 @@ const HomeTapeM = () => (
         <HomeOne a={{ ...H_CAST.blf, mood: 'frustrated' }} at={STAND.tape} routine="tape" size={46} stamina={44} heat={58}
           says="Watching the Granite hand again."/>
         <div style={{ position: 'absolute', left: 292, top: FLAT.tape.y + 74, transform: 'translateX(-50%)', fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL, zIndex: 40, whiteSpace: 'nowrap' }}>+3 GRANITE</div>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.blf, text: 'I folded the river. I should not have folded the river.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -654,6 +655,7 @@ const BeerSeatM = () => (
           <span style={{ width: 7, height: 17, borderRadius: '2px 2px 3px 3px', background: 'rgba(122,168,138,0.85)', borderTop: '2.5px solid #7AA88A' }}></span>
           <span style={{ width: 14, height: 7, borderRadius: 2, background: 'rgba(232,230,224,0.5)' }}></span>
         </div>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeToast a={{ ...H_CAST.agg, mood: 'frustrated' }} text="took a beer. Heat 80 → 62."/>
@@ -670,6 +672,7 @@ const FridgeEmptyM = () => (
         <HomeOne a={{ ...H_CAST.agg, mood: 'tilted' }} at={{ x: 208, y: 300 }} size={50} routine="pace" stamina={54} heat={74}
           want={<WantBubble w={{ text: "We're out of beer.", heat: 74, tone: 'flat' }}/>}/>
         <HomeOne a={H_CAST.bal} at={STAND.couch} routine="sleep" size={42} stamina={22} heat={16}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeToast a={{ ...H_CAST.agg, mood: 'tilted' }} text="wants a beer. The fridge is empty." want/>
@@ -710,6 +713,7 @@ const ChairsM = ({ taken = 1 }) => (
           : <HomeGame ring={[TABLE_SEATS[4][0], TABLE_SEATS[4][1]]}
               players={[{ a: H_CAST.bal, stamina: 78, heat: 16 }, { a: H_CAST.val, stamina: 52, heat: 30 }]}
               says={{ i: 1, text: 'Two of us is a game. Barely.' }}/>}
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={taken === 1
@@ -791,6 +795,7 @@ const TwoTalkersM = () => (
           players={[{ a: { ...H_CAST.agg, mood: 'frustrated' }, stamina: 62, heat: 58 }, { a: H_CAST.bal, stamina: 82, heat: 16 }]}
           says={[{ i: 0, text: 'That is the third time you did that.', side: 'left' },
                  { i: 1, text: 'And it worked all three times.', side: 'right' }]}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.bal, text: 'And it worked all three times.' }}/>
@@ -818,10 +823,11 @@ const OwnerSeatM = () => (
           </div>
           <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: M_TEAL }}>YOU</span>
         </div>
+        <DoorTap/>
       </HomeFlat>
     </div>
     {/* the verbs, in the glass language, over the collapsed thread */}
-    <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.92)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderTop: '1px solid rgba(255,255,255,0.14)', padding: '11px 13px 13px' }}>
+    <div style={{ flexShrink: 0, background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, padding: '11px 13px 13px' }}>
       <div style={{ display: 'flex', gap: 6 }}>
         {[['FOLD', M_MUTED], ['CHECK', M_DIM], ['CALL', M_TEAL], ['BET', M_GOLD]].map(([v, c]) => (
           <span key={v} style={{ flex: 1, textAlign: 'center', fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: c, background: c === M_MUTED ? 'rgba(255,255,255,0.04)' : `${c}12`, border: `1px solid ${c === M_MUTED ? 'rgba(255,255,255,0.12)' : `${c}55`}`, borderRadius: 9, padding: '9px 0' }}>{v}</span>
@@ -886,7 +892,7 @@ const OwnerHand = ({ cards = [['A', '\u2660', '#0F1514'], ['K', '\u2666', M_RED]
 
 // the action row: the same four verbs whether you act from the felt or the room
 const ActionRow = ({ raised, sub }) => (
-  <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderTop: `1px solid ${raised ? `${M_GOLD}55` : 'rgba(255,255,255,0.14)'}`, padding: '10px 13px 13px', animation: raised ? 'bubblein 0.3s ease-out both' : 'none' }}>
+  <div style={{ flexShrink: 0, background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${raised ? `${M_GOLD}55` : 'rgba(255,255,255,0.14)'}`, padding: '10px 13px 13px', animation: raised ? 'bubblein 0.3s ease-out both' : 'none' }}>
     {sub && <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingBottom: 8 }}>
       <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>YOUR TURN</span>
       <span style={{ fontSize: 10.5, color: M_MUTED }}>{sub}</span>
@@ -907,7 +913,7 @@ const BET_AMTS = [
 // The amounts are named in poker's own words with the figure under each, because
 // "half" is the decision and "$240" is only its size.
 const BetPanel = () => (
-  <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.96)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${M_GOLD}55`, padding: '11px 13px 14px', animation: 'bubblein 0.28s ease-out both' }}>
+  <div style={{ flexShrink: 0, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${M_GOLD}55`, padding: '11px 13px 14px', animation: 'bubblein 0.28s ease-out both' }}>
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, paddingBottom: 9 }}>
       <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>BET</span>
       <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_MUTED }}>pot is 480 · you have 1,840</span>
@@ -947,7 +953,7 @@ const OwnerChair = ({ at, turn, secs = 12, of = 20 }) => {
           <circle cx="22" cy="22" r="21" fill="none" stroke={M_GOLD} strokeWidth="1.5" strokeDasharray={c} strokeDashoffset={c * (1 - secs / of)} strokeLinecap="round"/>
         </svg>}
       </div>
-      <span style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.12em', color: M_FAINT, cursor: 'pointer' }}>SIT OUT</span>
+      <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_DIM, cursor: 'pointer' }}>SIT OUT</span>
     </div>
   );
 };
@@ -986,6 +992,7 @@ const OwnerPulledBackM = () => (
         <AwayWall hooks={2}/>
         {ownerTable({ turn: true, secs: 12 })}
         <HomeOne a={{ ...H_CAST.blf, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={20} heat={16}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <ActionRow raised sub="12s · timeout checks for you"/>
@@ -1030,6 +1037,7 @@ const RoomPlanM = () => (
             </div>
           );
         })}
+        <DoorTap/>
       </HomeFlat>
     </div>
     <div style={{ padding: '10px 2px 0', display: 'flex', flexDirection: 'column', gap: 5 }}>

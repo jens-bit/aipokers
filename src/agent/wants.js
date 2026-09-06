@@ -145,7 +145,7 @@ export function isItem(id) {
 // cannot finish the job on its own. null means the server does the whole
 // thing and the client only has to re-render.
 
-export const ASK_KINDS = Object.freeze(['rest', 'deploy', 'beer', 'back_in', 'fund', 'brag', 'nemesis']);
+export const ASK_KINDS = Object.freeze(['rest', 'deploy', 'beer', 'back_in', 'fund', 'brag', 'nemesis', 'food']);
 
 // Priority: 1 is highest. The spec's order, unchanged.
 export const ASKS = Object.freeze({
@@ -160,6 +160,19 @@ export const ASKS = Object.freeze({
   fund:    Object.freeze({ kind: 'fund',    priority: 4, needs: 'fund',   dangerous: false, item: null }),
   brag:    Object.freeze({ kind: 'brag',    priority: 5, needs: 'thread', dangerous: false, item: null }),
   nemesis: Object.freeze({ kind: 'nemesis', priority: 6, needs: 'deploy', dangerous: false, item: null }),
+  // SERVER-5 job 5 · the bottom rung, and it is the bottom rung on purpose.
+  //
+  // Everything above this line is something he needs: a seat, a stake, a rest,
+  // or the one man he cannot beat sitting down two rooms away. A sandwich is
+  // not that. It is what he says when there is nothing more pressing to say,
+  // so it never takes the place of a thing that mattered — and being at the
+  // bottom of a ladder whose rule 2 is "higher replaces, nothing else does"
+  // is what guarantees that, rather than a comment promising it.
+  //
+  // `item: 'snack'` is the load-bearing field. noteSnackRefused only stamps a
+  // want whose item is a snack, so this is the ONE ask in the table whose `no`
+  // starts the hunger clock — see the trigger note below.
+  food:    Object.freeze({ kind: 'food',    priority: 7, needs: null,     dangerous: false, item: 'snack' }),
 });
 
 export function askSpec(kind) {
@@ -186,6 +199,18 @@ export const ASK_BRAG_MULTIPLE = 3;
 
 /** The window the biggest pot is measured over. */
 export const ASK_WEEK_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * "A long night" — the hands that have to be behind him before food is a thing
+ * he would mention.
+ *
+ * A session runs to SESSION_MAX_HANDS (100) at the top, so this is a night
+ * that went well past halfway rather than a man who busted in twelve and is
+ * annoyed about it. It is deliberately a count of HANDS and not a duration:
+ * a duration is a clock, and a clock is the thing this whole file is written
+ * to keep out of the want layer.
+ */
+export const ASK_HUNGRY_HANDS = 60;
 
 /** `later`. The only clock a want has. */
 export const ASK_SNOOZE_MS = 30 * 60_000;
@@ -247,6 +272,15 @@ export const ASK_LINES = Object.freeze({
     'You have to hear about this hand. Sit down.',
     'Ask me about tonight. Go on, ask me.',
   ]),
+  // The canonical line is RELATE-1d's own. `long_grind` sat in WANT_TRIGGERS
+  // above from the beginning with item 'snack' and this exact sentence, and
+  // was never reachable because nothing ever called that table. This is that
+  // want, wired.
+  food: Object.freeze([
+    "Something to eat wouldn't hurt. Long night.",
+    'Long night. Is there anything in the fridge?',
+    'I could eat, after that.',
+  ]),
 });
 
 /** Deterministic pick — the same one moment.js uses, for the same reason. */
@@ -288,6 +322,9 @@ export function askLine(kind, { seed = 0, nemesisName = null, roomPhrase = null 
  * @param sessionNet     signed chips from his last finished session
  * @param weekBiggestPot the biggest pot he had money in over the last week
  * @param nemesis        { name, room, roomPhrase, tableId } | null — seated NOW
+ * @param sessionHands   hands in the session that JUST ended, or null on every
+ *                       other path. See the food branch — the null is a guard.
+ * @param snackInFridge  is there something to eat in the fridge right now
  * @returns {{ kind, priority, needs, dangerous, item, room?, tableId? }|null}
  */
 export function askFor({
@@ -300,6 +337,8 @@ export function askFor({
   sessionNet = null,
   weekBiggestPot = 0,
   nemesis = null,
+  sessionHands = null,
+  snackInFridge = false,
 } = {}) {
   const home = !atTable;
   const h = Number(heat) || 0;
@@ -338,6 +377,45 @@ export function askFor({
   // 6 — the man he cannot beat is in the building.
   if (nemesis?.name) {
     return { ...ASKS.nemesis, room: nemesis.room ?? null, tableId: nemesis.tableId ?? null };
+  }
+
+  // 7 — SERVER-5 job 5: he has just come off a long one, and there is food in.
+  //
+  // THE NULL IS THE GUARDRAIL, and it is structural rather than a flag anybody
+  // has to remember to clear. `sessionHands` is the length of the session that
+  // JUST ENDED, and the only caller with one of those to hand is the session-end
+  // path itself. Every other route into computeWant — opening his card, the
+  // floor snapshot, answering a want, the nemesis refresh — has no session that
+  // just ended and passes nothing, so this branch is unreachable from them. A
+  // man sitting at home is never asked about later, however long he sits there,
+  // which is the difference between this and reading his idle clock.
+  //
+  // The fridge half is not politeness, it is the same rule FRIDGE-1 wrote for
+  // the beer: he does not ask for what is not in the house. It also keeps the
+  // consequence honest — `no` to this ask is what starts his hunger clock
+  // (dips.js `hungerMs`), and stamping a man hungry for a refusal you had no
+  // way to avoid would be a punishment for an empty shelf rather than an
+  // answer you gave.
+  //
+  // AND THE HEAT FLOOR, which is not decoration. It is WANT_MIN_HEAT — "
+  // frustrated or worse", RELATE-1d's own number, and the one its `long_grind`
+  // trigger carried from the beginning. Two reasons it has to be here:
+  //
+  //   * A man who cruised through eighty hands at heat 20 had a long night,
+  //     not a hard one, and does not mention dinner.
+  //   * `yes` HAS to be able to feed him. giveItemTo refuses a level agent
+  //     with "He's fine. Save it." — FRIDGE-1's rule, and the right one — so
+  //     an ask raised below the soothable band would be an ask the owner
+  //     could not say yes to. A want you can only refuse is a trap, and this
+  //     is the one want whose refusal has a cost.
+  //
+  // The band is therefore [55, 70): frayed, but not steaming. At 70 he wants
+  // the drink or his seat back, and both outrank this by two rungs.
+  if (Number.isFinite(Number(sessionHands))
+      && Number(sessionHands) >= ASK_HUNGRY_HANDS
+      && h >= WANT_MIN_HEAT
+      && snackInFridge) {
+    return { ...ASKS.food };
   }
 
   return null;
@@ -418,7 +496,7 @@ export function replaces(candidate, current) {
  * absence of that branch is the guardrail, and the test asserts it by holding
  * a want across a week of untouched state.
  */
-export function askSatisfied(want, { fatigue = 'fresh', atTable = false, broke = false, heat = 0 } = {}) {
+export function askSatisfied(want, { fatigue = 'fresh', atTable = false, broke = false, heat = 0, fed = false } = {}) {
   if (!want || isAnswered(want)) return false;
   switch (want.kind) {
     case 'rest':                                  // off the felt, and rested
@@ -431,6 +509,12 @@ export function askSatisfied(want, { fatigue = 'fresh', atTable = false, broke =
       return !broke;                              // somebody staked him
     case 'beer':
       return (Number(heat) || 0) < ASK_HOT_HEAT;  // he calmed down on his own
+    case 'food':
+      // Rule 4, exactly as it reads for `deploy`: hand him a snack out of the
+      // fridge yourself — or through the flat's fridge fixture — and the ask is
+      // FULFILLED rather than left standing. Not a clock: `fed` is "he has been
+      // handed one since he asked", which the caller reads off lastSnackAt.
+      return !!fed;
     default:
       return false;                               // `brag` is only ever answered by you
   }

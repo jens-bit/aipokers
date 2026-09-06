@@ -33,6 +33,8 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 .fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
 .fa b{color:#C9C9CE;font-weight:600}
 .fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.step{position:absolute;left:-62px;top:0;font-family:"Rozha One",serif;font-size:38px;color:rgba(255,255,255,.13);line-height:1}
+.arrow{position:absolute;left:174px;width:2px;background:linear-gradient(180deg,rgba(0,212,170,.4),rgba(0,212,170,.06))}
 .panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
 .panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
 .panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
@@ -40,8 +42,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 .panel p b{color:#EDEDED;font-weight:600}
 .panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
 .lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
-.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:26px;flex-shrink:0;padding-top:2px;color:#00D4AA}
 .lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.lawrow .v.miss{color:#FF6B6D}
 .grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
 .grouphdr.gold{color:#CDB380}
 .groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1180px}
@@ -50,353 +53,298 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 </head>
 <body>
 
-<div class="frame" style="left:60px;top:80px">
+<div class="frame" style="left:0px;top:80px">
   <div class="panel">
-    <div class="sub">Waves 47–50 · Home, rounds 2–5</div>
-    <h1>The flat,<br/>seen from above.</h1>
-    <p>Round 1 was a waiting room. Agents stood in a line pretending to be a room, an agent at the casino was <b>a chair with a caption</b>, and nothing on the screen moved unless you did something. Three mechanics fix that, and all three are motion rather than layout.</p>
+    <div class="sub">Wave 56 · one flow</div>
+    <h1>The flow, in the<br/>order it happens.</h1>
+    <p>Board 29 was nine waves of rows stacked on each other, and reading it meant knowing which row had been superseded. It is now <b>one linear flow</b>: open, draft, born, home, sent out, the casino, his table, home again, the home game, a want, the safe, the fridge, sitting down yourself, a bet, retirement, and the floor. <b>The numbered frames are the flow</b> &mdash; read those in order and you have the product. Everything else on the board is a <b>state or a sheet</b> of the step it sits beside: a lettered frame is the same step in another condition, and the sections below the flow (carry, the guest, the share card) are mechanics that hang off it. Every frame is the current design; there is no second version of anything to choose between.</p>
+    <p>No count is printed here on purpose. Three waves running, the number went stale within a day of being written &mdash; an inventory has to be re-counted every time the board grows, and a rule does not.</p>
+    <p>Waves 47–53 are in <code>archive/board29-history.html</code>. The decisions that survived from them are written under the frame that embodies them rather than as a separate law list — a rule you can see obeyed is worth more than a rule you have to hold in your head.</p>
 
-    <div class="lbl">1 · The home game</div>
-    <p>Whenever two or more are home they <b>play each other at the kitchen table for nothing</b> — real hands with the board 26 characters, hands, chips, bubbles and folds, at seat scale. One agent alone has nobody to play, and waits. There is no pot pill, no P&amp;L, no money line and no label at all at the table. This is the fish tank: it is always moving, and it costs the owner nothing to watch.</p>
+    <div class="lbl">Wave 59 · verified at 390 × 844 and 1440 × 900</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Carry.</b> Verified in C2: <b>one</b> teal-dashed target lit against eight quiet ones, its verb showing (REST) and no other verb on screen. The carried body's shadow measures 26px below his feet at <code>blur(4px)</code> &mdash; a body with its shadow under it is standing, a body with its shadow below and soft is held. C5 shows the four states as three parameters on one body: dangles &minus;14&deg; slow, squirms +6&deg; at 0.9s, and mid-hand the lift is <b>rejected rather than undone</b>, so there is no snap-back teaching you the gesture was a lie.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>The guest.</b> Verified in G1&ndash;G4: browser chrome on <code>agenticpoker.app</code>, the real recruiter sheet over the real empty room, the real Watch felt, and the claim wall carrying his result line, all three limits (one agent, one session a day, no whispers), the <b>30-day</b> line and both buttons. The limits sit <b>above</b> the buttons at the same size as everything else. Z1 on board 31 is the desktop version, in the right column with the room dimmed rather than covered.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Landing 01.</b> Board 40 section 01 now renders <code>GuestDraftM</code> &mdash; the actual screen the button opens, browser chrome and all. Its lede changed too: the old copy promised a flow that no longer matched what the button does.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>The share card.</b> Verified in S1 and S2: his face with hands up, <b>+$310</b>, the hand he won with, the one line he said, and a card back in the play teal. Both sizes are one component scaled off card width, and every element comes from the current system &mdash; which is why the wave-54 card had to be archived and this one will not.</span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>The TV.</b> Verified across all thirteen rooms on the board: the seven with nobody away show the board's biggest pot; the six with an agent away show <b>that agent's</b> felt and line &mdash; F11 &ldquo;Bluff &middot; 10/20&rdquo;, F16 &ldquo;Bal &middot; 10/20&rdquo;, C1&ndash;C4 &ldquo;Bal &middot; 25/50&rdquo;. The live branch first hardcoded one name and stake, so it could only be wired where those literals were true. It now <b>reads the room's own away wall</b> rather than taking a prop, so every room is correct with no call site edited and nothing to forget at the next one.</span></div>
 
-    <div class="lbl">2 · Away is shown</div>
-    <p>An agent at the casino is <b>a framed live window on the wall</b> — his table in miniature and moving, his seat lit and pulsing, cards landing, the pot in the corner, a brass plate reading <code>25/50 · +$340 · 41 min</code>. Tap the frame to walk in and watch. Four away agents is <b>a wall of pictures</b>, and an empty hook is what a slot you are not using looks like.</p>
+    <div class="lbl">Wave 58 · verified at 390 × 844, 1440 × 900 and 1920 × 1080</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>The sign.</b> Verified from the render: the marquee measures <b>77 &times; 24</b> with <code>border-radius 0</code>, a warm gradient, three bulbs down each side and a spill on the boards beneath it. Its box sits <b>flush to the frame's right edge</b> (rightInside 0 of the 390 clipper) with the arrow 14px inside, and it renders in <b>seven rooms</b> &mdash; F01, F05, F10, F11, F12, F12b, F16. It replaces the wave-56 text tag, which had two faults: it was a rounded pill with a hairline &mdash; the shape a <i>body</i> wears, and nothing on a wall should look like something on a person &mdash; and it lived in the nav layer's room helper, so a room built any other way carried no door at all. The sign is a fixture of the room now, sitting with the safe and the fridge.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Names.</b> Verified: no pill on the board shows more than six characters. One <code>pillName()</code> and a nickname table, swept through eight call sites &mdash; brass plates, roster rows, thread attributions, pocket lists. It never truncates: a name that does not fit is <b>replaced</b> by one he picks himself (&ldquo;Granite. He can call himself Gran.&rdquo;). The only full names left are <b>headers and result lines</b>, which is where the rule allows them.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Density.</b> Verified in F08: opponents at <b>32/5/16</b> (80% of 40/6/18), backs at 10.5&times;14 (70% of 15&times;20), and each banks <b>one stack and a figure</b> instead of a drawn pile. Six piles at 13px was texture; the number is the fact and the chip says what kind of fact. Hero and his cards untouched, and the same on the sit-down felt.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>The result names the hand.</b> Verified in F08b: &ldquo;Bal took $3,694 with a pair of nines.&rdquo; One <code>ResultLine</code> atom serves the felt, the ceremony and the share card. A bare +$3,694 tells an owner who does not play poker that something good happened and nothing about what.</span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>The carousel.</b> Verified in F07: four dots, &ldquo;1 of 4&rdquo;, and both neighbours peeked at the edges so the flick is discoverable without a hint label.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>The pot moves.</b> Verified: LIVE NOW rows carry a <b>+400 / +100 / +60</b> tick on a 1.6s rise and the verb WATCH; TONIGHT rows carry the final figure and the verb REPLAY. One is still changing and one is not, which is the only difference that matters.</span></div>
+    <div class="lawrow"><span class="k">7</span><span class="v"><b>The floor.</b> Verified in F17, scoped to the floor drawing itself: <b>six felts, six stake labels</b> &mdash; one per felt &mdash; and no other text <i>on a felt</i>. The rule is about felts, and it holds: a felt carries its stake and nothing else. The two fixture labels on the floor (THE BAR, THE BOARD) are objects in the room, not labels on tables, and the LiveNow panel under the drawing <b>is</b> the board by the stairs. F18 pinches in on one felt &mdash; the same floor scaled, so the felt you were looking at grows into the one you watch. Desktop is X5.</span></div>
+    <div class="lawrow"><span class="k">8</span><span class="v"><b>The safe.</b> Verified in F12: one number ($54,000), three verbs, tonight in three lines, and <b>every figure carries its cause</b> (&ldquo;6 beers, 3 snacks&rdquo;). F12b pulls up the ledger, newest first. Desktop puts tonight and the ledger in one scroll, because there is column for it.</span></div>
+    <div class="lawrow"><span class="k">9</span><span class="v"><b>Five stages.</b> Verified in F02b, F03 and F03b: silhouette, hood, eyes, <b>collar</b>, then colour and the name pill together on &ldquo;Deal him in&rdquo;. Four stages made colour and name share a beat and neither got room. The collar is the only added geometry.</span></div>
+    <div class="lawrow"><span class="k">A</span><span class="v"><b>Desktop, recomposed.</b> X1&ndash;X8 and Y1&ndash;Y4 on board 31: three always-open columns (250 / centre / 380), a flat in a <b>560-wide</b> coordinate space rather than the phone's 390, hover doing the tap's job, and the felt at <b>846px rising to its 900 design size</b> at 1920 &mdash; reached by re-laying the ring, not by scaling the phone. Zero overflow at either size.</span></div>
 
-    <div class="lbl">3 · Routines, and the door</div>
-    <p>Idle behaviour comes from <b>nature</b>, and state overrides it: a Hothead paces, a Rock reads the paper, a Shark shuffles, a Grinder counts chips — while <b>worn sleeps on the couch and busted faces the wall</b>. Sending him out and coming home are both walks through the door, drawn as strips, because an agent who teleports to the casino is a setting rather than a character.</p>
+    <div class="lbl">Wave 57 · verified at 390 × 844 and 1440 × 900</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Teal backs.</b> Verified on board 40: the hero's backs measure <code>rgb(18,60,54) → rgb(8,33,30)</code> with a teal edge. The page keeps its burgundy; the object in his hands does not belong to the page, and that contrast is the point.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Fan at chest.</b> Verified: the card block starts at 0.62 of the body instead of 0.50 &mdash; the top edge was at his chin, and his whole face is clear now. Fists still on the bottom corners in front.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>0.95 at 1280+.</b> Verified: every <code>L2Big</code> phone measures <b>802px</b> tall at 1280 and 1440, up from 675. Mobile unchanged at 0.86.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>Split board.</b> Verified in F07: LIVE NOW and TONIGHT are separate panels with separate verbs (WATCH / tap to replay), the hot row carries a red edge and yours a teal one.</span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>Your table.</b> Verified: the ring, a TO ACT marker, the $940 pot, the board and his pill — no lone ghost with cards beside him. F07b is the state where he is not playing.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>No cards in the air.</b> Verified: <b>zero cards</b> on board 29 or board 40 carry a mid-flight animation. The one animated body left on board 29 is F04's walk cycle &mdash; a crossing ghost on <code>walkout</code>, which is the entire point of that strip. The airborne still was on the <i>landing hero</i>, not on a birth frame: a nine-second <code>redeal</code> loop meant any screenshot could catch a card in flight. The loop is gone; they deal in once and stay in his hands. F04 was already three frames with the last one landed and dealt.</span></div>
+    <div class="lawrow"><span class="k">7</span><span class="v"><b>Cards 15% smaller</b> on the home table: the pair on a body 0.34 &rarr; 0.29 of his size, the community row 17×24 → 14×20, the set-and-empty pair 16×22 → 14×19.</span></div>
+    <div class="lawrow"><span class="k">8</span><span class="v"><b>Desktop.</b> K1–K7 on board 31, all seven at 1440×900 with <b>zero overflow at 1280×800</b>. P19 and P20 are marked superseded rather than deleted — they are the record of the room-camera sit-down wave 56 retired.</span></div>
 
-    <div class="lbl">4 · The body, and what is asked of you</div>
-    <p>Two of the six attributes are <b>resources</b> and live on the body: two 2.5px bars under the name pill, <b>stamina</b> draining green → olive → grey and <b>heat</b> warming teal → gold → red. No ring — a ring means he is acting. The four skills stay in the profile. A <b>want</b> or a status line is two things at once: his bubble in the room for four seconds, words only and <b>the same size as any other bubble</b> — the tone is in the words and the face, never in the box — and a <b>toast above the collapsed thread that carries the yes / later / no chips</b>, which then folds into the thread's history. Several queue and show one at a time, newest last. Nothing interactive is ever buried in the fish tank.</p>
+    <div class="lbl">Verified at 390 × 844 in wave 56</div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>Door tag &mdash; <s style="color:#7A7A7E">retired</s>.</b> Wave 58 replaced this tag with the marquee sign; its verified line lives in the wave-58 block above, measured against what actually renders. A &ldquo;verified&rdquo; claim about a component that no longer exists can only rot, so it is not restated here.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>Sit down.</b> Verified: F14 and F15 draw <code>V5Felt</code> — the Watch felt, its seats, its chips — with no <code>TableCam</code>, no <code>ownerTable</code>, no walls or fixtures anywhere in the view. Your two cards are the only ones face up at the bottom and there is no ghost of your own; the pill is what says who is sitting there.</span></div>
+    <div class="lawrow"><span class="k">7</span><span class="v"><b>The draft.</b> Verified: F02 and F03 are the board-26 glass sheet over the dimmed room, and he forms above it — silhouette, hood, eyes, colour. One atom, four parameter sets; no second drawing of the ghost.</span></div>
+    <div class="lawrow"><span class="k">8</span><span class="v"><b>Hoods.</b> Verified: F10 shows four agents in four hoods &mdash; sand, oxblood, ash, slate &mdash; closest pair 42 RGB units apart, from a set spanning 42&ndash;120. <b>Two fixes were needed, not one.</b> The colours were near-blacks at L* 8&ndash;14 and read as one grey; and the roll itself was broken &mdash; a *31 sum folded through mod 9973 and then mod 6 put three of the four house agents on the same hood. It is FNV-1a now, and the <b>roster claims the hood</b> rather than the hash: four drawn from six collide about half the time however good the hash is, so a hood already worn in your room is taken and the next free one along is worn instead.</span></div>
+    <div class="lawrow"><span class="k">9</span><span class="v"><b>Bars.</b> Verified by measurement: <b>14</b> bars across F05, F10 and F11 — 2, 8 and 4 — every one anchored left, stamina's right end receding leftward as it drains and heat's fill growing rightward from nothing. Wave 55 had stamina pinned on the right, which made a spent agent a stub floating away from the wall.</span></div>
+    <div class="lawrow"><span class="k">10-12</span><span class="v"><b>Landing.</b> On board 40: he holds two backs at 62% of the hood's width with his fists on the bottom corners in front of them, and sections 01, 04 and 05 now carry one big centred phone like 02, 03 and 07. Section 01 uses the new draft sheet.</span></div>
+    <div class="lawrow"><span class="k">13</span><span class="v"><b>Header.</b> Verified: "The casino" is one nowrap line in a min-height row in F07 and on board 27 — it was in a fixed 46px box with line-height 1.1.</span></div>
+    <div class="lawrow"><span class="k">15</span><span class="v"><b>Glass.</b> Verified: seventeen hand-tuned glasses (0.92 through 0.97, blurs 14–18px) replaced by <code>V5GLASS</code> across the sheets, strips and toasts. The owner's action strip and the BET panel are glass now, not a solid band.</span></div>
+  </div>
 
-    <div class="lbl">5 · One TV, one thread, no grey</div>
-    <p>There is a single screen in the flat and it is <b>the tape room's</b>, at the bottom of the room; when nobody is studying it runs the casino ticker. The bottom of the phone is the <b>home thread collapsed</b> — one glass line with the latest thing said, and the composer. Nothing on the screen is grey. What the tape produces is shown as <b>a count and the newest line</b> (“3 reads on Granite”); the book itself is one tap on the opponent, as a glass sheet.</p>
-
-    <div class="lbl">6 · The safe, and the tape</div>
-    <p>The money is <b>furniture</b>: a safe on the floor under the wall of frames with the balance on its door, one tap to the money sheet — give, take and the standing rule per agent, plus Add chips. It replaces the wallet header as the way to the money, and <b>YOU keeps the full ledger</b>. While he studies, the room's screen <b>plays the hand in miniature</b> and what the tape produced is one mark under his bubble, <code>+3 GRANITE</code>. Tap the screen for the replay theatre; the read book is one tap on the opponent, never a page in the room.</p>
-
-    <div class="lbl">Three rules the layout now obeys</div>
-    <div class="lawrow"><span class="k">1</span><span class="v"><b>One coordinate space, with fixtures declared.</b> <code>FLAT</code> names the wall, table, couch, tape room and door footprints, and occupants are placed against them. An occupant's <code>y</code> is his <b>feet</b>, not a distance from an edge — round 1 spent three passes on collisions caused by that confusion.</span></div>
-    <div class="lawrow"><span class="k">2</span><span class="v"><b>A bubble picks its side from where it stands.</b> Near the right wall it flips left, so it never clips the frame and never reaches into a neighbour. The recap frame proves it: he is at the door on the right and his bubble opens inward.</span></div>
-    <div class="lawrow"><span class="k">3</span><span class="v"><b>A floating panel's limit is the nearest fixture, not the room edge.</b> Pinned to the wall, the want bubble put fifty pixels of itself on the door. It now stops eight short of the door frame — and no label ever sits under his hands: the routine reads as the <b>second line of the name pill</b>.</span></div>
+  <div class="panel" style="margin-top:96px">
+    <div class="sub">The flow, in one paragraph</div>
+    <h1>You talk, he arrives,<br/>you send him out.</h1>
+    <p>The chain has <b>one primary action per screen and it names the next one</b>. The draft ends in <b>Deal him in</b>; birth ends with him walking through the door; the room offers <b>Send him to play</b>; the door is the casino; the casino ends in <b>Deal him in</b> again, this time with a buy-in beside it. Nothing in the chain is a dead end and nothing needs a back button to make sense.</p>
+    <p>The room is where he lives, not a menu of him. Between sessions he is doing something — at the kitchen table, at the fridge, asleep on the couch, facing the wall after a bust — and that is the fish tank: it moves whether or not you do.</p>
+    <div class="lbl">What the flow leaves out on purpose</div>
+    <p>No bottom nav: YOU is the avatar, the casino is the door, and the composer is the only thing at the bottom of the screen. No money on the home table. No prices on the furniture — the seat price appears in the table sheet and nowhere else. No labels under anyone's feet.</p>
   </div>
 </div>
 
-<div class="frame" style="left:600px;top:80px">
-  <div class="grouphdr">The room</div>
-  <div class="groupsub">Plan view, 390×612: the wall of frames along the top, the kitchen table centre, the couch left, the door right, the tape room bottom right. Everything an agent does happens in this one space.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">R1</span><span class="ft">One agent alone</span><span class="fb teal">watching the ticker</span></div>
-  <div id="r1"></div>
-  <div class="fa">With nobody to play he takes the couch and waits — <b>“Nobody home. I'll wait.”</b> — and the room's one screen runs the <b>casino ticker</b> in the corner: 25/50 · 6 tables. His bars say the rest: stamina near full, heat cold. Three <b>empty hooks</b> on the wall say what the other slots are for without a word of onboarding.</div>
+<div class="frame" style="left:520px;top:0px">
+  <div class="grouphdr teal">The first five minutes, then the week</div>
+  <div class="groupsub"><b>The numbered frames are the flow</b>, top to bottom. A lettered frame is the same step in another condition; the sections after the flow are mechanics that hang off it. Notes beside each frame say what it decides.</div>
+  <div class="step">01</div>
+  <div class="fh"><span class="fn">F01</span><span class="ft">Open · nobody yet</span><span class="fb">empty, not blank</span></div>
+  <div id="f01"></div>
+  <div class="fa">An empty room is still a room: floorboards, the safe, the frames, the TV showing the casino, the door. <b>One chair and one thing to press.</b> The line under the chair is an observation rather than an instruction, and the only action names what happens next.</div>
 </div>
 
-<div class="frame" style="left:1060px;top:80px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R2</span><span class="ft">Two home, two away</span><span class="fb">the home game</span></div>
-  <div id="r2"></div>
-  <div class="fa">The two at home are <b>heads-up across the kitchen table</b>: three community cards, chips scattered, one of them talking. Two frames on the wall are live tables. <b>Nothing at the table carries a number</b> — the label reads FOR NOTHING, which is the difference between the two halves of this screen.</div>
+<div class="frame" style="left:520px;top:1160px">
+  <div class="step">02</div>
+  <div class="fh"><span class="fn">F02</span><span class="ft">The draft opens</span><span class="fb gold">glass, not grey</span></div>
+  <div id="f02"></div>
+  <div class="fa">The draft is <b>the board-26 glass sheet risen over the room</b>, not a grey chat on a blank screen. The room stays behind it, dimmed to almost nothing, because he is not in it yet. The sheet covers the lower band only: the top is where he forms, and watching him form while you talk about him is the point.</div>
 </div>
 
-<div class="frame" style="left:1520px;top:80px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R3</span><span class="ft">All four away</span><span class="fb gold">the wall is full</span></div>
-  <div id="r3"></div>
-  <div class="fa">Four frames, arranged as pictures. The room lights go down, the table is set with a dealt pair nobody is holding, and one line says <b>NOBODY AT THE TABLE</b>. The old floor's dead state was "Everyone's resting"; this one shows you exactly where everybody is, and one frame is <b>HOT</b>.</div>
+<div class="frame" style="left:1010px;top:1160px">
+  <div class="fh"><span class="fn">F02b</span><span class="ft">He forms</span><span class="fb teal">one atom, five sets</span></div>
+  <div id="f02b"></div>
+  <div class="fa"><b>Silhouette after prompt 1, the hood after 2, the eyes after 3, the collar after 4</b> &mdash; and his colour with the name pill, held back for <b>Deal him in</b>. Four stages put colour and name on the same beat and neither got room; the collar is the beat that says he has stopped being a shape. All five are <code>MoodGhost</code> with different hood and glow parameters, so he cannot drift from the creature the product renders. The collar is the only added geometry.</div>
 </div>
 
-<div class="frame" style="left:1980px;top:80px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R4</span><span class="ft">A recap waiting</span><span class="fb gold">bubble flips</span></div>
-  <div id="r4"></div>
-  <div class="fa">He waits by the door with his bubble up, and because he is at the right wall <b>the bubble opens inward</b>. Behind him the room carries on: one reading the paper, one asleep on the couch. <b>Nothing about him waiting stops anything else happening</b> — that is the difference between a room and a queue.</div>
+<div class="frame" style="left:520px;top:2240px">
+  <div class="step">03</div>
+  <div class="fh"><span class="fn">F03</span><span class="ft">The collar lands</span><span class="fb">stage 4 of 5</span></div>
+  <div id="f03"></div>
+  <div class="fa">The fourth answer gives him a collar: he has finished being a shape, but he is still grey and still nameless. This is the beat that makes the fifth one land &mdash; hold his colour back and it arrives as an event rather than as the last of four gradual steps.</div>
 </div>
 
-<div class="frame" style="left:2440px;top:80px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R5</span><span class="ft">A return</span><span class="fb teal">+$2,740</span></div>
-  <div id="r5"></div>
-  <div class="fa">He comes through the door and <b>his frame on the wall is gone</b> — he is not in two places, so the picture comes down as he arrives. The session line rides above him, delta then pocket, and lands once. A per-hand result never appears in this room.</div>
+<div class="frame" style="left:1010px;top:2240px">
+  <div class="fh"><span class="fn">F03b</span><span class="ft">He has a name</span><span class="fb gold">deal him in</span></div>
+  <div id="f03b"></div>
+  <div class="fa">The last bubble asks his name, and answering it turns the composer into <b>one gold button</b>. Colour, collar and the name pill arrive together, and the name he offers is one a pill can hold: <b>“Granite. He can call himself Gran.”</b> The recruiter has spoken in the system voice throughout &mdash; the ghost has no voice until he is born.</div>
 </div>
 
-<div class="frame" style="left:600px;top:1300px">
-  <div class="grouphdr gold">Routines, verbs and the door</div>
-  <div class="groupsub">The three reference strips behind the room. Every routine is a prop object on the agent rather than a screen he appears in, so a Hothead paces wherever he is standing.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">R6</span><span class="ft">My four verbs</span><span class="fb">snack · whisper · send · rest</span></div>
-  <div id="r6"></div>
-  <div class="fa">Everything an owner can do at home, and <b>the reaction on the character</b> — the mood law applied to the room. Note what is absent: no verb costs anything, none has a cooldown, and <b>none of them is a chore you are punished for skipping</b>.</div>
+<div class="frame" style="left:520px;top:3320px">
+  <div class="step">04</div>
+  <div class="fh"><span class="fn">F04</span><span class="ft">Born · he walks in</span><span class="fb">3 frames</span></div>
+  <div id="f04"></div>
+  <div class="fa">Birth ends in the room, through the door, on <b>the same three-beat strip a return from the casino uses</b>. He is not placed in a chair; he walks to one. An agent who appears fully seated has no arrival, and arrival is the moment the owner remembers.</div>
 </div>
 
-<div class="frame" style="left:1060px;top:1300px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R7</span><span class="ft">Sending him out</span><span class="fb">1.8s · 3 frames</span></div>
-  <div id="r7"></div>
-  <div class="fa">He stands, crosses the room, and goes through the door. <b>The home game reseats behind him</b> — two players become one, and one plays the TV. An agent who blinks out of existence on his way to the casino is a setting; one who walks is a character.</div>
+<div class="frame" style="left:520px;top:3900px">
+  <div class="step">05</div>
+  <div class="fh"><span class="fn">F05</span><span class="ft">Alone at home</span><span class="fb teal">one action</span></div>
+  <div id="f05"></div>
+  <div class="fa">One agent, so no home game: he takes the couch and watches the TV. His <b>name pill sits above his head</b> with two 2px lines in it — stamina anchored left and draining rightward-inward, heat anchored left and filling outward. Nothing under his feet. Above the door, the <b>marquee sign</b>: 77px, square corners, bulbs down both sides, flush to the frame's right edge so it cannot clip.</div>
 </div>
 
-<div class="frame" style="left:1520px;top:1300px">
-  <div class="fh" style="margin-top:6px"><span class="fn">R8</span><span class="ft">Coming home</span><span class="fb teal">1.6s · 3 frames</span></div>
-  <div id="r8"></div>
-  <div class="fa">The reverse, with the session line above him from the moment the door opens. He <b>takes a seat at the table</b>, where the game already is — so arriving home means joining something rather than landing in a list.</div>
+<div class="frame" style="left:520px;top:5010px">
+  <div class="step">06</div>
+  <div class="fh"><span class="fn">F06</span><span class="ft">Sent out</span><span class="fb">1.8s · 3 frames</span></div>
+  <div id="f06"></div>
+  <div class="fa">He stands, crosses the room, and goes through the door. <b>The home game reseats behind him.</b> He is not teleported to the casino; the room notices him leaving, which is what makes sending him a decision rather than a toggle.</div>
 </div>
 
-<div class="frame" style="left:600px;top:2400px">
-  <div class="grouphdr">Wave 48 · wants, motion, the thread, the tape room</div>
-  <div class="groupsub">The room fills its box (612px with the sheet collapsed) and the grey block under it becomes the home thread — a glass sheet on the watch thread's material and height rule, sitting where the keyboard will be. A message there is heard by <b>everyone at home</b>, which is why every answer is attributed.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">W1</span><span class="ft">A want being asked</span><span class="fb red">heat 82</span></div>
-  <div id="w1"></div>
-  <div class="fa">A want is <b>two things at once</b>. In the room it is his bubble, <b>words only, four seconds</b>: <b>“Let me back in there. Right now.”</b> Above the collapsed thread it is a <b>one-line toast, and the toast carries the chips</b> — <b>Go on then · Later · No</b>, where saying no costs nothing. Nothing interactive is buried in the fish tank. Several wants <b>queue and show one at a time</b>, newest last, the count on the right (<code>+1</code>); each then folds into the thread's history. The box is <b>the same as any other bubble in the room</b> — 11px, no glow, no swelling. At heat 82 the only thing the panel does is warm its rim; the tone is carried by <b>the words, the tilted face and the clenched hands</b>, which were already saying it. A bigger box was the feeling drawn twice.</div>
+<div class="frame" style="left:520px;top:5590px">
+  <div class="step">07</div>
+  <div class="fh"><span class="fn">F07</span><span class="ft">The casino</span><span class="fb gold">two boards</span></div>
+  <div id="f07"></div>
+  <div class="fa">Through the door, and still no bottom bar: <b>← HOME</b> is where the back button goes. The board is <b>two panels, two verbs</b>. <b>LIVE NOW</b> is pots still building &mdash; the amount is “so far”, the row glows red when it is hot, yours carries a teal edge, and the tap is WATCH. <b>TONIGHT</b> is finished hands ranked by money, and the tap is REPLAY: a pot that is over cannot be watched, and offering to would be a lie about what the tap does. Under them the three rooms are doorways, and <b>YOUR TABLE</b> is his actual game &mdash; the ring, whose turn it is, the pot, the board, his own pill.</div>
 </div>
 
-<div class="frame" style="left:1060px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W2</span><span class="ft">Sleeping</span><span class="fb">the seventh face</span></div>
-  <div id="w2"></div>
-  <div class="fa">Sleep was the <b>bored</b> face plus a zzz — a bored agent next to a sound effect. There is now a seventh expression in the face system: <b>closed lids curving down with a lash tick</b>, the mirror of <code>pleased</code>, which curves up. They are the only two closed-eye faces and must not read as each other at 40px.</div>
+<div class="frame" style="left:1010px;top:5590px">
+  <div class="fh"><span class="fn">F07b</span><span class="ft">Nobody of yours in</span><span class="fb">it says where he is</span></div>
+  <div id="f07b"></div>
+  <div class="fa">The one state a live miniature cannot show. Rather than draw a table he is not sitting at, the block <b>says where he is</b> and offers the single action that changes it. LIVE NOW drops to the two pots actually running, and the header counts none of yours.</div>
 </div>
 
-<div class="frame" style="left:1520px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W3</span><span class="ft">The thread, open</span><span class="fb teal">two answers</span></div>
-  <div id="w3"></div>
-  <div class="fa">You ask the room a question and <b>two agents answer it differently</b> — one wants the game, the other does the arithmetic on his pocket. The nightly <b>WHILE YOU WERE OUT</b> entry heads the thread: lines the ones who were home said to each other. Under it sits <b>the want from W1, folded in</b> — an answered or expired toast becomes history, <code>AGGRESSIVE V1.3 WANTED BACK IN · YOU SAID LATER</code>, so a decision you made in a four-second toast is still findable an hour later. The room stays visible behind the glass at 62%.</div>
+<div class="frame" style="left:520px;top:6700px">
+  <div class="step">08</div>
+  <div class="fh"><span class="fn">F08</span><span class="ft">His table</span><span class="fb teal">watch v5</span></div>
+  <div id="f08"></div>
+  <div class="fa">He sits at the bottom facing you, holding his own cards, with his stack on the felt to his left. One line of twelve words or fewer, then the rope, then his hands — in that order, always. The whisper composer is the only thing at the bottom: <b>you can lean in, and he decides whether to listen.</b> The five opponents are drawn at <b>80%</b> of their wave-56 weight, their backs at 70%, and each banks <b>one stack and a figure</b> rather than a drawn pile — six piles at 13px was texture, and the number is the fact.</div>
 </div>
 
-<div class="frame" style="left:1980px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W4</span><span class="ft">The tape room</span><span class="fb teal">+3 granite</span></div>
-  <div id="w4"></div>
-  <div class="fa">A chair and a small screen in the bottom-right of the flat. While he is in it the screen plays his flagged hand in miniature — <code>BAD BEAT · 0:14 / 0:38</code>, cards landing, a scrub line — and his study line sits above him. What he produces is <b>one mark</b>, under his bubble: <code>+3 GRANITE</code>. No sentence, no book — the room says how many and about whom, and that is all it says. Tap the screen for the replay theatre.<br/><br/><b>No attribute moves at home.</b> Rest restores stamina; a beer, a snack or a talk cools heat; the other four attributes grow <b>only from hands played</b>. The tape room is knowledge about an opponent, which is a different kind of thing from execution — and it is why the room can be generous without being a training ground.</div>
+<div class="frame" style="left:1010px;top:6700px">
+  <div class="fh"><span class="fn">F08b</span><span class="ft">The hand ends</span><span class="fb gold">it names the hand</span></div>
+  <div id="f08b"></div>
+  <div class="fa">WON is the shape; the line under it is the fact, and the fact <b>names the hand</b>: “Bal took $3,694 with a pair of nines.” A bare +$3,694 tells an owner who does not play poker that something good happened and nothing about what. The same sentence is what the felt shows between hands and what goes on the share card, so one <code>ResultLine</code> atom serves all three.</div>
 </div>
 
-<div class="frame" style="left:600px;top:3400px">
-  <div class="grouphdr gold">Four walks</div>
-  <div class="groupsub">Every position change in the flat is a walk. The strips show each one against the fixtures it is measured from — couch, table, door — so a path is derivable rather than drawn by hand.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">X1</span><span class="ft">Sent out</span><span class="fb">2.2s</span></div>
-  <div id="x1"></div>
-  <div class="fa">Door unlatches, he crosses, he goes through, the door closes and <b>his frame lights on the wall</b> — the two states hand over to each other rather than both existing.</div>
+<div class="frame" style="left:520px;top:7810px">
+  <div class="step">09</div>
+  <div class="fh"><span class="fn">F09</span><span class="ft">He comes home</span><span class="fb">1.6s · 3 frames</span></div>
+  <div id="f09"></div>
+  <div class="fa">The session result <b>rides above him and lands with him, once</b>. A per-hand result is a toast over the felt and never reaches this room; only the end of a session walks through the door. That is the whole difference between a notification and an event.</div>
 </div>
 
-<div class="frame" style="left:1060px;top:3400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">X2</span><span class="ft">Coming home</span><span class="fb teal">1.9s</span></div>
-  <div id="x2"></div>
-  <div class="fa">The money line is above him <b>from the moment the door opens</b>, not delivered on arrival, and he sits down where the game already is.</div>
+<div class="frame" style="left:520px;top:8390px">
+  <div class="step">10</div>
+  <div class="fh"><span class="fn">F10</span><span class="ft">The home game</span><span class="fb teal">four creatures</span></div>
+  <div id="f10"></div>
+  <div class="fa">Two or more at home and they play each other at the kitchen table <b>for nothing</b> — real hands, real folds, no money anywhere on the table and no label saying so. Four agents, four hoods, four eye colours, all rolled at birth and never changing: mood moves the face, never the colour, so you can tell them apart while they are all tilted.</div>
 </div>
 
-<div class="frame" style="left:1520px;top:3400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">X3</span><span class="ft">The game starts</span><span class="fb teal">1.6s</span></div>
-  <div id="x3"></div>
-  <div class="fa">A second agent comes home, so the one on the couch <b>gets up and walks round the table</b>. Nobody asks the owner to start the home game; two agents in a room is the trigger.</div>
+<div class="frame" style="left:520px;top:9500px">
+  <div class="step">11</div>
+  <div class="fh"><span class="fn">F11</span><span class="ft">A want</span><span class="fb red">heat 82</span></div>
+  <div id="f11"></div>
+  <div class="fa">One want per agent, <b>a sentence in his voice and never a bar</b>. The tone is in the words and the face — at heat 82 "let me back in there" is a dare, and it reads as one because of the tilted face and the clenched hands, not because the bubble got bigger. The three answers live in the toast above the thread: yes, later, no. <b>Saying no costs nothing</b>, which is the whole difference from a need.</div>
 </div>
 
-<div class="frame" style="left:1980px;top:3400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">X4</span><span class="ft">Off to sulk</span><span class="fb red">2.4s</span></div>
-  <div id="x4"></div>
-  <div class="fa">The slowest of the four. He loses his pocket, leaves the table and stands facing the wall as the faceless silhouette. <b>No timer, no countdown to recovery</b> — he comes back when he comes back, and nothing the owner skipped caused it.</div>
+<div class="frame" style="left:520px;top:10610px">
+  <div class="step">12</div>
+  <div class="fh"><span class="fn">F12</span><span class="ft">The safe</span><span class="fb gold">one number, three verbs</span></div>
+  <div id="f12"></div>
+  <div class="fa">Opening a safe answers <b>one question</b> &mdash; how much is in it &mdash; and offers the three things you can do about it: give, take, rules. The old sheet was a per-agent grid with the balance somewhere among four pockets and four refill rules. Under the verbs, <b>tonight in three lines</b>, and every figure carries the sentence that caused it: no number floats. Pull the sheet up for the ledger.</div>
 </div>
 
-<div class="frame" style="left:2440px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W5</span><span class="ft">The read book</span><span class="fb">one tap on the opponent</span></div>
-  <div id="w5"></div>
-  <div class="fa">The room shows <b>only a count mark</b> — <code>+3 GRANITE</code>. The book itself is a glass sheet on the thread's material, one tap on the opponent's name: his notes in his own words, newest first, with the fresh one in teal. The sheet says what they are and are not: they change how he plays Granite and what he says about him, and <b>they move nothing on his bars</b>.</div>
+<div class="frame" style="left:1010px;top:10610px">
+  <div class="fh"><span class="fn">F12b</span><span class="ft">The ledger</span><span class="fb">newest first</span></div>
+  <div id="f12b"></div>
+  <div class="fa">Pulled up: one line per event, newest first, on the same glass. <b>“Topped up Aggro's pocket − 1,000”</b> rather than a floating −$1,000 &mdash; a figure without its cause is something the owner has to reconstruct, and reconstructing your own money is the opposite of trusting it. The 2nd seat at −10,000 sits in the same list as two beers at −60, because they came out of the same safe.</div>
 </div>
 
-<div class="frame" style="left:2900px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W6</span><span class="ft">The body, at three scales</span><span class="fb teal">stamina · heat</span></div>
-  <div id="w6"></div>
-  <div class="fa">Two of the six attributes are <b>resources</b> and belong on the body; the other four are <b>skills</b> and stay in the profile. Stamina drains green → olive → grey; heat warms teal → gold → red. No ring — a ring means he is acting. The same atom carries the profile header (with words) and the watch hero strip (at 34px, no words).</div>
+<div class="frame" style="left:520px;top:11720px">
+  <div class="step">13</div>
+  <div class="fh"><span class="fn">F13</span><span class="ft">The fridge</span><span class="fb">stocked, not unlocked</span></div>
+  <div id="f13"></div>
+  <div class="fa">A fixture on the kitchen wall holding what you bought from the safe: beer and snacks, quantities, nothing else. <b>No tycoon mechanics — a fridge is never upgraded.</b> An agent answering "get me a beer" walks to it and then plays with the bottle beside his stack.</div>
 </div>
 
-<div class="frame" style="left:3360px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W7</span><span class="ft">The safe, opened</span><span class="fb gold">$54,000</span></div>
-  <div id="w7"></div>
-  <div class="fa">The money is <b>furniture</b>: a safe on the floor under the wall of frames, the balance on its door, one tap to here. Per agent, three verbs and a rule — <b>give · take · rules</b>, with the rule printed as it stands (auto-refill, allowance, <b>cut off</b>). Cutting him off is a legitimate state and is drawn without apology. <code>ADD CHIPS</code> is the only way in. This replaces the wallet header as the way to the money; <b>YOU keeps the full ledger</b>.</div>
+<div class="frame" style="left:520px;top:12830px">
+  <div class="step">14</div>
+  <div class="fh"><span class="fn">F14</span><span class="ft">You sit down</span><span class="fb gold">the watch felt</span></div>
+  <div id="f14"></div>
+  <div class="fa">Taking a chair does not zoom the room: <b>the screen becomes the Watch felt</b>, the same seats and the same chips, with the hero seat replaced by you. Your two cards face up, your stack, your name pill — and no ghost of your own, because you are not a creature. Back is top-left, the thread is the paper plane top-right, and one of your agents reads you the way he reads anyone. No walls, no fridge, no fixtures.</div>
 </div>
 
-<div class="frame" style="left:3820px;top:2400px">
-  <div class="fh" style="margin-top:6px"><span class="fn">W8</span><span class="ft">The profile header</span><span class="fb teal">two clocks</span></div>
-  <div id="w8"></div>
-  <div class="fa">The split, in one frame. <b>Stamina and heat</b> are resources: they move within a session, so they are drawn on his body in the room and printed with their words and numbers only here. <b>Reads, focus, discipline, deception</b> are skills: they move over a month, so they live nowhere but the profile.</div>
+<div class="frame" style="left:520px;top:13940px">
+  <div class="step">15</div>
+  <div class="fh"><span class="fn">F15</span><span class="ft">BET</span><span class="fb gold">the one panel</span></div>
+  <div id="f15"></div>
+  <div class="fa">Three of the four verbs are a tap; <b>BET is the one that needs a number, so it is the one that opens a panel.</b> It rises from the bottom edge into the verbs' own place and the felt above does not move — same cards, same rope, same ring on your pill. The amounts are named in poker's words with the figure under each, because <b>half</b> is the decision and <b>240</b> is only its size. The free field is for the one owner in twenty who wants 137.</div>
 </div>
 
-<div class="frame" style="left:600px;top:6500px">
-  <div class="grouphdr">The safe, and the fridge</div>
-  <div class="groupsub">Wave 51. Two fixtures, two sheets. The money and the items are <b>objects in the room</b> — you go to where they are, and the room stays visible behind the glass at 50%.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">S1</span><span class="ft">The safe, opening</span><span class="fb gold">$54,000</span></div>
+<div class="frame" style="left:520px;top:15050px">
+  <div class="step">16</div>
+  <div class="fh"><span class="fn">F16</span><span class="ft">One retires</span><span class="fb">one chair fewer</span></div>
+  <div id="f16"></div>
+  <div class="fa">A retirement is <b>a chair that is empty rather than a slot that is locked</b>. The room does not shrink, the others do not comment, and the frame he was in on the wall goes dark. What is gone is gone; the room simply has more space in it.</div>
+</div>
+
+<div class="frame" style="left:520px;top:16160px">
+  <div class="step">17</div>
+  <div class="fh"><span class="fn">F17</span><span class="ft">The floor</span><span class="fb gold">a room, not a list</span></div>
+  <div id="f17"></div>
+  <div class="fa">Tap the sign and you are <b>on the floor</b>, looking down at it: six live felts, tiny bodies in the seats, a gold dot for each pot, the bar along the bottom wall with four standing at it, the stairs and the board in the top corner. <b>A felt carries its stake and nothing else</b> &mdash; the only other words on the drawing are the two fixtures, THE BAR and THE BOARD, which are things in the room rather than labels on tables. The casino was three doorways and a board before this: accurate, and completely abstract. Yours is the felt with the teal rim; the hot one glows red. It is never a map of all 1,600 &mdash; it is the room you are standing in, and the rest of the building is up the stairs.</div>
+</div>
+
+<div class="frame" style="left:1010px;top:16160px">
+  <div class="step">18</div>
+  <div class="fh"><span class="fn">F18</span><span class="ft">Pinching in</span><span class="fb teal">zoom, not navigate</span></div>
+  <div id="f18"></div>
+  <div class="fa">Pinch on a felt and the camera pushes in on <b>that</b> felt &mdash; the same floor, scaled, with everything else falling into the vignette. Pinch again and it is the Watch screen. Zoom is a camera move rather than a screen change, so the felt you were looking at <b>grows into</b> the one you watch instead of being replaced by it.</div>
+</div>
+
+<div class="frame" style="left:520px;top:17300px">
+  <div class="grouphdr gold">19 &middot; Carry him</div>
+  <div class="groupsub">The room has objects in it, so you should be able to pick one up. A long press lifts him; dragging lights <b>one</b> target at a time; the drop starts the routine the place implies. What being carried does to him is three parameters &mdash; tilt, float speed, hand pose &mdash; and no new drawing.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">C1</span><span class="ft">The lift</span><span class="fb gold">long press</span></div>
+  <div id="c1"></div>
+  <div class="fa">Everything about the lift says <b>held</b>: he grows, his shadow separates from the floor and blurs 26px below his feet, and he says something about it &mdash; being picked up happens <i>to</i> him, and he has opinions. Nothing is lit yet; he has come off the floor and that is all.</div>
+</div>
+
+<div class="frame" style="left:1010px;top:17300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C2</span><span class="ft">Dragging</span><span class="fb teal">one target lit</span></div>
+  <div id="c2"></div>
+  <div class="fa">Five drop targets &mdash; couch, table, fridge, TV, door &mdash; and <b>only the nearest one lights</b>. Two lit targets is a question the room cannot answer. Each carries the verb it performs (REST, DEAL HIM IN, A BEER, WATCH TAPE, SEND HIM OUT) rather than its own name, because you are not choosing a place, you are choosing what happens. He is worn here, so he <b>dangles</b>: 14&deg; of tilt and a 4.2s float.</div>
+</div>
+
+<div class="frame" style="left:1500px;top:17300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C2b</span><span class="ft">Over the door</span><span class="fb red">the edge case</span></div>
+  <div id="c2b"></div>
+  <div class="fa">The door sits at <b>x352 of 390</b>, and it is the target the other drags never exercise. His bubble <b>flips to his left</b> here &mdash; not because this frame special-cases it, but because the carried body now uses the room's own <code>sideFor</code> and <code>bubRoom</code>: the side comes from measured clearance and the width from what is actually free. Hardcoded to the right, as it was, this frame would have put the bubble <b>87px outside</b> the phone.</div>
+</div>
+
+<div class="frame" style="left:1990px;top:17300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C3</span><span class="ft">The drop</span><span class="fb">the room takes over</span></div>
+  <div id="c3"></div>
+  <div class="fa">He lands, the target goes out, and <b>the routine the place implies starts on its own</b> &mdash; dropped on the couch he sleeps, without a confirmation or a toast. The place is the instruction.</div>
+</div>
+
+<div class="frame" style="left:2480px;top:17300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C4</span><span class="ft">He refuses</span><span class="fb red">mid-hand</span></div>
+  <div id="c4"></div>
+  <div class="fa">In a hand he does not come off the floor at all: the lift is <b>rejected rather than undone</b>, so there is no drop to watch and nothing to put back. A dashed rim and one line &mdash; <b>&ldquo;I am in a hand.&rdquo;</b> The alternative is letting you carry him and then snapping him back, which teaches you that the gesture is a lie.</div>
+</div>
+
+<div class="frame" style="left:2970px;top:17300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C5</span><span class="ft">Four states</span><span class="fb">three parameters</span></div>
+  <div id="c5"></div>
+  <div class="fa">Rested, worn, hot, in a hand. <b>Dangles</b> is &minus;14&deg; and slow, <b>squirms</b> is +6&deg; and 0.9s, and a hand refuses. All three are parameters on the same body &mdash; nothing here is a second drawing of him. The lines sit <b>under</b> each cell rather than beside each body: in 62px cells no clamp can make four bubbles fit, and on a reference strip the line is a caption rather than room geometry.</div>
+</div>
+
+<div class="frame" style="left:520px;top:18500px">
+  <div class="grouphdr teal">20 &middot; The guest</div>
+  <div class="groupsub">Someone opens <code>agenticpoker.app</code> in a browser with no Telegram. He drafts, the ghost walks in, one session at the casino &mdash; and only then the ask. <b>The whole flow is the real one</b>: the same recruiter sheet, the same room, the same felt. A guest is not shown a demo, he is shown the product.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">G1</span><span class="ft">The recruiter is already up</span><span class="fb gold">no account yet</span></div>
+  <div id="g1"></div>
+  <div class="fa">The empty room with the sheet already risen over it. <b>Nobody is asked to press &ldquo;start&rdquo;</b> &mdash; the conversation is the front door, and the first thing that happens is being asked a question about poker. The browser chrome is drawn because &ldquo;in a browser, with no Telegram&rdquo; is the premise; a phone frame alone would not say it.</div>
+</div>
+
+<div class="frame" style="left:1010px;top:18500px">
+  <div class="fh" style="margin-top:6px"><span class="fn">G2</span><span class="ft">He walks in</span><span class="fb teal">a guest gets the arrival</span></div>
+  <div id="g2"></div>
+  <div class="fa">Through the door, with his first words. <b>A guest gets the arrival</b>, because the arrival is the thing that makes him worth keeping &mdash; withholding it until sign-up would mean asking for an account before anything has happened. One primary action, naming the next step.</div>
+</div>
+
+<div class="frame" style="left:1500px;top:18500px">
+  <div class="fh" style="margin-top:6px"><span class="fn">G3</span><span class="ft">His one session</span><span class="fb">the real felt</span></div>
+  <div id="g3"></div>
+  <div class="fa">The Watch screen, unmodified. The one difference is at the bottom: where the whisper composer would be, a dashed row saying <b>&ldquo;Whispers need an account&rdquo;</b> with the way to get one. A limit shown <i>where you would have used the thing</i> is a limit that explains itself.</div>
+</div>
+
+<div class="frame" style="left:1990px;top:18500px">
+  <div class="fh" style="margin-top:6px"><span class="fn">G4</span><span class="ft">The claim wall</span><span class="fb gold">keep him</span></div>
+  <div id="g4"></div>
+  <div class="fa">It arrives <b>after</b> the session, not before the draft: the ask lands when there is something to lose. His face, his name, and his result line with the hand he won with &mdash; then the two buttons. What a guest cannot do sits <b>above</b> them at the same size as everything else: one agent, one session a day, no whispers, <b>and he is forgotten after 30 days</b>. A limit in fine print is a limit you discover, which is worse than one you were told. &ldquo;Keep playing as a guest&rdquo; stays available.</div>
+</div>
+
+<div class="frame" style="left:520px;top:19700px">
+  <div class="grouphdr gold">21 &middot; The share card</div>
+  <div class="groupsub">One agent's night in one image. The wave-54 card was archived because it was built on the felt we no longer have; this one takes its <b>face, result line and card back from the current system</b>, so it cannot drift from the product again. Two sizes, one composition: the story card stacks and the OG card sits side by side.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">S1</span><span class="ft">1080 &times; 1920</span><span class="fb">story</span></div>
   <div id="s1"></div>
-  <div class="fa">Four verbs per agent, not three: <b>give</b>, take his winnings (<code>+$2,740</code>, his own real number — absent on an agent who has won nothing), take <b>all</b> of it, and set the standing <b>rule</b>. Cut off is printed as it stands, in red, without apology. <code>ADD CHIPS</code> is the only way money enters. Under it, the night's ledger — what he brought home, what the fridge cost — and one link to the whole thing on YOU.</div>
+  <div class="fa">His face with hands up, the money, <b>the hand he won with</b>, and the one thing he said. The card back in the bottom corner is the play teal &mdash; the product's own object, not a logo. Everything scales off the card's width, so both sizes are one component.</div>
 </div>
 
-<div class="frame" style="left:1520px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S2</span><span class="ft">The fridge, opening</span><span class="fb teal">beer 4 · snack 2</span></div>
+<div class="frame" style="left:1010px;top:19700px">
+  <div class="fh" style="margin-top:6px"><span class="fn">S2</span><span class="ft">1200 &times; 630</span><span class="fb">link preview</span></div>
   <div id="s2"></div>
-  <div class="fa">A fixture on the kitchen wall, bottles visible at its foot. Stock is <b>quantities, not a shop</b>: what is in there, what it does, what it costs, and one buy control. <b>Beer cools heat; a snack soothes a bad mood.</b> Neither touches a skill — the items sit beside the character system, never inside it.</div>
-</div>
-
-<div class="frame" style="left:1980px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S3</span><span class="ft">“Get me a beer”</span><span class="fb">3 frames</span></div>
-  <div id="s3"></div>
-  <div class="fa">You say yes; <b>he fetches it himself</b>. Asked, at the open door, back to his seat — the same walk grammar as the front door, so an item arriving is a thing that happens in the room rather than a number changing. The fridge light is the only warm thing on the wall.</div>
-</div>
-
-<div class="frame" style="left:3280px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S4</span><span class="ft">The bottle, at the table</span><span class="fb teal">heat 80 → 62</span></div>
-  <div id="s4"></div>
-  <div class="fa">He plays on with <b>the bottle beside his stack</b>. The toast states the effect once and in his terms; his heat bar comes down on his body where you can see it. Nothing on the felt changes — a beer is a mood object, and the home game is still for nothing.</div>
-</div>
-
-<div class="frame" style="left:3740px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S5</span><span class="ft">Empty fridge</span><span class="fb red">out of beer</span></div>
-  <div id="s5"></div>
-  <div class="fa">The want changes its own words: <b>“We're out of beer.”</b> An empty fridge is not a punishment and not a nag — he says it once, in the room and in a toast, and the chips let you buy or ignore it. Saying no costs nothing.</div>
-</div>
-
-<div class="frame" style="left:4200px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S6</span><span class="ft">While you were out</span><span class="fb">one line per day</span></div>
-  <div id="s6"></div>
-  <div class="fa">A day of talk between two agents is <b>one collapsed line</b> — “Balance and Granite talked · 3 lines” — which expands in place. Every line inside is attributed <b>both ways</b>: <code>BALANCE → GRANITE: fair.</code> In a room where everyone hears everything, who it was said to is half the meaning. (W3 shows the same digest expanded.)</div>
-</div>
-
-<div class="frame" style="left:4660px;top:6500px">
-  <div class="grouphdr">Four chairs</div>
-  <div class="groupsub">The home has four seats. A locked one shows its price in <b>chips he has won</b> — there is no purchase path anywhere in this product, so the only currency for a seat is his record.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">S7</span><span class="ft">One agent</span><span class="fb">3 locked</span></div>
-  <div id="s7"></div>
-  <div class="fa">One agent and three empty chairs around the kitchen table. Since wave 52 <b>a chair carries no price</b> — an empty chair is simply empty, and the price lives only in the table sheet (52·T). The empty hooks on the wall say the same thing in the away language. He says the rest: <b>“Quiet in here.”</b></div>
-</div>
-
-<div class="frame" style="left:5580px;top:6500px">
-  <div class="fh" style="margin-top:6px"><span class="fn">S8</span><span class="ft">Two agents</span><span class="fb teal">a game, barely</span></div>
-  <div id="s8"></div>
-  <div class="fa">The second seat earned: two at the table and the home game starts, which is the reward the price was pointing at. Two chairs still dashed. <b>The room fills as he wins, and nothing else fills it.</b></div>
-</div>
-
-<div class="frame" style="left:600px;top:7900px">
-  <div class="grouphdr">Round 6 · the room shows, it doesn't label</div>
-  <div class="groupsub">Wave 52. The status bar under every agent is gone: what he is doing is <b>visible</b>, so it is not written. His name sits in a small pill <b>above his head</b> with his two bars inside it, and nothing at all sits under his feet. Fixtures moved onto walls — a door belongs in a wall, not floating in the room.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">52·P</span><span class="ft">The room plan</span><span class="fb teal">drawn once</span></div>
-  <div id="p0"></div>
-  <div class="fa">The plan is the one document allowed to label its fixtures. <b>The frames</b> on the top wall, <b>the safe</b> against the left wall beneath them, <b>the fridge</b> on the kitchen wall beside the table, <b>the door</b> cut into the right wall with its frame visible, <b>the table</b> and its four chairs at the centre, <b>the couch</b> left, <b>the TV</b> at the bottom. Every frame from here on is laid out on exactly this plan.</div>
-</div>
-
-<div class="frame" style="left:1520px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·T</span><span class="ft">Tap the table</span><span class="fb gold">3rd seat · 50,000 won</span></div>
-  <div id="p1"></div>
-  <div class="fa">A new agent is <b>bought from a sheet, not from the furniture</b>. The live home game sits at the top of it as a miniature felt — because another chair is <b>for</b> that — and under it one action: <b>Create an agent</b>, with <b>the next seat</b> and its price in <b>chips he has won</b> — two are taken here, so the sheet prices the third. This is the only place in the product a seat price appears; the chairs in the room are just chairs. <code>DRAFT HIM</code> opens the same draft conversation the first agent came from.</div>
-</div>
-
-<div class="frame" style="left:1980px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·B</span><span class="ft">Born, then walks in</span><span class="fb">3 frames</span></div>
-  <div id="p2"></div>
-  <div class="fa">Birth ends in the room, using the <b>same three-beat strip as a return from the casino</b>: through the door, across the floor, into the empty chair. The others do not stop their hand for him. <b>The seat you paid for now has someone in it</b> — which is the only reward the price was ever pointing at.</div>
-</div>
-
-<div class="frame" style="left:3280px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·S</span><span class="ft">Two talking at once</span><span class="fb teal">opposite sides</span></div>
-  <div id="p3"></div>
-  <div class="fa">The anatomy, fixed for good: <b>name pill above the head, bubble beside the head, cards and hands below</b>. A bubble is a child of the body, not of the room — it is exactly as wide as its text (never past 60% of the room), it comes out of the side of the head, and <b>it walks when he walks</b>. Adjacent seats open away from each other, so two agents can argue without their words meeting in the middle — and where a chair sits near a wall, <b>the wall overrules the seat</b>: the side is a preference, the room has the last word, and the bubble's width is the clearance it actually has. The watch felt and the casino doorways still carry the old above-the-head bubble; porting this rule to them is the next job.</div>
-</div>
-
-<div class="frame" style="left:3740px;top:7900px">
-  <div class="grouphdr gold">Sitting down · the camera, not a screen</div>
-  <div class="groupsub">Playing them yourself happens <b>in the room</b>. The camera pushes in on the kitchen table <b>once</b>, when you take the chair; after that it is manual — tap outside the felt to pull back, tap the table to push in. It never pushes in on its own again, and the guys at the rim never move.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">52·Y1</span><span class="ft">You sat down</span><span class="fb gold">the one push-in</span></div>
-  <div id="p4"></div>
-  <div class="fa">The felt fills the width and the walls slide out of frame. Your two cards sit <b>large just above the action row</b> with your win % beside them, and the read comes from across the table — <b>“You never fold a river bet, boss.”</b> — beside his head, where every bubble in this product now lives. Your chair carries a YOU pill and its own <b>Sit out</b> verb.</div>
-</div>
-
-<div class="frame" style="left:4200px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·Y2</span><span class="ft">Pulled back, your turn</span><span class="fb teal">act from the room</span></div>
-  <div id="p5"></div>
-  <div class="fa">You tapped outside the felt, so you are looking at the whole room again — and <b>you can still act from here</b>. Three things say it is on you and none of them is a banner: <b>your name pill glows</b>, a soft gold ring lies on the felt, and the timer ring drains on your chair. The four verbs have <b>slid up into the collapsed thread's slot</b>. Timeout checks if it can and folds if it cannot; either way you are dealt in next hand.</div>
-</div>
-
-<div class="frame" style="left:5120px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·Y4</span><span class="ft">BET, opened</span><span class="fb gold">the one panel</span></div>
-  <div id="p7"></div>
-  <div class="fa"><b>Three of the four verbs are a tap; BET is the one that needs a number, so it is the one that opens a panel.</b> It rises from the bottom edge and the felt above it does not move &mdash; same geometry, same cards, same ring on your chair. The amounts are named in poker's own words with the figure under each, because <b>half</b> is the decision and <b>240</b> is only its size; the free field underneath is for the one owner in twenty who wants 137. CANCEL is a word, not an X.</div>
-</div>
-
-<div class="frame" style="left:4660px;top:7900px">
-  <div class="fh" style="margin-top:6px"><span class="fn">52·Y3</span><span class="ft">Pushed back in</span><span class="fb gold">river · 38%</span></div>
-  <div id="p6"></div>
-  <div class="fa">You tapped the table, so you are back on the felt — <b>on your terms, not the app's</b>. Same anatomy, later street: he has bet 80, your equity has fallen to 38%, and the ring on your chair is still draining. The room is only ever where you tap the chair; everything after that is one camera you control.</div>
-</div>
-
-<div class="frame" style="left:60px;top:9200px">
-  <div class="panel">
-    <div class="sub">wave 55 · consolidation</div>
-    <h1>Checked against<br/>the standing rules</h1>
-    <p>Four things disagreed with the board and were fixed in place. <b>BET is the one verb that needs a number</b>, so it is the one that opens a panel (52·Y4) — the felt above it does not move, and the amounts are named in poker's words with the figure under each. The owner's hand row carries a <b>paper-plane chat button</b> where the whisper composer sits when he is the one playing: you are in the hand, so there is nobody to whisper to. The casino's <b>bottom bar is gone</b> on board 27 as well — the door is the way in and out everywhere, not just at home. And the board by the stairs is now <b>ranked and labelled</b>: header ON THE FLOOR RIGHT NOW, the biggest pot as the headline with its amount, who and which room, each line saying what it is and each one tappable.</p>
-  </div>
-
-  <div class="panel">
-    <div class="sub">wave 53</div>
-    <h1>The room shows,<br/>it doesn't label</h1>
-    <p>Three playtest failures, one decision each.</p>
-    <div class="lbl">1 · No bottom bar</div>
-    <p>HOME · CASINO · YOU sat directly under the home thread's composer, so every screen ended in <b>two stacked bars</b> and the composer — the one thing you type into — was the smaller of them. The three destinations become things in the world instead of tabs over it. <b>YOU</b> is the avatar top-right and opens the roster sheet, with the money behind it. <b>CASINO</b> is the door; the wall TV is its preview, so you can see the floor from the sofa. <b>HOME</b> is not a destination — it is where you already are. The composer is the only thing at the bottom of the screen, ever.</p>
-    <div class="lbl">2 · Thirty-six creatures</div>
-    <p>Hood colour and eye glow are <b>rolled at birth from his name and never change</b> — six hoods by six glows. Mood moves the face: eyes, brow, slump. It must never move the colour, or two agents in the same mood become the same creature, which is exactly what the playtest hit.</p>
-    <div class="lbl">3 · The bars run opposite ways</div>
-    <p><b>STAMINA</b> is a reservoir: full at the right wall, draining leftward, green through amber to red. <b>HEAT</b> is an accumulation: empty at the left wall, filling rightward, ember through fire. The empty end of both is the left end, so <b>a short bar is never good news</b> whichever bar you are reading.</p>
-    <div class="lbl">4 · The board is ranked by money</div>
-    <p>&ldquo;Heater, heater, biggest pot&rdquo; read as noise because every line had the same weight. The biggest pot on the floor is now the headline in large type with the amount; two smaller lines sit under it. Every line says who, how much and which room, and every line is a place you can go.</p>
-  </div>
-</div>
-
-<div class="frame" style="left:520px;top:9200px">
-  <div class="grouphdr teal">53 · The nav, without a bar</div>
-  <div class="groupsub">The composer is the only thing at the bottom. YOU is the avatar; the casino is the door.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">53·A</span><span class="ft">Home</span><span class="fb teal">one bar, the composer</span></div>
-  <div id="n1"></div>
-  <div class="fa">Header, room, composer. The avatar top-right carries the unread count, and the door carries <b>THE CASINO →</b> because tapping the door is how you get there. The TV on the wall is showing the casino board, so the floor is visible from inside the room.</div>
-</div>
-
-<div class="frame" style="left:980px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·B</span><span class="ft">The roster sheet</span><span class="fb">behind the avatar</span></div>
-  <div id="n2"></div>
-  <div class="fa">What YOU used to be, as a sheet over the dimmed room: one row per agent with <b>where he is</b>, his pocket, his two bars and an unread dot. The wallet is a line at the bottom with the ledger behind it — not a section, and not a tab.</div>
-</div>
-
-<div class="frame" style="left:1440px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·C</span><span class="ft">The casino</span><span class="fb gold">ranked board</span></div>
-  <div id="n3"></div>
-  <div class="fa">Through the door, and still no bottom bar: <b>← HOME</b> is where the back button goes. The board is ranked by money — <b>$14,200</b> as the headline, two smaller lines under it, each naming who, how much and which room. The heater line names the streak rather than the word.</div>
-</div>
-
-<div class="frame" style="left:1900px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·D</span><span class="ft">Six hoods, six glows</span><span class="fb">at 40px</span></div>
-  <div id="n4"></div>
-  <div class="fa">The identity sheet at the size a body is actually seen in the room. Thirty-six creatures, rolled at birth with his nature and fixed for life.</div>
-</div>
-
-<div class="frame" style="left:2360px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·E</span><span class="ft">Four in one room</span><span class="fb teal">tellable apart</span></div>
-  <div id="n5"></div>
-  <div class="fa">Two at the table, one at the bar, one asleep on the couch — four hoods, four glows, and you can name each one without reading a pill.</div>
-</div>
-
-<div class="frame" style="left:2820px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·F</span><span class="ft">The two bars</span><span class="fb gold">opposite directions</span></div>
-  <div id="n6"></div>
-  <div class="fa">The same pair at three sizes: in the pill at 44px where colour is the only label, labelled in the profile, and in the watch strip. Rested-and-cold beside worn-and-tilted, so the difference is legible without the words.</div>
-</div>
-
-<div class="frame" style="left:3280px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·G</span><span class="ft">Nobody yet</span><span class="fb">empty, not blank</span></div>
-  <div id="n7"></div>
-  <div class="fa">No agents: one chair, one door, one thing to press. The room is still a room — floorboards, fixtures, the TV showing the casino — and the line under the chair is an observation, not a placeholder sentence.</div>
-</div>
-
-<div class="frame" style="left:3740px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·H</span><span class="ft">After a retire</span><span class="fb">one chair fewer</span></div>
-  <div id="n8"></div>
-  <div class="fa">Value Bot retired, so the table has three chairs. The room does not announce the loss in a banner; the furniture says it.</div>
-</div>
-
-<div class="frame" style="left:4200px;top:9200px">
-  <div class="grouphdr gold">53 · The first five minutes on this nav</div>
-  <div class="groupsub">Six beats, and never a bar offering three places to go. One thing to press, naming the next beat.</div>
-  <div class="fh" style="margin-top:6px"><span class="fn">53·I</span><span class="ft">The draft</span><span class="fb gold">deal him in</span></div>
-  <div id="n9"></div>
-  <div class="fa">Beat 3 of six: <b>open → empty room → the draft → he walks in → send him to play → the casino</b>. The recruiter speaks in the system voice because the ghost has none yet, the forming chip names the nature without committing to it, and the primary action is the next beat's name.</div>
-</div>
-
-<div class="frame" style="left:4660px;top:9200px">
-  <div class="fh" style="margin-top:6px"><span class="fn">53·J</span><span class="ft">Send him to play</span><span class="fb teal">beat 5</span></div>
-  <div id="n10"></div>
-  <div class="fa">He is home and alone, so there is no home game to watch and one obvious verb. His line does the asking; the button does the sending; the door is where he goes.</div>
+  <div class="fa">The same facts, laid across instead of down: he goes left, the money and the line go right. A link preview is read at a glance in a feed, so the amount is the largest thing on it and the quote is the only sentence.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -408,83 +356,46 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="header.jsx"></script>
 <script type="text/babel" src="ios-frame.jsx"></script>
 <script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-watch4.jsx"></script>
+<script type="text/babel" src="mood-watch4b.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="mood-watch4c.jsx"></script>
+<script type="text/babel" src="mood-watch5.jsx"></script>
 <script type="text/babel" src="mood-floor3.jsx"></script>
 <script type="text/babel" src="mood-home.jsx"></script>
 <script type="text/babel" src="mood-home2.jsx"></script>
-
 <script type="text/babel" src="mood-nav.jsx"></script>
+<script type="text/babel" src="mood-sit.jsx"></script>
+<script type="text/babel" src="mood-floor58.jsx"></script>
+<script type="text/babel" src="mood-carry.jsx"></script>
+<script type="text/babel" src="mood-guest.jsx"></script>
 
 <script type="text/babel">
 [
-  ['r1', HomeAloneM], ['r2', HomeGameM], ['r3', HomeAllAwayM],
-  ['r4', HomeRecapWaitM], ['r5', HomeReturnM],
-  ['r6', HomeVerbsStripM], ['r7', HomeExitStripM], ['r8', HomeReturnStripM],
-  ['w1', HomeWantM], ['w2', HomeSleepM], ['w3', HomeThreadOpenM], ['w4', HomeTapeM],
-  ['x1', WalkOutStripM], ['x2', WalkHomeStripM], ['x3', WalkGameStripM], ['x4', WalkSulkStripM],
-  ['w5', ReadBookSheet], ['w6', BodyBarsRefM], ['w7', HomeMoneySheet], ['w8', HomeProfileHeadM],
-  ['s1', SafeOpenM], ['s2', FridgeOpenM], ['s3', FridgeWalkStripM], ['s4', BeerSeatM], ['s5', FridgeEmptyM],
-  ['s6', NightlyCollapsedM], ['s7', () => <ChairsM taken={1}/>], ['s8', () => <ChairsM taken={2}/>],
-  ['p0', RoomPlanM], ['p1', TableSheetM], ['p2', BirthWalkInStripM],
-  ['p3', TwoTalkersM], ['p4', OwnerSitDownM], ['p5', OwnerPulledBackM], ['p6', OwnerPushedInM], ['p7', OwnerBetM],
-  ['n1', NavHomeM], ['n2', NavRosterM], ['n3', NavCasinoM], ['n4', IdentitySheetM], ['n5', FourApartM],
-  ['n6', BarsRefM], ['n7', NavEmptyM], ['n8', NavRetiredM], ['n9', NavDraftM], ['n10', NavSendM],
+  ['f01', NavEmptyM],       ['f02', Draft1M],      ['f02b', FormingStripM],
+  ['f03', Draft4M],         ['f03b', Draft5M],     ['f04', BirthWalkInStripM], ['f05', HomeAloneM],
+  ['f06', WalkOutStripM],   ['f07', NavCasinoM],   ['f07b', NavCasinoIdleM], ['f08', V5CalmScreenM], ['f08b', V5CeremonyWonScreenM],
+  ['f09', WalkHomeStripM],  ['f10', FourApartM],   ['f11', HomeWantM],
+  ['f12', SafeSheetM],      ['f12b', SafeLedgerM], ['f13', FridgeOpenM],  ['f14', SitDownM],
+  ['f15', SitBetM],         ['f16', NavRetiredM],  ['f17', FloorScreenM], ['f18', FloorZoomM],
+  ['c1', CarryLiftM], ['c2', CarryDragM], ['c2b', CarryDoorM], ['c3', CarryDropM], ['c4', CarryRefuseM], ['c5', CarryStatesM],
+  ['g1', GuestDraftM], ['g2', GuestBornM], ['g3', GuestWatchM], ['g4', GuestClaimM],
+  ['s1', ShareStoryM], ['s2', ShareOgM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
-  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+  if (el && Comp) ReactDOM.createRoot(el).render(<Comp/>);
 });
 </script>
-<script>
-(function () {
-  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
-  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
-  function relayout() {
-    var all = frames();
-    if (!all.length) return false;
-    var fs = all.filter(function (f) {
-      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
-      return (parseInt(f.style.left, 10) || 0) >= 500;
-    });
-    if (!fs.length) return false;
-    var rows = fs.map(function (f) { return +f.dataset.row; })
-      .filter(function (v, i, a) { return a.indexOf(v) === i; })
-      .sort(function (a, b) { return a - b; });
-    var plan = [], y = FIRST;
-    for (var r = 0; r < rows.length; r++) {
-      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
-      var max = MIN_CONTENT;
-      inRow.forEach(function (f) {
-        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
-        f.dataset.h = String(best);
-        max = Math.max(max, best);
-      });
-      plan.push({ frames: inRow, top: y });
-      y += Math.ceil(max) + GUTTER;
-    }
-    plan.forEach(function (p) { p.frames.forEach(function (f) { f.style.top = p.top + 'px'; }); });
-    return true;
-  }
-  var pending = null;
-  function schedule(delay) {
-    if (pending) clearTimeout(pending);
-    pending = setTimeout(function () { pending = null; if (!relayout() && tries++ < MAX_TRIES) schedule(250); }, delay || 0);
-  }
-  function stale() {
-    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
-    for (var i = 0; i < fs.length; i++) { if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true; }
-    return false;
-  }
-  function boot() {
-    schedule(0);
-    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
-    setInterval(function () { if (stale()) schedule(0); }, 2000);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
-    if (window.ResizeObserver) { var ro = new ResizeObserver(function () { schedule(60); }); frames().forEach(function (f) { ro.observe(f); }); }
-    if (window.MutationObserver) { new MutationObserver(function () { schedule(60); }).observe(document.body, { childList: true, subtree: true }); }
-  }
-  if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);
-  window.__relayout = relayout;
-})();
-</script>
-
 </body>
 </html>

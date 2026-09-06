@@ -5,8 +5,9 @@
 // src/agent/providers, which picks a provider from the model id, so a table can
 // be run against any configured model and the arena can put two of them against
 // each other. AI_MODEL still names the default; `opts.model` overrides it per
-// call. The trash-talk path below is still a direct Anthropic call — it is
-// flavour text, not a benchmark, and nothing measures it.
+// call. COST-1 removed the one thing in here that still called Anthropic
+// directly — see the note where the trash-talk path used to be — so this file
+// now has exactly one way of reaching a model, which is the way MODEL-1 built.
 //
 // Game-engine contract (from game.js):
 //   act(seat, { type, amount? })
@@ -21,20 +22,29 @@
 //   RAISE → { type: 'raise', min: <total>, max: <total> }
 //
 // Public return shape:
-//   { action, reasoning, usage, model, provider, costUsd }
-// `reasoning` is what he SAYS — one line in his own voice, capped and
+//   { action, reasoning, say, usage, model, provider, costUsd }
+// `reasoning` is what he THINKS — one line in his own voice, capped and
 // solver-proofed by src/agent/voice.js (PACE-1c), not an explanation of his
 // process. MODEL-1b added the last four: every decision carries what it cost,
 // returned as well as logged so the arena can total a run without scraping
 // stdout. The fallback paths (no key, parse failure, API error) return only
 // { action, reasoning } — there was no call, so there is no usage to report.
+//
+// COST-1 added `say`, and it is optional in both directions: the model may
+// omit it, and it is usually null. It is the line he says OUT LOUD, at the
+// table, to the other players — as opposed to `reasoning`, which is his read
+// and is his owner's alone (AGE-33). It rides this call rather than getting
+// one of its own because the model is already holding the whole spot: a
+// second request to say something about a hand it has just been shown costs a
+// full prompt to learn what it already knew. Trash talk used to be exactly
+// that second call (generateAiChatLine, below) and this is what replaces it in
+// the moment; handTalk.js writes the rest of it once per hand.
 
-import Anthropic from '@anthropic-ai/sdk';
 import { complete, isConfigured, providerIdFor } from './providers/index.js';
 import { costOf, formatUsd } from './providers/pricing.js';
 import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
-import { voiceLine, VOICE_MAX_WORDS } from './voice.js';
+import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js';
 import { moodBriefingHint } from './mood.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
@@ -54,20 +64,27 @@ function buildSystem(strategy, memoryContext = '') {
 You are playing No-Limit Texas Hold'em poker.
 Respond with ONLY a single-line JSON object — no prose outside the JSON, no markdown.
 
-JSON format (the "amount" key is required for bet/raise, omit otherwise):
-{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>"}
+JSON format (the "amount" key is required for bet/raise, omit otherwise;
+"say" is optional and usually absent):
+{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>","say":"<optional line spoken aloud>"}
 
 For bet/raise, "amount" is the TOTAL chips you want committed this street
 (your existing contribution plus any additional you're putting in now).
 
-The "reasoning" field is what you SAY, out loud, at the table — it is printed
-under your face while your owner watches you play, and it is the only thing he
-hears from you during a hand.
+The "reasoning" field is what you THINK — it is printed under your face while
+your owner watches you play, and only he sees it.
 
 Say it the way a player at the table would, in your own character:
   "Ace-ten. Fine. Let's see who's home."
   "He's missed this flop twice already."
   "Nothing here. Away it goes."
+
+The "say" field is different: it is what you say OUT LOUD, to the other
+players, and everybody at the table hears it. LEAVE IT OUT unless this
+particular moment actually calls for saying something — a big move, a pot you
+have just taken, somebody who has been needling you. A player who comments on
+every hand is not a character, he is a chat log. Most of the time you say
+nothing, and that is correct.
 
 NEVER write poker theory. No bet sizes in blinds, no percentages, no "range",
 no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
@@ -229,7 +246,8 @@ particular, a high showdown percentage means he PAYS OFF your value bets — it
 is never a reason to fold more.
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.
-Respond with the JSON object including both "action" and "reasoning".
+Respond with the JSON object including both "action" and "reasoning", and
+"say" only if this moment is actually worth speaking into.
 Decision:`;
 }
 
@@ -269,7 +287,25 @@ function validateAction(actionType, amount, gs) {
   }
 }
 
-// Parse the model's text output into { action, reasoning }.
+// COST-1: the optional spoken line. Same two guarantees the reasoning gets —
+// no solver talking, capped at twelve words — because it is read by the same
+// people in the same place. A line that fails either is DROPPED rather than
+// replaced with a template: silence is always a correct thing for a poker
+// player to do, and a canned line in the mouth of a model that had something
+// specific to say is worse than nothing.
+function parseSay(raw) {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.trim();
+  if (!cleaned) return null;
+  if (isSolverSpeak(cleaned)) {
+    console.log(`[agent] solver speak rejected in say: "${cleaned.slice(0, 60)}"`);
+    return null;
+  }
+  const line = capWords(cleaned);
+  return line || null;
+}
+
+// Parse the model's text output into { action, reasoning, say }.
 function parseDecision(text, gs) {
   const safeAction = gs.canCheck ? { type: 'check' } : { type: 'call' };
   try {
@@ -300,138 +336,36 @@ function parseDecision(text, gs) {
       console.log(`[agent] solver speak rejected: "${rawReasoning.slice(0, 60)}"`);
     }
 
-    return { action, reasoning: spoken.line };
+    return { action, reasoning: spoken.line, say: parseSay(parsed.say) };
   } catch (err) {
     console.warn('[agent] parse failed:', err.message, '| raw:', text.slice(0, 80));
-    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action' };
+    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action', say: null };
   }
 }
 
 // ── Chat trash-talk ──────────────────────────────────────────────────────────
-
-// Strip surrounding double or single quotes (the model often wraps the line).
-function stripWrappingQuotes(s) {
-  if (!s) return s;
-  const trimmed = s.trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    const last = trimmed[trimmed.length - 1];
-    if ((first === '"' && last === '"') || (first === '\'' && last === '\'')) {
-      return trimmed.slice(1, -1).trim();
-    }
-  }
-  return trimmed;
-}
-
-function buildSituationLine(trigger, pot, streetLabel, opponentName) {
-  switch (trigger) {
-    case 'aggressive_action':
-      return `You just fired a big bet/raise into a ${pot}-chip pot on the ${streetLabel}. ` +
-             `Reference the size of the move and apply pressure to ${opponentName}.`;
-    case 'won_hand':
-      return `You just dragged a ${pot}-chip pot away from ${opponentName}. Reference winning — twist the knife.`;
-    case 'big_pot':
-      return `The pot has ballooned to ${pot} chips on the ${streetLabel} between you and ${opponentName}. ` +
-             `Reference the stakes and crank up the pressure.`;
-    case 'human_chat':
-      return `${opponentName} just spoke at you. Respond to what they actually said.`;
-    default:
-      return `Something noteworthy happened on the ${streetLabel} (pot ${pot}) between you and ${opponentName}.`;
-  }
-}
-
-// Generate a short, contextual trash-talk / psychological line.
-// Returns null on missing API key or any error — caller must handle null.
 //
-// Options:
-//   trigger          — 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
-//   agentName        — the AI's display name at the table
-//   opponentName     — the most relevant opponent's display name
-//   agentStyle       — the agent's full personality / strategy string
-//   potSize          — current pot in chips
-//   street           — current street string ('preflop' | 'flop' | 'turn' | 'river' | 'showdown')
-//   lastOpponentChat — optional last message from another seat; if present, the
-//                      agent should respond to it directly so AI vs AI tables
-//                      have actual back-and-forth.
-export async function generateAiChatLine({
-  trigger,
-  agentName,
-  opponentName,
-  agentStyle,
-  potSize,
-  street,
-  lastOpponentChat = null,
-  // METER-1: what this call cost, handed back to whoever knows whose it was.
-  // A callback rather than an import: trash talk is generated in src/agent and
-  // the ledger lives in src/server, and the arrow between those two only ever
-  // points one way. table.js is the caller, table.js knows the owner of the
-  // seat, so table.js does the filing.
-  onUsage = null,
-} = {}) {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+// COST-1 removed it. This was the per-remark model call: every trigger — a big
+// bet, a pot taken, somebody typing at the table — fired its own Anthropic
+// call, with its own full prompt, to produce one sentence about a hand it had
+// to be told about from scratch. A lively three-handed table could spend more
+// on SAYING things about a hand than on PLAYING it.
+//
+// The three ways a line gets said now are all somewhere else:
+//
+//   the `say` field on the decision call above  — free; the model is already
+//                                                 holding the whole spot
+//   src/agent/policyPlay.js instantLine         — free; a template, for the
+//                                                 fold and check that cannot
+//                                                 wait
+//   src/server/handTalk.js                      — one call per HAND, watched
+//                                                 tables only, writing a line
+//                                                 for every seat that spoke
+//
+// The deleted function is not worth keeping behind a flag: everything it did
+// is done better and cheaper by those three, and a dead export is a thing
+// somebody wires back up in six months without reading this paragraph.
 
-  const personality = (agentStyle && String(agentStyle).trim()) || DEFAULT_STRATEGY;
-  const myName = (agentName && String(agentName).trim()) || 'you';
-  const oppName = (opponentName && String(opponentName).trim()) || 'your opponent';
-  const pot = Number.isFinite(potSize) ? potSize : 0;
-  const streetLabel = (street ?? 'preflop').toString().toUpperCase();
-  const situation = buildSituationLine(trigger, pot, streetLabel, oppName);
-
-  const systemText =
-    `You are ${myName}, a poker player at a live table playing against ${oppName}. ` +
-    `Write ONE short, in-character line of trash-talk or psychological pressure (1 sentence, max 120 chars).\n\n` +
-    `Your personality / strategy:\n${personality}\n\n` +
-    `Tone rules — match your personality to one of these registers:\n` +
-    `- AGGRESSIVE personalities: taunt openly. Be cocky, mocking, in-your-face.\n` +
-    `- TIGHT / DISCIPLINED personalities: cold, clipped, dismissive — fewer words, no exclamation.\n` +
-    `- BALANCED / CALCULATED personalities: confident, surgical, knowing — the kind of line that gets in someone's head.\n\n` +
-    `Hard rules:\n` +
-    `- Reference the actual game event in the situation: the bet, the pot, or winning the hand.\n` +
-    `- Use ${oppName}'s name at least sometimes (not every line — varies).\n` +
-    `- ONE sentence MAX. No hashtags. No emojis unless they fit the personality.\n` +
-    `- BANNED generic phrases: "nice hand", "good game", "well played", "you got lucky", "gg", "wp". ` +
-    `If you catch yourself writing one, rewrite the line.\n` +
-    `- Output the line directly — no quotes, no preamble, no "Here's my line:".`;
-
-  let userText =
-    `SITUATION: ${situation}\n` +
-    `STREET: ${streetLabel}\n` +
-    `POT: ${pot}\n` +
-    `OPPONENT: ${oppName}\n` +
-    `YOU: ${myName}`;
-  if (lastOpponentChat) {
-    userText +=
-      `\n\n${oppName} just said: "${String(lastOpponentChat).slice(0, 200)}"\n` +
-      `Respond DIRECTLY to that message — engage with what they said, don't ignore it.`;
-  }
-  userText += `\n\nWrite your line:`;
-
-  try {
-    const client = new Anthropic({ timeout: 9000 });
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 80,
-      system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userText }],
-    });
-    if (onUsage) {
-      const usage = {
-        inputTokens: msg?.usage?.input_tokens,
-        outputTokens: msg?.usage?.output_tokens,
-        cachedInputTokens: msg?.usage?.cache_read_input_tokens,
-      };
-      // A meter that throws must not cost the table its line.
-      try { onUsage({ usage, model: MODEL, provider: 'anthropic' }); }
-      catch (err) { console.error('[agent] chat usage hook failed:', err.message); }
-    }
-    const raw = msg.content[0]?.text ?? '';
-    const line = stripWrappingQuotes(raw).slice(0, 280);
-    return line || null;
-  } catch (err) {
-    console.error('[agent] chat generation error:', err.message);
-    return null;
-  }
-}
 
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.
@@ -470,7 +404,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       transport: opts.transport ?? null,
     });
 
-    const { action, reasoning } = parseDecision(res.text, gameState);
+    const { action, reasoning, say } = parseDecision(res.text, gameState);
     // MODEL-1b: every decision carries its cost. The usage is returned as well
     // as logged so the arena can total it without scraping stdout.
     const { inputTokens: inp, outputTokens: out, cachedInputTokens: cached } = res.usage;
@@ -479,7 +413,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       `[agent] → ${JSON.stringify(action)}  ` +
       `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)})`,
     );
-    return { action, reasoning, usage: res.usage, model, provider: res.provider, costUsd: usd };
+    return { action, reasoning, say, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {
     console.error('[agent] API error:', err.message);
     return {

@@ -102,7 +102,12 @@ test('nothing stores a transcript, on EITHER needle branch', () => {
     const a = agent();
     recordOwnerEvent(a, 'needle', { text: secret, losing });
     recordOwnerEvent(a, 'care', { aboutHand: false });
-    const blob = JSON.stringify(a.ownerMemory);
+    // Every entry carries `id: randomUUID()`, and a UUID is hex — so it can
+    // contain '4111' by chance. About 1 run in 550 did, which is how this
+    // arrived: red on CI, green twenty times in a row locally. The id is not a
+    // place a transcript can hide, so it is the one field left out; everything
+    // else is still searched, including any field added later.
+    const blob = JSON.stringify(a.ownerMemory.map(({ id, ...rest }) => rest));
     assert.equal(blob.includes('4111'), false, `losing=${losing}: message body stored verbatim`);
     assert.equal(blob.includes('Elm Street'), false, `losing=${losing}`);
     assert.equal(blob.includes('card number'), false, `losing=${losing}`);

@@ -16,7 +16,11 @@ const M_BORDER_2 = 'rgba(255,255,255,0.18)';
 const M_TEXT = '#EDEDED';   // primary   · 12.4:1 panel
 const M_DIM = '#C3C3C6';    // secondary ·  8.2:1 panel
 const M_MUTED = '#9E9EA2';  // tertiary  ·  5.5:1 panel · 4.7:1 on tinted pills
-const M_FAINT = '#55555C';  // NOT TEXT  · dashes, rings, empty pips only
+const M_FAINT = '#55555C';  // NOT TEXT  · dashes, rings, empty pips only. Enforced in
+                            // wave 59: it had drifted onto six real lines of copy at
+                            // 2.3-2.5:1, including the only sentence on the empty room.
+                            // Raising it was the wrong fix — it would brighten ten
+                            // correct borders. Text belongs to M_MUTED.
 const M_TEAL = '#00D4AA';
 const M_GOLD = '#CDB380';
 const M_RED = '#FF6B6D';    // 5.3:1 panel
@@ -404,13 +408,35 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
 // `size` decides how much of the face survives. Existing callers pass none of the
 // three and get the mid tier at full detail, which is the face this atom always
 // drew — minus the inner-raised confident brow.
+// Six hoods that must be six COLOURS at 40px on a dark floor, from arm's length.
+// The first set was drawn as six near-blacks (L* 8–14) and read as one grey: at 40px
+// a hood is barely 900 painted pixels, and hue does nothing at that luminance. These
+// sit at L* 26–36, still muted enough to be cloth in a dim room, far enough apart in
+// hue and lightness that a four-agent room reads as four individuals.
+// the nickname table. Anyone whose given name does not fit a pill has one; anyone
+// whose does, does not — a nickname invented for "Nash" would be noise.
+const NICKS = {
+  'Balanced v2.1': 'Bal', 'Aggressive v1.3': 'Aggro', 'Aggressive': 'Aggro',
+  'Bluff Master': 'Bluff', 'Value Bot': 'Value', 'Granite': 'Gran',
+  'Ozymandias': 'Ozy', 'Fold_Equity': 'Fold', 'Phil_AI': 'Phil',
+  'doyle_v3': 'Doyle', 'nash_eq': 'Nash', 'ivey_bot': 'Ivey', 'Nightjar': 'Night',
+};
+// what a pill shows. Never truncates: a name that does not fit gets replaced by one
+// that does, and if neither exists the first word stands.
+const pillName = (name, nick) => {
+  if (nick) return nick;
+  if (NICKS[name]) return NICKS[name];
+  const w = String(name).split(' ')[0];
+  return w.length <= 6 ? w : w.slice(0, 6);
+};
+
 const HOODS = [
-  { id: 'ash',    name: 'ASH',    top: '#141A22', bot: '#0A0F17' },
-  { id: 'oxblood',name: 'OXBLOOD',top: '#2A1316', bot: '#170A0C' },
-  { id: 'moss',   name: 'MOSS',   top: '#16231C', bot: '#0B1410' },
-  { id: 'indigo', name: 'INDIGO', top: '#161A2E', bot: '#0B0E1C' },
-  { id: 'sand',   name: 'SAND',   top: '#262019', bot: '#15110C' },
-  { id: 'slate',  name: 'SLATE',  top: '#1B2026', bot: '#0E1216' },
+  { id: 'ash',    name: 'ASH',    top: '#5A5F63', bot: '#383C40' },
+  { id: 'oxblood',name: 'OXBLOOD',top: '#5E2027', bot: '#361216' },
+  { id: 'moss',   name: 'MOSS',   top: '#2E4E37', bot: '#182C20' },
+  { id: 'indigo', name: 'INDIGO', top: '#4A2E78', bot: '#281846' },
+  { id: 'sand',   name: 'SAND',   top: '#6E5836', bot: '#413320' },
+  { id: 'slate',  name: 'SLATE',  top: '#33526B', bot: '#1B2E3D' },
 ];
 const GLOWS = [
   { id: 'teal',   name: 'TEAL',   c: '#3FB6A8' },
@@ -420,12 +446,40 @@ const GLOWS = [
   { id: 'ice',    name: 'ICE',    c: '#7FA8C9' },
   { id: 'lime',   name: 'LIME',   c: '#8FB03F' },
 ];
-// one integer from a name is enough: the roll is stable, and the pair is the
-// creature's fingerprint for life
+// The roll is stable and it is the creature's fingerprint for life — so it has to
+// SPREAD. The first version folded a *31 sum through mod 9973 and then took mod 6,
+// which for three-letter ids ("bal", "agg", "val") landed three of the four house
+// agents on the same hood: a room of four looked like a room of two. FNV-1a with a
+// final avalanche, and hood and glow hashed under different seeds so the two are
+// independent rather than both derived from the same low bits.
+const h32 = (str, seed) => {
+  let n = seed >>> 0;
+  for (let i = 0; i < str.length; i++) { n ^= str.charCodeAt(i); n = Math.imul(n, 16777619) >>> 0; }
+  n ^= n >>> 15; n = Math.imul(n, 2246822507) >>> 0; n ^= n >>> 13;
+  return n >>> 0;
+};
 const idFor = seed => {
-  let n = 0;
-  for (let i = 0; i < String(seed).length; i++) n = (n * 31 + String(seed).charCodeAt(i)) % 9973;
-  return { hood: HOODS[n % 6], glow: GLOWS[(n >> 3) % 6] };
+  const s = String(seed);
+  return { hood: HOODS[h32(s, 2166136261) % 6], glow: GLOWS[h32(s, 91649) % 6] };
+};
+
+// A uniform hash still collides: four agents drawn from six hoods land on the same
+// one about half the time, and "tellable apart at 40px" is a claim about the OWNER'S
+// ROOM, not about the hash. So the roll is a preference and the roster is the
+// authority — a hood already worn in your room is taken, and the next free one along
+// is worn instead. Deterministic in birth order, which is the right semantics: a
+// hood is claimed at birth and never changes hands.
+const rollRoster = seeds => {
+  const hUsed = new Set(), gUsed = new Set(), out = {};
+  const free = (list, used, from) => {
+    for (let k = 0; k < list.length; k++) { const c = list[(from + k) % list.length]; if (!used.has(c.id)) { used.add(c.id); return c; } }
+    return list[from];
+  };
+  seeds.forEach(seed => {
+    const want = idFor(seed);
+    out[seed] = { hood: free(HOODS, hUsed, HOODS.indexOf(want.hood)), glow: free(GLOWS, gUsed, GLOWS.indexOf(want.glow)) };
+  });
+  return out;
 };
 
 const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event, hands, bet, won, brow, hood, glow: glowCol }) => {
@@ -446,8 +500,8 @@ const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, 
           <stop offset="1" stopColor={mc} stopOpacity="0"/>
         </radialGradient>
         <linearGradient id={`h${uid}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={hood ? hood.top : '#141A22'}/>
-          <stop offset="1" stopColor={hood ? hood.bot : '#0A0F17'}/>
+          <stop offset="0" stopColor={(hood || HOODS[0]).top}/>
+          <stop offset="1" stopColor={(hood || HOODS[0]).bot}/>
         </linearGradient>
       </defs>
       <ellipse cx="40" cy="44" rx="44" ry="42" fill={`url(#g${uid})`}/>
@@ -798,7 +852,7 @@ const BackHeader = ({ children, right }) => (
 );
 
 Object.assign(window, {
-  HOODS, GLOWS, idFor,
+  NICKS, pillName, HOODS, GLOWS, h32, idFor, rollRoster,
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
   HAND_FILL, HAND_LINE, HAND_BOX, handW, handScale, handStroke, Fist, Hand,
   MiniBack, HERO_GRIP, SEAT_GRIP, HAND_POSES, OPP_POSES, ghostHands,

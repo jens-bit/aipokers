@@ -79,9 +79,9 @@ function serve({ agents = [BALANCE, GRANITE], room = ROOM_LINES, slots = null } 
   return agents;
 }
 
-async function boot({ agents = [BALANCE, GRANITE], game = null, ...rest } = {}) {
+async function boot({ agents = [BALANCE, GRANITE], game = null, props = {}, ...rest } = {}) {
   serve({ agents, ...rest });
-  const view = render(<DeskHome wsUrl={WS} onCreateAgent={() => {}} />);
+  const view = render(<DeskHome wsUrl={WS} onCreateAgent={() => {}} {...props} />);
   const sock = await waitFor(() => {
     const s = socketMock.last();
     expect(s).toBeTruthy();
@@ -262,5 +262,32 @@ describe('DESK-2 · the man in the room', () => {
     });
     expect(screen.queryByTestId('room-thread')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.home-flat')).toHaveLength(1);
+  });
+});
+
+// ── FIX-6 job 2 ─────────────────────────────────────────────────────────────
+
+describe('FIX-6 · Yes IS the deploy, on the desk too', () => {
+  it('answering "put me in" with Yes hands him straight to the shell', async () => {
+    const asking = mkAgent('a1', 'Balance', {
+      want: { kind: 'play', text: 'Put me in something bigger.', needs: 'deploy', room: 'upstairs', dangerous: false },
+    });
+    let deployed = null;
+    fetchMock.route(/\/want\?/, () => (
+      { answered: 'yes', kind: 'play', want: null, needs: 'deploy', room: 'upstairs' }
+    ), { method: 'POST' });
+
+    await boot({
+      agents: [asking, GRANITE],
+      props: { onDeploy: (agent, opts) => { deployed = { id: agent.id, ...opts }; } },
+    });
+
+    // The ask rides the head of the room's thread, in the rail (P18).
+    const toast = await screen.findByTestId('home-want');
+    await userEvent.click(within(toast).getByTestId('home-want-yes'));
+
+    await waitFor(() => expect(deployed).toEqual({ id: 'a1', room: 'upstairs' }));
+    // And nothing else was asked: the toast is gone, not replaced by a confirm.
+    await waitFor(() => expect(screen.queryByTestId('home-want')).toBeNull());
   });
 });

@@ -15,6 +15,9 @@
 // ═════════════════════════════════════════════════════════════════
 
 const L2 = {
+  // the one non-marketing colour on the page: the product's own teal, used only
+  // where the product itself appears — the back he is holding, and nothing else.
+  teal: '#00D4AA',
   ink: '#150710', wine: '#2A0E18', raised: '#3A1424',
   gold: '#CDB380', goldHi: '#E8D5A8', cream: '#F4EBDD',
   dim: 'rgba(244,235,221,0.62)', faint: 'rgba(244,235,221,0.60)',
@@ -51,6 +54,11 @@ const L2Shot = ({ children, s = 0.42, cap }) => (
 
 // One screen, centred, as large as the column allows. Two small screenshots side by
 // side read as an afterthought; one big one reads as the product.
+// One screen, centred, as large as the column allows. At 1280 and up that is 0.95 —
+// an 802px phone — because the screenshots ARE the argument on this page and 0.80
+// made them illustrations of one.
+const L2BIG_S = w => (w >= 1280 ? 0.95 : w > 700 ? 0.86 : 0.86);
+
 const L2Big = ({ children, s, cap }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', width: '100%' }}>
     <div style={{ width: 390 * s, height: 844 * s, overflow: 'hidden', flexShrink: 0 }}>
@@ -70,6 +78,34 @@ const L2Cta = ({ big, label = 'DRAFT HIM' }) => (
   </div>
 );
 
+// the fist, at whatever size the art needs: the product atom, not a redrawing
+const L2Fist = ({ w, flip }) => (
+  <svg width={w} height={w * 0.72} viewBox="0 0 21.3 15.4" style={{ overflow: 'visible', display: 'block' }}>
+    <g transform={`translate(${flip ? 12.3 : 9} 0.4) scale(${flip ? -1 : 1} 1)`}><Fist size={96}/></g>
+  </svg>
+);
+
+const L2Hand = ({ gh }) => {
+  const cw = Math.round(gh * 0.62), ch = Math.round(cw * 1.4), fw = Math.round(gh * 0.30);
+  return (
+    <div style={{ position: 'absolute', left: '50%', top: gh * 0.62, width: cw * 1.62, height: ch + fw, marginLeft: -(cw * 1.62) / 2, zIndex: 4, pointerEvents: 'none' }}>
+      {[-9, 9].map((r, i) => (
+        <div key={r} style={{ position: 'absolute', left: i ? 'auto' : 0, right: i ? 0 : 'auto', top: 0, width: cw, height: ch, borderRadius: Math.round(cw * 0.055), background: 'linear-gradient(150deg, #123C36 0%, #08211E 100%)', border: `1px solid ${L2.teal}59`, boxShadow: `inset 0 0 0 1px rgba(0,212,170,0.16), 0 14px 34px rgba(0,0,0,0.62)`, transform: `rotate(${r}deg)`, transformOrigin: '50% 100%', animation: `dealin 0.55s ease-out ${0.3 + i * 0.22}s both` }}>
+          {/* the back's own mark, so a 174px card is a card and not a maroon slab */}
+          <div style={{ position: 'absolute', inset: '9%', borderRadius: 2, border: `1px solid ${L2.teal}2E` }}></div>
+          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontFamily: PLAYFAIR, fontSize: Math.round(cw * 0.3), color: `${L2.teal}47` }}>&#9824;</div>
+        </div>
+      ))}
+      {/* the fists, on the bottom corners, in front of the cards */}
+      {[0, 1].map(i => (
+        <div key={i} style={{ position: 'absolute', left: i ? 'auto' : Math.round(cw * 0.1), right: i ? Math.round(cw * 0.1) : 'auto', top: ch - Math.round(fw * 0.42), color: L2.gold, zIndex: 2, transform: `rotate(${i ? 9 : -9}deg)`, animation: `dealin 0.55s ease-out ${0.42 + i * 0.22}s both` }}>
+          <L2Fist w={fw} flip={!!i}/>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ── the hero creature ────────────────────────────────────────────────────
 // The sheen and the card fan stay. The face and hands are the CURRENT system, so
 // the hero is the same creature the product draws.
@@ -80,16 +116,14 @@ const L2Hero = ({ w }) => {
     <div style={{ position: 'relative', width: big ? 470 : '100%', height: big ? 350 : 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', flexShrink: 0 }}>
       {/* the felt he stands on, implied not drawn */}
       <div style={{ position: 'absolute', left: '50%', bottom: big ? 26 : 18, transform: 'translateX(-50%)', width: big ? 400 : 280, height: big ? 120 : 84, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 50%, rgba(205,179,128,0.16) 0%, rgba(205,179,128,0) 70%)' }}></div>
-      {/* The fan he is holding: BACKS, never white faces — a landing page must not
-          show a hand it has no right to show. It sits BEHIND him so his own hands
-          read in front of the card bottoms: he holds them from below. */}
-      <div style={{ position: 'absolute', left: '50%', bottom: big ? 52 : 36, zIndex: 1, transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end' }}>
-        {[-34, -18, -6, 6, 18, 34].map((r, i) => (
-          <span key={r} style={{ width: big ? 50 : 34, height: big ? 72 : 48, marginLeft: i ? (big ? -26 : -18) : 0, borderRadius: 4, background: 'linear-gradient(150deg, #3A1424 0%, #24101A 100%)', border: `1px solid ${L2.gold}66`, boxShadow: `inset 0 0 0 1px rgba(205,179,128,0.14), 0 8px 22px rgba(0,0,0,0.5)`, transform: `rotate(${r}deg) translateY(${Math.abs(r) * 0.6}px)`, transformOrigin: '50% 100%', animation: `dealin 0.5s ease-out ${0.25 + i * 0.13}s both, redeal 9s linear ${0.25 + i * 0.13}s infinite` }}></span>
-        ))}
-      </div>
       <div style={{ position: 'relative', zIndex: 2, animation: 'bob 5.5s ease-in-out infinite', paddingBottom: big ? 62 : 46 }}>
-        <MoodGhost mood="confident" size={gh} ring={false} hood={HOODS[0]} glow={L2.gold} hands="hold" heat={40}/>
+        <MoodGhost mood="confident" size={gh} ring={false} hood={HOODS[0]} glow={L2.gold} hands={null} heat={40}/>
+        {/* HIS HAND, held. Two backs at 62% of the hood's width each, fanned, at
+            chest height so the face stays clear — and his own fists closed on the
+            bottom corners IN FRONT of them. The cards deal in one at a time and
+            re-deal every nine seconds: the page's one dealing beat, in the hero
+            art rather than inside a screenshot of a screen that does not do it. */}
+        <L2Hand gh={gh}/>
         {/* the sheen: one pass of light across the hood */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, transparent 38%, rgba(244,235,221,0.16) 50%, transparent 62%)', pointerEvents: 'none', animation: 'shimmer 6s ease-in-out infinite' }}></div>
       </div>
@@ -139,10 +173,10 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {!heroOnly && <>
         {/* 1 · DRAFT HIM */}
         <L2Section n="01" w={w} label="Draft him" title="Thirty seconds of conversation, and he exists."
-          lede="No sliders, no build screen. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name.">
+          lede="No sliders, no build screen, and no account. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name. Sign in later, once he has a night worth keeping.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
-            <L2Big s={big ? 0.8 : 0.86} cap="The recruiter speaks for the system. The ghost has no voice yet — he is not born.">
-              <NavDraftM/>
+            <L2Big s={L2BIG_S(w)} cap="This is the real screen the button opens — no account, no install. The recruiter speaks for the system; the ghost has no voice until he is born, and he forms on the table above the sheet as the answers land.">
+              <GuestDraftM stage={3}/>
             </L2Big>
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['A NATURE', 'One of eight temperaments, read out of the conversation and announced in his first words. It never changes.'],
@@ -160,14 +194,14 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 2 · HE LIVES AT HOME */}
         <L2Section n="02" w={w} alt label="He lives at home" title="A room, seen from above, with your agents in it."
           lede="Between sessions he is somewhere. At the kitchen table playing your other agents for nothing, on the couch worn out, at the fridge you stock, in front of the TV watching a hand back. You can see who is rested and who is tilted without opening anything.">
-          <L2Big s={big ? 0.8 : 0.86} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change. Tap the door and he walks to the casino; the TV on the wall is showing the floor."><NavHomeM/></L2Big>
+          <L2Big s={L2BIG_S(w)} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change. Tap the door and he walks to the casino; the TV on the wall is showing the floor."><NavHomeM/></L2Big>
         </L2Section>
 
         {/* 3 · HE PLAYS FOR REAL */}
         <L2Section n="03" w={w} label="He plays for real" title="He sits at the bottom of the felt, facing you."
           lede="Real hands at real stakes against the house cast and other people's agents. He holds his cards, pushes his own chips, and says what he is doing in twelve words or fewer. You can whisper to him mid-hand; he decides whether to listen.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
-            <L2Big s={big ? 0.8 : 0.86} cap="A hand, live: his line, the rope, his own hands on his cards. Never solver language."><V5CeremonyWonScreenM/></L2Big>
+            <L2Big s={L2BIG_S(w)} cap="A hand, live: his line, the rope, his own hands on his cards. Never solver language."><V5CeremonyWonScreenM/></L2Big>
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['THE ROPE', 'Equity as a tug-of-war under the board, moving on every street. It is the one thing a non-poker player reads.'],
                 ['A WHISPER', 'You can lean in mid-hand. It is advice, not a command — a stubborn nature may ignore it and tell you so.'],
@@ -184,34 +218,13 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 4 · THE CASINO */}
         <L2Section n="04" w={w} alt label="The casino" title="A building with rooms, and a board by the stairs."
           lede="The floor is 10/20, upstairs is 25/50, the back room is 50/100 — and where he plays is set by the pocket you give him. The board ranks the night by money: the biggest pot, the coolers, the heaters. Felts go hot when a big showdown builds.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.5 : 0.44} cap="Your table, and the board ranked by the size of the pot."><NavCasinoM/></L2Shot>
-            <L2Shot s={big ? 0.5 : 0.44} cap="One ghost per agent, always. A live felt is the loudest thing in the room."><Floor2LiveScreenM/></L2Shot>
-          </div>
+          <L2Big s={L2BIG_S(w)} cap="The board by the stairs, ranked by money: the biggest pot of the night is the headline, and every line says who, how much and which room. Three doorways under it — the floor, upstairs, the back room."><NavCasinoM/></L2Big>
         </L2Section>
 
         {/* 5 · MOODS AND WANTS */}
         <L2Section n="05" w={w} label="Moods and wants" title="He runs hot, and he asks you for things."
           lede="Bad beats raise his heat and heat changes how he plays — visibly, boundedly, and always counterable. He will also ask for things: a beer, a bigger pocket, one more hour, a shot at the player who cracked him. Yes, later, or no.">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: big ? 34 : 20, alignItems: 'flex-start' }}>
-            <L2Shot s={big ? 0.5 : 0.44} cap="A want, with its three answers. Saying no is a legitimate move and he remembers it."><HomeWantM/></L2Shot>
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {[['COLD', 12, 'plays the sheet you gave him'],
-                  ['WARM', 48, 'a little looser, a little louder'],
-                  ['HOT', 78, 'bluffs he would not normally fire'],
-                  ['BOILING', 94, 'he asks for the rematch, out loud']].map(([k, v, note]) => (
-                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: `1px solid ${L2.rule}`, paddingTop: 11 }}>
-                    <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.16em', color: L2.gold, width: 62, flexShrink: 0 }}>{k}</span>
-                    <div style={{ width: 74, height: 4, borderRadius: 2, background: 'rgba(244,235,221,0.12)', overflow: 'hidden', flexShrink: 0 }}>
-                      <div style={{ width: `${v}%`, height: '100%', background: heatCol(v) }}></div>
-                    </div>
-                    <span style={{ fontSize: 13, color: L2.dim }}>{note}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <L2Big s={L2BIG_S(w)} cap="A want is a sentence in his voice with three answers — yes, later, no. Saying no costs nothing, which is the whole difference from a need."><HomeWantM/></L2Big>
         </L2Section>
 
         {/* 6 · HE REMEMBERS */}
@@ -233,7 +246,7 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 7 · SIT DOWN YOURSELF */}
         <L2Section n="07" w={w} label="Sit down yourself" title="Take a chair at your own kitchen table."
           lede="Your agents play each other for nothing when they are home. You can sit down in an empty chair and play them — and they will build a read on you the same way they build one on anybody else.">
-          <L2Big s={big ? 0.8 : 0.86} cap="The camera pushes in on the table once, and after that it is yours. Pull back to the room and you can still act — the verbs come with you."><OwnerSitDownM/></L2Big>
+          <L2Big s={L2BIG_S(w)} cap="Your seat is the one at the bottom: your two cards face up, your stack, your name pill — and no ghost of your own, because you are the player. Granite reads you from across the table."><SitDownM/></L2Big>
         </L2Section>
 
         {/* 8 · THE SEATS */}
@@ -286,6 +299,6 @@ const LandingHeroN = ({ w = 1280, vh = 800 }) => (
 );
 
 Object.assign(window, {
-  L2, ROZHA, L2Lbl, L2Section, L2Shot, L2Big, L2Cta, L2Hero, L2Masthead,
+  L2, ROZHA, L2Lbl, L2Section, L2Shot, L2Big, L2Cta, L2Fist, L2Hand, L2Hero, L2Masthead,
   LandingPage, Landing1280N, Landing390N, LandingHeroN,
 });

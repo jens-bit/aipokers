@@ -1,22 +1,75 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (WATCH-9) — 5 open, 27 resolved
+Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
 
 
 ---
 
 ## OPEN
 
-### BUG-33 — `ServerMsg.PACE` does not exist on the client, so the staged runout is dropped
-**Severity:** Medium (a beat PACE-1 built and shipped, dead on every client)
-**Where:** client/src/lib/protocol.js (ServerMsg), client/src/hooks/useTable.js:108
-**What:** The server sends `{ type: 'pace', … }` on every pace change and, during a spectator-only all-in hold, turns the runout one card at a time on it. The client's ServerMsg mirror has no `PACE` key at all, so `case ServerMsg.PACE:` in useTable is `case undefined:` and `msg.type` — always a string — never matches it. `setPaceFrame` is therefore never called from the socket, and the staged runout falls back to the felt's own FLIP_MS clock; every watcher turns the card whenever their own timer says so rather than when the server does, which is the exact thing PACE-1 exists to stop.
-**Found by:** WATCH-9, adding THREAD_LINE to the same mirror. `client/src/lib/protocol.test.jsx` pins ServerMsg exhaustively with `toEqual` and passes, because the missing key is missing from BOTH sides of the assertion.
-**Why the tests did not catch it:** `client/src/hooks/useTable.test.jsx` emits `{ type: ServerMsg.PACE, … }` — that is `{ type: undefined }`, which matches `case undefined:` and exercises the handler perfectly. The suite proves the handler works against a message the server never sends. Every PACE case in that file has to be re-pinned to the literal `'pace'` as part of the fix, or the same hole is dug again.
-**Fix:** Add `PACE: 'pace'` to the client's ServerMsg (and `READ: 'read'` beside it, which is missing for the same reason — see client/src/lib/reads.js, which names ServerMsg.READ in a comment and cannot reference it). Pin both in protocol.test.jsx. Change useTable.test.jsx to emit the literal wire strings first and watch the PACE tests go red, then add the key.
+### BUG-37 — The felt formats a stack with `toLocaleString`, not the wallet's own formatter
+**Severity:** Low (two spellings of the same number, in the same screen)
+**Where:** `client/src/components/desktop/DeskTableStage.jsx:170` and `:236`, `client/src/components/desktop/GameTile.jsx:59` and `:81`, `client/src/components/floor/atoms.jsx:123`, `client/src/components/PlayerSeat.jsx:90`
+**What:** `client/src/lib/wallet.js` exports `money()` and every money surface goes through it — that is why a pocket and a ledger agree on how a number looks. The felt does not: it calls `(stack ?? 0).toLocaleString()` directly in six places, so a stack is spelled by the browser's locale while the wallet beside it is spelled by ours.
+**Found by:** the WATCH report, on the hero stack.
+**Fix:** route them through `money()`. Check first whether the felt wants the currency mark at all — if it deliberately does not, the answer is an option on `money()` rather than six call sites that opted out of it.
 
 ---
 
+### BUG-36 — `table.seats.test.js` intermittently fails on "blinds moved some chips"
+**Severity:** Medium (BUG-34's family — a fast-suite failure that a re-run makes go away)
+**Where:** `src/server/table.seats.test.js`
+**What:** Fails inside a full `npm run test:all`, passes on its own and on a re-run. Seen once in this session's integration runs; the suite passed 14/14 immediately afterwards, and three consecutive `npm test` runs were clean.
+**Found by:** the WATCH report, and independently by the integrator during the COST-1 merge.
+**Fix:** unknown. `scripts/stress-suites.js` (BUG-34) is the tool — run this suite under it rather than guessing. Note BUG-34 ruled out the obvious shared-resource causes, so a timing assumption inside the test is the likelier answer.
+
 ---
+
+### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three
+**Severity:** Medium (the e2e gate is the one before a merge to main, so a one-in-three flake is a coin toss on every merge)
+**Where:** `scripts/verify-watch-v2.js`
+**What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
+**Found by:** the WATCH report.
+**Also measured by SERVER-5,** which had filed the same flake as a separate BUG-34 before this merge and is folded in here: 1 failure in 3 runs on `feature/server-5`, and **2 failures in 4 runs on `origin/main` (379f453) in a clean worktree** — so it predates any one branch. The assertion is that at least one THREAD_LINE pushed during the watched hands has `kind: 'him'`; a `him` line is only written when a DECISION carries non-empty `reasoning` (table.js `_broadcastDecision`), and with no key the decisions come from the compiled policy, so whether the window contains a spot that produces reasoning is down to the deck.
+**Not to be fixed by loosening the assertion.** The rule it encodes is right and WATCH-9 put it there deliberately: the owner's spectator is entitled to his reasoning, and a push channel that never carries it is broken. Testing law 5 applies — make the WINDOW deterministic instead, playing until a `him` line arrives or a bounded number of hands have gone by, and fail on the bound.
+**Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
+
+---
+
+### BUG-34 — `test:all` dies intermittently on Windows
+**Severity:** Medium (a flaky suite teaches people to re-run instead of to look — the testing law's own words)
+**Where:** the test harness, not the product. `src/server/tapeRoom.test.js`, `scripts/verify-pace.js`, and something not yet found.
+**Reported:** roughly one full `npm run test:all` in five came back red on Windows, two ways: a spawned suite exiting **3221226505** (`STATUS_STACK_BUFFER_OVERRUN` — a native abort, not an assertion), or `scripts/verify-pace.js` failing `every snapshot of a live hand carries it — 1 without`. Reproduced on unmodified main.
+
+**Tooling:** `node scripts/stress-suites.js [rounds] [concurrency]` runs everything `npm test` spawns — every `src/**/*.test.js` and the fast `scripts/verify-*.js` group — through the same `runScript` helper, in a loop, recording every non-zero exit with the child's own output. One run in five is too slow a signal to debug against; this turns it into minutes.
+
+#### Found and fixed: `verify-pace.js` "1 without"
+Not a race in the server. `_heroEquityFor` returns null for a **folded** seat on purpose — a man who folded has no equity in the pot — and the check filtered snapshots only on `street !== 'waiting'`, which includes `complete`. So it asserted a rule the product has never held: the snapshot after the hero folds legitimately carries no number.
+
+Whether it fired was pure timing. With no model behind him the hero check/folds, and his 800ms think delay normally put that fold after the script's 700ms sample window; under the e2e group's `concurrency: 2` the sleep overran and the post-fold snapshot landed inside the sample. Nothing about the server differed between a green run and a red one. Reproduced deterministically with `THINK_MIN_MS=50 THINK_SPREAD_MS=50`, which puts the fold inside the window every time.
+
+Fixed by asserting what the rule actually is — *every snapshot of a hand he is still in* carries equity — plus the complementary half, that a seat which folded reports `null` rather than a stale number, so excluding those snapshots does not quietly stop asserting anything about them. (A second bug fell out: `heroSeat` had to come from `watching.msg.spectatorSeat`; `waitFor` resolves the log entry, not the message.)
+
+#### Found and fixed: `tapeRoom.test.js` — a 60ms window the suite's own round trip outruns
+Found by the stress harness: 1 failure in 590 spawned runs at concurrency 4, then reproduced at 1 in 64 running that suite alone 8-wide.
+
+`HOME_STUDY_MS` was set to **60ms** for the test, and sixty milliseconds is shorter than this suite's own HTTP round trip on a loaded machine. "A second request is refused rather than stacking another ninety seconds" only holds while the first study is still running; on a busy box the window closed between the two POSTs and the second request was **accepted**. The assertion lost a race it was never about.
+
+The damage was the cascade. That test aborts at the failed assertion, leaving a **live** study on the record, and the next two tests then came back `409 He is already watching one` — from assertions about a missing `handId` and about filing a second line, neither of which has anything to do with a study being in progress. Three red tests, one cause, and nothing in the output connecting them, because the route has three different 409s and the status alone does not say which.
+
+Fixed three ways: the window is 2s, which cannot lose to a localhost round trip; a `beforeEach` empties the tape room so no test can inherit another's live study; and every 409 assertion now prints the body, so a refusal can be told from another refusal. The second-line test no longer sleeps the window out at all — it ends the study through `finishStudy`, the documented early-finish path, because what it is about is the line and not the clock. 240 runs 8-wide green after (it failed at 64 before).
+
+#### NOT reproduced: the 3221226505 native abort
+Still open. It did not appear once in:
+- **1,768 spawned suite runs** through `scripts/stress-suites.js` — 588 at concurrency 4, 294 at concurrency 8, 590 + 296 covering the verify group too
+- **14** `npm test` runs, **12** `npm run test:e2e` runs, **12** `npm run test:client` runs
+
+What that rules out, or at least makes unlikely:
+- **Parallel access to one SQLite file.** There is none to have. `runScript` gives every spawned suite its own `mkdtemp` cwd, and `store.js` resolves `data/app.db` from `process.cwd()`, so no two suites can open the same database. The suites that `chdir` isolate themselves a second time on top of that.
+- **`legacy.test.js` `concurrency: 4` against native teardown.** 588 runs at 4 and 294 at 8 produced no native exit at all.
+- **Port collisions between parallel servers.** Every e2e script listens on port 0.
+- **A vitest worker dying** (`test:all` runs the client suite too): 12 clean runs, 105 files each.
+
+Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the child output it prints — the exit code plus the last 40 lines of the suite that died is the thing this entry is missing.
 
 ### BUG-20 — Dead 14px input rule waiting to be reused
 **Severity:** Low (latent — nothing renders it today)
@@ -55,6 +108,24 @@ Last updated: 2026-09-06 (WATCH-9) — 5 open, 27 resolved
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-38 — `verify-home-routes.js` points at a script that does not exist — RESOLVED 2026-09-06 (CI)
+Fixed while chasing the CI red it sat next to. Three scripts said ``run `npm run build` first`` and there is no root `build` script; all three now say `build:client`. The CI failure itself was the other half of the same file: verify-home-routes.js EXITS 1 on a missing dist where verify-cache-headers and verify-deeplink-routes skip, so it was red on CI (which runs `npm test` before any client build) and green on any laptop with a dist lying around. It is now in NEEDS_CLIENT_DIST with the other two.
+
+---
+
+### BUG-33 — The client's ServerMsg had no PACE or READ key, so neither frame was ever handled — RESOLVED 2026-09-06
+**Where:** `client/src/lib/protocol.js`, `client/src/hooks/useTable.js`
+**What:** `client/src/lib/protocol.js` mirrors `src/server/protocol.js` and had been missing two of its entries for as long as it has existed. `ServerMsg.PACE` and `ServerMsg.READ` were both `undefined`, which made `case ServerMsg.PACE:` in useTable a case on `undefined` — a branch nothing arriving from the server could ever reach. The server has staged the all-in runout card by card since PACE-1 and pushed a READ the moment an opponent read forms; no client had ever handled either.
+
+The visible symptom was subtle rather than broken, which is why it survived: `pace`, `potBb` and `reads` all ride the STATE snapshot too, so the felt was never blank. It just ran its OWN clock for the showdown runout (`WatchScreen`'s `flipped` interval, the fallback for "the server is not driving"), so PACE-1's whole point — every watcher turns the same card at the same moment — was never true, and the read panel only ever updated on the next snapshot rather than on the beat the read formed.
+
+**Why the tests were green:** `useTable.test.jsx` emitted `{ type: ServerMsg.PACE }` and useTable matched `case ServerMsg.PACE:`. Both sides were `undefined`, so the six W3-6 tests passed against a message the real server has never been able to deliver — a suite that emits the client's own constant tests the client against itself. `protocol.test.jsx` pinned ServerMsg with `toEqual`, so it asserted the two keys' *absence*.
+
+**Fix:** the suites were re-pinned first and watched go red (6 failures). `useTable.test.jsx` now emits a local `WIRE` table of the literal strings `src/server/protocol.js` sends, never `ServerMsg.<KEY>`, and one test walks that table asserting `ServerMsg[key] === wire` — the guard that would have caught this. `protocol.test.jsx` gained both keys. `PACE: 'pace'` and `READ: 'read'` were added to the client mirror; the PACE handler came alive unchanged, and a READ handler was written to match it (merged onto `game.reads`, which is what `WatchScreen.pickOpponent` reads, and exposed as `reads`; kept across hands, unlike `paceFrame`, because a read is accumulated knowledge and not a per-hand frame; a malformed push is ignored rather than allowed to blank the panel).
+**Test:** 11 tests in `client/src/hooks/useTable.test.jsx` (6 re-pinned, 5 new) plus `protocol.test.jsx`. End to end, `scripts/verify-pace.js` now asserts the literals on the wire itself — "the staged runout is typed `pace` on the wire", "the read arrives as its own push, not only on a snapshot", "it is typed `read` on the wire" — so the mirror and the server cannot drift apart again without a red run.
+
+---
 
 ### BUG-32 — The newborn does not walk into the room — RESOLVED 2026-09-06 (BIRTH-5)
 Fixed the other way round from the one the entry proposed, and deliberately. The suggestion was to pass the newborn id down from App the way FLOOR-2 did (`newbornId={newlyBornAgent?.id}`); what shipped is a marker on HOME_STATE — `newborn`, computed on the SERVER's clock inside a 60s window (src/server/home.js), with `bornAt` alongside it for a client on an older server. A prop from the shell only works in the session that saw the birth, from the surface that saw it; the marker survives a reload, works on the desk as well as the phone, and cannot go out of step with the roster the room is drawn from. `useBirthWalk` in HomeScreen pins him at DOOR_SPOT for one beat as `door:born` — a place of its own, never confused with the `door:away` of an agent out at the casino — and releases him, so the existing `useWalks` crosses him to his chair with no second animation and no special case. `it('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx is un-todo'd and asserts the RULE (the room is told) rather than the mechanism.

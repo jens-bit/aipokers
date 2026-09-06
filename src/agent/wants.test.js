@@ -119,7 +119,7 @@ test('no item grants anything that touches how well he plays', () => {
 import {
   ASKS, ASK_KINDS, ASK_LINES,
   ASK_IDLE_MS, ASK_HOT_HEAT, ASK_JUST_LEFT_MS, ASK_BRAG_MULTIPLE,
-  ASK_SNOOZE_MS, ASK_REASK_MS,
+  ASK_SNOOZE_MS, ASK_REASK_MS, ASK_HUNGRY_HANDS,
   askFor, askLine, askSpec, askPriority, buildAsk,
   isAnswered, isActiveWant, isSnoozed, replaces, askSatisfied,
 } from './wants.js';
@@ -218,7 +218,8 @@ test('WANTS-1 · one want: everything true at once still produces exactly one, t
 test('WANTS-1 · the priority ladder is the spec\'s order, and it is total', () => {
   assert.deepEqual(
     ASK_KINDS.map((k) => [k, askPriority(k)]),
-    [['rest', 1], ['deploy', 2], ['beer', 3], ['back_in', 3], ['fund', 4], ['brag', 5], ['nemesis', 6]],
+    [['rest', 1], ['deploy', 2], ['beer', 3], ['back_in', 3], ['fund', 4], ['brag', 5], ['nemesis', 6],
+     ['food', 7]],
   );
   // Peeling one condition off at a time walks the ladder down in order.
   const all = {
@@ -308,6 +309,7 @@ test('WANTS-1 · every kind has a line, and it is a template — never a model c
   assert.equal(askLine('back_in', { seed: 0 }), "Let me back in there, I'm fine.");
   assert.equal(askLine('fund', { seed: 0 }), 'Front me?');
   assert.equal(askLine('brag', { seed: 0 }), 'You have to hear about this hand.');
+  assert.equal(askLine('food', { seed: 0 }), "Something to eat wouldn't hurt. Long night.");
 });
 
 test('WANTS-1 · the line is deterministic — a reopened screen does not rewrite what he said', () => {
@@ -329,4 +331,96 @@ test('WANTS-1 · the re-ask cooldown is about the NEXT want, not the one on the 
   // not followed thirty seconds later by another beer at heat 74.
   assert.ok(ASK_REASK_MS > ASK_SNOOZE_MS, 'a snooze must come back before the same question may be re-asked');
   assert.equal(ASK_REASK_MS, 60 * 60_000);
+});
+
+// ── SERVER-5 job 5 · the food ask ────────────────────────────────────────────
+//
+// The one ask in the ladder whose `no` has a consequence: it stamps
+// snackRefusedAt, which is the only thing dips.js can measure hunger from. So
+// the tests that matter here are the ones about when it CANNOT be raised.
+
+// A long night, with food in, and it frayed him — but not to the point where
+// what he wants is a drink. Nothing else about him is wrong.
+const LONG_NIGHT = Object.freeze({
+  ...IDLE, sessionHands: ASK_HUNGRY_HANDS, snackInFridge: true, heat: WANT_MIN_HEAT,
+});
+
+test('SERVER-5 · he asks for food after a long one, when there is food in', () => {
+  const ask = askFor(LONG_NIGHT);
+  assert.equal(ask?.kind, 'food');
+  assert.equal(ask.item, 'snack', 'the item is what makes a no start the hunger clock');
+  assert.equal(ask.needs, null, 'the server hands him the snack itself');
+  assert.equal(ask.dangerous, false);
+});
+
+test('SERVER-5 · food is never raised from idleness — the guard is the missing session', () => {
+  // THE CENTRAL ONE. Every route into computeWant except the session-end path
+  // passes no sessionHands, so no amount of sitting at home can produce it.
+  assert.equal(askFor({ ...LONG_NIGHT, sessionHands: null }), null);
+  assert.equal(askFor({ ...IDLE, snackInFridge: true }), null);
+  // Not even after a week on the sofa with a full fridge. He asks to be PUT IN
+  // — the ask that is about work, which is the honest tension the header
+  // already owns — and never about having been left without dinner.
+  assert.equal(askFor({
+    ...IDLE, snackInFridge: true, idleMs: ASK_IDLE_MS * 500, sinceLeftMs: 7 * 24 * 60 * 60_000,
+  })?.kind, 'deploy');
+  // And a session with no hands in it is not a long night either — 0 is a
+  // number, which is exactly why the default had to be null rather than 0.
+  assert.equal(askFor({ ...LONG_NIGHT, sessionHands: 0 }), null);
+});
+
+test('SERVER-5 · a short session is not a long night', () => {
+  assert.equal(askFor({ ...LONG_NIGHT, sessionHands: ASK_HUNGRY_HANDS - 1 }), null);
+  assert.equal(askFor({ ...LONG_NIGHT, sessionHands: 12 }), null);
+  assert.ok(askFor({ ...LONG_NIGHT, sessionHands: ASK_HUNGRY_HANDS + 40 }));
+});
+
+test('SERVER-5 · a long night that did not fray him is not a want', () => {
+  // The floor is WANT_MIN_HEAT — "frustrated or worse". Below it he is a man
+  // who had a long night rather than a hard one, and — the load-bearing half —
+  // giveItemTo will not hand an item to a level agent, so an ask raised down
+  // here would be one the owner could only ever refuse.
+  assert.equal(askFor({ ...LONG_NIGHT, heat: WANT_MIN_HEAT - 1 }), null);
+  assert.equal(askFor({ ...LONG_NIGHT, heat: 20 }), null);
+  // And at the top of the band it is the drink he wants, which outranks it.
+  assert.equal(askFor({ ...LONG_NIGHT, heat: ASK_HOT_HEAT }).kind, 'beer');
+});
+
+test('SERVER-5 · an empty fridge is silence, not a refusal', () => {
+  // He does not ask for what is not in the house — and it keeps the
+  // consequence honest, because a `no` you had no way to avoid would stamp him
+  // hungry for the state of a shelf.
+  assert.equal(askFor({ ...LONG_NIGHT, snackInFridge: false }), null);
+});
+
+test('SERVER-5 · food is the bottom rung — everything he needs outranks it', () => {
+  assert.equal(askPriority('food'), 7);
+  for (const kind of ASK_KINDS.filter((k) => k !== 'food')) {
+    assert.ok(askPriority(kind) < askPriority('food'), `${kind} must outrank a sandwich`);
+  }
+  // Peeled one at a time off a long night that is ALSO everything else.
+  const all = {
+    ...LONG_NIGHT,
+    fatigue: 'worn', heat: 100, sinceLeftMs: 60 * 60_000, broke: true,
+    sessionNet: 99_000, weekBiggestPot: 100, nemesis: NEMESIS,
+  };
+  assert.equal(askFor(all).kind, 'rest');
+  assert.equal(askFor({ ...all, fatigue: 'fresh', idleMs: 0, heat: 20 }).kind, 'fund');
+  assert.equal(askFor({ ...all, fatigue: 'fresh', idleMs: 0, heat: 20, broke: false }).kind, 'brag');
+  assert.equal(askFor({
+    ...all, fatigue: 'fresh', idleMs: 0, heat: 20, broke: false, sessionNet: 0,
+  }).kind, 'nemesis');
+  assert.equal(askFor({
+    ...all, fatigue: 'fresh', idleMs: 0, heat: WANT_MIN_HEAT, broke: false, sessionNet: 0, nemesis: null,
+  }).kind, 'food', 'and when nothing else is true, he mentions the sandwich');
+});
+
+test('SERVER-5 · being fed answers the food ask — rule 4, and never a clock', () => {
+  const ask = buildAsk(ASKS.food, {});
+  assert.equal(askSatisfied(ask, { fed: true }), true);
+  assert.equal(askSatisfied(ask, { fed: false }), false);
+  // No branch for time: a week of nobody looking leaves it exactly where it is.
+  assert.equal(askSatisfied(ask, {
+    fatigue: 'fresh', atTable: true, broke: false, heat: 0,
+  }), false, 'sitting him down is not feeding him');
 });

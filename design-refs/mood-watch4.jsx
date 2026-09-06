@@ -92,14 +92,14 @@ const seatsFor = (handed = 6, cast = W4_SEATS) => {
 // by which you know who is speaking.
 const BUBBLE_FILL = { mine: 'rgba(12,26,24,0.94)', opp: 'rgba(18,20,22,0.92)' };
 
-const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
+const Bubble = ({ text, mine, at = 195, top, over, w = 152, felt = 390, flow }) => {
   const left = mine ? null : Math.max(8, Math.min(felt - w - 8, at - w / 2));
   const tail = mine ? null : at - left;
   return (
   <div style={{
     ...(flow
       ? { position: 'relative', maxWidth: 320 }
-      : { position: 'absolute', top, ...(mine ? { left: at, transform: 'translateX(-50%)' } : { left }), width: mine ? 'auto' : w, maxWidth: mine ? 320 : w }),
+      : { position: 'absolute', ...(over != null ? { top: over, transform: 'translateY(-100%)' } : { top }), ...(mine ? { left: at, transform: over != null ? 'translate(-50%,-100%)' : 'translateX(-50%)' } : { left }), width: mine ? 'auto' : w, maxWidth: mine ? 320 : w }),
     zIndex: 6, pointerEvents: 'none',
     animation: 'bubblein 0.22s ease-out both',
   }}>
@@ -114,7 +114,7 @@ const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
       lineHeight: 1.4,
       textAlign: mine ? 'center' : 'left',
       fontStyle: mine ? 'normal' : 'italic',
-      ...(mine ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }),
+      ...(mine ? {} : { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 3, overflow: 'hidden' }),
     }}>{mine ? text : <>&ldquo;{text}&rdquo;</>}</div>
     {/* the tail: the only thing that says who is talking, so it points at them */}
     <div style={{
@@ -129,7 +129,7 @@ const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
   );
 };
 
-const SEAT_BODY = 40, SEAT_GAP = 6, SEAT_PILL = 18;
+const SEAT_BODY = 32, SEAT_GAP = 5, SEAT_PILL = 16;   // 80% of the wave-56 40/6/18
 const SEAT_H = SEAT_BODY + SEAT_GAP + SEAT_PILL;   // 64
 const POT_C = { x: 195, y: 215 };
 
@@ -178,7 +178,7 @@ const SeatGhost = ({ s, acting, selected, dealt, reveal, size = SEAT_BODY, timer
         {dealt && !s.folded && !(reveal && s.show) && (
           <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', zIndex: 4, display: 'flex', gap: 3 }}>
             {[0, 1].map(i => (
-              <div key={i} style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={15} h={20}/></div>
+              <div key={i} style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}><CardBack w={10.5} h={14}/></div>
             ))}
           </div>
         )}
@@ -197,7 +197,7 @@ const SeatGhost = ({ s, acting, selected, dealt, reveal, size = SEAT_BODY, timer
         {acting && <SeatRing d={SEAT_PILL - 2} left={timer}/>}
         {s.dealer && <DealerBtn/>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, height: SEAT_PILL, padding: '0 7px', borderRadius: SEAT_PILL / 2, background: 'rgba(14,17,18,0.88)', border: `1px solid ${acting ? '#EDEDED66' : M_BORDER}`, whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: 9.5, color: acting ? M_TEXT : M_DIM, fontWeight: 500 }}>{s.name}</span>
+          <span style={{ fontSize: 9, color: acting ? M_TEXT : M_DIM, fontWeight: 500 }}>{pillName(s.name, s.nick)}</span>
           <span style={{ fontSize: 8, color: M_MUTED }}>·</span>
           <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: s.folded ? M_MUTED : M_DIM }}>${s.stack}</span>
         </div>

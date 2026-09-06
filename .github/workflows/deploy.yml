@@ -89,6 +89,13 @@ jobs:
       # far more than 60 API calls a minute from one address; and the hand pause
       # is shortened so the felt has something on it by the time the spec looks.
       #
+      # HOME_PAUSE_MS is the kitchen table's own pause, and it is thirty
+      # seconds in production on purpose (homeGame.js bound one: nobody is
+      # waiting on that game and every hand costs tokens). SIT-1 sits down at
+      # it and waits for the action to reach him, so at the shipped tempo the
+      # walk would spend its whole budget watching a table think. Shortened
+      # for the same reason HAND_PAUSE_MS is, and nowhere but here.
+      #
       # No ANTHROPIC_API_KEY and no TELEGRAM_BOT_TOKEN, deliberately: decisions
       # are the check/fold fallback, and auth is open, which is what lets the
       # spec seed its two owners over plain HTTP.
@@ -100,6 +107,7 @@ jobs:
           RATE_LIMIT_MAX=100000 \
           RATE_LIMIT_CHAT_MAX=100000 \
           HAND_PAUSE_MS=600 \
+          HOME_PAUSE_MS=600 \
           node "$GITHUB_WORKSPACE/src/index.js" > "$RUNNER_TEMP/server.log" 2>&1 &
           for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://127.0.0.1:8765/api/stats; then

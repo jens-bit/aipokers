@@ -153,7 +153,10 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
     })()}
     {oppSays && (() => {
       const s = seats.find(x => x.id === oppSays.id);
-      return s ? <Bubble text={oppSays.text} at={s.x} w={142} top={s.y >= 170 ? 124 : 8}/> : null;
+      // a side or lower seat gets the bubble anchored to its head (bottom edge 6px
+      // clear of the body, any number of lines); the top row has no room above it,
+      // so it keeps the fixed band under the header.
+      return s ? <Bubble text={oppSays.text} at={s.x} w={160} {...(s.y >= 170 ? { over: s.y - 6 } : { top: 8 })}/> : null;
     })()}
 
     {/* pot and board, in the middle where they always were */}
@@ -184,8 +187,11 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
       const g = seatSlot(s);
       return (
         <React.Fragment key={'bk' + s.id}>
-          <div style={{ position: 'absolute', left: s.x + g.pile.x, top: s.y + g.pile.y, zIndex: 3, opacity: dim ? 0.25 : s.folded ? 0.4 : 1 }}>
-            <ChipStack band={i % 3 === 0 ? 'big' : i % 3 === 1 ? 'mid' : 'small'} w={13}/>
+          {/* one stack and the figure. A drawn pile per seat was six piles of
+              texture; the number is the fact, the chip says what kind of fact. */}
+          <div style={{ position: 'absolute', left: s.x + g.pile.x, top: s.y + g.pile.y, zIndex: 3, opacity: dim ? 0.25 : s.folded ? 0.4 : 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <div style={{ position: 'relative', width: 11, height: 8 }}><Chip d={i % 3 === 0 ? 'g' : i % 3 === 1 ? 'r' : 'w'} w={11} i={0} step={2.4}/><Chip d="k" w={11} i={1} step={2.4}/></div>
+            <Num size={8.5} weight={700} color={M_MUTED}>{s.stack}</Num>
           </div>
           {oppBet && oppBet.includes(s.id) && (
             <div style={{ position: 'absolute', left: s.x + g.bet.x, top: s.y + g.bet.y, zIndex: 3 }}>
@@ -200,7 +206,7 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
       <ChipStack band={stackBand} w={26} label="STACK" amt={stackAmt}/>
     </div>
     {betOut && (
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 258, display: 'flex', justifyContent: 'center', zIndex: 4 }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: V5_BOARD_TOP + 61 + 10, display: 'flex', justifyContent: 'center', zIndex: 4, opacity: dim ? 0.25 : 1 }}>
         <BetSpot band={betOut} w={22} amt="240"/>
       </div>
     )}
@@ -222,7 +228,7 @@ const V5Composer = ({ draft }) => (
       </button>
     </V5Glass>
     <div style={{ marginTop: 7, textAlign: 'center' }}>
-      <Num size={8.5} color={M_FAINT} weight={500}>SWIPE UP FOR THE THREAD</Num>
+      <Num size={8.5} color={M_MUTED} weight={500}>SWIPE UP FOR THE THREAD</Num>
     </div>
   </div>
 );
@@ -258,7 +264,7 @@ const V5Row = ({ r }) => {
       <span style={{ flex: 1, fontSize: him ? 13 : 12, lineHeight: 1.42, color: him ? M_TEXT : you ? M_GOLD : r.cost ? M_GOLD : M_MUTED, fontStyle: him || you || table ? 'normal' : 'italic' }}>
         {him || you || table ? r.s : <>&ldquo;{r.s}&rdquo;</>}
       </span>
-      <Num size={8.5} color={M_FAINT} weight={500}>{r.at}</Num>
+      <Num size={8.5} color={M_MUTED} weight={500}>{r.at}</Num>
     </div>
   );
 };
@@ -315,7 +321,10 @@ const V5ReadSheet = ({ id = 'granite' }) => {
 
 // ── the ceremony, around the hero at the bottom ─────────────────────────
 const V5Ceremony = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Granite',
-                     mood = 'confident', heat = 54, delta, stack }) => {
+                     mood = 'confident', heat = 54, delta, stack,
+                     // the hand that did it. A result line without it is a number
+                     // an owner cannot learn anything from.
+                     hand = 'a pair of nines', winnerHand = 'the nut flush' }) => {
   const hot = heat > 66;
   const key = won ? M_TEAL : hot ? M_RED : MOODS[mood].color;
   return (
@@ -327,6 +336,13 @@ const V5Ceremony = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Gran
             what happened to the pot; it does not tell him what happened to his guy. */}
         {/* delta on its own line, stack on the next — neither with a caption across it */}
         <Num size={26} weight={700} color={won ? M_TEAL : M_RED}>{delta || (won ? `+$${pot}` : '−$1,250')}</Num>
+        {/* the sentence. It names WHO, HOW MUCH and WITH WHAT — the third one is the
+            part an owner who does not play poker can actually learn from. */}
+        <div style={{ maxWidth: 300, textAlign: 'center', fontSize: 12.5, color: M_DIM, lineHeight: 1.45 }}>
+          {won
+            ? <>{pillName(name)} took <b style={{ color: M_TEXT }}>${pot}</b> with {hand}.</>
+            : <>{winner} took <b style={{ color: M_TEXT }}>${pot}</b> with {winnerHand}.</>}
+        </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
           <span style={{ fontSize: 12.5, color: M_MUTED }}>stack</span>
           <Num size={18} weight={700} color={M_TEXT}>${stack || (won ? '5,541' : '1,847')}</Num>
@@ -344,7 +360,7 @@ const V5Ceremony = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Gran
         <div style={{ width: '100%', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Btn kind="primary" h={46} full>Deal him in</Btn>
           <Btn kind="ghost" h={42} full>Talk to {name.split(' ')[0]} about this hand</Btn>
-          <div style={{ textAlign: 'center' }}><Num size={8.5} color={M_FAINT} weight={500}>NEXT HAND IN 3s</Num></div>
+          <div style={{ textAlign: 'center' }}><Num size={8.5} color={M_MUTED} weight={500}>NEXT HAND IN 3s</Num></div>
         </div>
       </div>
     </div>
@@ -353,7 +369,7 @@ const V5Ceremony = ({ won, name = 'Balanced v2.1', pot = '3,694', winner = 'Gran
 
 Object.assign(window, {
   V5GLASS, V5Glass, V5Lbl, V5_FELT_H, V5Hero, V5Felt, V5Composer, V5Whisper,
-  V5_THREAD, V5Row, V5ThreadSheet, V5ReadSheet, V5Ceremony,
+  V5_THREAD, V5Row, V5ThreadSheet, V5ReadSheet, V5Ceremony, ResultLine,
 });
 
 // white 1 · red 5 · blue 10 · green 25 · black 100
@@ -623,7 +639,7 @@ const OppMuckStripM = () => (
         <div style={{ position: 'relative', width: 150, height: 74, flexShrink: 0 }}>
           <div style={{ position: 'absolute', left: 92, top: 44, display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 30, height: 15, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: '1px dashed rgba(255,255,255,0.14)' }}/>
-            <Num size={7.5} color={M_FAINT} weight={600}>MUCK</Num>
+            <Num size={7.5} color={M_MUTED} weight={600}>MUCK</Num>
           </div>
           <div style={{ position: 'absolute', left: 6, top: 2 }}>
             <FloorGhost mood="sulking" accent={M_PINK} size={30} speed={7}/>
@@ -700,6 +716,13 @@ const V5CostScreenM = () => (
         mood="frustrated" accent={M_PURPLE} heat={62} cost="toast"
         says="He had the ace of clubs the whole way."/>}/>
   </V5Shell>
+);
+
+// the same sentence, one line, for the felt and the share card
+const ResultLine = ({ who = 'Gran', amt = '30', hand = 'a pair of nines', color = M_TEAL, size = 12 }) => (
+  <span style={{ fontSize: size, color: M_DIM, lineHeight: 1.4 }}>
+    <b style={{ color: M_TEXT, fontWeight: 600 }}>{who}</b> took <b style={{ color, fontWeight: 600 }}>${amt}</b> with {hand}.
+  </span>
 );
 
 const V5CeremonyWonScreenM = () => (
