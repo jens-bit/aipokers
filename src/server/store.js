@@ -162,6 +162,17 @@ function applySchema(d) {
   // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
   addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
 
+  // THREAD-2: who said it and who it was said to. Agent ids, 'owner', or
+  // 'all' (the room) — the client renders "BALANCE -> GRANITE" from the pair,
+  // and a line with neither is a line nobody can attribute. Nullable, because
+  // every line written before this has neither and a table line ("Granite
+  // raised to 240") is said by the room to nobody in particular.
+  addColumnIfMissing(d, 'session_thread', 'from_id', 'TEXT');
+  addColumnIfMissing(d, 'session_thread', 'to_id', 'TEXT');
+  // THREAD-2: the nightly exchange is ONE entry, not a run of loose lines, so
+  // the lines it is made of ride with it as JSON. Null on every other kind.
+  addColumnIfMissing(d, 'session_thread', 'lines', 'TEXT');
+
   // SLOTS-1: what this owner's agents have won, ever — the sum of positive
   // session nets, and the only currency an agent slot can be unlocked with.
   // A column rather than a ledger fold for the same reason pocket.realised is
@@ -710,17 +721,20 @@ export const THREAD_CAP_PER_SESSION = 500;
  * Returns the row id, which is monotonic per database and therefore also the
  * order the sheet renders in.
  */
-export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table' }) {
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null }) {
   const d = conn();
   const sid = String(sessionId);
   let id = null;
   d.transaction(() => {
     const info = d.prepare(`
-      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sid, String(agentId), String(ownerId), tableId ?? null,
            Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
-           String(kind), String(who), String(text), String(source ?? 'table'));
+           String(kind), String(who), String(text), String(source ?? 'table'),
+           from == null ? null : String(from),
+           to == null ? null : String(to),
+           Array.isArray(lines) ? JSON.stringify(lines) : null);
     id = info.lastInsertRowid;
     d.prepare(`
       DELETE FROM session_thread
@@ -737,7 +751,7 @@ export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, 
  */
 export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
   return conn().prepare(`
-    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines
       FROM session_thread
      WHERE session_id = ?
      ORDER BY id ASC
@@ -751,14 +765,20 @@ export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = 
  * that has just reconnected knows the agent, not the session it was in.
  */
 export function latestThreadSession(agentId) {
+  // THREAD-2: TABLE lines only. This is the fallback for a watcher that knows
+  // the agent but not the id of the stay it was watching, and it has to answer
+  // with a STAY — an evening in the flat is not one. The home thread has its
+  // own door (GET /api/home/thread), so nothing needs to find it through here.
   const row = conn().prepare(`
-    SELECT session_id FROM session_thread WHERE agent_id = ? ORDER BY id DESC LIMIT 1
+    SELECT session_id FROM session_thread
+     WHERE agent_id = ? AND source = 'table'
+     ORDER BY id DESC LIMIT 1
   `).get(String(agentId));
   return row?.session_id ?? null;
 }
 
 function threadRow(r) {
-  return {
+  const line = {
     id: r.id,
     sessionId: r.session_id,
     agentId: r.agent_id,
@@ -769,7 +789,44 @@ function threadRow(r) {
     who: r.who,
     text: r.text,
     source: r.source ?? 'table',
+    // THREAD-2: null on every line written before the columns existed, and on
+    // the room's own lines, which are said by nobody to nobody.
+    from: r.from_id ?? null,
+    to: r.to_id ?? null,
   };
+  // THREAD-2: only an `overheard` entry carries lines, and it always does.
+  const lines = r.lines ? jsonParse(r.lines, null) : null;
+  if (Array.isArray(lines)) line.lines = lines;
+  return line;
+}
+
+/**
+ * THREAD-2: write the day's overheard exchange as ONE entry.
+ *
+ * The nightly conversation between two agents at home used to be stored as a
+ * run of loose `him` lines, which meant the client could not tell an exchange
+ * from two agents happening to talk, and a re-run (a restart inside the same
+ * day) appended a second copy of it. It is one thing that happened, so it is
+ * one row: the lines ride with it as JSON, and writing another for the same
+ * session REPLACES it rather than adding to it, which is what makes "one per
+ * owner per day" true of the storage and not only of the caller.
+ */
+export function putOverheardEntry({ sessionId, agentId, ownerId, ts, who, text, lines, source = 'home' }) {
+  const d = conn();
+  const sid = String(sessionId);
+  let id = null;
+  d.transaction(() => {
+    d.prepare("DELETE FROM session_thread WHERE session_id = ? AND kind = 'overheard'").run(sid);
+    const info = d.prepare(`
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines)
+      VALUES (?, ?, ?, NULL, ?, 'overheard', ?, ?, ?, NULL, NULL, ?)
+    `).run(sid, String(agentId), String(ownerId),
+           Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
+           String(who), String(text), String(source),
+           JSON.stringify(Array.isArray(lines) ? lines : []));
+    id = info.lastInsertRowid;
+  })();
+  return id;
 }
 
 // ── Test / tooling hooks ─────────────────────────────────────────────────────

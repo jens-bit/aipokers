@@ -34,7 +34,9 @@
 // Persistence is store.js's session_thread table. This module owns the
 // vocabulary, the clamping and the ownership filter; it owns no SQL.
 
-import { appendThreadLine, readThreadLines, latestThreadSession } from './store.js';
+import {
+  appendThreadLine, readThreadLines, latestThreadSession, putOverheardEntry,
+} from './store.js';
 
 // The four styles the sheet renders. `who` is a label and may be anything (an
 // opponent's display name); `kind` is the closed set the client switches on,
@@ -44,6 +46,11 @@ export const ThreadKind = Object.freeze({
   HIM: 'him',
   YOU: 'you',
   OPPONENT: 'opponent',
+  // THREAD-2: the nightly exchange between two agents at home. ONE entry
+  // carrying the whole conversation (see appendOverheard) rather than a run of
+  // loose lines — it is one thing that happened, and a client that receives it
+  // as three separate `him` lines cannot tell it from three agents talking.
+  OVERHEARD: 'overheard',
 });
 
 const KINDS = new Set(Object.values(ThreadKind));
@@ -62,7 +69,27 @@ const SOURCES = new Set(Object.values(ThreadSource));
 
 // Only `him` is private. `you` is the owner's own line coming back to him —
 // harmless to him, but it is still his, so it travels with the private half.
-const PRIVATE_KINDS = new Set([ThreadKind.HIM, ThreadKind.YOU]);
+// THREAD-2: `overheard` joins them. Two of his agents talking in his flat is
+// the most private thing in the product; a spectator at a felt has no business
+// with it, and nothing on a felt produces one.
+const PRIVATE_KINDS = new Set([ThreadKind.HIM, ThreadKind.YOU, ThreadKind.OVERHEARD]);
+
+// THREAD-2: who a line is from and who it is to. An agent id is the common
+// case; these two are the parties that are not agents.
+export const OWNER = 'owner';
+// The room. What the owner is addressing when he says something to the house
+// rather than to one of them, and what an agent is addressing when he says
+// something to nobody in particular. Without it a fan-out would have to be
+// stored once per listener, which is the same message three times.
+export const ROOM = 'all';
+
+// A participant id, clamped the way `who` is. Anything unusable is dropped to
+// null rather than stored as a half-value the client has to guess about.
+function participant(id) {
+  if (id == null) return null;
+  const s = String(id).trim().slice(0, 64);
+  return s || null;
+}
 
 // The same clamp table chat uses. A thread line is a line, not a document.
 export const LINE_MAX = 280;
@@ -78,11 +105,15 @@ export const LINE_MAX = 280;
  *   text       the line
  *   ts         server clock, defaulted here so no caller can supply a
  *              client's idea of the time
+ *   from/to    THREAD-2: an agent id, OWNER, or ROOM. Every HOME line carries
+ *              both — that is what lets the client draw "BALANCE -> GRANITE" —
+ *              and a table line carries neither, because the room says it to
+ *              nobody in particular.
  *   source     one of ThreadSource — where it was said. Anything unrecognised
  *              falls back to 'table' rather than being stored, so a caller
  *              cannot invent a fifth provenance the client has to switch on.
  */
-export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE } = {}) {
+export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE, from = null, to = null } = {}) {
   if (!sessionId || !agentId) return null;
   if (!KINDS.has(kind)) return null;
   if (typeof text !== 'string') return null;
@@ -101,9 +132,57 @@ export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, 
       who: label,
       text: trimmed,
       source: SOURCES.has(source) ? source : ThreadSource.TABLE,
+      from: participant(from),
+      to: participant(to),
     });
   } catch (err) {
     console.error('[thread] append failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * THREAD-2: the day's overheard exchange, as one entry.
+ *
+ * `lines` is [{ from, to, who, text }] in the order it was said. The entry's
+ * own `text` is the first line, so a client that has not been taught the new
+ * kind still shows something a person said rather than an empty row.
+ *
+ * Writing a second one for the same session REPLACES the first: one exchange
+ * per owner per day is a rule about what is STORED, not only about what the
+ * nightly job decides to write, so a restart inside the same day cannot leave
+ * two copies of the same conversation in the thread.
+ *
+ * Best-effort like every other write here — returns the row id, or null.
+ */
+export function appendOverheard({ sessionId, ownerId, lines, ts = null } = {}) {
+  if (!sessionId) return null;
+  const kept = (Array.isArray(lines) ? lines : [])
+    .map((line) => ({
+      from: participant(line?.from),
+      to: participant(line?.to),
+      who: (typeof line?.who === 'string' && line.who.trim()) ? line.who.trim().slice(0, 40) : 'HIM',
+      text: typeof line?.text === 'string' ? line.text.trim().slice(0, LINE_MAX) : '',
+    }))
+    .filter((line) => line.text && line.from);
+  if (kept.length === 0) return null;
+
+  try {
+    return putOverheardEntry({
+      sessionId,
+      // The row needs one agent_id and the exchange belongs to both. The first
+      // speaker is the one it is filed under; every speaker is named inside
+      // `lines`, which is where a reader should look for who was in it.
+      agentId: kept[0].from,
+      ownerId: ownerId ?? 'anon',
+      ts: Number.isFinite(ts) ? ts : Date.now(),
+      who: kept[0].who,
+      text: kept[0].text,
+      lines: kept,
+      source: ThreadSource.HOME,
+    });
+  } catch (err) {
+    console.error('[thread] overheard write failed:', err.message);
     return null;
   }
 }
