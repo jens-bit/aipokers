@@ -173,10 +173,10 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {!heroOnly && <>
         {/* 1 · DRAFT HIM */}
         <L2Section n="01" w={w} label="Draft him" title="Thirty seconds of conversation, and he exists."
-          lede="No sliders, no build screen. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name.">
+          lede="No sliders, no build screen, and no account. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name. Sign in later, once he has a night worth keeping.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
-            <L2Big s={L2BIG_S(w)} cap="The glass sheet is the draft; he forms on the table above it as the answers land. The recruiter speaks for the system — the ghost has no voice until he is born.">
-              <Draft3M/>
+            <L2Big s={L2BIG_S(w)} cap="This is the real screen the button opens — no account, no install. The recruiter speaks for the system; the ghost has no voice until he is born, and he forms on the table above the sheet as the answers land.">
+              <GuestDraftM stage={3}/>
             </L2Big>
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['A NATURE', 'One of eight temperaments, read out of the conversation and announced in his first words. It never changes.'],

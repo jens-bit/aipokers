@@ -265,11 +265,11 @@ const BRoomBand = ({ r, mine, tall, toast }) => (
       {/* your agents, at the scale of characters rather than rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
         {mine.length === 0
-          ? <span style={{ fontSize: 10, color: M_FAINT, fontStyle: 'italic' }}>none of yours</span>
+          ? <span style={{ fontSize: 10, color: M_MUTED, fontStyle: 'italic' }}>none of yours</span>
           : mine.map(a => (
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: M_TEXT }}>{a.name.split(' ')[0]}</div>
+                <div style={{ fontSize: 10, color: M_TEXT }}>{pillName(a.name, a.nick)}</div>
                 <Num size={9.5} weight={700} color={a.pnl[0] === '+' ? M_TEAL : M_RED}>{a.pnl}</Num>
               </div>
               <F3Body a={a} size={34} pose="hold"/>
@@ -366,7 +366,7 @@ const B_RoomM = () => (
         {['$9,400', '$3,200', '$2,850', '$1,940', '$1,700', '$1,220', '$980', '$640'].map((p, i) => (
           <div key={p} style={{ padding: '7px 6px', borderRadius: 9, textAlign: 'center', background: i === 0 ? `${M_GOLD}14` : 'rgba(255,255,255,0.035)', border: `1px solid ${i === 0 ? `${M_GOLD}55` : M_BORDER}` }}>
             <Num size={10} weight={700} color={i === 0 ? M_GOLD : M_DIM}>{p}</Num>
-            <div style={{ fontFamily: MONO, fontSize: 7.5, color: M_FAINT, marginTop: 1 }}>T{14 + i * 3}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, color: M_MUTED, marginTop: 1 }}>T{14 + i * 3}</div>
           </div>
         ))}
       </div>
@@ -580,7 +580,7 @@ const CasinoDoor = ({ r, mine, hot, shut, need, h = 150 }) => (
       <div key={a.id} style={{ position: 'absolute', right: 14 + i * 62, bottom: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <F3Body a={a} size={36} pose="hold"/>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 16, padding: '0 6px', borderRadius: 8, background: 'rgba(10,14,14,0.9)', border: `1px solid ${M_TEAL}44` }}>
-          <span style={{ fontSize: 8.5, color: M_DIM }}>{a.name.split(' ')[0]}</span>
+          <span style={{ fontSize: 8.5, color: M_DIM }}>{pillName(a.name, a.nick)}</span>
           <Num size={8.5} weight={700} color={a.pnl[0] === '+' ? M_TEAL : M_RED}>{a.pnl}</Num>
         </div>
       </div>
