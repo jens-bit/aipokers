@@ -2404,6 +2404,19 @@ export class Table {
         agentIds: this._agentIdsAt([seat, nemesisSeat].filter((i) => i >= 0)),
         headline: `${this._seatLabel(seat)} sits down across from ${nemesis.displayName}`,
         pot: 0,
+        // WANTS-1: the private half of the same fact. The headline cannot name
+        // the player id (EVENT-1 rule 1), and an id is exactly what a grudge is
+        // keyed on — so it rides `detail`, the owner-addressed channel NOTIFY-2
+        // opened. agentProfiles listens and raises "Marlow is in the back room.
+        // Send me." for every agent AT HOME who is down to this man, whoever
+        // owns them. Nothing here knows who that is; it only says who sat down.
+        detail: [{
+          kind: 'nemesisSeated',
+          playerId: nemesis.playerId,
+          displayName: nemesis.displayName,
+          tableId: this.tableId,
+          bigBlind: this.bigBlind,
+        }],
       });
     } catch (err) {
       console.error('[table] nemesis event failed:', err.message);

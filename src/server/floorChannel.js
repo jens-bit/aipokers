@@ -234,6 +234,25 @@ function relaySessionEnd(record) {
   }
 }
 
+// WANTS-1: one agent's want changed. Owner-filtered, like SESSION_END and
+// unlike the ticker: what a man is asking his backer for is between the two of
+// them, and it names rooms, money and a state of mind.
+//
+// A push per change, not per read — refreshWantsFor is the only caller and it
+// compares signatures first, so a floor where nothing is being asked for is
+// silent on this channel.
+export function broadcastWant(userId, agentId, want) {
+  if (!userId || !agentId || subs.size === 0) return 0;
+  const owner = String(userId);
+  const payload = { type: ServerMsg.WANT, userId: owner, agentId: String(agentId), want: want ?? null };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== owner) continue;
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
 // An agent standing changed for this owner (deployed, retired, recap
 // written) — refresh every subscriber watching that owner's floor.
 export function notifyAgentsChanged(userId) {

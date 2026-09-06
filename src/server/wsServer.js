@@ -1,7 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
-import { getAgentProfile, setLiveTableProvider, setAgentChangeListener, reconcileActiveSessions } from './agentProfiles.js';
+import { getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener, reconcileActiveSessions } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
@@ -31,6 +31,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   rooms.configure({ liveTables: registry });
   registry.setStateHook((table) => floor.notifyTable(table));
   setAgentChangeListener((userId) => floor.notifyAgentsChanged(userId));
+  // WANTS-1: the same injection for the same reason — agentProfiles must not
+  // import the floor, so the floor hands it a function instead.
+  setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);

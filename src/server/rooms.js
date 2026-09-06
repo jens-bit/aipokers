@@ -155,3 +155,39 @@ export function installRoomRoutes(app, { liveTables: provider = null } = {}) {
     res.json({ rooms: currentRooms({ liveTables: provider }), hotWindowMs: HOT_RECENT_MS });
   });
 }
+
+// ── WANTS-1: naming a room out loud ─────────────────────────────────────────
+//
+// The room ids and names live here, so the two ways of saying one out loud
+// live here too rather than being re-derived by whoever needs a sentence.
+//
+// `name` is a label — it goes in a heading, or a chip on a lobby card. It is
+// NOT a phrase: "Marlow is in upstairs" is not English, and a want that says
+// it is a want nobody believes came from a person. `roomPhrase` is the same
+// room with its preposition attached, which is the form a sentence needs:
+//
+//   the floor     -> "on the floor"
+//   upstairs      -> "upstairs"
+//   the back room -> "in the back room"
+//
+// A deployment that adds a rung gets "in <its label>", which is at least
+// grammatical until somebody names the room properly.
+const ROOM_PHRASES = Object.freeze({
+  floor: 'on the floor',
+  upstairs: 'upstairs',
+  backroom: 'in the back room',
+});
+
+/** The room a table at these blinds belongs to, or null if no rung runs them. */
+export function roomForBigBlind(bigBlind) {
+  const bb = Number(bigBlind);
+  if (!Number.isFinite(bb)) return null;
+  return ROOMS.find((r) => r.stakes.bigBlind === bb) ?? null;
+}
+
+/** The room as it is said in a sentence: "<name> is <roomPhrase>. Send me." */
+export function roomPhrase(room) {
+  const r = typeof room === 'string' ? ROOMS.find((x) => x.id === room) : room;
+  if (!r) return null;
+  return ROOM_PHRASES[r.id] ?? `in ${r.name}`;
+}
