@@ -38,6 +38,7 @@
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 import {
   getFlaggedHand,
+  latestFlaggedHand,
   getAgentHome,
   getAgentAttributes,
   setAgentStudy,
@@ -173,6 +174,64 @@ export function reset() {
   inProgress.clear();
 }
 
+/**
+ * SERVER-5 job 3 — putting the tape on, as a function.
+ *
+ * Lifted out of POST /study so the TV in the flat reaches the tape room
+ * through exactly this code. `handId` is optional here and required by the
+ * route: the button on the wall says "put something on", and what it puts on
+ * is the newest thing he flagged.
+ *
+ * Returns { status, body }, so the route is the two lines that turn it into an
+ * express reply and the fixture can read the refusal rather than the HTTP.
+ */
+export function beginStudy(agentId, userId, { handId = null } = {}) {
+  const agent = getAgentHome(agentId, userId);
+  if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+
+  // The tape room is a room in the house. A man in a seat is not in it.
+  if (agent.location?.where === 'table') {
+    return { status: 409, body: { error: 'He is at a table. Bring him home first.', where: agent.location.where } };
+  }
+  if (agent.study) {
+    return { status: 409, body: { error: 'He is already watching one.', study: agent.study } };
+  }
+
+  const named = handId !== null && handId !== undefined && String(handId).trim() !== '';
+  const flagged = named ? getFlaggedHand(agentId, userId, handId) : latestFlaggedHand(agentId, userId);
+  if (!flagged) {
+    return named
+      ? { status: 404, body: { error: 'No flagged hand with that id' } }
+      : { status: 409, body: { error: 'There is nothing on the tape yet.', empty: true } };
+  }
+
+  const subject = subjectOf(flagged.hand);
+  if (!subject) {
+    // A hand from before opponents were stored alongside them. Filing the
+    // line under a guessed seat index would put a real opinion against the
+    // wrong man, which is worse than refusing.
+    return { status: 409, body: { error: 'That hand records nobody to form a read on.', handId: flagged.hand?.handNumber ?? handId } };
+  }
+
+  const text = lineFor(flagged.hand, subject, {
+    reads: getAgentAttributes(agentId, userId)?.attrs?.READS ?? null,
+  });
+  const study = startStudy(agentId, userId, { hand: flagged.hand, subject, text });
+
+  return {
+    status: 200,
+    body: {
+      agentId,
+      // The line is NOT returned. He has not watched it yet, and handing the
+      // owner the conclusion at second zero is what would make the ninety
+      // seconds decorative.
+      study: { handNumber: study.handNumber, flagType: study.flagType, startedAt: study.startedAt, endsAt: study.endsAt },
+      studyMs: STUDY_MS,
+      subject: { playerId: subject.playerId, displayName: subject.displayName },
+    },
+  };
+}
+
 // ── REST ────────────────────────────────────────────────────────────────────
 
 /**
@@ -190,46 +249,12 @@ export function installTapeRoomRoutes(app) {
     const { agentId } = req.params;
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'not your agent' });
 
-    const agent = getAgentHome(agentId, userId);
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
-
-    // The tape room is a room in the house. A man in a seat is not in it.
-    if (agent.location?.where === 'table') {
-      return res.status(409).json({ error: 'He is at a table. Bring him home first.', where: agent.location.where });
-    }
-    if (agent.study) {
-      return res.status(409).json({ error: 'He is already watching one.', study: agent.study });
-    }
-
     const handId = req.body?.handId;
     if (handId === undefined || handId === null || String(handId).trim() === '') {
       return res.status(400).json({ error: 'handId required' });
     }
-    const flagged = getFlaggedHand(agentId, userId, handId);
-    if (!flagged) return res.status(404).json({ error: 'No flagged hand with that id' });
-
-    const subject = subjectOf(flagged.hand);
-    if (!subject) {
-      // A hand from before opponents were stored alongside them. Filing the
-      // line under a guessed seat index would put a real opinion against the
-      // wrong man, which is worse than refusing.
-      return res.status(409).json({ error: 'That hand records nobody to form a read on.', handId });
-    }
-
-    const text = lineFor(flagged.hand, subject, {
-      reads: getAgentAttributes(agentId, userId)?.attrs?.READS ?? null,
-    });
-    const study = startStudy(agentId, userId, { hand: flagged.hand, subject, text });
-
-    res.json({
-      agentId,
-      // The line is NOT returned. He has not watched it yet, and handing the
-      // owner the conclusion at second zero is what would make the ninety
-      // seconds decorative.
-      study: { handNumber: study.handNumber, flagType: study.flagType, startedAt: study.startedAt, endsAt: study.endsAt },
-      studyMs: STUDY_MS,
-      subject: { playerId: subject.playerId, displayName: subject.displayName },
-    });
+    const out = beginStudy(agentId, userId, { handId });
+    res.status(out.status).json(out.body);
   });
 
   app.get('/api/agents/:agentId/study', (req, res) => {

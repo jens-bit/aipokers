@@ -441,6 +441,16 @@ export class Table {
     this._clearSeat(from);
   }
 
+  // SERVER-5 job 3: is a hand actually running right now? Spelled once, here,
+  // because three call sites had the same three-line expression inlined and a
+  // fourth (the placement routes, which must never carry a man out of a hand)
+  // is not the moment to write it a fourth time.
+  handInProgress() {
+    return !!this.game
+      && this.game.street !== Streets.COMPLETE
+      && this.game.street !== Streets.WAITING;
+  }
+
   seatedCount() { return this.pending.filter((p) => p !== null).length; }
   freeSeatCount() { return this.pending.filter((p) => p === null).length; }
   hasFreeSeat() { return !this.closed && this.pending.some((p) => p === null); }
@@ -979,9 +989,7 @@ export class Table {
     // off. Recorded now because a final stack cannot tell you afterwards.
     this.seatEndReason[seat] = 'calledIn';
 
-    const inHand = !!this.game &&
-      this.game.street !== Streets.COMPLETE &&
-      this.game.street !== Streets.WAITING;
+    const inHand = this.handInProgress();
     if (inHand) {
       if (afterHand) this._benchAfterHand.add(seat);
       else this._pendingSitOut.add(seat);
