@@ -53,8 +53,17 @@ describe('the composer', () => {
     const { container } = render(<WhisperComposer onSend={() => {}} />);
     expect(container.querySelector('.watch-composer__input').placeholder)
       .toBe('Whisper to him…');
-    expect(container.querySelector('.watch-composer__hint').textContent)
-      .toBe('SWIPE UP FOR THE THREAD');
+    // BUGS-A job 6: the hint carries no words. It was instructions for a
+    // gesture — printed inside Telegram, where a vertical swipe is the
+    // platform's own — and a caption telling a phone user to swipe is a
+    // caption admitting the control is not obvious. The chevron IS the
+    // control now, and it says what it does to a screen reader.
+    const hint = container.querySelector('.watch-composer__hint');
+    expect(hint.textContent).toBe('');
+    expect(hint.getAttribute('aria-label')).toBe('Open the thread');
+    expect(hint.querySelector('.watch-composer__chevron')).not.toBeNull();
+    // ...and the send button is still there, beside it and not instead of it.
+    expect(container.querySelector('.watch-composer__send')).not.toBeNull();
   });
 
   it('sends what was typed and clears itself', async () => {

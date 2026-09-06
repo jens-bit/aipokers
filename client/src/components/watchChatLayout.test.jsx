@@ -166,15 +166,22 @@ describe('FIX-4 the header Chat control always reaches the record', () => {
 
   // WATCH-6: three ways in, one destination. The composer's arrow and a tap on
   // his face are the same control as the header's.
+  //
+  // BUGS-A job 6 made it three labelled ways rather than two: the hint under
+  // the composer used to be a chevron over the words SWIPE UP FOR THE THREAD,
+  // which is a caption and was not in the accessibility tree as a destination.
+  // The words are gone and the chevron is the control, so it is counted here
+  // with the other two — same destination, one more door.
   it('WATCH-6: his face and the composer arrow open the same record', async () => {
     const user = userEvent.setup();
     const { container } = renderWatch();
 
-    // Both are labelled for the same destination, because they are one control.
+    // All labelled for the same destination, because they are one control.
     const ways = screen.getAllByRole('button', { name: 'Open the thread' });
-    expect(ways.length).toBe(2);
+    expect(ways.length).toBe(3);
     expect(container.querySelector('.watch-hero__body')).toBe(ways[0]);
     expect(container.querySelector('.watch-composer__thread')).toBe(ways[1]);
+    expect(container.querySelector('.watch-composer__hint')).toBe(ways[2]);
 
     await user.click(ways[0]);
     expect(container.querySelector('.thread-sheet')).not.toBeNull();
@@ -183,6 +190,10 @@ describe('FIX-4 the header Chat control always reaches the record', () => {
     expect(container.querySelector('.thread-sheet')).toBeNull();
 
     await user.click(screen.getAllByRole('button', { name: 'Open the thread' })[1]);
+    expect(container.querySelector('.thread-sheet')).not.toBeNull();
+
+    await user.click(container.querySelector('.thread-sheet__grab'));
+    await user.click(screen.getAllByRole('button', { name: 'Open the thread' })[2]);
     expect(container.querySelector('.thread-sheet')).not.toBeNull();
   });
 });
