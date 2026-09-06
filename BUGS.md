@@ -1,18 +1,20 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-05 (0.10.0 sweep) — 4 open, 26 resolved
+Last updated: 2026-09-06 (WATCH-9) — 5 open, 27 resolved
 
 
 ---
 
 ## OPEN
 
-### BUG-32 — The newborn does not walk into the room
-**Severity:** Low (a beat that is missing, not a screen that is wrong)
-**Where:** client/src/screens/HomeScreen.jsx; the wiring that used to be `newbornId={newlyBornAgent?.id}` in client/src/App.jsx
-**What:** FLOOR-2 (FL-3) gave the casino floor a walk-in for an agent it had not seen before: he comes through the door and takes the room for a few seconds, which is the pay-off for having just built him. CASINO-1 left the floor standing in on the HOME tab and that beat kept working. HOME-1 replaced the floor with the flat, and the walk-in did not come with it — App no longer passes `newbornId` anywhere on mobile, so a freshly-built agent simply appears at his idle spot. The room already has the machinery: a door, a DOOR_SPOT, and a walk on every position change (`useWalks`). Nothing tells it who is new.
-The floor still does this on the desktop shell (DesktopHome renders CasinoFloor with `newbornId`), so the loss is mobile-only.
-**Found by:** HOME-1's merge. `it.todo('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx — the WIRE-1 rule is kept, not deleted.
-**Fix:** Pass the newborn id into HomeScreen and start him at DOOR_SPOT for one placement pass, so `useWalks` gives him the crossing it already gives everybody else. Then un-todo the test.
+### BUG-33 — `ServerMsg.PACE` does not exist on the client, so the staged runout is dropped
+**Severity:** Medium (a beat PACE-1 built and shipped, dead on every client)
+**Where:** client/src/lib/protocol.js (ServerMsg), client/src/hooks/useTable.js:108
+**What:** The server sends `{ type: 'pace', … }` on every pace change and, during a spectator-only all-in hold, turns the runout one card at a time on it. The client's ServerMsg mirror has no `PACE` key at all, so `case ServerMsg.PACE:` in useTable is `case undefined:` and `msg.type` — always a string — never matches it. `setPaceFrame` is therefore never called from the socket, and the staged runout falls back to the felt's own FLIP_MS clock; every watcher turns the card whenever their own timer says so rather than when the server does, which is the exact thing PACE-1 exists to stop.
+**Found by:** WATCH-9, adding THREAD_LINE to the same mirror. `client/src/lib/protocol.test.jsx` pins ServerMsg exhaustively with `toEqual` and passes, because the missing key is missing from BOTH sides of the assertion.
+**Why the tests did not catch it:** `client/src/hooks/useTable.test.jsx` emits `{ type: ServerMsg.PACE, … }` — that is `{ type: undefined }`, which matches `case undefined:` and exercises the handler perfectly. The suite proves the handler works against a message the server never sends. Every PACE case in that file has to be re-pinned to the literal `'pace'` as part of the fix, or the same hole is dug again.
+**Fix:** Add `PACE: 'pace'` to the client's ServerMsg (and `READ: 'read'` beside it, which is missing for the same reason — see client/src/lib/reads.js, which names ServerMsg.READ in a comment and cannot reference it). Pin both in protocol.test.jsx. Change useTable.test.jsx to emit the literal wire strings first and watch the PACE tests go red, then add the key.
+
+---
 
 ---
 
@@ -53,6 +55,9 @@ The floor still does this on the desktop shell (DesktopHome renders CasinoFloor 
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-32 — The newborn does not walk into the room — RESOLVED 2026-09-06 (BIRTH-5)
+Fixed the other way round from the one the entry proposed, and deliberately. The suggestion was to pass the newborn id down from App the way FLOOR-2 did (`newbornId={newlyBornAgent?.id}`); what shipped is a marker on HOME_STATE — `newborn`, computed on the SERVER's clock inside a 60s window (src/server/home.js), with `bornAt` alongside it for a client on an older server. A prop from the shell only works in the session that saw the birth, from the surface that saw it; the marker survives a reload, works on the desk as well as the phone, and cannot go out of step with the roster the room is drawn from. `useBirthWalk` in HomeScreen pins him at DOOR_SPOT for one beat as `door:born` — a place of its own, never confused with the `door:away` of an agent out at the casino — and releases him, so the existing `useWalks` crosses him to his chair with no second animation and no special case. `it('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx is un-todo'd and asserts the RULE (the room is told) rather than the mechanism.
 
 ### BUG-21 — Replay stopped after the opening beat — RESOLVED 2026-09-05
 **Where:** `client/src/components/replay/ReplayTheatre.jsx`

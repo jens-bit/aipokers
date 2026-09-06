@@ -13,6 +13,13 @@
 // about: a thread carries `him` lines, which are the reasoning AGE-33 withholds
 // from everybody but the owner's own spectator. A userId in FLOOR_SUB is a
 // claim; `owner` is that claim checked.
+//
+// ONE SINK, TWO WIRE NAMES. thread.js announces the stored ROW — ids and all,
+// because the table half of the push routes by `agentId` and the floor half by
+// `ownerId` — and each half shapes its own payload from it: THREAD_LINE at the
+// felt, OWNER_LINE on the owner's floor. So the assertions below come in pairs:
+// what the SINK hands over (the row, with the ids), and what `wireLine` makes
+// of it (the OWNER_LINE payload, without them).
 
 // TEST-2 / the testing law: no automated suite talks to a real model. The
 // fan-out below spends one turn per agent at home.
@@ -25,7 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  appendLine, appendOverheard, setThreadListener, readThread,
+  appendLine, appendOverheard, setLineListener, wireLine, readThread,
   ThreadKind, ThreadSource, OWNER, ROOM, OVERHEARD_LINE_STEP_MS,
 } from './thread.js';
 import { homeSessionId, dayKey } from './homeNight.js';
@@ -36,7 +43,7 @@ import { _closeForTests } from './store.js';
 test('SERVER-4: a written thread line is pushed, with the ownership it was written under', () => {
   withStore(() => {
     const seen = [];
-    setThreadListener((ownerId, line) => seen.push({ ownerId, line }));
+    setLineListener((line) => seen.push(line));
 
     appendLine({
       sessionId: 'sess-1', agentId: 'balance', ownerId: 'u1', tableId: 'tbl-1',
@@ -44,20 +51,24 @@ test('SERVER-4: a written thread line is pushed, with the ownership it was writt
     });
 
     assert.equal(seen.length, 1);
-    assert.equal(seen[0].ownerId, 'u1', 'the push is addressed to the owner of the line');
-    assert.equal(seen[0].line.text, 'Granite raised to 240');
-    assert.equal(seen[0].line.sessionId, 'sess-1');
-    assert.equal(seen[0].line.tableId, 'tbl-1');
-    assert.equal(seen[0].line.kind, ThreadKind.TABLE);
-    assert.ok(Number.isFinite(seen[0].line.ts), 'stamped by the server, like the row');
-    assert.ok(seen[0].line.id, 'and it carries the row id, so a client can dedupe against a fetch');
+    assert.equal(seen[0].text, 'Granite raised to 240');
+    assert.equal(seen[0].sessionId, 'sess-1');
+    assert.equal(seen[0].tableId, 'tbl-1');
+    assert.equal(seen[0].kind, ThreadKind.TABLE);
+    assert.ok(Number.isFinite(seen[0].ts), 'stamped by the server, like the row');
+    assert.ok(seen[0].id, 'and it carries the row id, so a client can dedupe against a fetch');
+    // The two ids the SINK routes by, and which no wire payload carries: the
+    // felt finds the seat by `agentId`, the floor finds the man by `ownerId`.
+    // Announce the row without them and one of the two deliveries is blind.
+    assert.equal(seen[0].ownerId, 'u1', 'the push names the owner of the line');
+    assert.equal(seen[0].agentId, 'balance', 'and the agent whose thread it is');
   });
 });
 
-test('SERVER-4: the pushed line is the same shape the thread route returns', () => {
+test('SERVER-4: the OWNER_LINE payload is the same shape the thread route returns', () => {
   withStore(() => {
-    let pushed = null;
-    setThreadListener((_ownerId, line) => { pushed = line; });
+    let row = null;
+    setLineListener((line) => { row = line; });
     appendLine({
       sessionId: 'sess-2', agentId: 'balance', ownerId: 'u1',
       kind: ThreadKind.HIM, who: 'BALANCE', text: 'He is bluffing.',
@@ -66,17 +77,40 @@ test('SERVER-4: the pushed line is the same shape the thread route returns', () 
     const [fetched] = readThread('sess-2', { owner: true });
     // A client appends pushed lines onto a fetched thread. If the two shapes
     // disagree it has to reconcile two vocabularies for one sentence.
+    const pushed = wireLine(row);
     assert.deepEqual(pushed, fetched);
-    // And neither carries the ids a reader is not given.
+    // And the wire payload does not carry the ids a reader is not given, even
+    // though the row the sink announced does.
     assert.equal(pushed.ownerId, undefined);
     assert.equal(pushed.agentId, undefined);
+  });
+});
+
+test('SERVER-4: the gold cost line survives the push, and only a gold line carries the flag', () => {
+  withStore(() => {
+    const seen = [];
+    setLineListener((line) => seen.push(line));
+    appendLine({
+      sessionId: 'sess-2c', agentId: 'balance', ownerId: 'u1', tableId: 't',
+      kind: ThreadKind.TABLE, who: 'TABLE', text: 'He misjudged equity by 7% · FOCUS', cost: true,
+    });
+    appendLine({
+      sessionId: 'sess-2c', agentId: 'balance', ownerId: 'u1', tableId: 't',
+      kind: ThreadKind.TABLE, who: 'TABLE', text: 'Granite raised to 240',
+    });
+    // WATCH-9 draws this one in gold. It is a property of the LINE, so it has
+    // to survive every door the line goes out of — it was a client-side flag on
+    // a live row once, and the gold went grey the moment the sheet refetched.
+    assert.equal(wireLine(seen[0]).cost, true);
+    // Absent, not false: the read route says it this way, so the push must too.
+    assert.equal('cost' in wireLine(seen[1]), false);
   });
 });
 
 test('SERVER-4: a line that was not written is not pushed', () => {
   withStore(() => {
     const seen = [];
-    setThreadListener((_o, line) => seen.push(line));
+    setLineListener((line) => seen.push(line));
     appendLine({ sessionId: 'sess-3', agentId: 'a', ownerId: 'u1', kind: ThreadKind.HIM, who: 'A', text: '   ' });
     appendLine({ sessionId: null, agentId: 'a', ownerId: 'u1', kind: ThreadKind.HIM, who: 'A', text: 'hi' });
     appendLine({ sessionId: 'sess-3', agentId: 'a', ownerId: 'u1', kind: 'shouting', who: 'A', text: 'hi' });
@@ -86,7 +120,7 @@ test('SERVER-4: a line that was not written is not pushed', () => {
 
 test('SERVER-4: a listener that throws costs the push and never the line', () => {
   withStore(() => {
-    setThreadListener(() => { throw new Error('the socket went away'); });
+    setLineListener(() => { throw new Error('the socket went away'); });
     const id = appendLine({
       sessionId: 'sess-4', agentId: 'a', ownerId: 'u1',
       kind: ThreadKind.TABLE, who: 'TABLE', text: 'Still dealt.',
@@ -101,7 +135,7 @@ test('SERVER-4: a listener that throws costs the push and never the line', () =>
 test('SERVER-4: the overheard exchange is pushed as the one entry it is', () => {
   withStore(() => {
     let pushed = null;
-    setThreadListener((_o, line) => { pushed = line; });
+    setLineListener((line) => { pushed = wireLine(line); });
     const sessionId = homeSessionId('u1', dayKey());
     appendOverheard({
       sessionId, ownerId: 'u1',
@@ -114,6 +148,10 @@ test('SERVER-4: the overheard exchange is pushed as the one entry it is', () => 
     assert.equal(pushed.kind, ThreadKind.OVERHEARD);
     assert.equal(pushed.source, ThreadSource.HOME);
     assert.equal(pushed.lines.length, 2, 'one entry, two lines inside it');
+    // Nothing was said at a felt, so there is no felt to deliver it to: the
+    // table half of the sink passes over a line with no tableId and only the
+    // owner's floor hears the nightly exchange.
+    assert.equal(pushed.tableId, null);
   });
 });
 
@@ -169,7 +207,7 @@ test('SERVER-4: POST /api/home/say answers before anybody has spoken', async (t)
     const typed = [];
     const pushed = [];
     profiles.setTypingListener((userId, agentId) => typed.push({ userId, agentId }));
-    setThreadListener((_o, line) => pushed.push(line));
+    setLineListener((line) => pushed.push(wireLine(line)));
 
     await t.test('the response lands with your line stored and nothing said back', async () => {
       const res = await postJson(`${base}/api/home/say`, { userId: 'u1', text: 'Evening.' });
@@ -178,7 +216,7 @@ test('SERVER-4: POST /api/home/say answers before anybody has spoken', async (t)
       assert.deepEqual(body.pending.map((p) => p.agentId).sort(), ['balance', 'granite']);
       assert.equal(body.replies.length, 0);
       // Your own line is the one thing that IS true by the time you are
-      // answered, and it went out on the wire as a THREAD_LINE.
+      // answered, and it went out on the wire as an OWNER_LINE.
       const yours = pushed.filter((l) => l.kind === ThreadKind.YOU);
       assert.equal(yours.length, 1);
       assert.equal(yours[0].text, 'Evening.');
@@ -186,7 +224,7 @@ test('SERVER-4: POST /api/home/say answers before anybody has spoken', async (t)
       assert.equal(yours[0].to, ROOM, 'said to the room, once, not once per listener');
     });
 
-    await t.test('a TYPING goes out for each of them, and a THREAD_LINE after it', async () => {
+    await t.test('a TYPING goes out for each of them, and an OWNER_LINE after it', async () => {
       await until(
         () => (pushed.filter((l) => l.kind === ThreadKind.HIM).length === 2 ? true : null),
         'both replies to be pushed',
@@ -197,7 +235,7 @@ test('SERVER-4: POST /api/home/say answers before anybody has spoken', async (t)
 
       // The order on the wire is the order in the room: your line first, then
       // theirs. A client that draws the indicator on TYPING and clears it on
-      // the next THREAD_LINE from that agent never has one without the other.
+      // the next OWNER_LINE from that agent never has one without the other.
       const kinds = pushed.map((l) => l.kind);
       assert.equal(kinds[0], ThreadKind.YOU);
       assert.equal(kinds.filter((k) => k === ThreadKind.HIM).length, 2);
@@ -274,7 +312,7 @@ function withStore(fn) {
   try {
     fn();
   } finally {
-    setThreadListener(null);
+    setLineListener(null);
     _closeForTests();
     process.chdir(ORIGINAL_CWD);
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
@@ -303,7 +341,7 @@ async function withServer(fn) {
     await fn({ base: `http://127.0.0.1:${server.address().port}`, profiles });
   } finally {
     profiles.setTypingListener(null);
-    setThreadListener(null);
+    setLineListener(null);
     await new Promise((r) => server.close(r));
     _closeForTests();
     process.chdir(ORIGINAL_CWD);

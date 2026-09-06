@@ -26,7 +26,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import App from './App.jsx';
 import { agentsResponse, playingAgent, restingAgent } from './test/fixtures/agents.js';
-import { fetchMock, telegram } from './test/harness.js';
+import { fetchMock, socketMock, telegram } from './test/harness.js';
 import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
 
@@ -243,12 +243,44 @@ describe('WIRE-1 the app shell wiring', () => {
     expect(src).toMatch(/paceFrame=\{paced\.paceFrame\}/);
   });
 
-  // HOME-1 took the floor off the mobile HOME tab, and the newborn walk-in went
-  // with it: HomeScreen has a door and walks, but nothing tells it who was just
-  // born. The rule is still the rule — un-todo'd when the walk-in lands.
-  it.todo('BUG-32 WIRE-1: and tells the room which agent was just born', () => {
-    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'App.jsx'), 'utf8');
-    expect(src).toMatch(/newbornId=\{newlyBornAgent\?\.id \?\? null\}/);
+  // HOME-1 took the floor off the mobile HOME tab and the newborn walk-in went
+  // with it. BIRTH-5 landed it, so this is no longer a todo.
+  //
+  // WHAT IT ASSERTS CHANGED, AND THE RULE DID NOT. It used to pin the FLOOR-2
+  // mechanism — App holding `newlyBornAgent` and handing the id down as
+  // `newbornId` — and that mechanism is not the one that shipped: the SERVER
+  // marks a newborn on HOME_STATE (src/server/home.js), which is the only
+  // version of this that survives a reload, works on the desk as well as the
+  // phone, and cannot go out of step with the roster the room is drawn from.
+  // The rule was never "App passes a prop", it was "the room is told who was
+  // just born", so that is what is asserted now — through the app, not through
+  // its source.
+  it('BUG-32 WIRE-1: and tells the room which agent was just born', async () => {
+    const newborn = {
+      id: 'agent_newborn', name: 'Fresh Meat',
+      nature: { name: 'Rock' }, mood: { state: 'neutral', heat: 40 },
+      fatigue: 'fresh', routine: { key: 'reads', label: 'reading' },
+      location: { where: 'home', tableId: null, room: null, since: Date.now() },
+      newborn: true, bornAt: Date.now(),
+    };
+    // Served over REST as well as pushed: the room's REST backfill is the base
+    // the push is re-laid over (useHomeState rule 2), so a roster that has him
+    // on one and not the other is a race, not a test.
+    fetchMock.route('/api/agents', { agents: [newborn] });
+
+    render(<App />);
+    await bootedOnHome();
+    const sock = await waitFor(() => {
+      const s = socketMock.last();
+      expect(s).toBeTruthy();
+      return s;
+    });
+    sock.open();
+    sock.emit({ type: 'home_state', userId: '4242', agents: [newborn], game: null });
+
+    // Through the door, like anyone arriving — not materialised in a chair.
+    const him = await screen.findByRole('button', { name: /^Fresh Meat — / });
+    expect(him).toHaveAttribute('data-spot', 'door:born');
   });
 });
 

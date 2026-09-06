@@ -63,6 +63,19 @@ describe('a stored line', () => {
     expect(rowFromLine(line({ ts: 1_699_000_000_123 })).t).toBe(1_699_000_000_123);
   });
 
+  // WATCH-9. The room's voice has one line in it that is not neutral — where a
+  // low attribute cost him the hand — and the sheet draws that one in gold. It
+  // was a flag the felt put on its own live row and nothing more, so a
+  // refetched thread came back with the line in the room's ordinary grey.
+  it('WATCH-9: carries the gold register back off the store', () => {
+    expect(rowFromLine(line({ kind: 'table', cost: true })).cost).toBe(true);
+  });
+
+  it('WATCH-9: and says nothing at all about the lines that are not one', () => {
+    const r = rowFromLine(line({ kind: 'table' }));
+    expect('cost' in r).toBe(false);
+  });
+
   it('is skipped when it is not a line at all', () => {
     expect(rowFromLine(null)).toBeNull();
     expect(rowFromLine({ id: 2, kind: 'table' })).toBeNull();

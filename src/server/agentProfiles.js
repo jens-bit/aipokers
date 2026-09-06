@@ -464,10 +464,20 @@ function commitAgent(profile, existingAgentId, agentData) {
   // must not render a phantom jump for it.
   agent.attrLog = [];
   const bornAt = Date.now();
-  // SERVER-4: his birthday, on the record. The agents table has always had a
-  // column for it; until now nothing filled it in, so `createdAt` was the
-  // array ordinal and the HOME screen's newborn window could never open.
+  // SERVER-4 / BIRTH-5 / BUG-32: his birthday, on the record, under both names
+  // it is read by. ONE number, written twice: `createdAt` is the older name and
+  // the one the agents table has had a column for since SQLITE-1 (filled from
+  // the record, with the array ordinal as a fallback, so the field was
+  // half-real for a long time — written to the database, never onto the
+  // record); `bornAt` is the name the room asks for. Kept as a field rather
+  // than read back off `agent.id` (which encodes Date.now() in base 36 and is
+  // an implementation detail of the id, not a promise about it) or off
+  // attrLog[0] (which is the attribute record, and would tie a walk-in
+  // animation to the skill engine). The room uses it to walk a newborn in
+  // through the door instead of teleporting him into a chair, and the HOME
+  // screen's newborn window could never open until it was written at all.
   agent.createdAt = bornAt;
+  agent.bornAt = bornAt;
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
   }
@@ -1751,8 +1761,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // SERVER-4: when he was made. See ensureBorn — `createdAt` is the stored
     // field (the agents table has had a column for it since SQLITE-1) and
     // `bornAt` is the same number under the name the HOME screen asks for.
-    createdAt: agent.createdAt ?? null,
-    bornAt: agent.createdAt ?? null,
+    createdAt: agent.createdAt ?? agent.bornAt ?? null,
+    bornAt: agent.createdAt ?? agent.bornAt ?? null,
     homeTableId: homeTable?.tableId ?? null,
     fatigue,
     sessionHands,

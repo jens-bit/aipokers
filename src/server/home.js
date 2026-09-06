@@ -238,6 +238,38 @@ export function isHome(location) {
   return location?.where === Where.HOME;
 }
 
+// ── Newborn ─────────────────────────────────────────────────────────────────
+
+/**
+ * BIRTH-5 / BUG-32 — how long after birth he still counts as having just
+ * arrived.
+ *
+ * A minute, and the number matters less than the fact that there IS one. The
+ * room walks a newborn in through the door instead of materialising him in a
+ * chair, and that has to be a thing that stops being true: without a window,
+ * every reconnect for the rest of his career would walk him in again, and an
+ * arrival that happens every time is not an arrival.
+ *
+ * The window is also why the marker is a boolean on the wire rather than a
+ * timestamp the client subtracts from its own clock. A phone whose clock is
+ * eleven minutes fast would otherwise never see a birth at all.
+ */
+export const NEWBORN_MS = 60_000;
+
+/**
+ * Was this agent born a moment ago?
+ *
+ * False for anyone with no `bornAt`, which is every agent made before BIRTH-5
+ * put the field on the record. That is the right answer for them: an agent who
+ * has been in the room for a month did not just walk in, and guessing his age
+ * out of his id would make the room replay a birth from March.
+ */
+export function isNewborn(agent, { now = Date.now() } = {}) {
+  const born = Number(agent?.bornAt);
+  if (!Number.isFinite(born)) return false;
+  return now - born >= 0 && now - born < NEWBORN_MS;
+}
+
 // ── The wire ────────────────────────────────────────────────────────────────
 
 /**
@@ -255,10 +287,10 @@ export function isHome(location) {
  *   fridge  { beer, snack } — what is on the shelves, so the flat can draw a
  *           full or an empty fridge without a second call
  */
-export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null } = {}) {
+export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null, now = Date.now() } = {}) {
   return {
     userId: String(userId ?? 'anon'),
-    agents: (agents ?? []).map(homeAgentProjection),
+    agents: (agents ?? []).map((agent) => homeAgentProjection(agent, { now })),
     game: game ?? null,
     // SERVER-4: the room thread's unread marker, exactly parallel to an
     // agent's `unseenRecap` and deliberately NOT a boolean — `unreadSince` is
@@ -278,7 +310,21 @@ function fridgeCounts(fridge) {
   return { beer: n(fridge?.beer), snack: n(fridge?.snack) };
 }
 
-function homeAgentProjection(agent) {
+// The one birthday, whichever name the record kept it under. Old records have
+// `createdAt` and nothing else; the birth path writes both. Resolved ONCE here
+// so `bornAt` and `newborn` can never disagree about the same agent — a card
+// that carries a birth time and says he is not new is a bug the client cannot
+// see the cause of.
+function bornAtOf(agent) {
+  for (const v of [agent?.bornAt, agent?.createdAt]) {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function homeAgentProjection(agent, { now = Date.now() } = {}) {
+  const bornAt = bornAtOf(agent);
   return {
     id: agent.id,
     name: agent.name,
@@ -289,13 +335,19 @@ function homeAgentProjection(agent) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
-    // SERVER-4: when he was made. The flat draws a newborn differently for his
-    // first minute, and it used to work that out from `createdAt`, which the
-    // birth path never actually wrote — so every agent read as a minute old
-    // forever, or as nothing at all. `bornAt` is the honest name for it and
-    // `createdAt` is kept beside it, identical, so a client that already
-    // derives from `createdAt < 60s` keeps working unchanged.
-    bornAt: agent.bornAt ?? agent.createdAt ?? null,
-    createdAt: agent.createdAt ?? agent.bornAt ?? null,
+    // SERVER-4 / BUG-32: when he was made, and whether that was a moment ago.
+    // The flat draws a newborn differently for his first minute — standing in
+    // the doorway with his bag, not yet part of the furniture — and it used to
+    // work that out from `createdAt`, which the birth path never actually
+    // wrote, so every agent read as a minute old forever or as nothing at all.
+    //
+    // `newborn` is computed HERE, on the server's clock, so a phone eleven
+    // minutes fast cannot miss the arrival; `bornAt` rides along beside it so a
+    // client that got a snapshot from an older server can still work it out for
+    // itself, and `createdAt` is the same number under the older name, so a
+    // client already deriving the window from `createdAt < 60s` keeps working.
+    bornAt,
+    createdAt: bornAt,
+    newborn: isNewborn({ bornAt }, { now }),
   };
 }
