@@ -49,7 +49,18 @@ export const E2E = new Set([
 // DEEPLINK-1 added the second one. What it asserts — that a GET route is not
 // answered with index.html — only exists when there IS an index.html to be
 // answered with, so it needs the same dist the cache headers do.
-const NEEDS_CLIENT_DIST = new Set(['verify-cache-headers.js', 'verify-deeplink-routes.js']);
+//
+// HOME-1's verify-home-routes.js is the third, and it was missing from this
+// set: it exits 1 on a missing dist rather than skipping, so `npm test` was
+// red on CI — where the Tests job deliberately runs before any client build —
+// while passing on every laptop that happens to have a dist lying around. That
+// is the worst shape a test can have, green where it is written and red only
+// where it gates.
+const NEEDS_CLIENT_DIST = new Set([
+  'verify-cache-headers.js',
+  'verify-deeplink-routes.js',
+  'verify-home-routes.js',
+]);
 const hasClientDist = () => fs.existsSync(path.join(ROOT, 'client', 'dist', 'assets'));
 
 export function listVerifyScripts() {

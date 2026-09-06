@@ -42,7 +42,7 @@ function assertIncludes(label, haystack, needle) {
 }
 
 if (!existsSync(DIST)) {
-  console.error('client/dist not found — run `npm run build` first');
+  console.error('client/dist not found — run `npm run build:client` first');
   process.exit(1);
 }
 
@@ -51,7 +51,7 @@ const assetsDir = path.join(DIST, 'assets');
 const assetFiles = existsSync(assetsDir) ? readdirSync(assetsDir) : [];
 const assetFile = assetFiles.find((f) => f.endsWith('.js') || f.endsWith('.css'));
 if (!assetFile) {
-  console.error('No hashed asset found in client/dist/assets — run `npm run build`');
+  console.error('No hashed asset found in client/dist/assets — run `npm run build:client`');
   process.exit(1);
 }
 

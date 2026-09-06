@@ -1,19 +1,10 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
+Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
 
 
 ---
 
 ## OPEN
-
-### BUG-38 — `verify-home-routes.js` points at a script that does not exist
-**Severity:** Low (a wrong hint costs the next person a minute, and it is one word)
-**Where:** `scripts/verify-home-routes.js:43`
-**What:** With no built client the script bails with ``client/dist not found — run `npm run build` first``. There is no `build` script at the root — `package.json` defines `build:client` (which is what `start` itself runs). Following the hint verbatim gets `Missing script: "build"`.
-**Found by:** the WATCH report; the names were the other way round there — the hint says `npm run build`, and `npm run build:client` is the one that exists.
-**Fix:** say `npm run build:client`. Worth a grep for the same sentence in the other verify scripts before closing it.
-
----
 
 ### BUG-37 — The felt formats a stack with `toLocaleString`, not the wallet's own formatter
 **Severity:** Low (two spellings of the same number, in the same screen)
@@ -115,6 +106,11 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-38 — `verify-home-routes.js` points at a script that does not exist — RESOLVED 2026-09-06 (CI)
+Fixed while chasing the CI red it sat next to. Three scripts said ``run `npm run build` first`` and there is no root `build` script; all three now say `build:client`. The CI failure itself was the other half of the same file: verify-home-routes.js EXITS 1 on a missing dist where verify-cache-headers and verify-deeplink-routes skip, so it was red on CI (which runs `npm test` before any client build) and green on any laptop with a dist lying around. It is now in NEEDS_CLIENT_DIST with the other two.
+
+---
 
 ### BUG-33 — The client's ServerMsg had no PACE or READ key, so neither frame was ever handled — RESOLVED 2026-09-06
 **Where:** `client/src/lib/protocol.js`, `client/src/hooks/useTable.js`
