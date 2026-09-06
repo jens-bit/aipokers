@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event';
 
 import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
+import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
 
 const WS = 'ws://localhost:8765';
 
@@ -726,5 +727,87 @@ describe('BIRTH-5 · the table, on the phone', () => {
     const sheet = await screen.findByTestId('home-table-sheet');
     // The felt and the count are still there — the room has a table either way.
     expect(within(sheet).getByTestId('home-table-seated')).toBeInTheDocument();
+  });
+});
+
+// ── FIX-6 job 3 ─────────────────────────────────────────────────────────────
+
+describe('FIX-6 · the room queues what it has to say', () => {
+  const wanting = (id, name) => mkAgent(id, name, {
+    want: { kind: 'play', text: `Put ${name} in something bigger.`, needs: 'deploy', dangerous: false },
+  });
+
+  it('one man wears one bubble, however many things he has to say', async () => {
+    // A want AND an unread session: two boxes over one head, before this.
+    await boot([mkAgent('a1', 'The Clock', {
+      want: { kind: 'beer', text: 'Can I have a beer.', needs: null, dangerous: false },
+      unseenRecap: true,
+      sessionRecap: { text: 'Took it off him on the river.' },
+    })]);
+
+    const him = await waitFor(() => {
+      const el = document.querySelector('.home-one[data-agent="a1"]');
+      expect(el).not.toBeNull();
+      return el;
+    });
+    expect(him.querySelectorAll('.home-bubble')).toHaveLength(1);
+    // The want is the thing waiting on an answer, so the want is what he wears.
+    expect(within(him).getByTestId('home-news-a1')).toHaveTextContent('Can I have a beer.');
+  });
+
+  it('at most two bubbles in the room, whoever else is talking', async () => {
+    await boot([
+      wanting('a1', 'Balance'),
+      wanting('a2', 'Granite'),
+      wanting('a3', 'Big Slick'),
+      wanting('a4', 'The Clock'),
+    ]);
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('.home-one').length).toBe(4);
+    });
+    expect(document.querySelectorAll('.home-bubble').length).toBeLessThanOrEqual(2);
+  });
+
+  it('a man still waiting his turn still reads as having news', async () => {
+    await boot([wanting('a1', 'Balance'), wanting('a2', 'Granite'), wanting('a3', 'Big Slick')]);
+
+    await waitFor(() => expect(document.querySelectorAll('.home-one').length).toBe(3));
+    // Whoever the queue held back, his pill is still gold — queueing a line is
+    // not the same as swallowing it.
+    expect(document.querySelectorAll('.home-pill--news').length).toBe(3);
+  });
+
+  it('no bubble is drawn over another bubble, or over a name pill', async () => {
+    await boot([
+      wanting('a1', 'Balance'),
+      wanting('a2', 'Granite'),
+      wanting('a3', 'Big Slick'),
+      wanting('a4', 'The Clock'),
+    ]);
+
+    await waitFor(() => expect(document.querySelectorAll('.home-one').length).toBe(4));
+
+    // jsdom has no layout, so the boxes are recomputed from the same model the
+    // room places them with — the room's own coordinates, off the DOM.
+    const bodies = [...document.querySelectorAll('.home-one')].map((el) => ({
+      id: el.dataset.agent,
+      x: parseFloat(el.style.left),
+      y: parseFloat(el.style.top),
+      size: el.dataset.spot?.startsWith('table:') ? 50 : 46,
+      name: el.getAttribute('aria-label').split(' — ')[0],
+    }));
+    const boxes = [...document.querySelectorAll('.home-bubble')].map((el) => {
+      const body = bodies.find((b) => b.id === el.closest('.home-one').dataset.agent);
+      return bubbleRect(body, el.dataset.side);
+    });
+    const pills = bodies.map(pillRect);
+
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        expect(overlaps(boxes[i], boxes[j])).toBe(false);
+      }
+      for (const pill of pills) expect(overlaps(boxes[i], pill)).toBe(false);
+    }
   });
 });

@@ -50,6 +50,7 @@ import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
 import { HomeGameTable, useHomeTable } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
+import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
@@ -382,6 +383,51 @@ export function HomeScreen({
   const studyBook = useStudyBook(studying?.id ?? null);
   const tag = studyTag(studyBook);
 
+  // ── FIX-6 job 3 · what the room is allowed to say ─────────────────────────
+  //
+  // Everybody standing in the flat, with the box their name pill occupies —
+  // handed to the queue whether or not they have anything to say, because a
+  // pill is something a bubble has to keep out of the way of.
+  const bodies = useMemo(() => home.map((agent) => {
+    const at = positions.get(String(agent.id));
+    if (!at) return null;
+    const seated = at.seat !== null && at.seat !== undefined;
+    return { id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46, name: agent.name };
+  }).filter(Boolean), [home, positions]);
+
+  // ONE line per man, ranked. He can easily have three at once — an unanswered
+  // want, a session he has not been told about, and a subject he is studying —
+  // and the room used to draw two of them at the same time, over the same head.
+  //
+  //   0  a want          he is asking, and it is waiting on an answer
+  //   1  the money line  he has just this second walked back in with it
+  //   2  the recap       the session you have not seen yet
+  //   3  the study tag   what he is watching a hand back for
+  //
+  // The order is by how soon it stops being true. A want waits for you; a study
+  // tag will still be there in a minute.
+  const speakers = useMemo(() => {
+    const out = [];
+    for (const body of bodies) {
+      const agent = home.find((a) => String(a.id) === body.id);
+      if (!agent) continue;
+      const landed = arrival && arrival.agentId === body.id;
+      const isStudying = studying && studying.id === agent.id;
+      const line = agent.want ? { text: agent.want.text, gold: true }
+        : landed ? { text: moneyLine(arrival), gold: false }
+        : agent.unseenRecap ? { text: agent.sessionRecap?.text, gold: true }
+        : (isStudying && tag) ? { text: tag, gold: false }
+        : null;
+      if (!line?.text) continue;
+      out.push({ ...body, ...line });
+    }
+    return out;
+  }, [bodies, home, arrival, studying, tag]);
+
+  // At most two on screen, one per man, nothing drawn over anything. The rest
+  // wait their turn — see roomBubbles.js.
+  const bubbles = useRoomBubbles(speakers, bodies);
+
   // Who the thread band is pointed at. An agent with something to say outranks
   // whoever happens to be first: an unread recap is the reason he is standing by
   // the door, and a want is a question waiting on an answer.
@@ -512,8 +558,6 @@ export function HomeScreen({
         const at = positions.get(String(agent.id));
         if (!at) return null;
         const seated = at.seat !== null && at.seat !== undefined;
-        const isStudying = studying && studying.id === agent.id;
-        const landed = arrival && arrival.agentId === String(agent.id);
         return (
           <HomeOne
             key={agent.id}
@@ -523,8 +567,10 @@ export function HomeScreen({
             size={seated ? 50 : 46}
             dealt={seated}
             walking={walking.has(String(agent.id))}
-            news={agent.want ? agent.want.text : (agent.unseenRecap ? agent.sessionRecap?.text : null)}
-            says={landed ? moneyLine(arrival) : (isStudying && tag ? tag : null)}
+            // The queue's answer, or nothing — and the pill still says he has
+            // news while his turn is coming.
+            bubble={bubbles.get(String(agent.id)) ?? null}
+            news={!!(agent.want || agent.unseenRecap)}
             onClick={() => tapAgent(agent)}
           />
         );
