@@ -1135,16 +1135,6 @@ button.home-flat__table:active { filter: brightness(1.12); }
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%);
 }
-.table-sheet__felt-label {
-  position: absolute;
-  top: 9px;
-  right: 11px;
-  font-family: Oswald, Inter, sans-serif;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: #6B6B6B;
-}
 .table-sheet__felt-line {
   position: absolute;
   left: 11px;

@@ -198,7 +198,9 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
   test('two home and one away', async ({ page }) => {
     await room(page, CASTS.household);
     await expect(page.getByTestId('home-frame-a3')).toBeVisible();
-    await expect(page.getByTestId('home-game-label')).toHaveText('FOR NOTHING');
+    // FIX-6 job 4: a running table carries no label at all — design 52's rule
+    // is no money words on the home table, and FOR NOTHING was two of them.
+    await expect(page.getByTestId('home-game-label')).toHaveCount(0);
     await page.screenshot({ path: `e2e/__screenshots__/home-${CASTS.household.name}.png` });
   });
 

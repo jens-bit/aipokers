@@ -156,15 +156,26 @@ describe('HOME-1 · the room', () => {
     expect(screen.queryByRole('button', { name: /Big Slick —/ })).not.toBeInTheDocument();
   });
 
-  it('the home table never shows money — that is the whole point of it', async () => {
+  // FIX-6 job 4 replaces the rule this test used to encode. The felt carried
+  // the words FOR NOTHING, on the theory that saying there are no stakes is the
+  // opposite of naming one. Design 52's rule is flatter and it is the one that
+  // stands: NO MONEY WORDS on the home table. A running table says nothing.
+  it('the home table never shows money, and never talks about it either', async () => {
     await boot(
       [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
       { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
     );
-    const label = await screen.findByTestId('home-game-label');
-    expect(label).toHaveTextContent('FOR NOTHING');
-    // No pot, no stack, no P&L anywhere on the felt.
-    expect(label.closest('.home-flat')).not.toHaveTextContent(/\$/);
+    await screen.findByTestId('home-board');
+    const flat = document.querySelector('.home-flat');
+    // No pot, no stack, no P&L, and no label saying there is none of it.
+    expect(flat).not.toHaveTextContent(/\$/);
+    expect(flat).not.toHaveTextContent(/FOR NOTHING/);
+    expect(screen.queryByTestId('home-game-label')).toBeNull();
+  });
+
+  it('an empty table still says it is empty — that is a fact about the room', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-game-label')).toHaveTextContent('NOBODY AT THE TABLE');
   });
 
   it('no status label is printed under anybody', async () => {
@@ -681,8 +692,11 @@ describe('BIRTH-5 · the table, on the phone', () => {
     await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')]);
     await userEvent.click(await screen.findByTestId('home-table'));
     const sheet = await screen.findByTestId('home-table-sheet');
-    expect(sheet).toHaveTextContent('FOR NOTHING');
+    // FIX-6 job 4: and no money words on the felt either. What is left on it is
+    // who is at the table and how many chairs are free.
+    expect(sheet.textContent).not.toMatch(/FOR NOTHING/);
     expect(sheet.textContent).not.toMatch(/\$/);
+    expect(within(sheet).getByTestId('home-table-seated')).toHaveTextContent('at the table');
   });
 
   it('a locked chair offers no action at all — it states the distance', async () => {
