@@ -424,6 +424,45 @@ export function applyPepTalk(currentMood, handsPlayed) {
   };
 }
 
+// FRIDGE-1: an item out of the fridge, drunk or eaten. A beer takes 15 off the
+// heat, a snack 8 — published numbers rather than "one step", because the two
+// items are meant to be different sizes of the same small kindness.
+//
+// Two things it deliberately does NOT do:
+//
+//   * IT DOES NOT SHARE THE PEP TALK'S COOLDOWN. RELATE-1d's item did, on the
+//     grounds that an item must not be a way around a rate limit. What limits
+//     it now is the fridge: somebody bought that beer, it is gone, and there
+//     are only so many in there. A second limiter on top of a finite one only
+//     ever produces the answer "you have a beer and he will not drink it".
+//   * IT CANNOT MAKE HIM PLEASED WITH HIMSELF. The floor is the neutral
+//     midpoint, exactly as applyPepTalk's is: an item settles a man down, it
+//     does not manufacture confidence he has not earned at the table.
+//
+// Returns { mood, cooled } — cooled is false when there was nothing to cool,
+// so the caller can decline to spend the item on a man who is fine.
+export function applyItem(currentMood, heatDelta, { cause = 'something from the fridge' } = {}) {
+  if (!currentMood) return { mood: currentMood, cooled: false, reason: 'no mood' };
+  const delta = Math.abs(Number(heatDelta) || 0);
+  const before = Number.isFinite(currentMood.heat) ? currentMood.heat : heatForState(currentMood.state);
+  const heat = clampHeat(Math.max(HEAT_MIDPOINT.neutral, before - delta));
+  if (heat >= before) return { mood: currentMood, cooled: false, reason: 'nothing to cool' };
+  const losingRun = heat <= HEAT_BANDS[1].upTo ? 0 : (Number(currentMood.losingRun) || 0);
+  return {
+    mood: {
+      ...currentMood,
+      heat,
+      losingRun,
+      state: stateForHeat(heat, { losingRun }),
+      cause,
+      updatedAt: Date.now(),
+      uneventfulHands: 0,
+    },
+    cooled: true,
+    reason: 'ok',
+  };
+}
+
 // ── Heat, in words ──────────────────────────────────────────────────────────
 // One vocabulary, used by the thread, the briefing and the felt, so a 92 reads
 // the same way everywhere. Bands are not enough on their own: "tilted" covers

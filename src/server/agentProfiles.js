@@ -17,6 +17,7 @@ import {
   restingHeat,
   ownerDriftCause,
   isSoothable as isMoodSoothable,
+  applyItem as applyMoodItem,
 } from '../agent/mood.js';
 // NOTIFY-2: one notifier. Everything the legacy NOTIFY_ENABLED sender said
 // from this file — broke, collected, want, milestone, proposal, quiet win —
@@ -43,12 +44,18 @@ import {
 } from '../agent/ownerMemory.js';
 import {
   // RELATE-1d — the one item, and the hand-end trigger that asks for it.
-  ITEMS, isItem, priceOf, wantTrigger, buildWant, DEFAULT_ITEM,
+  ITEMS, isItem, wantTrigger, buildWant, DEFAULT_ITEM,
   // WANTS-1 — the ask layer: the trigger table, the priority rule, the lines.
   ASK_SNOOZE_MS, ASK_REASK_MS, ASK_WEEK_MS,
   askFor, buildAsk, replaces, askSatisfied, isAnswered, isActiveWant,
 } from '../agent/wants.js';
 import { roomForBigBlind, roomPhrase } from './rooms.js';
+import {
+  // FRIDGE-1 — the fixture the items come out of, and what one does to him.
+  ensureFridge, takeOne as takeFromFridge, countOf as fridgeCountOf,
+  stock as stockFridge, fridgeProjection, priceOf, heatEffectOf, outOfStockLine,
+  isItem as isFridgeItem, ITEM_IDS as FRIDGE_ITEM_IDS,
+} from './fridge.js';
 import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
@@ -1370,7 +1377,7 @@ function applyProposalPatch(agent, patch) {
 //
 // `owner` must only be true when the caller has proven ownership; it is what
 // gates heroHole in liveGame.
-export function presentAgent(agent, { owner = false, walletBalance = null } = {}) {
+export function presentAgent(agent, { owner = false, walletBalance = null, wallet = null } = {}) {
   if (!agent) return agent;
   ensureMood(agent);
   ensureStats(agent);
@@ -1411,9 +1418,10 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
   // agent who has no way back without the owner — cut off, or an allowance
   // that ran out. When the wallet is unknown (a caller with no owner in
   // scope), auto is assumed to be coverable, which is the optimistic read.
+  const balance = walletBalance ?? (wallet ? wallet.balance : null);
   if (presence !== 'playing' && isBroke(agent.pocket?.balance)) {
     const canRefill = agent.pocket?.mode === 'auto'
-      && (walletBalance === null || walletBalance > 0);
+      && (balance === null || balance > 0);
     if (!canRefill) presence = 'broke';
   }
 
@@ -1500,7 +1508,11 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     } : null,
     lastMoment: agent.lastMoment ?? null,
     // WANTS-1: the one thing he is asking for, or null. Never a queue.
-    want: wantView(agent),
+    // FRIDGE-1: the wallet rides in so an ask for something the fridge does not
+    // have reads as "we're out of beer" rather than as a request nobody can
+    // answer. Without a wallet (a caller that has none) the ask is printed as
+    // he said it, which is the old behaviour and the safe one.
+    want: wantView(agent, { wallet }),
     sessionRecap: agent.sessionRecap ?? null,
     // BIO-2b: the three relationships, each with the one fact it is built on
     // and his opinion of it. Derived, never stored as a badge — and never
@@ -1539,7 +1551,7 @@ export function floorSnapshot(userId, { owner = false } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   // AGENTS-2: the floor draws the roster, and a retired agent is not on it.
   return activeAgents(profile).map((agent) => {
-    const p = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
+    const p = presentAgent(agent, { owner, wallet: walletFor(userId) });
     return {
       id: p.id,
       name: p.name,
@@ -1589,8 +1601,8 @@ export function homeSnapshot(userId, { owner = false, game = null } = {}) {
  */
 export function presentedRoster(userId, { owner = false } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
-  const walletBalance = walletFor(userId).balance;
-  return activeAgents(profile).map((agent) => presentAgent(agent, { owner, walletBalance }));
+  const wallet = walletFor(userId);
+  return activeAgents(profile).map((agent) => presentAgent(agent, { owner, wallet }));
 }
 
 /**
@@ -1606,7 +1618,7 @@ export function getAgentHome(agentId, userId) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
-  const p = presentAgent(agent, { owner: true, walletBalance: walletFor(userId).balance });
+  const p = presentAgent(agent, { owner: true, wallet: walletFor(userId) });
   return {
     id: p.id,
     name: p.name,
@@ -2029,16 +2041,24 @@ function noteReAskCooldown(agent, kind, now = Date.now()) {
  * never told there is something being withheld, because a "1 hidden" badge is
  * the nag the snooze existed to prevent.
  */
-export function wantView(agent, { now = Date.now() } = {}) {
+export function wantView(agent, { now = Date.now(), wallet = null } = {}) {
   const want = agent?.want ?? null;
   if (!isActiveWant(want, { now })) return null;
+  // FRIDGE-1 rule 3: an empty fridge is not a punishment — "he will simply say
+  // so". The stored ask keeps the line he raised it with; what changes is what
+  // he is SAYING right now, which goes back to the original the moment somebody
+  // stocks the shelf. Nothing is written, so there is nothing to undo.
+  const item = want.item ?? null;
+  const out = !!wallet && !!item && isFridgeItem(item) && fridgeCountOf(wallet, item) < 1;
   return {
     // A want stored by RELATE-1d predates every field below it. It was a beer
     // and it projects as one, so the client never has to branch on the absence
     // of a field rather than on a kind.
     kind: want.kind ?? 'beer',
-    text: want.text,
-    needs: want.needs ?? null,
+    text: out ? outOfStockLine(item) : want.text,
+    // Yes to a want he cannot be given opens the fridge instead of failing.
+    needs: out ? 'stock' : (want.needs ?? null),
+    outOfStock: out || undefined,
     dangerous: !!want.dangerous,
     item: want.item ?? null,
     room: want.room ?? null,
@@ -2080,19 +2100,21 @@ function wantSignature(view) {
 export function refreshWantsFor(userId, { now = Date.now() } = {}) {
   const uid = String(userId ?? 'anon');
   const profile = getOrCreate(uid);
-  // Read once, not per agent: it is the same wallet behind all of them, and it
-  // is what decides whether a flat pocket is "broke" or one refill from fine.
-  const wallet = walletFor(uid).balance;
+  // Read once, not per agent: it is the same wallet behind all of them. It is
+  // what decides whether a flat pocket is "broke" or one refill from fine, and
+  // (FRIDGE-1) whether the thing he is asking for is in the fridge — so
+  // stocking it pushes a WANT with his own line back in it.
+  const wallet = walletFor(uid);
   let changed = 0;
   for (const agent of activeAgents(profile)) {
-    const before = wantSignature(wantView(agent, { now }));
+    const before = wantSignature(wantView(agent, { now, wallet }));
     try {
-      computeWant(agent, { now, walletBalance: wallet });
+      computeWant(agent, { now, walletBalance: wallet.balance });
     } catch (err) {
       console.error('[wants] compute failed:', err.message);
       continue;
     }
-    const view = wantView(agent, { now });
+    const view = wantView(agent, { now, wallet });
     if (wantSignature(view) === before) continue;
     changed++;
     emitWantChange(uid, agent.id, view);
@@ -2105,47 +2127,73 @@ export function refreshWantsFor(userId, { now = Date.now() } = {}) {
 
 /**
  * The item path, lifted out of POST /give so POST /want can answer a beer with
- * exactly the same 200 chips, the same shared pep-talk cooldown and the same
- * ledger line. Two routes, one behaviour — the alternative was a second way to
- * buy a drink that drifted from the first.
+ * exactly the same fridge, the same effects and the same ledger line. Two
+ * routes, one behaviour — the alternative was a second way to hand him a drink
+ * that drifted from the first.
+ *
+ * FRIDGE-1: the item is TAKEN OUT OF THE FRIDGE, not bought here. The spend
+ * happened when the owner stocked it, on his own time, which is what stops
+ * every "get me a beer" from being a checkout. An empty shelf is not an error
+ * — it is the one refusal this function returns that the caller is expected to
+ * turn into "we're out" and an open fridge (rule 3 in fridge.js).
  *
  * Returns { ok, status?, body } — the caller decides how to dress it.
  */
 export function giveItemTo(agent, userId, item) {
-  if (!isItem(item)) {
-    return { ok: false, status: 400, body: { error: `item must be one of ${Object.keys(ITEMS).join(', ')}` } };
+  if (!isFridgeItem(item)) {
+    return { ok: false, status: 400, body: { error: `item must be one of ${FRIDGE_ITEM_IDS.join(', ')}` } };
   }
   ensureMood(agent);
   ensureStats(agent);
 
-  // "He's fine. Save it." — the ref's own line. Giving a snack to a level agent
-  // spends nothing, because there is no mood to soothe.
+  // "He's fine. Save it." — the ref's own line. Handing a beer to a level agent
+  // takes nothing out of the fridge, because there is no heat to take off him.
   if (!isMoodSoothable(agent.mood)) {
     return { ok: false, status: 400, body: { error: "He's fine. Save it.", spent: 0, soothed: false } };
   }
 
   const profile = getOrCreate(userId);
   const wallet = walletFor(userId);
-  const price = priceOf(item);
-  if (wallet.balance < price) {
-    return { ok: false, status: 400, body: { error: 'wallet does not cover that', available: wallet.balance } };
-  }
+  ensureFridge(wallet);
 
-  // The effect is the pep talk's, and it shares the pep talk's cooldown — an
-  // item is not a way around a rate limit.
-  const result = applyMoodPepTalk(agent.mood, agent.stats?.handsPlayed ?? 0);
-  if (!result.soothed) {
+  // The shelf is empty. Nothing is spent, nothing is refused in anger, and the
+  // caller is told which door to open.
+  if (fridgeCountOf(wallet, item) < 1) {
     return {
       ok: false,
-      status: 400,
-      body: { error: 'Snacked recently — shared with the pep talk.', spent: 0, soothed: false, reason: result.reason },
+      status: 409,
+      body: {
+        error: outOfStockLine(item),
+        outOfStock: true,
+        needs: 'stock',
+        item,
+        price: priceOf(item),
+        fridge: fridgeProjection(wallet),
+      },
     };
   }
 
-  wallet.balance -= price;
-  wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -price, agentId: agent.id, item });
+  const result = applyMoodItem(agent.mood, heatEffectOf(item), {
+    cause: item === 'beer' ? 'a beer' : 'something to eat',
+  });
+  if (!result.cooled) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "He's fine. Save it.", spent: 0, soothed: false, reason: result.reason },
+    };
+  }
+
+  takeFromFridge(wallet, item);
   agent.mood = result.mood;
   recordOwnerEvent(agent, 'item_given', { item });
+
+  // FRIDGE-1 § the beer's second half: it is drunk now and it costs him his
+  // next session. Stored as a flag and nothing else — the penalty itself is
+  // applied at the seat and never written into his attributes, so a man who
+  // never plays again is not carrying a hangover in his record forever.
+  if (item === 'beer') agent.drinkPending = true;
+
   agent.lastMoment = {
     text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
     mood: agent.mood?.state ?? 'neutral',
@@ -2156,13 +2204,34 @@ export function giveItemTo(agent, userId, item) {
     ok: true,
     body: {
       given: item,
-      spent: price,
+      // Nothing was spent HERE. The fridge was paid for when it was stocked,
+      // and a client that prints "−200" on a drink he already owned is telling
+      // the owner he was charged twice.
+      spent: 0,
       soothed: true,
+      drinking: item === 'beer',
       mood: { state: agent.mood.state, heat: agent.mood.heat },
       moment: agent.lastMoment,
+      fridge: fridgeProjection(wallet),
       wallet: walletProjection(wallet, profile.agents),
     },
   };
+}
+
+/**
+ * FRIDGE-1 § the beer's second half, spent.
+ *
+ * Called by the table when a seat is taken. Returns true exactly once per
+ * beer: the flag is cleared as it is read, so the drink colours ONE session —
+ * the next one he plays — and not every session after it.
+ */
+export function takeDrinkForSession(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents?.find((a) => a.id === agentId);
+  if (!agent?.drinkPending) return false;
+  agent.drinkPending = false;
+  saveStore(userId ?? 'anon');
+  return true;
 }
 
 /**
@@ -2435,7 +2504,7 @@ export function installAgentProfileRoutes(app) {
       userId: profile.userId,
       hasAgents: activeAgents(profile).length > 0,
       agents: (refreshWantsFor(userId), rosterFor(req, profile))
-        .map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
+        .map((a) => presentAgent(a, { owner, wallet: walletFor(userId) })),
       chat: profile.chat,
     });
   });
@@ -2452,10 +2521,10 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
-    const walletBalance = walletFor(userId).balance;
+    const wallet = walletFor(userId);
     // AGENTS-2: retired agents are off the roster. `?all=1` is the one way to
     // see them, and it is what a career/archive view would ask for.
-    res.json({ agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance })) });
+    res.json({ agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, wallet })) });
   });
 
   // WALLET-7 — the back half of "call him in".
@@ -2505,6 +2574,61 @@ export function installAgentProfileRoutes(app) {
     }, 0);
     res.setHeader('Cache-Control', 'no-store');
     res.json(walletProjection(walletFor(userId), profile.agents, { sessionNet }));
+  });
+
+  // ── FRIDGE-1 ─────────────────────────────────────────────────────────────
+  //
+  // GET  /api/fridge?userId=...              what is in it
+  // POST /api/fridge/stock { item, qty }     put some in, out of the wallet
+  //
+  // The fridge is the OWNER's, not an agent's: one per household, and every
+  // agent in the flat drinks out of it. Both routes are owner-gated the way
+  // /api/wallet is — it is his money and his kitchen — and neither triggers a
+  // model call, so there is nothing here to rate-limit beyond index.js's /api
+  // guard.
+
+  app.get('/api/fridge', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your fridge' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(fridgeProjection(walletFor(userId)));
+  });
+
+  app.post('/api/fridge/stock', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your fridge' });
+    const profile = getOrCreate(userId);
+    const wallet = walletFor(userId);
+
+    const item = String(req.body?.item ?? '');
+    const qty = req.body?.qty === undefined ? 1 : Number(req.body.qty);
+    const result = stockFridge(wallet, { item, qty });
+    if (!result.ok) {
+      const { ok, ...body } = result;
+      return res.status(400).json(body);
+    }
+
+    // One ledger line per stock-up, in the wallet's own vocabulary. `item` is
+    // the type RELATE-1d wrote when a drink was bought at the moment it was
+    // handed over; it means the same thing here and keeps one line in the
+    // wallet history rather than two words for one spend.
+    wallet.ledger = appendWalletEntry(wallet.ledger, {
+      type: 'item', amount: -result.spent, agentId: null, item, qty: result.qty,
+    });
+    saveWalletFor(userId);
+
+    // A fridge that has just been filled is news to anybody who was told "we're
+    // out of beer": the want goes back to saying what he actually asked for.
+    refreshWantsFor(userId);
+    emitAgentChange(userId);
+
+    res.json({
+      stocked: item,
+      qty: result.qty,
+      spent: result.spent,
+      fridge: result.fridge,
+      wallet: walletProjection(wallet, profile.agents),
+    });
   });
 
   // POST /api/agents/:agentId/fund?userId=...  { verb | mode, amount, cap, refill }
@@ -2708,9 +2832,10 @@ export function installAgentProfileRoutes(app) {
 
     const item = String(req.body?.item || agent.want?.item || 'snack');
 
-    // WANTS-1: the purchase, the shared pep-talk cooldown and the ledger line
-    // all moved into giveItemTo so POST /want can answer a beer with exactly
-    // this behaviour rather than a second implementation of it.
+    // WANTS-1: the fridge, the effects and the ledger line all live in
+    // giveItemTo so POST /want can answer a beer with exactly this behaviour
+    // rather than a second implementation of it. FRIDGE-1: an empty shelf
+    // answers 409 with `needs: 'stock'` — the button that opens the fridge.
     const given = giveItemTo(agent, userId, item);
     if (!given.ok) return res.status(given.status).json(given.body);
 
@@ -2758,7 +2883,7 @@ export function installAgentProfileRoutes(app) {
     // Recompute before answering: the want you are answering has to be the one
     // that is true now, not the one that was true when the screen was drawn.
     const now = Date.now();
-    computeWant(agent, { now, walletBalance: walletFor(userId).balance });
+    computeWant(agent, { now, wallet: walletFor(userId) });
     const want = agent.want;
     if (!isActiveWant(want, { now })) return res.status(400).json({ error: 'nothing pending' });
 
@@ -2788,12 +2913,27 @@ export function installAgentProfileRoutes(app) {
 
     // ── yes ────────────────────────────────────────────────────────────────
     // The beer is the one answer that can fail on its own terms — an empty
-    // wallet, a mood with nothing to soothe, the pep talk's cooldown. It is
-    // settled BEFORE the want is marked answered, so a refused purchase leaves
-    // the want exactly where it was rather than silently eating it.
+    // fridge, or a mood with nothing left to cool. It is settled BEFORE the
+    // want is marked answered, so a refusal leaves the want exactly where it
+    // was rather than silently eating it.
     let performed = null;
     if (kind === 'beer') {
       const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
+      // FRIDGE-1 rule 3: an empty fridge is not a punishment and not an error.
+      // Yes to a want he cannot be given opens the FRIDGE — the same shape as
+      // `needs: 'deploy'` and `needs: 'fund'`, and the want stays exactly where
+      // it is, unanswered, because he still wants the beer.
+      if (!given.ok && given.body?.outOfStock) {
+        return res.json({
+          answered: null,
+          kind,
+          needs: 'stock',
+          item: given.body.item,
+          price: given.body.price,
+          fridge: given.body.fridge,
+          want: wantView(agent, { now, wallet: walletFor(userId) }),
+        });
+      }
       if (!given.ok) return res.status(given.status).json(given.body);
       performed = given.body;
     } else if (kind === 'rest') {
@@ -2859,7 +2999,7 @@ export function installAgentProfileRoutes(app) {
     // moments a want can appear — and so the WANT push and this response can
     // never disagree about what he is asking for.
     refreshWantsFor(userId);
-    const view = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
+    const view = presentAgent(agent, { owner, wallet: walletFor(userId) });
     // Owner-scoped exactly like /:agentId/flagged: hole cards are the owner's
     // alone, and the same rule has to hold on every route that can carry them,
     // not just the one written first.
@@ -3333,7 +3473,7 @@ export function installAgentProfileRoutes(app) {
       duration: detail?.duration ?? 0,
     });
 
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/accept — apply the current proposal's
@@ -3349,7 +3489,7 @@ export function installAgentProfileRoutes(app) {
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
   // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.
@@ -3362,7 +3502,7 @@ export function installAgentProfileRoutes(app) {
     if (agent.proposal) recordOwnerEvent(agent, 'proposal_rejected', { what: agent.proposal.text });
     agent.proposal = null;
     saveStore(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
   // POST /api/agents/:agentId/reload — free play-money reload for felted agents.
@@ -3382,7 +3522,7 @@ export function installAgentProfileRoutes(app) {
     appendLedger(agent, { ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
     saveStore(userId);
     emitAgentChange(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
   // POST /api/agents/:agentId/seen — clears the unseenRecap flag once the
@@ -3396,7 +3536,7 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     agent.unseenRecap = false;
     saveStore(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
+    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
   // POST /api/agents/chat/reset — clear chat history to opening message

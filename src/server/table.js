@@ -18,6 +18,7 @@ import {
   addFlaggedHand,
   openerForAgent,
   getAgentPocket,
+  takeDrinkForSession,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -25,6 +26,7 @@ import {
   raiseFloor, raisesCapped, raiseCapPerStreet,
 } from './pace.js';
 import { classifyCooler } from './cooler.js';
+import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
 } from './events.js';
@@ -162,6 +164,18 @@ export { HOUSE_TAG, HOUSE_STATION, HOUSE_STRATEGY, HOUSE_PROFILE, pickComplement
 // contract with EVIDENCE_FIELD in attributes.js — what trains each attribute,
 // in the ref's own words: showdowns seen, decision volume, big folds made
 // correctly, beats survived, bluffs that got through, hands at the table.
+// FRIDGE-1: reading the drink flag must never be able to break a seating. The
+// record lives in agentProfiles and this is the one call table.js makes into
+// it that is purely decorative, so it fails to false and says so once.
+function safeTakeDrink(agentId, userId, tableId) {
+  try {
+    return takeDrinkForSession(agentId, userId);
+  } catch (err) {
+    console.error(`[table:${tableId}] drink flag read failed:`, err.message);
+    return false;
+  }
+}
+
 export class Table {
   constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs, home = false }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
@@ -209,6 +223,11 @@ export class Table {
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
+    // FRIDGE-1: he had a beer before this session. Effective only — his stored
+    // DISCIPLINE is untouched; this seat plays with 5 less of it and bluffs 10
+    // points more often, and the flag rides the wire so the client can draw the
+    // bottle. Set once when the seat is taken and gone when he stands up.
+    this.seatDrinking = Array(maxSeats).fill(false);
     // HC-1: House cast identity per seat — null for player/agent seats.
     this.seatAccentColors = Array(maxSeats).fill(null);
     this.seatTalkLines    = Array(maxSeats).fill(null);
@@ -386,6 +405,7 @@ export class Table {
     ['seatSeatedAt',     () => 0],      // SERVER-3
     ['seatEndReason',    () => null],   // SERVER-3
     ['seatBiggestPot',   () => 0],      // SERVER-3
+    ['seatDrinking',     () => false],  // FRIDGE-1
   ];
 
   _clearSeat(seat) {
@@ -1057,7 +1077,19 @@ export class Table {
     this.agentIds[free] = agentId ?? null;
     this.agentUserIds[free] = userId ?? null;
     this.agentMemory[free] = typeof memoryContext === 'string' ? memoryContext : '';
-    this.agentProfiles[free] = agentProfile ? normalizeProfile(agentProfile) : null;
+    // FRIDGE-1 § the beer's second half. The flag is CONSUMED here, so one beer
+    // colours one session — the next one he plays — and nothing after it. Home
+    // games are not sessions (nothing at the kitchen table moves a number the
+    // casino reads), so a beer is not spent on one: he takes it to work.
+    this.seatDrinking[free] = agentId && !this.home
+      ? !!safeTakeDrink(agentId, userId, this.tableId)
+      : false;
+    const seatedProfile = agentProfile ? normalizeProfile(agentProfile) : null;
+    this.agentProfiles[free] = seatedProfile && this.seatDrinking[free]
+      // A drink does not change who he is, so the stored profile is untouched;
+      // what sat down is a looser version of him for one night.
+      ? normalizeProfile({ ...seatedProfile, bluffFreq: seatedProfile.bluffFreq + DRINK_BLUFF_BONUS })
+      : seatedProfile;
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
     this.aiLastChatHand[free] = -1;
@@ -1152,7 +1184,12 @@ export class Table {
     const rec = getAgentAttributes(agentId, this.agentUserIds[seat]);
     if (!rec?.attrs) return null;
     const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
-    return effectiveAttrs(rec, { sessionHands });
+    const attrs = effectiveAttrs(rec, { sessionHands });
+    // FRIDGE-1: the drink's cost, applied where fatigue's is — on the way out,
+    // never into the record. A man who has had one is less careful tonight and
+    // exactly as careful as he was tomorrow.
+    if (!attrs || !this.seatDrinking[seat]) return attrs;
+    return { ...attrs, DISCIPLINE: Math.max(0, (attrs.DISCIPLINE ?? 0) - DRINK_DISCIPLINE_PENALTY) };
   }
 
   // ── SERVER-3 · the session ────────────────────────────────────────────────
@@ -1504,6 +1541,8 @@ export class Table {
         mood:        this._seatMood(i),
         // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
         fatigue:     this._seatFatigue(i),
+        // FRIDGE-1: the bottle beside him, for this session only.
+        drinking:    !!this.seatDrinking[i],
         history: includeHole && i !== seat && this.pending[i]?.playerId
           ? getAgentBioRole(agentId, this.agentUserIds[seat], this.pending[i].playerId)
           : null,
@@ -2887,6 +2926,9 @@ export class Table {
       mood: this._seatMood(i),
       // WATCH-8: and how worn he is, for the second of the two body bars.
       fatigue: this._seatFatigue(i),
+      // FRIDGE-1: he had a beer before this one. Public, like the posture is —
+      // a bottle on the felt is the sort of thing everybody at a table can see.
+      drinking: !!this.seatDrinking[i],
     }));
     // PACE-1: the ladder rides every snapshot as well as its own message, so a
     // client that joins mid-hand is not calm until the next transition.

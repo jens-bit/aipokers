@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   ITEMS, DEFAULT_ITEM, WANT_TRIGGERS,
   WANT_MIN_HEAT, WANT_MIN_LOSING_RUN, WANT_COOLDOWN_HANDS,
-  wantTrigger, buildWant, isItem, priceOf,
+  wantTrigger, buildWant, isItem,
 } from './wants.js';
 
 // ── the trigger table ────────────────────────────────────────────────────────
@@ -86,12 +86,16 @@ test('no want line pleads, guilts, or asks twice', () => {
 test('there is one item, with one effect and no store', () => {
   for (const [id, item] of Object.entries(ITEMS)) {
     assert.equal(item.effect, 'soothe', `${id} must touch STATE, never SKILL`);
-    assert.ok(item.priceChips > 0);
     assert.equal(isItem(id), true);
+    // FRIDGE-1: the PRICE is not here any more, and its absence is the point.
+    // An item is no longer bought at the moment he asks for one — it comes out
+    // of a fridge somebody stocked earlier — so this module knows what the
+    // items ARE and nothing about what they cost. The prices live with the
+    // fridge that sells them (src/server/fridge.js, and fridge.test.js).
+    assert.equal('priceChips' in item, false, `${id} must not carry a price here`);
   }
   assert.equal(isItem('nuclear_option'), false);
   assert.equal(isItem(''), false);
-  assert.equal(priceOf('nope'), 0);
   assert.equal(isItem(DEFAULT_ITEM), true);
 });
 

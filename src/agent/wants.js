@@ -6,21 +6,29 @@
 //   "Can I have a beer. It's been rough."
 //
 // The design (design-refs/mood-snack.jsx, spec §7): items touch STATE, never
-// SKILL. One item, one effect — soothe one mood step, sharing the pep-talk
-// cooldown — and one button. The moment reads as feeding a pet, not buying a
-// powerup, so there is no store, no price list and no currency iconography
-// anywhere near it.
+// SKILL. One item, one effect, one button. The moment reads as feeding a pet,
+// not buying a powerup, so there is no store, no price list and no currency
+// iconography anywhere near it. FRIDGE-1 took the last of the checkout out of
+// this moment entirely: the item comes out of a fridge somebody stocked
+// earlier, and what he is asking for is a beer, not a purchase.
 //
 // The no-guilt guardrail applies here more than anywhere: he ASKS, once, and
 // then drops it. He does not ask again, he does not sulk about being ignored,
 // and "no" is a complete answer that costs him nothing but the line in his
 // ledger. A want that nags is a guilt mechanic wearing a biscuit costume.
 
-// The one item. §7.1: bought from the WALLET, never from a pocket — a pocket
-// that can buy things is a purchase path into the character system.
+// The items he can ask for. §7.1: bought from the WALLET, never from a pocket —
+// a pocket that can buy things is a purchase path into the character system.
+//
+// FRIDGE-1 moved the PRICE out of this table and into src/server/fridge.js,
+// because an item is no longer bought at the moment he asks for one: it is
+// bought when the owner stocks the fridge, and what he asks for is one out of
+// it. What is left here is the vocabulary — which items exist and what asking
+// for one means — which is this module's business and stays testable with no
+// server, no wallet and no fridge in sight.
 export const ITEMS = Object.freeze({
-  snack: { id: 'snack', label: 'a snack', priceChips: 200, effect: 'soothe' },
-  beer:  { id: 'beer',  label: 'a beer',  priceChips: 200, effect: 'soothe' },
+  snack: { id: 'snack', label: 'a snack', effect: 'soothe' },
+  beer:  { id: 'beer',  label: 'a beer',  effect: 'soothe' },
 });
 
 export const DEFAULT_ITEM = 'beer';
@@ -81,9 +89,10 @@ export function isItem(id) {
   return Object.prototype.hasOwnProperty.call(ITEMS, id);
 }
 
-export function priceOf(itemId) {
-  return ITEMS[itemId]?.priceChips ?? 0;
-}
+// FRIDGE-1: the price lives with the fridge that sells it — see priceOf in
+// src/server/fridge.js. Kept here as a redirect rather than deleted silently,
+// because "where did the price go" is a question worth answering in the file
+// somebody will look in first.
 
 // ═════════════════════════════════════════════════════════════════════════════
 // WANTS-1 — the want as an ASK

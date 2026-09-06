@@ -104,7 +104,13 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
   try {
     await withServer(async (base) => {
       const store = await import('./store.js');
-      store.saveWallet('u1', { ownerId: 'u1', balance: 10_000, ledger: [] });
+      // FRIDGE-1: the beer is no longer bought at the moment he asks for one —
+      // it comes out of the fridge, which the owner stocked earlier. So the
+      // fridge is part of the seed: one beer in it, which is what the "yes on a
+      // beer" test drinks, and nothing for the thirsty agent below to find.
+      store.saveWallet('u1', {
+        ownerId: 'u1', balance: 10_000, fridge: { beer: 1, snack: 0 }, ledger: [],
+      });
       store.saveProfile('u1', {
         userId: 'u1',
         chat: [],
@@ -116,6 +122,10 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
           // 3 — hot, and long enough off the felt to want a drink instead of
           //     his seat back.
           agent('hot', 'Steaming', { mood: { state: 'tilted', heat: 78, losingRun: 3 }, restedAt: now - 15 * MIN }),
+          // 3 — hot, and long enough off the felt to want a drink. He asks for
+          //     the same beer as `hot` and the fridge is empty by the time he
+          //     is answered, which is the FRIDGE-1 case.
+          agent('thirsty', 'Nothing In', { mood: { state: 'tilted', heat: 79, losingRun: 3 }, restedAt: now - 16 * MIN }),
           // 3 — hot, and straight off the felt. The dangerous one.
           agent('justleft', 'Back In There', { mood: { state: 'tilted', heat: 82, losingRun: 4 }, restedAt: now - 2 * MIN }),
           // 4 — cleaned out.
@@ -253,9 +263,16 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
         assert.equal(after.text, before.text, 'the same ask, word for word');
       });
 
-      await t.test('yes on a beer spends 200 from the WALLET and soothes him', async () => {
-        const walletBefore = (await getJson(`${base}/api/agents?userId=u1`)).wallet?.balance
-          ?? (await import('./store.js')).loadWallet('u1').balance;
+      // FRIDGE-1 replaced the assertion this test used to make. It said "yes on
+      // a beer spends 200 from the WALLET": the drink was bought at the moment
+      // he asked, which made every want a checkout. It is now taken out of the
+      // fridge somebody stocked earlier, so the spend is not here at all — and
+      // the beer costs him something of his own, next session.
+      await t.test('yes on a beer takes one out of the fridge and costs the owner nothing now', async () => {
+        const store2 = await import('./store.js');
+        const walletBefore = store2.loadWallet('u1').balance;
+        const fridgeBefore = store2.loadWallet('u1').fridge.beer;
+        assert.equal(fridgeBefore, 1, 'the seed put one beer in');
 
         const res = await postJson(`${base}/api/agents/hot/want?userId=u1`, { userId: 'u1', answer: 'yes' });
         const body = await res.json();
@@ -263,18 +280,57 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
         assert.equal(body.answered, 'yes');
         assert.equal(body.kind, 'beer');
         assert.equal(body.given, 'beer');
-        assert.equal(body.spent, 200, '§7.1: the one item, 200 chips, from the wallet');
+        assert.equal(body.spent, 0, 'the fridge was paid for when it was stocked');
         assert.equal(body.soothed, true);
-        assert.ok(body.mood.heat < 78, `heat did not move: ${body.mood.heat}`);
+        assert.equal(body.drinking, true, 'and it colours his next session');
+        assert.equal(body.mood.heat, 78 - 15, 'a beer is worth exactly 15 heat');
         assert.equal(body.needs, undefined, 'the server did the whole thing');
+        assert.equal(body.fridge.beer, 0, 'and there is one fewer in there');
 
-        const wallet = (await import('./store.js')).loadWallet('u1');
-        assert.equal(wallet.balance, walletBefore - 200, 'and nothing came out of his pocket');
+        const wallet = store2.loadWallet('u1');
+        assert.equal(wallet.balance, walletBefore, 'no money moved on the answer');
+        assert.equal(wallet.fridge.beer, 0, 'the shelf is empty and stayed empty');
 
         const view = await getJson(`${base}/api/agents/hot?userId=u1`);
         assert.equal(view.want, null);
         assert.ok(ledgerTypes(view).includes('item_given'), 'the RELATE-1d line still lands');
         assert.ok(ledgerTypes(view).includes('want_granted'), 'and the answer does too');
+      });
+
+      await t.test('an empty fridge is not a punishment — he says so, and yes opens it', async () => {
+        const store2 = await import('./store.js');
+        assert.equal(store2.loadWallet('u1').fridge.beer, 0, 'the beer above was the last one');
+
+        const want = await wantOf('thirsty');
+        assert.equal(want.kind, 'beer');
+        assert.equal(want.text, "we're out of beer", 'he simply says so');
+        assert.equal(want.needs, 'stock', 'and yes opens the fridge rather than failing');
+
+        const res = await postJson(`${base}/api/agents/thirsty/want?userId=u1`, { userId: 'u1', answer: 'yes' });
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.needs, 'stock');
+        assert.equal(body.item, 'beer');
+        assert.equal(body.price, 200);
+        assert.equal(body.answered, null, 'he still wants the beer');
+        assert.ok(body.want, 'and the want is still on the table');
+
+        // Stock it, and the same want goes back to saying what he asked for.
+        const stocked = await postJson(`${base}/api/fridge/stock?userId=u1`, { userId: 'u1', item: 'beer', qty: 2 });
+        const stockBody = await stocked.json();
+        assert.equal(stocked.status, 200, JSON.stringify(stockBody));
+        assert.equal(stockBody.spent, 400, 'two beers at 200');
+        assert.equal(stockBody.fridge.beer, 2);
+
+        const after = await wantOf('thirsty');
+        assert.match(after.text, /beer/i);
+        assert.notEqual(after.text, "we're out of beer", 'his own line is back');
+        assert.equal(after.needs, null, 'and the server can answer it again');
+
+        const done = await postJson(`${base}/api/agents/thirsty/want?userId=u1`, { userId: 'u1', answer: 'yes' });
+        const doneBody = await done.json();
+        assert.equal(doneBody.answered, 'yes', JSON.stringify(doneBody));
+        assert.equal(doneBody.fridge.beer, 1);
       });
 
       await t.test('yes on "put me in" hands the client a room to open', async () => {

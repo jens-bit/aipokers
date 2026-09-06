@@ -162,6 +162,12 @@ function applySchema(d) {
   // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
   addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
 
+  // FRIDGE-1: what is in this owner's fridge, as { beer, snack } counts. One
+  // small JSON column rather than a column per shelf, because the shelves are
+  // a product decision and adding a third one should not be a migration.
+  // ALTER rather than a CREATE TABLE column: wallets from WALLET-1 exist.
+  addColumnIfMissing(d, 'wallets', 'fridge', "TEXT NOT NULL DEFAULT '{}'");
+
   // NOTIFY-2: the caps folded in from the legacy notifier are per agent and
   // per period ("one broke alert a day", "one milestone ever"), which the
   // (owner, type, ts) triple cannot express. One nullable column carries the
@@ -585,9 +591,18 @@ export function deleteNotificationHold(id) {
 // ── Wallets (WALLET-1) ───────────────────────────────────────────────────────
 
 export function loadWallet(ownerId) {
-  const row = conn().prepare('SELECT owner_id, balance, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
+  const row = conn().prepare('SELECT owner_id, balance, fridge, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
   if (!row) return null;
-  return { ownerId: row.owner_id, balance: row.balance ?? 0, ledger: jsonParse(row.ledger, []) };
+  // FRIDGE-1: the fridge hangs off the wallet because it is the OWNER's, one
+  // per household. A wallet written before the column existed reads as an
+  // empty fridge, which is exactly what an owner who has never stocked one
+  // has.
+  return {
+    ownerId: row.owner_id,
+    balance: row.balance ?? 0,
+    fridge: jsonParse(row.fridge, { beer: 0, snack: 0 }),
+    ledger: jsonParse(row.ledger, []),
+  };
 }
 
 export function saveWallet(ownerId, wallet) {
@@ -596,10 +611,17 @@ export function saveWallet(ownerId, wallet) {
 
 function putWalletRow(d, ownerId, wallet) {
   d.prepare(`
-    INSERT INTO wallets (owner_id, balance, ledger, updated_at) VALUES (?, ?, ?, ?)
+    INSERT INTO wallets (owner_id, balance, fridge, ledger, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(owner_id) DO UPDATE SET
-      balance = excluded.balance, ledger = excluded.ledger, updated_at = excluded.updated_at
-  `).run(String(ownerId), Math.max(0, Math.floor(wallet?.balance ?? 0)), JSON.stringify(wallet?.ledger ?? []), Date.now());
+      balance = excluded.balance, fridge = excluded.fridge,
+      ledger = excluded.ledger, updated_at = excluded.updated_at
+  `).run(
+    String(ownerId),
+    Math.max(0, Math.floor(wallet?.balance ?? 0)),
+    JSON.stringify(wallet?.fridge ?? { beer: 0, snack: 0 }),
+    JSON.stringify(wallet?.ledger ?? []),
+    Date.now(),
+  );
 }
 
 // Total chips sitting in this owner's pockets — the wallet screen's "in

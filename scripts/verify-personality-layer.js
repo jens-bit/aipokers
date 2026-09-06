@@ -433,22 +433,46 @@ console.log('\n[verify] RELATE-1: the owner ledger, his wants, and the one item'
   check('the answer carries no guilt', !guilt.test(answer), answer);
   console.log(`         "what do you think of me?" -> ${answer}`);
 
-  // — the item is wallet-funded, soothes one step, and refuses when he is fine —
+  // — FRIDGE-1: the item is bought into the FRIDGE and taken out of it later —
+  //
+  // This used to be one call: /give bought a beer out of the wallet at the
+  // moment it was handed over. The two halves have come apart, so the walk
+  // has too — stock it, hand it over, and find the shelf empty the second time.
   const walletBefore = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
+  const stocked = await j('POST', `/api/fridge/stock?userId=${userId}`, { userId, item: 'beer', qty: 1 });
+  check('the fridge takes the money', stocked.status === 200, JSON.stringify(stocked.body));
+  check('one beer went in', stocked.body?.fridge?.beer === 1, JSON.stringify(stocked.body?.fridge));
+  const walletStocked = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
+  check('and the WALLET paid for it, never a pocket', walletStocked === walletBefore - 200,
+    `${walletBefore} -> ${walletStocked}`);
+
   const give = await j('POST', `/api/agents/${agentIdActual}/give?userId=${userId}`, { userId, item: 'beer' });
   if (give.status === 200) {
-    check('the item soothed a step', give.body.soothed === true);
-    check('it was paid for from the WALLET, never a pocket', give.body.spent > 0);
+    check('the item soothed him', give.body.soothed === true);
+    check('handing it over costs nothing — it was paid for at the fridge', give.body.spent === 0);
+    check('and it colours his next session', give.body.drinking === true);
     const walletAfter = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
-    check('the wallet actually paid', walletAfter === walletBefore - give.body.spent,
-      `${walletBefore} -> ${walletAfter}, spent ${give.body.spent}`);
+    check('so no second spend', walletAfter === walletStocked, `${walletStocked} -> ${walletAfter}`);
+    check('the shelf is one lighter', give.body?.fridge?.beer === 0, JSON.stringify(give.body?.fridge));
     const withItem = (await j('GET', `/api/agents/${agentIdActual}?userId=${userId}`)).body;
     check('giving wrote a ledger line',
       (withItem.ownerMemory ?? []).some((e) => e.type === 'item_given'));
+
+    // A second one, on an empty shelf and a man who has just been settled. The
+    // ORDER of the two refusals is the thing worth pinning: he is asked about
+    // first, so nobody is sent to buy beer for somebody who does not need one.
+    // (The empty-shelf answer itself — 409, needs: 'stock', "we're out of
+    // beer" — is walked in src/server/fridge.test.js and wants.test.js.)
+    const again = await j('POST', `/api/agents/${agentIdActual}/give?userId=${userId}`, { userId, item: 'beer' });
+    check('a settled man is told he is fine before the fridge is even opened',
+      again.status === 400 && /fine\. save it/i.test(again.body?.error ?? ''),
+      `${again.status} ${JSON.stringify(again.body)}`);
+    const walletEmpty = (await j('GET', `/api/wallet?userId=${userId}`)).body.balance;
+    check('with nothing bought to paper over it', walletEmpty === walletStocked);
   } else {
     // The documented refusal: a level agent has no mood to soothe.
     check('a level agent refuses the item rather than spending',
-      /fine\. save it|snacked recently/i.test(give.body?.error ?? ''), give.body?.error);
+      /fine\. save it/i.test(give.body?.error ?? ''), give.body?.error);
     check('and nothing was spent', (give.body?.spent ?? 0) === 0);
   }
 
