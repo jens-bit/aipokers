@@ -15,7 +15,7 @@ import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
-import { collectFrom, pocketOf } from '../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, pocketOf } from '../lib/wallet.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
@@ -237,12 +237,29 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
     const before = pocketOf(target);
     if (!before) return;
     try {
-      const res = await collectFrom(target.id);
-      const float = Number.isFinite(Number(res?.float)) ? Number(res.float) : (before.float ?? before.cap ?? 0);
-      const amount = Number.isFinite(Number(res?.moved ?? res?.collected))
-        ? Number(res.moved ?? res.collected)
-        : (before.collectable ?? Math.max(0, before.balance - float));
-      setCollected({ pocketBefore: before.balance, float, amount, at: res?.at ?? null });
+      // WALLET-7: a called-in pocket hands back all of it; every other collect
+      // takes the winnings and leaves the roll the owner staked.
+      const all = collectsEverything(before);
+      const res = await collectFrom(target.id, { all });
+      const amount = Number.isFinite(Number(res?.collected ?? res?.moved))
+        ? Number(res.collected ?? res.moved)
+        : (before.collectable ?? 0);
+      const left = Number.isFinite(Number(res?.pocket?.balance ?? res?.left))
+        ? Number(res.pocket?.balance ?? res.left)
+        : Math.max(0, before.balance - amount);
+      setCollected({ pocketBefore: before.balance, left, amount, at: res?.at ?? null });
+    } catch { /* the row stays as it was */ }
+  }
+
+  // WALLET-7 — the second verb, from the profile card. He finishes the hand and
+  // everything in the pocket comes home; the receipt is the same transfer.
+  async function handleCallIn(target) {
+    const before = pocketOf(target);
+    if (!before) return;
+    try {
+      const res = await callInAgent(target.id);
+      const amount = Number(res?.collected) || 0;
+      setCollected({ pocketBefore: before.balance, left: 0, amount, at: Date.now() });
     } catch { /* the row stays as it was */ }
   }
 
@@ -374,12 +391,12 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
         {collected && (
           <CollectCard
             pocketBefore={collected.pocketBefore}
-            float={collected.float}
+            left={collected.left}
             collected={collected.amount}
             at={collected.at}
           />
         )}
-        <PocketLine agent={agent} onFund={onFund} onCollect={handleCollect} />
+        <PocketLine agent={agent} onFund={onFund} onCollect={handleCollect} onCallIn={handleCallIn} />
 
         {/* Career */}
         <div style={{ padding: '11px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

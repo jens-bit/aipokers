@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { collectFrom, fetchWallet, fundAgent, money } from '../../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
 import { CasinoFloor } from '../floor/CasinoFloor.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
 import { StandupPanel } from './StandupPanel.jsx';
@@ -253,7 +253,13 @@ export function DesktopHome({
               catch { /* the panel stays where it is */ }
             }}
             onCollect={async (agent) => {
-              try { await collectFrom(agent.id); await refreshWallet(); }
+              // WALLET-7: the winnings, unless he has already been called in.
+              const all = collectsEverything(pocketOf(agent));
+              try { await collectFrom(agent.id, { all }); await refreshWallet(); }
+              catch { /* the row stays as it was */ }
+            }}
+            onCallIn={async (agent) => {
+              try { await callInAgent(agent.id); await refreshWallet(); }
               catch { /* the row stays as it was */ }
             }}
           />

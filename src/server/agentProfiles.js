@@ -51,8 +51,9 @@ import {
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
   debitBuyIn, creditCashOut,
+  modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
-  collectMoment, brokeMoment, appendEntry,
+  collectMoment, callInMoment, brokeMoment, appendEntry,
 } from './wallet.js';
 import {
   DRAFT_MAX_WORDS,
@@ -402,6 +403,15 @@ function mirrorBankroll(agent) {
 // owner-guilt. He does not plead and the copy does not scold.
 function recordCollectMoment(agent, moved) {
   const text = collectMoment({ moved, left: agent.pocket?.balance ?? 0, agentName: agent.name || 'He' });
+  agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  return text;
+}
+
+// WALLET-7: called in is its own beat. recordCollectMoment's line says what he
+// kept to sit down with, and after a call-in that is nothing — the copy would
+// read as a complaint about an empty pocket.
+function recordCallInMoment(agent, moved) {
+  const text = callInMoment({ moved, agentName: agent.name || 'He' });
   agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
   return text;
 }
@@ -1644,6 +1654,34 @@ export function installAgentProfileRoutes(app) {
     res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance })) });
   });
 
+  // WALLET-7 — the back half of "call him in".
+  //
+  // The chips in front of him at the table are not in his pocket, so calling
+  // him in cannot bring them home in the same breath; they arrive when the
+  // session cashes him out. This sweeps every pocket that is flagged for
+  // recall and is no longer at a table, and it runs whenever the owner reads
+  // his wallet — which is the screen the money is going to be looked at on.
+  // The owner made the decision once; he does not get asked to collect twice.
+  function sweepRecalled(userId, profile) {
+    const wallet = walletFor(userId);
+    let moved = 0;
+    let touched = false;
+    for (const agent of profile.agents) {
+      const pocket = ensurePocket(agent);
+      if (!pocket.recall) continue;
+      pocket.agentId = agent.id;
+      const before = pocket.recall;
+      const r = sweepRecall(wallet, pocket, { seated: !!agent.activeTableId });
+      if (r.moved > 0) { moved += r.moved; mirrorBankroll(agent); }
+      if (before !== pocket.recall) touched = true;
+    }
+    if (moved > 0 || touched) {
+      saveStore(userId);
+      saveWalletFor(userId);
+    }
+    return moved;
+  }
+
   // ── WALLET-1 (spec v11 §7.1) ───────────────────────────────────────────────
   // Owner-scoped and behind auth: this is the player's money. Every route
   // below reads and writes through wallet.js, which is the only place a chip
@@ -1655,6 +1693,7 @@ export function installAgentProfileRoutes(app) {
     const userId = String(req.query.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your wallet' });
     const profile = getOrCreate(userId);
+    sweepRecalled(userId, profile);
     for (const a of profile.agents) mirrorBankroll(a);
     const sessionNet = profile.agents.reduce((n, a) => {
       const last = Array.isArray(a.sessionLog) && a.sessionLog.length ? a.sessionLog[a.sessionLog.length - 1] : null;
@@ -1664,10 +1703,14 @@ export function installAgentProfileRoutes(app) {
     res.json(walletProjection(walletFor(userId), profile.agents, { sessionNet }));
   });
 
-  // POST /api/agents/:agentId/fund?userId=...  { mode, amount, cap }
-  // One call does both jobs the FundSheet offers: move money and set how he
-  // gets it next time. `cut` is a mode like any other — he keeps the roll he
-  // has and simply stops being deployed.
+  // POST /api/agents/:agentId/fund?userId=...  { verb | mode, amount, cap, refill }
+  //
+  // WALLET-7: the client speaks two verbs and the store speaks the four modes
+  // it always did, and this is where they meet. "Give him chips" is an amount
+  // plus one toggle (refill when he busts) and lands as 'allowance' or 'auto';
+  // "call him in" lands as 'cut' and, unlike every other funding decision,
+  // moves money the other way. Old clients still POST { mode: 'topup' | ... }
+  // and are mapped by the same call, so nothing has to be migrated.
   app.post('/api/agents/:agentId/fund', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || req.body?.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
@@ -1675,9 +1718,10 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    const { mode, amount = 0, cap } = req.body ?? {};
-    if (mode !== undefined && !MODES.includes(mode)) {
-      return res.status(400).json({ error: `mode must be one of ${MODES.join(', ')}` });
+    const { amount = 0, cap } = req.body ?? {};
+    const wanted = modeForRequest(req.body ?? {});
+    if (!wanted.ok) {
+      return res.status(400).json({ error: `mode must be one of give, callin (or ${MODES.join(', ')})` });
     }
     if (amount !== undefined && amount !== null && !Number.isFinite(Number(amount))) {
       return res.status(400).json({ error: 'amount must be a number' });
@@ -1687,37 +1731,58 @@ export function installAgentProfileRoutes(app) {
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
     const result = walletFund(wallet, pocket, {
-      mode,
+      mode: wanted.mode,
       amount: Number(amount) || 0,
       cap: cap === undefined ? undefined : (cap === null ? null : Number(cap)),
     });
     if (!result.ok) return res.status(400).json({ error: result.reason, available: result.available });
 
-    // RELATE-1a: staking him and cutting him off are both things he remembers.
-    if (pocket.mode === 'cut') {
+    // RELATE-1a: staking him and calling him in are both things he remembers.
+    //
+    // The branch is on the VERB the owner used, not on the mode the pocket
+    // ended up in: a bare top-up of an already called-in pocket must not sweep
+    // the chips it has just been given straight back out.
+    let collected = 0;
+    if (wanted.mode === 'cut') {
       recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
-      // WALLET-5: and it is the one mode that acts on a table already running.
-      // The sheet promises "he finishes the hand he is in and takes a seat at
-      // the bar", and until now nothing made that true — the row changed a tag
-      // and he kept playing on money the owner had stopped backing.
-      if (agent.activeTableId) {
-        const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
-        if (table) benchCutSeat(table, agent.id);
-      }
-    } else if (result.moved > 0) {
-      recordOwnerEvent(agent, 'funded', { amount: result.moved });
+      // WALLET-5/7: the one verb that acts on a table already running. The
+      // sheet promises "he finishes the hand he is in and takes a seat at the
+      // bar, and everything in his pocket comes back to your wallet" — the
+      // bench keeps the first half, callIn keeps the second. Chips still in
+      // front of him at the table come home on the recall sweep below, once
+      // the session has paid them back.
+      const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+      collected = walletCallIn(wallet, pocket, {
+        table, agentId: agent.id, seated: !!agent.activeTableId,
+      }).moved;
+      if (collected > 0) recordCallInMoment(agent, collected);
+    } else {
+      // Giving him chips again lifts a recall: the owner changed his mind
+      // before the sweep ran, and a pocket that is being funded is not one
+      // that is on its way home.
+      pocket.recall = false;
+      if (result.moved > 0) recordOwnerEvent(agent, 'funded', { amount: result.moved });
     }
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
     emitAgentChange(userId);
-    res.json({ moved: result.moved, wallet: walletProjection(wallet, profile.agents), pocket: pocketProjection(pocket) });
+    res.json({
+      moved: result.moved,
+      // What came home, when the verb was "call him in". Zero for every other.
+      collected,
+      wallet: walletProjection(wallet, profile.agents),
+      pocket: pocketProjection(pocket),
+    });
   });
 
-  // POST /api/agents/:agentId/collect?userId=...  { amount?, leaveFloat? }
-  // He brings it home. Default takes everything above his float, which is the
-  // design ref's "pocket back to its $300 float" — collecting must never be
-  // the thing that leaves him unable to sit down.
+  // POST /api/agents/:agentId/collect?userId=...  { amount?, all? }
+  //
+  // WALLET-7: he brings the WINNINGS home. The default takes everything the
+  // pocket has made above what the owner gave him and not a chip more, so
+  // collecting can never be the thing that leaves him unable to sit down at
+  // the stake he was staked for. `all` (and the older `leaveFloat: false`)
+  // takes the principal too, and is what a called-in pocket answers with.
   app.post('/api/agents/:agentId/collect', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || req.body?.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
@@ -1728,11 +1793,11 @@ export function installAgentProfileRoutes(app) {
     const wallet = walletFor(userId);
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
-    const { amount = null, leaveFloat = true } = req.body ?? {};
+    const { amount = null, all = false, leaveFloat } = req.body ?? {};
     const pocketBefore = pocket.balance;
     const result = walletCollect(wallet, pocket, {
       amount: amount === null || amount === undefined ? null : Number(amount),
-      leaveFloat: leaveFloat !== false,
+      all: all === true || leaveFloat === false,
     });
     if (!result.ok) return res.status(400).json({ error: result.reason });
 
@@ -1751,6 +1816,11 @@ export function installAgentProfileRoutes(app) {
     const view = pocketProjection(pocket);
     res.json({
       collected: result.moved,
+      // WALLET-7: what he was left holding. It used to be the float, because
+      // the float was where a collect stopped; a collect now stops at the
+      // winnings, so the receipt has to read the balance itself. `float` is
+      // still sent for the one release the older clients need.
+      left: view.balance,
       float: view.float,
       at: Date.now(),
       pocketBefore,

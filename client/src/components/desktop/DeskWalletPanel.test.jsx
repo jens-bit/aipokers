@@ -95,21 +95,24 @@ describe('DP-2 — funding from the rail', () => {
     const user = userEvent.setup();
     renderPanel();
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
 
     expect(await screen.findByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
     expect(screen.queryByText('Balanced v2.1')).not.toBeInTheDocument();
   });
 
-  it('offers the same four choices the phone does, cut-off included', async () => {
+  // WALLET-7: the phone offers two verbs and one toggle, so the rail does too.
+  it('offers the same two verbs the phone does', async () => {
     const user = userEvent.setup();
     renderPanel();
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
 
-    const body = within(document.querySelector('.wal-sheet__body'));
-    for (const title of ['One-time top-up', 'Allowance', 'Auto-refill', 'Cut him off']) {
-      expect(body.getByRole('button', { name: new RegExp(title, 'i') })).toBeInTheDocument();
-    }
+    const sheet = within(document.querySelector('.wal-sheet'));
+    expect(sheet.getAllByRole('button', { name: 'Give him chips' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    // Value Bot has been called in already and holds nothing, so there is
+    // nothing to call in — the second verb is not drawn for him.
+    expect(sheet.queryByRole('button', { name: 'Call him in' })).toBeNull();
   });
 
   it('hands the decision up in the contract shape, then leaves the sheet', async () => {
@@ -117,17 +120,14 @@ describe('DP-2 — funding from the rail', () => {
     const onFund = vi.fn().mockResolvedValue(undefined);
     renderPanel({ onFund });
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
-    // WALLET-5: he was cut off, so the sheet opens on the cut. Putting him back
-    // on an allowance is a choice the owner makes here, and the size he is put
-    // on rides along so the sheet can reopen on it.
-    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
-    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: '$5,000' }));
+    await user.click(within(document.querySelector('.wal-sheet__foot')).getByRole('button', { name: 'Give him chips' }));
 
     await waitFor(() => expect(onFund).toHaveBeenCalled());
     expect(onFund.mock.calls[0][0].id).toBe('agent_value');
-    expect(onFund.mock.calls[0][1]).toMatchObject({ mode: 'allowance', cap: 5000 });
+    expect(onFund.mock.calls[0][1]).toMatchObject({ verb: 'give', amount: 5000, cap: 5000, refill: false });
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getByText('Balanced v2.1')).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('DP-2 — funding from the rail', () => {
     const onFund = vi.fn();
     renderPanel({ onFund });
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
