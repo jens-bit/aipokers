@@ -90,7 +90,7 @@ export function AttrFocusPanel({ row, series, days = 90 }) {
  * The six bars, canon order, with the tapped one expanded in place.
  * `rows` comes from normalizeAttrs(agent).rows.
  */
-export function AttrCluster({ rows, expand, onExpand, seriesFor: seriesOf }) {
+export function AttrCluster({ rows, expand, onExpand, seriesFor: seriesOf, tintFor }) {
   return (
     <div className="attr-cluster">
       {rows.map((row) => (
@@ -102,6 +102,9 @@ export function AttrCluster({ rows, expand, onExpand, seriesFor: seriesOf }) {
             hi={row.hi}
             fatigued={row.fatigued}
             narrowed={row.narrowed}
+            // BUGS-A job 10: absent for every skill, which is every row but
+            // one. See the note on AttrTrack.
+            tint={tintFor ? tintFor(row) : undefined}
             on={expand === row.key}
             onClick={onExpand ? () => onExpand(expand === row.key ? null : row.key) : undefined}
           />

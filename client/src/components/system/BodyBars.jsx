@@ -21,6 +21,7 @@
 // there is nothing behind it — heat is now.
 
 import { AttrCluster } from './AttrCluster.jsx';
+import { staminaColor } from './FeltBodyBars.jsx';
 
 // Verbatim from design-refs/mood-heat.jsx. The words are the design: "tilted"
 // at heat 30 and "tilted" at heat 90 are different rooms to walk into.
@@ -48,17 +49,24 @@ export function heatBand(heat) {
 export function HeatBar({ heat, composure }) {
   const value = Math.max(0, Math.min(100, Number.isFinite(heat) ? Math.round(heat) : 0));
   const band = heatBand(value);
+  // BUGS-A job 10 asked for heat that fills left to right, from empty to fiery
+  // red. The bands already do exactly that — HEAT_BANDS ends on #FF4D4F, the
+  // same red the felt ends on — so what is here is left alone. It is a STEP
+  // rather than the felt's gradient on purpose: this card is where the reading
+  // is named ("tilted", "boiling"), and a named state that changes colour
+  // continuously is a state with no edges.
+  const color = band.color;
   return (
     <div className="body-bars__heat">
       <div className="attr-bar" style={{ cursor: 'default' }}>
         <span className="attr-bar__name">HEAT</span>
         <span className="attr-bar__track">
-          <div className="attr-track attr-track--heat" style={{ '--cur': `${value}%`, '--heat-color': band.color }}>
+          <div className="attr-track attr-track--heat" style={{ '--cur': `${value}%`, '--heat-color': color }}>
             <div className="attr-track__fill" />
             <div className="attr-track__cap" />
           </div>
         </span>
-        <span className="attr-bar__value" style={{ color: band.color }}>{value}</span>
+        <span className="attr-bar__value" style={{ color }}>{value}</span>
       </div>
       <div className="body-bars__caption">
         <span className="body-bars__band" style={{ color: band.color }}>{band.word}</span>
@@ -84,6 +92,14 @@ export function BodyBars({ staminaRow, heat, composure, expand, onExpand, series
           expand={expand}
           onExpand={onExpand}
           seriesFor={seriesFor}
+          // BUGS-A job 10 · SAME TWO RULES EVERYWHERE. On the felt a spent
+          // stamina line is red and a full one is green; on this card it was
+          // skill teal at every value, so the same man read as fine here and
+          // as running on empty there. Same function, same colour, one fact.
+          // It stays on the skills' track — the scouted band and the 90-day
+          // series are real and belong to an attribute — but it is coloured by
+          // what it says rather than by which list it is in.
+          tintFor={(row) => staminaColor(Math.max(0, Math.min(100, row.cur)) / 100)}
         />
       )}
       <HeatBar heat={heat} composure={composure} />
