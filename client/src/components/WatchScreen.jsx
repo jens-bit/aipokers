@@ -47,6 +47,8 @@ import { MoodGhost } from './system/MoodGhost.jsx';
 import { GhostHandLayer } from './system/GhostHands.jsx';
 import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
+import { handResult } from '../lib/handResult.js';
+import { money as potMoney } from '../lib/wallet.js';
 import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
 import { onFelt, record } from '../lib/bubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
@@ -784,6 +786,21 @@ export function WatchFelt({
     ? (game.seats[winner.seat].displayName || ('Seat ' + (winner.seat + 1)))
     : null;
 
+  // BUGS-A job 12. Built from the same board and the same showdown the felt is
+  // drawing, so the sentence and the cards under it can never disagree.
+  var handLine = result
+    ? handResult(result, {
+      seats: game.seats || [],
+      community: community,
+      // lib/wallet's formatter, not toLocaleString(). The machine's locale
+      // decides what toLocaleString groups with, so on a Swedish phone the
+      // same pot read "$4 180" here and "$4,180" three lines below it. One
+      // screen, one separator — the law CasinoBuilding's count() already
+      // states.
+      money: potMoney,
+    })
+    : null;
+
   var blinds = (game && game.smallBlind != null && game.bigBlind != null)
     ? ('$' + game.smallBlind + '/$' + game.bigBlind)
     : '';
@@ -946,12 +963,21 @@ export function WatchFelt({
       {settled ? (
         <>
           <div className="watch-felt__pot-trail" />
+          {/* BUGS-A job 12: the hand, named. "$30 → Granite" said how much and
+              to whom and nothing about WHY, on a screen whose whole subject is
+              watching somebody play poker. The felt already knows — the
+              showdown reveals every contested seat — and it was throwing the
+              answer away. See lib/handResult.js for where the name comes from
+              and in what order. */}
           <div className="watch-felt__won">
-            <div className="watch-felt__won-pill">
+            <div className="watch-felt__won-pill" aria-label={handLine ? handLine.line : undefined}>
+              {handLine && <span className="watch-felt__won-to">{handLine.who + ' took'}</span>}
               <span className="watch-felt__won-amt">
-                {'$' + (result.pot || 0).toLocaleString()}
+                {potMoney(result.pot || 0)}
               </span>
-              {winnerName && <span className="watch-felt__won-to">{'→ ' + winnerName}</span>}
+              {handLine && handLine.tail
+                ? <span className="watch-felt__won-with">{handLine.tail}</span>
+                : null}
             </div>
           </div>
         </>
