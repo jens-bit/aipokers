@@ -733,6 +733,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     return (
       <ReplayTheatre
         hand={{ ...replayHand, agentName: agent.name }}
+        agentId={agent.id}
         onBack={() => setReplayHand(null)}
       />
     );

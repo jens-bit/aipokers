@@ -36,7 +36,7 @@ function formatWhen(ts) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export function ReplayTheatre({ hand, onBack, onOpenHand, autoPlay = true }) {
+export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = true }) {
   const timeline = useMemo(() => buildTimeline(hand), [hand]);
   const [at, setAt] = useState(0);
   const [playing, setPlaying] = useState(autoPlay);
@@ -133,7 +133,7 @@ export function ReplayTheatre({ hand, onBack, onOpenHand, autoPlay = true }) {
         </button>
         <span className="replay-theatre__title">Replay</span>
         {/* SHARE-1 — the hand you just watched, as a card someone else can see. */}
-        <ShareButton hand={hand} agentName={hand?.agentName} mood={hand?.mood} style={{ marginLeft: 'auto' }} />
+        <ShareButton hand={hand} agentId={agentId ?? hand?.agentId} agentName={hand?.agentName} mood={hand?.mood} style={{ marginLeft: 'auto' }} />
       </div>
 
       <div className="replay-theatre__stage">

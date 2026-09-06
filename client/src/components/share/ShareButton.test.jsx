@@ -119,6 +119,30 @@ describe('ShareButton', () => {
     delete telegram.webApp.switchInlineQuery;
   });
 
+  // SHARE-2 — the sheet is the only thing that knows both the agent and the
+  // picture, so it is the only thing that can reach route 2. A Share button
+  // wired without an agentId silently loses the Telegram share, which is the
+  // one route that puts the card in someone else's chat.
+  it('prepares the card with the agent it was given, then hands Telegram the id', async () => {
+    const shareMessage = vi.fn();
+    telegram.webApp.shareMessage = shareMessage;
+    fetchMock.route('/api/share/prepare', () => ({ preparedId: 'prep_7' }), { method: 'POST' });
+    // No OS share sheet, so the ladder gets as far as route 2.
+    vi.stubGlobal('navigator', { canShare: () => false, clipboard: { writeText: vi.fn() } });
+
+    const user = userEvent.setup({ document });
+    renderButton({ agentId: 'agent-1' });
+    await user.click(screen.getByRole('button', { name: 'Share this hand' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
+
+    expect(await screen.findByText('Sent to Telegram.')).toBeInTheDocument();
+    expect(shareMessage).toHaveBeenCalledWith('prep_7');
+    const [post] = fetchMock.posts;
+    expect(post.body.agentId).toBe('agent-1');
+    expect(post.body.handId).toBe('37');
+    delete telegram.webApp.shareMessage;
+  });
+
   it('reports plainly when the browser would not save the image', async () => {
     // No share sheet, no object URLs — a locked-down webview. The words still
     // reach the clipboard, and the sheet says exactly that rather than
@@ -156,5 +180,26 @@ describe('where the Share appears', () => {
     await user.click(shares[0]);
     expect(screen.getByRole('dialog', { name: 'Share this hand' })).toBeInTheDocument();
     expect(screen.queryByText('Hole cards')).not.toBeInTheDocument();
+  });
+
+  // SHARE-2: the sheet the row opens knows which agent's hand it is showing.
+  // Every one of these buttons is two components away from the agent, so this
+  // is the assertion that the prop was actually threaded rather than defaulted.
+  it('carries the agent from the flagged sheet all the way to the prepare', async () => {
+    fetchMock.route('/flagged', flaggedResponse);
+    fetchMock.route('/api/share/prepare', () => ({ preparedId: 'prep_8' }), { method: 'POST' });
+    telegram.webApp.shareMessage = vi.fn();
+    vi.stubGlobal('navigator', { canShare: () => false, clipboard: { writeText: vi.fn() } });
+
+    const user = userEvent.setup({ document });
+    render(<FlaggedHandsSheet agent={playingAgent} onBack={() => {}} />);
+    await screen.findByText('88% equity favorite, still lost');
+
+    await user.click(screen.getAllByRole('button', { name: 'Share this hand' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Share' }));
+
+    await waitFor(() => expect(fetchMock.posts).toHaveLength(1));
+    expect(fetchMock.posts[0].body.agentId).toBe(playingAgent.id);
+    delete telegram.webApp.shareMessage;
   });
 });
