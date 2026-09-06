@@ -55,7 +55,7 @@ const RosterRow = ({ r }) => {
 };
 
 const RosterSheet = ({ rows = NAV_ROSTER }) => (
-  <div style={{ width: F_W, background: 'rgba(16,22,21,0.96)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, paddingBottom: 14 }}>
+  <div style={{ width: F_W, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderRadius: '16px 16px 0 0', fontFamily: INTER, paddingBottom: 14 }}>
     <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 9px' }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
     </div>
@@ -80,43 +80,124 @@ const RosterSheet = ({ rows = NAV_ROSTER }) => (
 // biggest pot". Money ranks it. The biggest pot on the floor is the headline in
 // large type, and the two lines under it are smaller. Every line answers who, how
 // much, and which room — and every line is a place you can go.
-const NAV_TICKER = [
-  { amt: '$14,200', who: 'Ozymandias', what: 'cracked aces', room: '50/100', hot: true },
-  { amt: '$9,400',  who: 'Nightjar',   what: 'heater · 6 in a row', room: '25/50', streak: 6 },
-  { amt: '$6,100',  who: 'Granite',    what: 'quads into a flush', room: '25/50' },
+const NAV_LIVE = [
+  { amt: '$8,400', who: 'Ozymandias, Granite +2', room: '50/100', hot: true },
+  { amt: '$3,100', who: 'Nightjar, doyle_v3',     room: '25/50' },
+  { amt: '$940',   who: 'your Balanced v2.1 +3',  room: '10/20', mine: true },
 ];
 
-const RankedTicker = ({ items = NAV_TICKER, label = 'ON THE FLOOR RIGHT NOW' }) => {
+const NAV_TONIGHT = [
+  { amt: '$14,200', who: 'Ozymandias',  what: 'cracked aces',          room: '50/100', kind: 'BIGGEST POT' },
+  { amt: '$9,400',  who: 'Nightjar',    what: '6 in a row',            room: '25/50',  kind: 'HEATER', streak: true },
+  { amt: '$6,100',  who: 'Granite',     what: 'quads into a flush',    room: '25/50',  kind: 'COOLER' },
+  { amt: '$0',      who: 'Fold_Equity', what: 'out, third time today', room: '10/20',  kind: 'BUST' },
+];
+
+// LIVE NOW · pots still building. The amount is "so far", so it is the one number
+// that will be wrong in a minute — which is exactly why the row is tappable.
+const LiveNow = ({ items = NAV_LIVE }) => (
+  <div style={{ background: '#0C1211', border: `1px solid ${M_BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 7px' }}>
+      <LiveDot color={M_RED} size={5}/>
+      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_RED }}>LIVE NOW</span>
+      <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>pot so far</span>
+    </div>
+    {items.map(t => (
+      <div key={t.who} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '6px 12px 7px', borderTop: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
+        background: t.hot ? `linear-gradient(90deg, ${M_RED}1C 0%, transparent 72%)` : t.mine ? `linear-gradient(90deg, ${M_TEAL}14 0%, transparent 72%)` : 'transparent',
+        boxShadow: t.hot ? `inset 2px 0 0 ${M_RED}` : t.mine ? `inset 2px 0 0 ${M_TEAL}` : 'none' }}>
+        <Num size={12} weight={700} color={t.hot ? M_RED : t.mine ? M_TEAL : M_TEXT}>{t.amt}</Num>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_DIM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.who}</span>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, flexShrink: 0 }}>{t.room}</span>
+        <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.11em', color: t.hot ? M_RED : M_TEAL, flexShrink: 0 }}>{t.hot ? 'HOT · WATCH' : 'WATCH'}</span>
+      </div>
+    ))}
+  </div>
+);
+
+// TONIGHT · finished hands, ranked by money. The verb is REPLAY, never WATCH: the
+// hand is over, and offering to watch it would be a lie about what the tap does.
+const Tonight = ({ items = NAV_TONIGHT, rows = 3 }) => {
   const [head, ...rest] = items;
   return (
     <div style={{ background: '#0C1211', border: `1px solid ${M_BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, padding: '8px 12px 0' }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>{label}</span>
-        <LiveDot color={M_RED} size={5}/>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 0' }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>TONIGHT</span>
+        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>done · tap to replay</span>
       </div>
-      {/* the headline: the amount is the biggest thing on the panel */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9, padding: '3px 12px 9px', cursor: 'pointer' }}>
-        <Amt size={30} color={M_GOLD}>{head.amt}</Amt>
-        <div style={{ paddingBottom: 3, minWidth: 0 }}>
+        <Amt size={28} color={M_GOLD}>{head.amt}</Amt>
+        <div style={{ paddingBottom: 3, minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 11.5, color: M_TEXT, lineHeight: 1.25 }}>{head.who}</div>
           <div style={{ fontSize: 10, color: M_MUTED, lineHeight: 1.3 }}>{head.what} · {head.room}</div>
         </div>
+        <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.12em', color: M_GOLD, paddingBottom: 5 }}>{head.kind}</span>
       </div>
-      {rest.map(t => (
-        <div key={t.who} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', borderTop: `1px solid rgba(255,255,255,0.05)`, cursor: 'pointer' }}>
+      {rest.slice(0, rows).map(t => (
+        <div key={t.who} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', borderTop: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
           <Num size={11} weight={700} color={t.streak ? M_GOLD : M_DIM}>{t.amt}</Num>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_DIM, lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.who} · {t.what}</span>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: M_FAINT, flexShrink: 0 }}>{t.room}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_DIM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.who} · {t.what}</span>
+          <span style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.11em', color: M_MUTED, flexShrink: 0 }}>{t.kind}</span>
+          <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, flexShrink: 0 }}>{t.room}</span>
         </div>
       ))}
     </div>
   );
 };
 
-// ── the door, as the way to the casino ───────────────────────────────────
-const DoorTap = () => (
-  <div style={{ position: 'absolute', left: FLAT.door.x - 4, top: FLAT.door.y - 26, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 260 }}>
-    <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', color: M_TEAL, background: 'rgba(8,12,12,0.9)', border: `1px solid ${M_TEAL}66`, borderRadius: 8, padding: '3px 8px', whiteSpace: 'nowrap' }}>THE CASINO →</span>
+// 5 · YOUR TABLE is his ACTUAL game, in miniature: the seats around the ring, whose
+// turn it is, the pot, his own pill. A lone ghost with three cards floating beside
+// him was a picture OF poker rather than a view of his hand, and it is the one block
+// on this screen the owner opens the screen to see.
+const MINI_RING = [
+  { x: 0.20, y: 0.16 }, { x: 0.50, y: 0.10 }, { x: 0.80, y: 0.16 },
+  { x: 0.12, y: 0.50 }, { x: 0.88, y: 0.50 },
+];
+
+const YourTable = ({ playing = true, where = 'at the bar · rested, 88 stamina', name = 'Balanced v2.1', turn = 2 }) => (
+  <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: `1px solid ${playing ? `${M_GOLD}3D` : M_BORDER}`, background: playing ? 'radial-gradient(ellipse at 50% 42%, #24312C 0%, #16201E 72%)' : '#0E1413', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
+    <div style={{ position: 'absolute', left: 12, top: 11, display: 'flex', alignItems: 'center', gap: 6, zIndex: 4 }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.15em', color: playing ? M_GOLD : M_MUTED }}>YOUR TABLE{playing ? ' · 10/20' : ''}</span>
+      {playing && <LiveDot size={5}/>}
+    </div>
+    {playing ? (
+      <>
+        {/* the ring: five opponents, and the one to act carries the only ring */}
+        {MINI_RING.map((p, i) => (
+          <div key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`, transform: 'translate(-50%,0)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <MoodGhost mood={i === turn ? 'confident' : 'neutral'} size={i === turn ? 26 : 22} ring={false}
+              hood={HOODS[(i + 2) % 6]} glow={GLOWS[(i + 1) % 6].c}/>
+            <div style={{ display: 'flex', gap: 1 }}>{[0, 1].map(k => <CardBack key={k} w={6} h={8}/>)}</div>
+            {i === turn && <span style={{ fontFamily: OSWALD, fontSize: 6, fontWeight: 600, letterSpacing: '0.1em', color: M_GOLD }}>TO ACT</span>}
+          </div>
+        ))}
+        {/* the pot, mid-felt */}
+        <div style={{ position: 'absolute', left: '50%', top: '44%', transform: 'translate(-50%,-50%)', display: 'flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 11, background: 'rgba(10,14,14,0.66)', border: `1px solid ${M_BORDER}` }}>
+          <Lbl size={7}>Pot</Lbl><Num size={11} weight={700} color={M_GOLD}>$940</Num>
+        </div>
+        {/* the board */}
+        <div style={{ position: 'absolute', left: '50%', top: '61%', transform: 'translate(-50%,-50%)', display: 'flex', gap: 2 }}>
+          {[['9', 'h'], ['J', 's'], ['4', 'c']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={13} h={18}/>)}
+        </div>
+        {/* him, at the bottom, with his cards in his hands and his pill above */}
+        <div style={{ position: 'absolute', left: '50%', bottom: 10, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: 8, color: M_TEXT, background: 'rgba(8,12,12,0.9)', border: `1px solid ${M_TEAL}55`, borderRadius: 7, padding: '1.5px 7px', whiteSpace: 'nowrap' }}>{name.split(' ')[0]}</span>
+          <div style={{ position: 'relative' }}>
+            {(() => { const id = idFor(H_CAST.bal.id); return <MoodGhost mood="confident" size={46} ring={false} hood={id.hood} glow={id.glow.c} hands="hold"/>; })()}
+            <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', display: 'flex', gap: 1.5, zIndex: 4 }}>
+              {[['A', 's'], ['K', 'h']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={13} h={18}/>)}
+            </div>
+          </div>
+        </div>
+      </>
+    ) : (
+      // he is not playing, so the block says where he is instead of pretending
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        {(() => { const id = idFor(H_CAST.bal.id); return <MoodGhost mood="neutral" size={46} ring={false} hood={id.hood} glow={id.glow.c}/>; })()}
+        <div style={{ fontSize: 11.5, color: M_DIM }}>{name.split(' ')[0]} is {where}</div>
+        <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL, border: `1px solid ${M_TEAL}66`, borderRadius: 8, padding: '5px 12px' }}>SEND HIM TO PLAY</span>
+      </div>
+    )}
   </div>
 );
 
@@ -170,7 +251,8 @@ const NavCasinoM = () => (
       <YouAvatar/>
     </div>
     <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <RankedTicker/>
+      <LiveNow/>
+      <Tonight rows={2}/>
       {/* the rooms, as three doors you can walk through */}
       <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
         {[['THE FLOOR', '10/20', '412 in'], ['UPSTAIRS', '25/50', '186 in'], ['BACK ROOM', '50/100', '41 in']].map(([nm, st, inn]) => (
@@ -181,22 +263,31 @@ const NavCasinoM = () => (
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: `1px solid ${M_BORDER}`, background: 'radial-gradient(ellipse at 50% 40%, #24312C 0%, #16201E 70%)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', left: 12, top: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.15em', color: M_GOLD }}>YOUR TABLE · 10/20</span>
-          <LiveDot size={5}/>
-        </div>
-        <div style={{ position: 'absolute', left: '50%', top: '46%', transform: 'translate(-50%,-50%)', display: 'flex', gap: 4 }}>
-          {[['A', '♠', '#0F1514'], ['9', '♥', M_RED], ['4', '♣', '#0F1514']].map(([r, s, c]) => (
-            <span key={r} style={{ width: 24, height: 34, borderRadius: 3, background: '#E8E6E0', color: c, fontFamily: MONO, fontSize: 13, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 11 }}>{s}</span></span>
-          ))}
-        </div>
-        <div style={{ position: 'absolute', left: '50%', bottom: 18, transform: 'translateX(-50%)' }}>
-          {(() => { const id = idFor(H_CAST.bal.name); return <MoodGhost mood="confident" size={52} ring={false} hood={id.hood} glow={id.glow.c}/>; })()}
-        </div>
-      </div>
+      <YourTable/>
     </div>
     <HomeThread latest={{ a: H_CAST.bal, text: 'He folds to a third barrel. Watch.' }}/>
+  </PhoneShell>
+);
+
+// N3b · the same screen when nobody of yours is in a hand. The block that would
+// hold his table says where he is instead — a miniature of a game he is not in
+// would be the one outright lie on the screen.
+const NavCasinoIdleM = () => (
+  <PhoneShell>
+    <div style={{ flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9, padding: '7px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM, cursor: 'pointer' }}>← HOME</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.3, whiteSpace: 'nowrap' }}>The casino</div>
+        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>1,604 playing · none of yours</div>
+      </div>
+      <YouAvatar/>
+    </div>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <LiveNow items={NAV_LIVE.slice(0, 2)}/>
+      <Tonight rows={2}/>
+      <YourTable playing={false}/>
+    </div>
+    <HomeThread latest={{ a: H_CAST.bal, text: 'Say the word and I will go again.' }}/>
   </PhoneShell>
 );
 
@@ -226,7 +317,11 @@ const IdentitySheetM = () => (
   </PhoneShell>
 );
 
-// N5 · four of them in one room, telling themselves apart
+// N5 · four of them in one room, telling themselves apart. The ROSTER claims the
+// hoods — a uniform hash still put two of these four in the same one.
+const FOUR = rollRoster(['agg', 'blf', 'val', 'bal']);
+const wear = (a, mood) => ({ ...a, mood: mood || a.mood, hood: FOUR[a.id].hood, glow: FOUR[a.id].glow });
+
 const FourApartM = () => (
   <PhoneShell>
     <HomeHead sub="four home · four creatures" you/>
@@ -234,9 +329,9 @@ const FourApartM = () => (
       <HomeFlat tape="casino">
         <AwayWall hooks={3}/>
         <TableChairs taken={2}/>
-        <HomeGame players={[{ a: { ...H_CAST.agg, mood: 'frustrated' }, stamina: 62, heat: 78 }, { a: H_CAST.blf, stamina: 70, heat: 24 }]}/>
-        <HomeOne a={{ ...H_CAST.val, mood: 'neutral' }} at={STAND.fridge} routine="fridge" size={44} stamina={34} heat={12}/>
-        <HomeOne a={{ ...H_CAST.blf, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={20} heat={14}/>
+        <HomeGame players={[{ a: wear(H_CAST.agg, 'frustrated'), stamina: 62, heat: 78 }, { a: wear(H_CAST.blf), stamina: 70, heat: 24 }]}/>
+        <HomeOne a={wear(H_CAST.val, 'neutral')} at={STAND.fridge} routine="fridge" size={44} stamina={34} heat={12}/>
+        <HomeOne a={wear(H_CAST.bal, 'sulking')} at={STAND.couch} routine="sleep" size={42} stamina={20} heat={14}/>
         <DoorTap/>
       </HomeFlat>
     </div>
@@ -362,6 +457,6 @@ const NavSendM = () => (
 
 Object.assign(window, {
   NavDraftM, NavSendM,
-  NAV_ROSTER, WHERE, RosterRow, RosterSheet, NAV_TICKER, RankedTicker, DoorTap, navRoom,
-  NavHomeM, NavRosterM, NavCasinoM, IdentitySheetM, FourApartM, BarsRefM, NavEmptyM, NavRetiredM,
+  FOUR, wear, NAV_ROSTER, WHERE, RosterRow, RosterSheet, NAV_LIVE, NAV_TONIGHT, LiveNow, Tonight, MINI_RING, YourTable, navRoom,
+  NavHomeM, NavRosterM, NavCasinoM, NavCasinoIdleM, IdentitySheetM, FourApartM, BarsRefM, NavEmptyM, NavRetiredM,
 });
