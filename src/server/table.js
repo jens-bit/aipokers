@@ -77,7 +77,7 @@ import {
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
 import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
-import { appendLine as appendThreadLine, ThreadKind } from './thread.js';
+import { appendLine as appendThreadLine, ThreadKind, OWNER as THREAD_OWNER } from './thread.js';
 import { canAffordTable } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
@@ -1334,7 +1334,7 @@ export class Table {
   // a seat with no session (a House regular, a human) simply has nowhere to
   // write, which is the same thing as not writing.
 
-  _threadTo(seat, kind, who, text) {
+  _threadTo(seat, kind, who, text, { from = null, to = null } = {}) {
     const sessionId = this.seatSessionIds[seat];
     if (!sessionId) return;
     appendThreadLine({
@@ -1345,6 +1345,11 @@ export class Table {
       kind,
       who,
       text,
+      // BUGS-B/2: a whisper and its answer are ADDRESSED — owner to him, him
+      // back to the owner. Everything else at a felt is said to the room and
+      // carries neither, which is the rule thread.js already states.
+      from,
+      to,
     });
   }
 
@@ -1357,9 +1362,11 @@ export class Table {
   // One seat spoke. His own thread records HIM (or YOU, when the voice is the
   // owner whispering from the spectator socket at his seat); everyone else's
   // records the speaker under his own name.
-  _threadSpoken(seat, displayName, text, isAI) {
+  _threadSpoken(seat, displayName, text, isAI, { from = null, to = null } = {}) {
     for (let s = 0; s < this.maxSeats; s++) {
-      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text);
+      // BUGS-B/2: from/to belong to the SPEAKER's own line. The other seats
+      // overheard it; nobody said it to them.
+      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text, { from, to });
       else this._threadTo(s, ThreadKind.OPPONENT, displayName, text);
     }
   }
@@ -3174,7 +3181,7 @@ export class Table {
   // Push a chat line into history and broadcast it to every WS at the table
   // (seated players + spectators). Empty / whitespace-only lines are dropped.
   // Lines are clamped to 280 characters.
-  sendChat(seat, text, isAI = false) {
+  sendChat(seat, text, isAI = false, { from = null, to = null } = {}) {
     if (typeof text !== 'string') return;
     const trimmed = text.trim().slice(0, 280);
     if (!trimmed) return;
@@ -3194,7 +3201,7 @@ export class Table {
     // (or YOU, when the voice is the owner whispering from the spectator
     // socket attached to his seat); everybody else's is filed under the name
     // the felt shows.
-    this._threadSpoken(seat, displayName, trimmed, entry.isAI);
+    this._threadSpoken(seat, displayName, trimmed, entry.isAI, { from, to });
     this._broadcast({
       type: ServerMsg.CHAT,
       seat,
@@ -3202,6 +3209,89 @@ export class Table {
       text: trimmed,
       isAI: entry.isAI,
     });
+  }
+
+  // ── BUGS-B/2 · the whisper ────────────────────────────────────────────────
+  //
+  // The owner leaning in while a hand is running. It is not table chat and it
+  // is not the CHATS thread: it is a private line to ONE seat, answered by the
+  // man in it, in his voice, knowing what is on the board right now.
+  //
+  // Three things the shape of this comes from:
+  //
+  //   1. IT IS ADDRESSED. Owner → him, and him → owner. Every other line at a
+  //      felt is said to the room and carries no from/to; these two carry
+  //      both, which is what lets the sheet draw "YOU → GRANITE".
+  //   2. WHAT YOU SAID IS YOURS. The whisper itself is written into HIS thread
+  //      only — no other seat heard it, and no other seat's sheet gets it. His
+  //      ANSWER is out loud, so it goes on the wire as an ordinary CHAT bubble
+  //      over his head, exactly as his trash talk does.
+  //   3. IT NEVER BREAKS A HAND. Everything here is best-effort and returns
+  //      null rather than throwing: a whisper that can wedge a table is worse
+  //      than a whisper that goes unanswered.
+
+  /** The seat this agent is sitting in, or null. */
+  seatOfAgent(agentId) {
+    if (!agentId) return null;
+    const seat = this.agentIds.findIndex((id) => id === agentId);
+    return seat === -1 || !this.pending[seat] ? null : seat;
+  }
+
+  /**
+   * What he needs to know to answer you: where this hand is, right now.
+   *
+   * His own cards are in it because they are his — this is only ever built for
+   * a caller that has already proved it owns the seat. Nobody else's are.
+   */
+  whisperContext(agentId) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null) return null;
+    const g = this.game;
+    const dealtIn = !!g && seat < g.seats.length;
+    const inHand = !!g && g.street !== Streets.WAITING && dealtIn;
+    return {
+      tableId: this.tableId,
+      seat,
+      displayName: this.pending[seat]?.displayName ?? null,
+      blinds: `${this.smallBlind}/${this.bigBlind}`,
+      handNumber: g ? g.handNumber : 0,
+      // Between hands is a real answer, and a better one than pretending a
+      // board exists: "we are shuffling" is something he can say.
+      street: inHand ? g.street : Streets.WAITING,
+      inHand,
+      board: inHand ? [...g.community] : [],
+      holeCards: inHand ? [...(g.seats[seat]?.holeCards ?? [])] : [],
+      pot: inHand ? g.pot : 0,
+      stack: dealtIn ? (g.seats[seat]?.stack ?? null) : this.seatStack(seat),
+      toAct: inHand ? g.toAct : null,
+      yourTurn: inHand && g.toAct === seat,
+      opponents: this.pending
+        .map((p, i) => (i === seat || !p ? null : (p.displayName ?? null)))
+        .filter(Boolean),
+      handsThisSession: this.handsThisSession,
+    };
+  }
+
+  /**
+   * The owner's line into the felt. Stored in HIS thread and nobody else's.
+   * Returns the seat it landed at, or null when he is not sitting here.
+   */
+  receiveWhisper(agentId, text) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null || typeof text !== 'string' || !text.trim()) return null;
+    this._threadTo(seat, ThreadKind.YOU, 'YOU', text, { from: THREAD_OWNER, to: agentId });
+    return seat;
+  }
+
+  /**
+   * His answer: a bubble over his head, and a HIM line addressed back to you.
+   * Returns the seat, or null.
+   */
+  whisperReply(agentId, text) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null || typeof text !== 'string' || !text.trim()) return null;
+    this.sendChat(seat, text, true, { from: agentId, to: THREAD_OWNER });
+    return seat;
   }
 
   // Maybe generate a trash-talk line from the AI at `aiSeat` for a given

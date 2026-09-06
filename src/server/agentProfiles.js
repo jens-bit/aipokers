@@ -2362,7 +2362,7 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -2399,16 +2399,61 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
   // hands back, and that difference is the whole feature.
   const ownerBlock = ownerMemoryContext(agent);
 
+  // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
+  // a WHISPER and has to be answered as one — what is on the board, what he is
+  // holding, whether it is on him. Without this block he answers a live table
+  // with career statistics, which is the difference between a companion and a
+  // dashboard.
+  const tableBlock = table ? tableWhisperBlock(table) : '';
+
   // Inject recent thread so the model can't repeat itself
   const recentLines = recentChat.length > 0
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${recentLines}
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
 You are already built and playing. Talk about specific hands, decision rationale, or strategy — never ask what kind of poker agent to create.`;
+}
+
+// BUGS-B/2: the felt, in the two or three lines he would actually have in his
+// head. Deliberately short — this rides on top of an already long system
+// prompt, and a wall of state makes the reply read like a report.
+export function tableWhisperBlock(ctx) {
+  if (!ctx) return '';
+  const cards = (list) => (Array.isArray(list) && list.length ? list.join(' ') : 'none yet');
+  const who = ctx.opponents?.length ? ctx.opponents.join(', ') : 'nobody yet';
+  if (!ctx.inHand) {
+    return `
+YOU ARE AT THE TABLE RIGHT NOW — ${ctx.blinds} blinds, ${ctx.handsThisSession} hands in, against ${who}. Between hands; the cards are being shuffled. Your owner just leaned in and said this to you. Answer him about the game you are in, not your career.`;
+  }
+  return `
+YOU ARE IN A HAND RIGHT NOW — ${ctx.blinds} blinds, hand ${ctx.handNumber}, ${ctx.street}. Board: ${cards(ctx.board)}. You hold ${cards(ctx.holeCards)}. Pot ${ctx.pot}, your stack ${ctx.stack ?? 'unknown'}. Against ${who}.${ctx.yourTurn ? ' IT IS ON YOU.' : ''} Your owner just leaned in and said this to you mid-hand. Answer him about THIS hand, in one or two short sentences, and do not narrate the whole street back to him.`;
+}
+
+// BUGS-B/2: the table he is sitting at this instant, or null. Asked of the
+// live registry rather than the stored flag, for the same reason presentAgent
+// asks it — a record that names a table proves nothing about a table existing.
+function whisperTableFor(agent) {
+  if (!agent?.activeTableId) return null;
+  const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
+  if (!table || table.closed) return null;
+  return table.seatOfAgent?.(agent.id) === null ? null : table;
+}
+
+// Best-effort by construction, like every thread write: a whisper that can
+// break the reply the owner is waiting for is worse than a whisper that goes
+// unrecorded.
+function deliverWhisper(table, agentId, text) {
+  if (!table || !text) return null;
+  try {
+    return table.whisperReply(agentId, text);
+  } catch (err) {
+    console.error('[whisper] reply delivery failed:', err.message);
+    return null;
+  }
 }
 
 function inferFallback(text) {
@@ -2553,6 +2598,24 @@ function rosterFor(req, profile) {
  */
 export async function ownerChatTurn(existingAgent, userId, content) {
   ensureMood(existingAgent);
+  // BUGS-B/2: if he is in a seat, this is a WHISPER. Same turn, same mood
+  // bookkeeping, same ledger — but he is answering with a board in front of
+  // him, what you said goes into his thread addressed to him, and what he says
+  // back comes out as a bubble over his head rather than dying in an HTTP
+  // response nothing on the felt ever hears. Away from a table `table` is null
+  // and every line below behaves exactly as it did.
+  const table = whisperTableFor(existingAgent);
+  const tableCtx = table ? table.whisperContext(existingAgent.id) : null;
+  if (table) {
+    try {
+      table.receiveWhisper(existingAgent.id, content);
+    } catch (err) {
+      console.error('[whisper] could not record what you said:', err.message);
+    }
+  }
+  const whisperView = tableCtx
+    ? { tableId: tableCtx.tableId, seat: tableCtx.seat, street: tableCtx.street, inHand: tableCtx.inHand }
+    : null;
   // Pep talk: if the agent is in a negative mood and the cooldown allows,
   // any incoming owner message soothes it one step. The chat reply is
   // then generated with the pep-talk context so the agent acknowledges
@@ -2593,24 +2656,32 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
+    // A template answer is still his answer: it reaches the felt the same way
+    // a generated one does.
+    const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
       fromOwnerMemory: true,
+      whisper: whisperView && seat !== null ? whisperView : null,
       mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
               heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
               moved: said.moved, kind: said.kind },
     };
   }
 
-  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
+  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
   try {
     const reply = await callClaude([{ role: 'user', content }], systemText, 100);
     const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
     existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
+    const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
+      // BUGS-B/2: where his answer landed, so a client can tell "he said it at
+      // the table" from "he said it in the thread". Null when he is not seated.
+      whisper: whisperView && seat !== null ? whisperView : null,
       pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
       // MOOD-2b: what his mood did with what you said. `kind` is needle |
       // care | neutral; heat is where he ended up.
