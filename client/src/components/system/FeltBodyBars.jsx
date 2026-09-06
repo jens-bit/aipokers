@@ -20,6 +20,11 @@
 // Two pixels because this is a fact, not a panel. It rides the bottom edge of
 // whatever already names the agent — his strip, or a seat's name pill — so it
 // costs the felt no height at all.
+//
+// The class is `felt-bars`, not `body-bars`. PROFILE-2's card has a component
+// of its own by that name — same two subjects, a different surface and a very
+// different scale — and two components sharing one class is how a 6px pair of
+// lines silently became 16px of nothing sitting over a seat's stack.
 
 // Fatigue's three stages, as a fraction of the line. The same 3 / 2 / 1 the
 // block meter already uses, so the two readings of fatigue cannot disagree.
@@ -77,17 +82,17 @@ export function BodyBars({ fatigue = null, heat = null, compact = false, classNa
   if (stamina === null && hot === null) return null;
 
   return (
-    <span className={`body-bars${compact ? ' body-bars--seat' : ''}${className ? ` ${className}` : ''}`}
+    <span className={`felt-bars${compact ? ' felt-bars--seat' : ''}${className ? ` ${className}` : ''}`}
       aria-hidden>
       {stamina !== null && (
-        <span className="body-bars__track" data-bar="stamina">
-          <span className="body-bars__fill"
+        <span className="felt-bars__track" data-bar="stamina">
+          <span className="felt-bars__fill"
             style={{ width: `${stamina * 100}%`, background: staminaColor(stamina) }} />
         </span>
       )}
       {hot !== null && (
-        <span className="body-bars__track" data-bar="heat">
-          <span className="body-bars__fill"
+        <span className="felt-bars__track" data-bar="heat">
+          <span className="felt-bars__fill"
             style={{ width: `${hot * 100}%`, background: heatColor(heat) }} />
         </span>
       )}

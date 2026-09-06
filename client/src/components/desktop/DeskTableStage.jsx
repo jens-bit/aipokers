@@ -26,6 +26,7 @@ import { SeatChip } from '../system/SeatChip.jsx';
 import { TugBar } from '../system/TugBar.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { heroPose, betBand } from '../system/WatchHero.jsx';
+import { BodyBars, Bottle, isDrinking } from '../system/FeltBodyBars.jsx';
 import { Streets } from '../../lib/protocol.js';
 import { heroEquityOf, paceMeta, paceOf } from '../../lib/pace.js';
 
@@ -123,6 +124,11 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
     : (heroMoodRaw?.state ?? 'neutral');
   const heroHeat = Number.isFinite(heroMoodRaw?.heat) ? heroMoodRaw.heat : 45;
   const heroAccent = hero?.accentColor ?? '#00D4AA';
+  // WATCH-8 job 3: the body, at desk scale. Same two bars, same two causes —
+  // fatigue is null for a seat with no agent behind it and `drinking` is
+  // FRIDGE-1's field, which may not be on the wire at all.
+  const heroFatigue = hero?.fatigue ?? null;
+  const heroDrinking = isDrinking(hero);
 
   // The rope reads the snapshot first — that is the point of finding 2 — and
   // falls back to whatever the last decision taught us. Before the deal there
@@ -166,6 +172,9 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
               acting={live && game?.toAct === o.index}
               folded={!!o.seat.folded}
               align={slot === 'tr' || slot === 'mr' ? 'right' : 'left'}
+              fatigue={o.seat.fatigue ?? null}
+              heat={Number.isFinite(o.seat.mood?.heat) ? o.seat.mood.heat : null}
+              drinking={isDrinking(o.seat)}
             />
           </div>
         );
@@ -223,7 +232,11 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         <div className="dtb__strip">
           <div>
             <span className="dsk-label" style={{ fontSize: 8.5 }}>Stack</span>
-            <div className="dtb__hero-stack">${(hero?.stack ?? 0).toLocaleString()}</div>
+            <div className="dtb__hero-stack">
+              ${(hero?.stack ?? 0).toLocaleString()}
+              {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
+              {heroDrinking && <Bottle size={14} className="dtb__bottle" />}
+            </div>
           </div>
           <div className="dtb__strip-rule" aria-hidden />
           <div>
@@ -241,6 +254,9 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
           {between
             ? <span className="dtb__waiting">waiting for the deal</span>
             : (action && <span className="dtb__equity-action">{action}</span>)}
+          {/* The body, along the strip's bottom edge — the phone's two lines at
+              desk scale, from the same atom. */}
+          <BodyBars fatigue={heroFatigue} heat={heroHeat} />
         </div>
       </div>
 

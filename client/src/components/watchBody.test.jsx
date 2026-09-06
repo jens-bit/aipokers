@@ -47,9 +47,9 @@ const withBody = (perSeat = {}) => ({
 const draw = (game = withBody(), props = {}) =>
   render(<WatchScreen game={game} {...base} {...props} />);
 
-const barsIn = (el) => el && el.querySelector('.body-bars');
+const barsIn = (el) => el && el.querySelector('.felt-bars');
 const fillOf = (el, which) => el
-  .querySelector(`[data-bar="${which}"] .body-bars__fill`);
+  .querySelector(`[data-bar="${which}"] .felt-bars__fill`);
 
 beforeEach(() => {
   telegram.signIn();
@@ -64,7 +64,7 @@ describe('WATCH-8: the body, on his strip', () => {
     const strip = container.querySelector('.watch-hero__strip');
     const bars = barsIn(strip);
     expect(bars).toBeTruthy();
-    expect(bars.querySelectorAll('.body-bars__track')).toHaveLength(2);
+    expect(bars.querySelectorAll('.felt-bars__track')).toHaveLength(2);
     expect(fillOf(bars, 'stamina').style.width).toMatch(/^66\.6/);
     expect(fillOf(bars, 'heat').style.width).toBe('62%');
   });
@@ -96,9 +96,9 @@ describe('WATCH-8: the body, on his strip', () => {
   // inside the surface that already names him.
   it('is two pixels, absolutely placed, and costs the column no height', () => {
     const css = watch6Css();
-    const rule = css.slice(css.indexOf('.body-bars {'), css.indexOf('.body-bars__fill'));
+    const rule = css.slice(css.indexOf('.felt-bars {'), css.indexOf('.felt-bars__fill'));
     expect(rule).toContain('position: absolute');
-    expect(rule).toMatch(/\.body-bars__track \{[^}]*height: 2px/);
+    expect(rule).toMatch(/\.felt-bars__track \{[^}]*height: 2px/);
   });
 });
 
@@ -108,9 +108,9 @@ describe('WATCH-8: the body, on every name pill', () => {
       1: { fatigue: 'worn', mood: { state: 'tilted', heat: 88 } },
     }));
     const seat = container.querySelectorAll('.watch-felt__seat')[0];
-    const bars = seat.querySelector('.seat-ghost__chip .body-bars');
+    const bars = seat.querySelector('.seat-ghost__chip .felt-bars');
     expect(bars).toBeTruthy();
-    expect(bars.className).toContain('body-bars--seat');
+    expect(bars.className).toContain('felt-bars--seat');
     expect(fillOf(bars, 'stamina').style.width).toMatch(/^33\.3/);
     expect(fillOf(bars, 'heat').style.width).toBe('88%');
   });
@@ -121,7 +121,7 @@ describe('WATCH-8: the body, on every name pill', () => {
   it('draws no stamina line for a seat with no agent behind it', () => {
     const { container } = draw(withBody({ 1: { fatigue: null } }));
     const seat = container.querySelectorAll('.watch-felt__seat')[0];
-    const bars = seat.querySelector('.body-bars');
+    const bars = seat.querySelector('.felt-bars');
     expect(bars.querySelector('[data-bar="stamina"]')).toBeNull();
     expect(bars.querySelector('[data-bar="heat"]')).toBeTruthy();
   });

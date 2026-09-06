@@ -14,6 +14,7 @@
 // happen at showdown and only for the seats that actually revealed.
 
 import { CardBack } from './PlayingCard.jsx';
+import { BodyBars, Bottle } from './FeltBodyBars.jsx';
 
 // design-refs/header.jsx — the hooded silhouette every seat wears.
 export function AgentAvatar({ size = 24 }) {
@@ -72,11 +73,20 @@ function DealerPip({ align, small }) {
   );
 }
 
-export function SeatChip({ name, stack, pos, acting, folded, align = 'left', dealer = false }) {
+export function SeatChip({
+  name, stack, pos, acting, folded, align = 'left', dealer = false,
+  // WATCH-8 job 3: the body, on the desk's own name chip. Both are absent
+  // rather than defaulted — a seat with no agent behind it has no fatigue, and
+  // `drinking` is FRIDGE-1's field, which may not be on the wire at all.
+  fatigue = null, heat = null, drinking = false,
+}) {
   return (
-    <div style={{
+    <div className="seat-chip" style={{
       display: 'flex', alignItems: 'center', gap: 7,
-      padding: '4px 9px 4px 5px', borderRadius: 18,
+      // The bottom nine pixels belong to the two body bars — six of line and
+      // three of clearance under them. No overflow clip here: the dealer pip
+      // hangs off the top corner and would be cut in half.
+      padding: '4px 9px 9px 5px', borderRadius: 18,
       background: 'rgba(8,10,10,0.72)',
       border: `1px solid ${acting ? 'rgba(0,212,170,0.40)' : 'rgba(255,255,255,0.12)'}`,
       boxShadow: acting ? '0 0 10px rgba(0,212,170,0.18)' : 'none',
@@ -106,8 +116,12 @@ export function SeatChip({ name, stack, pos, acting, folded, align = 'left', dea
               fontSize: 8, fontWeight: 600, letterSpacing: '0.1em', color: '#6B6B6B',
             }}>{pos}</span>
           )}
+          {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
+          {drinking === true && <Bottle size={11} />}
         </div>
       </div>
+      {/* The body, along the chip's bottom edge — same two bars, desk scale. */}
+      <BodyBars fatigue={fatigue} heat={heat} />
     </div>
   );
 }
