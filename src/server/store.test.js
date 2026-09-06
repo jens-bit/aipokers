@@ -19,6 +19,7 @@ import {
   appendHandRow, readHandRows,
   loadOpponentStats, saveOpponentStats,
   loadNotificationState, saveNotificationState,
+  loadWallet, saveWallet, deleteOwner,
   openStore, _closeForTests, _dbPath,
 } from './store.js';
 
@@ -258,4 +259,48 @@ test('unreadable agents.json leaves the file in place and starts empty', () => {
 
   assert.deepEqual(loadAgentStore(), {}, 'starts empty rather than crashing');
   assert.ok(fs.existsSync(path.join(dir, 'data', 'agents.json')), 'a file we could not read is never retired');
+});
+
+// TEST-4: an e2e verify script run BY HAND from the repo root resolves the real
+// data/app.db, so the agents it builds outlive the run. Four runs later the
+// fifth build comes back agentCap (or slotLocked, once SLOTS-1 put the second
+// agent behind winnings) and every check fails on the last run's leftovers
+// rather than on its own subject. deleteOwner is what lets a script start from
+// nothing without anybody remembering to clear a database by hand.
+test('TEST-4: deleteOwner removes one owner entirely', () => {
+  freshCwd();
+  openStore();
+
+  saveProfile('e2e-victim', { userId: 'e2e-victim', chat: [], agents: [{ id: 'a1', name: 'Ghost' }] });
+  saveWallet('e2e-victim', { ownerId: 'e2e-victim', balance: 500, earned: 250_000, ledger: [] });
+  appendHandRow('e2e-victim', { id: 'h1', ts: Date.now() }, 100);
+
+  assert.ok(loadAgentStore()['e2e-victim'], 'the fixture owner is there to begin with');
+
+  deleteOwner('e2e-victim');
+
+  assert.equal(loadAgentStore()['e2e-victim'], undefined, 'profile and agents are gone');
+  assert.equal(loadWallet('e2e-victim'), null, 'the wallet is gone, so `earned` cannot unlock a later run');
+  assert.deepEqual(readHandRows('e2e-victim', 10), [], 'and the hands with it');
+});
+
+// The whole reason it takes an exact id and not a prefix: data/ on a laptop is
+// a real ledger (verify-chips.js asserts against it), and a delete that reaches
+// past the id it was handed is the one bug this helper must not have.
+test('TEST-4: deleteOwner touches nobody else', () => {
+  freshCwd();
+  openStore();
+
+  saveProfile('e2e-multi-seat-user', { userId: 'e2e-multi-seat-user', chat: [], agents: [{ id: 'a1' }] });
+  saveProfile('e2e-multi-seat-user-2', { userId: 'e2e-multi-seat-user-2', chat: [], agents: [{ id: 'a2' }] });
+  saveProfile('jens', { userId: 'jens', chat: [], agents: [{ id: 'real' }] });
+  saveWallet('jens', { ownerId: 'jens', balance: 12_345, earned: 0, ledger: [] });
+
+  deleteOwner('e2e-multi-seat-user');
+
+  const store = loadAgentStore();
+  assert.equal(store['e2e-multi-seat-user'], undefined, 'the named owner went');
+  assert.ok(store['e2e-multi-seat-user-2'], 'an owner it is a PREFIX of stayed');
+  assert.ok(store.jens, 'and a real one was never in range');
+  assert.equal(loadWallet('jens').balance, 12_345, 'with his bankroll untouched');
 });

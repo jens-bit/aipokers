@@ -112,8 +112,17 @@ const cleanup = [];   // { id, owner }
 // not on a slot limit. It has to run before the FIRST request for that owner —
 // agentProfiles caches a wallet the first time it is asked for one. The ladder
 // itself is asserted in src/server/slots.test.js.
-const { saveWallet } = await import('../src/server/store.js');
+const { saveWallet, deleteOwner } = await import('../src/server/store.js');
 const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+// TEST-4: start from nothing. Run by `npm run test:e2e` this changes nothing —
+// runScript hands each script a scratch cwd, so the database is empty already.
+// Run BY HAND from the repo root it is the difference between a suite that is
+// repeatable and one that passes once: the owners below are fixed ids, their
+// agents outlive the process, and the next run's builds come back agentCap (or
+// slotLocked, since SLOTS-1) on the leftovers of the last one.
+// ownerOf(n) is built lazily, so the reset covers the whole range it can reach.
+[userId, ...Array.from({ length: 6 }, (_, i) => ownerOf(i + 1))].forEach(deleteOwner);
+
 
 const listAgents = async (owner, { auth = true } = {}) =>
   (await j('GET', `/api/agents?userId=${owner}`, null, { owner: auth })).body?.agents ?? [];

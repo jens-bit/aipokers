@@ -841,6 +841,36 @@ export function _closeForTests() {
   openedAt = null;
 }
 
+// Removes every trace of ONE owner, by exact id. Used by the e2e verify
+// scripts to reset their own fixtures at startup.
+//
+// Under `npm run test:e2e` this is redundant — runScript gives each script a
+// scratch cwd, so it opens an empty database and throws it away afterwards.
+// It matters for a script run BY HAND from the repo root, which resolves
+// data/app.db like the real server does and therefore leaves its agents behind.
+// Four of those runs and the fifth build comes back agentCap or slotLocked, and
+// the suite fails on the leftovers of the last run rather than on its subject.
+//
+// Exact id, never a prefix or a pattern: a wildcard delete living in the store
+// is one typo away from being pointed at real owners, and the caller always
+// knows the ids it made up. `verify-chips.js` is the reason data/ is not
+// disposable — that is somebody's actual bankroll ledger on a laptop.
+export function deleteOwner(ownerId) {
+  const id = String(ownerId);
+  const d = conn();
+  const purge = d.transaction(() => {
+    d.prepare('DELETE FROM session_thread     WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM notifications      WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM notification_state WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM hands              WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM wallets            WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM agents             WHERE owner_id = ?').run(id);
+    d.prepare('DELETE FROM profiles           WHERE owner_id = ?').run(id);
+  });
+  purge();
+  return id;
+}
+
 // Opens (and therefore migrates) eagerly. index.js calls this at boot so the
 // migration log lands at startup rather than on the first hand, and so a failed
 // import stops the server instead of surfacing mid-session.

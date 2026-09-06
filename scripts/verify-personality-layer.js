@@ -69,6 +69,12 @@ const j = async (method, path, body) => {
 };
 
 const userId = 'e2e-verify-user';
+
+// TEST-4: start from nothing. Under `npm run test:e2e` the cwd is a scratch
+// directory and this is a no-op; run by hand from the repo root it is what
+// stops the last run's agents from filling this owner's roster.
+const { deleteOwner } = await import('../src/server/store.js');
+deleteOwner(userId);
 const agentIdRef = { value: null };
 
 // ── 1) create agent (bypass LLM by injecting via /build-shaped path) ─────────

@@ -117,8 +117,16 @@ const floorUserId = 'e2e-server-life-floor';
 // happen before the first request for that owner, because agentProfiles caches
 // a wallet the first time it is asked for one. The ladder itself is asserted in
 // src/server/slots.test.js.
-const { saveWallet } = await import('../src/server/store.js');
+const { saveWallet, deleteOwner } = await import('../src/server/store.js');
 const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+// TEST-4: start from nothing. Run by `npm run test:e2e` this changes nothing —
+// runScript hands each script a scratch cwd, so the database is empty already.
+// Run BY HAND from the repo root it is the difference between a suite that is
+// repeatable and one that passes once: the owners below are fixed ids, their
+// agents outlive the process, and the next run's builds come back agentCap (or
+// slotLocked, since SLOTS-1) on the leftovers of the last one.
+[userId, floorUserId].forEach(deleteOwner);
+
 unlockSlots(userId);
 unlockSlots(floorUserId);
 

@@ -103,8 +103,16 @@ const heroUserId = 'e2e-watch-v2-hero';
 // happen before the first request for that owner, because agentProfiles caches
 // a wallet the first time it is asked for one. The ladder itself is asserted in
 // src/server/slots.test.js.
-const { saveWallet } = await import('../src/server/store.js');
+const { saveWallet, deleteOwner } = await import('../src/server/store.js');
 const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+// TEST-4: start from nothing. Run by `npm run test:e2e` this changes nothing —
+// runScript hands each script a scratch cwd, so the database is empty already.
+// Run BY HAND from the repo root it is the difference between a suite that is
+// repeatable and one that passes once: the owners below are fixed ids, their
+// agents outlive the process, and the next run's builds come back agentCap (or
+// slotLocked, since SLOTS-1) on the leftovers of the last one.
+[userId, heroUserId].forEach(deleteOwner);
+
 
 
 // AGENTS-2 caps a roster at four. Sections 1 and 2 spend all four between
@@ -193,6 +201,9 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
   // either. The refusal is asserted at the end of this section.
   const ownerA = 'e2e-watch-v2-pvp-a';
   const ownerB = 'e2e-watch-v2-pvp-b';
+  // TEST-4, next to the ids rather than up with the others: a reset that
+  // repeats a literal stops covering it the day somebody renames one.
+  [ownerA, ownerB].forEach(deleteOwner);
   const a = await newAgent('watcher A', ownerA);
   const b = await newAgent('watcher B', ownerB);
   const A = await getAgent(a, ownerA);
