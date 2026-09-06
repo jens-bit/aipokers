@@ -1345,7 +1345,10 @@
   align-items: center;
   gap: 5px;
   height: 18px;
-  padding: 0 7px;
+  /* WATCH-8: the bottom five pixels belong to the body bars, so the name and
+     the stack sit in the twelve above them rather than on top of them. The
+     pill is still the ref's 18. */
+  padding: 0 7px 5px;
   border-radius: 9px;
   background: rgba(14, 17, 18, 0.88);
   border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
@@ -1356,6 +1359,7 @@
 .seat-ghost.is-acting .seat-ghost__chip { border-color: rgba(237, 237, 237, 0.4); }
 .seat-ghost__name {
   font-size: 9.5px;
+  line-height: 1;
   color: var(--sys-dim, #C3C3C6);
   font-weight: 500;
   /* A seat is centred on its own x now, so a long name grows the pill in BOTH
@@ -1372,6 +1376,7 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 700;
+  line-height: 1;
   color: var(--sys-dim, #C3C3C6);
 }
 .seat-ghost.is-folded .seat-ghost__stack { color: var(--sys-muted, #9E9EA2); }

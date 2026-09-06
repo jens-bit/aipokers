@@ -33,6 +33,7 @@ import { TugBar } from './TugBar.jsx';
 import { Glass } from './Glass.jsx';
 import { Bubble } from './Bubble.jsx';
 import { SeatClock } from './SeatClock.jsx';
+import { BodyBars } from './BodyBars.jsx';
 import { SEAT_BODY, SEAT_H } from './SeatGhost.jsx';
 
 // TWICE AN OPPONENT, and measured BODY TO BODY: 96 against the seat's 40. The
@@ -114,6 +115,9 @@ export function WatchHero({
   equity, villain, bigRope, deadRope,
   stack, pos, street, toCall = 0, action, tag, warm, note,
   cost, onTapFace, timer = null, timerOf = 12,
+  // WATCH-8 job 2: the body. Two 2px lines along the strip's bottom edge —
+  // STAMINA from volume, HEAT from outcomes, and they never share a channel.
+  fatigue = null,
   // WATCH-7: the hand-end receipt. It rides ON the strip — over his own money,
   // which is what it is about — and it is part of the column, so it can never
   // land on the board or on him.
@@ -203,6 +207,9 @@ export function WatchHero({
         {/* W5-4 / 52f · "why the hand went wrong". A toast over the strip for
             four seconds, then a dot at its right edge. Never a row. */}
         <CostToast cost={cost} />
+        {/* The body, along the strip's bottom edge. Absolute, like everything
+            else that rides this strip, so it costs the column no height. */}
+        <BodyBars fatigue={fatigue} heat={heat} />
       </Glass>
     </div>
   );

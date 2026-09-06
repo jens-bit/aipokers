@@ -1107,6 +1107,20 @@ export class Table {
     return { state: 'neutral', heat: HEAT_MIDPOINT.neutral };
   }
 
+  // WATCH-8 job 2: how worn this seat is — 'fresh' | 'settled' | 'worn', or
+  // null for a seat with no agent behind it. Mood was already public (SEAT-1a:
+  // "it is the one thing about an opponent a person at a real table can see");
+  // so is this. You can see across a felt that somebody has been sitting there
+  // all night. A client that ignores the field sees what it saw before.
+  _seatFatigue(seat) {
+    try {
+      return this._seatAttrs(seat)?.fatigue ?? null;
+    } catch (err) {
+      console.error(`[table:${this.tableId}] seat fatigue read failed:`, err.message);
+      return null;
+    }
+  }
+
   // ATTR-1: the seat's six attributes after within-session fatigue. Read from
   // the stored agent record rather than plumbed through every seating path, so
   // House seats and player seats (which have no agent) simply get null and
@@ -1457,6 +1471,8 @@ export class Table {
         accentColor: this.seatAccentColors[i] ?? null,
         // SEAT-1a: { state, heat } — see _seatMood.
         mood:        this._seatMood(i),
+        // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
+        fatigue:     this._seatFatigue(i),
         history: includeHole && i !== seat && this.pending[i]?.playerId
           ? getAgentBioRole(agentId, this.agentUserIds[seat], this.pending[i].playerId)
           : null,
@@ -2838,6 +2854,8 @@ export class Table {
       // on liveGameView, because WatchScreen builds its seat ring from STATE —
       // a mood that only rode the poll would never reach a SeatGhost.
       mood: this._seatMood(i),
+      // WATCH-8: and how worn he is, for the second of the two body bars.
+      fatigue: this._seatFatigue(i),
     }));
     // PACE-1: the ladder rides every snapshot as well as its own message, so a
     // client that joins mid-hand is not calm until the next transition.

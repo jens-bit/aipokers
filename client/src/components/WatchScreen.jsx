@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { ChipStack, BetSpot, PotChip, potBand, stackBand } from './system/Chips.jsx';
+import { Bottle, isDrinking } from './system/BodyBars.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { Streets } from '../lib/protocol.js';
@@ -617,7 +618,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
 export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
-  agentMood, agentHeat, agentAccent,
+  agentMood, agentHeat, agentAccent, agentFatigue = null,
   // WATCH-7: the hand-end receipt, drawn over his strip rather than over the
   // felt, and the ticking stack number under it. Both are the watch screen's;
   // the replay theatre passes neither and is unchanged.
@@ -742,6 +743,10 @@ export function WatchFelt({
       // SERVER-3: the face he is pulling, from the trigger the server sent —
       // one name, one expression, whichever message carried it.
       event: faceOf(si, faceDecision, result),
+      // WATCH-8 job 2: the body. `fatigue` is null for a seat with no agent
+      // behind it; `drinking` is FRIDGE-1's, and may not be on the wire at all.
+      fatigue: s.fatigue || null,
+      drinking: isDrinking(s),
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
       band: stackBand(s.stack || 0, avgStack),
@@ -812,6 +817,11 @@ export function WatchFelt({
   var heroBetOut  = live && heroContrib > 0;
   var heroSweeping = !!(sweep && sweep.seats.indexOf(heroSeat) >= 0);
   var heroFace = faceOf(heroSeat, faceDecision, result);
+  // WATCH-8 job 2 · his body. Fatigue comes off his seat where the server puts
+  // it; the agent record is the fallback for the moment before the first
+  // snapshot lands, which is the same order his mood already resolves in.
+  var heroFatigue = (heroData && heroData.fatigue) || agentFatigue || null;
+  var heroDrinking = isDrinking(heroData);
 
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
@@ -836,6 +846,8 @@ export function WatchFelt({
               mood={o.mood}
               heat={Number.isFinite(o.heat) ? o.heat : 45}
               event={o.event}
+              fatigue={o.fatigue}
+              drinking={o.drinking}
               folded={o.folded}
               acting={o.acting}
               selected={selectedSeat === o.seat}
@@ -973,6 +985,10 @@ export function WatchFelt({
         <div className="watch-felt__hero-stack">
           <ChipStack band={stackBand(heroStackRaw || 0, avgStack)} w={26}
             label="STACK" amt={heroStack} />
+          {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
+          {heroDrinking && (
+            <span className="watch-felt__hero-bottle"><Bottle size={16} /></span>
+          )}
         </div>
         {(heroBetOut || heroSweeping) && (
           <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
@@ -988,6 +1004,7 @@ export function WatchFelt({
           accent={agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : 45}
           event={heroFace}
+          fatigue={heroFatigue}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
           timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
           pose={heroPose({
@@ -1280,6 +1297,12 @@ export function WatchScreen({
   var heroHeat = heroSeatRow && Number.isFinite(moodHeatOf(heroSeatRow))
     ? moodHeatOf(heroSeatRow) : 45;
   var heroAccent = (heroSeatRow && heroSeatRow.accentColor) || '#00D4AA';
+  // WATCH-8 job 2: how worn he is. The seat carries it, and the polled agent
+  // record is the fallback for the moment before the first snapshot lands —
+  // the same order his mood already resolves in.
+  var heroFatigueStage = (heroSeatRow && heroSeatRow.fatigue)
+    || (agent && agent.fatigue)
+    || null;
 
   // FIX-1g: the hero's last known equity for the hand in progress.
   var handEquityRef = useRef({ hand: null, equity: null });
@@ -1795,6 +1818,7 @@ export function WatchScreen({
         game={game} mySeat={mySeat} lastDecision={lastDecision}
         handEquity={handEquity} flipped={faceUp} line={feltLine}
         agentMood={heroMood} agentHeat={heroHeat} agentAccent={heroAccent}
+        agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
         onTapHero={function() { openChat(); }}
