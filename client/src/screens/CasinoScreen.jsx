@@ -200,14 +200,24 @@ export function CasinoScreen({
     [rooms],
   );
 
+  // FIX-6 job 2 · A DOORWAY WITH SOMEBODY IN THE TRAY IS THE DEAL, NOT A PICK.
+  //
+  // The want asks "put me in?", the owner says Yes, and the casino opens with
+  // him already in the tray. From there it took two more taps — one to select a
+  // room, one to confirm in the tray — to do the thing that had already been
+  // agreed to. The second tap was asking the same question twice.
+  //
+  // So the doorway deals him in. The shut door is unchanged and is still the
+  // one thing that opens his chips: law 4, a fact about his pocket and never a
+  // paywall. The tray keeps its own button, which is not a confirmation — it is
+  // the same one action, for the room the tray already opened on.
   function selectRoom(room) {
-    // A shut door is how the owner gets to his chips — that is the only thing
-    // that opens it. Law 4: a fact about his pocket, never a paywall.
     if (trayAgent && !canAfford(pocket, room)) {
       setFundTarget(trayAgent);
       return;
     }
     setSelectedRoomId(room.id);
+    dealHimIn(room);
   }
 
   // BUGS-A job 7: with nobody in the tray, a doorway is a place you look INTO.
@@ -234,9 +244,10 @@ export function CasinoScreen({
   // one of them reads these fields, the room picked here is where he is SHOWN
   // to sit down, not necessarily the blinds he lands on — see the CASINO-1
   // report.
-  async function dealHimIn() {
-    if (!trayAgent || !selectedRoom || busy) return;
-    if (!canAfford(pocket, selectedRoom)) { setFundTarget(trayAgent); return; }
+  async function dealHimIn(into = null) {
+    const room = into ?? selectedRoom;
+    if (!trayAgent || !room || busy) return;
+    if (!canAfford(pocket, room)) { setFundTarget(trayAgent); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(trayAgent.id)}/queue`, {
@@ -244,13 +255,13 @@ export function CasinoScreen({
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({
           userId: getUserId(),
-          rung: selectedRoom.rung,
-          stakes: selectedRoom.stakes,
+          rung: room.rung,
+          stakes: room.stakes,
         }),
       });
       if (!res.ok) return;
       const payload = await res.json();
-      onDeployed?.(payload, trayAgent, selectedRoom);
+      onDeployed?.(payload, trayAgent, room);
     } catch { /* he stays in the tray */ }
     finally { setBusy(false); }
   }
@@ -402,7 +413,7 @@ export function CasinoScreen({
       room={selectedRoom}
       affordable={canAfford(pocket, selectedRoom)}
       busy={busy}
-      onDeal={dealHimIn}
+      onDeal={() => dealHimIn(selectedRoom)}
       onFund={() => setFundTarget(trayAgent)}
     />
   ) : null;
