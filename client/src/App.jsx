@@ -115,9 +115,22 @@ export default function App() {
     setWatchedAgent(agent);
   }
 
+  // YOU-2 — YOU is a summary now and the money is a sheet behind it. An owner
+  // who was sent to YOU *to deal with money* must not land one tap short of it,
+  // so the intent travels with the navigation. Ordinary tab navigation clears
+  // it, which is what keeps the sheet from reopening every time he comes back.
+  const [youMoneyOpen, setYouMoneyOpen] = useState(false);
+
   function navigateTo(tab) {
     setActiveTab(tab);
     setAgentChatTarget(null);
+    setYouMoneyOpen(false);
+  }
+
+  function navigateToMoney() {
+    setActiveTab('you');
+    setAgentChatTarget(null);
+    setYouMoneyOpen(true);
   }
 
   function openAgentChat(agent) {
@@ -416,7 +429,7 @@ export default function App() {
           <AgentProfileScreen
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
-            onFund={() => { setAgentProfileTarget(null); navigateTo('you'); }}
+            onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
             onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
             onWatch={async (ag) => {
               if (!ag?.activeTableId) return;
@@ -543,7 +556,7 @@ export default function App() {
               onOpenProfile={openAgentProfile}
             />
           )}
-          {activeTab === 'you' && <YouScreen onOpenProfile={openAgentProfile} />}
+          {activeTab === 'you' && <YouScreen onOpenProfile={openAgentProfile} openMoney={youMoneyOpen} />}
 
           {/* WIRE-1: the newborn's arrival is CasinoFloor's own (FLOOR-2 FL-3) —
               it notices an id that was not in the roster it first saw and walks
@@ -610,7 +623,7 @@ export default function App() {
         // ways out of the evening it offers. Funding him is the wallet, which
         // is where YOU already keeps the buy-in.
         sessionEnd={sessionEnd}
-        onFund={() => { handleLeave(); navigateTo('you'); }}
+        onFund={() => { handleLeave(); navigateToMoney(); }}
         onBackToFloor={() => { handleLeave(); navigateTo('casino'); }}
         config={config}
       />
