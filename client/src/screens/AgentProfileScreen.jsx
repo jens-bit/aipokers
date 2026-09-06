@@ -3,14 +3,25 @@
 // Uses real careerStats + sessionLog from presentAgent; activity feed from sessionFlagged.
 //
 // ATTR-2b — the player card v2 from design-refs/char-profile.jsx sits on top of
-// it: identity + nature, the six-bar cluster, fatigue in words. Everything below
-// the cluster is history; everything in it is the creature. Career and the mood
-// arc are demoted, not removed.
+// it: identity + nature, the attribute cluster, fatigue in words. Everything
+// below the cluster is history; everything in it is the creature. Career and the
+// mood arc are demoted, not removed.
+//
+// PROFILE-2 — the card splits in two. The six bars were drawn as one list, which
+// says they are six of the same thing; they are not. STAMINA and HEAT are BODY —
+// state that moves inside a single session and that he does not get better at —
+// and they now sit in the header with his face, under the name and the nature,
+// where they explain the mood standing right above them. What is left below is
+// SKILLS: READS, FOCUS, DISCIPLINE, DECEPTION, the four things he trains.
+// COMPOSURE is the fifth attribute and it is neither: it is tilt resistance, the
+// stat whose live reading IS heat, so it rides on the heat bar as its caption
+// rather than as a bar of its own. Nothing the engine tracks left the card.
 
 import { useEffect, useMemo, useState } from 'react';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
+import { BodyBars } from '../components/system/BodyBars.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
@@ -28,6 +39,12 @@ const M_BORDER  = 'rgba(255,255,255,0.12)';
 const M_TEXT    = '#EDEDED';
 const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
+
+// PROFILE-2 — the four he trains, in ATTR_KEYS order. STAMINA and COMPOSURE are
+// deliberately absent: one is body, the other is the body's resistance, and both
+// are answered in the header. Kept as a filter over the canon six rather than as
+// a rival list of attribute names.
+const SKILL_KEYS = ['READS', 'FOCUS', 'DISCIPLINE', 'DECEPTION'];
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -519,6 +536,24 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const attrLog = detailLog ?? (Array.isArray(agent?.attrLog) ? agent.attrLog : []);
   const seriesOf = useMemo(() => (key) => seriesFor(attrLog, key), [attrLog]);
 
+  // PROFILE-2 — the split. normalizeAttrs still returns all six in canon order,
+  // because the silhouette is canon and every other surface reads it; the card
+  // is the only place that sorts them into body and skills. SKILL_KEYS is a
+  // filter over that one list rather than a second list, so an attribute cannot
+  // be renamed in one place and go missing here.
+  const staminaRow = useMemo(
+    () => character.rows.find((r) => r.key === 'STAMINA') ?? null,
+    [character.rows],
+  );
+  const composure = useMemo(
+    () => character.rows.find((r) => r.key === 'COMPOSURE')?.cur ?? null,
+    [character.rows],
+  );
+  const skillRows = useMemo(
+    () => character.rows.filter((r) => SKILL_KEYS.includes(r.key)),
+    [character.rows],
+  );
+
   if (!agent) return null;
 
   const accent  = accentFor(agent);
@@ -589,41 +624,59 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
       {/* Scrollable body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
-        {/* Identity — the creature, then the label */}
-        <IdentityBlock
-          agent={agent}
-          accent={accent}
-          mood={mood}
-          heat={heat}
-          nature={character.nature}
-          compact={!!expand}
-        />
+        {/* PROFILE-2 · BODY — the header frame. His face, his name, his nature,
+            and the two readings that are about the state of him rather than the
+            size of him. They sit here because the MoodBand is directly above:
+            "tilted" is the mood, and heat 82 with stamina 41 is why. */}
+        <div className="profile-body">
+          <IdentityBlock
+            agent={agent}
+            accent={accent}
+            mood={mood}
+            heat={heat}
+            nature={character.nature}
+            compact={!!expand}
+          />
 
-        {/* His nature in one sentence. Hidden while a bar is open: the panel is
-            the argument then, and two voices would compete. */}
-        {!expand && character.nature?.line && (
-          <div style={{
-            margin: '0 14px 12px', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic',
-            color: `color-mix(in oklab, ${M_GOLD} 30%, ${M_DIM})`,
-          }}>
-            {character.nature.line}
+          {/* His nature in one sentence. Hidden while a bar is open: the panel
+              is the argument then, and two voices would compete. */}
+          {!expand && character.nature?.line && (
+            <div style={{
+              margin: '0 14px 12px', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic',
+              color: `color-mix(in oklab, ${M_GOLD} 30%, ${M_DIM})`,
+            }}>
+              {character.nature.line}
+            </div>
+          )}
+
+          <div style={{ margin: '0 14px 14px', padding: '12px 13px 13px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
+            <BodyBars
+              staminaRow={staminaRow}
+              heat={heat}
+              composure={composure}
+              expand={expand}
+              onExpand={setExpand}
+              seriesFor={seriesOf}
+            />
+            {showFatigue && (
+              <div style={{ marginTop: 13, paddingTop: 11, borderTop: `1px solid ${M_BORDER}` }}>
+                <FatigueLine stage={character.fatigue} />
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* The cluster — the heart of the card */}
-        <div style={{ padding: '0 14px 5px' }}><Lbl size={9.5}>Attributes</Lbl></div>
-        <div style={{ margin: '0 14px 12px', padding: '13px 13px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
+        {/* PROFILE-2 · SKILLS — the four he trains. Same bars, same canon order,
+            same tap-to-expand: what changed is that the list no longer has two
+            things in it that are not skills. */}
+        <div style={{ padding: '0 14px 5px' }}><Lbl size={9.5}>Skills</Lbl></div>
+        <div className="profile-skills" style={{ margin: '0 14px 12px', padding: '13px 13px 14px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
           <AttrCluster
-            rows={character.rows}
+            rows={skillRows}
             expand={expand}
             onExpand={setExpand}
             seriesFor={seriesOf}
           />
-          {showFatigue && (
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${M_BORDER}` }}>
-              <FatigueLine stage={character.fatigue} />
-            </div>
-          )}
         </div>
 
         {/* WUI-3 — the pocket line. Money and stakes only: the pocket decides

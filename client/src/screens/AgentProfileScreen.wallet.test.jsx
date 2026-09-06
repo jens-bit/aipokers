@@ -136,8 +136,10 @@ describe('WUI-3 — the pocket line', () => {
   it('graceful absence: no pocket, no row', () => {
     renderProfile(noPocketAgent);
     expect(line()).toBeNull();
-    // The card is otherwise exactly what it is today.
-    expect(screen.getByText('Attributes')).toBeInTheDocument();
+    // The card is otherwise exactly what it is today. PROFILE-2 renamed the
+    // cluster's heading: the list is the four SKILLS now, because STAMINA and
+    // HEAT moved into the header and "Attributes" no longer describes it.
+    expect(screen.getByText('Skills')).toBeInTheDocument();
     expect(screen.getByText('Career')).toBeInTheDocument();
   });
 });
