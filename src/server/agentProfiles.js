@@ -466,6 +466,15 @@ function activeAgents(profile) {
 // because a float is money set aside so he can sit down again and he is not
 // sitting down again — and the record closes. Idempotent, and there is no
 // un-retire from the API.
+//
+// FIX-5: retire is WALLET-7's "take everything", not an ordinary collect. An
+// ordinary collect stops at the winnings (collectable()), which is the whole
+// point of that tree — the principal is the owner's gift and is not swept out
+// from under a working agent. A retiring agent is not working again, so the
+// ceiling is the pocket. This used to pass `{ leaveFloat: false }`, a flag
+// WALLET-7's collect() does not have; with it ignored the ceiling fell back to
+// the winnings and a retiring agent with no realised P&L handed back nothing.
+// `{ all: true }` is that path, and it is the same one callIn() takes.
 function archiveAgent(profile, agent) {
   if (!agent || agent.archived) return 0;
   const userId = profile.userId;
@@ -473,14 +482,16 @@ function archiveAgent(profile, agent) {
   const pocket = ensurePocket(agent);
   pocket.agentId = agent.id;
 
-  const result = walletCollect(wallet, pocket, { amount: null, leaveFloat: false });
+  const result = walletCollect(wallet, pocket, { all: true });
   const collected = result.ok ? result.moved : 0;
   if (collected > 0) {
     appendLedger(agent, { ts: Date.now(), type: 'retire', amount: -collected, tableId: null });
   }
 
-  // Cut, so no refill path can quietly put a retired agent back in a seat.
+  // Cut, so no refill path can quietly put a retired agent back in a seat, and
+  // the pocket is home — there is nothing left for sweepRecalled to chase.
   pocket.mode = 'cut';
+  pocket.recall = false;
   agent.retiring = false;
   agent.archived = true;
   agent.archivedAt = Date.now();
