@@ -64,10 +64,14 @@ describe('welcome landing page', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('LAND-4: .floor-desktop gets its display from the stylesheet', () => {
-    // The base rule has to exist, or removing the inline style would leave the
-    // desktop shot as a plain block and lose the centering.
-    expect(styleBlock).toMatch(/\.floor-desktop\s*\{[^}]*display\s*:\s*flex/);
-    expect(responsivelyHiddenClasses().has('floor-desktop')).toBe(true);
+  it('LAND-4: .hero-scene-d gets its display from the stylesheet', () => {
+    // LAND-5 replaced the old wide desktop floor shot (`.floor-desktop`) with a
+    // section built from the same responsively-scaled screenshot at every width,
+    // so that class no longer exists — but the hero's desktop card scene is the
+    // same shape of element (shown by default, `display:none` on mobile), and the
+    // base rule still has to exist or removing the inline style would leave the
+    // desktop scene as a plain block and lose the centering.
+    expect(styleBlock).toMatch(/\.hero-scene-d\s*\{[^}]*display\s*:\s*flex/);
+    expect(responsivelyHiddenClasses().has('hero-scene-d')).toBe(true);
   });
 });
