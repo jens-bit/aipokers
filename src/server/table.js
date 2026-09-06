@@ -46,6 +46,10 @@ import { recordModelCall, Kind as MeterKind } from './meter.js';
 // whether this spot is decided already; the ones that are never reach a model.
 // See router.js for the gates and policyPlay.js for what answers them.
 import { routeFor, Route, newRouteCounter, countRoute, formatRoutes } from './router.js';
+// GUEST-1: the one question every model-spending path in this file asks —
+// 'is anybody paying for this owner yet'. See guest.js for what it means and
+// why the answer lives in exactly one file.
+import { modelBlocked } from './guest.js';
 import { chooseFromPolicy } from '../agent/policyPlay.js';
 // COST-1: the hand's talk, written once at the end of it, and the recap of an
 // evening nobody watched. Both are one call where there used to be many, and
@@ -3321,6 +3325,12 @@ export class Table {
     const agentId = this.agentIds[seat];
     const userId = this.agentUserIds[seat];
     if (!agentId) return;
+    // GUEST-1: the self-knowledge refresh is a model call every twenty hands,
+    // and an unclaimed owner does not buy one. The deterministic half of his
+    // memory — computeSelfStats, which is where the numbers come from — is
+    // untouched and still runs, so a guest's agent still knows what he has
+    // been doing. What he does not get is the narrative about it.
+    if (modelBlocked(userId)) return;
     const recentHands = this.aiRecentHands[seat] ?? [];
     console.log(`[table:${this.tableId}] triggering memory update for agent ${agentId} (${recentHands.length} recent hands)`);
     runMemoryUpdate(agentId, userId, recentHands)
@@ -3919,8 +3929,30 @@ export class Table {
     // rather than left to find it: on the model path the line does not exist
     // yet when this returns, so reading it back off chatHistory here would
     // needle the table with whatever somebody said three hands ago.
-    if (watched) this._talkWithModel(spoke, result);
-    else this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
+    // GUEST-1: a guest's seat takes the free path even at a watched table, and
+    // it is split rather than switched — one guest at the felt must not turn
+    // the written talk off for the claimed owners sitting with him, and a
+    // claimed owner at the felt must not turn it on for the guest. So the cast
+    // is divided and each half goes the way its own owner is entitled to.
+    //
+    // The needle rides the FIRST speaker of the hand, whichever half he is in,
+    // because the needle is a fact about the table rather than about who is
+    // paying — and on the model path the line does not exist yet, which is why
+    // that branch hands its own line back later.
+    const free = watched ? spoke.filter((s) => modelBlocked(this.agentUserIds[s.seat])) : spoke;
+    const paid = watched ? spoke.filter((s) => !modelBlocked(this.agentUserIds[s.seat])) : [];
+
+    // Exactly ONE needle per hand, off the hand's first speaker, whichever half
+    // he landed in. Both halves needling would be two needles from one hand,
+    // which is the thing TLK-1's cap exists to prevent.
+    const firstSeat = spoke[0].seat;
+    const freeHasFirst = free.some((s) => s.seat === firstSeat);
+
+    if (paid.length > 0) this._talkWithModel(paid, result, { needle: !freeHasFirst });
+    if (free.length > 0) {
+      const line = this._talkFromTemplates(free);
+      if (freeHasFirst) this._needleOpponents(firstSeat, line);
+    }
   }
 
   // TLK-1's four triggers, in priority order, unchanged.
@@ -3972,7 +4004,7 @@ export class Table {
   // The paid path: one call, every speaker, the whole hand in front of it.
   // Fire-and-forget — a hand does not wait for its own commentary, and the
   // next one is already being dealt.
-  _talkWithModel(spoke, result) {
+  _talkWithModel(spoke, result, { needle = true } = {}) {
     const hand = {
       board: [...(this.game?.community ?? [])],
       pot: result?.pot ?? 0,
@@ -4009,11 +4041,15 @@ export class Table {
         // have said rather than going silent: the templates are already there,
         // they cost nothing, and silence is a worse product than a plain line.
         if (!Array.isArray(lines) || lines.length === 0) {
-          this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
+          const fallback = this._talkFromTemplates(spoke);
+          if (needle) this._needleOpponents(spoke[0].seat, fallback);
           return;
         }
         this._playBubbles(lines);
-        this._needleOpponents(spoke[0].seat, lines[0].text);
+        // GUEST-1: `needle` is false only when the hand's first speaker was on
+        // the free path and has already needled the table. His line is the one
+        // the room heard first, and the needle answers what was said first.
+        if (needle) this._needleOpponents(spoke[0].seat, lines[0].text);
       })
       .catch((err) => console.error(`[table:${this.tableId}] hand talk failed:`, err.message));
   }
@@ -4120,6 +4156,13 @@ export class Table {
       moments: [...this.sessionMoments],
     };
     const ownerId = seats.find((p) => p.ownerId)?.ownerId ?? null;
+    // GUEST-1: the evening's write-up is the last unwatched model call in the
+    // product, and an unclaimed owner does not get one. Unlike the talk this
+    // is ONE call for the whole table with one owner's name on the bill, so it
+    // cannot be split per seat — it is skipped when the owner who would be
+    // billed has not been claimed. His evening is still in the thread; it is
+    // the prose about it that waits for somebody to keep him.
+    if (modelBlocked(ownerId)) return;
 
     writeNightRecap(seats, session, { ownerId })
       .then((lines) => this._fileRecapLines(lines, seats))
@@ -4421,6 +4464,11 @@ export class Table {
     // changes is what it costs, never what it looks like.
     const routed = routeFor(gameState, {
       home: this.home,
+      // GUEST-1: an unclaimed owner's agent plays on the compiled policy, all
+      // night, whatever the spot. Asked per SEAT rather than per table,
+      // because a guest and a claimed owner sit at the same felt and one of
+      // them being free is no reason for the other to be.
+      guest: modelBlocked(this.agentUserIds[aiSeat]),
       nemesis: this._roleAtTable(aiSeat)?.role === 'nemesis',
     });
     countRoute(this.routes, routed);

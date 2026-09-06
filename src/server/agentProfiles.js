@@ -1,6 +1,13 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
+// GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
+// only enforced here — see the note at the top of that file for why the two
+// are deliberately not the same place.
+import {
+  guestAgentRefusal, guestSessionRefusal, noteSession,
+  mustClaimToTalk, modelBlocked, CLAIM_TO_TALK,
+} from './guest.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
 import {
@@ -768,6 +775,12 @@ function slotStateFor(userId, profile) {
 // when the roster is full (retiring is the only way past it) and `slotLocked`
 // when the slot exists but has not been won yet.
 function slotRefusal(userId, profile) {
+  // GUEST-1 first: a guest's cap is a flat one, not the earned ladder's four,
+  // and the two refusals are not interchangeable. `agentCap` is fixed by
+  // retiring somebody and `slotLocked` by winning; `guestAgentCap` is fixed by
+  // keeping him, which is a different sentence and a different button.
+  const guest = guestAgentRefusal(userId, activeAgents(profile).length);
+  if (guest) return guest;
   return slotBlocker(slotStateFor(userId, profile));
 }
 
@@ -814,6 +827,35 @@ function archiveAgent(profile, agent) {
   mirrorBankroll(agent);
   console.log(`[agentProfiles] retired "${agent.name}" — ${collected} back to the wallet`);
   return collected;
+}
+
+/**
+ * GUEST-1: retire everybody on one owner's roster. The nightly guest pass's
+ * one hand into this file.
+ *
+ * It goes through archiveAgent — the SAME function POST /retire ends at — so a
+ * forgotten guest's agent is closed exactly the way a retired one is: the
+ * pocket comes home, the record is stamped archived, and nothing is deleted.
+ * Rule 3 of place.js, applied to a different door: a second implementation of
+ * retirement is a second set of rules about what retirement does to money.
+ *
+ * Nobody stale is at a table — a guest untouched for thirty days has not had a
+ * session in thirty days — but a seated agent is skipped rather than archived
+ * out from under a live hand, and the next pass takes him.
+ */
+export function archiveAllAgents(userId) {
+  const profile = getOrCreate(String(userId));
+  let archived = 0;
+  for (const agent of activeAgents(profile)) {
+    if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) continue;
+    archiveAgent(profile, agent);
+    archived++;
+  }
+  if (archived > 0) {
+    saveStore(userId);
+    saveWalletFor(userId);
+  }
+  return archived;
 }
 
 function appendLedger(agent, entry) {
@@ -1111,6 +1153,11 @@ export function updateComputedMemory(agentId, userId) {
 // failure the previous narrative is kept — this fixes the truncation bug
 // where a chopped-off summary would silently overwrite a good one.
 export async function runMemoryUpdate(agentId, userId, recentHands) {
+  // GUEST-1: belt as well as the braces in table.js. This is an exported
+  // function and the table is not guaranteed to stay its only caller; a rule
+  // enforced only at one call site is a rule the second call site will not
+  // have. The deterministic half of memory (computeSelfStats) is untouched.
+  if (modelBlocked(userId)) return null;
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -3452,6 +3499,22 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     } };
   }
 
+  // GUEST-1: one casino session a day for an unclaimed owner.
+  //
+  // HERE, and not earlier: the check sits BELOW the "already at a live table"
+  // fast path above, so a client polling deploy during the session it already
+  // started gets its table back rather than being told he has had his night.
+  // And above the pocket gate, so a refused night costs nothing and moves
+  // nothing — the refusal is the cheapest thing this function can do.
+  //
+  // Only the CASINO is bounded. The kitchen table, the couch, the fridge and
+  // the TV are unbounded because none of them spends anything, and a guest
+  // whose one session is spent still has a flat with somebody living in it.
+  {
+    const guestRefusal = guestSessionRefusal(userId);
+    if (guestRefusal) return { status: 409, body: guestRefusal };
+  }
+
   // MST-2: prefer JOINING an open AI-only table over standing up a private
   // one. Filling a felt is both cheaper (one table's worth of model calls
   // serves N agents) and better poker -- the matchmaker ranks candidates by
@@ -3594,6 +3657,12 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     }
   }
 
+  // GUEST-1: the day's session is spent HERE, where a seat was actually taken,
+  // and not in the gate above. A gate that spent the day by being asked would
+  // turn every refused deploy — a broke pocket, a full floor, a 503 — into a
+  // night gone, and a guest gets one of them.
+  if (sessionStarted) noteSession(userId);
+
   activeTables.add(tableId);
   agent.activeTableId = tableId;
   agent.status = 'playing';
@@ -3714,6 +3783,11 @@ export function installAgentProfileRoutes(app) {
   app.post('/api/home/say', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || req.query.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your home' });
+    // GUEST-1: talking to the room is one model call per agent in it, and it is
+    // also the thing the product is FOR — which is exactly what makes it the
+    // right thing to ask somebody to keep him for. One body, one wall: the
+    // client opens the same claim wall wherever `claimToTalk` arrives.
+    if (mustClaimToTalk(userId)) return res.status(403).json(CLAIM_TO_TALK);
     const text = String(req.body?.text ?? req.body?.content ?? '').trim();
     if (!text) return res.status(400).json({ error: 'text required' });
 
@@ -4748,6 +4822,11 @@ export function installAgentProfileRoutes(app) {
       : null;
 
     if (existingAgent) {
+      // GUEST-1: the whisper is the other half of the same refusal. The DRAFT
+      // below it is untouched — it is the one model call a guest is allowed,
+      // because it is the whole first impression and a templated recruiter is a
+      // worse advertisement than none.
+      if (mustClaimToTalk(userId)) return res.status(403).json(CLAIM_TO_TALK);
       const body = await ownerChatTurn(existingAgent, userId, content);
       return res.json(body);
     }

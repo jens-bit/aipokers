@@ -12,6 +12,7 @@ import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
 import * as rustNight from './rustNight.js';
+import * as guestNight from './guestNight.js';
 import * as tapeIdle from './tapeIdle.js';
 import * as thread from './thread.js';
 import { ThreadKind, ThreadSource } from './thread.js';
@@ -62,6 +63,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
       // building rather than this owner's roster, because the household most
       // in need of a pass is the one that never produces a change of its own.
       rustNight.runNightly();
+      // GUEST-1: and the guest pass beside it, on the same tick and for the
+      // same reason — a household nobody has touched produces no changes of
+      // its own, so the pass has to ride somebody else's. Once per day inside,
+      // free when there is nothing stale, and a no-op unless GUEST_ENABLED.
+      guestNight.runNightly();
       // COST-1: before the home game is reconciled, not after. An agent who
       // has just put a tape on himself is no longer eligible for the kitchen
       // table (homeGame.eligible excludes a man who is studying), and syncing

@@ -45,6 +45,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { appendOverheard } from './thread.js';
 import { recordAnthropicCall, Kind as MeterKind } from './meter.js';
 import { Where } from './home.js';
+import { modelBlocked } from './guest.js';
 import { capWords, isSolverSpeak } from '../agent/voice.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -151,6 +152,11 @@ export function ranToday(ownerId, { now = Date.now() } = {}) {
 export async function maybeRunNightly(ownerId, agents, { now = Date.now(), call = callModel } = {}) {
   if (!ownerId) return null;
   const owner = String(ownerId);
+  // GUEST-1: an unclaimed owner buys nothing but the draft, and the nightly
+  // exchange is a model call. Checked before the day is stamped, so a guest who
+  // is claimed at eight in the evening still gets that night's exchange rather
+  // than one that was silently spent while nobody was paying for it.
+  if (modelBlocked(owner)) return null;
   const household = householdFor(owner, now);
   if (household.ranOn === household.day) return null;
 

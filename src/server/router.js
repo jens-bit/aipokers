@@ -78,6 +78,7 @@ export const Reason = Object.freeze({
   // → policy
   CLEAR: 'clear',          // big margin, one option, small pot, level head
   HOME: 'home',            // the kitchen table never calls a model, ever
+  GUEST: 'guest',          // nobody has claimed him yet — see guest.js
   // → model
   OFF: 'off',              // the router is switched off; everything is a call
   BLIND: 'blind',          // no equity estimate — nothing here can judge it
@@ -129,13 +130,14 @@ export function routingEnabled() {
  *
  * @param gs   the game state table.js built for the seat
  * @param opts.home     this is the kitchen table — policy only, no exceptions
+ * @param opts.guest    his owner has not claimed him — policy only, no exceptions
  * @param opts.nemesis  somebody he has history with is sitting here
  * @returns { route, reason, margin, options, tag }
  *
  * `tag` is the one-token form for the log and the meter: "policy/clear",
  * "model/river".
  */
-export function routeFor(gs, { home = false, nemesis = false } = {}) {
+export function routeFor(gs, { home = false, guest = false, nemesis = false } = {}) {
   const margin = marginOf(gs);
   const rated = rateActions(gs);
   const options = countOptions(rated);
@@ -144,6 +146,16 @@ export function routeFor(gs, { home = false, nemesis = false } = {}) {
   // a cent. Checked before everything else, because every other gate below is
   // a reason to spend and there is no reason good enough here.
   if (home) return answer(Route.POLICY, Reason.HOME, margin, options);
+
+  // GUEST-1: nor may a man nobody has claimed. Same shape as the kitchen table
+  // and for the same reason — it is not a routing judgement about this spot,
+  // it is a rule about who is paying, so it sits with the other absolute and
+  // above the kill switch. `DECISION_ROUTER=off` is the way back from a bad
+  // ROUTING call; it is not a way to start billing for anonymous browsers.
+  //
+  // The one thing a guest owner may spend on is the draft, and that is an
+  // exception by omission: the draft does not come through here.
+  if (guest) return answer(Route.POLICY, Reason.GUEST, margin, options);
 
   // The switch is read AFTER the home check on purpose: the kitchen table
   // spending nothing is not a routing optimisation, it is HOME-STATE-1's rule
