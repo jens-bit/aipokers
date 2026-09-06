@@ -104,7 +104,18 @@ export function defaultRoom(rooms, pocket) {
 
 // The doorway heights, from the ref. The hot room grows to 176; a shut room
 // shrinks, because there is nothing to look at in a room he cannot enter.
-function doorHeight({ hot, shut, index }) {
+//
+// FIX-6 job 5 — ON THE DESK THEY ARE THE SAME HEIGHT, because they are no
+// longer stacked. Three doorways in a column can differ in height and read as a
+// building with a hot floor in it; three cards SIDE BY SIDE that differ in
+// height read as a broken grid. The hot room still says so — the badge, the
+// shimmering felt, the gold rim — and the shut room still says its price. What
+// it stops doing is changing size to say it, which is the one thing a row
+// cannot afford.
+export const DESK_DOOR_H = 360;
+
+function doorHeight({ hot, shut, index, desktop = false }) {
+  if (desktop) return DESK_DOOR_H;
   if (hot) return 176;
   if (shut) return 104;
   return [152, 134, 120][index] ?? 120;
@@ -266,16 +277,23 @@ export function CasinoScreen({
     finally { setBusy(false); }
   }
 
-  if (fundTarget) {
+  const fund = fundTarget ? (
+    <FundSheet
+      agent={fundTarget}
+      wallet={wallet}
+      index={agents.findIndex((a) => a.id === fundTarget.id)}
+      onCancel={() => setFundTarget(null)}
+      onConfirm={handleFund}
+    />
+  ) : null;
+
+  // On the phone his chips take the screen, because the phone has one screen.
+  // On the desk it is a rail panel like everything else — see the desktop
+  // return below.
+  if (fund && !desktop) {
     return (
       <div className="csn wal" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
-        <FundSheet
-          agent={fundTarget}
-          wallet={wallet}
-          index={agents.findIndex((a) => a.id === fundTarget.id)}
-          onCancel={() => setFundTarget(null)}
-          onConfirm={handleFund}
-        />
+        {fund}
       </div>
     );
   }
@@ -296,7 +314,7 @@ export function CasinoScreen({
         shut={shut}
         shutFor={trayAgent?.name ?? null}
         selected={!!trayAgent && room.id === selectedRoomId}
-        h={doorHeight({ hot, shut, index })}
+        h={doorHeight({ hot, shut, index, desktop })}
         onSelect={trayAgent ? selectRoom : lookIntoRoom}
       />
     );
@@ -379,11 +397,16 @@ export function CasinoScreen({
         {!trayAgent && !desktop && board}
         {!trayAgent && <Stairs />}
 
+        {/* FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
+            stacks them because it has one column and a doorway you scroll past
+            is still a doorway; 1440 has room to show the whole building at
+            once, and a column of three in the middle of it is the phone's
+            layout with air poured down both sides. */}
         {rooms.length === 0 ? (
           <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
             The floor has not opened yet.
           </div>
-        ) : doors}
+        ) : desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
 
         {/* K1 · the board stays reachable while you are placing him, but the
             decision is the tray, so it reads as two lines and not as five. On
@@ -399,6 +422,7 @@ export function CasinoScreen({
   const roomSheet = openRoom && !trayAgent ? (
     <RoomTablesSheet
       room={openRoom}
+      variant={desktop ? 'rail' : 'sheet'}
       agents={mineByRoom[openRoom.id] ?? []}
       events={events}
       onClose={() => setOpenRoomId(null)}
@@ -421,24 +445,32 @@ export function CasinoScreen({
   // DESK-2 — the building on the stage, the ticker in the rail. Board 31's
   // frame: the shell's top bar is already across the top, so this is the body.
   if (desktop) {
+    // FIX-6 job 5 — EVERY SHEET OPENS IN THE RAIL. A bottom sheet at 1440 is a
+    // full-width strip across a two-column layout: it covers the doorway it is
+    // about, it covers the ticker it is not about, and it makes the desk read
+    // like a phone that got bigger. The rail is the desk's answer to a sheet
+    // (board 31, "sheets that arrive from a fixture arrive in the rail"), and
+    // the ticker stands down for as long as one is open — it is the resting
+    // panel here, the way the room's thread is on HOME.
     return (
       <div className="csn csn--desk" style={{ background: M_BG }}>
         <div className="csn-desk__stage">
           {head}
           {roomsColumn}
           {tray}
-          {roomSheet}
         </div>
         <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
-          <CasinoBoard
-            events={events}
-            mineIds={mineIds}
-            playing={seated}
-            full
-            max={30}
-            stakesFor={stakesForTable}
-            onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
-          />
+          {fund ?? roomSheet ?? (
+            <CasinoBoard
+              events={events}
+              mineIds={mineIds}
+              playing={seated}
+              full
+              max={30}
+              stakesFor={stakesForTable}
+              onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+            />
+          )}
         </aside>
       </div>
     );
