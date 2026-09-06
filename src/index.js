@@ -17,6 +17,7 @@ import { installMeterRoutes } from './server/meter.js';
 import { installRoomRoutes } from './server/rooms.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 import { installPlaceRoutes } from './server/place.js';
+import { installGuestRoutes, guestsEnabled } from './server/guest.js';
 // BUGS-B/6: /api/stats asks the registry for the floor's counts rather than
 // walking the table Map itself, so "how many agents are live" has exactly one
 // definition and it is not written out twice.
@@ -49,6 +50,11 @@ app.use(express.json());
 const rlWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE_LIMIT_MAX ?? 60) }));
 
+// GUEST-1: POST /api/guest, GET /api/guest/me and POST /api/guest/claim.
+// Registered FIRST among the API routes because importing guest.js is what
+// teaches auth.js to read a guest cookie, and every route below is gated by
+// auth. All three 404 unless GUEST_ENABLED=1.
+installGuestRoutes(app);
 installAgentProfileRoutes(app);
 // EVENT-1: GET /api/events?since=<id> - the floor ticker's poll. Public
 // headlines only, no model call, already inside the /api rate limiter above.
@@ -145,7 +151,15 @@ app.get('/api/stats', (_req, res) => {
 // Public: the bot username is public information, nothing secret is exposed.
 app.get('/api/auth/config', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ botUsername: (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '') });
+  // GUEST-1: `guest` says whether this deployment has the no-account door open.
+  // The client asks the same question the login gate already asks, on the same
+  // request, so a browser with no session knows whether to draft a guest or to
+  // put the Login Widget up — and never renders a "play without an account"
+  // button on a server that would 404 it.
+  res.json({
+    botUsername: (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, ''),
+    guest: guestsEnabled(),
+  });
 });
 
 // AUTH-1 — GET /api/auth/me: is the credential this browser holds still good?

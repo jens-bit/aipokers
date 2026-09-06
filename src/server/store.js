@@ -203,6 +203,41 @@ function applySchema(d) {
       PRIMARY KEY (day, owner_id, route, reason)
     );
     CREATE INDEX IF NOT EXISTS decision_routes_day ON decision_routes (day);
+
+    -- GUEST-1: the third way in. A guest is an owner like any other — the same
+    -- owner_id runs through profiles, agents, wallets and every thread row —
+    -- and this table is only the CREDENTIAL and the meter beside it.
+    --
+    -- The token is the primary key because it is what the cookie carries and
+    -- what every request resolves through; owner_id is unique because a guest
+    -- owner has exactly one token and a second one would be a second door into
+    -- the same flat.
+    --
+    -- The ip column is kept for one purpose only: the 5-a-day creation cap. It is the
+    -- creating address, never updated afterwards, and nothing reads it except
+    -- that count.
+    --
+    -- claimed_by is the Telegram owner this guest became, or NULL. A claimed
+    -- row is KEPT rather than deleted: it is what makes a second claim on the
+    -- same token a no-op instead of minting a fresh empty guest, and it is the
+    -- only record that the two ids were ever the same person.
+    --
+    -- session_day / session_count are the one-casino-session-a-day meter.
+    -- A day stamp plus a counter rather than a row per session, because the
+    -- only question ever asked of it is "how many today".
+    CREATE TABLE IF NOT EXISTS guests (
+      token         TEXT PRIMARY KEY,
+      owner_id      TEXT NOT NULL UNIQUE,
+      created_at    INTEGER NOT NULL DEFAULT 0,
+      last_seen_at  INTEGER NOT NULL DEFAULT 0,
+      ip            TEXT,
+      claimed_by    TEXT,
+      session_day   TEXT,
+      session_count INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS guests_owner   ON guests (owner_id);
+    CREATE INDEX IF NOT EXISTS guests_ip      ON guests (ip, created_at);
+    CREATE INDEX IF NOT EXISTS guests_stale   ON guests (claimed_by, last_seen_at);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -1015,6 +1050,191 @@ export function readDecisionRoutes({ sinceDay = null, ownerId = null } = {}) {
     reason: r.reason,
     decisions: r.decisions ?? 0,
   }));
+}
+
+// ── GUEST-1 · the guest credential ───────────────────────────────────────────
+//
+// Six accessors, and none of them knows what a guest is ALLOWED to do — that
+// is guest.js's job. This layer answers only "does this token exist", "whose
+// is it", "how many has this address made today" and "how many sessions has he
+// had today". A limit written twice is a limit that will one day disagree with
+// itself, so the rules live in exactly one file and the rows live here.
+
+export function insertGuest({ token, ownerId, ip = null, now = Date.now() }) {
+  conn().prepare(`
+    INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count)
+    VALUES (?, ?, ?, ?, ?, 0)
+  `).run(String(token), String(ownerId), now, now, ip === null ? null : String(ip));
+  return loadGuestByToken(token);
+}
+
+const guestRow = (row) => (row ? {
+  token: row.token,
+  ownerId: row.owner_id,
+  createdAt: row.created_at ?? 0,
+  lastSeenAt: row.last_seen_at ?? 0,
+  ip: row.ip ?? null,
+  claimedBy: row.claimed_by ?? null,
+  sessionDay: row.session_day ?? null,
+  sessionCount: row.session_count ?? 0,
+} : null);
+
+export function loadGuestByToken(token) {
+  if (!token) return null;
+  return guestRow(conn().prepare('SELECT * FROM guests WHERE token = ?').get(String(token)));
+}
+
+export function loadGuestByOwner(ownerId) {
+  if (!ownerId) return null;
+  return guestRow(conn().prepare('SELECT * FROM guests WHERE owner_id = ?').get(String(ownerId)));
+}
+
+/** Guests created from this address since `sinceTs`. The 5-a-day cap's only input. */
+export function countGuestsFromIp(ip, sinceTs) {
+  if (!ip) return 0;
+  const row = conn().prepare('SELECT COUNT(*) AS n FROM guests WHERE ip = ? AND created_at >= ?')
+    .get(String(ip), Math.floor(sinceTs));
+  return row?.n ?? 0;
+}
+
+/** He was here. Cheap enough to call on every resolved request. */
+export function touchGuest(token, now = Date.now()) {
+  conn().prepare('UPDATE guests SET last_seen_at = ? WHERE token = ?').run(now, String(token));
+}
+
+/** The one-session-a-day meter. Returns the count AFTER this session is noted. */
+export function noteGuestSession(ownerId, day, now = Date.now()) {
+  conn().prepare(`
+    UPDATE guests
+       SET session_day   = ?,
+           session_count = CASE WHEN session_day = ? THEN session_count + 1 ELSE 1 END,
+           last_seen_at  = ?
+     WHERE owner_id = ?
+  `).run(String(day), String(day), now, String(ownerId));
+  return loadGuestByOwner(ownerId)?.sessionCount ?? 0;
+}
+
+/** Mark the token spent. The row survives so a second claim is a no-op. */
+export function markGuestClaimed(token, claimedBy, now = Date.now()) {
+  conn().prepare('UPDATE guests SET claimed_by = ?, last_seen_at = ? WHERE token = ?')
+    .run(String(claimedBy), now, String(token));
+  return loadGuestByToken(token);
+}
+
+/** Unclaimed guests last seen before `beforeTs` — the nightly retirement's input. */
+export function listStaleGuests(beforeTs) {
+  return conn().prepare(`
+    SELECT * FROM guests
+     WHERE claimed_by IS NULL AND last_seen_at < ?
+     ORDER BY last_seen_at
+  `).all(Math.floor(beforeTs)).map(guestRow);
+}
+
+// ── GUEST-1 · moving an owner's whole life onto another id ───────────────────
+//
+// The claim. Every table that carries an owner_id is re-pointed in ONE
+// transaction, so a claim either happened or it did not — a half-moved owner
+// is an agent whose thread belongs to somebody else.
+//
+// The list below is deliberately the same list `deleteOwner` walks. If a table
+// grows an owner_id column and only one of these two learns about it, the
+// symptom is a claim that silently loses somebody's hand history; keeping them
+// adjacent is the cheapest way to make that hard to miss.
+//
+// Agents are the one table with a composite key (owner_id, id), so an id
+// already on the target would collide. It cannot happen in practice — agent
+// ids are minted from randomness — but a claim that throws half way through is
+// a worse answer than one that skips, so a colliding id is left where it is
+// and named in the result.
+//
+// THE WALLET IS NOT SUMMED ONTO A TARGET THAT HAS NONE. A brand-new Telegram
+// owner has no wallet row until something seeds him one, and taking the
+// guest's verbatim is what makes "the money he won as a guest is his" true.
+// A target that ALREADY has a wallet gets the guest's balance and lifetime
+// earnings added onto his own, which is the only reading that neither
+// duplicates a seed nor throws somebody's evening away.
+export function moveOwner(fromId, toId) {
+  const from = String(fromId);
+  const to = String(toId);
+  if (!from || !to || from === to) return { moved: false, agents: 0, collided: [], wallet: 'none' };
+
+  const d = conn();
+  const out = { moved: false, agents: 0, collided: [], wallet: 'none' };
+
+  d.transaction(() => {
+    // Agents first, so a collision is known before anything else has moved.
+    const taken = new Set(d.prepare('SELECT id FROM agents WHERE owner_id = ?').all(to).map((r) => r.id));
+    for (const row of d.prepare('SELECT id FROM agents WHERE owner_id = ?').all(from)) {
+      if (taken.has(row.id)) { out.collided.push(row.id); continue; }
+      d.prepare('UPDATE agents SET owner_id = ? WHERE owner_id = ? AND id = ?').run(to, from, row.id);
+      out.agents++;
+    }
+
+    const guestWallet = d.prepare('SELECT * FROM wallets WHERE owner_id = ?').get(from);
+    if (guestWallet) {
+      const targetWallet = d.prepare('SELECT * FROM wallets WHERE owner_id = ?').get(to);
+      if (!targetWallet) {
+        d.prepare('UPDATE wallets SET owner_id = ? WHERE owner_id = ?').run(to, from);
+        out.wallet = 'moved';
+      } else {
+        const fridge = { ...jsonParse(targetWallet.fridge, {}) };
+        for (const [k, v] of Object.entries(jsonParse(guestWallet.fridge, {}))) {
+          fridge[k] = (Number(fridge[k]) || 0) + (Number(v) || 0);
+        }
+        d.prepare('UPDATE wallets SET balance = ?, earned = ?, fridge = ?, updated_at = ? WHERE owner_id = ?').run(
+          (targetWallet.balance ?? 0) + (guestWallet.balance ?? 0),
+          (targetWallet.earned ?? 0) + (guestWallet.earned ?? 0),
+          JSON.stringify(fridge),
+          Date.now(),
+          to,
+        );
+        d.prepare('DELETE FROM wallets WHERE owner_id = ?').run(from);
+        out.wallet = 'merged';
+      }
+    }
+
+    // A straight re-point: nothing here has a key that can clash.
+    for (const table of ['session_thread', 'notifications', 'hands']) {
+      d.prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id = ?`).run(to, from);
+    }
+    // These two are keyed on owner_id alone. An existing target keeps his own
+    // row and the guest's is dropped: the agents are what a claim is about, and
+    // the draft transcript that produced them is already inside the agent
+    // record.
+    for (const table of ['notification_state', 'profiles']) {
+      const exists = d.prepare(`SELECT 1 FROM ${table} WHERE owner_id = ?`).get(to);
+      if (exists) d.prepare(`DELETE FROM ${table} WHERE owner_id = ?`).run(from);
+      else d.prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id = ?`).run(to, from);
+    }
+    // The two meters have composite keys that include owner_id, so a row for
+    // the same (day, kind, model) on both sides would collide. A guest's spend
+    // is small and the honest thing is to keep it, so a clash is summed and
+    // everything else re-pointed.
+    mergeMeter(d, 'model_calls', ['day', 'kind', 'model'],
+      ['calls', 'input_tokens', 'output_tokens', 'cached_input_tokens', 'usd', 'unpriced'], from, to);
+    mergeMeter(d, 'decision_routes', ['day', 'route', 'reason'], ['decisions'], from, to);
+
+    out.moved = true;
+  })();
+
+  return out;
+}
+
+// Sum-or-move for a table whose primary key includes owner_id.
+function mergeMeter(d, table, keyCols, sumCols, from, to) {
+  const where = keyCols.map((c) => `${c} = ?`).join(' AND ');
+  for (const row of d.prepare(`SELECT * FROM ${table} WHERE owner_id = ?`).all(from)) {
+    const keys = keyCols.map((c) => row[c]);
+    const clash = d.prepare(`SELECT 1 FROM ${table} WHERE owner_id = ? AND ${where}`).get(to, ...keys);
+    if (!clash) {
+      d.prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id = ? AND ${where}`).run(to, from, ...keys);
+      continue;
+    }
+    const sets = sumCols.map((c) => `${c} = ${c} + ?`).join(', ');
+    d.prepare(`UPDATE ${table} SET ${sets}, updated_at = ? WHERE owner_id = ? AND ${where}`)
+      .run(...sumCols.map((c) => row[c] ?? 0), Date.now(), to, ...keys);
+    d.prepare(`DELETE FROM ${table} WHERE owner_id = ? AND ${where}`).run(from, ...keys);
+  }
 }
 
 // ── Test / tooling hooks ─────────────────────────────────────────────────────

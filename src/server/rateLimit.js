@@ -2,11 +2,16 @@
 // Each call to rateLimiter() returns an independent middleware with its own
 // per-IP tracking window. Configurable via windowMs and max.
 
-export function rateLimiter({ windowMs = 60_000, max = 60, message = 'Too many requests' } = {}) {
-  const windows = new Map(); // ip -> number[]
+// GUEST-1 adds `key`: how a request is turned into the thing being counted.
+// The default is what it always was — the socket's address — and every existing
+// caller keeps it. The guest routes pass their own, because behind a TLS
+// terminator every socket has the same address and a per-IP limiter keyed on
+// it is a per-SITE limiter wearing a per-IP name. See guest.clientIp().
+export function rateLimiter({ windowMs = 60_000, max = 60, message = 'Too many requests', key = null } = {}) {
+  const windows = new Map(); // key -> number[]
 
   return (req, res, next) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const ip = (key ? key(req) : null) || req.ip || req.socket?.remoteAddress || 'unknown';
     const now = Date.now();
     const cutoff = now - windowMs;
 
