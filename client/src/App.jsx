@@ -474,6 +474,7 @@ export default function App() {
 
   // Mobile spectator: full-screen WatchScreen replaces the legacy layout
   if (config?.isSpectator && !isDesktop) {
+    const sessionEnd = findSessionEnd(history);
     return (
       <WatchScreen
         // W5-1: the paced bundle, not the live one. `paced.game` is null only
@@ -500,6 +501,12 @@ export default function App() {
           handleLeave();
           openAgentChat(watchedAgent);
         } : undefined}
+        // WATCH-7: the ceremony, once, when the session is over — and the two
+        // ways out of the evening it offers. Funding him is the wallet, which
+        // is where YOU already keeps the buy-in.
+        sessionEnd={sessionEnd}
+        onFund={() => { handleLeave(); navigateTo('you'); }}
+        onBackToFloor={() => { handleLeave(); navigateTo('casino'); }}
         config={config}
       />
     );
@@ -634,6 +641,27 @@ function LastAgentHandPanel({ hand, open, onToggle }) {
       )}
     </section>
   );
+}
+
+// WATCH-7 · the session-finished signal.
+//
+// SERVER-3 is adding a SESSION_END message. Until it lands, the signal the
+// client already has is TABLE_CLOSED — appended to the history as a `closed`
+// entry with the server's own recap as its reason. It is read off the history
+// rather than off `status` on purpose: the socket closes right behind the
+// message and useTable moves status to 'reconnecting', so a session end read
+// from status would flicker away a second after it appeared. The history entry
+// is durable.
+function findSessionEnd(history) {
+  for (const hand of history) {
+    const entries = hand.entries || [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index].kind === 'closed') {
+        return { reason: entries[index].reason ?? null, hands: hand.handNumber ?? null };
+      }
+    }
+  }
+  return null;
 }
 
 function findLatestResult(history) {

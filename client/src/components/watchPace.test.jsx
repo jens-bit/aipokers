@@ -11,7 +11,10 @@
 //   W5-4  "why the hand went wrong" is pinned through the next deal, then
 //         collapses into the TABLE tab — and is not shown at all when the hand
 //         had nothing to answer for
-//   W5-5  the ceremony offers one tap into his thread, with the hand in hand
+//   W5-5  one tap out of the felt and into his thread
+//
+// WATCH-7 rewrites W5-3 and W5-5: a hand end is a toast, and the ceremony is a
+// session moment. See the block comment above those describes.
 
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -25,12 +28,13 @@ import { WatchScreen, MUCK_MS } from './WatchScreen.jsx';
 import { midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse, playingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
-import { SHOWDOWN_HOLD_MS, CEREMONY_MS } from '../lib/pace.js';
+import { SHOWDOWN_HOLD_MS, SETTLE_MS, RESULT_TOAST_MS, STACK_TICK_MS } from '../lib/pace.js';
 import { resetHaptics } from '../lib/haptics.js';
 import { DEAL_TOTAL_MS } from '../lib/deal.js';
 
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const watchCss = () => readFileSync(resolve(clientRoot, 'src/styles/watch.css'), 'utf8');
+const watch6Css = () => readFileSync(resolve(clientRoot, 'src/styles/watch6.css'), 'utf8');
 
 function renderWatch(game, props = {}) {
   return render(
@@ -167,57 +171,116 @@ describe('W5-2: a fold throws something away', () => {
   });
 });
 
-describe('W5-3: the hand is called', () => {
-  it('holds the showdown first, then names the winner and the pot', () => {
+// WATCH-7 replaces W5-3 and W5-5 outright, and the rule they encoded is gone
+// on purpose rather than by accident.
+//
+// W5-3 said: at the end of every hand, hold the showdown for a second and then
+// take the felt with a WON/LOST block for three more. W5-5 said: that block
+// offers "Deal him in" and one tap into his thread. Both were correct
+// implementations of a brief the playtest overturned — the block is a SESSION
+// moment, and firing it forty times a session made it furniture and put a wall
+// between the owner and his own table every hand.
+//
+// So: a hand end is quiet (the toast below), and the ceremony belongs to
+// SESSION_END. The old assertions are not loosened here, they are inverted —
+// the felt must now be CLEAR at the end of a hand, which is a stricter thing to
+// prove than the block being present.
+const wonBig = (over = {}) => settledGame({
+  seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, stack: 1340 } : s)),
+  ...over,
+});
+
+describe('WATCH-7: a hand ends quietly', () => {
+  it('never puts the WON/LOST block on the felt at the end of a hand', () => {
     vi.useFakeTimers();
     try {
       const { container } = renderWatch(settledGame());
+      // Right through the old hold, the old ceremony, and out the far side.
+      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + SETTLE_MS + 500); });
       expect(container.querySelector('.watch-ceremony')).toBeNull();
-
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      const block = container.querySelector('.watch-ceremony');
-      expect(block).toBeTruthy();
-      expect(block.getAttribute('data-outcome')).toBe('won');
-      // WATCH-6 re-expressed: v5 splits the head. His name sits above WON in
-      // the label face, and the money line leads with what the hand did to HIM
-      // — the delta and where he now stands — rather than with the pot.
-      expect(block.textContent).toContain('THE GRINDER');
-      expect(block.textContent).toContain('WON');
-      expect(block.querySelector('.watch-ceremony__delta-amt').className)
-        .toContain('is-won');
-      expect(block.textContent).toContain('stack');
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('says who took it when it was not him', () => {
+  it('shows what the hand did to him, over his strip, and takes it away again', () => {
     vi.useFakeTimers();
     try {
-      const { container } = renderWatch(settledGame({
-        result: { pot: 400, winners: [{ seat: 1, descr: 'a flush' }], showdown: [] },
-      }));
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      const block = container.querySelector('.watch-ceremony');
-      expect(block.getAttribute('data-outcome')).toBe('lost');
-      expect(block.textContent).toContain('THE GRINDER');
-      expect(block.textContent).toContain('LOST');
-      // Who took it is still said — under the delta, where v5 puts it.
-      expect(block.querySelector('.watch-ceremony__took').textContent)
-        .toBe('DOYLE_V3 TOOK THE POT');
+      // Dealt at 940, the hand ends with him on 1,340: +$400.
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => { rerenderWatch(rerender, wonBig()); });
+
+      const toast = container.querySelector('.watch-result-toast');
+      expect(toast).toBeTruthy();
+      expect(toast.textContent).toBe('+$400');
+      expect(toast.className).toContain('is-won');
+      // It hangs off his strip — not off the felt, so it can never land on
+      // the board or on him.
+      expect(container.querySelector('.watch-hero__strip .watch-result-toast')).toBeTruthy();
+
+      act(() => { vi.advanceTimersByTime(RESULT_TOAST_MS + 20); });
+      expect(container.querySelector('.watch-result-toast')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('leaves after three seconds, which is where the next deal starts', () => {
+  it('says it in red when the hand cost him', () => {
     vi.useFakeTimers();
     try {
-      const { container } = renderWatch(settledGame());
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      expect(container.querySelector('.watch-ceremony')).toBeTruthy();
-      act(() => { vi.advanceTimersByTime(CEREMONY_MS); });
-      expect(container.querySelector('.watch-ceremony')).toBeNull();
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => {
+        rerenderWatch(rerender, settledGame({
+          result: { pot: 400, winners: [{ seat: 1 }], showdown: [] },
+          seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, stack: 910 } : s)),
+        }));
+      });
+      const toast = container.querySelector('.watch-result-toast');
+      expect(toast.textContent).toBe('−$30');
+      expect(toast.className).toContain('is-lost');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // WATCH-7 item 4: the server's own number wins wherever it is sent.
+  it('prefers result.deltas over the stack it derived', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => {
+        rerenderWatch(rerender, wonBig({
+          result: { pot: 400, winners: [{ seat: 0 }], showdown: [], deltas: { 0: 175, 1: -175 } },
+        }));
+      });
+      expect(container.querySelector('.watch-result-toast').textContent).toBe('+$175');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The stack is the only place a lost hand leaves a mark, so it has to be seen
+  // moving. It starts where the hand started and arrives at the new number.
+  it('ticks his stack from what he had to what he has', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = renderWatch(midHandGame);
+      const stackText = () => container
+        .querySelector('.watch-hero__stack-row .watch-felt__hero-num').textContent;
+      expect(stackText()).toBe('$940');
+
+      act(() => { rerenderWatch(rerender, wonBig()); });
+      // The snapshot already says 1,340; the felt is still showing where he was.
+      expect(stackText()).toBe('$940');
+
+      // Mid-tick it is neither number — it is on its way.
+      act(() => { vi.advanceTimersByTime(Math.round(STACK_TICK_MS / 3)); });
+      const mid = Number(stackText().replace(/[^0-9]/g, ''));
+      expect(mid).toBeGreaterThan(940);
+      expect(mid).toBeLessThan(1340);
+
+      act(() => { vi.advanceTimersByTime(STACK_TICK_MS + 100); });
+      expect(stackText()).toBe('$' + (1340).toLocaleString());
     } finally {
       vi.useRealTimers();
     }
@@ -226,12 +289,13 @@ describe('W5-3: the hand is called', () => {
   it('calls a hand once, however many terminal snapshots arrive', () => {
     vi.useFakeTimers();
     try {
-      const { container, rerender } = renderWatch(settledGame());
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + CEREMONY_MS + 50); });
-      expect(container.querySelector('.watch-ceremony')).toBeNull();
-      act(() => { rerenderWatch(rerender, settledGame({ pot: 401 })); });
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      expect(container.querySelector('.watch-ceremony')).toBeNull();
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => { rerenderWatch(rerender, wonBig()); });
+      act(() => { vi.advanceTimersByTime(RESULT_TOAST_MS + 50); });
+      expect(container.querySelector('.watch-result-toast')).toBeNull();
+
+      act(() => { rerenderWatch(rerender, wonBig({ pot: 401 })); });
+      expect(container.querySelector('.watch-result-toast')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -241,32 +305,124 @@ describe('W5-3: the hand is called', () => {
     vi.useFakeTimers();
     try {
       const { container } = renderWatch(midHandGame);
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + CEREMONY_MS + 100); });
+      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + SETTLE_MS + 100); });
+      expect(container.querySelector('.watch-result-toast')).toBeNull();
       expect(container.querySelector('.watch-ceremony')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Joining mid-hand leaves no baseline, and a server that has not shipped
+  // deltas yet leaves nothing else. "+$0" would be the screen inventing a
+  // result for a hand it never saw.
+  it('shows no toast when it cannot know what the hand did to him', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderWatch(settledGame());
+      expect(container.querySelector('.watch-result-toast')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // "Nothing blocks the felt."
+  it('cannot be tapped and does not silence him', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => { rerenderWatch(rerender, wonBig()); });
+      const toast = container.querySelector('.watch-result-toast');
+      expect(toast.querySelector('button')).toBeNull();
+      // jsdom does not compute pointer-events, so the rule is the assertion —
+      // the same way W5-2 checks the muck animation.
+      expect(watch6Css()).toMatch(
+        /\.watch-result-toast\s*\{[^}]*pointer-events:\s*none/,
+      );
+      // The board is still on the felt behind it — no scrim, no block.
+      expect(container.querySelector('.watch-felt__board')).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
   });
 });
 
-describe('W5-5: one tap out of the ceremony', () => {
-  it('opens his thread with the hand it is about', async () => {
-    vi.useFakeTimers();
-    const opened = [];
-    try {
-      const { container } = renderWatch(settledGame(), {
-        onOpenThread: (ctx) => opened.push(ctx),
-      });
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      const talk = container.querySelector('.watch-ceremony__talk');
-      expect(talk.textContent).toBe('Talk to The Grinder about this hand');
-      act(() => { talk.click(); });
-      expect(opened).toEqual([{ handId: midHandGame.handNumber }]);
-    } finally {
-      vi.useRealTimers();
-    }
+describe('WATCH-7: the ceremony belongs to the end of the session', () => {
+  const ended = (over = {}) => ({ reason: 'sat out by owner', hands: 42, ...over });
+  const busted = settledGame({
+    seats: midHandGame.seats.map((s, i) => (i === 0 ? { ...s, stack: 0 } : s)),
   });
 
+  it('does not appear until the session is over', () => {
+    const { container, rerender } = renderWatch(settledGame());
+    expect(container.querySelector('.watch-ceremony')).toBeNull();
+    act(() => { rerenderWatch(rerender, settledGame(), { sessionEnd: ended() }); });
+    expect(container.querySelector('.watch-ceremony')).toBeTruthy();
+  });
+
+  it('names the night, the net against the buy-in, and where he finished', () => {
+    const { container } = renderWatch(wonBig(), { sessionEnd: ended() });
+    const block = container.querySelector('.watch-ceremony');
+    expect(block.getAttribute('data-scope')).toBe('session');
+    expect(block.getAttribute('data-outcome')).toBe('won');
+    expect(block.textContent).toContain('THE GRINDER · TONIGHT');
+    expect(block.querySelector('.watch-ceremony__head').textContent).toBe('WON');
+    // spectatorConfig buys in for 1,000.
+    expect(block.querySelector('.watch-ceremony__delta-amt').textContent).toBe('+$340');
+    expect(block.textContent).toContain('$' + (1340).toLocaleString());
+    expect(block.querySelector('.watch-ceremony__took').textContent).toContain('42 HANDS');
+  });
+
+  it('offers the floor and the conversation when he still has chips', () => {
+    const { container } = renderWatch(settledGame(), { sessionEnd: ended() });
+    const labels = [...container.querySelectorAll('.watch-ceremony__acts .watch-btn')]
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Back to the floor', 'Talk to The Grinder about tonight']);
+  });
+
+  // A busted agent has one thing he needs and it is not conversation.
+  it('offers chips first when he busted', () => {
+    const { container } = renderWatch(busted, {
+      sessionEnd: ended({ reason: 'someone ran out of chips — session over' }),
+    });
+    const block = container.querySelector('.watch-ceremony');
+    expect(block.querySelector('.watch-ceremony__head').textContent).toBe('BUSTED');
+    const labels = [...block.querySelectorAll('.watch-ceremony__acts .watch-btn')]
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Fund him again', 'Back to the floor']);
+    expect(block.querySelector('.watch-ceremony__fund').className).toContain('watch-btn--primary');
+  });
+
+  it('takes the two ways out to the handlers the app gave it', () => {
+    const seen = [];
+    const { container } = renderWatch(busted, {
+      sessionEnd: ended(),
+      onFund: () => seen.push('fund'),
+      onBackToFloor: () => seen.push('floor'),
+    });
+    act(() => { container.querySelector('.watch-ceremony__fund').click(); });
+    act(() => { container.querySelector('.watch-ceremony__floor').click(); });
+    expect(seen).toEqual(['fund', 'floor']);
+  });
+
+  it('opens his thread with no hand attached — it is about the night', () => {
+    const opened = [];
+    const { container } = renderWatch(settledGame(), {
+      sessionEnd: ended(),
+      onOpenThread: (ctx) => opened.push(ctx),
+    });
+    act(() => { container.querySelector('.watch-ceremony__talk').click(); });
+    expect(opened).toEqual([null]);
+  });
+
+  // The one line the brief is explicit about: "No 'Deal him in' anywhere."
+  it('never offers to deal him in', () => {
+    const { container } = renderWatch(settledGame(), { sessionEnd: ended() });
+    expect(container.textContent).not.toContain('Deal him in');
+  });
+});
+
+describe('W5-5: one tap out of the felt', () => {
   // The header button asks to talk, not to talk about a hand. Handing it
   // straight to openChat would have made a click event the context.
   it('the header’s own Chat control opens the thread with no hand attached', async () => {
@@ -278,35 +434,10 @@ describe('W5-5: one tap out of the ceremony', () => {
 
   // Without a thread to open the control must still do something. WATCH-6
   // re-expressed: what it opens is the record, as a layer over the felt.
-  it('falls back to the record over the felt when there is no thread to open', () => {
-    vi.useFakeTimers();
-    try {
-      const { container } = renderWatch(settledGame());
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      act(() => { container.querySelector('.watch-ceremony__talk').click(); });
-      expect(container.querySelector('.thread-sheet')).not.toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  // v5's primary action. The next hand is coming in three seconds anyway, so
-  // this only makes it now — which is why it is the primary and the
-  // conversation is the secondary.
-  it('WATCH-6: Deal him in takes the block off the felt', () => {
-    vi.useFakeTimers();
-    try {
-      const { container } = renderWatch(settledGame());
-      act(() => { vi.advanceTimersByTime(SHOWDOWN_HOLD_MS + 20); });
-      const deal = [...container.querySelectorAll('.watch-ceremony__acts .watch-btn')]
-        .find((b) => b.textContent === 'Deal him in');
-      expect(deal).toBeTruthy();
-      expect(deal.className).toContain('watch-btn--primary');
-      act(() => { deal.click(); });
-      expect(container.querySelector('.watch-ceremony')).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+  it('falls back to the record over the felt when there is no thread to open', async () => {
+    const { container } = renderWatch(midHandGame);
+    await userEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(container.querySelector('.thread-sheet')).not.toBeNull();
   });
 });
 

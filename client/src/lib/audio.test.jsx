@@ -45,10 +45,24 @@ describe('W3-3 sound', () => {
     expect(play('allin')).toBeNull();
   });
 
-  // "Losing is quiet on purpose. A loss sound is the product telling the owner
-  // off, and there is no guilt in this design."
-  it('W3-3: losing the pot is silent, muted or not', () => {
-    expect(SOUNDS.lostPot).toBeNull();
+  // W3-3 held that losing the pot is silent — "a loss sound is the product
+  // telling the owner off". WATCH-7 overturns it, and the reason is not that the
+  // old rule was wrong but that its context is gone: the WON/LOST ceremony used
+  // to say a hand had ended, loudly, over the whole felt. With that removed, a
+  // silent loss is not restraint — it is the screen failing to say anything
+  // happened at all. So both outcomes speak, both are small, and both go quiet
+  // with the toggle.
+  it('WATCH-7: a hand ends with a sound either way, and neither is a verdict', () => {
+    expect(play('wonPot')).toMatchObject({ file: 'chip-ching' });
+    expect(play('lostPot')).toMatchObject({ file: 'low-womp' });
+    // Small: nothing here is allowed to be the loudest thing in the product.
+    expect(SOUNDS.wonPot.ms).toBeLessThan(SOUNDS.allin.ms);
+    expect(SOUNDS.lostPot.ms).toBeLessThan(SOUNDS.allin.ms);
+  });
+
+  it('WATCH-7: and the toggle silences the loss like everything else', () => {
+    setMuted(true);
+    expect(play('wonPot')).toBeNull();
     expect(play('lostPot')).toBeNull();
   });
 

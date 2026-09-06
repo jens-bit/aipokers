@@ -108,7 +108,10 @@
 /* The strip: stack, street or to-call, his action. Glass, inside the column —
    not a chrome bar pinned to the felt. */
 .watch-hero__strip.watch-felt__hero {
-  position: static;
+  /* WATCH-7: relative, not static — it is still in the column's flow, and it is
+     now the box the result toast hangs above. `static` was only ever here to
+     undo .watch-felt__hero's absolute positioning. */
+  position: relative;
   left: auto;
   right: auto;
   bottom: auto;
@@ -126,6 +129,59 @@
   display: flex;
   align-items: baseline;
   gap: 5px;
+}
+
+/* ── WATCH-7 · the hand-end receipt ────────────────────────────────────────
+   The WON/LOST block is gone from the end of a hand. What is left is this: one
+   number over his strip, 1.5s, and the felt keeps playing underneath — it
+   cannot be tapped, cannot be dismissed, and stops nothing. */
+.watch-result-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(10, 16, 15, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: watch-toast 1500ms ease-out both;
+}
+
+.watch-result-toast__amt {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.watch-result-toast.is-won  { border-color: rgba(0, 212, 170, 0.34); }
+.watch-result-toast.is-lost { border-color: rgba(255, 77, 79, 0.30); }
+.watch-result-toast.is-won  .watch-result-toast__amt { color: var(--sys-teal, #00D4AA); }
+.watch-result-toast.is-lost .watch-result-toast__amt { color: var(--sys-red, #FF4D4F); }
+
+/* In and out inside its own 1.5s, so the node is unmounted as it finishes
+   fading rather than sitting there invisible over his strip. */
+@keyframes watch-toast {
+  0%   { opacity: 0; transform: translate(-50%, 8px); }
+  12%  { opacity: 1; transform: translate(-50%, 0); }
+  76%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-result-toast { animation: watch-toast-fade 1500ms linear both; }
+}
+
+@keyframes watch-toast-fade {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  76%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ── "why the hand went wrong", pinned under his strip until the next flop ── */
@@ -202,9 +258,14 @@
 /* ── the composer: a whisper, not a chat ────────────────────────────────── */
 .watch-composer {
   flex-shrink: 0;
-  padding: 9px 12px 16px;
+  padding: 9px 12px 12px;
   background: #101A18;
   border-top: 1px solid rgba(255, 255, 255, 0.11);
+  /* WATCH-7: the swipe-up did not fire on a phone. Without this the browser
+     claims a vertical drag here as a page pan and cancels the gesture before it
+     has travelled its 28px — the platform taking the swipe, not the code
+     missing it. The composer has nothing to scroll, so it gives up nothing. */
+  touch-action: none;
 }
 
 .watch-composer__pill.glass {
@@ -263,14 +324,49 @@
 
 .watch-composer__send:disabled { opacity: 0.45; cursor: default; }
 
+/* WATCH-7: the hint is a control, not a caption. A gesture nobody discovers
+   needs a thing to press, and the chevron IS the direction it is describing —
+   so the affordance and the instruction are the same object.
+
+   Under --tap on purpose, like the arrow inside the pill: it is the redundant
+   way in (his face and that arrow are the others), and a 44px block of chrome
+   under the felt is the thing this whole wave is removing. The touch area is
+   the full width of the row. */
 .watch-composer__hint {
-  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  min-height: 0;
+  margin-top: 4px;
+  padding: 5px 0 2px;
+  background: none;
+  border: none;
   text-align: center;
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 8.5px;
   font-weight: 500;
   letter-spacing: 0.1em;
+  text-transform: none;
   color: var(--sys-faint, #55555C);
+  cursor: pointer;
+}
+
+.watch-composer__hint:active { color: var(--sys-dim, #A1A1A1); }
+
+.watch-composer__chevron {
+  display: block;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .watch-composer__chevron { animation: watch-hint-nudge 2.6s ease-in-out infinite; }
+}
+
+@keyframes watch-hint-nudge {
+  0%, 68%, 100% { transform: translateY(0); opacity: 0.75; }
+  80%           { transform: translateY(-2px); opacity: 1; }
 }
 
 /* ── the thread, as a glass sheet over the lower 70% of the felt ───────────
@@ -529,8 +625,20 @@
   background: radial-gradient(circle, rgba(255, 77, 79, 0.24), transparent 68%);
 }
 
-/* The next hand starts in 3s anyway — the button only makes it now, which is
-   why it is primary and the conversation is the secondary. */
+/* WATCH-7: BUSTED is the longest head this block ever draws, and a session is
+   over so nothing is racing it off the felt. */
+.watch-ceremony[data-scope='session'] .watch-ceremony__head {
+  font-size: 30px;
+  letter-spacing: 0.01em;
+}
+
+.watch-ceremony[data-scope='session'] .watch-ceremony__took {
+  text-align: center;
+  max-width: 260px;
+}
+
+/* Two ways out of the evening, stacked. The primary is the one the state calls
+   for: chips when he has none, the floor when he has some. */
 .watch-ceremony__acts {
   width: 100%;
   margin-top: 4px;
@@ -541,14 +649,6 @@
 
 .watch-ceremony__acts .watch-btn { width: 100%; }
 
-.watch-ceremony__next {
-  text-align: center;
-  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
-  font-size: 8.5px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  color: var(--sys-faint, #55555C);
-}
 
 /* ── the last two flat greys on this screen ──────────────────────────────
    The header was --sys-panel (#232329) and the sit-out strip --sys-panel-2: a
