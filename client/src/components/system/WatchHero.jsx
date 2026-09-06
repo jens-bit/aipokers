@@ -35,6 +35,7 @@ import { Bubble } from './Bubble.jsx';
 import { SeatClock } from './SeatClock.jsx';
 import { BodyBars } from './FeltBodyBars.jsx';
 import { SEAT_BODY, SEAT_H } from './SeatGhost.jsx';
+import { money } from '../../lib/wallet.js';
 
 // TWICE AN OPPONENT, and measured BODY TO BODY: 96 against the seat's 40. The
 // old ratio compared him to a seat's whole stack — body plus gap plus pill —
@@ -183,7 +184,7 @@ export function WatchHero({
           <>
             <div>
               <span className="watch-felt__hero-lbl">To call</span>
-              <div><span className="watch-felt__hero-num is-gold">{`$${toCall.toLocaleString()}`}</span></div>
+              <div><span className="watch-felt__hero-num is-gold">{money(toCall)}</span></div>
             </div>
             <div className="watch-felt__hero-divider" />
           </>

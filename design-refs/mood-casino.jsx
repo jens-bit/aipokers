@@ -300,7 +300,7 @@ const FloorStandup = ({ line, net, flagged }) => (
       : (
         <>
           <Num size={12} weight={700} color={M_TEAL}>{net}</Num>
-          <span style={{ color: M_FAINT, fontFamily: MONO, fontSize: 10 }}>·</span>
+          <span style={{ color: M_MUTED, fontFamily: MONO, fontSize: 10 }}>·</span>
           <span style={{ fontSize: 11.5, color: M_GOLD }}>{flagged}</span>
         </>
       )}

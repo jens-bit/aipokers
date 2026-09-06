@@ -41,7 +41,7 @@ const RosterRow = ({ r }) => {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-          <span style={{ fontSize: 12, color: M_TEXT, fontWeight: 600 }}>{r.a.name.split(' ')[0]}</span>
+          <span style={{ fontSize: 12, color: M_TEXT, fontWeight: 600 }}>{pillName(r.a.name, r.a.nick)}</span>
           <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.13em', color: w.c }}>{w.t}</span>
         </div>
         <div style={{ fontSize: 10, color: M_MUTED, marginTop: 1.5 }}>{r.at}</div>
@@ -81,9 +81,9 @@ const RosterSheet = ({ rows = NAV_ROSTER }) => (
 // large type, and the two lines under it are smaller. Every line answers who, how
 // much, and which room — and every line is a place you can go.
 const NAV_LIVE = [
-  { amt: '$8,400', who: 'Ozymandias, Granite +2', room: '50/100', hot: true },
-  { amt: '$3,100', who: 'Nightjar, doyle_v3',     room: '25/50' },
-  { amt: '$940',   who: 'your Balanced v2.1 +3',  room: '10/20', mine: true },
+  { amt: '$8,400', tick: '400', who: 'Ozy, Gran +2',     room: '50/100', hot: true },
+  { amt: '$3,100', tick: '100', who: 'Night, Doyle',     room: '25/50' },
+  { amt: '$940',   tick: '60',  who: 'your Bal +3',      room: '10/20', mine: true },
 ];
 
 const NAV_TONIGHT = [
@@ -106,7 +106,12 @@ const LiveNow = ({ items = NAV_LIVE }) => (
       <div key={t.who} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '6px 12px 7px', borderTop: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
         background: t.hot ? `linear-gradient(90deg, ${M_RED}1C 0%, transparent 72%)` : t.mine ? `linear-gradient(90deg, ${M_TEAL}14 0%, transparent 72%)` : 'transparent',
         boxShadow: t.hot ? `inset 2px 0 0 ${M_RED}` : t.mine ? `inset 2px 0 0 ${M_TEAL}` : 'none' }}>
-        <Num size={12} weight={700} color={t.hot ? M_RED : t.mine ? M_TEAL : M_TEXT}>{t.amt}</Num>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, flexShrink: 0 }}>
+          <Num size={12} weight={700} color={t.hot ? M_RED : t.mine ? M_TEAL : M_TEXT}>{t.amt}</Num>
+          {/* the tick: it fires when the figure moves, so a growing pot is visibly
+              growing rather than a number you have to re-read to notice */}
+          {t.tick && <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: t.hot ? M_RED : M_TEAL, animation: 'rise 1.6s ease-out infinite' }}>+{t.tick}</span>}
+        </div>
         <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_DIM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.who}</span>
         <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, flexShrink: 0 }}>{t.room}</span>
         <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.11em', color: t.hot ? M_RED : M_TEAL, flexShrink: 0 }}>{t.hot ? 'HOT · WATCH' : 'WATCH'}</span>
@@ -154,12 +159,30 @@ const MINI_RING = [
   { x: 0.12, y: 0.50 }, { x: 0.88, y: 0.50 },
 ];
 
-const YourTable = ({ playing = true, where = 'at the bar · rested, 88 stamina', name = 'Balanced v2.1', turn = 2 }) => (
+// the dots and the peeked neighbour are what make it read as flickable rather than
+// as the only table you have
+const CarouselDots = ({ n = 4, at = 0 }) => (
+  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 7, display: 'flex', justifyContent: 'center', gap: 5, zIndex: 6 }}>
+    {Array.from({ length: n }).map((_, i) => (
+      <span key={i} style={{ width: i === at ? 14 : 5, height: 5, borderRadius: 3, background: i === at ? M_GOLD : 'rgba(255,255,255,0.26)' }}></span>
+    ))}
+  </div>
+);
+
+const YourTable = ({ playing = true, where = 'at the bar · rested, 88 stamina', name = 'Balanced v2.1', turn = 2, dots, at = 0 }) => (
   <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: `1px solid ${playing ? `${M_GOLD}3D` : M_BORDER}`, background: playing ? 'radial-gradient(ellipse at 50% 42%, #24312C 0%, #16201E 72%)' : '#0E1413', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
-    <div style={{ position: 'absolute', left: 12, top: 11, display: 'flex', alignItems: 'center', gap: 6, zIndex: 4 }}>
-      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.15em', color: playing ? M_GOLD : M_MUTED }}>YOUR TABLE{playing ? ' · 10/20' : ''}</span>
+    <div style={{ position: 'absolute', left: 12, top: 11, right: 12, display: 'flex', alignItems: 'center', gap: 6, zIndex: 6 }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.15em', color: playing ? M_GOLD : M_MUTED }}>{pillName(name)}{playing ? ' · 10/20' : ''}</span>
       {playing && <LiveDot size={5}/>}
+      {dots && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>{at + 1} of {dots}</span>}
     </div>
+    {dots && <>
+      {/* the neighbours, peeked at the edges: the flick is discoverable because you
+          can already see there is something either side */}
+      <div style={{ position: 'absolute', left: -12, top: 18, bottom: 18, width: 12, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: `1px solid ${M_BORDER}`, borderRight: 'none' }}></div>
+      <div style={{ position: 'absolute', right: -12, top: 18, bottom: 18, width: 12, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: `1px solid ${M_BORDER}`, borderLeft: 'none' }}></div>
+      <CarouselDots n={dots} at={at}/>
+    </>}
     {playing ? (
       <>
         {/* the ring: five opponents, and the one to act carries the only ring */}
@@ -181,7 +204,7 @@ const YourTable = ({ playing = true, where = 'at the bar · rested, 88 stamina',
         </div>
         {/* him, at the bottom, with his cards in his hands and his pill above */}
         <div style={{ position: 'absolute', left: '50%', bottom: 10, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <span style={{ fontSize: 8, color: M_TEXT, background: 'rgba(8,12,12,0.9)', border: `1px solid ${M_TEAL}55`, borderRadius: 7, padding: '1.5px 7px', whiteSpace: 'nowrap' }}>{name.split(' ')[0]}</span>
+          <span style={{ fontSize: 8, color: M_TEXT, background: 'rgba(8,12,12,0.9)', border: `1px solid ${M_TEAL}55`, borderRadius: 7, padding: '1.5px 7px', whiteSpace: 'nowrap' }}>{pillName(name)}</span>
           <div style={{ position: 'relative' }}>
             {(() => { const id = idFor(H_CAST.bal.id); return <MoodGhost mood="confident" size={46} ring={false} hood={id.hood} glow={id.glow.c} hands="hold"/>; })()}
             <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', display: 'flex', gap: 1.5, zIndex: 4 }}>
@@ -194,7 +217,7 @@ const YourTable = ({ playing = true, where = 'at the bar · rested, 88 stamina',
       // he is not playing, so the block says where he is instead of pretending
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
         {(() => { const id = idFor(H_CAST.bal.id); return <MoodGhost mood="neutral" size={46} ring={false} hood={id.hood} glow={id.glow.c}/>; })()}
-        <div style={{ fontSize: 11.5, color: M_DIM }}>{name.split(' ')[0]} is {where}</div>
+        <div style={{ fontSize: 11.5, color: M_DIM }}>{pillName(name)} is {where}</div>
         <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL, border: `1px solid ${M_TEAL}66`, borderRadius: 8, padding: '5px 12px' }}>SEND HIM TO PLAY</span>
       </div>
     )}
@@ -263,7 +286,7 @@ const NavCasinoM = () => (
           </div>
         ))}
       </div>
-      <YourTable/>
+      <YourTable dots={4} at={0}/>
     </div>
     <HomeThread latest={{ a: H_CAST.bal, text: 'He folds to a third barrel. Watch.' }}/>
   </PhoneShell>
@@ -351,7 +374,7 @@ const BarsRefM = () => (
             {[[86, 12], [34, 78]].map(([s, ht]) => (
               <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <ResourceBars stamina={s} heat={ht} w={w} h={h} gap={5} labels={labels}/>
-                <span style={{ fontSize: 9.5, color: M_FAINT }}>{s > 60 ? 'rested, cold' : 'worn, tilted'}</span>
+                <span style={{ fontSize: 9.5, color: M_MUTED }}>{s > 60 ? 'rested, cold' : 'worn, tilted'}</span>
               </div>
             ))}
           </div>
@@ -457,6 +480,6 @@ const NavSendM = () => (
 
 Object.assign(window, {
   NavDraftM, NavSendM,
-  FOUR, wear, NAV_ROSTER, WHERE, RosterRow, RosterSheet, NAV_LIVE, NAV_TONIGHT, LiveNow, Tonight, MINI_RING, YourTable, navRoom,
+  CarouselDots, FOUR, wear, NAV_ROSTER, WHERE, RosterRow, RosterSheet, NAV_LIVE, NAV_TONIGHT, LiveNow, Tonight, MINI_RING, YourTable, navRoom,
   NavHomeM, NavRosterM, NavCasinoM, NavCasinoIdleM, IdentitySheetM, FourApartM, BarsRefM, NavEmptyM, NavRetiredM,
 });

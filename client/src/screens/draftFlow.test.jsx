@@ -107,83 +107,26 @@ describe('F-1: the draft offers something to press', () => {
   });
 });
 
-describe('F-1: the strip fills the moment a chip is tapped', () => {
-  beforeEach(() => {
-    telegram.signIn();
-    // Routes are matched newest-first, so the broad one is registered first or
-    // it would shadow /api/agents/chat.
-    fetchMock.route('/api/agents', { agents: [] });
-    fetchMock.route('/api/agents/chat', READY_TURN, { method: 'POST' });
-  });
-
-  it('shows every dial the server sent, and no dashes', async () => {
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-
-    await waitFor(() => expect(screen.getByText('34')).toBeInTheDocument());
-    for (const v of ['34', '82', '78', '41']) {
-      expect(screen.getByText(v)).toBeInTheDocument();
-    }
-    expect(screen.queryByText('—')).toBeNull();
-  });
-
-  it('names the dials it is actually showing', async () => {
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-
-    await waitFor(() => expect(screen.getByText('TIGHT')).toBeInTheDocument());
-    for (const k of ['TIGHT', 'AGGR', 'BLUFF', 'DISC']) {
-      expect(screen.getByText(k)).toBeInTheDocument();
-    }
-  });
-
-  it('keeps the dials when a later turn carries none — a decision does not un-happen', async () => {
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-    await waitFor(() => expect(screen.getByText('82')).toBeInTheDocument());
-
-    fetchMock.route('/api/agents/chat', { ...VAGUE_TURN, ready: true }, { method: 'POST' });
-    await userEvent.click(screen.getByRole('button', { name: /keep describing him/i }));
-    await userEvent.type(composer(), 'also patient{Enter}');
-
-    await waitFor(() => expect(screen.getByText(/Fun how/)).toBeInTheDocument());
-    expect(screen.getByText('82')).toBeInTheDocument();
-  });
-});
-
-describe('F-1: the temperament stops being a guess', () => {
-  beforeEach(() => {
-    telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [] });
-  });
-
-  it('prints the formed nature with its zero-sum pair once the draft is ready', async () => {
-    fetchMock.route('/api/agents/chat', READY_TURN, { method: 'POST' });
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-
-    await waitFor(() => expect(screen.getByText('Hothead')).toBeInTheDocument());
-    // Hothead is +DECEPTION / −COMPOSURE in the NATURES table.
-    expect(screen.getByText('+DECEP')).toBeInTheDocument();
-    expect(screen.getByText('−COMP')).toBeInTheDocument();
-    expect(screen.queryByText(/Hothead\?/)).toBeNull();
-  });
-
-  it('stays a dashed guess while the ladder has an opinion but the draft is not usable', async () => {
-    fetchMock.route('/api/agents/chat', { ...VAGUE_TURN, natureHint: 'Rock' }, { method: 'POST' });
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-
-    await waitFor(() => expect(screen.getByText('Rock?')).toBeInTheDocument());
-    expect(screen.getByText('Forming')).toBeInTheDocument();
-  });
-
-  it('invents nothing when the server hints no nature', async () => {
-    fetchMock.route('/api/agents/chat', VAGUE_TURN, { method: 'POST' });
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    await tapChip();
-
-    await waitFor(() => expect(screen.getByText(/Fun how/)).toBeInTheDocument());
-    expect(screen.getByText(/Temperament\?/)).toBeInTheDocument();
-  });
-});
+// ── RETIRED AT DRAFT-2 ──────────────────────────────────────────────────
+//
+// Two suites stood here — "the strip fills the moment a chip is tapped" (six
+// assertions on TIGHT / AGGR / BLUFF / DISC and the dashes they replace) and
+// "the temperament stops being a guess" (the formed chip, its zero-sum pair,
+// the dashed 'Rock?' and the neutral 'Temperament?').
+//
+// They are not deleted for being red. They were green. They encode a rule the
+// product no longer wants: that the draft screen SHOWS you the four dials and
+// the temperament they produce. Board 29's sheet does not, and the reason is
+// the ref's density — the draft's whole claim is that you make him by TALKING
+// to him, and a readout of four numbers over that conversation answers in the
+// one register the screen does not use. What the dials said, the recruiter
+// already says back to you in words; where the temperament lands is the pill
+// under the ghost ("GRANITE · A ROCK"), which draftGlass.test.jsx pins.
+//
+// The WIRE those suites were really defending is untouched and still tested:
+// `profile`, `natureHint` and `ready` all still arrive on one reply
+// (src/server/draftGuard.test.js), the sub-line under the gold button still
+// reads them ("names the next screen and says why it is offered", above), and
+// the desktop rail panel still draws both (DraftPanel.test.jsx). Nothing was
+// loosened to get to green; two screens' worth of assertions were removed
+// because the screen they described is gone.

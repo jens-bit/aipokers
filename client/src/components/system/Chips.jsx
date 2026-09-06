@@ -61,11 +61,23 @@ export function Chip({ d = 'r', w = 26, i = 0, step = 3.4 }) {
   );
 }
 
-// A stack standing on the felt. `label` and `amt` are the hero's alone — his is
-// the one pile big enough to caption, and the figure belongs UNDER the chips it
-// describes rather than in a panel elsewhere. That is why STACK left the strip.
-export function ChipStack({ band = 'mid', chips, w = 26, label, amt, className }) {
-  const set = chips || CHIP_BANDS[band] || CHIP_BANDS.mid;
+// How many chips an OPPONENT's pile is allowed to be. WATCH-10 job 1: a banded
+// pile is up to ten chips tall, and five of those across the top of a 390px
+// felt is the densest thing on the table. Three keeps the shape of a stack;
+// the denominations keep the size of it; the figure beside it says the rest.
+export const SEAT_PILE_CHIPS = 3;
+
+// A stack standing on the felt. `amt` is the figure beside (or under) the chips
+// it describes rather than in a panel elsewhere — that is why STACK left the
+// hero's strip, and since WATCH-10 it is why it left an opponent's name pill.
+// `label` is still the hero's alone: his is the one pile big enough to caption.
+//
+// `cap` takes the TOP `cap` chips of the band rather than the first, so a big
+// stack capped at three is three blacks and a small one is three whites — the
+// pile keeps saying how much money it is without being tall enough to say it.
+export function ChipStack({ band = 'mid', chips, w = 26, cap = null, label, amt, className }) {
+  const full = chips || CHIP_BANDS[band] || CHIP_BANDS.mid;
+  const set = Number.isFinite(cap) && cap > 0 ? full.slice(-cap) : full;
   return (
     <span className={`chip-stack${className ? ` ${className}` : ''}`} data-band={band}>
       <span className="chip-stack__pile" style={{ width: w, height: set.length * 3.4 + w * 0.42 }}>

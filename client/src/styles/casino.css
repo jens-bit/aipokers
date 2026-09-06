@@ -22,7 +22,11 @@
    and the shut room's price into a shout. Being tappable is not a reason to
    change the type: reset the chrome and let each element's own style stand. */
 .csn-door,
-.csn-board__line {
+.csn-board__line,
+.csn-live__row,
+.csn-tonight__row,
+.csn-room-door,
+.csn-felt {
   -webkit-appearance: none;
   appearance: none;
   font: inherit;
@@ -32,7 +36,11 @@
 }
 
 .csn-door:focus-visible,
-.csn-board__line:focus-visible {
+.csn-board__line:focus-visible,
+.csn-live__row:focus-visible,
+.csn-tonight__row:focus-visible,
+.csn-room-door:focus-visible,
+.csn-felt:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -139,19 +147,19 @@
   border-radius: 0;
   background: transparent;
 }
-.csn-desk__rail .csn-board > :first-child {
+.csn-desk__rail .csn-board__head {
   flex-shrink: 0;
   height: 46px;
   padding: 0 16px;
 }
-.csn-desk__rail .csn-board > :last-child {
+.csn-desk__rail .csn-board__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
   padding: 8px 16px 14px;
 }
-.csn-desk__rail .csn-board > :last-child::-webkit-scrollbar { display: none; }
+.csn-desk__rail .csn-board__body::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .csn svg[style*="casino-bob"],
@@ -159,3 +167,641 @@
     animation: none !important;
   }
 }
+
+
+/* ── CASINO-2 job 2 · the board, split by tense ─────────────────────────────
+ *
+ * One object on a wall with two halves in it, so the frame belongs to the
+ * board and each half only draws its own rows. The gold plate and the census
+ * are mood-floor3's CasinoBoard, verbatim; what hangs under them is LIVE NOW
+ * over TONIGHT, which is mood-nav's pair.
+ *
+ * The seam between them is a gold hairline rather than the white one that
+ * separates rows inside a half: crossing from a pot being built to a hand that
+ * is over is a change of TENSE, and it has to read as a bigger step than the
+ * step from one live pot to the next. */
+.csn-board {
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
+  border: 1px solid rgba(205, 179, 128, 0.18);
+}
+
+.csn-board__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-bottom: 1px solid rgba(205, 179, 128, 0.13);
+}
+
+.csn-board__body,
+.csn-live,
+.csn-tonight {
+  display: flex;
+  flex-direction: column;
+}
+
+.csn-tonight { border-top: 1px solid rgba(205, 179, 128, 0.16); }
+
+/* The tick beside a pot that just grew. It arrives rather than appears — a
+   number that pops in at full opacity reads as a layout shift, and one that
+   rises the two pixels a chip does reads as money going in. */
+.csn-live__tick { animation: casino-tick 0.22s ease-out both; }
+
+@keyframes casino-tick {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-live__tick { animation: none; }
+}
+
+/* ── CASINO-2 job 3 · the sign, and the three doors under it ────────────────
+ *
+ * THE MARQUEE. Bulbs over the words on a gold plate, chasing left to right.
+ * They chase rather than blink together because a row flashing in unison is a
+ * warning light and a row that runs is an invitation — and because a marquee
+ * that pulses as one object would beat against the LIVE dot two rows below it,
+ * which is the one thing on this screen that IS meant to pulse.
+ *
+ * It is deliberately not a pill: no capsule, no fill. This screen's pills are
+ * live state — a net, a HOT badge, a count — and they change all evening. The
+ * sign is the one thing on it that does not. */
+.csn-marquee {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 3px 9px 4px;
+  border: 1px solid rgba(205, 179, 128, 0.42);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(205, 179, 128, 0.10) 0%, rgba(205, 179, 128, 0.02) 100%);
+  box-shadow: 0 0 18px rgba(205, 179, 128, 0.14), inset 0 0 12px rgba(205, 179, 128, 0.06);
+  max-width: 100%;
+}
+
+.csn-marquee__bulbs {
+  display: flex;
+  gap: 4px;
+  padding-left: 1px;
+}
+
+.csn-marquee__bulbs i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(205, 179, 128, 0.28);
+  animation: casino-bulb 2.1s ease-in-out infinite;
+}
+
+.csn-marquee__word {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #EDEDED;
+  text-shadow: 0 0 14px rgba(205, 179, 128, 0.34);
+}
+
+/* An unlit sign over a building with nothing in it. More honest than a bright
+   one, and it is what a dark marquee has always meant. */
+.csn-marquee[data-lit="false"] {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: none;
+  box-shadow: none;
+}
+.csn-marquee[data-lit="false"] .csn-marquee__word {
+  color: #6B6B6B;
+  text-shadow: none;
+}
+.csn-marquee[data-lit="false"] .csn-marquee__bulbs i {
+  animation: none;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+@keyframes casino-bulb {
+  0%, 70%, 100% { background: rgba(205, 179, 128, 0.26); box-shadow: none; }
+  22%           { background: #CDB380; box-shadow: 0 0 6px rgba(205, 179, 128, 0.9); }
+}
+
+/* THE THREE DOORS. A row, never a column and never a scroller: three is the
+   ladder, they all fit at 390, and a door you have to swipe to find is a door
+   you will not use. */
+.csn-doors {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.csn-room-door {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.csn-room-door__name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: #6B6B6B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.csn-room-door__stakes {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #EDEDED;
+}
+
+.csn-room-door__in {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 8px;
+  color: #6B6B6B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.csn-room-door__in b { color: #00D4AA; font-weight: 400; }
+
+/* Yours is in there. The teal edge is the same one the tall doorway uses for
+   the same fact, so the two say it the same way at two sizes. */
+.csn-room-door[data-mine] { border-color: rgba(0, 212, 170, 0.34); }
+
+/* And hot, which is the only thing on a door that changes on its own. */
+.csn-room-door[data-hot] {
+  border-color: rgba(205, 179, 128, 0.5);
+  background: rgba(205, 179, 128, 0.07);
+}
+.csn-room-door[data-hot] .csn-room-door__name { color: #CDB380; }
+.csn-room-door__ember {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #CDB380;
+  box-shadow: 0 0 6px #CDB380;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* On the desk the doors have a whole stage to sit across, so they take it:
+   three signs over the room, larger type, and the width is the stage's. */
+.csn--desk .csn-doors { gap: 12px; }
+.csn--desk .csn-room-door { padding: 9px 12px 10px; }
+.csn--desk .csn-room-door__name { font-size: 9px; }
+.csn--desk .csn-room-door__stakes { font-size: 14px; }
+.csn--desk .csn-room-door__in { font-size: 9.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-marquee__bulbs i,
+  .csn-room-door__ember { animation: none; }
+}
+
+/* ── CASINO-2 job 4 · your table, once per man ──────────────────────────────
+ *
+ * A scroll-snap track, which is to say: the browser does the flick. A carousel
+ * driven by React state and transforms has to reimplement momentum, rubber
+ * banding and the point at which a drag becomes a page — all of which the
+ * platform already does, better, and with the right feel on the device the
+ * finger is actually on. React only reads which page it landed on.
+ *
+ * The block takes what is left of the screen rather than a fixed height: it is
+ * the thing the owner opened the screen for, so it gets the room the board and
+ * the doors did not want. */
+.csn-your {
+  /* It takes the rest of the screen, as the ref does — in NavCasinoM this block
+     ends up around 400px tall on a 390x844 phone, and that is the point: it is
+     the thing the owner opened the screen for.
+     THE MINIMUM IS GEOMETRY, NOT TASTE. The ring, the board and the hero are
+     all placed by percentage, and below about 230px the board row (61%) crosses
+     the hero's name pill (bottom-anchored). 240 clears it with room to spare;
+     the column scrolls, so a short screen loses nothing. */
+  flex: 1;
+  min-height: 240px;
+  /* And a CEILING, for the same reason as the floor. Everything on the felt is
+     placed by percentage, so a 700px box does not draw a bigger table — it
+     flings the seats into the corners and leaves the pot alone in the middle
+     of a field. 420 is about what the ref's block comes out at on a 390x844
+     phone, which is the proportion it was drawn to. */
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.csn-your__track {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.csn-your__track::-webkit-scrollbar { display: none; }
+
+.csn-your__page {
+  flex: 0 0 100%;
+  min-width: 100%;
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+}
+
+/* The felt fills its page. TableFelt is absolutely positioned inside, so the
+   page is what gives it a height at all. */
+.csn-your__page > .csn-felt { flex: 1; min-height: 0; }
+
+/* He is not at a felt, so this says where he is instead of drawing a quiet
+   table with him at it. Bordered but not gold: it is not a game. */
+.csn-your__away {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0E1413;
+}
+
+.csn-your--none {
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  padding: 18px;
+}
+
+/* The dots: how many men, and which one you are looking at. Tappable, because
+   a dot you can see and cannot press is a worse control than no dot — and 18px
+   of hit area around a 5px dot, because the dot is the target's centre and not
+   its size. */
+.csn-your__dots {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.csn-your__dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+.csn-your__dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.20);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.csn-your__dot[data-on]::after {
+  background: #CDB380;
+  box-shadow: 0 0 6px rgba(205, 179, 128, 0.7);
+}
+.csn-your__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* On the desk the felt is CENTRED under doors that stretch. A 900px-wide page
+   is a felt with its ring pulled apart, so it keeps a felt's width — but left
+   against a full-width row of doors that reads as a column that ran out rather
+   than as an object with air around it. The doors are signs and stretch
+   happily; the felt is the thing you are looking at, so it sits in the middle
+   of the stage. */
+.csn--desk .csn-your {
+  max-width: 640px;
+  width: 100%;
+  /* auto on all four sides, not just the sides. The felt is capped, and 1440x900
+     leaves several hundred pixels over; dumped at the bottom that reads as a
+     column that ran out, split above and below it reads as a felt with air
+     around it. */
+  margin: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-your__track { scroll-behavior: auto; }
+}
+
+/* ── CASINO-2 job 5 · the room, from above ──────────────────────────────────
+ *
+ * A destination, not a sheet. It replaces the building rather than sitting
+ * over it, so it has no scrim, no lip and no glass — you are not looking at a
+ * panel about the room, you are in the room. */
+.csn-floor {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0A0F0F;
+}
+
+.csn-floor__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0C1111;
+}
+
+.csn-floor__back {
+  flex-shrink: 0;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #A1A1A1;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.csn-floor__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csn-floor__room {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.csn-floor__room::-webkit-scrollbar { display: none; }
+
+/* ── wave 58 · the floor as a room ──────────────────────────────────────────
+ *
+ * The plan is drawn in the ref's own 390-unit space and scaled to whatever
+ * width it is given, so the walkways between the felts stay walkways on a
+ * phone and on a desk. Everything inside is positioned in those units. */
+.csn-floor58 {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 40%, #17201E 0%, #101715 62%, #0B100F 100%);
+}
+
+.csn-floor58__room {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+/* The carpet, running away from the door. */
+.csn-floor58__carpet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+/* A felt: an ellipse with bodies on its rim. Never a card. */
+.csn-felt58 {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.csn-felt58__heat {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  animation: casino-shimmer 2.4s ease-in-out infinite;
+}
+
+/* Yours. The rim is outside the cloth so it reads as a light over the table
+   rather than as a border on it. */
+.csn-felt58__ring {
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.csn-felt58__cloth {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.5);
+}
+
+.csn-felt58__pot {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.csn-felt58__seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+/* The one label a felt is allowed. */
+.csn-felt58__stake {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* The bar along the bottom wall. It exists so that "not playing" has somewhere
+   to be — which is the only reason to draw a bar in a room about tables. */
+.csn-floor58__bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  height: 54px;
+}
+
+.csn-floor58__counter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(180deg, #2A2118 0%, #1A140E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.csn-floor58__standing {
+  position: absolute;
+  left: 18px;
+  bottom: 24px;
+  display: flex;
+  gap: 16px;
+}
+
+.csn-floor58__barlabel {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+}
+
+/* The stairs, and the board bolted beside them. A picture of the board, not
+   the board: what it says is WHERE the board is. */
+.csn-floor58__stairs {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.csn-floor58__treads {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+}
+.csn-floor58__treads > span {
+  width: 5px;
+  border-radius: 2px 2px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.csn-floor58__plaque {
+  width: 58px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
+  padding: 4px 5px;
+  display: block;
+}
+.csn-floor58__rule {
+  display: block;
+  margin-top: 3px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-tiny,
+  .csn-felt58__heat { animation: none !important; }
+}
+
+.csn-floor__list { list-style: none; margin: 0; padding: 0; }
+
+.csn-floor__quiet {
+  font-size: 11.5px;
+  color: #A1A1A1;
+  line-height: 1.5;
+  margin: 4px 0 10px;
+}
+
+.csn-floor__unnamed {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9.5px;
+  color: #6B6B6B;
+  margin: 4px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.csn-floor__board {
+  flex-shrink: 0;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* On the desk: full width, board as the right column. This is a deliberate
+   departure from FIX-6 job 5's "every sheet opens in the rail" — that rule is
+   about sheets, and a sheet is a panel ABOUT something you can still see. This
+   replaces the building, so there is nothing behind it for a rail to sit
+   beside, and it brings the board along so the ticker is not lost on the way
+   in. */
+.csn-floor--desk .csn-floor__body { flex-direction: row; }
+.csn-floor--desk .csn-floor__room { padding: 16px 20px; }
+.csn-floor--desk .csn-floor__felts {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.csn-floor--desk .csn-floor__felts > .csn-felt { height: 168px; }
+.csn-floor--desk .csn-floor__board {
+  width: 380px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 16px 18px;
+}
+.csn-floor--desk .csn-floor__board::-webkit-scrollbar { display: none; }
+
+/* A room, on the desk. The building's own shell (.csn--desk) sets height:100%
+   because the desk's stage does not hand its child a height through flex the
+   way the phone's column does — the room needs the same, or it lays out at
+   zero and its absolutely-positioned contents have nothing to fill. */
+.csn--desk-room {
+  height: 100%;
+  min-height: 0;
+}
+
+/* The box the plan is measured against. It has no padding of its own on
+   purpose: the scrolling column above it has 14px gutters, and clientWidth
+   includes them — measuring there scaled the 390-unit plan by 1.0 into a 362px
+   box and hung the stairs and the bar off the right edge of the phone. */
+.csn-floor__plan {
+  width: 100%;
+  min-width: 0;
+}
+
+/* On the desk the plan is capped well under the column's width, so it is
+   centred in what is left rather than pinned to one edge of it. */
+.csn-floor--desk .csn-floor__plan { display: flex; justify-content: center; }

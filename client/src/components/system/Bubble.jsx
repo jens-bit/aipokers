@@ -8,7 +8,14 @@
 // opponent's is neutral and quieter, because table talk is background until it
 // isn't. The tail points down at whoever said it — that is the entire mechanism
 // by which you know who is speaking.
-export function Bubble({ text, mine, at, top, w = 142, felt = 390, flow }) {
+// WATCH-10 job 2 · `side`. An opponent's bubble is no longer pinned to a corner
+// of the felt: it opens LEFT or RIGHT of the seat that said it, whichever side
+// is clear (lib/feltBubbles.js). The tail then belongs to the NEAR EDGE rather
+// than to an offset measured from a felt-wide clamp, so when a side is given
+// the tail is left to the stylesheet — an inline `left` would win against it,
+// which is what used to put the tail 10px from the left of every bubble
+// whichever way it was facing.
+export function Bubble({ text, mine, at, top, w = 142, felt = 390, flow, side = null }) {
   // An opponent's bubble is placed over its own ghost and clamped inside the
   // felt; the tail then points back at the seat even when the box was pushed in
   // from the edge. His is centred in the band the column reserves for him.
@@ -26,11 +33,11 @@ export function Bubble({ text, mine, at, top, w = 142, felt = 390, flow }) {
     };
 
   return (
-    <div className={`bubble${mine ? ' bubble--mine' : ''}`} style={style}>
+    <div className={`bubble${mine ? ' bubble--mine' : ''}${side ? ` bubble--${side}` : ''}`} style={style}>
       <div className="bubble__box">{mine ? text : `“${text}”`}</div>
       <div
         className="bubble__tail"
-        style={mine ? undefined : { left: tail }}
+        style={(mine || side) ? undefined : { left: tail }}
         aria-hidden
       />
     </div>

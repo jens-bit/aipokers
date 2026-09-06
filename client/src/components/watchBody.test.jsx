@@ -146,15 +146,19 @@ describe('WATCH-8: the body, on every name pill', () => {
 
 // FRIDGE-1 may land later. Until it does the field is simply absent.
 describe('WATCH-8: the bottle', () => {
-  it('stands beside his stack when the seat says he is drinking', () => {
+  it('stands beside what it cost him when the seat says he is drinking', () => {
     const { container } = draw(withBody({ 0: { drinking: true }, 1: { drinking: true } }));
     expect(container.querySelector('.watch-felt__hero-stack .bottle')).toBeTruthy();
     const seat = container.querySelectorAll('.watch-felt__seat')[0];
     const pill = seat.querySelector('.seat-ghost__chip');
     expect(pill.querySelector('.bottle')).toBeTruthy();
-    // Beside the stack, not somewhere else on the pill.
-    const stack = pill.querySelector('.seat-ghost__stack');
-    expect(stack.compareDocumentPosition(pill.querySelector('.bottle'))
+    // "Beside his stack, because that is what it cost." WATCH-10 job 1 moved an
+    // opponent's stack out of the pill and onto his chips, so on the felt the
+    // last thing in the pill is his NAME and the bottle stands after it. The
+    // rule — the bottle is the pill's tail, never floating over the body — is
+    // what is actually asserted, and it is unchanged.
+    const name = pill.querySelector('.seat-ghost__name');
+    expect(name.compareDocumentPosition(pill.querySelector('.bottle'))
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

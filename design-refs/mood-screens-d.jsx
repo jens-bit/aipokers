@@ -12,7 +12,7 @@ const SettingRow = ({ icon, glyph, label, value, last }) => (
     {glyph || <Icon name={icon} size={15} color={M_DIM} strokeWidth={1.7}/>}
     <span style={{ flex: 1, fontSize: 13, color: M_TEXT }}>{label}</span>
     {value && <span style={{ fontSize: 12, color: M_MUTED }}>{value}</span>}
-    <Icon name="chevron-right" size={15} color={M_FAINT}/>
+    <Icon name="chevron-right" size={15} color={M_MUTED}/>
   </div>
 );
 
@@ -123,7 +123,7 @@ const MoodSheetRow = ({ mood, accent }) => {
       </div>
       <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
         <MoodAvatar mood={mood} accent={accent} size={30} pip={11}/>
-        <Num size={8} color={M_FAINT} weight={500}>30px</Num>
+        <Num size={8} color={M_MUTED} weight={500}>30px</Num>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <MoodChip mood={mood} small/>

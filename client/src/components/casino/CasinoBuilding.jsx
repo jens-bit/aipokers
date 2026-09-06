@@ -31,7 +31,6 @@ import { accentFor, M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { moodOf, heatOf } from '../floor/agentView.js';
 import { Num } from '../wallet/atoms.jsx';
 import { money, pocketOf } from '../../lib/wallet.js';
-import { CasinoEventType } from '../../lib/events.js';
 import { pillName } from '../../lib/names.js';
 
 // ── Design tokens (verbatim from the refs) ─────────────────────────────────
@@ -379,118 +378,16 @@ export function CasinoDoor({
 }
 
 // ── The board by the stairs ────────────────────────────────────────────────
-
-// EVENT-1's types, in the board's own vocabulary.
-const TICKER_LABELS = {
-  [CasinoEventType.BIG_POT]: 'BIGGEST POT',
-  [CasinoEventType.COOLER]: 'COOLER',
-  [CasinoEventType.HEATER]: 'HEATER',
-  [CasinoEventType.BUST]: 'BUSTED',
-  [CasinoEventType.NEMESIS_SEATED]: 'NEMESIS',
-  [CasinoEventType.HOT]: 'HOT',
-};
-
-export function tickerLabel(type) {
-  return TICKER_LABELS[type] ?? 'FLOOR';
-}
-
-/**
- * The five lines, newest first. The ref's board is a physical thing on a wall,
- * not a feed, so it holds a fixed number of lines rather than scrolling.
- *
- * `mineIds` is what makes the nemesis line gold: it is the only line that
- * concerns your agent, and the rest reads as gossip you overhear.
- */
-export function boardLines(events = [], mineIds = new Set(), limit = 5) {
-  return [...events]
-    .reverse()
-    .slice(0, limit)
-    .map((e) => ({
-      ...e,
-      mine: (e.agentIds ?? []).some((id) => mineIds.has(String(id))),
-    }));
-}
-
-export function CasinoBoard({
-  events = [], mineIds = new Set(), playing = 0, full = false, stakesFor = () => null, onSpectate = null,
-  // DESK-2: how many lines the board holds. On the phone it is five at rest and
-  // two while you are placing somebody, because it is stacked above the
-  // doorways and has to leave room for them. In the desk's rail it has a column
-  // of its own, so it holds the run of the evening instead of the top of it.
-  max = null,
-}) {
-  const lines = boardLines(events, mineIds, max ?? (full ? 5 : 2));
-
-  return (
-    <div
-      className="csn-board"
-      style={{
-        flexShrink: 0, borderRadius: 10, overflow: 'hidden',
-        background: 'linear-gradient(180deg, #171310 0%, #100D0B 100%)',
-        border: `1px solid ${M_GOLD}2E`,
-      }}
-    >
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px',
-        borderBottom: `1px solid ${M_GOLD}22`,
-      }}>
-        <LiveDot color={M_GOLD} />
-        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: M_GOLD }}>
-          BY THE STAIRS
-        </span>
-        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>
-          {count(playing)} playing
-        </span>
-      </div>
-
-      <div style={{ padding: '6px 11px 9px' }}>
-        {lines.length === 0 && (
-          <div style={{ fontSize: 10.5, color: M_MUTED, padding: '4px 0' }}>
-            The floor is quiet.
-          </div>
-        )}
-        {lines.map((line, i) => {
-          const at = stakesFor(line.tableId);
-          const row = (
-            <>
-              <span style={{
-                fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.13em',
-                color: line.mine ? M_GOLD : line.type === CasinoEventType.HOT ? M_RED : M_MUTED,
-                width: 64, flexShrink: 0, textAlign: 'left',
-              }}>{tickerLabel(line.type)}</span>
-              <span style={{ fontSize: 10.5, color: M_DIM, lineHeight: 1.4, flex: 1, textAlign: 'left' }}>
-                {line.headline}
-              </span>
-              {at && <Stake label={at} />}
-            </>
-          );
-          const style = {
-            display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0',
-            width: '100%', background: 'none', border: 'none',
-            borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.045)',
-          };
-          // Tapping a line goes to the felt it happened at. A line with no
-          // table behind it is not a destination, so it is not a button.
-          if (!onSpectate || !line.tableId) {
-            return <div key={line.id} className="csn-board__line" style={style}>{row}</div>;
-          }
-          return (
-            <button
-              key={line.id}
-              type="button"
-              className="csn-board__line"
-              style={{ ...style, cursor: 'pointer' }}
-              aria-label={`${tickerLabel(line.type)} — ${line.headline}. Watch this table.`}
-              onClick={() => onSpectate(line.tableId)}
-            >
-              {row}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+//
+// CASINO-2 job 2 moved it to FloorBoard.jsx and split it in two. The board that
+// lived here held five ticker lines newest-first, which put a $0 bust from four
+// seconds ago above a $14,200 pot from two minutes ago and had no way at all to
+// mention the pot being built right now — a hand that has not ended has fired
+// no event. LIVE NOW (off the felts) and TONIGHT (off the ticker, ranked by
+// money) are the two questions that list was answering badly at once.
+//
+// The header, the gold plate and the stairs beside it are the same object;
+// only what hangs on the wall changed.
 
 // The one piece of furniture that says the building has floors.
 export function Stairs() {
@@ -519,11 +416,52 @@ export function Stairs() {
 
 // ── The head ───────────────────────────────────────────────────────────────
 
-export function CasinoHead({ sub, right, onBack }) {
+/**
+ * THE SIGN OVER THE DOOR — CASINO-2 job 3.
+ *
+ * It was type in a header: the same Playfair line every other screen puts its
+ * title in, which said "this is a tab called The casino" rather than "you have
+ * walked into a building". A casino's name is the one piece of signage in the
+ * world that is never quiet about being a sign, and the whole identity of this
+ * screen is that it is somewhere you go.
+ *
+ * So it is a lit marquee: bulbs over the words, on a gold plate, running left
+ * to right the way a real one does — the bulbs chase rather than blink
+ * together, because a row that flashes in unison is a warning light and a row
+ * that runs is an invitation.
+ *
+ * `lit` is not decoration. A floor that has not opened gets a dark sign, which
+ * is what an unlit marquee has always meant, and is more honest than a bright
+ * sign over a building with nothing in it.
+ *
+ * NOT A PILL. It never takes a pill's rounded capsule, because the two would
+ * then be the same object at different sizes: this screen's pills are LIVE
+ * STATE (a net, a HOT badge, a count) and they change all evening. The sign is
+ * the one thing on the screen that does not.
+ */
+export function Marquee({ lit = true }) {
   return (
-    <div style={{
-      flexShrink: 0, minHeight: 46, display: 'flex', alignItems: 'center', gap: 9,
-      padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
+    <span className="csn-marquee" data-lit={lit ? 'true' : 'false'}>
+      <span className="csn-marquee__bulbs" aria-hidden>
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <i key={i} style={{ animationDelay: `${i * 0.17}s` }} />
+        ))}
+      </span>
+      {/* CASINO-2 job 2: "The casino" NEVER WRAPS. At 390 with a long sub-line
+          under it — "1,604 playing · 3 of yours in" — the flex row gave the
+          title a narrow column and the sign broke across two lines as "The"
+          over "casino", which is a broken sign rather than a small one. It is
+          two words; it keeps them. */}
+      <span className="csn-marquee__word">The casino</span>
+    </span>
+  );
+}
+
+export function CasinoHead({ sub, right, lit = true, onBack = null }) {
+  return (
+    <div className="csn-head" style={{
+      flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
+      padding: '6px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
       {/* HOME-2 job 1 · through the door, and still no bottom bar: ← HOME is
           where the back button goes (board 29 F07). */}
@@ -539,12 +477,93 @@ export function CasinoHead({ sub, right, onBack }) {
         >← HOME</button>
       ) : null}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>
-          The casino
-        </div>
-        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>{sub}</div>
+        <Marquee lit={lit} />
+        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 2 }}>{sub}</div>
       </div>
       {right}
+    </div>
+  );
+}
+
+// ── The three doors ────────────────────────────────────────────────────────
+
+/**
+ * The room's name as it is written on its door.
+ *
+ * THE FLOOR · UPSTAIRS · BACK ROOM. A leading "the" is dropped when what is
+ * left is still more than one word, which is the difference between a sign and
+ * a sentence — three signs in a row read as a row of signs, and "THE BACK
+ * ROOM" beside "THE FLOOR" reads as prose. "the floor" keeps its article,
+ * because "FLOOR" alone is a storey rather than a room.
+ *
+ * A rule rather than a table, so a deployment that adds a rung gets a door
+ * with a name on it instead of a blank one.
+ */
+export function doorLabel(room) {
+  const name = String(room?.name ?? '').trim();
+  if (!name) return '';
+  const stripped = name.replace(/^the\s+/i, '');
+  const label = stripped.includes(' ') ? stripped : name;
+  return label.toUpperCase();
+}
+
+/** The blinds as a door says them: 10/20, not $10/$20. */
+export function doorStakes(room) {
+  const s = room?.stakes;
+  if (!s) return '';
+  return `${s.smallBlind}/${s.bigBlind}`;
+}
+
+/**
+ * THREE DOORS UNDER THE SIGN — CASINO-2 job 3.
+ *
+ * The building has three rooms and they are the thing it is organised by, so
+ * they are the first thing under the sign and they never scroll off: at rest
+ * this screen is a board, three doors and your own table, and the doors are
+ * the only navigation on it.
+ *
+ * This is NOT the tall doorway (CasinoDoor, above). That one is the DEPLOY
+ * choice — a room seen through its doorway, its crowd drawn, your own men
+ * standing in it, the price on it when his pocket cannot cover the buy-in —
+ * and it earns a third of the screen because placing a man is the one decision
+ * made here. A door you are only walking through does not, and three of those
+ * at 152px each is the whole phone.
+ *
+ * Each door says the three things that decide which one you want: what it is
+ * called, what it costs to sit, and how many are in there. Hot is a fourth,
+ * and it is the only one that changes on its own.
+ */
+export function RoomDoors({ rooms = [], mineByRoom = {}, hotRooms = new Set(), onOpen = null }) {
+  if (rooms.length === 0) return null;
+  return (
+    <div className="csn-doors" role="group" aria-label="The rooms">
+      {rooms.map((room) => {
+        const mine = mineByRoom[room.id] ?? [];
+        const hot = hotRooms.has(room.id);
+        const label = doorLabel(room);
+        return (
+          <button
+            key={room.id}
+            type="button"
+            className="csn-room-door"
+            data-room={room.id}
+            data-hot={hot ? 'true' : undefined}
+            data-mine={mine.length ? 'true' : undefined}
+            aria-label={`${room.name}, ${room.stakes.label} — ${room.seated} in${hot ? ', hot' : ''}. Go in.`}
+            onClick={onOpen ? () => onOpen(room) : undefined}
+          >
+            <span className="csn-room-door__name">
+              {label}
+              {hot && <span className="csn-room-door__ember" aria-hidden />}
+            </span>
+            <span className="csn-room-door__stakes">{doorStakes(room)}</span>
+            <span className="csn-room-door__in">
+              {`${count(room.seated)} in`}
+              {mine.length > 0 && <b>{` · ${mine.length} yours`}</b>}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -556,6 +575,20 @@ export function CasinoHead({ sub, right, onBack }) {
  * in a picker. The tray states his pocket and the buy-in in the same line,
  * which is the entire decision. No stake slider anywhere — the pocket already
  * is the wager.
+ *
+ * CASINO-2 job 6 · THE LINE, AS THE REF WRITES IT.
+ * "pocket $1,240 · buy-in at 10/20 is $1,000" — mood-floor3's DeployTray and
+ * mood-casino2's restored tray both write the blinds BARE here, and it is not
+ * an oversight in either. The line already carries two amounts that are money
+ * you are deciding about; a third "$10/$20" between them is a dollar sign that
+ * is not money, and the eye stops on it. The room name and the ladder are
+ * everywhere else on this screen with their dollars intact — this is the one
+ * sentence where the stakes are an ADDRESS rather than a price.
+ *
+ * Everything else about the tray is deliberately unchanged. It is the wave-55
+ * restore: he is already standing here, so his face is in it rather than a
+ * picker, and the pocket IS the wager, so the buy-in sits in the same breath.
+ * A bare "Deploy someone" button threw away both facts.
  */
 export function DeployTray({ agent, index = 0, room, affordable, busy = false, onDeal, onFund }) {
   const pocket = pocketOf(agent);
@@ -583,7 +616,7 @@ export function DeployTray({ agent, index = 0, room, affordable, busy = false, o
         <div style={{ fontSize: 11.5, color: M_TEXT, fontWeight: 500 }}>{agent.name}</div>
         <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
           {room
-            ? `pocket ${money(balance)} · buy-in at ${room.stakes.label} is ${money(buyIn)}`
+            ? `pocket ${money(balance)} · buy-in at ${doorStakes(room)} is ${money(buyIn)}`
             : `pocket ${money(balance)} · pick a room`}
         </div>
       </div>

@@ -109,7 +109,7 @@ const GRow = ({ who, s, at, live }) => {
       <span style={{ flex: 1, fontSize: mine ? 13 : 12, lineHeight: 1.42, color: mine ? M_TEXT : yours ? M_GOLD : M_MUTED, fontStyle: mine || yours ? 'normal' : 'italic' }}>
         {mine || yours ? s : <>&ldquo;{s}&rdquo;</>}
       </span>
-      <Num size={8.5} color={M_FAINT} weight={500}>{at}</Num>
+      <Num size={8.5} color={M_MUTED} weight={500}>{at}</Num>
     </div>
   );
 };

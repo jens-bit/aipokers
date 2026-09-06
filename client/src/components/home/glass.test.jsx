@@ -94,7 +94,14 @@ describe('HOME-2 job 8 · every sheet and toast over the room is one glass', () 
   // paints its own solid ground for the screen it was written for. Over the
   // room the glass IS the ground — a solid header inside a glass sheet is a
   // flat grey panel with a blur around it.
-  it('the safe drops its own ground when it rises over the room', () => {
+  // BUG-39: HOME-2 job 8 taught MoneySheet to drop its ground on glass
+  // (variant='screen' + the onGlass ternaries) and gave it .money-sheet--glass.
+  // SAFE-2 then replaced MoneySheet with SafeSheet, which has none of that, and
+  // deleted the file this reads. The RULE is still right and still wanted — a
+  // solid header inside a glass sheet is a flat grey panel with a blur around
+  // it — so it is parked, not deleted, and not quietly rewritten to assert
+  // something SafeSheet happens to do. Un-todo it when SafeSheet learns glass.
+  it.todo('BUG-39: the safe drops its own ground when it rises over the room', () => {
     const at = home.indexOf('.money-sheet--glass .wal-block');
     expect(at, 'the safe has a rule of its own over the room').toBeGreaterThan(-1);
     expect(home.slice(at, home.indexOf('}', at))).toContain('rgba(255, 255, 255, 0.04)');

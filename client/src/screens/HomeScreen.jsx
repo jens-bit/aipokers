@@ -63,10 +63,10 @@ import { NotYet } from '../components/ftu/NotYet.jsx';
 import { identitiesFor } from '../lib/identity.js';
 import { placeAgent } from '../lib/place.js';
 import { useCarry } from '../hooks/useCarry.js';
-import { midHand, verbFor } from '../components/home/carry.js';
+import { verbFor } from '../components/home/carry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { MoneySheet } from '../components/wallet/MoneySheet.jsx';
 import { fetchWallet, signedMoney } from '../lib/wallet.js';
+import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import '../styles/home1.css';
 
 // A crossing, not a cut. The ref times the walk out at 1.8s and the walk home at
@@ -334,6 +334,10 @@ export function HomeScreen({
   // HOME-2 job 8: the safe, as a sheet over the room rather than a screen away
   // from it. `wallet` is read when it is opened, not on every mount — the same
   // rule the table sheet's useSlots follows.
+  // SAFE-2 — the safe opens IN THE ROOM, the way the fridge does. It used to
+  // send the owner to the YOU tab, which answered "how much is in the safe"
+  // with a screen change and a second tap; board 29 F12 opens it where he is
+  // standing, over the room he opened it from.
   const [safeOpen, setSafeOpen] = useState(false);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
@@ -482,16 +486,12 @@ export function HomeScreen({
     const agent = home.find((a) => String(a.id) === String(agentId));
     if (!agent) return;
 
-    // THE REFUSAL COMES FIRST, because the room can see it without asking. He
-    // is in a hand; whatever the server would eventually say, the answer is no
-    // and he walks back. What is shown is the fact rather than a sentence — the
-    // room has never put words in his mouth, and until the server sends a line
-    // there is no line of his to show.
-    const seated = positions.get(String(agentId))?.seat != null;
-    if (midHand(agent, { seated, gameRunning: game?.state === 'running' })) {
-      setSaidOnDrop({ id: String(agentId), text: 'In a hand', gold: false });
-      return;
-    }
+    // The refusal is the SERVER's now. This used to be checked here first,
+    // because there was no route that could answer it and "In a hand" was the
+    // only honest thing the room could say on its own. SERVER-5's /place
+    // answers 409 `inHand` with a line of his — "I am in a hand. Give me a
+    // minute." — so the room shows what he said rather than a state it worked
+    // out about him, which is the rule it keeps everywhere else.
 
     // The door is where the OWNER is going, with the man in his hand. CASINO-1:
     // a deploy is decided in the building, so this hands him over rather than
@@ -655,6 +655,11 @@ export function HomeScreen({
       // none is. Drawing a felt nobody is sitting at would be the one outright
       // lie on the screen.
       tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
+      // DRAFT-2: the wave-53 law makes the door the way to the casino ("CASINO
+      // is the door"), and the ref hangs the tag over it on every HOME frame
+      // (design-refs/mood-nav.jsx `navRoom`). It is a label, not a control — the
+      // door itself is still furniture, exactly as it was.
+      doorTag="THE CASINO →"
     >
       <AwayWall
         away={away}
@@ -802,22 +807,25 @@ export function HomeScreen({
         ) : null}
       />
 
+      {/* SAFE-2 · board 29 F12. The same SafeSheet the desk raises in its rail
+          and YOU opens behind its summary — one money surface, three doors —
+          mounted here as glass over the room. The wallet is read when it is
+          opened rather than on every mount of a screen most owners never open
+          it from, which is exactly what MobileTableSheet does with /api/slots. */}
+      {safeOpen ? (
+        <MobileSafeSheet
+          agents={agents}
+          onClose={() => setSafeOpen(false)}
+          onMoved={() => refresh()}
+          onOpenProfile={onProfile}
+        />
+      ) : null}
+
       {fridgeOpen ? (
         <FridgeSheet
           agents={home}
           onClose={() => setFridgeOpen(false)}
           onGiven={() => refresh()}
-        />
-      ) : null}
-
-      {/* HOME-2 job 8 · the safe. YOU-2's one money surface, in the room's own
-          glass chrome — the same frame the fridge and the table rise in. */}
-      {safeOpen ? (
-        <MobileSafeSheet
-          agents={agents}
-          onClose={() => setSafeOpen(false)}
-          onRefresh={refresh}
-          onOpenProfile={onProfile}
         />
       ) : null}
 
@@ -850,41 +858,35 @@ export function HomeScreen({
 }
 
 /**
- * HOME-2 job 8 — the safe, in the phone's chrome.
+ * SAFE-2 — the safe, in the room.
  *
- * The sheet itself is YOU-2's MoneySheet, unchanged and unforked: one surface
- * where money moves, two doors into it. What is here is the frame — the room's
- * glass, the scrim and the drag — and the one read the sheet needs, paid when
- * the safe is opened rather than on every mount of the room.
+ * The sheet itself is the one YOU and the desk rail both open; what this adds
+ * is the read. HomeScreen already holds the roster (pockets ride the same
+ * projection the bodies do, presentAgent §WALLET-1), so the only thing missing
+ * is the wallet — and it is fetched when the safe is opened rather than on
+ * every mount of HOME, which is MobileTableSheet's rule for /api/slots.
+ *
+ * `onMoved` is the room's re-read: giving a man chips changes what he can sit
+ * down at, and the room is where that shows.
  */
-function MobileSafeSheet({ agents = [], onClose, onRefresh, onOpenProfile }) {
+function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
   const [wallet, setWallet] = useState(null);
-  const [roster, setRoster] = useState(agents);
 
-  const reload = useCallback(async () => {
-    const w = await fetchWallet().catch(() => null);
+  const read = useCallback(async () => {
+    const w = await fetchWallet();
     setWallet(w);
-    await onRefresh?.();
-  }, [onRefresh]);
+  }, []);
 
-  useEffect(() => { fetchWallet().then(setWallet).catch(() => {}); }, []);
-  useEffect(() => { setRoster(agents); }, [agents]);
+  useEffect(() => { read(); }, [read]);
 
   return (
-    <div className="home-sheet home-sheet--tall" role="dialog" aria-label="The safe" data-testid="home-safe-sheet">
-      <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
-      <div className="home-sheet__panel">
-        <MoneySheet
-          wallet={wallet}
-          agents={roster}
-          onRefresh={reload}
-          onClose={onClose}
-          onOpenProfile={onOpenProfile}
-          title="The safe"
-          variant="sheet"
-        />
-      </div>
-    </div>
+    <SafeSheet
+      wallet={wallet}
+      agents={agents}
+      onRefresh={async () => { await read(); onMoved?.(); }}
+      onClose={onClose}
+      onOpenProfile={onOpenProfile}
+    />
   );
 }
 

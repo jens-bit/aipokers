@@ -24,6 +24,7 @@ import { PlayingCard, CardBack } from './PlayingCard.jsx';
 import { TugBar } from './TugBar.jsx';
 import { Glass } from './Glass.jsx';
 import { SeatClock } from './SeatClock.jsx';
+import { money } from '../../lib/wallet.js';
 
 // The ref's own owner-hand card, 46x64 (mood-home2 `OwnerHand`) — bigger than
 // the ghost's 36x50, because these are the cards you are actually playing and
@@ -83,7 +84,7 @@ export function OwnerHero({
           <>
             <div>
               <span className="watch-felt__hero-lbl">To call</span>
-              <div><span className="watch-felt__hero-num is-gold">{`$${toCall.toLocaleString()}`}</span></div>
+              <div><span className="watch-felt__hero-num is-gold">{money(toCall)}</span></div>
             </div>
             <div className="watch-felt__hero-divider" />
           </>

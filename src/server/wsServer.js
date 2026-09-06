@@ -9,8 +9,10 @@ import {
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
+import * as roomTables from './roomTables.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as rustNight from './rustNight.js';
 import * as tapeIdle from './tapeIdle.js';
 import * as thread from './thread.js';
 import { ThreadKind, ThreadSource } from './thread.js';
@@ -38,6 +40,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // ROOMS-1: the floor-by-stakes view reads the same registry, through the same
   // kind of injected provider, so neither it nor floorChannel imports table.js.
   rooms.configure({ liveTables: registry });
+  // CASINO-2: the felts inside those rooms read the same registry through the
+  // same kind of injected provider. It asks for listFloorTables — a home game
+  // is nobody's lobby — and never opens a table up itself: every felt on the
+  // wire is Table.feltView().
+  roomTables.configure({ liveTables: registry });
   // HOME-STATE-1: the home game reads the registry (to stand a table up) and
   // the roster (to know who is in). Both injected, so homeGame imports neither
   // table.js nor agentProfiles.js and the graph stays acyclic.
@@ -54,6 +61,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // exactly the question a standing change answers.
   setAgentChangeListener((userId) => {
     try {
+      // SERVER-5 job 2: the nightly rust pass, beside the nightly exchange and
+      // on the same tick, but FIRST — it changes stored attributes, and both
+      // the sweep and the roster below have to be the ones that already
+      // include them. Once per owner per day inside, and it walks the whole
+      // building rather than this owner's roster, because the household most
+      // in need of a pass is the one that never produces a change of its own.
+      rustNight.runNightly();
       // COST-1: before the home game is reconciled, not after. An agent who
       // has just put a tape on himself is no longer eligible for the kitchen
       // table (homeGame.eligible excludes a man who is studying), and syncing

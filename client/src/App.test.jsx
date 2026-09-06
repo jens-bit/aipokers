@@ -88,8 +88,9 @@ describe('App shell', () => {
 
     await user.click(screen.getByTestId('home-door'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
-    // The building names its rooms; the flat has none.
-    expect(await screen.findByText('the back room')).toBeInTheDocument();
+    // The building names its rooms; the flat has none. CASINO-2 job 3: at rest
+    // the name is on the small door under the sign, in the house's sign case.
+    expect(await screen.findByText('BACK ROOM')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back home' }));
     expect(await bootedOnHome()).toBeInTheDocument();
@@ -135,7 +136,10 @@ describe('App shell', () => {
     await user.click(screen.getByRole('button', { name: 'Your agents' }));
     await user.click(await screen.findByTestId('roster-wallet'));
 
-    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    // SAFE-2 renamed the surface this opens: MoneySheet's "Your wallet" is
+    // SafeSheet's "In the safe". Same door, same rule — the roster line opens
+    // the money — and the sheet behind it is the one that ships.
+    expect(await screen.findByText('In the safe')).toBeInTheDocument();
   });
 
   // The bar used to be the way back. Every screen you can reach now carries its
@@ -370,10 +374,11 @@ describe('the profile card can reach the funding sheet', () => {
     const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
-    // The YOU screen owns the wallet and the funding sheet. HOME-2 job 1 took
-    // the bar away, so what says we arrived is the screen itself and its own
-    // way back rather than a lit tab.
-    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    // Two truths from two branches: SAFE-2 renamed the surface the YOU screen
+    // opens ("In the safe", one number and three verbs), and HOME-2 job 1 took
+    // the bottom bar away — so the arrival is the screen itself, and there is
+    // no lit tab left to assert on. `tab-bar__tab` no longer exists in App.jsx.
+    expect(await screen.findByText('In the safe')).toBeInTheDocument();
   });
 });
 

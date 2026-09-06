@@ -24,10 +24,29 @@
 // scale, and `size` decides how much of either survives. Existing callers pass
 // none of them and get the mid tier at full detail, which is the face this atom
 // always drew.
+//
+// DRAFT-2 brings the wave-56 identity parameters across: `hood` is the cloth he
+// wears (one of lib/identity.js's six) and `glow` is the colour behind his eyes.
+// Both are the ref's and both are OPTIONAL. Together they are what lets the draft
+// form him out of ONE atom instead of a second drawing: a near-black hood with a
+// near-black glow is a silhouette, the real hood with a dead glow is a body
+// without eyes, and the real glow lights them.
+//
+// THE DEFAULT HOOD IS THIS FILE'S OLD ONE, NOT THE REF'S `HOODS[0]`. Wave 56
+// relit the six hoods from near-black (L* 8–14) to L* 26–36, and the ref's atom
+// defaults to the new ASH — so taking that default here would relight every
+// ghost in the product (floor, seat, band, hero, birth card) as a side effect of
+// building the draft screen. That relight is a real change with its own reasons
+// and it deserves its own tree and its own look; it is not something DRAFT-2 is
+// entitled to do quietly. So a caller who passes no hood gets exactly the ghost
+// this atom drew yesterday, and the draft passes its four hoods explicitly.
 
 import { useId } from 'react';
 import { ghostFace, ghostBrow } from './GhostFace.jsx';
 import { ghostHands } from './GhostHands.jsx';
+
+/** What this atom drew before wave 56, and still draws for every caller that asks for no hood. */
+const HOOD_DEFAULT = { top: '#141A22', bot: '#0A0F17' };
 
 const MOODS = {
   confident:  { color: '#00D4AA', glow: 0.34 },

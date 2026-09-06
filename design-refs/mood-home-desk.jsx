@@ -35,7 +35,7 @@ const HdThread = ({ nightly, nightlyOpen, lines = [], toast }) => (
     </div>
     <div style={{ flexShrink: 0, padding: '10px 14px 14px', borderTop: `1px solid ${M_BORDER}` }}>
       <div style={{ height: 34, borderRadius: 17, border: `1px solid ${M_BORDER}`, display: 'flex', alignItems: 'center', padding: '0 13px' }}>
-        <span style={{ fontSize: 11.5, color: M_FAINT }}>Say something to the room…</span>
+        <span style={{ fontSize: 11.5, color: M_MUTED }}>Say something to the room…</span>
       </div>
     </div>
   </div>

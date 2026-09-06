@@ -20,7 +20,15 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './scripts',
-  testMatch: 'smoke.spec.js',
+  // CASINO-2 joined the smoke in this job. Same config, same CI job, same
+  // deploy gate — two files rather than one because they assert different
+  // KINDS of thing: the smoke walks every surface and asks only "did it mount
+  // and did it stay quiet", and casino2 measures one screen's layout at two
+  // widths, which is the half of a design jsdom structurally cannot see.
+  // home2.spec.js was reported as wired into this job but was not: HOME-2's own
+  // branch still had testMatch: 'smoke.spec.js', so the file it added ran
+  // nowhere. A browser spec no job runs is a spec that rots.
+  testMatch: /(smoke|casino2|home2)\.spec\.js$/,
 
   // A gate, so nothing dresses a flake up as a pass. If this suite is red twice
   // in a row for reasons that are not the product, the fix is to make the

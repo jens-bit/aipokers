@@ -14,20 +14,12 @@
 //   409   he refused, and the body carries HIS LINE for why. Mid-hand is the
 //         case job 5 names; the server may have others.
 //
-// WHERE THERE IS NO FALLBACK, THERE IS NO FALLBACK. Two of the five fixtures
-// have no route today and are not given a pretend one:
-//
-//   couch  resting is a ROUTINE, and src/server/home.js derives every routine
-//          from state (worn → sleeps). Nothing sets one, by design.
-//   table  homeGame.js's sync() is the only thing that stands the kitchen table
-//          up, and its own comment says so.
-//
-// A drop on either of those against a pre-SERVER-5 server therefore reports
-// `unsupported` and the room puts him back where he was — which is the same
-// thing it does for a drop on the floor, and is the honest picture. Inventing a
-// local "he is resting now" that the next HOME_STATE would overwrite is the one
-// thing this screen has never done: every position it draws is one the server
-// gave it.
+// SERVER-5 has since landed, and /place answers all five — couch and table
+// included, through the doors that already existed (couch is the same bench a
+// want's yes sets; table is homeGame's own sync). The pre-SERVER-5 note that
+// used to stand here said those two had no route and were reported
+// `unsupported`; they have one now, so the fallbacks below cover only the two
+// fixtures that had a route of their own BEFORE /place existed.
 
 import { getTelegramInitData, getUserId } from './telegram.js';
 

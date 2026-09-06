@@ -22,9 +22,17 @@ import { FLAT, TV_SCREEN, TV_CHAIR, F_W, F_H } from './flat.js';
 // that gave it a tap did so for a different destination — BUGS-A job 7 watches
 // the game that is on it, BIRTH-5 opens the chairs when it is empty — so the
 // caller says where it leads and `tableLabel` says so out loud.
+// DRAFT-2: `doorTag` hangs the ref's `DoorTap` label over the door — the wave-53
+// nav's "no bottom bar" law made the door the way to the casino, and a door that
+// leads somewhere says so. It is OPT-IN rather than always drawn: HOME has not
+// been given the tag yet (that is the nav tree's to land, on its own frames), and
+// a label appearing on the room's most-looked-at screen is not something the
+// draft screen should decide on its way past. The draft asks for it because the
+// draft is where the sheet could cover it, and a thing that can be covered has to
+// be a thing a test can find.
 export function HomeFlat({
   lit = true, children, onSafe, onFridge, onTv, onTable, onDoor,
-  tvLabel = null, tableLabel = null,
+  tvLabel = null, tableLabel = null, doorTag = null,
   // HOME-2 job 4 · what is on the television. A component rather than markup,
   // because what is on it is data (CasinoOnTv) and this file draws furniture.
   tvScreen = null,
@@ -122,6 +130,21 @@ export function HomeFlat({
         style={{ left: TV_CHAIR.x, top: TV_CHAIR.y, width: TV_CHAIR.w, height: TV_CHAIR.h }}
         aria-hidden
       />
+      {/* the tag over it — design-refs/mood-nav.jsx `DoorTap` */}
+      {doorTag ? (
+        <span
+          className="home-flat__door-tag"
+          /* Anchored by its RIGHT edge to the door's, not by its left to the
+             ref's `door.x - 4`. The room clips at 390 and the tag is ~86px of
+             nowrap text starting at 326, so a left anchor puts "→" outside the
+             room and the label reads "THE CASINO" with the arrow sliced off.
+             Right-anchoring keeps it on the door and whole at every width. */
+          style={{ right: F_W - (FLAT.door.x + FLAT.door.w), top: FLAT.door.y - 26 }}
+          data-testid="home-door-tag"
+        >
+          {doorTag}
+        </span>
+      ) : null}
 
       {/* the safe, under the frames */}
       <button

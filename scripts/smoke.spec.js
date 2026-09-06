@@ -198,6 +198,49 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         await shot(page, `${shell}-home`);
       });
 
+      // ── SAFE-2 · the safe, opened from the room ───────────────────────────
+      //
+      // Phone only, and it earns a step because it is the one surface whose
+      // whole claim is about a NUMBER: board 29 F12 answers "how much is in
+      // the safe" with one figure and three verbs, and F12b's ledger is the
+      // same sheet pulled up rather than a screen behind it. Both of those are
+      // things a bundle can break silently — a glass panel that renders at zero
+      // height, a ledger that only exists in jsdom — so the walk is: open it,
+      // read the number, pull it up, read a line of the record.
+      //
+      // The desk has no pull: the rail has a column for tonight and the ledger
+      // at once, and DeskHome's own suite walks that.
+      if (!desktop) {
+        await test.step('SAFE', async () => {
+          await page.getByTestId('home-safe').click();
+          const safe = page.getByTestId('safe-sheet');
+          await expect(safe).toBeVisible({ timeout: 20_000 });
+
+          // ONE NUMBER, and it is money rather than an em dash: a safe that
+          // could not read the wallet says "—", which is honest and is also
+          // exactly the failure this step is here to catch.
+          const amount = safe.locator('.safe__amount');
+          await expect(amount).toBeVisible();
+          await expect(amount).toHaveText(/^\$/);
+          // Three verbs, no fourth.
+          await expect(safe.locator('.safe__verb')).toHaveCount(3);
+          // Tonight, in three lines, every one of them with its cause.
+          await expect(safe.locator('.safe__line')).toHaveCount(3);
+          await shot(page, `${shell}-safe`);
+
+          // PULL UP: the same sheet's second size, with the number still on it.
+          await safe.getByRole('button', { name: /pull up for the ledger/i }).click();
+          await expect(page.getByTestId('safe-ledger')).toBeVisible({ timeout: 10_000 });
+          await expect(safe.locator('.wal-ledger__row').first()).toBeVisible();
+          await expect(amount).toBeVisible();
+          await shot(page, `${shell}-safe-ledger`);
+
+          // Out the way it came, back to the room.
+          await safe.getByRole('button', { name: 'Back' }).click();
+          await expect(page.getByTestId('safe-sheet')).toHaveCount(0);
+        });
+      }
+
       await test.step('CASINO', async () => {
         if (desktop) {
           await page.getByRole('button', { name: 'CASINO', exact: true }).click();
