@@ -1918,7 +1918,23 @@ export class Table {
     // Auto-deal when all FILLED seats are AI. On an autonomous table this is
     // the session loop; a legacy spectator-created AI table keeps its old
     // 2.5s tempo until startSessionLoop takes it over.
-    if (this.isAiOnly()) {
+    //
+    // SIT-1 · AND ALWAYS AT THE KITCHEN TABLE, whoever is sitting at it.
+    //
+    // The home game's tempo is the SERVER's — that is the whole shape of
+    // homeGame.js, which bounds it with a pause, a hand cap and a cooldown
+    // precisely because nobody is necessarily watching. `isAiOnly()` stops
+    // being true the moment the owner takes a chair, and the table then
+    // scheduled nothing, waited for a DEAL it would refuse anyway (a
+    // clientDriven maybeStartHand backs off while `autoPlay` is set), and was
+    // closed by its own stall watchdog a minute later. The owner sat down at
+    // his own kitchen table and the game stopped.
+    //
+    // The casino is untouched and must be: there a human seat IS the tempo,
+    // and dealing the next hand under a player who has not asked for one would
+    // take the table away from him. At home he asked for it by sitting down,
+    // the hand cap still bounds the evening, and every other seat is his own.
+    if (this.isAiOnly() || this.home) {
       this._scheduleNextHand((this.autoPlay ? this.handPauseMs : 2500) + holdMs);
     }
   }

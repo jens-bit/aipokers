@@ -271,6 +271,10 @@ export function HomeScreen({
   // table is a real table (HOME-STATE-1) and it is nobody's deployment, so
   // "watch him" is the wrong shape for it.
   onWatchTable,
+  // SIT-1: take a chair at it yourself. A different verb from onWatchTable and
+  // a different socket — that one WATCHes, this one JOINs — so it is a second
+  // prop rather than a flag on the first.
+  onSitTable,
   onProfile,
   onDeploy,
   onCreateAgent,
@@ -462,23 +466,24 @@ export function HomeScreen({
       lit={lit}
       onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
-      // Two branches wanted this tap and they turn out to be the same rule.
+      // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
-      // BUGS-A job 7: a kitchen table with a game ON it is a table you can go
-      // and watch — that tap was doing nothing, which is the bug.
-      // BIRTH-5: the chairs are priced in one place only, the TableSheet — a
-      // rail panel on the desk, a sheet over the room on the phone.
+      // Three trees wanted this tap and all three are now sections of the sheet
+      // board 31 P17 draws — "three labelled sections with a button each, no
+      // hidden taps anywhere":
       //
-      // A table with a game running is watchable; an empty one is where you buy
-      // a chair. BUGS-A's own note — "an empty table stays furniture rather
-      // than becoming a button that does nothing" — is exactly the case
-      // BIRTH-5 then gave something to do, so neither had to lose.
-      onTable={game?.state === 'running' && game?.tableId && onWatchTable
-        ? () => onWatchTable(game.tableId)
-        : (desktop ? () => setRail('table') : () => setTableOpen(true))}
-      tableLabel={game?.state === 'running' && game?.tableId && onWatchTable
-        ? 'Watch the home game'
-        : 'The chairs'}
+      //   BUGS-A job 7  a kitchen table with a game ON it is a table you can go
+      //                 and watch. Still true; it is the WATCH section.
+      //   BIRTH-5       the chairs are priced in one place only, the TableSheet.
+      //   SIT-1         you can take a chair at it yourself.
+      //
+      // It used to fork here: a running game watched, an empty table opened the
+      // sheet. That made the sheet unreachable for exactly as long as a game was
+      // running — which is exactly when SIT-1's free chair is worth having, and
+      // is why the fork had to go rather than grow a third branch. The desk has
+      // always opened the rail panel from this tap; the phone now agrees with it.
+      onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
+      tableLabel={game?.state === 'running' ? 'The table' : 'The chairs'}
       onTv={studying ? (
         // The tape room is a man doing something, so on the desk it opens HIM
         // in the rail — the same place tapping his body puts him.
@@ -612,6 +617,19 @@ export function HomeScreen({
           seated={gameAgentIds.length}
           onClose={() => setTableOpen(false)}
           onDraft={onCreateAgent ? () => { setTableOpen(false); onCreateAgent(); } : undefined}
+          // SIT-1 · only when there is a game to sit down at. A kitchen table
+          // that is not standing (nobody home, or the household cooling down
+          // after the hand cap) has no chair to pull up, and a SIT DOWN that
+          // stood one up would be a second way to start a home game — see
+          // homeGame.js, where sync() is the only one.
+          onSit={onSitTable && game?.state === 'running' && game?.tableId
+            ? () => { setTableOpen(false); onSitTable(game.tableId); }
+            : undefined}
+          // BUGS-A job 7's promise, one tap deeper: the game that is on is
+          // still a game you can go and watch.
+          onWatch={onWatchTable && game?.state === 'running' && game?.tableId
+            ? () => { setTableOpen(false); onWatchTable(game.tableId); }
+            : undefined}
         />
       ) : null}
     </div>
@@ -628,7 +646,7 @@ export function HomeScreen({
  * paid when the sheet is opened, not on every mount of a screen most owners
  * never open it from.
  */
-function MobileTableSheet({ seated = 0, onClose, onDraft }) {
+function MobileTableSheet({ seated = 0, onClose, onDraft, onSit, onWatch }) {
   const { slots } = useSlots();
   return (
     <div className="home-sheet" role="dialog" aria-label="The table" data-testid="home-table-sheet-mobile">
@@ -638,7 +656,7 @@ function MobileTableSheet({ seated = 0, onClose, onDraft }) {
           <span className="home-sheet__title">The table</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <TableSheet slots={slots} seated={seated} onDraft={onDraft} />
+        <TableSheet slots={slots} seated={seated} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
       </div>
     </div>
   );

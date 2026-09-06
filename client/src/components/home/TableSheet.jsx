@@ -62,8 +62,20 @@ export function useSlots() {
  *                  which is a different number from how many chairs are owned
  * @param onDraft   open the drafting conversation — the same one the first
  *                  agent came from
+ * @param onWatch   SIT-1: go and watch the game that is on it. Board 31 P17:
+ *                  the sheet explains itself in three labelled sections with a
+ *                  button each — the live game, the free chair, the priced one —
+ *                  and "no hidden taps anywhere". Watching used to be the
+ *                  table's own tap in the room, which made this sheet
+ *                  unreachable for as long as a game was running and left the
+ *                  free chair with nowhere to be. It is a section now.
+ * @param onSit     SIT-1: take a chair yourself. Offered ONLY when the caller
+ *                  gives it, which it does only when there is a game running to
+ *                  sit down at — the kitchen table has to be standing before
+ *                  anyone can pull a chair up to it, and a SIT DOWN that stands
+ *                  a table up would be a second way to start a home game.
  */
-export function TableSheet({ slots = null, seated = 0, onDraft }) {
+export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, onWatch = null }) {
   const cap = slots?.cap ?? 4;
   const used = slots?.used ?? 0;
   const next = slots?.next ?? null;
@@ -82,6 +94,47 @@ export function TableSheet({ slots = null, seated = 0, onDraft }) {
           {free === 1 ? '1 chair free' : `${free} chairs free`}
         </span>
       </div>
+
+      {/* P17's first section: the game that is actually on, and the way to it.
+          The felt above is the picture; this is the verb. */}
+      {onWatch ? (
+        <div className="table-sheet__live">
+          <div className="table-sheet__sit-text">
+            <span className="table-sheet__sit-title">Home game</span>
+            <span className="table-sheet__sit-sub">They are playing right now.</span>
+          </div>
+          <button
+            type="button"
+            className="table-sheet__watch"
+            onClick={onWatch}
+            data-testid="home-table-watch"
+          >
+            WATCH
+          </button>
+        </div>
+      ) : null}
+
+      {/* SIT-1 · 52·T's second section. The sheet that prices a chair also has
+          the one that costs nothing: playing them yourself is free, at a table
+          that pays nothing, which is why it sits ABOVE the priced chair rather
+          than below it — the thing you can already do comes before the thing
+          you have to earn. */}
+      {onSit ? (
+        <div className="table-sheet__sit">
+          <div className="table-sheet__sit-text">
+            <span className="table-sheet__sit-title">Take a chair</span>
+            <span className="table-sheet__sit-sub">Play them yourself. No money in it.</span>
+          </div>
+          <button
+            type="button"
+            className="table-sheet__sit-go"
+            onClick={onSit}
+            data-testid="home-table-sit"
+          >
+            SIT DOWN
+          </button>
+        </div>
+      ) : null}
 
       {next ? (
         <div className="table-sheet__next">

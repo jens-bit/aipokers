@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
+import { useHomeThread } from './hooks/useHomeThread.js';
 import { resolveDeepLink } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
 import { RosterSheet } from './components/RosterSheet.jsx';
@@ -29,6 +30,7 @@ import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
 import { CasinoScreen } from './screens/CasinoScreen.jsx';
 import { ReplayTheatre } from './components/replay/ReplayTheatre.jsx';
+import { rowsFromThread } from './lib/thread.js';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -37,6 +39,20 @@ function resolveWsUrl() {
   return `${proto}//${window.location.host}`;
 }
 const WS_URL = resolveWsUrl();
+
+// SIT-1 — what the owner sits down with at his own kitchen table.
+//
+// The server's own numbers (HOME_BLINDS and HOME_BUYIN in src/server/homeGame.js),
+// restated here because the client must not import server code and the home
+// game's shape does not ride on the wire. They matter for exactly one thing:
+// the JOIN. `seatPlayer` refuses a buy-in under ten big blinds, and a table
+// where the owner sits down with a different stack from the agents already at
+// it is not the same game they are playing.
+//
+// It is still no money. The home game credits nobody and debits nobody — these
+// are nominal chips on a table that is in no room and on no rung of the wallet
+// ladder — which is why nothing here touches the pocket.
+const HOME_SIT = Object.freeze({ smallBlind: 1, bigBlind: 2, buyIn: 200 });
 
 function agentHandsApiUrl(agentId) {
   return `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(getUserId())}`;
@@ -276,6 +292,52 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watch]);
 
+  // ── SIT-1 · you take a chair at your own kitchen table ────────────────────
+  //
+  // The one place in the product where the owner JOINS rather than WATCHes.
+  // Everything else he opens a socket for, he opens as a spectator; here he is
+  // a player, which is what makes the four verbs real and what makes the felt
+  // hand him his own two cards face up.
+  //
+  // `sitting` is the marker the render reads. `isSpectator` would have been the
+  // lazy way to reuse the mobile WatchScreen branch and it would have been a
+  // lie — a spectator cannot act, and handleLeave treats the two differently
+  // (it calls /finish for a player's agent, which is exactly what must NOT
+  // happen here: nobody's session ends because you stood up from your own
+  // kitchen table).
+  const sitTable = useCallback((tableId) => {
+    if (!tableId) return;
+    watchOriginRef.current = hereOrigin();
+    setActiveAgent(null, null);
+    connect({
+      tableId,
+      userId: getUserId(),
+      displayName: getTelegramDisplayName() || 'You',
+      buyIn: HOME_SIT.buyIn,
+      smallBlind: HOME_SIT.smallBlind,
+      bigBlind: HOME_SIT.bigBlind,
+      // No opponent is wanted: the household is already at the table. wantAI
+      // would seat a fifth body at a four-seat table.
+      wantAI: false,
+      sitting: true,
+    });
+  // setActiveAgent is a plain function over a ref and two setStates, and
+  // hereOrigin reads state at call time; `connect` is the only value under here
+  // that can change identity.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connect]);
+
+  // THREAD-2's room thread, read only while he is sitting at it. The kitchen
+  // table has no single agent whose stay the felt's own thread could be, so the
+  // sheet behind the Chat button is the ROOM's day — the same one the desk rail
+  // shows. `enabled` keeps the GET off every other screen in the app.
+  const sitting = !!config?.sitting;
+  const homeRoom = useHomeThread({ enabled: sitting });
+  const homeThreadRows = useMemo(
+    () => (sitting ? rowsFromThread({ lines: homeRoom.lines }) : null),
+    [sitting, homeRoom.lines],
+  );
+
   useDeepLink((route) => {
     resolveDeepLink(route)
       .then((opened) => {
@@ -366,12 +428,24 @@ export default function App() {
     return () => clearInterval(id);
   }, [handIsActive, timerKey]);
 
-  // Auto-fold when timer hits 0 on the human player's turn
+  // Auto-act when the timer hits 0 on the human player's turn.
+  //
+  // SIT-1 · AT THE KITCHEN TABLE IT CHECKS IF IT CAN. Board 29, 52·Y2, states
+  // the rule in as many words — "timeout checks if it can and folds if it
+  // cannot; either way you are dealt in next hand" — and SitStrip prints it on
+  // the strip, so a timeout that always folded made the screen's own sentence
+  // untrue. Throwing away a free look at the turn is also not what a man who
+  // put his phone down meant to do.
+  //
+  // Only at home. In the casino a timeout is a fold and stays one: that table
+  // is somebody else's money and its own tree; changing what a lapsed clock
+  // does there is not this tree's to decide.
   useEffect(() => {
-    if (isMyTurn && timerLeft === 0 && !timerFiredRef.current) {
-      timerFiredRef.current = true;
-      actRef.current?.({ type: 'fold' });
-    }
+    if (!isMyTurn || timerLeft !== 0 || timerFiredRef.current) return;
+    timerFiredRef.current = true;
+    const canCheck = config?.sitting
+      && (legalActions ?? []).some((a) => a && a.type === 'check');
+    actRef.current?.({ type: canCheck ? 'check' : 'fold' });
   }, [timerLeft, isMyTurn]);
 
   // Closing the spectator view means "stop watching", not "recall the agent".
@@ -640,6 +714,9 @@ export default function App() {
               // standing — so the tap reads all three rather than one. A frame
               // that could name a table and still did nothing is exactly the
               // dead tap this job is about.
+              // SIT-1 · the other verb for the same table. onWatchTable opens a
+              // spectator socket; this one takes a seat.
+              onSitTable={sitTable}
               onWatchTable={(tableId) => {
                 if (!tableId) return;
                 watchOriginRef.current = hereOrigin();
@@ -764,6 +841,45 @@ export default function App() {
           </button>
         </nav>
       </div>
+    );
+  }
+
+  // ── SIT-1 · the owner, at his own kitchen table ────────────────────────────
+  //
+  // The SAME felt the spectator branch below renders, and deliberately so: the
+  // board that says "sitting down is the camera, not a screen" is about there
+  // being one table, and this is the client's version of that claim — the room
+  // is where you tap the chair, and everything after it is the felt you already
+  // know, with you at the bottom of it.
+  //
+  // Three differences, all of them props: he is `seated` (his cards, his pill,
+  // no ghost), the composer's slot carries the verbs, and the Chat button opens
+  // the ROOM's thread in the same glass rather than leaving for an agent's.
+  // Live `game` and live `legalActions`, never the paced ones — a player must
+  // not wait to see his own seat.
+  if (config?.sitting && !isDesktop) {
+    return (
+      <WatchScreen
+        seated
+        game={game}
+        mySeat={mySeat}
+        legalActions={legalActions}
+        onAct={act}
+        lastDecision={lastDecision}
+        chatMessages={chatMessages}
+        sendChat={sendChat}
+        displayNames={displayNames}
+        connection={status}
+        threadRows={homeThreadRows}
+        // No onOpenThread: the Chat button opens the glass sheet in place. The
+        // owner is in a hand — sending him to another screen to read the room
+        // would take him out of it.
+        onLeave={handleLeave}
+        onSitOut={sitOut}
+        sessionEnd={findSessionEnd(history)}
+        onBackToFloor={() => { handleLeave(); navigateTo('home'); }}
+        config={config}
+      />
     );
   }
 

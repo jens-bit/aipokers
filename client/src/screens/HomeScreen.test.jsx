@@ -490,7 +490,19 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
     ],
   };
 
+  // SIT-1 CHANGED THE ROUTE, NOT THE PROMISE. BUGS-A job 7's rule is "no tap
+  // that does nothing", and a kitchen table with a game on it must still be a
+  // table you can go and watch. It just is not the room's own tap any more.
+  //
+  // The tap used to fork — a running game watched, an empty table opened the
+  // sheet — and the cost of that fork was that the TableSheet was unreachable
+  // for exactly as long as a game was running. That is when SIT-1's free chair
+  // is worth having, so the chair had nowhere to live. Board 31 P17 had already
+  // answered it: the sheet is three labelled sections with a button each — the
+  // live game, the free chair, the priced one — and "no hidden taps anywhere".
+  // So the table has one destination now and watching is a section of it.
   it('the kitchen table with a game on it is a table you can watch', async () => {
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
     const onWatchTable = vi.fn();
     await boot(
       [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
@@ -498,7 +510,33 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
       { onWatchTable },
     );
     await userEvent.click(await screen.findByTestId('home-table'));
+    await userEvent.click(await screen.findByTestId('home-table-watch'));
     expect(onWatchTable).toHaveBeenCalledWith('home-u1');
+  });
+
+  it('and it is a table you can sit down at', async () => {
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
+    const onSitTable = vi.fn();
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      GAME,
+      { onSitTable },
+    );
+    await userEvent.click(await screen.findByTestId('home-table'));
+    await userEvent.click(await screen.findByTestId('home-table-sit'));
+    expect(onSitTable).toHaveBeenCalledWith('home-u1');
+  });
+
+  it('offers neither verb at a table with no game on it', async () => {
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: null });
+    await boot([mkAgent('a1', 'The Clock')], null, { onWatchTable: vi.fn(), onSitTable: vi.fn() });
+    await userEvent.click(await screen.findByTestId('home-table'));
+    await screen.findByTestId('home-table-sheet');
+    // A table that is not standing has nothing to watch and no chair to pull
+    // up. A SIT DOWN here would be a second way to start a home game, and
+    // homeGame.js's sync() is the only one.
+    expect(screen.queryByTestId('home-table-watch')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('home-table-sit')).not.toBeInTheDocument();
   });
 
   it('an empty table is not a dead button either — it opens the chairs', async () => {
