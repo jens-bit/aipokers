@@ -412,17 +412,69 @@ describe('HOME-1 · the thread', () => {
     expect(await screen.findByRole('dialog', { name: /The Clock/i })).toBeInTheDocument();
   });
 
-  it('the composer never inserts a row — the server writes it', async () => {
-    let sent = null;
-    await boot([mkAgent('a1', 'The Clock')]);
-    // Re-render with a spy send would remount; instead assert on the DOM: the
-    // typed text must not appear as a row before the reload serves it.
+  // BUGS-A job 11 REVERSED HALF OF THIS RULE, deliberately.
+  //
+  // The rule was "the composer never inserts a row". It still holds for every
+  // row about HIM — his voice is the server's to write, or the room and the
+  // record tell two different stories. It does not hold for YOUR OWN line:
+  // that is not a claim about the world the client might get wrong, it is a
+  // thing the owner did a moment ago, and holding it back for a round trip
+  // plus a model call made send look like a broken button.
+  it('shows YOUR line at once, and never puts words in his mouth', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
     const input = await screen.findByTestId('home-thread-input');
     await userEvent.type(input, 'you punted that');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    // Immediately, with no server anywhere near it: the band carries it.
+    expect(await screen.findByText('you punted that')).toBeInTheDocument();
     await waitFor(() => expect(input).toHaveValue(''));
-    expect(screen.queryByTestId('home-thread-rows')).toBeNull();
-    expect(sent).toBeNull();
+
+    // ...and nothing at all has been said in HIS voice.
+    expect(screen.queryByText(/Nothing said yet/)).toBeNull();
+    resolveSend(null);
+  });
+
+  it('attributes it to YOU, in order, once the sheet is open', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // Registered after boot: routes match newest-first, so this wins over the
+    // empty thread `defaults()` puts in.
+    fetchMock.route(/\/thread\?/, () => ({
+      sessionId: 's1',
+      count: 1,
+      lines: [{ id: 1, kind: 'him', who: 'HIM', text: 'Rough one.', ts: 1000 }],
+    }));
+
+    await userEvent.click(screen.getByTestId('home-thread-line'));
+    const sheet = await screen.findByTestId('home-thread-rows');
+    await waitFor(() => expect(within(sheet).getByText('Rough one.')).toBeInTheDocument());
+
+    await userEvent.type(screen.getByTestId('home-thread-input'), 'take it off him');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    const rows = [...(await screen.findByTestId('home-thread-rows')).querySelectorAll('.thread-row')];
+    expect(rows.map((r) => r.querySelector('.thread-row__who').textContent)).toEqual(['HIM', 'YOU']);
+    expect(rows[1].querySelector('.thread-row__text').textContent).toBe('take it off him');
+    resolveSend(null);
+  });
+
+  it('a line the server never stored does not stay — then it was never said', async () => {
+    // The reload is the truth, and this thread endpoint returns nothing ever.
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
+    await userEvent.type(await screen.findByTestId('home-thread-input'), 'you punted that');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('you punted that')).toBeInTheDocument();
+
+    resolveSend(null);
+    await waitFor(() => expect(screen.queryByText('you punted that')).toBeNull());
   });
 });
 

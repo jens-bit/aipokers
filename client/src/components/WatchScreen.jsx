@@ -1349,6 +1349,19 @@ export function WatchScreen({
   }, []);
 
   function sendToAgent(text) {
+    // BUGS-A job 11 · NOTHING IS SHOWN THAT IS NOT RECORDED.
+    //
+    // The bubble used to rise first and the guard came after it, so a whisper
+    // sent while he was still answering the last one — or at a table with no
+    // agent of yours at it — floated up the felt, was gone in four seconds, and
+    // was never in the thread. The owner had said something to nobody, and the
+    // record disagreed with what he had just watched himself do.
+    //
+    // The guard is first now, and the composer is disabled while a reply is in
+    // flight, so the whisper on the felt and the YOU line in the thread are one
+    // event with two drawings of it.
+    if (!agentId || agentLoading) return;
+
     var now = Date.now();
     var id = 'w' + (++whisperIdRef.current);
     setWhispers(function(prev) { return prev.concat([{ id: id, text: text }]); });
@@ -1356,7 +1369,6 @@ export function WatchScreen({
       setWhispers(function(prev) { return prev.filter(function(w) { return w.id !== id; }); });
     }, WHISPER_MS));
 
-    if (!agentId || agentLoading) return;
     setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now }]); });
     setAgentLoading(true);
     fetch('/api/agents/chat', {
@@ -1803,6 +1815,10 @@ export function WatchScreen({
         onSend={sendToAgent}
         onOpenThread={function() { openChat(); }}
         agentName={agentName}
+        // BUGS-A job 11: while he is answering, and at a table where there is
+        // no agent of yours to answer. A composer that takes a line and drops
+        // it is worse than one that says it cannot take it.
+        disabled={agentLoading || !agentId}
       />
 
       {sitOutPending && (
