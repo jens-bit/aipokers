@@ -3,8 +3,6 @@ import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
 import { DeskHome } from './DeskHome.jsx';
 import { DesktopTopBar } from './DesktopTopBar.jsx';
-import { StandupPanel } from './StandupPanel.jsx';
-import { ThreadPanel } from './ThreadPanel.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
@@ -41,9 +39,8 @@ export function DesktopHome({
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState(null);
 
-  // One draft per agent (plus the idle panel's own). Lifted above ThreadPanel
+  // One draft per agent (plus the idle panel's own). Lifted above the panels
   // so a half-typed message survives switching agents — the panel remounts,
   // this map does not.
   const [drafts, setDrafts] = useState({});
@@ -95,7 +92,7 @@ export function DesktopHome({
   // the rail's, so the key follows the rail's focus — and only while the rail is
   // actually showing a man, because the standup's own composer is the idle one.
   const homeDraftKey = homeStage && homePanel === 'agent' ? homeFocusId : null;
-  const draftKey = deskTableId ?? homeDraftKey ?? selectedId ?? IDLE_KEY;
+  const draftKey = deskTableId ?? homeDraftKey ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
   }, [draftKey]);
@@ -128,16 +125,18 @@ export function DesktopHome({
     };
   }, [load]);
 
-  // Resolve against the latest poll so the open thread's mood/state stay fresh.
-  const selectedIndex = agents.findIndex((a) => a.id === selectedId);
-  const selected = selectedIndex >= 0 ? agents[selectedIndex] : null;
-
-  // A selected agent that has been deleted elsewhere must not strand the panel.
-  const hadSelection = useRef(false);
+  // DESK-2: an agent the room's rail is pointed at who has been deleted
+  // elsewhere must not strand the panel. This is the old selectedId guard,
+  // following the rail's focus now that the rail is where a thread opens.
+  const focusIndex = agents.findIndex((a) => a.id === homeFocusId);
+  const hadFocus = useRef(false);
   useEffect(() => {
-    if (selectedId && !loading && selectedIndex < 0 && hadSelection.current) setSelectedId(null);
-    if (selectedIndex >= 0) hadSelection.current = true;
-  }, [selectedId, selectedIndex, loading]);
+    if (homeFocusId && !loading && focusIndex < 0 && hadFocus.current) {
+      setHomeFocusId(null);
+      setHomePanel('thread');
+    }
+    if (focusIndex >= 0) hadFocus.current = true;
+  }, [homeFocusId, focusIndex, loading]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -149,7 +148,6 @@ export function DesktopHome({
       // DESK-2: on the HOME stage Escape backs the rail out to the room, which
       // is the resting panel there the way the standup was on the old floor.
       if (homeStage && homePanel !== 'thread') { setHomePanel('thread'); return; }
-      setSelectedId(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -192,7 +190,7 @@ export function DesktopHome({
       onStandup={homeStage
         ? () => { setWalletOpen(false); setBornId(null); setHomePanel('standup'); }
         : (firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined)}
-      onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
+      onWallet={wallet ? () => { setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
       stage={stage}
       onStage={(next) => {
@@ -218,7 +216,7 @@ export function DesktopHome({
   // drawn while the rail is showing the room's thread; and the STANDUP holds
   // the full roster itself, which is what the strip would be a collapse of.
   const homeRailIsRoster = homeStage && (homePanel === 'thread' || homePanel === 'standup');
-  const panelOpen = !!born || !!selected || walletOpen
+  const panelOpen = !!born || walletOpen
     || (homeStage && !walletOpen && !born && !homeRailIsRoster);
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
@@ -280,14 +278,14 @@ export function DesktopHome({
         {panelOpen && (
           <RosterStrip
             agents={agents}
-            activeId={homeStage && !walletOpen && !born ? homeFocusId : (selectedId ?? bornId)}
+            activeId={homeStage && !walletOpen && !born ? homeFocusId : bornId}
             onSelect={(agent) => {
               setBornId(null);
               setWalletOpen(false);
               // On the HOME stage the thread the strip opens is the rail's, in
               // the room — there is no second panel for it to land in.
-              if (homeStage) { setHomeFocusId(agent.id); setHomePanel('agent'); return; }
-              setSelectedId(agent.id);
+              setHomeFocusId(agent.id);
+              setHomePanel('agent');
             }}
           />
         )}
@@ -370,42 +368,7 @@ export function DesktopHome({
             />
             <BirthCardRail agent={born} onDealIn={() => { setBornId(null); onDeployAgent(born); }} />
           </div>
-        ) : homeStage ? null : selected ? (
-          <ThreadPanel
-            key={selected.id}
-            agent={selected}
-            accentIndex={selectedIndex}
-            game={game}
-            lastDecision={lastDecision}
-            isWatched={watchedId === selected.id}
-            draft={drafts[selected.id] ?? ''}
-            onDraftChange={setDraft}
-            onClose={() => setSelectedId(null)}
-            onWatch={onWatchAgent}
-            onDeploy={onDeployAgent}
-            onFocusTable={() => openTable(selected)}
-          />
-        ) : (
-          <StandupPanel
-            agents={agents}
-            loading={loading}
-            game={game}
-            lastDecision={lastDecision}
-            selectedId={selectedId}
-            watchedId={watchedId}
-            draft={drafts[IDLE_KEY] ?? ''}
-            onDraftChange={setDraft}
-            onSelect={(agent) => setSelectedId(agent.id)}
-            onOpenTable={openTable}
-            onDraftAgent={onCreateAgent}
-            onOpenFlagged={(agent, hand) => {
-              // A row names its hand: that one goes to the theatre. VIEW ALL
-              // has no hand, so it opens the sheet with the whole list.
-              if (hand) setReplay({ agent, hand });
-              else setFlaggedAgent(agent);
-            }}
-          />
-        )}
+        ) : null}
       </div>
     </div>
   );
