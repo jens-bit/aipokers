@@ -39,6 +39,10 @@ describe('protocol', () => {
       ERROR: 'error',
       PONG: 'pong',
       EVENT: 'event',
+      // HOME-1 / HOME-STATE-1: the room's own three, on the floor channel.
+      HOME_STATE: 'home_state',
+      WANT: 'want',
+      SESSION_END: 'session_end',
     });
   });
 

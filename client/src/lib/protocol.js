@@ -32,6 +32,19 @@ export const ServerMsg = Object.freeze({
   // { event: { id, ts, type, tableId, agentIds, headline, pot } }. Pushed to
   // every FLOOR_SUB subscriber regardless of who owns the agents in it.
   EVENT: 'event',
+  // HOME-STATE-1 / HOME-1: the owner's living room, owner-scoped, on the same
+  // subscription. { userId, agents: [{ id, name, nature, mood, location,
+  // routine, fatigue, unseenRecap, study }], game }. `location.where` is
+  // home | casino | table; `routine` is null anywhere but home; `game` is the
+  // home game — an ordinary tableId to WATCH, or null.
+  HOME_STATE: 'home_state',
+  // WANTS-1: the one thing an agent is asking his owner for, or null when he
+  // has stopped asking. { userId, agentId, want }.
+  WANT: 'want',
+  // SERVER-3: one agent's stay at a table is over. Owner-scoped on the floor
+  // channel. { sessionId, agentId, tableId, reason, hands, net, biggestPot,
+  // duration, endedAt } — the money line HOME-1 walks him back in with.
+  SESSION_END: 'session_end',
 });
 
 export const Streets = Object.freeze({

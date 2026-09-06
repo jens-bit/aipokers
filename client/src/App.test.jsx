@@ -1,7 +1,12 @@
 // client/src/App.test.jsx — TEST-1
 //
-// The shell: three tabs, and BirthScreen as the only way to make an agent.
+// The shell: the tab bar, and BirthScreen as the only way to make an agent.
 // These assert on what the user sees after a click, not on component internals.
+//
+// HOME-1 moved the front door. The app opens on the ROOM now, not on the
+// floor, so `bootedOnHome()` is the anchor every test starts from and the
+// floor's own assertions moved one click in — behind the CASINO tab, which is
+// where the floor now lives. Nothing that was asserted stopped being asserted.
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -20,31 +25,51 @@ function tab(name) {
   return screen.getByRole('button', { name });
 }
 
+// HOME-1: the app boots into the room. This is the "it has mounted" anchor the
+// floor's `Standup` header used to be.
+const bootedOnHome = () => screen.findByTestId('home-screen');
+
+// ...and this is how a test that is about the FLOOR gets to it.
+async function goToFloor(user) {
+  await bootedOnHome();
+  await user.click(tab('CASINO'));
+  return screen.findByText('Standup');
+}
+
 describe('App shell', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
   });
 
-  it('renders the three tabs', async () => {
+  it('renders the tab bar', async () => {
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
     const nav = document.querySelector('.tab-bar');
+    expect(within(nav).getByText('HOME')).toBeInTheDocument();
     expect(within(nav).getByText('CASINO')).toBeInTheDocument();
     expect(within(nav).getByText('CHATS')).toBeInTheDocument();
     expect(within(nav).getByText('YOU')).toBeInTheDocument();
   });
 
-  it('opens on the casino floor', async () => {
+  it('opens on the room, not on the floor', async () => {
     render(<App />);
-    // The standup line is the floor's own header — it is only on CASINO.
-    expect(await screen.findByText('Standup')).toBeInTheDocument();
+    // HOME-1: the room is the front door. The floor's own header is one tab
+    // away, and this asserts both halves of that rather than only the new one.
+    expect(await bootedOnHome()).toBeInTheDocument();
+    expect(screen.queryByText('Standup')).not.toBeInTheDocument();
+  });
+
+  it('the floor is still there, behind CASINO', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await goToFloor(user)).toBeInTheDocument();
   });
 
   it('switches to CHATS and back to CASINO', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await goToFloor(user);
 
     await user.click(tab('CHATS'));
     await waitFor(() => expect(screen.queryByText('Standup')).not.toBeInTheDocument());
@@ -58,7 +83,7 @@ describe('App shell', () => {
   it('switches to YOU', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await goToFloor(user);
 
     await user.click(tab('YOU'));
     await waitFor(() => expect(screen.queryByText('Standup')).not.toBeInTheDocument());
@@ -69,12 +94,12 @@ describe('App shell', () => {
   it('marks the active tab so the user can tell where they are', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
 
-    expect(tab('CASINO')).toHaveClass('tab-bar__tab--active');
+    expect(tab('HOME')).toHaveClass('tab-bar__tab--active');
     await user.click(tab('YOU'));
     expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
-    expect(tab('CASINO')).not.toHaveClass('tab-bar__tab--active');
+    expect(tab('HOME')).not.toHaveClass('tab-bar__tab--active');
   });
 
   // KEY-1 through the real app: App calls initViewportTracking() on mount, so
@@ -82,7 +107,7 @@ describe('App shell', () => {
   // keyboard-aware container is sized by.
   it('tracks Telegram viewport changes into --tg-h (KEY-1)', async () => {
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
 
     telegram.setViewportHeight(412);
     expect(document.documentElement.style.getPropertyValue('--tg-h')).toBe('412px');
@@ -97,10 +122,25 @@ describe('agent creation is BirthScreen and nothing else', () => {
     telegram.signIn();
   });
 
+  it('an empty room offers one way in, and it is BirthScreen', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/agents', { agents: [] });
+    render(<App />);
+
+    // HOME-1: the room is the front door, so this is where a first-time owner
+    // meets the offer now. One affordance, and it is the same one.
+    await user.click(await screen.findByRole('button', { name: /Make an agent/i }));
+
+    expect(await screen.findByPlaceholderText(/Describe how it should play/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
+  });
+
   it('the empty floor offers exactly one way in, and it is BirthScreen', async () => {
     const user = userEvent.setup();
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
+    await screen.findByTestId('home-screen');
+    await user.click(tab('CASINO'));
 
     // The first-time stool is the only create affordance on an empty floor.
     const stool = await screen.findByRole('button', { name: /Draft your first agent/i });
@@ -115,6 +155,8 @@ describe('agent creation is BirthScreen and nothing else', () => {
     const user = userEvent.setup();
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
+    await screen.findByTestId('home-screen');
+    await user.click(tab('CASINO'));
 
     await user.click(await screen.findByRole('button', { name: /Draft your first agent/i }));
     await screen.findByPlaceholderText(/Describe how it should play/i);
@@ -141,6 +183,8 @@ describe('the profile card can reach the funding sheet', () => {
   it('renders the give-him-chips button on the profile pocket line and lands on the YOU screen', async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByTestId('home-screen');
+    await user.click(tab('CASINO'));
 
     // Open the agent's profile from the floor zoom.
     await user.click(await screen.findByRole('button', { name: /^Value Bot — / }));
@@ -179,7 +223,7 @@ describe('WIRE-1 the app shell wiring', () => {
   // that one. One agent, one ghost.
   it('WIRE-1: App draws no newborn overlay of its own', async () => {
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
     // MaterializingOccupant's own line. It was App's overlay talking over the
     // floor's walk-in; the floor never says this.
     expect(screen.queryByText(/Deal me in whenever/)).not.toBeInTheDocument();
@@ -222,6 +266,8 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
   });
 
   const watchTheGrinder = async (user) => {
+    await screen.findByTestId('home-screen');
+    await user.click(tab('CASINO'));
     await user.click(await screen.findByRole('button', { name: /^The Grinder — / }));
     const zoom = await waitFor(() => {
       const el = document.querySelector('.floor-zoom');
@@ -337,7 +383,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   it('CHAT-2: back from a watch started in a thread lands in that thread', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
 
     await deployFromThread(user);
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
@@ -349,7 +395,8 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   it('CHAT-2: back from a watch started on the floor still lands on the floor', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
+    await user.click(tab('CASINO'));
 
     // The floor zoom is how an agent is deployed from the casino.
     await user.click(await screen.findByRole('button', { name: /^Loose Cannon — / }));
@@ -368,7 +415,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   it('CHAT-2: a tab the owner actually taps still wins over the origin', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
 
     await deployFromThread(user);
     // The watch screen has no tab bar; leave first, then choose.
@@ -384,7 +431,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   it('CHAT-2: it holds for the second round trip too', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Standup');
+    await bootedOnHome();
 
     await deployFromThread(user);
     await user.click(screen.getByRole('button', { name: 'Leave table' }));

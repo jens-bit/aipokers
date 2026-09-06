@@ -22,6 +22,7 @@ import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
+import { HomeScreen } from './screens/HomeScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
@@ -71,7 +72,9 @@ export default function App() {
   useEffect(() => initViewportTracking(), []);
 
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('casino');
+  // HOME-1: the app opens on the flat. The floor answered "who is playing";
+  // the room answers "where is everybody", which is the screen this product is.
+  const [activeTab, setActiveTab] = useState('home');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
@@ -127,6 +130,24 @@ export default function App() {
 
   function openAgentProfile(agent) {
     setAgentProfileTarget(agent);
+  }
+
+  // HOME-1: the room's composer. Same endpoint the CHATS thread uses — one way
+  // to say something to an agent, and the SERVER writes the row. Nothing here
+  // inserts a line into the thread; HomeThread reloads it and reads what was
+  // actually stored.
+  async function sendToAgent(agent, text) {
+    if (!agent?.id || !text) return null;
+    try {
+      const res = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agent.id }),
+      });
+      return res.ok ? res.json() : null;
+    } catch {
+      return null;
+    }
   }
 
   // ── DEEPLINK-1 · the other end of every link the bot sends ─────────────────
@@ -478,6 +499,59 @@ export default function App() {
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game" style={{ position: 'relative' }}>
+          {/* HOME-1 · board 29 — the flat, seen from above. It replaces the floor
+              as the screen the app opens on; the floor keeps the CASINO tab,
+              where it is a picture of the casino rather than of the household. */}
+          {activeTab === 'home' && (
+            <HomeScreen
+              wsUrl={WS_URL}
+              onCreateAgent={() => setIsCreating(true)}
+              onProfile={openAgentProfile}
+              onOpenWallet={(agent) => (agent ? openAgentProfile(agent) : navigateTo('you'))}
+              onSend={sendToAgent}
+              onWatch={async (agent) => {
+                if (!agent?.activeTableId) return;
+                watchOriginRef.current = hereOrigin();
+                let memoryContext = '';
+                try {
+                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+                  if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+                } catch { /* watch with empty context */ }
+                setActiveAgent(agent.id, agent);
+                watch({
+                  tableId: agent.activeTableId,
+                  agentId: agent.id,
+                  userId: getUserId(),
+                  agentStrategy: agent.strategy,
+                  displayName: agent.name || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext,
+                });
+              }}
+              onDeploy={async (agent) => {
+                // WANTS-1: a `needs: 'deploy'` yes lands here. Same call the
+                // floor's own deploy makes — one way into a seat.
+                watchOriginRef.current = hereOrigin();
+                const res = await fetch(`/api/agents/${agent.id}/queue`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: getUserId() }),
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                setActiveAgent(payload.agentId, agent);
+                watch({
+                  tableId: payload.tableId,
+                  agentId: payload.agentId,
+                  userId: getUserId(),
+                  agentStrategy: payload.strategy,
+                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext: payload.memoryContext ?? '',
+                });
+              }}
+            />
+          )}
           {activeTab === 'casino' && (
             <CasinoFloor
               onCreateAgent={() => setIsCreating(true)}
@@ -551,6 +625,13 @@ export default function App() {
               of that one. One body per agent; the floor keeps his. */}
         </div>
         <nav className="tab-bar">
+          <button
+            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => navigateTo('home')}
+          >
+            <HomeIcon />
+            <span>HOME</span>
+          </button>
           <button
             className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => navigateTo('casino')}
@@ -934,6 +1015,17 @@ function ProfilePlaceholder() {
         <p className="placeholder-screen__sub">Profile · Coming soon</p>
       </div>
     </div>
+  );
+}
+
+// HOME-1: the house from design-refs/mood-home.jsx (NAV3).
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <path d="M10 20v-5.5h4V20" />
+    </svg>
   );
 }
 

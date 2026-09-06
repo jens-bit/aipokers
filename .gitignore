@@ -8,3 +8,8 @@ dist/
 coverage/
 data/*
 !data/arena/
+
+# HOME-1: Playwright's own scratch. The screenshots in client/e2e/__screenshots__
+# are committed on purpose (they are the deliverable); the run artefacts are not.
+client/test-results/
+client/playwright-report/
