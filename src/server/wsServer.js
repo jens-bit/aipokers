@@ -3,7 +3,7 @@ import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
 import {
   getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener,
-  reconcileActiveSessions, presentedRoster,
+  reconcileActiveSessions, presentedRoster, setTypingListener,
 } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
@@ -69,6 +69,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
   // SERVER-4: a written thread line goes straight out on the wire.
   setThreadListener((userId, line) => floor.broadcastThreadLine(userId, line));
+  // SERVER-4: he is answering you. Straight through; there is nothing to
+  // reconcile and nothing to store.
+  setTypingListener((userId, agentId, sessionId) => floor.broadcastTyping(userId, agentId, sessionId));
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);

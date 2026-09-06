@@ -214,6 +214,19 @@ export const ServerMsg = Object.freeze({
   // agent answering something said in the flat could take a poll interval to
   // appear. A client that ignores this message is never wrong, only late.
   THREAD_LINE: 'thread_line', // { type, userId, sessionId, line }
+  // SERVER-4 (additive): one of this owner's agents is composing a reply, sent
+  // immediately before the model call that produces it. Owner-scoped and
+  // owner-proved, exactly like THREAD_LINE, because it announces a line only
+  // the owner will be shown.
+  //
+  //   { type, userId, agentId, sessionId }
+  //
+  // There is no matching "stopped typing": the THREAD_LINE that follows IS the
+  // end of it, and a reply that never comes (the model failed, the turn timed
+  // out) must not leave a client waiting on a second message that is not
+  // coming. A client should clear the indicator on the next THREAD_LINE from
+  // that agent, or on a timeout of its own choosing.
+  TYPING: 'typing',           // { type, userId, agentId, sessionId }
   // WANTS-1 (additive): the one thing an agent is asking his owner for has
   // changed. Owner-filtered like FLOOR_STATE — a want is a private thing
   // between a man and his backer, and it names rooms and money.

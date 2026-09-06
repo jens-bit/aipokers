@@ -2125,6 +2125,22 @@ function emitWantChange(userId, agentId, want) {
   catch (err) { console.error('[wants] change listener failed:', err.message); }
 }
 
+// SERVER-4: "he is answering you", injected for the third time for the third
+// identical reason. It is deliberately NOT a thread line — nothing is stored,
+// nothing is read back, and a client that missed it has missed a beat rather
+// than a sentence.
+let typingListener = null;
+
+export function setTypingListener(fn) {
+  typingListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitTyping(userId, agentId, sessionId) {
+  if (!typingListener) return;
+  try { typingListener(String(userId ?? 'anon'), String(agentId), sessionId ?? null); }
+  catch (err) { console.error('[home] typing listener failed:', err.message); }
+}
+
 // What makes two wants the same want on the wire. The timestamp is not in it:
 // a want rebuilt identically after a restart is the same ask, and pushing WANT
 // because a number moved is how a quiet channel becomes a noisy one.
@@ -2718,44 +2734,68 @@ export function installAgentProfileRoutes(app) {
     // Nobody in. Not an error: the line is in the thread and they will not
     // answer it, exactly as if you had said it to an empty flat.
     if (atHome.length === 0) {
-      return res.json({ sessionId, said: text, home: 0, replies: [] });
+      return res.json({ sessionId, said: text, home: 0, pending: [], replies: [] });
     }
 
-    const replies = [];
-    for (const { agent } of atHome) {
-      let body = null;
-      try {
-        body = await ownerChatTurn(agent, userId, text);
-      } catch (err) {
-        console.error('[home] reply failed:', err.message);
-        continue;
+    // SERVER-4: ANSWER NOW, TALK LATER.
+    //
+    // This used to await one model call per agent at home and return all the
+    // replies together, which meant saying something to three agents was a
+    // four-call round trip — nine seconds of a spinner in the worst case, and
+    // a request that could time out with the replies already written to the
+    // thread. Worse, it was not what a room sounds like: three people do not
+    // answer you in unison.
+    //
+    // So the response carries only what is already TRUE — your line is stored
+    // — plus who is in and therefore who to expect. Each reply then arrives on
+    // its own, over the floor channel, as the THREAD_LINE the write emits,
+    // with a TYPING immediately before the call that produces it. A client
+    // that is not on the socket loses nothing: every line is in the thread and
+    // GET /api/home/thread still returns all of it.
+    const pending = atHome.map(({ agent }) => ({ agentId: agent.id, name: agent.name ?? null }));
+    res.json({ sessionId, said: text, home: atHome.length, pending, replies: [] });
+
+    // Sequential, not parallel, and that is the point: they are taking turns in
+    // a room. Three at once would also be three concurrent model calls off one
+    // rate-limited request, which is the shape this endpoint's limiter exists
+    // to prevent.
+    // Everything past the response is wrapped, because there is no longer a
+    // caller to hand a 500 to: an unhandled rejection after res.json() is a
+    // process-level noise at best and a crash at worst.
+    try {
+      for (const { agent } of atHome) {
+        emitTyping(userId, agent.id, sessionId);
+        let body = null;
+        try {
+          body = await ownerChatTurn(agent, userId, text);
+        } catch (err) {
+          console.error('[home] reply failed:', err.message);
+          continue;
+        }
+        const reply = body?.chat?.[0]?.content;
+        if (!reply) continue;
+        appendThreadLine({
+          sessionId,
+          agentId: agent.id,
+          ownerId: userId,
+          kind: ThreadKind.HIM,
+          who: agent.name || 'HIM',
+          text: reply,
+          source: ThreadSource.HOME,
+          // Attributed both ways: he said it, and he said it back to you.
+          from: agent.id,
+          to: THREAD_OWNER,
+        });
       }
-      const reply = body?.chat?.[0]?.content;
-      if (!reply) continue;
-      appendThreadLine({
-        sessionId,
-        agentId: agent.id,
-        ownerId: userId,
-        kind: ThreadKind.HIM,
-        who: agent.name || 'HIM',
-        text: reply,
-        source: ThreadSource.HOME,
-        // Attributed both ways: he said it, and he said it back to you.
-        from: agent.id,
-        to: THREAD_OWNER,
-      });
-      replies.push({
-        agentId: agent.id,
-        name: agent.name ?? null,
-        text: reply,
-        mood: body.mood ?? null,
-        fromOwnerMemory: !!body.fromOwnerMemory,
-      });
-    }
 
-    saveStore(userId);
-    emitAgentChange(userId);
-    res.json({ sessionId, said: text, home: atHome.length, replies });
+      // The turn moved moods and memories, so the records are saved and the
+      // floor is told once at the end rather than per speaker — the fan-out is
+      // one event in the room, not three.
+      saveStore(userId);
+      emitAgentChange(userId);
+    } catch (err) {
+      console.error('[home] fan-out failed:', err.message);
+    }
   });
 
   // GET /api/agents?userId=... — agents array with the floor-UI fields

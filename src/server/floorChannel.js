@@ -13,8 +13,10 @@
 // the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
 // is pushed on change after that.
 //
-// SERVER-4 added a fifth: THREAD_LINE, one line written into a thread of
-// this owner's. Owner-scoped AND owner-PROVED — see broadcastThreadLine.
+// SERVER-4 added a fifth and a sixth: THREAD_LINE, one line written into a
+// thread of this owner's, and TYPING, the beat before one of his agents
+// produces a reply. Both are owner-scoped AND owner-PROVED — see
+// broadcastThreadLine.
 //
 // HOME-STATE-1 added a fourth: HOME_STATE, the owner's living room — where
 // each of his agents is, what he is doing there, and the home game if one is
@@ -318,6 +320,27 @@ export function broadcastThreadLine(userId, line) {
   }
   return sent;
 }
+
+// SERVER-4: he is answering you. Sent immediately before the model call, and
+// gated identically to the THREAD_LINE it precedes — announcing that a line is
+// coming to somebody who will not be shown the line is worse than silence.
+export function broadcastTyping(userId, agentId, sessionId = null) {
+  if (!userId || !agentId || subs.size === 0) return 0;
+  const owner = String(userId);
+  const payload = {
+    type: ServerMsg.TYPING,
+    userId: owner,
+    agentId: String(agentId),
+    sessionId: sessionId ?? null,
+  };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== owner || !entry.owner) continue;
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
 // WANTS-1: one agent's want changed. Owner-filtered, like SESSION_END and
 // unlike the ticker: what a man is asking his backer for is between the two of
 // them, and it names rooms, money and a state of mind.
