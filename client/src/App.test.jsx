@@ -131,6 +131,38 @@ describe('App shell', () => {
   });
 });
 
+// ── BUGS-A job 3 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 3 · retiring him lands on HOME', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/thread', { sessionId: 's1', lines: [], count: 0 });
+  });
+
+  it('retiring from a thread-opened profile ends in the room, not in the dead thread', async () => {
+    const user = userEvent.setup();
+    fetchMock.route(/\/api\/agents\/agent_cannon$/, { success: true }, { method: 'DELETE' });
+    render(<App />);
+    await bootedOnHome();
+
+    // Room -> his thread -> his profile, which is how an owner actually gets
+    // to Retire.
+    await user.click(await bodyOf('Loose Cannon'));
+    await user.click(await screen.findByRole('button', { name: "Open Loose Cannon's profile" }));
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('button', { name: 'Retire' }));
+    await user.click(screen.getByRole('button', { name: 'Retire him' }));
+
+    // The room, with the household he still has — not the thread of the man
+    // who has just gone.
+    expect(await bootedOnHome()).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Message Loose Cannon…')).toBeNull();
+  });
+});
+
 describe('agent creation is BirthScreen and nothing else', () => {
   beforeEach(() => {
     telegram.signIn();

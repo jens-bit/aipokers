@@ -521,7 +521,14 @@ export default function App() {
               callAgentFinish(ag.id);
               setAgentProfileTarget(null);
             }}
-            onRetired={() => setAgentProfileTarget(null)}
+            // BUGS-A job 3: retiring him ENDS somewhere, and the somewhere is
+            // the room he lived in. Closing the overlay alone put the owner
+            // back on whatever tab was underneath — most often the thread of
+            // the man he had just retired, which is a conversation with
+            // nobody, and on an empty roster that read as being dropped into
+            // the draft flow. HOME is where the household is; go and look at
+            // the one he still has.
+            onRetired={() => { setAgentProfileTarget(null); navigateTo('home'); }}
           />
         </div>
       );
