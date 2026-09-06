@@ -7,10 +7,19 @@
 //
 // TWO BARS, TWO PIXELS, AND THEY NEVER SHARE A CHANNEL:
 //
-//   STAMINA  green → grey.  Comes from VOLUME (fatigue: fresh / settled / worn)
-//                           and retreats as the session wears him down.
-//   HEAT     teal  → red.   Comes from OUTCOMES (mood.heat, 0–100) and fills as
-//                           he runs hot.
+//   STAMINA  green → red.   Comes from VOLUME (fatigue: fresh / settled / worn)
+//                           and DRAINS RIGHT TO LEFT as the session wears him
+//                           down: the fill is anchored at the left, so what
+//                           retreats is its right-hand end.
+//   HEAT     teal  → red.   Comes from OUTCOMES (mood.heat, 0–100) and FILLS
+//                           LEFT TO RIGHT, from empty to fiery red.
+//
+// BUGS-A job 10 gave spent stamina a red, and that immediately collided with
+// the rule above it: two causes cannot share a colour. So the two reds are
+// deliberately different reds. Spent stamina is the dull blood red this app
+// already uses for a losing chip; boiling heat is the fiery one it uses for
+// alarm. Empty-and-tired does not look like furious, at either end or
+// anywhere in between.
 //
 // "A confident agent can be worn; a tilted agent can be fresh." That is why they
 // are two lines and not one: a single meter would make an owner read one cause
@@ -46,11 +55,15 @@ function mix(a, b, t) {
   return `#${to(ar + (br - ar) * k)}${to(ag + (bg - ag) * k)}${to(ab + (bb - ab) * k)}`;
 }
 
-// Green when there is plenty left, grey when there is not. Grey is M_FAINT —
-// the token that is explicitly NOT text: a spent line is furniture, not a number
-// somebody has to read.
+// Green when there is plenty left, red when there is not — BUGS-A job 10.
+// It was green → grey, which said "this bar has stopped mattering" when what a
+// spent bar actually means is that he is running on nothing. Red says that.
+//
+// NOT the heat red. See the note in the header: #B4353A is the dull blood red
+// this app already uses for a losing chip, and #FF4D4F is the fiery one it
+// keeps for alarm. Sharing one would undo the whole point of two bars.
 export const STAMINA_FULL = '#3FBF7F';
-export const STAMINA_SPENT = '#55555C';
+export const STAMINA_SPENT = '#B4353A';
 export function staminaColor(v) { return mix(STAMINA_SPENT, STAMINA_FULL, v); }
 
 // Teal at rest, red when he is boiling — THROUGH GOLD, not straight across.
@@ -75,25 +88,45 @@ export function heatColor(heat) {
  * agent behind it has no fatigue and no heat, and inventing a full green line
  * for a House regular would be the felt making something up. `compact` is the
  * seat-pill scale; the default is the hero's strip.
+ *
+ * BUGS-A job 10 · THEY SAY WHAT THEY ARE, ON FIRST RENDER.
+ *
+ * Two unlabelled two-pixel lines under a name are a puzzle. Nothing about the
+ * strip told anybody which was which, and the first thing an owner asked of
+ * them was "what am I looking at" — a question a label answers once and
+ * forever. Eight pixels, under the bar it belongs to, never a tooltip and
+ * never a legend somewhere else on the screen.
+ *
+ * The SEAT scale keeps none: an 18px pill has no room for a word, and the
+ * strip above it has already taught the owner what a green line and a red one
+ * mean. One place to learn it, everywhere to use it.
  */
-export function BodyBars({ fatigue = null, heat = null, compact = false, className }) {
+export function BodyBars({
+  fatigue = null, heat = null, compact = false, className, labels = !compact,
+}) {
   const stamina = staminaOf(fatigue);
   const hot = Number.isFinite(Number(heat)) && heat !== null ? clamp01(Number(heat) / 100) : null;
   if (stamina === null && hot === null) return null;
 
   return (
-    <span className={`felt-bars${compact ? ' felt-bars--seat' : ''}${className ? ` ${className}` : ''}`}
+    <span className={`felt-bars${compact ? ' felt-bars--seat' : ''}${labels ? ' felt-bars--labelled' : ''}${className ? ` ${className}` : ''}`}
       aria-hidden>
       {stamina !== null && (
-        <span className="felt-bars__track" data-bar="stamina">
-          <span className="felt-bars__fill"
-            style={{ width: `${stamina * 100}%`, background: staminaColor(stamina) }} />
+        <span className="felt-bars__row" data-bar="stamina">
+          <span className="felt-bars__track">
+            <span className="felt-bars__fill"
+              style={{ width: `${stamina * 100}%`, background: staminaColor(stamina) }} />
+          </span>
+          {labels && <span className="felt-bars__label">STAMINA</span>}
         </span>
       )}
       {hot !== null && (
-        <span className="felt-bars__track" data-bar="heat">
-          <span className="felt-bars__fill"
-            style={{ width: `${hot * 100}%`, background: heatColor(heat) }} />
+        <span className="felt-bars__row" data-bar="heat">
+          <span className="felt-bars__track">
+            <span className="felt-bars__fill"
+              style={{ width: `${hot * 100}%`, background: heatColor(heat) }} />
+          </span>
+          {labels && <span className="felt-bars__label">HEAT</span>}
         </span>
       )}
     </span>

@@ -9,7 +9,7 @@
 // break.
 
 import { StrictMode } from 'react';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -78,6 +78,47 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+// ── The empty state ─────────────────────────────────────────────────────────
+
+describe('BUGS-A job 2 · the room renders while the roster is in flight', () => {
+  it('an unanswered roster is not an empty household', async () => {
+    defaults();
+    // The roster never answers. This is the width of every trip back to HOME:
+    // CASINO -> HOME, a profile closing, a retire with agents left.
+    let answer;
+    fetchMock.route('/api/agents?', () => new Promise((resolve) => { answer = resolve; }));
+    render(<HomeScreen wsUrl={WS} />);
+
+    // The flat is on screen and the claim about the owner is not made.
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Make an agent' })).toBeNull();
+
+    // ...and when it answers with a household, the household is what appears.
+    answer({ agents: [mkAgent('a1', 'The Clock')] });
+    expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+  });
+
+  it('a roster that answers with zero is the one thing that shows the empty state', async () => {
+    defaults();
+    serve([]);
+    render(<HomeScreen wsUrl={WS} />);
+    expect(await screen.findByText(/Nobody lives here yet/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Make an agent' })).toBeInTheDocument();
+  });
+
+  it('a roster request that FAILS keeps the room, because a 500 is not an answer', async () => {
+    defaults();
+    fetchMock.route('/api/agents?', () => ({ status: 500, body: {} }));
+    render(<HomeScreen wsUrl={WS} />);
+    const room = await screen.findByTestId('home-screen');
+    await waitFor(() => expect(within(room).getByTestId('home-fridge')).toBeInTheDocument());
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+  });
+});
+
 // ── The room ────────────────────────────────────────────────────────────────
 
 describe('HOME-1 · the room', () => {
@@ -102,8 +143,8 @@ describe('HOME-1 · the room', () => {
       }),
     ]);
 
-    expect(await screen.findByRole('button', { name: /The Clock/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /River Rat/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /River Rat — / })).toBeInTheDocument();
 
     const frame = screen.getByTestId('home-frame-a3');
     expect(frame).toHaveTextContent('Big');
@@ -129,14 +170,14 @@ describe('HOME-1 · the room', () => {
     // Jens's correction: the routine is something you SEE. The ref printed
     // "PACING" under every body; labelling the animation is admitting it failed.
     await boot([mkAgent('a1', 'The Clock', { routine: { key: 'paces', label: 'pacing' } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     expect(body.textContent).not.toMatch(/PACING/);
     expect(body.textContent).not.toMatch(/pacing/);
   });
 
   it('the pill sits above the head and carries stamina and heat', async () => {
     await boot([mkAgent('a1', 'The Clock', { fatigue: 'worn', mood: { state: 'tilted', heat: 82 } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     const pill = body.querySelector('.home-pill');
     expect(pill).toBeTruthy();
     expect(pill).toHaveAttribute('data-fatigue', 'worn');
@@ -145,6 +186,12 @@ describe('HOME-1 · the room', () => {
     // column-flex renders as "over his head".
     const ghost = body.querySelector('.home-one__body');
     expect(pill.compareDocumentPosition(ghost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('BUGS-A job 1: the pill writes his whole name, not its first word', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('The Clock');
   });
 });
 
@@ -156,7 +203,7 @@ describe('HOME-1 · walks', () => {
     const two = mkAgent('a2', 'River Rat');
     const { sock } = await boot([one, two]);
 
-    const before = await screen.findByRole('button', { name: /The Clock/ });
+    const before = await screen.findByRole('button', { name: /The Clock — / });
     expect(before).toHaveAttribute('data-spot', 'sleeps');
     expect(before).toHaveAttribute('data-walking', 'false');
 
@@ -169,21 +216,21 @@ describe('HOME-1 · walks', () => {
     });
 
     await waitFor(() => {
-      const el = screen.getByRole('button', { name: /The Clock/ });
+      const el = screen.getByRole('button', { name: /The Clock — / });
       expect(el).toHaveAttribute('data-spot', 'table:0');
       expect(el).toHaveAttribute('data-walking', 'true');
     });
 
     // And it is a crossing, not a state: it ends.
     await waitFor(
-      () => expect(screen.getByRole('button', { name: /The Clock/ })).toHaveAttribute('data-walking', 'false'),
+      () => expect(screen.getByRole('button', { name: /The Clock — / })).toHaveAttribute('data-walking', 'false'),
       { timeout: 4000 },
     );
   }, 10_000);
 
   it('being in the room at mount is not a walk', async () => {
     await boot([mkAgent('a1', 'The Clock', { routine: { key: 'sleeps', label: 'asleep' } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     expect(body).toHaveAttribute('data-walking', 'false');
   });
 
@@ -353,7 +400,7 @@ describe('HOME-1 · the thread', () => {
       null,
       { onOpenThread: (agent) => { opened = agent.id; } },
     );
-    await userEvent.click(await screen.findByRole('button', { name: /River Rat/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /River Rat — / }));
     expect(opened).toBe('a2');
   });
 
@@ -361,21 +408,124 @@ describe('HOME-1 · the thread', () => {
     // Standalone (no onOpenThread), the room keeps the conversation in itself
     // rather than dropping the tap on the floor.
     await boot([mkAgent('a1', 'The Clock')]);
-    await userEvent.click(await screen.findByRole('button', { name: /The Clock/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /The Clock — / }));
     expect(await screen.findByRole('dialog', { name: /The Clock/i })).toBeInTheDocument();
   });
 
-  it('the composer never inserts a row — the server writes it', async () => {
-    let sent = null;
-    await boot([mkAgent('a1', 'The Clock')]);
-    // Re-render with a spy send would remount; instead assert on the DOM: the
-    // typed text must not appear as a row before the reload serves it.
+  // BUGS-A job 11 REVERSED HALF OF THIS RULE, deliberately.
+  //
+  // The rule was "the composer never inserts a row". It still holds for every
+  // row about HIM — his voice is the server's to write, or the room and the
+  // record tell two different stories. It does not hold for YOUR OWN line:
+  // that is not a claim about the world the client might get wrong, it is a
+  // thing the owner did a moment ago, and holding it back for a round trip
+  // plus a model call made send look like a broken button.
+  it('shows YOUR line at once, and never puts words in his mouth', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
     const input = await screen.findByTestId('home-thread-input');
     await userEvent.type(input, 'you punted that');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    // Immediately, with no server anywhere near it: the band carries it.
+    expect(await screen.findByText('you punted that')).toBeInTheDocument();
     await waitFor(() => expect(input).toHaveValue(''));
-    expect(screen.queryByTestId('home-thread-rows')).toBeNull();
-    expect(sent).toBeNull();
+
+    // ...and nothing at all has been said in HIS voice.
+    expect(screen.queryByText(/Nothing said yet/)).toBeNull();
+    resolveSend(null);
+  });
+
+  it('attributes it to YOU, in order, once the sheet is open', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // Registered after boot: routes match newest-first, so this wins over the
+    // empty thread `defaults()` puts in.
+    fetchMock.route(/\/thread\?/, () => ({
+      sessionId: 's1',
+      count: 1,
+      lines: [{ id: 1, kind: 'him', who: 'HIM', text: 'Rough one.', ts: 1000 }],
+    }));
+
+    await userEvent.click(screen.getByTestId('home-thread-line'));
+    const sheet = await screen.findByTestId('home-thread-rows');
+    await waitFor(() => expect(within(sheet).getByText('Rough one.')).toBeInTheDocument());
+
+    await userEvent.type(screen.getByTestId('home-thread-input'), 'take it off him');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    const rows = [...(await screen.findByTestId('home-thread-rows')).querySelectorAll('.thread-row')];
+    expect(rows.map((r) => r.querySelector('.thread-row__who').textContent)).toEqual(['HIM', 'YOU']);
+    expect(rows[1].querySelector('.thread-row__text').textContent).toBe('take it off him');
+    resolveSend(null);
+  });
+
+  it('a line the server never stored does not stay — then it was never said', async () => {
+    // The reload is the truth, and this thread endpoint returns nothing ever.
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
+    await userEvent.type(await screen.findByTestId('home-thread-input'), 'you punted that');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('you punted that')).toBeInTheDocument();
+
+    resolveSend(null);
+    await waitFor(() => expect(screen.queryByText('you punted that')).toBeNull());
+  });
+});
+
+// ── BUGS-A job 7 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 7 · the taps that did nothing', () => {
+  const GAME = {
+    tableId: 'home-u1',
+    state: 'running',
+    seats: [
+      { seat: 0, agentId: 'a1', name: 'The Clock', house: false },
+      { seat: 1, agentId: 'a2', name: 'River Rat', house: false },
+    ],
+  };
+
+  it('the kitchen table with a game on it is a table you can watch', async () => {
+    const onWatchTable = vi.fn();
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      GAME,
+      { onWatchTable },
+    );
+    await userEvent.click(await screen.findByTestId('home-table'));
+    expect(onWatchTable).toHaveBeenCalledWith('home-u1');
+  });
+
+  it('an empty table is not a dead button either — it opens the chairs', async () => {
+    // BUGS-A wrote this as "an empty table stays furniture", because at the
+    // time an empty table led nowhere and a button that leads nowhere is the
+    // bug this job is about. BIRTH-5 then gave it somewhere to lead: the
+    // chairs, priced in the TableSheet. The rule is still "no tap that does
+    // nothing" — what changed is that the empty table now does something, so
+    // the assertion is that it leads to the chairs and NOT to a watch.
+    const onWatchTable = vi.fn();
+    await boot([mkAgent('a1', 'The Clock')], null, { onWatchTable });
+    const table = await screen.findByTestId('home-table');
+    expect(table).toHaveAttribute('aria-label', 'The chairs');
+    await userEvent.click(table);
+    expect(onWatchTable).not.toHaveBeenCalled();
+  });
+
+  it('an away frame goes to the table in the picture', async () => {
+    const onWatch = vi.fn();
+    const away = mkAgent('a3', 'Big Slick', {
+      location: loc('table', { tableId: 't1', room: 'upstairs' }),
+      activeTableId: 't1',
+      liveGame: { tableId: 't1', pot: 480, board: ['Ah', 'Kd', '2c'], street: 'flop' },
+    });
+    await boot([mkAgent('a1', 'The Clock'), away], null, { onWatch });
+    await userEvent.click(await screen.findByTestId('home-frame-a3'));
+    expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
   });
 });
 
@@ -467,7 +617,10 @@ describe('BUG-32 · a birth is an arrival', () => {
   it('an agent who has been here a while is not walked in again on a reconnect', async () => {
     const settled = mkAgent('a1', 'The Clock', { newborn: false, bornAt: Date.now() - 10 * 60_000 });
     await boot([settled]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    // Not byRole(/The Clock/) any more: BUGS-A job 11 turned a thread line into
+    // a button captioned with who spoke, so his name now labels two controls.
+    // The body in the room is the one this rule is about.
+    const body = await screen.findByLabelText('The Clock — reading');
     expect(body).not.toHaveAttribute('data-spot', 'door:born');
     expect(body).toHaveAttribute('data-walking', 'false');
   });

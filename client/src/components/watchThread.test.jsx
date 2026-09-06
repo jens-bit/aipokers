@@ -222,3 +222,60 @@ describe('WATCH-8: the thread survives', () => {
     expect(threadCalls()).toHaveLength(0);
   });
 });
+
+// ── BUGS-A job 11 ───────────────────────────────────────────────────────────
+//
+// What you whispered and what he said back, in order, with YOU on your line.
+// The whisper on the felt and the row in the record are ONE event with two
+// drawings of it, and the felt must never draw one the record does not get.
+
+describe('BUGS-A job 11 · a whisper is in the record', () => {
+  const whisper = async (text) => {
+    const user = userEvent.setup();
+    const input = document.querySelector('.watch-composer__input');
+    await user.type(input, text);
+    await user.click(document.querySelector('.watch-composer__send'));
+  };
+
+  it('shows what you whispered and his reply, in order, with YOU on yours', async () => {
+    fetchMock.route('/thread', () => ({ sessionId: SESSION, count: 0, lines: [] }));
+    fetchMock.route('/api/agents/chat', () => ({
+      chat: [{ role: 'assistant', content: 'Understood. Tightening up.' }],
+    }), { method: 'POST' });
+    draw();
+
+    await whisper('Careful with him.');
+    await openSheet();
+
+    await screen.findByText('Understood. Tightening up.');
+    const rows = [...document.querySelectorAll('.thread-row')];
+    expect(rows.map((r) => r.querySelector('.thread-row__who').textContent)).toEqual(['YOU', 'HIM']);
+    expect(rows.map((r) => r.querySelector('.thread-row__text').textContent))
+      .toEqual(['Careful with him.', 'Understood. Tightening up.']);
+  });
+
+  // It used to rise up the felt, be gone in four seconds, and never reach the
+  // thread — the owner had said something to nobody.
+  it('draws no whisper at a table with no agent of yours at it', async () => {
+    render(<WatchScreen game={withSession()} {...base}
+      config={{ ...spectatorConfig, agentId: null }} />);
+
+    expect(document.querySelector('.watch-composer__input').disabled).toBe(true);
+    await whisper('Careful with him.');
+    expect(document.querySelector('.watch-whisper')).toBeNull();
+  });
+
+  it('takes no second line while he is still answering the first', async () => {
+    fetchMock.route('/thread', () => ({ sessionId: SESSION, count: 0, lines: [] }));
+    let answer;
+    fetchMock.route('/api/agents/chat', () => new Promise((r) => { answer = r; }), { method: 'POST' });
+    draw();
+
+    await whisper('One.');
+    await waitFor(() => expect(document.querySelector('.watch-composer__input').disabled).toBe(true));
+    await whisper('Two.');
+    // One whisper on the felt, because one line went to the server.
+    expect(document.querySelectorAll('.watch-whisper')).toHaveLength(1);
+    answer({ chat: [] });
+  });
+});

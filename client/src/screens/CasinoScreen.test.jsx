@@ -117,11 +117,12 @@ describe('CASINO-1 the building', () => {
 
     await waitFor(() => {
       const floor = container.querySelector('.csn-door[data-room="floor"]');
-      expect(within(floor).getByText('The')).toBeInTheDocument();
+      // BUGS-A job 1: the doorway chip carries his whole name.
+      expect(within(floor).getByText('The Grinder')).toBeInTheDocument();
     });
     // He plays at 10/20, so upstairs has nobody of yours in it.
     const upstairs = container.querySelector('.csn-door[data-room="upstairs"]');
-    expect(within(upstairs).queryByText('The')).not.toBeInTheDocument();
+    expect(within(upstairs).queryByText('The Grinder')).not.toBeInTheDocument();
   });
 
   it('a floor that never answers says so instead of drawing an empty room', async () => {
@@ -277,5 +278,52 @@ describe('CASINO-1 deploy', () => {
     await screen.findByText('placing Loose Cannon');
     await user.click(screen.getByRole('button', { name: 'Stop placing him' }));
     expect(onCancelDeploy).toHaveBeenCalled();
+  });
+});
+
+
+// ── BUGS-A job 7 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 7 · a doorway is a place you look into', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('tapping a room with nobody in the tray lists what is running in it', async () => {
+    const user = userEvent.setup();
+    routeFloor({ agents: [withPocket(playingAgent, 3_000)] });
+    renderCasino();
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+
+    const sheet = await screen.findByTestId('room-tables-sheet');
+    // The room's biggest pot, and the table the owner's own agent is at.
+    expect(within(sheet).getByText('#tbl-fixture')).toBeInTheDocument();
+    expect(within(sheet).getByText(/The Grinder is in here/)).toBeInTheDocument();
+  });
+
+  it('Watch in that list spectates the felt', async () => {
+    const user = userEvent.setup();
+    const onSpectate = vi.fn();
+    routeFloor();
+    renderCasino({ onSpectate });
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+    const sheet = await screen.findByTestId('room-tables-sheet');
+    await user.click(within(sheet).getByRole('button', { name: 'Watch' }));
+
+    expect(onSpectate).toHaveBeenCalledWith('tbl-fixture');
+    // ...and the sheet gets out of the way of the felt it just sent you to.
+    await waitFor(() => expect(screen.queryByTestId('room-tables-sheet')).toBeNull());
+  });
+
+  it('with an agent in the tray a doorway is still the choice of where to seat him', async () => {
+    const user = userEvent.setup();
+    routeFloor({ agents: [richCannon] });
+    renderCasino({ deployAgent: richCannon });
+
+    await screen.findByText('placing Loose Cannon');
+    await user.click(screen.getByRole('button', { name: /^the floor,/ }));
+
+    expect(screen.queryByTestId('room-tables-sheet')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Deal him in' })).toBeInTheDocument();
   });
 });

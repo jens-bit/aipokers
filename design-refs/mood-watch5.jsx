@@ -153,7 +153,10 @@ const V5Felt = ({ children, hero, pot = '480', board = B4F, flip = 4, heat, seat
     })()}
     {oppSays && (() => {
       const s = seats.find(x => x.id === oppSays.id);
-      return s ? <Bubble text={oppSays.text} at={s.x} w={142} top={s.y >= 170 ? 124 : 8}/> : null;
+      // a side or lower seat gets the bubble anchored to its head (bottom edge 6px
+      // clear of the body, any number of lines); the top row has no room above it,
+      // so it keeps the fixed band under the header.
+      return s ? <Bubble text={oppSays.text} at={s.x} w={160} {...(s.y >= 170 ? { over: s.y - 6 } : { top: 8 })}/> : null;
     })()}
 
     {/* pot and board, in the middle where they always were */}

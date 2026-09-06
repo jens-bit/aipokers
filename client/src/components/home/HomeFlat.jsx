@@ -19,11 +19,11 @@
 
 import { FLAT, F_W, F_H } from './flat.js';
 
-// DESK-2: `onTable` is optional and the table is furniture without it. The
-// chairs are priced in one place only (TableSheet, board 31 P17) and the phone
-// has nowhere to put that sheet yet — so the table is a button exactly where
-// somebody has somewhere for it to lead, and an ordinary div everywhere else.
-export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable, tvLabel = null }) {
+// `onTable` is optional and the table is furniture without it. Both branches
+// that gave it a tap did so for a different destination — BUGS-A job 7 watches
+// the game that is on it, BIRTH-5 opens the chairs when it is empty — so the
+// caller says where it leads and `tableLabel` says so out loud.
+export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable, tvLabel = null, tableLabel = null }) {
   const tableBox = {
     left: FLAT.table.cx - FLAT.table.rx,
     top: FLAT.table.cy - FLAT.table.ry,
@@ -57,14 +57,17 @@ export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable
         <span /><span />
       </div>
 
-      {/* the kitchen table, from above */}
+      {/* the kitchen table, from above. It leads somewhere on both shells now:
+          to the game when one is running on it, to the chairs when it is
+          empty. With no destination at all it is furniture again — aria-hidden,
+          exactly as before. */}
       {onTable ? (
         <button
           type="button"
           className="home-flat__table"
           style={tableBox}
           onClick={onTable}
-          aria-label="The kitchen table — four chairs"
+          aria-label={tableLabel || 'The kitchen table — four chairs'}
           data-testid="home-table"
         />
       ) : (

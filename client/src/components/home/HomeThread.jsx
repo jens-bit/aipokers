@@ -18,15 +18,27 @@
 // through POST /api/agents/chat, exactly as the CHATS screen does; no new
 // endpoint, and nothing on this screen composes a greeting of its own.
 //
-// NOTHING ON THIS SCREEN EVER INSERTS A ROW. Not the composer, not an answer to
-// a want, not a study finishing. Every row is one the server wrote and served —
-// which is what makes the thread readable back on another device, and what stops
-// the room and the record from telling two different stories.
+// NOTHING ON THIS SCREEN EVER INSERTS A ROW ON HIS BEHALF. Not an answer to a
+// want, not a study finishing, and above all not a line in his voice. Every row
+// about HIM is one the server wrote and served — which is what makes the thread
+// readable back on another device, and what stops the room and the record from
+// telling two different stories.
+//
+// BUGS-A job 11 draws the one line on the other side of that rule. What YOU
+// just typed is not a claim about the world that the client might get wrong —
+// it is a thing the owner did, in his hand, a moment ago. Holding it back until
+// a round trip and a model call have finished meant tapping send and watching
+// nothing happen for several seconds, which reads as a broken button; people
+// sent it twice. So your own line goes up at once, marked as PENDING, and the
+// reload replaces it with the server's copy. If the server never stored it, it
+// goes away — because then it was never said.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { GlassLabel } from '../system/Glass.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 const WHO_BY_KIND = { him: 'HIM', you: 'YOU', table: 'TABLE' };
 
@@ -111,8 +123,16 @@ export function HomeThread({
 }) {
   const { rows, loading, reload } = useThread(agent?.id, { enabled: !!agent });
   const [draft, setDraft] = useState('');
+  // BUGS-A job 11: what you have said and the server has not served back yet.
+  // Cleared by the reload, whose answer is the truth either way.
+  const [pending, setPending] = useState([]);
+  const pendingIdRef = useRef(0);
+  // BUGS-A job 5: the sheet is pushed back down with a finger, not only by
+  // finding its grab bar. Disabled while it is closed so the band underneath
+  // keeps every one of its own taps.
+  const drag = useSheetDrag(() => onToggle?.(false), { enabled: open });
 
-  useEffect(() => { setDraft(''); }, [agent?.id]);
+  useEffect(() => { setDraft(''); setPending([]); }, [agent?.id]);
   useEffect(() => { if (open) reload(); }, [open, reload]);
 
   const submit = (e) => {
@@ -120,33 +140,50 @@ export function HomeThread({
     const text = draft.trim();
     if (!text || sending || !agent) return;
     setDraft('');
-    // The reply is not appended here. The server writes the row and the reload
-    // serves it — see the header.
-    Promise.resolve(onSend?.(agent, text)).then(() => reload());
+    // Your own line, at once. His is not appended here — the server writes it
+    // and the reload serves it, which is the rule in the header.
+    const id = `pending-${++pendingIdRef.current}`;
+    setPending((prev) => prev.concat([{ id, who: 'YOU', kind: 'you', text, t: Date.now() }]));
+    Promise.resolve(onSend?.(agent, text)).then(() => {
+      // The record has spoken; drop the placeholder whether it is in there or
+      // not. Keeping a line the server did not store would be this screen
+      // inventing a conversation, which is the one thing it must never do.
+      setPending((prev) => prev.filter((r) => r.id !== id));
+      reload();
+    });
   };
 
   if (!agent) return null;
-  const line = collapsedLine(agent, rows);
+  // Ordered: the record, then whatever you have said since it was read.
+  const shown = pending.length ? rows.concat(pending) : rows;
+  const line = collapsedLine(agent, shown);
 
   return (
     <div className={`home-thread${open ? ' is-open' : ''}`} data-testid="home-thread" data-open={open ? 'true' : 'false'}>
       {toast}
 
       {open ? (
-        <div className="home-thread__sheet" role="dialog" aria-label={`${agent.name}'s thread`}>
+        <div
+          className={`home-thread__sheet${drag.dragging ? ' is-dragging' : ''}`}
+          role="dialog"
+          aria-label={`${agent.name}'s thread`}
+          ref={drag.ref}
+          style={drag.style}
+          {...drag.handlers}
+        >
           <button type="button" className="home-thread__grab" onClick={() => onToggle?.(false)} aria-label="Close the thread">
             <span />
           </button>
           <div className="home-thread__head">
-            <GlassLabel>{String(agent.name || '').split(' ')[0]}</GlassLabel>
+            <GlassLabel>{pillName(agent.name)}</GlassLabel>
             <span className="home-thread__spacer" />
             <span className="home-thread__state">{loading ? 'LOADING' : 'AT HOME'}</span>
           </div>
           <div className="home-thread__body no-scrollbar" data-testid="home-thread-rows">
-            {rows.length === 0 && !loading ? (
+            {shown.length === 0 && !loading ? (
               <div className="home-thread__empty">Nothing said yet.</div>
             ) : null}
-            {rows.map((r) => <ThreadRow key={r.id} row={r} />)}
+            {shown.map((r) => <ThreadRow key={r.id} row={r} />)}
           </div>
         </div>
       ) : null}
@@ -159,7 +196,7 @@ export function HomeThread({
           data-testid="home-thread-line"
           aria-expanded={open}
         >
-          <span className="home-thread__who">{String(agent.name || '').split(' ')[0]}</span>
+          <span className="home-thread__who">{pillName(agent.name)}</span>
           <span className="home-thread__text">{line}</span>
         </button>
         <form className="home-thread__composer" onSubmit={submit}>

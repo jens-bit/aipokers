@@ -65,6 +65,12 @@ describe('LAND-2 landing-page guard', () => {
 
     expect(replace).not.toHaveBeenCalled();
     expect(telegram.webApp.readyCalls).toBe(1);
+    // BUGS-A job 6: and the vertical swipe is handed back to the app on the
+    // way in. Without this Telegram claims every downward drag as "minimise
+    // the Mini App", so a sheet cannot be pushed down and a swipe on the felt
+    // closes the whole thing. It is asserted HERE and not only in
+    // telegram.test.jsx because what matters is that the boot path calls it.
+    expect(telegram.webApp.disableVerticalSwipesCalls).toBe(1);
     await vi.waitFor(() => expect(root).not.toBeEmptyDOMElement());
   });
 

@@ -171,16 +171,42 @@ test('THREAD-2: POST /api/home/say fans out, and every reply is attributed', asy
     // reaching a model (TEST-2). That makes every reply here deterministic —
     // what is under test is the FAN-OUT and the attribution, not the words.
 
-    await t.test('everybody at home answers, in his own voice', async () => {
+    // SERVER-4 changed this contract deliberately. The route used to await one
+    // model call per agent at home and return every reply in the response,
+    // which made saying something to three agents a four-call round trip and
+    // made three characters answer you in unison. It now returns as soon as
+    // YOUR line is stored, names who is in, and lets each reply arrive on its
+    // own as a THREAD_LINE. So what is asserted here is: the response is
+    // immediate and honest about who will answer, and the replies land in the
+    // thread shortly after with the same attribution they always had.
+    await t.test('the room answers, but not in the same breath', async () => {
       const res = await postJson(`${base}/api/home/say`, { userId: 'u1', text: 'Anyone in?' });
       const body = await res.json();
       assert.equal(res.status, 200, JSON.stringify(body));
       assert.equal(body.home, 2, 'the one at a table is out');
-      assert.equal(body.replies.length, 2);
-      assert.deepEqual(body.replies.map((r) => r.agentId).sort(), ['balance', 'granite']);
-      for (const reply of body.replies) assert.ok(reply.text, 'each of them said something');
+      assert.equal(body.said, 'Anyone in?');
+      assert.deepEqual(body.pending.map((p) => p.agentId).sort(), ['balance', 'granite'],
+        'it says who is expected to answer');
+      assert.deepEqual(body.replies, [],
+        'and carries no reply of its own — they are not written yet');
+
+      // Your own line is already in the thread when the response lands. That
+      // is the promise the immediate return is making.
+      const now = await getJson(`${base}/api/home/thread?userId=u1`);
+      assert.ok(now.lines.some((l) => l.from === OWNER && l.text === 'Anyone in?'));
+
       assert.equal(typeof profiles.ownerChatTurn, 'function',
         'and they answer through the same turn the one-to-one chat uses');
+    });
+
+    await t.test('every reply arrives, each on its own', async () => {
+      const lines = await until(async () => {
+        const body = await getJson(`${base}/api/home/thread?userId=u1`);
+        const replies = body.lines.filter((l) => l.kind === ThreadKind.HIM);
+        return replies.length === 2 ? replies : null;
+      }, 'both replies to land in the thread');
+      assert.deepEqual(lines.map((l) => l.from).sort(), ['balance', 'granite']);
+      for (const line of lines) assert.ok(line.text, 'each of them said something');
     });
 
     await t.test('the thread reads back as a conversation, not a wall of quotes', async () => {
@@ -215,7 +241,8 @@ test('THREAD-2: POST /api/home/say fans out, and every reply is attributed', asy
       const body = await res.json();
       assert.equal(res.status, 200, JSON.stringify(body));
       assert.equal(body.home, 0);
-      assert.deepEqual(body.replies, [], 'nobody to answer is not an error');
+      assert.deepEqual(body.pending, [], 'nobody to answer is not an error');
+      assert.deepEqual(body.replies, []);
 
       const thread = await getJson(`${base}/api/home/thread?userId=u1`);
       assert.ok(thread.lines.some((l) => l.text === 'Hello?'), 'and it is still in the thread');
@@ -267,8 +294,19 @@ test('THREAD-2: POST /api/home/say fans out, and every reply is attributed', asy
         const body = await res.json();
         assert.equal(res.status, 200, JSON.stringify(body));
         assert.equal(body.home, 2, 'the two whose tables are gone are in; Marlow is out');
-        assert.deepEqual(body.replies.map((r) => r.agentId).sort(), ['balance', 'granite']);
-        for (const reply of body.replies) assert.ok(reply.text, 'and each of them answered');
+        // SERVER-4 made /api/home/say answer immediately and let each reply
+        // arrive on its own over the socket, so the response carries `pending`
+        // and never `replies` — the rest of this file was already written that
+        // way, and this test still expected the old synchronous shape. Same
+        // rule, read where the replies actually land now.
+        assert.deepEqual(body.pending.map((p) => p.agentId).sort(), ['balance', 'granite']);
+        assert.deepEqual(body.replies, []);
+        const answered = await until(async () => {
+          const thread = await getJson(`${base}/api/home/thread?userId=u1`);
+          const him = thread.lines.filter((l) => l.kind === ThreadKind.HIM);
+          return him.length >= 2 ? him : null;
+        }, 'both of the two still at home to answer');
+        for (const line of answered) assert.ok(line.text, 'and each of them answered');
       });
     } finally {
       // Module-level state: a provider left behind would follow every later
@@ -283,6 +321,20 @@ test('THREAD-2: POST /api/home/say fans out, and every reply is attributed', asy
 const postJson = (url, body) =>
   fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
 const getJson = (url) => fetch(url).then((r) => r.json());
+
+// SERVER-4: the replies are produced after the response, so a test that wants
+// them has to wait for them. Polls rather than sleeps a fixed time — with no
+// API key every turn answers from its own fallback, so this settles on the
+// first or second pass and only the failure path is slow.
+async function until(fn, what, { timeoutMs = 5_000, everyMs = 20 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const got = await fn();
+    if (got) return got;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+}
 
 // An agent at home: nothing wrong with him, no table, nothing to do.
 function homeAgent(id, name, over = {}) {

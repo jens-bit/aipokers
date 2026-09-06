@@ -1,4 +1,5 @@
 import { getTelegramDisplayName } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
 
 function standupGreeting(agents) {
   const live = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
@@ -10,7 +11,7 @@ function standupGreeting(agents) {
 
 export function PStandupCard({ agents = [], loading = false }) {
   const name = getTelegramDisplayName() || 'player';
-  const first = name.split(' ')[0];
+  const first = pillName(name);
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   });

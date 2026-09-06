@@ -22,6 +22,7 @@
 
 import { useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
 
 export const ANSWERS = [
   { id: 'yes', label: 'Yes' },
@@ -72,7 +73,7 @@ export function WantToast({ agent, onAnswered, onNeeds }) {
       data-testid="home-want"
       data-agent={agent.id}
     >
-      <span className="home-want__who">{String(agent.name || '').split(' ')[0]}</span>
+      <span className="home-want__who">{pillName(agent.name)}</span>
       <span className="home-want__text">{want.text}</span>
       <span className="home-want__chips">
         {ANSWERS.map((a) => (

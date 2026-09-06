@@ -73,8 +73,10 @@ describe('CASINO-1 the room grid', () => {
 
   it('law 3: yours stands in the doorway, by name and P&L', () => {
     render(<CasinoDoor room={floorRoom} mine={[withPocket(playingAgent)]} />);
-    // The chip carries his first name — finding your own is never a search.
-    expect(screen.getByText('The')).toBeInTheDocument();
+    // BUGS-A job 1: the chip carries his WHOLE name. It used to carry the
+    // first word, which turned "The Clock", "The Rock" and "The Nit" into
+    // three doormen all called "The" — the opposite of law 3.
+    expect(screen.getByText('The Grinder')).toBeInTheDocument();
     expect(screen.getByText('+$340')).toBeInTheDocument();
   });
 

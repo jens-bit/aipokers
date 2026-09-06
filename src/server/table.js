@@ -1,6 +1,6 @@
 import { Game, Streets } from '../engine/game.js';
 import { ServerMsg } from './protocol.js';
-import { getAgentAction, generateAiChatLine, perceivedMath } from '../agent/handler.js';
+import { getAgentAction, perceivedMath } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
 import {
   recordHandResult,
@@ -33,11 +33,24 @@ import { classifyCooler } from './cooler.js';
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
+  hotTableIds,
 } from './events.js';
 // METER-1: every model call this table makes is filed under the owner of the
 // seat that made it. Best-effort by construction — recordModelCall swallows
 // its own errors, because a meter that can break a hand is worse than none.
 import { recordModelCall, Kind as MeterKind } from './meter.js';
+// COST-1: the decision router. Before every AI turn the server asks, for free,
+// whether this spot is decided already; the ones that are never reach a model.
+// See router.js for the gates and policyPlay.js for what answers them.
+import { routeFor, Route, newRouteCounter, countRoute, formatRoutes } from './router.js';
+import { chooseFromPolicy } from '../agent/policyPlay.js';
+// COST-1: the hand's talk, written once at the end of it, and the recap of an
+// evening nobody watched. Both are one call where there used to be many, and
+// both are injected the same way: table.js supplies the facts and never the
+// prompt.
+import { writeHandTalk, BUBBLE_GAP_MS } from './handTalk.js';
+import { writeNightRecap } from './nightRecap.js';
+import { recordDecisionRoute } from './meter.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -51,7 +64,7 @@ import {
   handEvidence,
 } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
-import { readPanel } from '../agent/reads.js';
+import { readPanel, classifyOpponent } from '../agent/reads.js';
 import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
@@ -149,6 +162,27 @@ export const LONELY_SEATS = Number(process.env.LONELY_SEATS ?? 3);
 // ── AGE-35: server-side session loop ────────────────────────────────────────
 // Pause between a completed hand and the next deal on an autonomous table.
 const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 8000);
+// COST-1: the pause on a table NOBODY IS WATCHING.
+//
+// PACE-1 already established the principle for the all-in hold: "a five-second
+// pause that nobody sees is five seconds of a worse win rate", so unwatched
+// hands resolved at machine speed. That was right about the PAUSE and wrong
+// about the TEMPO, because tempo is the throttle on the bill. An unwatched
+// casino table dealing every eight seconds is 450 hands an hour of model calls
+// that produce an experience for nobody until the owner comes back and reads
+// the number at the bottom.
+//
+// So an unwatched table deals at a walking pace. It is not a worse session —
+// the hand cap is what bounds a session, not the clock, and he plays exactly
+// as many hands either way. It is the same session spread over an evening,
+// which is also what it is supposed to look like. The moment somebody attaches
+// a spectator it snaps back to today's pacing, mid-session, on the next deal.
+//
+// An explicit HAND_PAUSE_MS (env, or the constructor argument the home game
+// uses) always wins: a caller who named a tempo means it, and the e2e scripts
+// that deal a hundred hands in ten seconds are exactly that caller.
+const UNWATCHED_HAND_PAUSE_MS = Number(process.env.UNWATCHED_HAND_PAUSE_MS ?? 25_000);
+const HAND_PAUSE_EXPLICIT = process.env.HAND_PAUSE_MS !== undefined;
 // Hands one deployment is allowed to play before the agent gracefully sits
 // out. Bounds the LLM spend of a table nobody is watching.
 const SESSION_MAX_HANDS = Number(process.env.SESSION_MAX_HANDS ?? 100);
@@ -206,6 +240,23 @@ function safeTakeDrink(agentId, userId, tableId) {
     return takeDrinkForSession(agentId, userId);
   } catch (err) {
     console.error(`[table:${tableId}] drink flag read failed:`, err.message);
+    return false;
+  }
+}
+
+// SERVER-4: is this table inside the `hot` window right now?
+//
+// Wrapped rather than called inline because liveGameView must never be the
+// place a hand dies: the event ring is a shared module-level structure and a
+// live frame that cannot say whether a table is hot is worth infinitely more
+// than one that throws. False is the honest fallback — a table nobody can
+// confirm is on fire is not on fire.
+function isHot(tableId) {
+  if (!tableId) return false;
+  try {
+    return hotTableIds().includes(String(tableId));
+  } catch (err) {
+    console.error('[table] hot lookup failed:', err.message);
     return false;
   }
 }
@@ -368,6 +419,9 @@ export class Table {
     this.handsThisSession = 0;
     this.maxHands = Number.isFinite(maxHands) ? maxHands : SESSION_MAX_HANDS;
     this.handPauseMs = Number.isFinite(handPauseMs) ? handPauseMs : HAND_PAUSE_MS;
+    // COST-1: was this table's tempo asked for, or defaulted? Only a defaulted
+    // one is allowed to slow down when nobody is watching.
+    this._handPauseNamed = Number.isFinite(handPauseMs) || HAND_PAUSE_EXPLICIT;
     this._nextHandTimer = null;
     this._stallTimer = null;
     this.stallMs = SESSION_STALL_MS_EXPLICIT
@@ -411,6 +465,32 @@ export class Table {
     // The turn _maybeRunAiTurn has already claimed, so one turn is never
     // driven twice. See the guard there.
     this._aiTurnKey = null;
+    // COST-1: this table's own tally of where its decisions went. Per table
+    // rather than global so a verify script can assert on one session, and so
+    // the number in the log at the end of a session is that session's.
+    this.routes = newRouteCounter();
+    // COST-1: the picture of the opposition as it stood at his LAST decision,
+    // per seat. A read that has been true for thirty hands is background; a
+    // read that just moved is news, and news is the thing worth paying to
+    // react to. Same fingerprint idea _maybeBroadcastReads uses to decide
+    // whether a READ message goes on the wire at all, asked per decision
+    // rather than per broadcast.
+    this._routeReadPrint = Array(maxSeats).fill(null);
+    // COST-1: was anybody watching this session at ANY point?
+    //
+    // The end-of-session write-up is for a session nobody saw, and `isWatched()`
+    // at close time answers a different question: an owner who watched all
+    // evening and then shut his phone has an unwatched table by the time the
+    // hand cap trips, and would be handed a write-up of the session he had just
+    // sat through. This is the ONE watched-flag that is stored rather than
+    // derived, and it is stored precisely because it is a fact about the past.
+    this._everWatched = false;
+    // COST-1: the hands worth mentioning, in the order they happened. The
+    // input to the end-of-session write-up on an unwatched table — see
+    // _writeNightRecap. One sentence per flagged hand, capped, because an
+    // evening is three or four things and not a hundred.
+    this.sessionMoments = [];
+    this._recapWritten = false;
   }
 
   // -- MST-1: seat bookkeeping ----------------------------------------------
@@ -446,6 +526,7 @@ export class Table {
     ['seatEndReason',    () => null],   // SERVER-3
     ['seatBiggestPot',   () => 0],      // SERVER-3
     ['seatDrinking',     () => false],  // FRIDGE-1
+    ['_routeReadPrint',  () => null],    // COST-1
   ];
 
   _clearSeat(seat) {
@@ -1056,6 +1137,16 @@ export class Table {
     this.closed = true;
     this.autoPlay = false;
     this._captureStacks();
+    // COST-1: the route split this session actually took, once, where somebody
+    // will read it. Not per decision — that log line already exists — but the
+    // one number that says whether the router earned its keep tonight.
+    if (this.routes.total > 0) {
+      console.log(`[route:${this.tableId}] ${formatRoutes(this.routes)}`);
+    }
+    // COST-1: what was said tonight, for a session nobody watched. Fired
+    // BEFORE the retire loop below, because it reads the seats, the sessions
+    // and the voices that are about to be cleared.
+    this._writeNightRecap();
     // HOME-STATE-1: same law as _retireSeat — a home game ending is a game
     // ending, not a session ending. Nobody is paid, nobody grows, nobody is
     // told.
@@ -1621,6 +1712,37 @@ export class Table {
     return this.connections.some((c, i) => c !== null && !this.aiSeats[i]);
   }
 
+  // ── COST-1: is anybody actually here? ──────────────────────────────────
+  //
+  // The one question three separate decisions now hang off: how fast the table
+  // deals, whether a hand's talk is written by a model or drawn from a
+  // template, and whether the session is written up at the end.
+  //
+  // "Watched" is a spectator attached OR a human in a seat. It is deliberately
+  // the same test _paceHold already makes for the all-in hold, widened by the
+  // human seat: a person playing at this table is watching it by definition,
+  // and PACE-1 only ignored that because a human seat cannot currently exist
+  // on an autonomous table.
+  //
+  // Derived on every call, never stored. A stored watched-flag is exactly the
+  // stale-state lie BUG-16 was, and here it would be a lie about spending.
+  isWatched() {
+    const watched = this.spectators.length > 0 || this.hasHumanPlayer();
+    if (watched) this._everWatched = true;
+    return watched;
+  }
+
+  // How long before the next deal. See UNWATCHED_HAND_PAUSE_MS.
+  _dealPauseMs() {
+    // A legacy spectator-created AI table that never became autonomous keeps
+    // its old 2.5s tempo — it exists because somebody is looking at it.
+    if (!this.autoPlay) return 2500;
+    // The kitchen table has its own tempo (HOME_PAUSE_MS, set by homeGame) and
+    // its own reason for it. Nothing here second-guesses it.
+    if (this.home || this._handPauseNamed) return this.handPauseMs;
+    return this.isWatched() ? this.handPauseMs : UNWATCHED_HAND_PAUSE_MS;
+  }
+
   // Attach a watcher to the table.
   //
   // AGE-36: watching is observation, never causation. When the agent is
@@ -1738,6 +1860,21 @@ export class Table {
       actionDeadline: this.actionDeadline ?? null,
       handNumber: g ? g.handNumber : 0,
       dealtIn,
+      // SERVER-4: what this stay is WORTH so far — his chips right now minus
+      // what he sat down with, signed. The floor's live frame used to carry
+      // `heroStack` and nothing to measure it against, so a client that wanted
+      // to say "+340" had to remember the buy-in from a message it may never
+      // have received. Banked stack first, then the live Game, then the buy-in
+      // itself, which is the honest reading of "nothing has happened yet" — so
+      // this is 0 between hands rather than null, and it is the same
+      // arithmetic SESSION_END's `net` closes the stay with.
+      net: this._seatFinalStack(seat) - this._seatBuyIn(seat),
+      // SERVER-4: is this table on fire right now? The same flag the lobby's
+      // rooms carry, read from the same event window, so the frame on an
+      // agent's card and the flame on the room he is in can never disagree.
+      // It expires on a clock (HOT_RECENT_MS), which is why it is read here
+      // per call rather than stored on the table.
+      hot: isHot(this.tableId),
       seatCount: this.seatedCount(),
       maxSeats: this.maxSeats,
       handsThisSession: this.handsThisSession,
@@ -2130,7 +2267,7 @@ export class Table {
     // the session loop; a legacy spectator-created AI table keeps its old
     // 2.5s tempo until startSessionLoop takes it over.
     if (this.isAiOnly()) {
-      this._scheduleNextHand((this.autoPlay ? this.handPauseMs : 2500) + holdMs);
+      this._scheduleNextHand(this._dealPauseMs() + holdMs);
     }
   }
 
@@ -2914,6 +3051,9 @@ export class Table {
       // line below moves the mark. All that is left here is the mark itself.
       if (flagType === 'biggestPot') this.sessionBiggestPot = pot;
       if (!flagType) continue;
+      // COST-1: the same hand, in one sentence, for the end-of-session
+      // write-up an unwatched table gets instead of live talk.
+      this._noteMoment(seat, flagType, pot, won);
 
       const holeCards = [...(this.game.seats[seat]?.holeCards ?? [])];
 
@@ -3577,117 +3717,97 @@ export class Table {
     return seat;
   }
 
-  // Maybe generate a trash-talk line from the AI at `aiSeat` for a given
-  // trigger. Skips entirely when no human is at the table (fast AI vs AI
-  // with no watcher). Probabilistic ÔÇö most calls produce nothing.
-  //   trigger: 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
-  //   humanMessage: optional explicit triggering message (used for 'human_chat').
-  //                 Other triggers derive lastOpponentChat from chatHistory.
-  _maybeGenerateAiChat(aiSeat, trigger, humanMessage = null) {
-    if (!this.aiSeats[aiSeat] || !this.pending[aiSeat]) return;
-    const hasHuman =
-      this.connections.some((ws, i) => ws && !this.aiSeats[i]) ||
-      this.spectators.length > 0;
+  // ── COST-1 · what gets said, and what it costs ──────────────────────────
+  //
+  // Table talk used to be priced per remark: every trigger fired its own model
+  // call, with its own full prompt, to write one sentence about a hand it had
+  // to be told about from scratch. Three agents at a lively table could spend
+  // three calls SAYING things about a hand that had already cost three calls
+  // to PLAY.
+  //
+  // Now there are three ways a line gets said and only one of them costs
+  // anything:
+  //
+  //   INSTANT   the fold and the check that cannot wait — templates, from
+  //             policyPlay.instantLine on the free path, and from the model's
+  //             own optional `say` on the decision call, which rides a call
+  //             that was happening anyway. Both are free.
+  //   PER HAND  everything that is allowed to arrive late. One call, at the
+  //             end of the hand, writing a line for every seat that had
+  //             something to say — and only on a table somebody is watching.
+  //             See handTalk.js.
+  //   TEMPLATE  what an unwatched table and the kitchen table say instead,
+  //             which is exactly what TLK-1 always said.
 
-    // Enforce one chat per agent per hand ÔÇö lock in optimistically so concurrent
-    // triggers in the same hand (e.g. won_hand + big_pot) don't both fire.
-    const currentHand = this.game?.handNumber ?? -1;
-    if (trigger !== 'human_chat' && this.aiLastChatHand[aiSeat] === currentHand) return;
-
-    // Frequency gates:
-    //   human_chat  ÔåÆ always respond (100%)
-    //   no human present ÔåÆ 15% chance
-    //   human present   ÔåÆ 25% chance
-    if (trigger !== 'human_chat') {
-      const threshold = hasHuman ? 0.25 : 0.15;
-      if (Math.random() >= threshold) return;
-    }
-
-    // Lock this hand before the async call so concurrent triggers bail out.
-    if (trigger !== 'human_chat') this.aiLastChatHand[aiSeat] = currentHand;
-
-    // Pick the most relevant opponent + last message. Walk chatHistory backwards
-    // for the most recent line from a seat that isn't this AI; that seat is the
-    // opponent we're "in conversation with". Fall back to any other seated
-    // player so the prompt still has a name to taunt.
-    let opponentSeat = null;
-    let lastOpponentChat = null;
-    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
-      const entry = this.chatHistory[i];
-      if (entry.seat !== aiSeat) {
-        opponentSeat = entry.seat;
-        lastOpponentChat = entry.text;
-        break;
-      }
-    }
-    if (opponentSeat === null) {
-      for (let i = 0; i < this.maxSeats; i++) {
-        if (i !== aiSeat && this.pending[i]) { opponentSeat = i; break; }
-      }
-    }
-    // For human_chat, the just-sent message is the explicit trigger; prefer it
-    // over whatever sendChat happened to push onto history (they should match
-    // anyway, but this is the authoritative source for the response).
-    if (trigger === 'human_chat' && humanMessage) {
-      lastOpponentChat = humanMessage;
-    }
-
-    const agentName = this.pending[aiSeat]?.displayName || `Seat ${aiSeat}`;
-    const opponentName = opponentSeat !== null
-      ? (this.pending[opponentSeat]?.displayName || `Seat ${opponentSeat}`)
-      : 'opponent';
-    const agentStyle = this.agentStrategy || this.aiStrategy[aiSeat] || '';
-
-    // HC-1: cast members have pre-written lines — use one instead of calling
-    // the model. Same frequency gates already passed above; this just skips
-    // the LLM cost for House opponents.
-    const castLines = this.seatTalkLines?.[aiSeat];
-    if (Array.isArray(castLines) && castLines.length > 0) {
-      const line = castLines[Math.floor(Math.random() * castLines.length)];
-      if (this.aiSeats[aiSeat] && this.pending[aiSeat]) {
-        this.sendChat(aiSeat, line, true);
-      }
-      return;
-    }
-
-    generateAiChatLine({
-      trigger,
-      agentName,
-      opponentName,
-      agentStyle,
-      potSize: this.game?.pot ?? 0,
-      street: this.game?.street ?? 'preflop',
-      lastOpponentChat,
-      // METER-1: trash talk is a model call too, and a meter that counted only
-      // decisions would understate a talkative table.
-      onUsage: ({ usage, model, provider }) => recordModelCall({
-        ownerId: this.agentUserIds[aiSeat],
-        kind: MeterKind.TALK,
-        model,
-        provider,
-        usage,
-      }),
-    })
-      .then((line) => {
-        if (!line) return;
-        // Re-check the seat is still seated by the same AI; the table state
-        // can change while we awaited the model.
-        if (!this.aiSeats[aiSeat] || !this.pending[aiSeat]) return;
-        this.sendChat(aiSeat, line, true);
-      })
-      .catch((err) => console.error('[table] AI chat error:', err.message));
+  // One spoken line per agent per hand, wherever it came from. The cap is the
+  // same one the old trash-talk path enforced and it is enforced in one place
+  // now, so `say` and the per-hand writer cannot both put a bubble over the
+  // same face in the same hand.
+  _speakOnce(seat, text) {
+    if (typeof text !== 'string' || !text.trim()) return false;
+    if (!this.aiSeats[seat] || !this.pending[seat]) return false;
+    const hand = this.game?.handNumber ?? -1;
+    if (this.aiLastChatHand[seat] === hand) return false;
+    this.aiLastChatHand[seat] = hand;
+    this.sendChat(seat, text, true);
+    return true;
   }
 
-  // TLK-1: After each hand, attempt to send a template talk line from one AI
-  // agent. Rate-limited (TALK_INTERVAL_HANDS per seat; one agent per hand).
-  // Needles susceptible AI opponents: sets pendingNeedle + fires needled mood
-  // event once per session per seat.
+  // Somebody spoke at the table — an owner whispering from a spectator socket,
+  // or a human in a seat. This is where a model call per remark used to be:
+  // one call per AI seat, per typed message, to answer a sentence.
+  //
+  // It answers in the hand instead. The line is queued as TLK-1's needle,
+  // which the briefing already carries and which router.js reads as a reason
+  // to spend (Reason.TALK) — so his next decision goes to the model holding
+  // both the spot and what was said to him, and answers with the `say` field
+  // on a call that was going to happen anyway. He replies in character, about
+  // the hand he is actually in, for nothing.
+  //
+  // House regulars have no model behind them and never did: they answer from
+  // their own pre-written lines (HC-1), immediately, which is the whole reason
+  // those lines exist.
+  _hearFromTable(text, fromSeat = -1) {
+    const line = typeof text === 'string' ? text.trim().slice(0, 280) : '';
+    if (!line) return;
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (seat === fromSeat) continue;
+      if (!this.aiSeats[seat] || !this.pending[seat]) continue;
+      const cast = this.seatTalkLines?.[seat];
+      if (Array.isArray(cast) && cast.length > 0) {
+        this._speakOnce(seat, cast[Math.floor(Math.random() * cast.length)]);
+        continue;
+      }
+      // Last one in wins: he answers what was just said to him, not what was
+      // said three messages ago.
+      this.pendingNeedle[seat] = line;
+    }
+  }
+
+  // TLK-1 + COST-1: after each hand, work out who has something to say.
+  //
+  // The trigger detection is TLK-1's, unchanged — it is the part that decides
+  // whether a hand produced a moment at all, and it was always free. What
+  // changed is what happens next: an unwatched table (and the kitchen table,
+  // always) draws a template line exactly as before, and a WATCHED table hands
+  // every triggered seat to one model call.
+  //
+  // Needles susceptible AI opponents: sets pendingNeedle + fires the needled
+  // mood event once per session per seat, off the FIRST speaker only. Bounded
+  // for the same reason it always was — one needle per hand is a table with
+  // needling in it, and four is a table nobody can follow.
   _maybeSendAgentTalk(result) {
     if (!result || !this.game) return;
     const handNumber = this.game.handNumber;
     const winners = Array.isArray(result.winners) ? result.winners : [];
     const pot = result.pot ?? 0;
     const bigPotThreshold = this.bigBlind * 20;
+    // COST-1: a watched table lets every triggered seat speak, because one
+    // call covers all of them. Unwatched keeps TLK-1's one-agent-per-hand cap,
+    // because there each line is a separate template and four of them in one
+    // hand is noise in a log nobody is reading.
+    const watched = this.isWatched() && !this.home;
+    const spoke = [];
 
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.aiSeats[seat] || !this.pending[seat]) continue;
@@ -3706,97 +3826,278 @@ export class Table {
         this._prefoldStreakBySeat[seat] = 0;
       }
 
-      // Rate limit: per-agent gap and one-agent-per-hand.
+      // Rate limit: per-agent gap, and (unwatched only) one agent per hand.
       const lastTalkHand = this._talkLastHandBySeat[seat] ?? -1;
       if (handNumber - lastTalkHand < TALK_INTERVAL_HANDS) continue;
-      if (this._talkHandNumber === handNumber) continue;
+      if (!watched && this._talkHandNumber === handNumber) continue;
+      // He has already spoken this hand — a `say` on his decision, or an
+      // instant template. Two bubbles from one face in one hand is one too
+      // many, whichever path produced them.
+      if (this.aiLastChatHand[seat] === handNumber) continue;
 
       const won = winners.some((w) => w.seat === seat);
-      const agentId = this.agentIds[seat];
-      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
-      const moodState = mood?.state ?? 'neutral';
-
-      // Detect trigger (priority: cardDead > wonBigPot > lostAsFavorite > shownBluff).
-      let trigger = null;
-
-      if (this._prefoldStreakBySeat[seat] >= 3) {
-        trigger = 'cardDead';
-      }
-
-      if (!trigger && won && pot > bigPotThreshold) {
-        trigger = 'wonBigPot';
-      }
-
-      if (!trigger && !won && result.type === 'showdown') {
-        const maxEquity = myDecisions.reduce(
-          (m, d) => Number.isFinite(d.equity) && d.equity > m ? d.equity : m, 0
-        );
-        if (maxEquity > 0.60) trigger = 'lostAsFavorite';
-      }
-
-      if (!trigger && won && result.type === 'showdown') {
-        outerSearch:
-        for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
-          if (oppSeat === seat || !this.pending[oppSeat]) continue;
-          const oppDecisions = this.currentHandDecisions.filter((d) => d.seat === oppSeat);
-          for (const d of oppDecisions) {
-            if (
-              (d.action?.type === 'bet' || d.action?.type === 'raise') &&
-              Number.isFinite(d.equity) && d.equity < 0.38
-            ) { trigger = 'shownBluff'; break outerSearch; }
-          }
-        }
-      }
-
+      const trigger = this._talkTriggerFor(seat, { won, result, pot, bigPotThreshold });
       if (!trigger) continue;
 
-      // BIO-2c: if one of the other seats is somebody to him, that is the line.
+      this._talkHandNumber = handNumber;
+      this._talkLastHandBySeat[seat] = handNumber;
+      if (trigger === 'cardDead') this._prefoldStreakBySeat[seat] = 0;
+      spoke.push({ seat, trigger, won });
+
+      if (!watched) break;   // one template line per hand, as it always was
+    }
+
+    if (spoke.length === 0) return;
+
+    // The needle rides the first speaker either way, and it is handed the LINE
+    // rather than left to find it: on the model path the line does not exist
+    // yet when this returns, so reading it back off chatHistory here would
+    // needle the table with whatever somebody said three hands ago.
+    if (watched) this._talkWithModel(spoke, result);
+    else this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
+  }
+
+  // TLK-1's four triggers, in priority order, unchanged.
+  _talkTriggerFor(seat, { won, result, pot, bigPotThreshold }) {
+    if ((this._prefoldStreakBySeat[seat] ?? 0) >= 3) return 'cardDead';
+    if (won && pot > bigPotThreshold) return 'wonBigPot';
+
+    const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
+    if (!won && result.type === 'showdown') {
+      const maxEquity = myDecisions.reduce(
+        (m, d) => Number.isFinite(d.equity) && d.equity > m ? d.equity : m, 0,
+      );
+      if (maxEquity > 0.60) return 'lostAsFavorite';
+    }
+
+    if (won && result.type === 'showdown') {
+      for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+        if (oppSeat === seat || !this.pending[oppSeat]) continue;
+        const oppDecisions = this.currentHandDecisions.filter((d) => d.seat === oppSeat);
+        for (const d of oppDecisions) {
+          if (
+            (d.action?.type === 'bet' || d.action?.type === 'raise') &&
+            Number.isFinite(d.equity) && d.equity < 0.38
+          ) return 'shownBluff';
+        }
+      }
+    }
+    return null;
+  }
+
+  // The free path: TLK-1's template pools, in his mood, naming whoever at this
+  // table is somebody to him.
+  _talkFromTemplates(spoke) {
+    let first = null;
+    for (const { seat, trigger } of spoke) {
+      const agentId = this.agentIds[seat];
+      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
       const rel = this._roleAtTable(seat);
-      const line = pickTalkLine(trigger, moodState, {
+      const line = pickTalkLine(trigger, mood?.state ?? 'neutral', {
         heat: mood?.heat ?? null,
         role: rel?.role ?? null,
         who: rel?.who ?? null,
       });
-      if (!line) continue;
+      if (line && this._speakOnce(seat, line) && first === null) first = line;
+    }
+    return first;
+  }
 
-      // Lock this hand and update per-seat timing. Reset streak if cardDead fired.
-      this._talkHandNumber = handNumber;
-      this._talkLastHandBySeat[seat] = handNumber;
-      if (trigger === 'cardDead') this._prefoldStreakBySeat[seat] = 0;
-      this.sendChat(seat, line, true);
+  // The paid path: one call, every speaker, the whole hand in front of it.
+  // Fire-and-forget — a hand does not wait for its own commentary, and the
+  // next one is already being dealt.
+  _talkWithModel(spoke, result) {
+    const hand = {
+      board: [...(this.game?.community ?? [])],
+      pot: result?.pot ?? 0,
+      result: result?.type === 'showdown' ? 'showdown' : 'everybody else folded',
+      log: this.currentHandActionLog.map((e) => ({
+        street: e.street,
+        who: this._seatLabel(e.seat),
+        action: e.actionType,
+      })),
+    };
+    const cast = spoke.map(({ seat, trigger }) => {
+      const agentId = this.agentIds[seat];
+      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
+      const rel = this._roleAtTable(seat);
+      return {
+        seat,
+        trigger,
+        name: this._seatLabel(seat),
+        style: this.agentStrategy || this.aiStrategy[seat] || null,
+        mood: mood?.state ?? 'neutral',
+        note: rel?.who ? `${rel.who} is his ${rel.role}` : null,
+      };
+    });
+    // The owner of the first speaker pays for the call. One of them has to,
+    // the meter files a call with no owner under HOUSE, and a line written
+    // about a hand is written for whoever is watching it.
+    const ownerId = this.agentUserIds[spoke[0].seat] ?? null;
 
-      // Needle susceptible AI opponents.
-      for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
-        if (oppSeat === seat) continue;
-        if (!this.aiSeats[oppSeat] || !this.pending[oppSeat]) continue;
-        if (!this._seatIsInGame(oppSeat)) continue;
-        const oppProfile = this.agentProfiles[oppSeat] ??
-          { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
-        if (isStoic(oppProfile) || !isSusceptible(oppProfile)) continue;
+    writeHandTalk(cast, hand, { ownerId })
+      .then((lines) => {
+        if (this.closed) return;
+        // Nothing usable came back — no key, a timeout, every line rejected as
+        // solver speak. A watched table then says what an unwatched one would
+        // have said rather than going silent: the templates are already there,
+        // they cost nothing, and silence is a worse product than a plain line.
+        if (!Array.isArray(lines) || lines.length === 0) {
+          this._needleOpponents(spoke[0].seat, this._talkFromTemplates(spoke));
+          return;
+        }
+        this._playBubbles(lines);
+        this._needleOpponents(spoke[0].seat, lines[0].text);
+      })
+      .catch((err) => console.error(`[table:${this.tableId}] hand talk failed:`, err.message));
+  }
 
-        // Queue the line for the opponent's next decision briefing.
-        this.pendingNeedle[oppSeat] = line;
+  // Bubbles play back on the pacing queue rather than all at once. Four lines
+  // arriving in the same millisecond is not a table talking, it is a chat
+  // window opening; they land BUBBLE_GAP_MS apart, in the order they were
+  // written, and every timer is unref'd and dropped when the table closes.
+  _playBubbles(lines) {
+    if (!Array.isArray(lines) || lines.length === 0) return;
+    lines.forEach((line, i) => {
+      const fire = () => {
+        if (this.closed) return;
+        this._speakOnce(line.seat, line.text);
+      };
+      if (i === 0) { fire(); return; }
+      const t = setTimeout(fire, i * BUBBLE_GAP_MS);
+      t.unref?.();
+      this._paceTimers.push(t);
+    });
+  }
 
-        // Mood event — once per session per seat to stay BOUNDED.
-        if ((this._needledThisSession[oppSeat] ?? 0) === 0) {
-          const oppAgentId = this.agentIds[oppSeat];
-          if (oppAgentId) {
-            const oppMood = getAgentMood(oppAgentId, this.agentUserIds[oppSeat]);
-            if (oppMood) {
-              const newMood = applyMoodEvent(oppMood, 'needled', oppProfile, {});
-              try {
-                setAgentMood(oppAgentId, this.agentUserIds[oppSeat], newMood);
-              } catch (err) {
-                console.error(`[table:${this.tableId}] needle setAgentMood failed:`, err.message);
-              }
+  // TLK-1: queue the line on susceptible AI opponents and fire the needled
+  // mood event once per session per seat. Unchanged except for being lifted
+  // out of the loop it used to live inside.
+  _needleOpponents(fromSeat, spoken) {
+    if (typeof spoken !== 'string' || !spoken.trim()) return;
+    for (let oppSeat = 0; oppSeat < this.maxSeats; oppSeat++) {
+      if (oppSeat === fromSeat) continue;
+      if (!this.aiSeats[oppSeat] || !this.pending[oppSeat]) continue;
+      if (!this._seatIsInGame(oppSeat)) continue;
+      const oppProfile = this.agentProfiles[oppSeat] ??
+        { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
+      if (isStoic(oppProfile) || !isSusceptible(oppProfile)) continue;
+
+      this.pendingNeedle[oppSeat] = spoken;
+
+      if ((this._needledThisSession[oppSeat] ?? 0) === 0) {
+        const oppAgentId = this.agentIds[oppSeat];
+        if (oppAgentId) {
+          const oppMood = getAgentMood(oppAgentId, this.agentUserIds[oppSeat]);
+          if (oppMood) {
+            const newMood = applyMoodEvent(oppMood, 'needled', oppProfile, {});
+            try {
+              setAgentMood(oppAgentId, this.agentUserIds[oppSeat], newMood);
+            } catch (err) {
+              console.error(`[table:${this.tableId}] needle setAgentMood failed:`, err.message);
             }
           }
-          this._needledThisSession[oppSeat] = 1;
         }
+        this._needledThisSession[oppSeat] = 1;
       }
-
-      break; // Only one agent per hand.
     }
+  }
+
+
+  // ── COST-1 · the evening, written up ────────────────────────────────────
+  //
+  // An unwatched session says almost nothing while it runs, on purpose: the
+  // per-hand writer is a watched-table thing, because writing dialogue into an
+  // empty room is the purest form of paying for nothing.
+  //
+  // But the owner comes back, and "100 hands, +1,240" is a receipt rather than
+  // an evening. So the session is written up ONCE, at the end, from the hands
+  // it actually contained, into the thread he reads it back through. One call
+  // for a session, where the old per-remark path would have spent dozens.
+  //
+  // Everything the write needs is snapshotted BEFORE the call goes out,
+  // because by the time it resolves the seats have been retired and the table
+  // is gone from the registry. That is also why the lines are appended through
+  // thread.js directly rather than through _threadTo: the seat arrays it reads
+  // are empty by then, and a line that lands in nobody's thread is a line that
+  // cost money to write and nothing to read.
+  _writeNightRecap() {
+    if (this._recapWritten) return;
+    if (this.home) return;                       // the kitchen table never spends
+    if (this.isWatched() || this._everWatched) return;   // he already watched it happen
+    this._recapWritten = true;
+
+    const seats = [];
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.pending[seat]) continue;
+      const agentId = this.agentIds[seat];
+      const mood = agentId ? getAgentMood(agentId, this.agentUserIds[seat]) : null;
+      const rel = this._roleAtTable(seat);
+      seats.push({
+        seat,
+        sessionId: this.seatSessionIds[seat] ?? null,
+        agentId,
+        ownerId: this.agentUserIds[seat] ?? null,
+        name: this._seatLabel(seat),
+        style: this.agentStrategy || this.aiStrategy[seat] || null,
+        mood: mood?.state ?? 'neutral',
+        note: rel?.who ? `${rel.who} is his ${rel.role}` : null,
+      });
+    }
+    // Nobody to write it into. A table of House regulars has no thread and no
+    // owner, and an evening nobody can read back is not worth a call.
+    if (!seats.some((p) => p.sessionId)) return;
+
+    const session = {
+      hands: this.handsThisSession,
+      biggestPot: this.sessionBiggestPot,
+      moments: [...this.sessionMoments],
+    };
+    const ownerId = seats.find((p) => p.ownerId)?.ownerId ?? null;
+
+    writeNightRecap(seats, session, { ownerId })
+      .then((lines) => this._fileRecapLines(lines, seats))
+      .catch((err) => console.error(`[table:${this.tableId}] night recap failed:`, err.message));
+  }
+
+  // One written line goes into every agent's thread: his own under HIM, the
+  // other seats' under the name the felt showed. Exactly the split
+  // _threadSpoken makes live, against the snapshot rather than the seats.
+  _fileRecapLines(lines, seats) {
+    if (!Array.isArray(lines) || lines.length === 0) return;
+    for (const line of lines) {
+      for (const target of seats) {
+        if (!target.sessionId) continue;
+        appendThreadLine({
+          sessionId: target.sessionId,
+          agentId: target.agentId,
+          ownerId: target.ownerId,
+          tableId: this.tableId,
+          kind: target.seat === line.seat ? ThreadKind.HIM : ThreadKind.OPPONENT,
+          who: target.seat === line.seat ? 'HIM' : line.name,
+          text: line.text,
+        });
+      }
+    }
+    console.log(`[table:${this.tableId}] wrote up the evening — ${lines.length} line(s)`);
+  }
+
+  // One sentence for a hand worth remembering, in the room's voice. Fed to the
+  // write-up above, and capped: an evening is three or four things.
+  _noteMoment(seat, flagType, pot, won) {
+    if (this.sessionMoments.length >= 12) return;
+    const name = this._seatLabel(seat);
+    const line = {
+      biggestPot: `${name} took the biggest pot of the night, ${pot}`,
+      badBeat:    `${name} was a long way in front and lost ${pot} anyway`,
+      cooler:     `${name} ran into a better hand and it cost him ${pot}`,
+      bigBluff:   `${name} took ${pot} off the table with nothing`,
+      heroCall:   `${name} paid off a ${pot} pot on a hunch and was right`,
+    }[flagType];
+    if (!line) return;
+    this.sessionMoments.push(won === false && flagType === 'biggestPot'
+      ? `${name} was in the biggest pot of the night, ${pot}, and lost it`
+      : line);
   }
 
   // Build the gameState object for the agent handler from the current game.
@@ -3919,6 +4220,25 @@ export class Table {
       }
     }
 
+    // COST-1: has the picture of the opposition CHANGED since his last
+    // decision? This is the "read on the wire" gate — see router.js, which
+    // explains at length why the answer is not "does he have a read".
+    //
+    // The one impure line in this builder, and it is the same kind of impurity
+    // the ATTR-3 read-subject counter above already has: the state has to
+    // advance exactly once per decision, and this is the one place that runs
+    // exactly once per decision.
+    // The fingerprint is the SHAPE he is up against, not the sample behind it.
+    // Including handsObserved would change the print every single hand and the
+    // gate would be permanently open, which is the failure this whole reading
+    // exists to avoid. Same fields _maybeBroadcastReads fingerprints on.
+    const readPrint = opponentReads
+      .map((r) => `${r.playerId}:${classifyOpponent(r) ?? ''}`)
+      .join('|');
+    const readOnWire = this._routeReadPrint[aiSeat] !== null
+      && this._routeReadPrint[aiSeat] !== readPrint;
+    this._routeReadPrint[aiSeat] = readPrint;
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -3949,7 +4269,12 @@ export class Table {
       raiseCapped: !!(betAction?.capped || raiseAction?.capped),
       raiseCap: raiseCapPerStreet(),
       opponentReads,
+      readOnWire,
       mood,
+      // COST-1: a stack already in the middle. The router reads it as a reason
+      // to spend; nothing else does, so it is computed here rather than being
+      // recomputed behind the router where it would have no table to ask.
+      anyAllIn: this._allInState().anyAllIn,
       attrs,                                          // ATTR-1: FOCUS/READS read these
       fatigue:    attrs?.fatigue ?? null,
       seat:       aiSeat,                             // seeds the FOCUS noise
@@ -4016,23 +4341,58 @@ export class Table {
     // Re-check: the human might have acted somehow, or hand ended.
     if (!this.game || this.game.toAct !== aiSeat || this.game.street === Streets.COMPLETE) return;
 
-    console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
+    // ── COST-1: where does this decision go? ─────────────────────────────
+    // Answered for free, before anything is spent, from the state that was
+    // built for the briefing anyway. A spot with a wide margin and one option
+    // is arithmetic and the compiled policy does arithmetic; everything else
+    // — close, big, late, all-in, tilted, read, needled, a nemesis opposite —
+    // is a hand somebody might watch, and it goes to the model.
+    //
+    // Note where this sits: AFTER the think delay has already been slept. The
+    // free path must not make him act instantly — SERVER-3's clock is the ring
+    // the client is drawing, and an agent who answers a spot in 0ms and the
+    // next one in 1.8s is visibly two different things. What the router
+    // changes is what it costs, never what it looks like.
+    const routed = routeFor(gameState, {
+      home: this.home,
+      nemesis: this._roleAtTable(aiSeat)?.role === 'nemesis',
+    });
+    countRoute(this.routes, routed);
+    // Every decision is filed, including the free ones. See recordDecisionRoute:
+    // a meter that only hears about the calls that happened cannot tell a
+    // working router from an empty floor.
+    recordDecisionRoute({
+      ownerId: this.agentUserIds[aiSeat],
+      route: routed.route,
+      reason: routed.reason,
+    });
+    console.log(
+      `[route:${this.tableId}] seat ${aiSeat} ${gameState.street} ${routed.tag} ` +
+      `(margin ${routed.margin ?? '—'}, options ${routed.options})`,
+    );
+
     const memoryContext = this.agentMemory[aiSeat] ?? '';
-    const decision = await getAgentAction(gameState, strategy, memoryContext);
-    let { action, reasoning } = decision;
-    // METER-1: the decision call, priced by MODEL-1b and filed here. A
-    // fallback (no key, an API error) carries no usage and is not a call, so
-    // it is not counted as one.
-    if (decision.usage) {
-      recordModelCall({
-        ownerId: this.agentUserIds[aiSeat],
-        kind: MeterKind.DECISION,
-        model: decision.model,
-        provider: decision.provider,
-        usage: decision.usage,
-        costUsd: decision.costUsd,
-      });
+    let decision;
+    if (routed.route === Route.POLICY) {
+      decision = chooseFromPolicy(gameState);
+    } else {
+      console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
+      decision = await getAgentAction(gameState, strategy, memoryContext);
+      // METER-1: the decision call, priced by MODEL-1b and filed here. A
+      // fallback (no key, an API error) carries no usage and is not a call, so
+      // it is not counted as one.
+      if (decision.usage) {
+        recordModelCall({
+          ownerId: this.agentUserIds[aiSeat],
+          kind: MeterKind.DECISION,
+          model: decision.model,
+          provider: decision.provider,
+          usage: decision.usage,
+          costUsd: decision.costUsd,
+        });
+      }
     }
+    let { action, reasoning } = decision;
 
     // One final guard before mutating game state.
     if (!this.game || this.game.toAct !== aiSeat) return;
@@ -4098,24 +4458,21 @@ export class Table {
         event: this._decisionEventFor(aiSeat, eventBefore),
       });
       this._resetAiInactivityTimer();
+      // COST-1: what he says out loud, in the moment, for nothing. Either the
+      // model returned a `say` on the decision call it was already making, or
+      // the compiled policy drew an instant template. Spoken BEFORE the state
+      // broadcast so the bubble arrives with the action that caused it, and
+      // before _handCompleted so the per-hand writer can see he has already
+      // spoken and leave him alone.
+      //
+      // The three chat triggers that used to live here — aggressive_action,
+      // won_hand, big_pot — each fired their own model call. They are gone.
+      // What they were for now happens once, at the end of the hand, in
+      // _maybeSendAgentTalk, which can see the whole hand instead of one
+      // action out of it.
+      if (decision.say) this._speakOnce(aiSeat, decision.say);
       this._broadcastState();
-      const handEnded = this.game.street === Streets.COMPLETE;
-      if (handEnded) this._handCompleted();
-      // Fire-and-forget chat triggers. Each trigger rolls its own dice inside
-      // _maybeGenerateAiChat so most calls produce nothing.
-      if ((action.type === 'bet' || action.type === 'raise')
-          && Number.isFinite(action.amount)
-          && action.amount > this.bigBlind * 3) {
-        this._maybeGenerateAiChat(aiSeat, 'aggressive_action');
-      }
-      if (handEnded && this.game?.result) {
-        const result = this.game.result;
-        const won = (result.winners || []).some((w) => w.seat === aiSeat);
-        if (won) this._maybeGenerateAiChat(aiSeat, 'won_hand');
-        if ((result.pot ?? 0) > this.bigBlind * 20) {
-          this._maybeGenerateAiChat(aiSeat, 'big_pot');
-        }
-      }
+      if (this.game.street === Streets.COMPLETE) this._handCompleted();
     } catch (err) {
       console.error(`[table:${this.tableId}] AI action rejected (${JSON.stringify(action)}):`, err.message);
       // Safe fallback ÔÇö play whatever is available.

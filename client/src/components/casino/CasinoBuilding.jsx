@@ -32,6 +32,7 @@ import { moodOf, heatOf } from '../floor/agentView.js';
 import { Num } from '../wallet/atoms.jsx';
 import { money, pocketOf } from '../../lib/wallet.js';
 import { CasinoEventType } from '../../lib/events.js';
+import { pillName } from '../../lib/names.js';
 
 // ── Design tokens (verbatim from the refs) ─────────────────────────────────
 export const M_BG     = '#0A0F0F';
@@ -211,7 +212,7 @@ function Doorman({ agent, index, pnl }) {
         <span style={{
           fontSize: 8.5, color: M_DIM, whiteSpace: 'nowrap',
           overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>{agent.name.split(' ')[0]}</span>
+        }}>{pillName(agent.name)}</span>
         {pnl !== null && (
           <Num size={8.5} weight={700} color={pnl >= 0 ? M_TEAL : M_RED}>
             {money(pnl, { sign: true })}

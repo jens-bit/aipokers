@@ -267,6 +267,10 @@ export function studyTag(book) {
 export function HomeScreen({
   wsUrl = null,
   onWatch,
+  // BUGS-A job 7: watch a table by id, with no agent behind it. The kitchen
+  // table is a real table (HOME-STATE-1) and it is nobody's deployment, so
+  // "watch him" is the wrong shape for it.
+  onWatchTable,
   onProfile,
   onDeploy,
   onCreateAgent,
@@ -298,7 +302,7 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
-  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant } =
+  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded } =
     useHomeState({ wsUrl });
 
   // The home game runs on its own spectator socket. The app's table socket
@@ -418,7 +422,20 @@ export function HomeScreen({
     else setThreadOpen(true);
   }, [onOpenThread, desktop]);
 
-  if (agents.length === 0) {
+  // BUGS-A job 2 · THE ROOM IS THE DEFAULT, NOT THE EMPTY STATE.
+  //
+  // "Nobody lives here yet" is a claim about the owner, and the screen used to
+  // make it out of an empty array it had not yet been given a reason to
+  // believe. Every trip back to HOME — from the casino, from a profile, from a
+  // retire with three agents left — remounts this screen with agents=[] for as
+  // long as the round trip takes, and for that beat the app told a man with a
+  // household that he had nobody.
+  //
+  // The room renders while the roster is in flight. It is the honest picture:
+  // the flat is there whether or not anybody is standing in it, and bodies
+  // walking in a moment later is exactly what this screen already does. The
+  // empty state waits for the roster to ANSWER, and to answer with zero.
+  if (loaded && agents.length === 0) {
     return (
       <div className={`home1${desktop ? ' home1--desk home1--empty' : ''}`} data-testid="home-screen">
         <NotYet
@@ -445,10 +462,23 @@ export function HomeScreen({
       lit={lit}
       onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
-      // BIRTH-5: the chairs are still priced in one place only — the same
-      // TableSheet — but the phone now has somewhere to put it, so the table is
-      // a fixture on both. A rail panel on the desk, a sheet over the room here.
-      onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
+      // Two branches wanted this tap and they turn out to be the same rule.
+      //
+      // BUGS-A job 7: a kitchen table with a game ON it is a table you can go
+      // and watch — that tap was doing nothing, which is the bug.
+      // BIRTH-5: the chairs are priced in one place only, the TableSheet — a
+      // rail panel on the desk, a sheet over the room on the phone.
+      //
+      // A table with a game running is watchable; an empty one is where you buy
+      // a chair. BUGS-A's own note — "an empty table stays furniture rather
+      // than becoming a button that does nothing" — is exactly the case
+      // BIRTH-5 then gave something to do, so neither had to lose.
+      onTable={game?.state === 'running' && game?.tableId && onWatchTable
+        ? () => onWatchTable(game.tableId)
+        : (desktop ? () => setRail('table') : () => setTableOpen(true))}
+      tableLabel={game?.state === 'running' && game?.tableId && onWatchTable
+        ? 'Watch the home game'
+        : 'The chairs'}
       onTv={studying ? (
         // The tape room is a man doing something, so on the desk it opens HIM
         // in the rail — the same place tapping his body puts him.
