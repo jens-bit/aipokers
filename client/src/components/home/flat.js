@@ -11,12 +11,14 @@
 // no clock. That is what lets the walk tests assert "he moved from the couch to
 // the table" without rendering a room.
 //
-// TWO FIXTURES ARE NOT FROM A REF. The brief names a safe under the frames and a
-// fridge by the table; mood-home.jsx has neither, and mood-home2.jsx / designs
-// 47–49 are not in design-refs/. Their footprints below are placed to the ref's
-// own grid (against the wall band, and on the table's right approach) and drawn
-// in its material language, but they are the one part of this file that is not a
-// port. Replace them from the ref when it lands.
+// HOME-2 job 4 — EVERY FIXTURE IS THE REF'S NOW. The safe and the fridge used
+// to be the one part of this file that was not a port: the brief named them,
+// mood-home.jsx did not have them, and their footprints were placed to the
+// ref's grid by hand with a note to replace them when the ref landed. It has
+// landed (design-refs/mood-home.jsx, `FLAT`), and this is that replacement —
+// the safe against the left wall under the frames, the fridge on the kitchen
+// wall, the door cut INTO the right wall rather than floating in the room, and
+// the television at the bottom of it rather than in the left corner.
 
 export const F_W = 390;
 export const F_H = 470;
@@ -25,12 +27,23 @@ export const FLAT = {
   wall:   { x: 10,  y: 8,   w: 370, h: 78 },     // the frames hang here
   table:  { cx: 208, cy: 268, rx: 86, ry: 52 },  // the kitchen table
   couch:  { x: 8,   y: 330, w: 96,  h: 116 },
-  tv:     { x: 14,  y: 214, w: 84,  h: 60 },
-  door:   { x: 330, y: 148, w: 52,  h: 104 },
-  // Not from a ref — see the header.
-  safe:   { x: 26,  y: 104, w: 46,  h: 42 },     // under the frames, left
-  fridge: { x: 316, y: 286, w: 46,  h: 74 },     // by the table, right of it
+  safe:   { x: 16,  y: 94,  w: 60,  h: 50 },     // against the left wall, under the frames
+  fridge: { x: 250, y: 94,  w: 54,  h: 86 },     // the kitchen wall, beside the table
+  door:   { x: 356, y: 152, w: 34,  h: 112 },    // IN the right wall, not floating in the room
+  // The ref calls this one `tape` — the tape room, where he reviews a flagged
+  // hand. It is one television and it is at the BOTTOM of the room; there is no
+  // second set in the left corner any more. Written against F_H the way the ref
+  // writes it, because it is a band measured up from the floor rather than a
+  // point on a grid.
+  tv:     { x: 244, y: F_H - 126, w: 132, h: 112 },
 };
+
+// The screen and the chair inside the tape room's footprint, at the ref's own
+// offsets. The set is not centred in its box: the chair sits below it and a
+// little to the left, which is what a room with one armchair in front of one
+// television looks like from above.
+export const TV_SCREEN = { x: FLAT.tv.x + 16, y: FLAT.tv.y, w: 100, h: 58 };
+export const TV_CHAIR  = { x: FLAT.tv.x + 48, y: FLAT.tv.y + 78, w: 34, h: 14 };
 
 // Seats around the table, clockwise from the near side. Two agents sit opposite,
 // which is what a heads-up kitchen game looks like from above.
@@ -60,11 +73,11 @@ export function tableSeats(n) {
 // reshuffles itself on every push is a room nobody can read.
 
 export const COUCH_SPOT = { x: 58, y: 408 };          // on the couch, feet forward
-// In FRONT of the television, not on it. The set occupies x14–98 / y214–274, so
-// a body standing at its own x with feet at 300 has his head inside the screen
-// — and the replay miniature playing on it is behind him, which is the one
-// thing the tape room is for looking at.
-export const TV_SPOT    = { x: 112, y: 320 };         // in front of the television
+// HOME-2 job 4 · the ref's own STAND.tape: the CHAIR, below the screen it
+// faces. The set moved to the bottom of the room, so the man watching it moved
+// with it — he sits in front of the television with the replay playing behind
+// his head, which is the one thing the tape room is for looking at.
+export const TV_SPOT    = { x: 292, y: F_H - 14 };    // the chair, below the screen
 export const DOOR_SPOT  = { x: 322, y: 268 };         // just inside the door
 export const WALL_SPOT  = { x: 150, y: 150 };         // facing the wall, back turned
 
@@ -74,9 +87,9 @@ export const WALL_SPOT  = { x: 150, y: 150 };         // facing the wall, back t
 // corner still reads as trapped).
 export const FLOOR_SPOTS = [
   { x: 132, y: 404 },
-  { x: 262, y: 420 },
+  { x: 200, y: 420 },
   { x: 108, y: 200 },
-  { x: 286, y: 176 },
+  { x: 336, y: 330 },
 ];
 
 // Server routine keys (src/server/home.js Routine) → where he does it.
@@ -185,3 +198,26 @@ export const ALL_SPOTS = [
   COUCH_SPOT, TV_SPOT, DOOR_SPOT, WALL_SPOT,
   ...FLOOR_SPOTS, ...TABLE_SEATS[4],
 ];
+
+// ── HOME-2 job 4 · nothing stands inside the furniture ──────────────────────
+//
+// Every fixture's footprint, so the layout test can assert what used to be
+// checked by looking: a body is 46px of ghost with his feet at `y`, and the two
+// coordinate systems drifting apart is exactly what put a man's head inside the
+// old television. Named rather than derived, because the wall and the table are
+// not rectangles in the same sense and this list is only ever read by the test.
+export const FOOTPRINTS = {
+  safe:   FLAT.safe,
+  fridge: FLAT.fridge,
+  door:   FLAT.door,
+  couch:  FLAT.couch,
+  tv:     TV_SCREEN,
+};
+
+/** The box a body standing here occupies: his feet at y, `size` of him above. */
+export function bodyRect(spot, size = 46) {
+  return {
+    left: spot.x - size / 2, right: spot.x + size / 2,
+    top: spot.y - size, bottom: spot.y,
+  };
+}

@@ -5,19 +5,18 @@
 // the couch in the left corner, the kitchen table in the middle, the door on the
 // right wall line, and a warm pool of light over the table when anyone is in.
 //
-// Two fixtures are additions rather than ports — the safe under the frames and
-// the fridge beside the table. See the note in flat.js: the refs that would
-// carry them (mood-home2.jsx, designs 47–49) are not in design-refs/. They are
-// drawn in the ref's own material language (the same flat panel, the same
-// hairline highlight, the same 1px rgba border) and placed on its grid, but they
-// are the one part of this screen that should be re-checked against the ref when
-// it arrives.
+// HOME-2 job 4 — the fixtures are all the ref's now, on the ref's own
+// coordinates (flat.js): the SAFE against the left wall under the frames, the
+// FRIDGE on the kitchen wall, the DOOR cut into the right wall with a lit
+// marquee above it, and the TELEVISION at the bottom of the room. There is no
+// second set in the left corner any more — one television, and it shows the
+// casino.
 //
 // The room is a fixed 390×470 coordinate space scaled to fit whatever box it is
 // given, so the arithmetic in flat.js is the same on every device. Everything is
 // a div: no image, no sprite sheet, nothing to load.
 
-import { FLAT, F_W, F_H } from './flat.js';
+import { FLAT, TV_SCREEN, TV_CHAIR, F_W, F_H } from './flat.js';
 
 // `onTable` is optional and the table is furniture without it. Both branches
 // that gave it a tap did so for a different destination — BUGS-A job 7 watches
@@ -26,6 +25,9 @@ import { FLAT, F_W, F_H } from './flat.js';
 export function HomeFlat({
   lit = true, children, onSafe, onFridge, onTv, onTable, onDoor,
   tvLabel = null, tableLabel = null,
+  // HOME-2 job 4 · what is on the television. A component rather than markup,
+  // because what is on it is data (CasinoOnTv) and this file draws furniture.
+  tvScreen = null,
 }) {
   const tableBox = {
     left: FLAT.table.cx - FLAT.table.rx,
@@ -43,19 +45,7 @@ export function HomeFlat({
       {/* the wall the frames hang on */}
       <div className="home-flat__wall" style={{ height: FLAT.wall.y + FLAT.wall.h + 8 }} aria-hidden />
 
-      {/* the television, and the couch below it */}
-      <button
-        type="button"
-        className="home-flat__tv"
-        style={{ left: FLAT.tv.x, top: FLAT.tv.y, width: FLAT.tv.w, height: FLAT.tv.h }}
-        onClick={onTv}
-        aria-label={tvLabel ? `Television — ${tvLabel}` : 'Television'}
-        data-testid="home-tv"
-      >
-        <span className="home-flat__tv-screen" aria-hidden />
-        <span className="home-flat__tv-felt" aria-hidden />
-        <span className="home-flat__tv-shimmer" aria-hidden />
-      </button>
+      {/* the couch */}
       <div className="home-flat__couch" style={{ left: FLAT.couch.x, top: FLAT.couch.y, width: FLAT.couch.w, height: FLAT.couch.h }} aria-hidden>
         <span /><span />
       </div>
@@ -100,6 +90,38 @@ export function HomeFlat({
           <span className="home-flat__door-knob" />
         </div>
       )}
+
+      {/* HOME-2 job 4 · THE SIGN ABOVE THE DOOR. A lit marquee, all caps —
+          not a pill, because a pill is a label about a thing and this is a
+          thing in the room: it hangs over the doorway and it is switched on.
+          Anchored by its RIGHT EDGE to the room's, which is the one anchor
+          that cannot clip: the door starts at x356 of 390, so anything laid
+          out rightward from the door leaves the screen (board 29, wave 56,
+          measured — the old tag ran 38px off frame in every home room). */}
+      <div className="home-flat__sign" style={{ top: FLAT.door.y - 32 }} data-testid="home-door-sign">
+        <span className="home-flat__sign-glow" aria-hidden />
+        <span className="home-flat__sign-word">CASINO</span>
+      </div>
+
+      {/* HOME-2 job 4 · THE TAPE ROOM, at the bottom of the room: one screen
+          and one chair. What is ON the screen is handed in — the casino in
+          miniature, which is what lets you see it from the sofa without
+          leaving (CasinoOnTv). */}
+      <button
+        type="button"
+        className="home-flat__tv"
+        style={{ left: TV_SCREEN.x, top: TV_SCREEN.y, width: TV_SCREEN.w, height: TV_SCREEN.h }}
+        onClick={onTv}
+        aria-label={tvLabel ? `Television — ${tvLabel}` : 'Television — the casino'}
+        data-testid="home-tv"
+      >
+        <span className="home-flat__tv-screen" aria-hidden>{tvScreen}</span>
+      </button>
+      <div
+        className="home-flat__tv-chair"
+        style={{ left: TV_CHAIR.x, top: TV_CHAIR.y, width: TV_CHAIR.w, height: TV_CHAIR.h }}
+        aria-hidden
+      />
 
       {/* the safe, under the frames */}
       <button

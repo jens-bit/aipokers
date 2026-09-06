@@ -148,3 +148,131 @@ test.describe('HOME-2 job 1 · the three destinations are things in the world', 
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
   });
 });
+
+// ── HOME-2 job 4 · the fixtures on the walls ────────────────────────────────
+
+test.describe('HOME-2 job 4 · nothing clips at 390 wide', () => {
+  test.beforeEach(async ({ page }) => { await asOwner(page); });
+
+  test('the door sign is fully visible, all caps, and not a pill', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const sign = page.getByTestId('home-door-sign');
+    await expect(sign).toBeVisible();
+
+    // FULLY IN FRAME. The door starts at x356 of 390, so anything laid out
+    // rightward from it leaves the screen — board 29 measured the old tag at
+    // 38px off. This is the assertion that fix cannot silently regress: the
+    // room clips with overflow: hidden, so a sign over the edge is cut in
+    // silence rather than reported.
+    const box = await sign.boundingBox();
+    const room = await page.locator('.home-flat').boundingBox();
+    expect(box, 'the sign has a box').toBeTruthy();
+    expect(box.x).toBeGreaterThanOrEqual(room.x - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(room.x + room.width + 0.5);
+    expect(box.y).toBeGreaterThanOrEqual(room.y - 0.5);
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThan(0);
+
+    await expect(sign).toHaveText('CASINO');
+    await shot(page, 'job4-sign');
+  });
+
+  test('every fixture is drawn, inside the room, and none of them overlaps another', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const room = await page.locator('.home-flat').boundingBox();
+    const named = {
+      safe: '[data-testid="home-safe"]',
+      fridge: '[data-testid="home-fridge"]',
+      door: '[data-testid="home-door"]',
+      table: '[data-testid="home-table"]',
+      tv: '.home-flat__tv',
+      sign: '[data-testid="home-door-sign"]',
+    };
+
+    const boxes = {};
+    for (const [name, sel] of Object.entries(named)) {
+      const el = page.locator(sel).first();
+      await expect(el, `${name} is drawn`).toBeVisible();
+      const b = await el.boundingBox();
+      expect(b, `${name} has a box`).toBeTruthy();
+      // Inside the room, on every side.
+      expect(b.x, `${name} left`).toBeGreaterThanOrEqual(room.x - 0.5);
+      expect(b.x + b.width, `${name} right`).toBeLessThanOrEqual(room.x + room.width + 0.5);
+      expect(b.y, `${name} top`).toBeGreaterThanOrEqual(room.y - 0.5);
+      boxes[name] = b;
+    }
+
+    // The sign hangs OVER the door on purpose; everything else keeps clear.
+    const pairs = Object.entries(boxes);
+    for (let i = 0; i < pairs.length; i += 1) {
+      for (let j = i + 1; j < pairs.length; j += 1) {
+        const [an, a] = pairs[i];
+        const [bn, b] = pairs[j];
+        if (new Set([an, bn]).has('sign')) continue;
+        const hit = a.x < b.x + b.width && b.x < a.x + a.width
+          && a.y < b.y + b.height && b.y < a.y + a.height;
+        expect(hit, `${an} overlaps ${bn}`).toBe(false);
+      }
+    }
+    await shot(page, 'job4-fixtures');
+  });
+
+  // The television is at the BOTTOM of the room and there is one of it. The
+  // left-corner set is gone: two televisions in a one-television room was the
+  // thing job 4 is undoing.
+  test('one television, at the bottom, showing the casino', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await expect(page.locator('.home-flat__tv')).toHaveCount(1);
+    // Measured against the ROOM ITSELF (.home-flat, the authored 390x470 box)
+    // rather than the container it sits in: the container is flex:1 and carries
+    // the flat's own floor below the room, so "the bottom of the container" is
+    // not a fact about where the furniture is.
+    const flat = await page.locator('.home-flat').boundingBox();
+    const tv = await page.locator('.home-flat__tv').boundingBox();
+    expect(tv.y - flat.y).toBeGreaterThan(flat.height * 0.6);
+
+    // Either the board or a live felt — never nothing, and never both.
+    const board = await page.getByTestId('home-tv-board').count();
+    const felt = await page.getByTestId('home-tv-felt').count();
+    const tape = await page.getByTestId('home-tape').count();
+    expect(board + felt + tape).toBe(1);
+  });
+
+  // "No element overlaps a pill or bubble." A pill is unreadable the moment
+  // anything is drawn across it, and the room's whole speech rule (FIX-6 job 3)
+  // is modelled rather than measured — this is the measurement.
+  test('nothing is drawn across a name pill or a bubble', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const speech = await page.locator('.home-pill, .home-bubble').all();
+    expect(speech.length).toBeGreaterThan(0);
+    const boxes = [];
+    for (const el of speech) {
+      const b = await el.boundingBox();
+      if (b) boxes.push(b);
+    }
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const a = boxes[i];
+        const b = boxes[j];
+        const hit = a.x < b.x + b.width && b.x < a.x + a.width
+          && a.y < b.y + b.height && b.y < a.y + a.height;
+        expect(hit, `two of the room's boxes overlap at ${a.x},${a.y}`).toBe(false);
+      }
+    }
+
+    // ...and no pill is cut off by the room's own edge.
+    const room = await page.locator('.home1__room').boundingBox();
+    for (const b of boxes) {
+      expect(b.x).toBeGreaterThanOrEqual(room.x - 0.5);
+      expect(b.x + b.width).toBeLessThanOrEqual(room.x + room.width + 0.5);
+    }
+  });
+});

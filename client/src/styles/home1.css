@@ -141,32 +141,72 @@
 }
 
 /* the television */
+/* ── HOME-2 job 4 · the tape room, at the bottom of the room ───────────────
+   One television. There is no second set in the left corner any more — the
+   room has one screen and it shows the casino, which is what lets you see the
+   building from the sofa without leaving it. */
 .home-flat__tv {
   position: absolute;
   padding: 0;
-  border-radius: 4px;
-  background: #08100F;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 3px;
+  background: #070C0C;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   cursor: pointer;
+  min-height: 0;
 }
 .home-flat__tv-screen {
-  position: absolute; inset: 5px;
+  position: absolute; inset: 4px;
   border-radius: 2px;
-  background: radial-gradient(ellipse at 50% 44%, #2f4d48 0%, #16231F 74%);
+  background: linear-gradient(180deg, #101A18 0%, #0A1211 100%);
+  overflow: hidden;
 }
-.home-flat__tv-felt {
-  position: absolute; left: 50%; top: 46%;
-  width: 40px; height: 15px; margin-left: -20px;
-  border-radius: 50%;
-  background: rgba(47, 77, 72, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+/* the armchair, below the screen it faces */
+.home-flat__tv-chair {
+  position: absolute;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2E241C 0%, #1F1913 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
-.home-flat__tv-shimmer {
-  position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0, 212, 170, 0.055), transparent 60%);
-  animation: home-shimmer 3.6s ease-in-out infinite;
+
+/* What is on it. Either the casino board — three rooms, their stakes and how
+   many tables are running — or, when one of yours is in a hand, that hand:
+   MiniFelt, the same miniature the away frame draws. */
+.home-tv__board {
+  position: absolute;
+  inset: 0;
+  display: block;
 }
+.home-tv__title {
+  position: absolute; left: 7px; top: 5px;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 6.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-muted, #6B6B6B);
+}
+.home-tv__rooms {
+  position: absolute; left: 7px; right: 7px; top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.home-tv__room { display: flex; align-items: baseline; gap: 5px; }
+.home-tv__stakes {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7px;
+  color: var(--gold, #CDB380);
+}
+.home-tv__tables { font-size: 7px; color: var(--text-muted, #6B6B6B); }
+.home-tv__live-dot {
+  position: absolute; right: 6px; top: 6px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent, #00D4AA);
+  animation: home-shimmer 2.2s ease-in-out infinite;
+}
+/* MiniFelt is authored against a frame's box; on the set it fills the screen. */
+.home-tv__live { position: absolute; inset: 0; display: block; }
+.home-tv__live .home-frame__picture { position: absolute; inset: 0; }
 
 .home-flat__couch {
   position: absolute;
@@ -226,7 +266,46 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: #CDB380; opacity: 0.6;
 }
 
-/* the safe, under the frames — not from a ref, see flat.js */
+/* ── HOME-2 job 4 · the sign above the door ────────────────────────────────
+   A LIT MARQUEE, not a pill. A pill is a label ABOUT a thing; this is a thing
+   in the room, and it is switched on — which is why it carries a glow behind
+   it and a hairline over and under it rather than a border all the way round.
+
+   Anchored by its RIGHT edge, which is the one anchor that cannot clip: the
+   door starts at x356 of 390, so anything laid out rightward from the door
+   leaves the screen. Board 29 measured the old tag at 38px off frame. */
+.home-flat__sign {
+  position: absolute;
+  right: 6px;
+  z-index: 3;
+  padding: 4px 9px 5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #241F16 0%, #16120C 100%);
+  border-top: 1px solid rgba(205, 179, 128, 0.55);
+  border-bottom: 1px solid rgba(205, 179, 128, 0.3);
+  box-shadow: 0 0 14px rgba(205, 179, 128, 0.28);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.home-flat__sign-glow {
+  position: absolute;
+  inset: -6px -4px;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(205, 179, 128, 0.22), transparent 70%);
+}
+.home-flat__sign-word {
+  position: relative;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  /* All caps, and the letters are the light: a marquee is read by its glow at
+     this size, not by its box. */
+  color: #F2E2BE;
+  text-shadow: 0 0 6px rgba(205, 179, 128, 0.9), 0 0 14px rgba(205, 179, 128, 0.45);
+}
+
+/* the safe, against the left wall under the frames */
 .home-flat__safe {
   position: absolute;
   padding: 0;
@@ -248,7 +327,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* the fridge, beside the table — not from a ref, see flat.js */
+/* the fridge, on the kitchen wall */
 .home-flat__fridge {
   position: absolute;
   padding: 0;
@@ -574,14 +653,18 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 
 /* the tape room: what he is watching plays on the television */
-.home1__tape {
+/* HOME-2 job 4 · a hand being reviewed, ON the set. This used to be pinned at
+   a fixed point in the left corner where the old television was, so it was one
+   more thing that had to be moved by hand whenever the furniture did. It is
+   inside the screen now and moves with it. */
+.home-tv__tape {
   position: absolute;
-  left: 30px; top: 236px;
-  display: flex; gap: 3px;
-  z-index: 3;
+  left: 50%; top: 46%;
+  margin-left: -14px;
+  display: flex; gap: 2px;
 }
-.home1__tape i {
-  width: 7px; height: 10px;
+.home-tv__tape i {
+  width: 6px; height: 9px;
   border-radius: 1px;
   background: rgba(237, 237, 237, 0.75);
   animation: home-rise 1.4s ease-in-out infinite;
@@ -868,12 +951,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   .home-one--shuffles .home-prop--cards,
   .home-one--counts .home-prop--chips,
   .home-one--tape .home-one__body,
-  .home-flat__tv-shimmer,
+  .home-tv__live-dot,
   .home-frame__seat,
   .home-frame__card,
   .home-frame__glow,
   .home-prop--zzz span,
-  .home1__tape i,
+  .home-tv__tape i,
   .home-bubble,
   .home-thread__sheet,
   .home-sheet__panel {

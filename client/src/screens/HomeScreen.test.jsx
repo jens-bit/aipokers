@@ -682,6 +682,57 @@ describe('HOME-1 · the safe and the fridge', () => {
   });
 });
 
+// ── HOME-2 job 4 · the fixtures on the walls ────────────────────────────────
+
+describe('HOME-2 job 4 · the room has furniture in it', () => {
+  it('draws all four fixtures, and one television', async () => {
+    await boot([mkAgent('a1', 'Rocky')], null, { onOpenWallet: () => {} });
+    expect(await screen.findByTestId('home-safe')).toBeInTheDocument();
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(screen.getByTestId('home-door-sign')).toBeInTheDocument();
+    expect(document.querySelectorAll('.home-flat__tv')).toHaveLength(1);
+  });
+
+  // A SIGN, not a pill: a pill is a label about a thing, and this is a thing in
+  // the room that is switched on. All caps, and it says where the door goes.
+  it('the sign over the door is a lit marquee in all caps', async () => {
+    await boot([mkAgent('a1', 'Rocky')]);
+    const sign = await screen.findByTestId('home-door-sign');
+    const word = sign.querySelector('.home-flat__sign-word').textContent;
+    expect(word).toBe('CASINO');
+    expect(word).toBe(word.toUpperCase());
+    // Anchored by its RIGHT edge, which is the one anchor that cannot clip.
+    expect(window.getComputedStyle(sign).right).toBe('6px');
+    expect(window.getComputedStyle(sign).left).not.toBe('0px');
+  });
+
+  it('the television shows the casino when nobody is reviewing a hand', async () => {
+    fetchMock.route('/api/rooms', { rooms: [] });
+    await boot([mkAgent('a1', 'Rocky')]);
+    expect(await screen.findByTestId('home-tv-board')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-tape')).toBeNull();
+  });
+
+  // The ref's TV takes a `tape` prop and switches; the switch survives, and the
+  // bars are INSIDE the screen now rather than pinned where the old set was.
+  it('and the hand being reviewed when somebody is', async () => {
+    await boot([mkAgent('a1', 'Rocky', { routine: { key: 'tape', label: 'watching tape' } })]);
+    const tape = await screen.findByTestId('home-tape');
+    expect(tape.closest('.home-flat__tv')).toBeTruthy();
+    expect(screen.queryByTestId('home-tv-board')).toBeNull();
+  });
+
+  // The room does not print a price on the furniture and never has (FIX-6 job
+  // 4). The set carries stakes, which are not a price for anything here — they
+  // are what is being played in the building you can see from the sofa.
+  it('the set names stakes and the room still prices nothing', async () => {
+    fetchMock.route('/api/rooms', { rooms: [] });
+    await boot([mkAgent('a1', 'Rocky')]);
+    await screen.findByTestId('home-tv-board');
+    expect(document.querySelector('.home-flat').textContent).not.toMatch(/\$/);
+  });
+});
+
 // ── HOME-2 job 3 · identity, rolled at birth ────────────────────────────────
 
 describe('HOME-2 job 3 · four agents, four creatures', () => {

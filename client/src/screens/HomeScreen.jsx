@@ -54,6 +54,7 @@ import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
+import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
 import { homePositions, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
@@ -553,14 +554,21 @@ export function HomeScreen({
       // always opened the rail panel from this tap; the phone now agrees with it.
       onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
       tableLabel={game?.state === 'running' ? 'The table' : 'The chairs'}
+      // The tape room is a man doing something, so on the desk it opens HIM in
+      // the rail — the same place tapping his body puts him. With nobody
+      // studying the set is showing the casino, so it is a second door into it.
       onTv={studying ? (
-        // The tape room is a man doing something, so on the desk it opens HIM
-        // in the rail — the same place tapping his body puts him.
         desktop
           ? () => { setFocusId(studying.id); setRail('agent'); }
           : () => onProfile?.(studying)
-      ) : undefined}
+      ) : (!desktop && onCasino ? () => onCasino() : undefined)}
       tvLabel={studying ? `${studying.name} is watching a hand back` : null}
+      // HOME-2 job 4 · WHAT IS ON THE SET. A hand being reviewed if somebody is
+      // reviewing one — the ref's own `tape` state — and otherwise the casino:
+      // his table in miniature when one of yours is in a hand, the board when
+      // none is. Drawing a felt nobody is sitting at would be the one outright
+      // lie on the screen.
+      tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
     >
       <AwayWall
         away={away}
@@ -574,13 +582,6 @@ export function HomeScreen({
       ) : (
         <HomeGameTable board={[]} seatCount={0} running={false} />
       )}
-
-      {/* the tape room: what he is watching is on the television */}
-      {studying ? (
-        <span className="home1__tape" data-testid="home-tape">
-          {[0, 1, 2].map((i) => <i key={i} style={{ animationDelay: `${i * 0.45}s` }} />)}
-        </span>
-      ) : null}
 
       {home.map((agent) => {
         const at = positions.get(String(agent.id));
