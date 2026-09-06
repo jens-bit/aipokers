@@ -1,0 +1,115 @@
+// client/src/components/home/FridgeSheet.jsx — HOME-1
+//
+// What is in the fridge, and who gets it.
+//
+// The fridge is the stock sheet. Two things are in it, they are the two things
+// WANTS-1 defines (src/agent/wants.js ITEMS), and they do exactly one thing
+// each: soothe one mood step, on the pep talk's own cooldown.
+//
+// THIS IS NOT A SHOP, and the copy has to keep saying so. §7.1's law is that an
+// item touches STATE and never SKILL, and the moment reads as feeding a pet
+// rather than buying a powerup. So:
+//
+//   * No basket, no quantity, no total. One tap gives one thing to one agent.
+//   * The price is drawn once, small, as what it costs YOU — it comes out of the
+//     wallet and never out of a pocket, because a pocket that can buy things is
+//     a purchase path into the character system.
+//   * No item is ever recommended, and nothing is greyed out to make you want
+//     it. A refusal from the server (empty wallet, cooldown, nothing to soothe)
+//     is reported in his voice, not as an error.
+//
+// Prices are read from the server's answer rather than hard-coded here; the
+// constants below are the labels only, so a retuned price cannot go stale on
+// this screen.
+
+import { useState } from 'react';
+import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+
+export const STOCK = [
+  { id: 'beer',  label: 'A beer',   note: 'Takes the edge off. One step.' },
+  { id: 'snack', label: 'A snack',  note: 'Long night food. One step.' },
+];
+
+export async function giveItem(agentId, item) {
+  const userId = getUserId();
+  const initData = getTelegramInitData();
+  const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/give?userId=${encodeURIComponent(userId)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(initData ? { 'X-Telegram-Init-Data': initData } : {}),
+    },
+    body: JSON.stringify({ userId, item }),
+  });
+  const body = await res.json().catch(() => null);
+  return { ok: res.ok, body };
+}
+
+export function FridgeSheet({ agents = [], onClose, onGiven }) {
+  const [target, setTarget] = useState(() => agents[0]?.id ?? null);
+  const [busy, setBusy] = useState(null);
+  const [said, setSaid] = useState(null);
+
+  const give = async (item) => {
+    if (!target || busy) return;
+    setBusy(item);
+    setSaid(null);
+    const { ok, body } = await giveItem(target, item);
+    setBusy(null);
+    // His line either way — the server sends one for the refusal too.
+    setSaid(body?.moment?.text ?? body?.line ?? body?.error ?? null);
+    if (ok) onGiven?.(target, item, body);
+  };
+
+  return (
+    <div className="home-sheet" role="dialog" aria-label="The fridge" data-testid="home-fridge-sheet">
+      <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+      <div className="home-sheet__panel">
+        <div className="home-sheet__head">
+          <span className="home-sheet__title">The fridge</span>
+          <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        {agents.length > 1 ? (
+          <div className="home-sheet__who" role="radiogroup" aria-label="Who gets it">
+            {agents.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                role="radio"
+                aria-checked={target === a.id}
+                className={`home-sheet__whochip${target === a.id ? ' is-on' : ''}`}
+                onClick={() => setTarget(a.id)}
+              >
+                {String(a.name || '').split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <ul className="home-sheet__stock">
+          {STOCK.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                className="home-sheet__item"
+                disabled={!target || !!busy}
+                onClick={() => give(item.id)}
+                data-testid={`home-give-${item.id}`}
+              >
+                <span className={`home-sheet__icon home-sheet__icon--${item.id}`} aria-hidden />
+                <span className="home-sheet__item-text">
+                  <span className="home-sheet__item-label">{item.label}</span>
+                  <span className="home-sheet__item-note">{item.note}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {said ? <p className="home-sheet__said">{said}</p> : null}
+        <p className="home-sheet__foot">Out of your wallet. Never out of his pocket.</p>
+      </div>
+    </div>
+  );
+}

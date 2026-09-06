@@ -48,7 +48,7 @@ describe('DEEPLINK-1 start params', () => {
 
   it('agent_<id>: opens the thread when the app is ALREADY open', async () => {
     render(<App />);
-    await screen.findByText('Standup');   // the floor, where a launch with no link lands
+    await screen.findByTestId('home-screen');   // the room, where a launch with no link lands
 
     telegram.startWith(`agent_${restingAgent.id}`);
     telegram.emit('activated');
@@ -56,11 +56,11 @@ describe('DEEPLINK-1 start params', () => {
     expect(await screen.findByPlaceholderText(`Message ${restingAgent.name}…`)).toBeInTheDocument();
   });
 
-  it('agent_<id>: a link to an agent this owner does not have leaves him on the floor', async () => {
+  it('agent_<id>: a link to an agent this owner does not have leaves him in the room', async () => {
     telegram.startWith('agent_agent_someone_else');
     render(<App />);
 
-    expect(await screen.findByText('Standup')).toBeInTheDocument();
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
     // Give the resolve a turn to finish before deciding nothing happened.
     await waitFor(() => expect(fetchMock.requestsMatching('/api/agents').length).toBeGreaterThan(0));
     expect(screen.queryByPlaceholderText(/^Message /)).not.toBeInTheDocument();
@@ -133,12 +133,16 @@ describe('DEEPLINK-1 start params', () => {
   it('a param from some other campaign is not an error — the app opens as it always does', async () => {
     telegram.startWith('promo_summer');
     render(<App />);
-    expect(await screen.findByText('Standup')).toBeInTheDocument();
-    expect(socketMock.last()).toBeNull();
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
+    // HOME-1: the room holds a floor subscription of its own, so "no socket at
+    // all" stopped being the way to say "nothing was watched". What the link
+    // must not do is put anybody at a table, and that is a WATCH frame.
+    const watched = socketMock.instances.some((s) => s.sent.some((m) => m.type === 'watch'));
+    expect(watched).toBe(false);
   });
 
-  it('no param at all opens the casino floor', async () => {
+  it('no param at all opens the room', async () => {
     render(<App />);
-    expect(await screen.findByText('Standup')).toBeInTheDocument();
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
   });
 });

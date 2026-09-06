@@ -1,0 +1,817 @@
+/* client/src/styles/home1.css — HOME-1
+ *
+ * The flat, seen from above. Ported from design-refs/mood-home.jsx, whose room
+ * is authored inline at a fixed 390x470. That fixed box is kept: every
+ * coordinate in flat.js is in it, and the whole room is scaled to the viewport
+ * with one transform rather than by making nine fixtures responsive. One
+ * arithmetic, every device — which is also what lets the layout tests assert on
+ * numbers instead of on rendered geometry.
+ *
+ * MOTION IS THE SCREEN. The routines are the texture the room has when nothing
+ * is happening, so every one of them that moves is a keyframe here rather than
+ * a state in React: a pacing Hothead must not re-render the room sixty times a
+ * second to pace. Everything respects prefers-reduced-motion at the bottom.
+ */
+
+.home1 {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-tertiary, #0F1514);
+  overflow: hidden;
+}
+
+/* The room is authored at 390x470 and the phone is taller than that, so there
+ * is always floor below it. The container carries the flat's OWN ground so the
+ * seam is invisible and the extra space reads as more room rather than as a
+ * black band under a picture of one. */
+.home1__room {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 52% 34%, #1C2523 0%, #141B1A 48%, #0F1514 100%);
+}
+
+/* ...and the boards keep running away from the viewer past the flat's edge. */
+.home1__room::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 470px; bottom: 0;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 42px
+  );
+  pointer-events: none;
+}
+
+/* The label a screen reader needs and the room must never print. The pill says
+ * stamina and heat as two rules; this is the same thing in words, for someone
+ * who cannot see a rule. */
+.home1 .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The room is authored at 390x470 and scaled to whatever it is given. */
+.home1__scale {
+  position: relative;
+  transform-origin: top center;
+  transform: scale(min(1, calc(100cqw / 390)));
+}
+@container (min-width: 0px) {
+  .home1__scale { transform: scale(min(1, calc(100cqw / 390))); }
+}
+.home1__room { container-type: inline-size; }
+
+.home1__ftu-action {
+  margin-top: 12px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--accent, #00D4AA);
+  background: transparent;
+  color: var(--accent, #00D4AA);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* base.css sets `button { text-transform: uppercase; letter-spacing: .12em }`
+ * for the product's chrome, and EVERY body, frame and fixture in this room is a
+ * button. Left alone it turned "Big Slick" into "BIG SLICK" on the brass plate
+ * and pushed every name past the width the ref draws it in. The room speaks in
+ * sentence case; the labels that are meant to shout say so themselves. */
+.home1 button,
+.home1 button span {
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: inherit;
+}
+
+/* ── The room ────────────────────────────────────────────────────────────── */
+
+.home-flat {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 52% 58%, #1C2523 0%, #141B1A 62%, #0F1514 100%);
+}
+
+.home-flat__boards span {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.home-flat__wall {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  background: linear-gradient(180deg, #101616 0%, #131A19 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+/* the television */
+.home-flat__tv {
+  position: absolute;
+  padding: 0;
+  border-radius: 4px;
+  background: #08100F;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+  cursor: pointer;
+}
+.home-flat__tv-screen {
+  position: absolute; inset: 5px;
+  border-radius: 2px;
+  background: radial-gradient(ellipse at 50% 44%, #2f4d48 0%, #16231F 74%);
+}
+.home-flat__tv-felt {
+  position: absolute; left: 50%; top: 46%;
+  width: 40px; height: 15px; margin-left: -20px;
+  border-radius: 50%;
+  background: rgba(47, 77, 72, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+.home-flat__tv-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0, 212, 170, 0.055), transparent 60%);
+  animation: home-shimmer 3.6s ease-in-out infinite;
+}
+
+.home-flat__couch {
+  position: absolute;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #241D26 0%, #1A151C 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.home-flat__couch span {
+  position: absolute; left: 6px; right: 6px;
+  height: 34px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.035);
+}
+.home-flat__couch span:first-child { top: 8px; }
+.home-flat__couch span:last-child { bottom: 8px; }
+
+.home-flat__table {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+
+.home-flat__door {
+  position: absolute;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(90deg, #1B1917 0%, #2A2622 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: none;
+}
+.home-flat__door-light {
+  position: absolute; inset: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 40%, rgba(205, 179, 128, 0.11) 100%);
+}
+.home-flat__door-knob {
+  position: absolute; left: 8px; top: 50%;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: #CDB380; opacity: 0.6;
+}
+
+/* the safe, under the frames — not from a ref, see flat.js */
+.home-flat__safe {
+  position: absolute;
+  padding: 0;
+  border-radius: 3px;
+  background: linear-gradient(160deg, #232624 0%, #171A19 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.home-flat__safe-dial {
+  position: absolute; left: 50%; top: 50%;
+  width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(205, 179, 128, 0.55);
+}
+.home-flat__safe-hinge {
+  position: absolute; left: 4px; top: 6px; bottom: 6px;
+  width: 2px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* the fridge, beside the table — not from a ref, see flat.js */
+.home-flat__fridge {
+  position: absolute;
+  padding: 0;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2A2E2C 0%, #1D2120 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.home-flat__fridge-split {
+  position: absolute; left: 5px; right: 5px; top: 42%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.09);
+}
+.home-flat__fridge-handle {
+  position: absolute; right: 7px; top: 22%;
+  width: 2px; height: 30%;
+  border-radius: 1px;
+  background: rgba(237, 237, 237, 0.35);
+}
+
+.home-flat__lamp {
+  position: absolute;
+  width: 260px; height: 240px;
+  background: radial-gradient(ellipse, rgba(255, 236, 190, 0.055), transparent 66%);
+  pointer-events: none;
+}
+
+/* ── The wall of frames ──────────────────────────────────────────────────── */
+
+.home-wall {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-frame {
+  padding: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0A0E0D;
+  border: 2px solid #2A2419;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  text-align: left;
+}
+.home-frame.is-hot { border-color: rgba(205, 179, 128, 0.6); }
+
+.home-frame__picture {
+  position: relative;
+  display: block;
+  height: 46px;
+  background: radial-gradient(ellipse at 50% 46%, #24382F 0%, #131C1A 78%);
+}
+.home-frame__felt {
+  position: absolute; left: 50%; top: 15px; height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(47, 77, 72, 0.92), rgba(29, 46, 44, 0.5));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.home-frame__body {
+  position: absolute;
+  width: 5px; height: 6px; margin-left: -2.5px;
+  border-radius: 3px 3px 1px 1px;
+  background: rgba(237, 237, 237, 0.2);
+}
+.home-frame__seat {
+  position: absolute; left: 50%; bottom: 4px; margin-left: -5px;
+  width: 10px; height: 11px;
+  border-radius: 5px 5px 2px 2px;
+  animation: home-pulse 2.4s ease-in-out infinite;
+}
+.home-frame__cards {
+  position: absolute; left: 50%; top: 20px;
+  transform: translateX(-50%);
+  display: flex; gap: 1.5px;
+}
+.home-frame__card {
+  width: 5px; height: 7px; border-radius: 1px;
+  background: #E8E6E0;
+  animation: home-rise 0.5s ease-out both;
+}
+.home-frame__pot {
+  position: absolute; right: 5px; top: 5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px; font-weight: 700;
+  color: #CDB380;
+}
+.home-frame__glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(205, 179, 128, 0.15), transparent 70%);
+  animation: home-shimmer 1.8s ease-in-out infinite;
+}
+.home-frame__plate {
+  display: block;
+  padding: 3px 6px 4px;
+  background: #171310;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.home-frame__name {
+  display: block;
+  font-size: 8px; color: var(--text-primary, #EDEDED);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.home-frame__line {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px; color: #00D4AA; white-space: nowrap;
+}
+.home-frame__line.is-down { color: #FF4D4F; }
+
+.home-wall__hook {
+  width: 44px; height: 34px;
+  border-radius: 3px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex; align-items: center; justify-content: center;
+}
+.home-wall__hook i {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* ── An occupant ─────────────────────────────────────────────────────────── */
+
+.home-one {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* THE WALK. Every position change is a crossing, and this is the whole of it:
+   * the left/top the room computed, transitioned rather than jumped. */
+  transition: left 1.6s cubic-bezier(0.4, 0, 0.25, 1), top 1.6s cubic-bezier(0.4, 0, 0.25, 1);
+}
+.home-one.is-walking { z-index: 900 !important; }
+.home-one.is-walking .home-one__body { animation: home-walkbob 0.5s ease-in-out infinite; }
+
+.home-one__body { position: relative; display: block; }
+.home-one__hands {
+  position: absolute; left: 0; top: 0;
+  overflow: visible; pointer-events: none; z-index: 5;
+}
+.home-one__back { position: relative; display: block; }
+.home-one__cards {
+  position: absolute; left: 50%; top: 60%;
+  transform: translateX(-50%);
+  display: flex; gap: 2px; z-index: 4;
+}
+
+/* routine idles */
+.home-one--paces { animation: home-pace 3.4s ease-in-out infinite; }
+.home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out infinite; }
+.home-one--counts .home-prop--chips { animation: home-count 2.2s ease-in-out infinite; }
+.home-one--tape .home-one__body { animation: home-lean 4s ease-in-out infinite; }
+
+/* ── The pill, ABOVE the head (Jens's correction) ─────────────────────────── */
+
+.home-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 7px 4px;
+  border-radius: 8px;
+  background: rgba(8, 12, 12, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+.home-pill--news { border-color: rgba(205, 179, 128, 0.5); }
+.home-pill__name { font-size: 8.5px; font-weight: 600; letter-spacing: 0.02em; }
+.home-pill__lines { display: flex; align-items: center; gap: 5px; }
+
+/* stamina runs DOWN — three blocks fresh, one worn */
+.home-pill__stamina { display: flex; gap: 1.5px; }
+.home-pill__stamina i {
+  width: 4px; height: 3px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.home-pill__stamina i.is-on { background: rgba(237, 237, 237, 0.55); }
+.home-pill[data-fatigue='worn'] .home-pill__stamina i.is-on { background: #CDB380; }
+
+/* heat runs UP — a rule, so it is never read as a second stamina */
+.home-pill__heat {
+  position: relative;
+  width: 22px; height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.home-pill__heat i {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: #6B6B6B;
+}
+.home-pill[data-heat='warm'] .home-pill__heat i { background: #CDB380; }
+.home-pill[data-heat='hot'] .home-pill__heat i { background: #FF4D4F; }
+
+/* ── The bubble that flips rather than clips ─────────────────────────────── */
+
+.home-bubble-slot { position: relative; width: 0; height: 38px; }
+.home-bubble {
+  position: absolute;
+  bottom: 0;
+  width: 152px;
+  padding: 5px 9px;
+  border-radius: 11px;
+  background: rgba(20, 28, 27, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-secondary, #A1A1A1);
+  text-align: left;
+  white-space: normal;
+  animation: home-bubblein 0.3s ease-out both;
+}
+.home-bubble--right { left: 9px; border-bottom-left-radius: 3px; }
+.home-bubble--left { right: 9px; border-bottom-right-radius: 3px; }
+.home-bubble--gold {
+  background: rgba(205, 179, 128, 0.12);
+  border-color: rgba(205, 179, 128, 0.4);
+  color: #CDB380;
+}
+
+/* ── Routine props ───────────────────────────────────────────────────────── */
+
+.home-prop { position: absolute; pointer-events: none; }
+.home-prop--paper {
+  left: -4px;
+  border-radius: 1px;
+  background: #C9C6BC;
+  border: 1px solid #6E6B62;
+  transform: rotate(-6deg);
+}
+.home-prop--paper span {
+  position: absolute; left: 3px; right: 3px; height: 1px; background: #8A877E;
+}
+.home-prop--cards { display: flex; }
+.home-prop--cards span {
+  border-radius: 1.5px;
+  background: #16202B;
+  border: 1px solid rgba(0, 212, 170, 0.27);
+}
+.home-prop--chips span {
+  position: absolute;
+  width: 13px; height: 5.5px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+.home-prop--chips span.is-red { background: #B4353A; }
+.home-prop--chips span.is-pale { background: #D8D4CC; }
+.home-prop--zzz {
+  right: -12px; top: -4px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.home-prop--zzz span {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--text-muted, #6B6B6B);
+  animation: home-shimmer 2.6s ease-in-out infinite;
+}
+
+/* ── The home game ───────────────────────────────────────────────────────── */
+
+.home-game__centre {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+.home-game__board { display: flex; gap: 2.5px; }
+.home-game__chips { position: absolute; z-index: 2; }
+.home-game__chips i {
+  position: absolute;
+  width: 12px; height: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+.home-game__chips i.is-green { background: #2E7D53; }
+.home-game__chips i.is-pale { background: #D8D4CC; }
+.home-game__chips i.is-red { background: #B4353A; }
+.home-game__label {
+  position: absolute;
+  /* Above the bodies: they are z-indexed by their y, and the far seat stands
+   * exactly where the ref puts this label. */
+  z-index: 400;
+  white-space: nowrap;
+  font-family: var(--font-display, 'Oswald', sans-serif);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--text-muted, #6B6B6B);
+}
+
+/* the tape room: what he is watching plays on the television */
+.home1__tape {
+  position: absolute;
+  left: 30px; top: 236px;
+  display: flex; gap: 3px;
+  z-index: 3;
+}
+.home1__tape i {
+  width: 7px; height: 10px;
+  border-radius: 1px;
+  background: rgba(237, 237, 237, 0.75);
+  animation: home-rise 1.4s ease-in-out infinite;
+}
+
+/* ── The thread band ─────────────────────────────────────────────────────── */
+
+.home-thread {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.home-thread__band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 17, 17, 0.96);
+  backdrop-filter: blur(12px);
+}
+.home-thread__line {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.home-thread__who {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent, #00D4AA);
+}
+.home-thread__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-secondary, #A1A1A1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-thread__composer { display: flex; align-items: center; gap: 6px; }
+.home-thread__input {
+  width: 108px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary, #EDEDED);
+  font-size: 11.5px;
+}
+.home-thread__input:focus { outline: none; border-color: var(--accent, #00D4AA); width: 150px; }
+.home-thread__send {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent, #00D4AA);
+  color: #06110F;
+  cursor: pointer;
+}
+.home-thread__send:disabled { opacity: 0.35; cursor: default; }
+
+/* Expanded: a glass sheet OVER the room. The room never resizes for it. */
+.home-thread__sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 100%;
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px 16px 0 0;
+  background: rgba(10, 15, 15, 0.86);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: none;
+  animation: home-sheetup 0.24s ease-out both;
+}
+.home-thread__grab {
+  display: flex; justify-content: center;
+  padding: 8px 0 4px;
+  background: none; border: none; cursor: pointer;
+}
+.home-thread__grab span {
+  width: 34px; height: 3px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.home-thread__head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 14px 8px;
+}
+.home-thread__spacer { flex: 1; }
+.home-thread__state {
+  font-size: 8px; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--text-muted, #6B6B6B);
+}
+.home-thread__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 14px 14px;
+}
+.home-thread__empty {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted, #6B6B6B);
+}
+
+/* ── The want toast ──────────────────────────────────────────────────────── */
+
+.home-want {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(205, 179, 128, 0.28);
+  background: rgba(205, 179, 128, 0.09);
+}
+.home-want.is-dangerous { border-top-color: rgba(255, 77, 79, 0.35); background: rgba(255, 77, 79, 0.07); }
+.home-want__who {
+  flex-shrink: 0;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #CDB380;
+}
+.home-want__text {
+  flex: 1; min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-primary, #EDEDED);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.home-want__chips { display: flex; gap: 5px; flex-shrink: 0; }
+.home-want__chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: var(--text-secondary, #A1A1A1);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); color: var(--accent, #00D4AA); }
+.home-want__chip:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Sheets (the fridge) ─────────────────────────────────────────────────── */
+
+.home-sheet { position: fixed; inset: 0; z-index: 60; }
+.home-sheet__scrim {
+  position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  border: none; padding: 0;
+}
+.home-sheet__panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px 18px 0 0;
+  background: rgba(14, 20, 19, 0.97);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  animation: home-sheetup 0.24s ease-out both;
+}
+.home-sheet__head { display: flex; align-items: center; padding: 6px 0 10px; }
+.home-sheet__title {
+  flex: 1;
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: 15px; font-weight: 600;
+  color: var(--text-primary, #EDEDED);
+}
+.home-sheet__close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted, #6B6B6B); font-size: 15px;
+}
+.home-sheet__who { display: flex; gap: 6px; padding-bottom: 10px; flex-wrap: wrap; }
+.home-sheet__whochip {
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text-secondary, #A1A1A1);
+  font-size: 11px;
+  cursor: pointer;
+}
+.home-sheet__whochip.is-on { border-color: var(--accent, #00D4AA); color: var(--accent, #00D4AA); }
+.home-sheet__stock { list-style: none; margin: 0; padding: 0; }
+.home-sheet__item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  background: none; border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+  cursor: pointer;
+}
+.home-sheet__item:disabled { opacity: 0.4; cursor: default; }
+.home-sheet__icon {
+  flex-shrink: 0;
+  width: 22px; height: 26px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.home-sheet__icon--beer { background: linear-gradient(180deg, #C9A227 40%, #8A6E14 100%); }
+.home-sheet__icon--snack { background: linear-gradient(180deg, #B4353A 40%, #6E2023 100%); }
+.home-sheet__item-text { display: flex; flex-direction: column; gap: 2px; }
+.home-sheet__item-label { font-size: 13px; color: var(--text-primary, #EDEDED); }
+.home-sheet__item-note { font-size: 11px; color: var(--text-muted, #6B6B6B); }
+.home-sheet__said {
+  margin: 10px 0 0;
+  font-size: 11.5px; font-style: italic;
+  color: var(--text-secondary, #A1A1A1);
+}
+.home-sheet__foot {
+  margin: 12px 0 0;
+  font-size: 10px;
+  color: var(--text-faded, #4A4A4A);
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────── */
+
+@keyframes home-shimmer {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes home-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+@keyframes home-rise {
+  0% { opacity: 0; transform: translateY(4px); }
+  60% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0.85; transform: translateY(0); }
+}
+@keyframes home-bubblein {
+  0% { opacity: 0; transform: translateY(4px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes home-sheetup {
+  0% { transform: translateY(14px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+/* he paces: a short track, not a lap of the room */
+@keyframes home-pace {
+  0%, 100% { transform: translate(-50%, -100%) translateX(-11px); }
+  50% { transform: translate(-50%, -100%) translateX(11px); }
+}
+@keyframes home-shuffle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes home-count {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes home-lean {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+@keyframes home-walkbob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-one,
+  .home-one--paces,
+  .home-one.is-walking .home-one__body,
+  .home-one--shuffles .home-prop--cards,
+  .home-one--counts .home-prop--chips,
+  .home-one--tape .home-one__body,
+  .home-flat__tv-shimmer,
+  .home-frame__seat,
+  .home-frame__card,
+  .home-frame__glow,
+  .home-prop--zzz span,
+  .home1__tape i,
+  .home-bubble,
+  .home-thread__sheet,
+  .home-sheet__panel {
+    animation: none !important;
+    transition: none !important;
+  }
+}

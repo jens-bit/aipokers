@@ -22,6 +22,7 @@ import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { ChatsScreen } from './screens/ChatsScreen.jsx';
+import { HomeScreen } from './screens/HomeScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
@@ -72,11 +73,15 @@ export default function App() {
   useEffect(() => initViewportTracking(), []);
 
   const [historyOpen, setHistoryOpen] = useState(false);
-  // CASINO-1: the nav is HOME · CASINO · YOU. 'home' is today's floor (the
-  // room your agents live in — HOME-1 replaces what it renders later) and
-  // 'casino' is the building, board 27. 'chats' is still a tab VALUE and still
-  // renders its screen; it is just no longer a button in the bar, because the
-  // thread is reached from Home and from a profile.
+  // CASINO-1: the nav is HOME · CASINO · YOU. 'casino' is the building, board
+  // 27. 'chats' is still a tab VALUE and still renders its screen; it is just
+  // no longer a button in the bar, because the thread is reached from Home and
+  // from a profile.
+  //
+  // HOME-1: and 'home' is now the flat, board 29 — the room your agents live
+  // in, which is what CASINO-1 left the floor standing in for. The floor
+  // answered "who is playing"; the room answers "where is everybody", which is
+  // the screen this product is.
   const [activeTab, setActiveTab] = useState('home');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
@@ -162,6 +167,24 @@ export default function App() {
 
   function openAgentProfile(agent) {
     setAgentProfileTarget(agent);
+  }
+
+  // HOME-1: the room's composer. Same endpoint the CHATS thread uses — one way
+  // to say something to an agent, and the SERVER writes the row. Nothing here
+  // inserts a line into the thread; HomeThread reloads it and reads what was
+  // actually stored.
+  async function sendToAgent(agent, text) {
+    if (!agent?.id || !text) return null;
+    try {
+      const res = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agent.id }),
+      });
+      return res.ok ? res.json() : null;
+    } catch {
+      return null;
+    }
   }
 
   // ── DEEPLINK-1 · the other end of every link the bot sends ─────────────────
@@ -508,20 +531,22 @@ export default function App() {
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game" style={{ position: 'relative' }}>
+          {/* HOME-1 · board 29 — the flat, seen from above. It takes the place
+              CASINO-1 left the floor standing in: HOME is the household, CASINO
+              is the building. The floor itself is not deleted — DesktopHome
+              still draws it — it just is not a mobile tab any more. */}
           {activeTab === 'home' && (
-            <CasinoFloor
+            <HomeScreen
+              wsUrl={WS_URL}
               onCreateAgent={() => setIsCreating(true)}
-              onChat={openAgentChat}
               onProfile={openAgentProfile}
-              // WIRE-1 (FLOW-1 F-4): the floor offers "watch him" the moment
-              // this one sits down for the first time. It is the link between
-              // building an agent and seeing him play, and it is only ever on
-              // offer for the hand right after a birth.
-              newbornId={newlyBornAgent?.id ?? null}
+              // CASINO-1's promise: the thread is reached from Home and from a
+              // profile. In the room, from the man.
+              onOpenThread={openAgentChat}
+              onOpenWallet={(agent) => (agent ? openAgentProfile(agent) : navigateTo('you'))}
+              onSend={sendToAgent}
               onWatch={async (agent) => {
                 if (!agent?.activeTableId) return;
-                // Taking the offer spends it — a second hand is just poker.
-                setNewlyBornAgent(null);
                 watchOriginRef.current = hereOrigin();
                 let memoryContext = '';
                 try {
@@ -539,10 +564,10 @@ export default function App() {
                   memoryContext,
                 });
               }}
-              // CASINO-1: "Deal him in" on the floor no longer opens a
-              // socket. The casino is the only place a deploy happens,
-              // because the room and the buy-in are decided there, so this
-              // walks him over with the agent already chosen.
+              // CASINO-1: the casino is the only place a deploy happens, because
+              // the room and the buy-in are decided there. A `needs: 'deploy'`
+              // yes from a want walks him over with the agent already chosen
+              // rather than opening a socket from the living room.
               onDeploy={placeInCasino}
             />
           )}
