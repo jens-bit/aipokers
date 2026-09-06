@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
+import { useDeepLink } from './hooks/useDeepLink.js';
+import { resolveDeepLink } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
@@ -23,6 +25,7 @@ import { ChatsScreen } from './screens/ChatsScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
+import { ReplayTheatre } from './components/replay/ReplayTheatre.jsx';
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -125,6 +128,64 @@ export default function App() {
   function openAgentProfile(agent) {
     setAgentProfileTarget(agent);
   }
+
+  // ── DEEPLINK-1 · the other end of every link the bot sends ─────────────────
+  //
+  // NOTIFY puts `?startapp=agent_<id>` under every inline button and SHARE puts
+  // `?startapp=hand_<agentId>_<handId>` under every card. Those links have been
+  // going out since NOTIFY-1; until now they all landed on the home screen,
+  // which makes a message about one hand indistinguishable from a message about
+  // nothing. Three params, three destinations: his thread, that hand in the
+  // theatre, that table being watched.
+  //
+  // Resolution is the lib's (client/src/lib/deeplink.js) — it is what fetches
+  // the agent and the hand. This only decides where the app stands afterwards.
+  const [deepLinkHand, setDeepLinkHand] = useState(null);
+
+  const watchTable = useCallback((tableId, agent) => {
+    if (!tableId) return;
+    setActiveAgent(agent?.id ?? null, agent ?? null);
+    watch({
+      tableId,
+      agentId: agent?.id ?? null,
+      userId: getUserId(),
+      agentStrategy: agent?.strategy ?? null,
+      displayName: agent?.name || getTelegramDisplayName() || 'Agent',
+      wantOpponentAI: false,
+      // A watcher who arrived by link is not deploying him, so there is no
+      // memory to carry in — the table already has his.
+      memoryContext: '',
+    });
+  // setActiveAgent is a plain function over a ref and two setStates; `watch`
+  // is the only value under here that can change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watch]);
+
+  useDeepLink((route) => {
+    resolveDeepLink(route)
+      .then((opened) => {
+        if (!opened) return;
+        if (opened.kind === 'hand') {
+          setDeepLinkHand(opened);
+          return;
+        }
+        setDeepLinkHand(null);
+        if (opened.kind === 'table') {
+          watchTable(opened.tableId, opened.agent);
+        } else {
+          // `agent` also covers the hand that can no longer be replayed: the
+          // link still lands on the agent it was about.
+          //
+          // Nothing here disconnects. A link that arrives while the owner is
+          // at a table sets where he stands and is seen when he leaves it —
+          // pulling a player out of a hand he is in the middle of is a worse
+          // answer than a thread that is already open when he gets back.
+          setAgentProfileTarget(null);
+          openAgentChat(opened.agent);
+        }
+      })
+      .catch(() => { /* a link that resolves to nothing leaves the app where it was */ });
+  });
 
   const callAgentFinish = useCallback((agentId) => {
     if (!agentId) return;
@@ -241,6 +302,25 @@ export default function App() {
     lastResultKeyRef.current = key;
     loadLatestAgentHand(activeAgentId);
   }, [history, config?.isSpectator, activeAgentId, loadLatestAgentHand]);
+
+  // DEEPLINK-1: a shared hand opens as the theatre and nothing else, on the
+  // desk as on a phone. The link is about one hand; Back from it lands on the
+  // thread of the agent who played it, which is where the message came from.
+  if (deepLinkHand) {
+    return (
+      <div className="app">
+        <ReplayTheatre
+          hand={deepLinkHand.hand}
+          agentId={deepLinkHand.agent?.id ?? null}
+          onBack={() => {
+            const agent = deepLinkHand.agent;
+            setDeepLinkHand(null);
+            if (agent) openAgentChat(agent);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (isDesktop) {
     const watchPayload = (payload, agent) => {

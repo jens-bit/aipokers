@@ -16,6 +16,7 @@ import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/ato
 import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
 import { callInAgent, collectFrom, collectsEverything, pocketOf } from '../lib/wallet.js';
+import { setAgentMuted } from '../lib/notifyApi.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
@@ -235,7 +236,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 //
 // "Call him in" is Deploy's opposite and takes its slot rather than sitting
 // beside it; only one of the two is ever true.
-function ActionRow({ live, onPrimary, onFund, onRetire }) {
+function ActionRow({ live, muted, onPrimary, onFund, onRetire, onToggleMute }) {
   const [menu, setMenu] = useState(false);
 
   return (
@@ -304,6 +305,24 @@ function ActionRow({ live, onPrimary, onFund, onRetire }) {
             boxShadow: '0 10px 26px rgba(0,0,0,0.45)', overflow: 'hidden',
           }}
         >
+          {/* DEEPLINK-1 — his voice when the owner is away. Per agent, because
+              that is what the notifier checks (notify.js reads notifyMuted off
+              the agent record), and because silencing one must not cost his
+              stablemates the budget they share. It sits above Retire and
+              behind the same overflow: it is a preference, not an action on
+              him, and it is not a neighbour of Deploy either. */}
+          <button
+            type="button"
+            onClick={() => { setMenu(false); onToggleMute?.(); }}
+            style={{
+              width: '100%', height: 38, minHeight: 0, padding: '0 13px', textAlign: 'left',
+              background: 'none', border: 'none', borderBottom: `1px solid ${M_BORDER}`,
+              color: muted ? M_TEAL : M_DIM, cursor: 'pointer',
+              fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
+
           <button
             type="button"
             onClick={() => { setMenu(false); onRetire?.(); }}
@@ -408,6 +427,24 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const [retirePending, setRetirePending] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState(null);
+  // DEEPLINK-1: the mute, held locally so the menu redraws on the tap rather
+  // than on the next roster refresh. `null` means "ask the record" — the flag
+  // rides GET /api/agents, so an agent that has never been muted has no key at
+  // all and reads as audible.
+  const [mutedLocal, setMutedLocal] = useState(null);
+  useEffect(() => { setMutedLocal(null); }, [agent?.id]);
+  const isMuted = mutedLocal ?? !!agent?.notifyMuted;
+
+  async function handleToggleMute() {
+    if (!agent?.id) return;
+    const next = !isMuted;
+    setMutedLocal(next);   // optimistic: one tap, one redraw
+    try {
+      setMutedLocal(await setAgentMuted(agent.id, next));
+    } catch {
+      setMutedLocal(!next); // the server refused — put the menu back
+    }
+  }
 
   async function handleCollect(target) {
     const before = pocketOf(target);
@@ -542,9 +579,11 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
           taking these off the thread was that they are always to hand. */}
       <ActionRow
         live={isLive}
+        muted={isMuted}
         onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))}
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
+        onToggleMute={handleToggleMute}
       />
 
       {/* Scrollable body */}
