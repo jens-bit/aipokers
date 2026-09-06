@@ -1197,8 +1197,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .table-sheet__foot b { color: #A1A1A1; font-weight: 600; }
 
-/* The safe is MoneySheet, which is authored for a phone screen and fills it.
- * In the rail it is the panel, so it stops being a scrolling page inside a
- * scrolling page. */
-.dsk-panel--safe { overflow: hidden; }
-.dsk-panel--safe .money-sheet { flex: 1; min-height: 0; }
+/* SAFE-2: the safe is a RailPanel like the fridge and the table now, so the
+ * panel head names it and .dsk-rail-body does the scrolling. What is left here
+ * is the room's own sheet, over the room, on the phone. */
+.home1 .safe--sheet { z-index: 60; }

@@ -27,13 +27,25 @@ function cutLine(agent) {
     : 'at the bar · nothing pending';
 }
 
-export function PocketRow({ agent, index = 0, onFund, onCollect, onCallIn, onOpenProfile }) {
+/**
+ * SAFE-2 — `only` narrows what the row draws.
+ *
+ * The safe's three verbs are three questions, and a row that answered all of
+ * them under each one would be the pocket GRID the safe replaced, one tap
+ * deeper. So GIVE's rows offer giving, TAKE's rows offer bringing home, and
+ * neither borrows the other's button. Omitted, the row draws whatever
+ * rowActions() offers — which is what the row has always done.
+ */
+export function PocketRow({ agent, index = 0, only = null, onFund, onCollect, onCallIn, onOpenProfile }) {
   const pocket = pocketOf(agent);
   if (!pocket) return null;
 
   const accent = accentFor(agent, index);
   const seated = presenceOf(agent) === 'playing';
-  const actions = rowActions(pocket, { seated });
+  const offered = rowActions(pocket, { seated });
+  const actions = only
+    ? { fund: false, collect: false, callIn: false, ...Object.fromEntries(only.map((k) => [k, offered[k]])) }
+    : offered;
   const isCut = pocket.mode === 'cut';
   const tone = pnlTone(pocket.pnl);
   const pnlColor = pocket.pnl === null ? M_MUTED : tone === 'down' ? M_RED : tone === 'flat' ? M_MUTED : M_TEAL;
@@ -126,14 +138,19 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onCallIn, onOpe
   );
 }
 
-// The pockets list, with the ref's own header line above it.
-export function PocketList({ agents, onFund, onCollect, onCallIn, onOpenProfile }) {
-  if (!agents.length) return null;
+// The pockets list, with the ref's own header line above it. SAFE-2 lets the
+// caller name it: under GIVE it is who you can give to, under TAKE it is who
+// has something to bring home, and the header has to say which.
+export function PocketList({
+  agents, only = null, label = 'Pockets', sub = 'pocket size sets his stakes',
+  empty = null, onFund, onCollect, onCallIn, onOpenProfile,
+}) {
+  if (!agents.length) return empty;
   return (
     <>
       <div style={{ padding: '0 14px 5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Lbl size={9.5}>Pockets</Lbl>
-        <span style={{ fontSize: 11, color: M_MUTED }}>pocket size sets his stakes</span>
+        <Lbl size={9.5}>{label}</Lbl>
+        {sub ? <span style={{ fontSize: 11, color: M_MUTED }}>{sub}</span> : null}
       </div>
       <div className="wal-pockets">
         {agents.map((agent, i) => (
@@ -141,6 +158,7 @@ export function PocketList({ agents, onFund, onCollect, onCallIn, onOpenProfile 
             key={agent.id}
             agent={agent}
             index={i}
+            only={only}
             onFund={onFund}
             onCollect={onCollect}
             onCallIn={onCallIn}

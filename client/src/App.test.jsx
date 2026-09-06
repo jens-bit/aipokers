@@ -330,8 +330,9 @@ describe('the profile card can reach the funding sheet', () => {
     const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
-    // The YOU screen owns the wallet and the funding sheet.
-    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    // The YOU screen owns the money, and SAFE-2 made what opens there the
+    // safe: one number, and the three verbs under it.
+    expect(await screen.findByText('In the safe')).toBeInTheDocument();
     expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
   });
 });

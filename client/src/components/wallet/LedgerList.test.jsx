@@ -1,4 +1,11 @@
-// client/src/components/wallet/LedgerList.test.jsx — YOU-2
+// client/src/components/wallet/LedgerList.test.jsx — YOU-2, SAFE-2
+//
+// SAFE-2 changed what a line SAYS and nothing about what the list does. Three
+// assertions below moved with it: "Gave chips · The Grinder" was a function
+// name and an argument, and board 29 F12b's law is that a figure never appears
+// without the thing that caused it — "Topped up The Grinder's pocket". The
+// vocabulary itself is proved in lib/safeLines.test.jsx; what is proved here is
+// that this list speaks it.
 
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -15,8 +22,8 @@ const entries = [
 
 describe('entryLabel', () => {
   it('names what happened to the owner\'s money, and who it was about', () => {
-    expect(entryLabel(entries[1], nameOf)).toBe('Gave chips · The Grinder');
-    expect(entryLabel(entries[0], nameOf)).toBe('Collected · Loose Cannon');
+    expect(entryLabel(entries[1], nameOf)).toBe("Topped up The Grinder's pocket");
+    expect(entryLabel(entries[0], nameOf)).toBe('Loose Cannon came home');
   });
 
   it('names the entries that are about nobody', () => {
@@ -25,7 +32,7 @@ describe('entryLabel', () => {
 
   // A retired agent keeps his entry and loses his name. The money still moved.
   it('keeps the entry when the agent is gone', () => {
-    expect(entryLabel({ type: 'fund', agentId: 'agent_gone' }, nameOf)).toBe('Gave chips');
+    expect(entryLabel({ type: 'fund', agentId: 'agent_gone' }, nameOf)).toBe('Topped up a pocket');
   });
 
   it('has a word for a type it has never seen', () => {
@@ -37,8 +44,8 @@ describe('LedgerList', () => {
   it('lists what happened, newest first', () => {
     render(<LedgerList entries={entries} nameOf={nameOf} />);
     const rows = [...document.querySelectorAll('.wal-ledger__row')].map((r) => r.textContent);
-    expect(rows[0]).toContain('Gave chips · The Grinder');
-    expect(rows[1]).toContain('Collected · Loose Cannon');
+    expect(rows[0]).toContain("Topped up The Grinder's pocket");
+    expect(rows[1]).toContain('Loose Cannon came home');
     expect(rows[2]).toContain('Opening balance');
   });
 
