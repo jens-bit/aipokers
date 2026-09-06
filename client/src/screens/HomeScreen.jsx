@@ -22,6 +22,26 @@
 //
 // WHAT THIS SCREEN NEVER DOES: insert a row. Not the composer, not an answer to
 // a want, not a study finishing. Every line it shows is one the server wrote.
+//
+// ── DESK-2 · the same screen at 1440 ────────────────────────────────────────
+//
+// `desktop` does not fork the room. It is THE SAME ROOM — the same 390x470
+// coordinate space, the same fixtures, the same bodies, the same walks — shown
+// bigger, with the one thing 1440 actually buys: a permanent rail where the
+// phone has a collapsing sheet. Board 31 P15-P18, ported from
+// design-refs/mood-home-desk.jsx.
+//
+// Two consequences, and both are why there is a `renderRail` prop rather than a
+// second screen:
+//
+//   * THE STATE STAYS HERE. useHomeState opens ONE owner subscription. A desk
+//     component that fetched the roster for its rail would be a second reader
+//     of the same push, free to disagree with the room beside it about who is
+//     home. So the rail is rendered BY the caller and fed BY this screen.
+//   * THE FIXTURES RAISE. On the phone the safe navigates and the fridge opens
+//     glass over the room. On the desk a fixture opens a panel in the rail and
+//     the room dims instead of being covered (P16) — so `desktop` reports which
+//     fixture was touched and renders neither sheet itself.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHomeState } from '../hooks/useHomeState.js';
@@ -142,6 +162,22 @@ export function HomeScreen({
   onOpenThread,
   onSend,
   sending = false,
+  // DESK-2 — see the header. `desktop` shows the room at HD_SCALE with the rail
+  // beside it; `renderRail` is given everything the rail needs so this screen
+  // stays the only reader of the household.
+  desktop = false,
+  renderRail = null,
+  // The rail's panel is CONTROLLED when the caller offers a setter: the desktop
+  // shell's top bar can put the standup in it, and Escape can take it out, and
+  // neither of those is a thing that happens inside this room. Uncontrolled
+  // otherwise, so the screen still works on its own.
+  panel = null,
+  onPanel = null,
+  // Which man the rail is pointed at. Controlled for the same reason `panel`
+  // is: the shell's collapsed roster strip is one of the ways it changes, and
+  // that strip lives outside this room.
+  focusId: focusIdProp = null,
+  onFocusId = null,
 }) {
   const { agents, home, away, game, arrival, clearArrival, refresh, clearWant } =
     useHomeState({ wsUrl });
@@ -153,8 +189,16 @@ export function HomeScreen({
   useHomeTable(homeTable, game?.state === 'running' ? game.tableId : null);
 
   const [threadOpen, setThreadOpen] = useState(false);
-  const [focusId, setFocusId] = useState(null);
+  const [focusIdLocal, setFocusIdLocal] = useState(null);
+  const focusId = focusIdProp ?? focusIdLocal;
+  const setFocusId = onFocusId ?? setFocusIdLocal;
   const [fridgeOpen, setFridgeOpen] = useState(false);
+  // DESK-2 — which panel the rail is showing: the room's own thread, one of the
+  // three fixtures, one man's thread, or nothing at all when the shell has put
+  // something else beside the room. Only ever read on the desk.
+  const [railLocal, setRailLocal] = useState('thread');
+  const rail = panel ?? railLocal;
+  const setRail = onPanel ?? setRailLocal;
 
   // The money line clears itself; it lands once.
   useEffect(() => {
@@ -211,13 +255,16 @@ export function HomeScreen({
   // over the room. Quick word here, whole conversation there.
   const tapAgent = useCallback((agent) => {
     setFocusId(agent.id);
+    // DESK-2: on the desk the rail IS the thread, so the man swaps what is in
+    // it rather than opening a screen on top of the room he is standing in.
+    if (desktop) { setRail('agent'); return; }
     if (onOpenThread) onOpenThread(agent);
     else setThreadOpen(true);
-  }, [onOpenThread]);
+  }, [onOpenThread, desktop]);
 
   if (agents.length === 0) {
     return (
-      <div className="home1" data-testid="home-screen">
+      <div className={`home1${desktop ? ' home1--desk home1--empty' : ''}`} data-testid="home-screen">
         <NotYet
           fact="Nobody lives here yet."
           voice="Make one and he moves in."
@@ -233,62 +280,119 @@ export function HomeScreen({
 
   const lit = home.length > 0;
   const board = homeTable?.game?.community ?? [];
+  // P16: a fixture panel dims the room instead of covering it — on the desk you
+  // never lose sight of where the money is.
+  const dimmed = desktop && rail !== 'thread' && rail !== 'agent';
+
+  const flat = (
+    <HomeFlat
+      lit={lit}
+      onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
+      onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
+      // The chairs are priced in one place only and the phone has nowhere to
+      // put that sheet yet, so the table is furniture there — see HomeFlat.
+      onTable={desktop ? () => setRail('table') : undefined}
+      onTv={studying ? (
+        // The tape room is a man doing something, so on the desk it opens HIM
+        // in the rail — the same place tapping his body puts him.
+        desktop
+          ? () => { setFocusId(studying.id); setRail('agent'); }
+          : () => onProfile?.(studying)
+      ) : undefined}
+      tvLabel={studying ? `${studying.name} is watching a hand back` : null}
+    >
+      <AwayWall
+        away={away}
+        accentFor={(a) => accentFor(a, agents.indexOf(a))}
+        hooks={Math.max(0, AGENT_CAP - agents.length)}
+        onWatch={onWatch}
+      />
+
+      {gameAgentIds.length > 0 ? (
+        <HomeGameTable board={board} seatCount={gameAgentIds.length} running />
+      ) : (
+        <HomeGameTable board={[]} seatCount={0} running={false} />
+      )}
+
+      {/* the tape room: what he is watching is on the television */}
+      {studying ? (
+        <span className="home1__tape" data-testid="home-tape">
+          {[0, 1, 2].map((i) => <i key={i} style={{ animationDelay: `${i * 0.45}s` }} />)}
+        </span>
+      ) : null}
+
+      {home.map((agent) => {
+        const at = positions.get(String(agent.id));
+        if (!at) return null;
+        const seated = at.seat !== null && at.seat !== undefined;
+        const isStudying = studying && studying.id === agent.id;
+        const landed = arrival && arrival.agentId === String(agent.id);
+        return (
+          <HomeOne
+            key={agent.id}
+            agent={agent}
+            at={at}
+            accent={accentFor(agent, agents.indexOf(agent))}
+            size={seated ? 50 : 46}
+            dealt={seated}
+            walking={walking.has(String(agent.id))}
+            news={agent.want ? agent.want.text : (agent.unseenRecap ? agent.sessionRecap?.text : null)}
+            says={landed ? moneyLine(arrival) : (isStudying && tag ? tag : null)}
+            onClick={() => tapAgent(agent)}
+          />
+        );
+      })}
+    </HomeFlat>
+  );
+
+  const roomBox = (
+    <div
+      className="home1__room"
+      style={desktop ? undefined : { aspectRatio: `${F_W} / ${F_H}` }}
+      data-dim={dimmed ? 'true' : 'false'}
+    >
+      <div className="home1__scale" style={{ width: F_W, height: F_H }}>
+        {flat}
+      </div>
+    </div>
+  );
+
+  // DESK-2 — the room, and the rail. The rail's CONTENT is the caller's (see the
+  // header: one reader of the household), and everything it could need is handed
+  // to it here rather than fetched again beside it.
+  if (desktop) {
+    return (
+      <div className="home1 home1--desk" data-testid="home-screen">
+        {roomBox}
+        {rail === 'none' ? null : (
+        <div className="home1__rail" data-testid="home-rail" data-panel={rail}>
+          {renderRail?.({
+            panel: rail,
+            openPanel: setRail,
+            // Point the rail at a man. The rail's own panels need this — the
+            // standup's roster rows are the other way into a thread, and
+            // `focus` below is derived from it.
+            setFocus: (agent) => { setFocusId(agent?.id ?? null); setRail('agent'); },
+            agents,
+            home,
+            away,
+            game,
+            focus,
+            wanting,
+            refresh,
+            toast: wanting ? (
+              <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
+            ) : null,
+          })}
+        </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="home1" data-testid="home-screen">
-      <div className="home1__room" style={{ aspectRatio: `${F_W} / ${F_H}` }}>
-        <div className="home1__scale" style={{ width: F_W, height: F_H }}>
-          <HomeFlat
-            lit={lit}
-            onSafe={() => onOpenWallet?.(null)}
-            onFridge={() => setFridgeOpen(true)}
-            onTv={studying ? () => onProfile?.(studying) : undefined}
-            tvLabel={studying ? `${studying.name} is watching a hand back` : null}
-          >
-            <AwayWall
-              away={away}
-              accentFor={(a) => accentFor(a, agents.indexOf(a))}
-              hooks={Math.max(0, AGENT_CAP - agents.length)}
-              onWatch={onWatch}
-            />
-
-            {gameAgentIds.length > 0 ? (
-              <HomeGameTable board={board} seatCount={gameAgentIds.length} running />
-            ) : (
-              <HomeGameTable board={[]} seatCount={0} running={false} />
-            )}
-
-            {/* the tape room: what he is watching is on the television */}
-            {studying ? (
-              <span className="home1__tape" data-testid="home-tape">
-                {[0, 1, 2].map((i) => <i key={i} style={{ animationDelay: `${i * 0.45}s` }} />)}
-              </span>
-            ) : null}
-
-            {home.map((agent) => {
-              const at = positions.get(String(agent.id));
-              if (!at) return null;
-              const seated = at.seat !== null && at.seat !== undefined;
-              const isStudying = studying && studying.id === agent.id;
-              const landed = arrival && arrival.agentId === String(agent.id);
-              return (
-                <HomeOne
-                  key={agent.id}
-                  agent={agent}
-                  at={at}
-                  accent={accentFor(agent, agents.indexOf(agent))}
-                  size={seated ? 50 : 46}
-                  dealt={seated}
-                  walking={walking.has(String(agent.id))}
-                  news={agent.want ? agent.want.text : (agent.unseenRecap ? agent.sessionRecap?.text : null)}
-                  says={landed ? moneyLine(arrival) : (isStudying && tag ? tag : null)}
-                  onClick={() => tapAgent(agent)}
-                />
-              );
-            })}
-          </HomeFlat>
-        </div>
-      </div>
+      {roomBox}
 
       <HomeThread
         agent={focus}

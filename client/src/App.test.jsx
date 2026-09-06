@@ -332,7 +332,11 @@ describe('CLEAN-1 the desk shell stays around the draft (DP-4)', () => {
       return el;
     });
 
-    await user.click(await screen.findByRole('button', { name: /Draft an agent/i }));
+    // DESK-2: the desk opens on the room, so an empty desk is an empty ROOM —
+    // HOME-1's "Nobody lives here yet" and its one action, the same first step
+    // the phone offers. The rule below is unchanged: wherever the draft starts,
+    // it stands ON the desk.
+    await user.click(await screen.findByRole('button', { name: /Make an agent/i }));
 
     // BirthScreen is up...
     expect(await screen.findByPlaceholderText(/Describe how it should play/i)).toBeInTheDocument();
