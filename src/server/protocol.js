@@ -192,6 +192,28 @@ export const ServerMsg = Object.freeze({
   // A client that ignores this message sees exactly what it saw before it
   // existed.
   HOME_STATE: 'home_state',   // { type, userId, agents, game }
+  // SERVER-4 (additive): one line was just written into a thread of this
+  // owner's — the felt's or the flat's. OWNER-SCOPED and, unlike every other
+  // owner-filtered message on this channel, it additionally requires the
+  // subscription to have PROVED ownership in FLOOR_SUB: `him` lines carry the
+  // reasoning AGE-33 withholds from everyone but the owner's own spectator, so
+  // the push obeys the same law GET /api/agents/:id/thread does.
+  //
+  //   { type, userId, sessionId, line }
+  //
+  // `line` is exactly what the thread routes return for that row, minus the
+  // ids the reader is not given (ownerId, agentId) —
+  //   { id, sessionId, tableId, ts, kind, who, text, source, from, to }
+  // plus `lines` on an `overheard` entry, where each inner line carries its
+  // own `ts` (one millisecond apart: they happened together, and the offsets
+  // only order them). `kind` is the closed set thread.js owns — table | him |
+  // you | opponent | overheard — and `source` is table | home. So a client can
+  // append a pushed line straight onto a fetched thread with no reconciling.
+  //
+  // Before this a line arrived when the client next asked, which meant an
+  // agent answering something said in the flat could take a poll interval to
+  // appear. A client that ignores this message is never wrong, only late.
+  THREAD_LINE: 'thread_line', // { type, userId, sessionId, line }
   // WANTS-1 (additive): the one thing an agent is asking his owner for has
   // changed. Owner-filtered like FLOOR_STATE — a want is a private thing
   // between a man and his backer, and it names rooms and money.

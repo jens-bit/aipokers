@@ -13,6 +13,9 @@
 // the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
 // is pushed on change after that.
 //
+// SERVER-4 added a fifth: THREAD_LINE, one line written into a thread of
+// this owner's. Owner-scoped AND owner-PROVED — see broadcastThreadLine.
+//
 // HOME-STATE-1 added a fourth: HOME_STATE, the owner's living room — where
 // each of his agents is, what he is doing there, and the home game if one is
 // running. Owner-filtered like FLOOR_STATE and pushed on the same triggers,
@@ -288,6 +291,33 @@ function relaySessionEnd(record) {
   }
 }
 
+// ── SERVER-4 · a line was written ───────────────────────────────────────────
+//
+// Owner-scoped like SESSION_END and, unlike it, owner-PROVED: a thread carries
+// `him` lines, which are the reasoning AGE-33 withholds from everybody but the
+// owner's own spectator. FLOOR_SUB's userId is a claim; `owner` is the claim
+// checked against Telegram initData, and it is the flag heroHole already rides
+// on. Anything less would put a man's reasoning on the wire for anybody who
+// could guess his user id.
+//
+// A subscriber who never proved ownership loses the push and nothing else: the
+// public half of a thread is still readable over REST, exactly as before.
+export function broadcastThreadLine(userId, line) {
+  if (!userId || !line || subs.size === 0) return 0;
+  const owner = String(userId);
+  const payload = {
+    type: ServerMsg.THREAD_LINE,
+    userId: owner,
+    sessionId: line.sessionId ?? null,
+    line,
+  };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== owner || !entry.owner) continue;
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
 // WANTS-1: one agent's want changed. Owner-filtered, like SESSION_END and
 // unlike the ticker: what a man is asking his backer for is between the two of
 // them, and it names rooms, money and a state of mind.

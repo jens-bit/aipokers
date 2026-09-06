@@ -10,6 +10,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import { setThreadListener } from './thread.js';
 
 const { getOrCreateTable } = registry;
 
@@ -66,6 +67,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // WANTS-1: the same injection for the same reason — agentProfiles must not
   // import the floor, so the floor hands it a function instead.
   setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
+  // SERVER-4: a written thread line goes straight out on the wire.
+  setThreadListener((userId, line) => floor.broadcastThreadLine(userId, line));
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);

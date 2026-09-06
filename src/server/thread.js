@@ -31,6 +31,15 @@
 //      thread. Every write here is wrapped; the caller is never told and never
 //      has to care.
 //
+// SERVER-4: A LINE THAT IS WRITTEN IS ALSO PUSHED. Every successful write here
+// is announced to one injected listener, which the composition root wires to
+// the floor channel's THREAD_LINE. Before this a client learned about a line by
+// asking again -- so an agent answering something you said in the flat arrived
+// whenever you next pulled the thread, which is not what a conversation is. The
+// listener is injected for the same reason the want listener is: nothing here
+// may import back out of this module. Emitting is as best-effort as writing;
+// a listener that throws costs a push, never a line.
+//
 // Persistence is store.js's session_thread table. This module owns the
 // vocabulary, the clamping and the ownership filter; it owns no SQL.
 
@@ -94,6 +103,40 @@ function participant(id) {
 // The same clamp table chat uses. A thread line is a line, not a document.
 export const LINE_MAX = 280;
 
+// ── SERVER-4 · telling somebody a line was written ──────────────────────────
+//
+// Injected exactly like agentProfiles' want listener, and for the same reason:
+// this module must not import the floor it is pushed on. One listener, not a
+// set — there is one wire, and a second subscriber would be a second copy of
+// every line on it.
+
+let lineListener = null;
+
+export function setThreadListener(fn) {
+  lineListener = typeof fn === 'function' ? fn : null;
+}
+
+// Best-effort, like the write it follows. A listener that throws costs the
+// push and never the line: the row is already committed by the time this runs.
+function emitLine(ownerId, line) {
+  if (!lineListener || !line) return;
+  try {
+    lineListener(String(ownerId ?? 'anon'), line);
+  } catch (err) {
+    console.error('[thread] line listener failed:', err.message);
+  }
+}
+
+// What a written line looks like on the wire. Deliberately the same shape
+// readThread returns — `ownerId` and `agentId` stripped, everything else kept —
+// so a client can append a pushed line to a fetched thread without reconciling
+// two vocabularies for one sentence.
+function wireLine({ id, sessionId, tableId = null, ts, kind, who, text, source, from = null, to = null, lines = null }) {
+  const line = { id, sessionId: String(sessionId), tableId: tableId ?? null, ts, kind, who, text, source, from, to };
+  if (Array.isArray(lines)) line.lines = lines;
+  return line;
+}
+
 /**
  * Append one line. Best-effort by construction — returns the row id, or null
  * when the line was empty, malformed, or the write failed.
@@ -121,32 +164,49 @@ export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, 
   if (!trimmed) return null;
   const label = (typeof who === 'string' && who.trim()) ? who.trim().slice(0, 40) : defaultLabel(kind);
 
+  const row = {
+    sessionId: String(sessionId),
+    tableId: tableId ?? null,
+    ts: Number.isFinite(ts) ? ts : Date.now(),
+    kind,
+    who: label,
+    text: trimmed,
+    source: SOURCES.has(source) ? source : ThreadSource.TABLE,
+    from: participant(from),
+    to: participant(to),
+  };
+
+  let id = null;
   try {
-    return appendThreadLine({
-      sessionId,
-      agentId,
-      ownerId: ownerId ?? 'anon',
-      tableId,
-      ts: Number.isFinite(ts) ? ts : Date.now(),
-      kind,
-      who: label,
-      text: trimmed,
-      source: SOURCES.has(source) ? source : ThreadSource.TABLE,
-      from: participant(from),
-      to: participant(to),
-    });
+    id = appendThreadLine({ ...row, agentId, ownerId: ownerId ?? 'anon' });
   } catch (err) {
     console.error('[thread] append failed:', err.message);
     return null;
   }
+  // SERVER-4: written, therefore announced. After the write, so nothing can be
+  // pushed that is not also readable back.
+  emitLine(ownerId, wireLine({ id, ...row }));
+  return id;
 }
+
+// SERVER-4: the step between two lines of one overheard exchange.
+//
+// The whole conversation is written in a single call, so every line inside it
+// would otherwise share one timestamp — and a client keying rows by `ts`, or
+// sorting by it, cannot then tell the second line from the first. One
+// millisecond apart is the smallest honest thing that fixes both: they really
+// did all happen at once, and the offsets only ORDER them. It is deliberately
+// not a conversational gap; inventing a minute between two lines the model
+// produced together would be a lie the client would print.
+export const OVERHEARD_LINE_STEP_MS = 1;
 
 /**
  * THREAD-2: the day's overheard exchange, as one entry.
  *
- * `lines` is [{ from, to, who, text }] in the order it was said. The entry's
- * own `text` is the first line, so a client that has not been taught the new
- * kind still shows something a person said rather than an empty row.
+ * `lines` is [{ from, to, who, text }] in the order it was said, and each one
+ * comes back out with a `ts` of its own — see OVERHEARD_LINE_STEP_MS. The
+ * entry's own `text` is the first line, so a client that has not been taught
+ * the new kind still shows something a person said rather than an empty row.
  *
  * Writing a second one for the same session REPLACES the first: one exchange
  * per owner per day is a rule about what is STORED, not only about what the
@@ -167,24 +227,39 @@ export function appendOverheard({ sessionId, ownerId, lines, ts = null } = {}) {
     .filter((line) => line.text && line.from);
   if (kept.length === 0) return null;
 
+  const at = Number.isFinite(ts) ? ts : Date.now();
+  // Each line gets its own clock, in the order it was said.
+  const timed = kept.map((line, i) => ({ ...line, ts: at + i * OVERHEARD_LINE_STEP_MS }));
+
+  const row = {
+    sessionId: String(sessionId),
+    ts: at,
+    kind: ThreadKind.OVERHEARD,
+    who: timed[0].who,
+    text: timed[0].text,
+    source: ThreadSource.HOME,
+    lines: timed,
+  };
+
+  let id = null;
   try {
-    return putOverheardEntry({
-      sessionId,
+    id = putOverheardEntry({
+      ...row,
       // The row needs one agent_id and the exchange belongs to both. The first
       // speaker is the one it is filed under; every speaker is named inside
       // `lines`, which is where a reader should look for who was in it.
-      agentId: kept[0].from,
+      agentId: timed[0].from,
       ownerId: ownerId ?? 'anon',
-      ts: Number.isFinite(ts) ? ts : Date.now(),
-      who: kept[0].who,
-      text: kept[0].text,
-      lines: kept,
-      source: ThreadSource.HOME,
     });
   } catch (err) {
     console.error('[thread] overheard write failed:', err.message);
     return null;
   }
+  // SERVER-4: the nightly exchange is pushed like any other written line. It
+  // is the one line in the product nobody asked for and nobody is waiting on,
+  // which is exactly why it has to arrive on its own.
+  emitLine(ownerId, wireLine({ id, ...row }));
+  return id;
 }
 
 function defaultLabel(kind) {
