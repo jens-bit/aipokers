@@ -36,6 +36,7 @@ import { useSheetDrag } from '../hooks/useSheetDrag.js';
 import { accentFor } from './floor/atoms.jsx';
 import { heatOf, moodOf, presenceOf, stackOf, hasUnseenRecap } from './floor/agentView.js';
 import { roomLabel } from './home/AwayWall.jsx';
+import { identityOf } from '../lib/identity.js';
 import { pillName } from '../lib/names.js';
 import { fetchWallet, money } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
@@ -65,6 +66,9 @@ export function hasUnread(agent) {
 export function RosterRow({ agent, index, onOpen }) {
   const stack = stackOf(agent);
   const unread = hasUnread(agent);
+  // HOME-2 job 3: the same creature the room draws. A row that tinted him
+  // differently from his body would be a second man with his name on it.
+  const id = identityOf(agent);
   return (
     <li>
       <button
@@ -81,6 +85,8 @@ export function RosterRow({ agent, index, onOpen }) {
             accent={accentFor(agent, index)}
             size={34}
             ring={false}
+            hood={id.hood}
+            glow={id.glow.c}
           />
           {unread ? <span className="roster__dot" data-testid={`roster-unread-${agent.id}`} /> : null}
         </span>

@@ -5,6 +5,7 @@
 import { useId } from 'react';
 import { Card } from '../Card.jsx';
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
+import { identityOf } from '../../lib/identity.js';
 import { ghostFace } from '../system/GhostFace.jsx';
 import { roomStyle } from './layouts.js';
 
@@ -514,14 +515,26 @@ export function WalkIn({
   );
 }
 
-// Identity accent is stable per agent — derived from id so it never shuffles.
+// ── HOME-2 job 3 · one identity colour, everywhere ────────────────────────
+//
+// This used to be four accents picked by a *31 sum folded through mod 4, which
+// is the exact hash design-refs/mood-atoms.jsx replaced and for the exact
+// reason: three-letter ids differ only in their low bits, so a fold that keeps
+// them there puts three of four agents on one colour.
+//
+// It is the identity GLOW now — six of them, FNV-1a, rolled at birth and fixed
+// for life. Every surface that had its own idea of an agent's colour reads the
+// same one, so the man in the room, the row in the roster and the ghost on the
+// floor are one creature rather than three tinted differently.
+//
+// The room itself does one better and claims the roll against the roster
+// (lib/identity.js, identitiesFor) — only a surface holding the whole household
+// can promise four agents four hoods. This is the answer for everywhere else,
+// where there is no roster to claim against.
 const ACCENTS = [M_TEAL, M_PURPLE, M_GOLD, M_PINK];
 export function accentFor(agent, index = 0) {
-  const id = String(agent?.id || '');
-  if (!id) return ACCENTS[index % ACCENTS.length];
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return ACCENTS[hash % ACCENTS.length];
+  if (!agent?.id && !agent?.name) return ACCENTS[index % ACCENTS.length];
+  return identityOf(agent).glow.c;
 }
 
 // Float speed varies slightly per agent so the room never pulses in unison.

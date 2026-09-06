@@ -59,6 +59,7 @@ import { homePositions, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
+import { identitiesFor } from '../lib/identity.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { signedMoney } from '../lib/wallet.js';
 import '../styles/home1.css';
@@ -368,6 +369,16 @@ export function HomeScreen({
     [game],
   );
 
+  // HOME-2 job 3 · WHO EVERYBODY IS, rolled once for the whole household.
+  //
+  // Rolled here rather than inside each body because the ROSTER is the
+  // authority and a body cannot see the roster: four agents drawn from six
+  // hoods collide about half the time however good the hash is, so a hood
+  // already worn in this room is taken and the next free one along is worn
+  // instead. `agents` is the roster in birth order, which is what makes the
+  // claim mean "claimed at birth".
+  const identities = useMemo(() => identitiesFor(agents), [agents]);
+
   const settled = useMemo(
     () => homePositions(agents, { gameAgentIds }),
     [agents, gameAgentIds],
@@ -580,6 +591,7 @@ export function HomeScreen({
             key={agent.id}
             agent={agent}
             at={at}
+            identity={identities.get(String(agent.id)) ?? null}
             accent={accentFor(agent, agents.indexOf(agent))}
             size={seated ? 50 : 46}
             dealt={seated}

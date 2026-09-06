@@ -136,6 +136,10 @@ export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', hea
 export function HomeOne({
   agent,
   at,
+  // HOME-2 job 3 — who he is, rolled at birth (lib/identity.js) and claimed
+  // against the roster so four agents always wear four hoods. `accent` is the
+  // fallback for a caller that has no roster to roll against.
+  identity = null,
   accent = '#00D4AA',
   size = 46,
   // FIX-6 job 3 — ONE BUBBLE, or none. It used to be two props (`says` and
@@ -157,6 +161,9 @@ export function HomeOne({
   const heat = agent?.mood?.heat ?? 45;
   const fatigue = fatigueOf(agent);
   const pose = dealt ? 'hold' : r.pose;
+  // His colour is his, not his mood's. Everything his name pill and his body
+  // are tinted with comes from here.
+  const glow = identity?.glow?.c ?? accent;
 
   return (
     <button
@@ -184,7 +191,7 @@ export function HomeOne({
         name={agent?.name}
         // Not on the wire yet; read the moment it is (lib/names.js).
         nickname={agent?.nickname}
-        accent={accent}
+        accent={glow}
         fatigue={fatigue}
         heat={heat}
         news={!!news}
@@ -195,13 +202,24 @@ export function HomeOne({
           // Facing the wall: the silhouette with no face, which is the whole
           // point of the routine.
           <svg width={size} height={size} viewBox="0 0 80 80" className="home-one__back" aria-hidden>
+            {/* Facing away is still HIM: the hood is what you are looking at,
+                so it keeps its colour when the face is gone. */}
             <path
               d="M40 6 C57.6 6 70 18.4 70 36 L70 70 C70 78.4 62.4 76.8 57.6 81.6 C53.6 85.6 46.4 85.6 40 81.6 C33.6 85.6 26.4 85.6 22.4 81.6 C17.6 76.8 10 78.4 10 70 L10 36 C10 18.4 22.4 6 40 6 Z"
-              fill="#161F1E" stroke={`${accent}33`} strokeWidth="1.5"
+              fill={identity?.hood?.top ?? '#161F1E'} stroke={`${glow}33`} strokeWidth="1.5"
             />
           </svg>
         ) : (
-          <MoodGhost mood={mood} heat={heat} accent={accent} size={size} event={r.face} ring={false} />
+          <MoodGhost
+            mood={mood}
+            heat={heat}
+            accent={glow}
+            size={size}
+            event={r.face}
+            ring={false}
+            hood={identity?.hood ?? null}
+            glow={identity?.glow?.c ?? null}
+          />
         )}
 
         {dealt && !r.back ? (

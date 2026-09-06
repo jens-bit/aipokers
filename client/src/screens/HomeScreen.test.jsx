@@ -682,6 +682,67 @@ describe('HOME-1 · the safe and the fridge', () => {
   });
 });
 
+// ── HOME-2 job 3 · identity, rolled at birth ────────────────────────────────
+
+describe('HOME-2 job 3 · four agents, four creatures', () => {
+  const four = () => [
+    mkAgent('bal', 'Rocky'),
+    mkAgent('agg', 'Blade', { mood: { state: 'tilted', heat: 88 } }),
+    mkAgent('val', 'Cinch', { mood: { state: 'sulking', heat: 6 } }),
+    mkAgent('blf', 'Duke', { mood: { state: 'confident', heat: 40 } }),
+  ];
+
+  const hoodsInRoom = () => [...document.querySelectorAll('.home-one .mood-ghost')]
+    .map((g) => g.getAttribute('data-hood'));
+
+  it('a room of four wears four hoods', async () => {
+    await boot(four());
+    await screen.findByRole('button', { name: /Rocky — / });
+    const hoods = hoodsInRoom();
+    expect(hoods).toHaveLength(4);
+    expect(hoods.every(Boolean)).toBe(true);
+    expect(new Set(hoods).size).toBe(4);
+  });
+
+  // THE POINT OF DRAWING IDENTITY AT ALL. You have to be able to tell four
+  // agents apart while all four of them are tilted, which is exactly the moment
+  // an owner most needs to.
+  it('mood moves the face, never the colour', async () => {
+    await boot(four());
+    await screen.findByRole('button', { name: /Rocky — / });
+    const before = hoodsInRoom();
+
+    document.body.innerHTML = '';
+    await boot(four().map((a) => ({ ...a, mood: { state: 'tilted', heat: 96 } })));
+    await screen.findByRole('button', { name: /Rocky — / });
+
+    expect(hoodsInRoom()).toEqual(before);
+    // ...and the face DID move: every one of them wears the tilted one.
+    const moods = [...document.querySelectorAll('.home-one .mood-ghost')]
+      .map((g) => g.getAttribute('data-mood'));
+    expect(new Set(moods)).toEqual(new Set(['tilted']));
+  });
+
+  it('is fixed for life — the same man is the same creature every render', async () => {
+    await boot(four());
+    await screen.findByRole('button', { name: /Rocky — / });
+    const first = hoodsInRoom();
+
+    document.body.innerHTML = '';
+    await boot(four());
+    await screen.findByRole('button', { name: /Rocky — / });
+    expect(hoodsInRoom()).toEqual(first);
+  });
+
+  // SERVER-5 may store the roll. Until it does the client rolls; the moment it
+  // does, the client stops guessing.
+  it('wears what the server stored, when the server stores one', async () => {
+    await boot([mkAgent('bal', 'Rocky', { identity: { hood: 'moss', glow: 'ice' } })]);
+    await screen.findByRole('button', { name: /Rocky — / });
+    expect(hoodsInRoom()).toEqual(['moss']);
+  });
+});
+
 // ── HOME-2 job 1 · the door is the casino ───────────────────────────────────
 
 describe('HOME-2 job 1 · CASINO is the door', () => {
