@@ -19,7 +19,7 @@ import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { WatchScreen } from './WatchScreen.jsx';
-import { HEAT_COLD, HEAT_HOT, STAMINA_FULL } from './system/FeltBodyBars.jsx';
+import { HEAT_EMBER, HEAT_FIRE, STAMINA_FULL } from './system/FeltBodyBars.jsx';
 import { midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -65,14 +65,19 @@ describe('WATCH-8: the body, on his strip', () => {
     const bars = barsIn(strip);
     expect(bars).toBeTruthy();
     expect(bars.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    expect(fillOf(bars, 'stamina').style.width).toMatch(/^66\.6/);
+    // HOME-2 job 2: settled is 52% of the line, in amber. The thirds this
+    // replaces put it at 67% and in the same green as fresh.
+    expect(fillOf(bars, 'stamina').style.width).toBe('52%');
     expect(fillOf(bars, 'heat').style.width).toBe('62%');
   });
 
   // Volume and outcomes are different causes, so they are different colours at
   // every point on both scales — an owner must never have to work out which of
   // the two a colour is for.
-  it('runs stamina green and heat teal-to-red, never the other way round', () => {
+  // HOME-2 job 2 · the ref's two ramps. Stamina full is green; heat empty is an
+  // EMBER rather than the teal it used to be — an accumulation at zero has
+  // nothing to say, and teal there said "he is fine".
+  it('runs stamina green-to-red and heat ember-to-red, never the other way round', () => {
     // jsdom normalises a hex fill to rgb(), so the assertion is on the channels.
     const rgb = (el) => (/rgb\((\d+), (\d+), (\d+)\)/.exec(el.style.background) || [])
       .slice(1).map(Number);
@@ -81,15 +86,15 @@ describe('WATCH-8: the body, on his strip', () => {
     const fresh = draw(withBody({ 0: { fatigue: 'fresh', mood: { state: 'neutral', heat: 0 } } }));
     const strip = fresh.container.querySelector('.watch-hero__strip');
     expect(rgb(fillOf(barsIn(strip), 'stamina'))).toEqual(hex(STAMINA_FULL));
-    expect(rgb(fillOf(barsIn(strip), 'heat'))).toEqual(hex(HEAT_COLD));
+    expect(rgb(fillOf(barsIn(strip), 'heat'))).toEqual(hex(HEAT_EMBER));
 
     const boiling = draw(withBody({ 0: { fatigue: 'fresh', mood: { state: 'tilted', heat: 100 } } }));
     const hot = boiling.container.querySelector('.watch-hero__strip');
-    expect(rgb(fillOf(barsIn(hot), 'heat'))).toEqual(hex(HEAT_HOT));
+    expect(rgb(fillOf(barsIn(hot), 'heat'))).toEqual(hex(HEAT_FIRE));
 
     // The green end is not on the heat scale at any point, and the red end is
     // not on the stamina scale at any point.
-    expect(rgb(fillOf(barsIn(hot), 'stamina'))).not.toEqual(hex(HEAT_HOT));
+    expect(rgb(fillOf(barsIn(hot), 'stamina'))).not.toEqual(hex(HEAT_FIRE));
   });
 
   // The felt never resizes for a fact about a seat. Both bars are absolute
@@ -111,7 +116,8 @@ describe('WATCH-8: the body, on every name pill', () => {
     const bars = seat.querySelector('.seat-ghost__chip .felt-bars');
     expect(bars).toBeTruthy();
     expect(bars.className).toContain('felt-bars--seat');
-    expect(fillOf(bars, 'stamina').style.width).toMatch(/^33\.3/);
+    // HOME-2 job 2: worn is the short red stub the ref describes.
+    expect(fillOf(bars, 'stamina').style.width).toBe('16%');
     expect(fillOf(bars, 'heat').style.width).toBe('88%');
   });
 

@@ -400,7 +400,12 @@ export function HomeScreen({
     const at = positions.get(String(agent.id));
     if (!at) return null;
     const seated = at.seat !== null && at.seat !== undefined;
-    return { id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46, name: agent.name };
+    // `nickname` is what the pill writes when the name is too long for it
+    // (HOME-2 job 2), so the queue has to measure the same box the room draws.
+    return {
+      id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46,
+      name: agent.name, nickname: agent.nickname ?? null,
+    };
   }).filter(Boolean), [home, positions]);
 
   // ONE line per man, ranked. He can easily have three at once — an unanswered

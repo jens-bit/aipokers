@@ -5,26 +5,35 @@
 // mood, the hands carry what he is doing, the chips carry his money — and until
 // this there was nowhere to read the body itself.
 //
-// TWO BARS, TWO PIXELS, AND THEY NEVER SHARE A CHANNEL:
+// ── HOME-2 job 2 · BOTH BARS ARE ANCHORED AT THE LEFT WALL ─────────────────
 //
-//   STAMINA  green → red.   Comes from VOLUME (fatigue: fresh / settled / worn)
-//                           and DRAINS RIGHT TO LEFT as the session wears him
-//                           down: the fill is anchored at the left, so what
-//                           retreats is its right-hand end.
-//   HEAT     teal  → red.   Comes from OUTCOMES (mood.heat, 0–100) and FILLS
-//                           LEFT TO RIGHT, from empty to fiery red.
+// Wave 55 pinned stamina on the RIGHT, which made a spent agent a stub floating
+// away from the wall — unreadable next to heat. Wave 56 fixed it and the fix is
+// the rule this file now obeys, in the ref's own words (mood-home.jsx):
 //
-// BUGS-A job 10 gave spent stamina a red, and that immediately collided with
-// the rule above it: two causes cannot share a colour. So the two reds are
-// deliberately different reds. Spent stamina is the dull blood red this app
-// already uses for a losing chip; boiling heat is the fiery one it uses for
-// alarm. Empty-and-tired does not look like furious, at either end or
-// anywhere in between.
+//   STAMINA  full is the WHOLE BAR, and as it drains the RIGHT END RECEDES
+//            toward the left: green → amber → red as it shortens.
+//   HEAT     empty is NOTHING, and the fill GROWS left → right: ember → red.
+//
+// So a worn, tilted agent is a short red stub over a long red bar — two
+// OPPOSITE SHAPES, which is what lets one glance separate the two causes. The
+// empty end of both bars is the left end, and a short bar is never good news.
+//
+// The two ramps below are the ref's own step functions, verbatim, and they are
+// the only definition of these colours in the product: the pill above his head
+// in the room, the strip over the felt, the seat pill and the profile card all
+// read them from here, so no two surfaces can disagree about what a colour
+// means.
+//
+// BUGS-A job 10's SEPARATION IS KEPT, and it is the reason the two ramps are
+// not one: two causes must never share a colour. They both end in red and the
+// two reds are deliberately different — #C93F44 is the dull blood red of an
+// empty man, #D43F32 the fiery one of a furious one — and nothing green ever
+// means heat, nothing that is not red ever means empty.
 //
 // "A confident agent can be worn; a tilted agent can be fresh." That is why they
 // are two lines and not one: a single meter would make an owner read one cause
-// for two different things. The colours are as far apart as the causes — nothing
-// green ever means heat and nothing red ever means tiredness.
+// for two different things.
 //
 // Two pixels because this is a fact, not a panel. It rides the bottom edge of
 // whatever already names the agent — his strip, or a seat's name pill — so it
@@ -35,51 +44,87 @@
 // different scale — and two components sharing one class is how a 6px pair of
 // lines silently became 16px of nothing sitting over a seat's stack.
 
-// Fatigue's three stages, as a fraction of the line. The same 3 / 2 / 1 the
-// block meter already uses, so the two readings of fatigue cannot disagree.
-export const STAMINA_OF = { fresh: 1, settled: 2 / 3, worn: 1 / 3 };
+// Fatigue's three stages, as a fraction of the line.
+//
+// HOME-2 job 2 — the thirds are gone, and they had to go. The ref's ramp is a
+// STEP function over 0–100 (green above 60, amber above 35, orange above 18,
+// red below), and the old 3 / 2 / 1 put fresh at 100 and settled at 67 — both
+// of them green. Two of the three stages reading as the same colour is the one
+// thing this bar exists not to do.
+//
+// So each stage lands in a band of its own, and the values are the ref's own
+// picture rather than arithmetic: fresh is the WHOLE BAR in green ("stamina
+// full is the whole bar"), settled is half of it in amber, and worn is the
+// short red stub the ref describes ("a worn, tilted agent is a short red stub
+// over a long red bar"). Fatigue is three stages on the wire; it is three
+// readings on screen, and they are three different pictures.
+export const STAMINA_OF = { fresh: 1, settled: 0.52, worn: 0.16 };
 
 export function staminaOf(fatigue) {
   const v = STAMINA_OF[fatigue];
   return Number.isFinite(v) ? v : null;
 }
 
-const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
-
-function mix(a, b, t) {
-  const k = clamp01(t);
-  const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-  const [ar, ag, ab] = hex(a);
-  const [br, bg, bb] = hex(b);
-  const to = (n) => Math.round(n).toString(16).padStart(2, '0');
-  return `#${to(ar + (br - ar) * k)}${to(ag + (bg - ag) * k)}${to(ab + (bb - ab) * k)}`;
-}
-
-// Green when there is plenty left, red when there is not — BUGS-A job 10.
-// It was green → grey, which said "this bar has stopped mattering" when what a
-// spent bar actually means is that he is running on nothing. Red says that.
+// ── The two ramps ─────────────────────────────────────────────────────────
 //
-// NOT the heat red. See the note in the header: #B4353A is the dull blood red
-// this app already uses for a losing chip, and #FF4D4F is the fiery one it
-// keeps for alarm. Sharing one would undo the whole point of two bars.
-export const STAMINA_FULL = '#3FBF7F';
-export const STAMINA_SPENT = '#B4353A';
-export function staminaColor(v) { return mix(STAMINA_SPENT, STAMINA_FULL, v); }
+// Verbatim from design-refs/mood-home.jsx:
+//
+//   const staminaCol = v => (v > 60 ? '#4BC07A' : v > 35 ? '#C9B840' : v > 18 ? '#D48838' : '#C93F44');
+//   const heatCol    = v => (v < 30 ? '#9A7840' : v < 55 ? '#D89433' : v < 80 ? '#DE6E33' : '#D43F32');
+//
+// STEPS rather than a gradient, and that is the design rather than an economy:
+// a bar whose colour changes continuously has no edges, so it can never be read
+// as a STATE — only as a value, which is what the number would have been for.
+// Four steps is four states with four names, and the step is where the reading
+// changes.
+//
+// What this replaces: BUGS-A job 10 drew stamina as a two-stop mix from green
+// to a blood red and heat as a three-stop from TEAL through gold. Teal at the
+// cold end made an unbothered agent look like a good reading rather than like
+// no reading at all — heat is an accumulation, and its empty end is nothing.
+// The ref's ember start says that. The two ends stay as far apart as the two
+// causes, which is job 10's rule and is kept.
 
-// Teal at rest, red when he is boiling — THROUGH GOLD, not straight across.
-// A direct interpolation between those two hexes lands on khaki at heat 50,
-// which reads as neither end and as no state the system has a name for. Gold is
-// already the warning colour everywhere else on this screen, and the three
-// stops are the heat bands' own words: cold, warm, boiling.
-export const HEAT_COLD = '#00D4AA';
-export const HEAT_WARM = '#CDB380';
-export const HEAT_HOT = '#FF4D4F';
-export function heatColor(heat) {
-  const t = clamp01((Number(heat) || 0) / 100);
-  return t <= 0.5
-    ? mix(HEAT_COLD, HEAT_WARM, t * 2)
-    : mix(HEAT_WARM, HEAT_HOT, (t - 0.5) * 2);
+const clampPct = (n) => (n < 0 ? 0 : n > 100 ? 100 : n);
+
+/** Full is green, spent is a blood red, and it passes through amber. 0–100. */
+export const STAMINA_FULL  = '#4BC07A';
+export const STAMINA_AMBER = '#C9B840';
+export const STAMINA_LOW   = '#D48838';
+export const STAMINA_SPENT = '#C93F44';
+export function staminaPct(v) {
+  const n = clampPct(Number(v) || 0);
+  return n > 60 ? STAMINA_FULL : n > 35 ? STAMINA_AMBER : n > 18 ? STAMINA_LOW : STAMINA_SPENT;
 }
+
+/**
+ * The felt and the profile hold stamina as a FRACTION and as a 0–100 value
+ * respectively, so this keeps the 0–1 signature both of them were written
+ * against and defers to the ramp above. One ramp, two call shapes.
+ */
+export function staminaColor(v) { return staminaPct((Number(v) || 0) * 100); }
+
+/** Empty is an ember, boiling is fire — and it never touches green. 0–100. */
+export const HEAT_EMBER = '#9A7840';
+export const HEAT_WARM  = '#D89433';
+export const HEAT_HOT   = '#DE6E33';
+export const HEAT_FIRE  = '#D43F32';
+export function heatColor(heat) {
+  const n = clampPct(Number(heat) || 0);
+  return n < 30 ? HEAT_EMBER : n < 55 ? HEAT_WARM : n < 80 ? HEAT_HOT : HEAT_FIRE;
+}
+
+/**
+ * The same four steps, named. Nothing renders the word — it is a data attribute
+ * on the pill and a handle for a test, so that "is he hot" is asked in one
+ * vocabulary rather than in each surface's own thresholds.
+ */
+export function heatStep(heat) {
+  const n = clampPct(Number(heat) || 0);
+  return n < 30 ? 'ember' : n < 55 ? 'warm' : n < 80 ? 'hot' : 'fire';
+}
+
+const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 /**
  * The two lines.

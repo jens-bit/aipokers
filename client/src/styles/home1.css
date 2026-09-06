@@ -425,31 +425,44 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-pill--news { border-color: rgba(205, 179, 128, 0.5); }
 .home-pill__name { font-size: 8.5px; font-weight: 600; letter-spacing: 0.02em; }
-.home-pill__lines { display: flex; align-items: center; gap: 5px; }
 
-/* stamina runs DOWN — three blocks fresh, one worn */
-.home-pill__stamina { display: flex; gap: 1.5px; }
-.home-pill__stamina i {
-  width: 4px; height: 3px; border-radius: 1px;
-  background: rgba(255, 255, 255, 0.12);
+/* ── HOME-2 job 2 · both bars anchored at the left wall ────────────────────
+   Stamina full is the WHOLE bar and its right end recedes leftward as it
+   drains; heat empty is nothing and its fill grows rightward. Two opposite
+   directions, so a worn tilted agent is a short stub over a long bar and the
+   two causes can never be read as one.
+
+   44 x 2 with 2px between them, which is the ref's own pill scale
+   (design-refs/mood-home.jsx, `ResourceBars` at w=44 h=2 gap=2). The COLOURS
+   are inline, off the one pair of ramps in the product — a rule here would be
+   a fifth definition of them. */
+.home-pill__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.home-pill__stamina i.is-on { background: rgba(237, 237, 237, 0.55); }
-.home-pill[data-fatigue='worn'] .home-pill__stamina i.is-on { background: #CDB380; }
-
-/* heat runs UP — a rule, so it is never read as a second stamina */
-.home-pill__heat {
+.home-pill__bar {
   position: relative;
-  width: 22px; height: 2px;
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  width: 44px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
   overflow: hidden;
 }
-.home-pill__heat i {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  background: #6B6B6B;
+.home-pill__bar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  /* Heat moves while you are looking at it; a jump between renders is a number
+     nobody sees change. */
+  transition: width 400ms ease-out, background 400ms linear;
 }
-.home-pill[data-heat='warm'] .home-pill__heat i { background: #CDB380; }
-.home-pill[data-heat='hot'] .home-pill__heat i { background: #FF4D4F; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-pill__bar i { transition: none; }
+}
 
 /* ── The bubble that flips rather than clips ─────────────────────────────── */
 

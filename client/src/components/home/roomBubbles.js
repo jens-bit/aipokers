@@ -43,7 +43,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BUBBLE_W, bubbleFits, bubbleSide } from './flat.js';
 import { BUBBLE_DWELL_MS } from '../../lib/pace.js';
-import { pillName } from '../../lib/names.js';
+import { shortName } from '../../lib/names.js';
 
 /** How many bubbles the room may hold at once. bubbles.js's MAX_ON_FELT. */
 export const MAX_IN_ROOM = 2;
@@ -58,22 +58,30 @@ export const MAX_IN_ROOM = 2;
 export const STACK_GAP = 4;      // .home-one { gap: 4px }
 export const BUBBLE_H = 38;      // .home-bubble-slot { height: 38px }
 export const BUBBLE_GAP = 9;     // .home-bubble--right { left: 9px }
-export const PILL_H = 24;        // 3 + name + 2 + lines + 4, plus its border
+export const PILL_H = 24;        // 3 + name + 2 + bars + 4, plus its border
 export const PILL_PAD = 16;      // 7px each side, plus its border
-// The pill's two lines — three stamina blocks and the heat rule — are 42px, and
-// the pill can never be narrower than what they need.
-export const PILL_MIN_W = PILL_PAD + 42;
+// HOME-2 job 2: the pill's two bars are 44px each — the ref's own pill scale —
+// and the pill can never be narrower than what they need.
+export const PILL_MIN_W = PILL_PAD + 44;
 // 8.5px at weight 600 with a little tracking. Rounded UP: see the header.
 const CHAR_W = 6.2;
 
-/** How wide the name pill over this body is, near enough and never under. */
-export function pillWidth(name) {
-  return Math.max(PILL_MIN_W, PILL_PAD + pillName(name).length * CHAR_W);
+/**
+ * How wide the name pill over this body is, near enough and never under.
+ *
+ * HOME-2 job 2 capped the name at six characters, which at 6.2px is 37px — so
+ * in practice the BARS decide this width and the name never does. That is the
+ * point rather than a coincidence: the room's bubble rule measures clearance
+ * against these boxes, and a pill that grew with the length of a name made the
+ * geometry of the room depend on what the owner had typed.
+ */
+export function pillWidth(name, nickname = null) {
+  return Math.max(PILL_MIN_W, PILL_PAD + shortName(name, nickname).length * CHAR_W);
 }
 
 /** The name pill's box in flat coordinates. `body` is { x, y, size, name }. */
 export function pillRect(body) {
-  const w = pillWidth(body?.name);
+  const w = pillWidth(body?.name, body?.nickname);
   const bottom = body.y - (body.size ?? 46) - STACK_GAP;
   return { left: body.x - w / 2, right: body.x + w / 2, top: bottom - PILL_H, bottom };
 }

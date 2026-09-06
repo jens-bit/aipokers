@@ -918,13 +918,19 @@
    the agent — his strip, or a seat's name pill. They cost the felt no height,
    which is the only reason there is room for them at all.
 
-     STAMINA  green → red    · from VOLUME   (fatigue), draining right to left
-     HEAT     teal  → red    · from OUTCOMES (mood.heat), filling left to right
+   HOME-2 job 2 · BOTH ARE ANCHORED AT THE LEFT WALL, and they run in opposite
+   directions, which is what makes them two readings rather than two of one.
 
-   BUGS-A job 10: two different reds, deliberately. Spent stamina is the dull
-   blood red of a losing chip; boiling heat is the fiery red of an alarm. And
-   each line says what it is in 8px underneath it, because two unlabelled
-   two-pixel rules under a name are a puzzle rather than a reading.
+     STAMINA  green → amber → red · from VOLUME (fatigue). Full is the whole
+              bar and its RIGHT END RECEDES leftward as it drains.
+     HEAT     ember → red         · from OUTCOMES (mood.heat). Empty is
+              nothing and the fill GROWS rightward.
+
+   BUGS-A job 10's separation is kept: two different reds, deliberately. Spent
+   stamina is the dull blood red of an empty man; boiling heat is the fiery red
+   of a furious one. And each line says what it is in 8px underneath it,
+   because two unlabelled two-pixel rules under a name are a puzzle rather than
+   a reading.
 
    "A confident agent can be worn; a tilted agent can be fresh." Two causes,
    two lines, two colour ranges that never meet — an owner must never have to

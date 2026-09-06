@@ -193,17 +193,64 @@ describe('HOME-1 · the room', () => {
     const pill = body.querySelector('.home-pill');
     expect(pill).toBeTruthy();
     expect(pill).toHaveAttribute('data-fatigue', 'worn');
-    expect(pill).toHaveAttribute('data-heat', 'hot');
+    // HOME-2 job 2: the four steps have one vocabulary now, the ref's own.
+    expect(pill).toHaveAttribute('data-heat', 'fire');
     // Above: the pill precedes the body in document order, which is what the
     // column-flex renders as "over his head".
     const ghost = body.querySelector('.home-one__body');
     expect(pill.compareDocumentPosition(ghost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('BUGS-A job 1: the pill writes his whole name, not its first word', async () => {
+  // HOME-2 job 2 · SIX CHARACTERS OVER HIS HEAD.
+  //
+  // BUGS-A job 1's rule is unchanged and is the reason this is a CUT and not
+  // `name.split(' ')[0]`: a first word is a different name, and "The Clock"
+  // and "The Grinder" both became "The". Six characters of a name is still
+  // that name's beginning. The plate and the roster still write it whole —
+  // this rule is the pill's alone, because the pill hangs over a 46px body
+  // with two 44px bars inside it.
+  it('the pill writes six characters, and never a first word', async () => {
     await boot([mkAgent('a1', 'The Clock')]);
     const body = await screen.findByRole('button', { name: /The Clock — / });
-    expect(body.querySelector('.home-pill__name').textContent).toBe('The Clock');
+    expect(body.querySelector('.home-pill__name').textContent).toBe('The Cl');
+  });
+
+  it('a name that already fits is written whole, with no ellipsis', async () => {
+    await boot([mkAgent('a1', 'Rocky')]);
+    const body = await screen.findByRole('button', { name: /Rocky — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('Rocky');
+  });
+
+  // The server does not send a nickname yet. It is read the moment it does —
+  // the same forward read job 3 makes of `identity`.
+  it('prefers the nickname the server gives over the first six', async () => {
+    await boot([mkAgent('a1', 'The Clock', { nickname: 'Tick' })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('Tick');
+  });
+
+  // HOME-2 job 2 · the two bars run in opposite directions, and both start at
+  // the left wall. A worn, tilted agent is a short red stub over a long red
+  // bar — two opposite shapes, which is what separates the two causes.
+  it('draws a short stamina stub over a long heat bar for a worn, tilted man', async () => {
+    await boot([mkAgent('a1', 'The Clock', { fatigue: 'worn', mood: { state: 'tilted', heat: 82 } })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    const stam = body.querySelector('[data-bar="stamina"] i');
+    const heat = body.querySelector('[data-bar="heat"] i');
+    expect(stam.style.width).toBe('16%');
+    expect(heat.style.width).toBe('82%');
+    // Both fills start at the left edge of their own track, so the empty end
+    // of both bars is the same end.
+    for (const el of [stam, heat]) {
+      expect(window.getComputedStyle(el).left).toBe('0px');
+    }
+  });
+
+  it('and a fresh, cold man is the opposite pair', async () => {
+    await boot([mkAgent('a1', 'The Clock', { fatigue: 'fresh', mood: { state: 'neutral', heat: 8 } })]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('[data-bar="stamina"] i').style.width).toBe('100%');
+    expect(body.querySelector('[data-bar="heat"] i').style.width).toBe('8%');
   });
 });
 

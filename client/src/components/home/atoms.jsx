@@ -24,8 +24,9 @@ import { GhostHandLayer, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
 import { bubbleSide } from './flat.js';
 import { presentRoutine } from './routines.js';
-import { FATIGUE, fatigueOf } from '../../lib/attributes.js';
-import { pillName } from '../../lib/names.js';
+import { fatigueOf } from '../../lib/attributes.js';
+import { heatColor, heatStep, staminaOf, staminaPct } from '../system/FeltBodyBars.jsx';
+import { shortName } from '../../lib/names.js';
 
 // ── The bubble ──────────────────────────────────────────────────────────────
 
@@ -91,25 +92,41 @@ export function RoutineProp({ kind, size }) {
 // as a rule rather than as a number: this is a room, and a room does not print
 // "heat 68" over somebody's head.
 //
-// STAMINA runs down (three blocks fresh, one worn) and HEAT runs up. They are
-// deliberately different shapes — a bar and a rule — so they are never read as
-// two of the same thing.
+// ── HOME-2 job 2 · BOTH BARS ARE ANCHORED AT THE LEFT WALL ─────────────────
+//
+// What this replaces: stamina was THREE BLOCKS and heat was a rule, and the
+// justification was that two different shapes could never be read as two of the
+// same thing. Wave 56 gets the same separation out of two bars that run in
+// OPPOSITE DIRECTIONS, which is a stronger reading and costs a shape:
+//
+//   STAMINA  full is the whole bar; as it drains the RIGHT END RECEDES toward
+//            the left, green → amber → red.
+//   HEAT     empty is nothing; the fill GROWS rightward, ember → red.
+//
+// So a worn, tilted agent is a short red stub over a long red bar — and the
+// blocks could not have said that, because three blocks and one block are the
+// same picture at two lengths and carry no colour of their own.
+//
+// Both ramps come from system/FeltBodyBars.jsx, which is the one definition of
+// these colours in the product: the pill here, the strip over the felt, the
+// seat pill and the profile card cannot disagree about a man.
 
-const HEAT_TONE = (heat) => (heat >= 70 ? 'hot' : heat >= 55 ? 'warm' : 'cool');
-
-export function NamePill({ name, accent, fatigue = 'fresh', heat = 45, news = false }) {
-  const stage = FATIGUE[fatigue] ?? FATIGUE.fresh;
+export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', heat = 45, news = false }) {
   const h = Math.max(0, Math.min(100, Number(heat) || 0));
+  // Fatigue is three stages on the wire and one length-and-colour on screen.
+  const stam = Math.round((staminaOf(fatigue) ?? 1) * 100);
   return (
-    <span className={`home-pill${news ? ' home-pill--news' : ''}`} data-fatigue={fatigue} data-heat={HEAT_TONE(h)}>
-      <span className="home-pill__name" style={{ color: accent }}>{pillName(name)}</span>
-      <span className="home-pill__lines" aria-hidden>
-        <span className="home-pill__stamina" data-blocks={stage.blocks}>
-          {[0, 1, 2].map((i) => <i key={i} className={i < stage.blocks ? 'is-on' : ''} />)}
+    <span className={`home-pill${news ? ' home-pill--news' : ''}`} data-fatigue={fatigue} data-heat={heatStep(h)}>
+      <span className="home-pill__name" style={{ color: accent }}>{shortName(name, nickname)}</span>
+      <span className="home-pill__bars" aria-hidden>
+        <span className="home-pill__bar" data-bar="stamina">
+          <i style={{ width: `${stam}%`, background: staminaPct(stam) }} />
         </span>
-        <span className="home-pill__heat"><i style={{ width: `${h}%` }} /></span>
+        <span className="home-pill__bar" data-bar="heat">
+          <i style={{ width: `${h}%`, background: heatColor(h) }} />
+        </span>
       </span>
-      <span className="sr-only">{`${stage.word}, heat ${Math.round(h)}`}</span>
+      <span className="sr-only">{`stamina ${stam}, heat ${Math.round(h)}`}</span>
     </span>
   );
 }
@@ -163,7 +180,15 @@ export function HomeOne({
         />
       ) : null}
 
-      <NamePill name={agent?.name} accent={accent} fatigue={fatigue} heat={heat} news={!!news} />
+      <NamePill
+        name={agent?.name}
+        // Not on the wire yet; read the moment it is (lib/names.js).
+        nickname={agent?.nickname}
+        accent={accent}
+        fatigue={fatigue}
+        heat={heat}
+        news={!!news}
+      />
 
       <span className="home-one__body" style={{ width: size, height: size }}>
         {r.back ? (

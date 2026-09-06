@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { rowFromLine } from '../../lib/thread.js';
-import { HEAT_HOT } from '../system/FeltBodyBars.jsx';
+import { HEAT_FIRE } from '../system/FeltBodyBars.jsx';
 
 // A fixed moment safely in the past, so "the server's clock" is 18:31 whatever
 // time of day the suite runs and a live line is always the newer of the two.
@@ -51,7 +51,9 @@ describe('WATCH-8 job 3: the desk carries the body too', () => {
     const c = stage();
     const strip = c.querySelector('.dtb__strip');
     expect(strip.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    expect(fillOf(strip, 'stamina').style.width).toMatch(/^66\.6/);
+    // HOME-2 job 2: settled is 52% of the line, in amber. The old thirds put
+    // it at 67% and in the same green as fresh.
+    expect(fillOf(strip, 'stamina').style.width).toBe('52%');
     expect(fillOf(strip, 'heat').style.width).toBe('54%');
   });
 
@@ -59,11 +61,12 @@ describe('WATCH-8 job 3: the desk carries the body too', () => {
     const c = stage();
     const chip = c.querySelector('.dtb__seat .seat-chip');
     expect(chip.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    expect(fillOf(chip, 'stamina').style.width).toMatch(/^33\.3/);
+    // HOME-2 job 2: worn is the short red stub, 16% of the line.
+    expect(fillOf(chip, 'stamina').style.width).toBe('16%');
     expect(fillOf(chip, 'heat').style.width).toBe('100%');
     const rgb = /rgb\((\d+), (\d+), (\d+)\)/.exec(fillOf(chip, 'heat').style.background);
     expect(rgb.slice(1).map(Number))
-      .toEqual([1, 3, 5].map((i) => parseInt(HEAT_HOT.slice(i, i + 2), 16)));
+      .toEqual([1, 3, 5].map((i) => parseInt(HEAT_FIRE.slice(i, i + 2), 16)));
   });
 
   // A seat with no agent behind it has no fatigue, and a server that has never
