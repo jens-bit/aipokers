@@ -119,6 +119,43 @@ describe('BirthScreen', () => {
     expect(composer()).toHaveFocus();
   });
 
+  // AGENTS-2. Four active agents is the roster. When the draft finish is turned
+  // down the owner has to be told what to DO about it — the answer is to retire
+  // someone, not to delete him, and the draft is still on the server waiting.
+  it('AGENTS-2: a 409 agentCap tells the owner to retire one to make room', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'agentCap', cap: 4 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    expect(await screen.findByText(/Retire one to make room/i)).toBeInTheDocument();
+    expect(screen.getByText(/already have 4 agents/i)).toBeInTheDocument();
+  });
+
+  it('AGENTS-2: a capped draft creates nobody and does not hand off', async () => {
+    const user = userEvent.setup();
+    const onBirth = vi.fn();
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'agentCap', cap: 4 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={onBirth} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    await screen.findByText(/Retire one to make room/i);
+    expect(onBirth).not.toHaveBeenCalled();
+    // The screen is usable again — the refusal is a message, not a dead end.
+    await user.type(composer(), 'lets go');
+    expect(send()).toBeEnabled();
+  });
+
   // BUG-02 regression. Any text field below 16px makes iOS Safari zoom the
   // whole page on focus, which broke the layout of the creation chat.
   it('every input and textarea computes to at least 16px (BUG-02)', () => {

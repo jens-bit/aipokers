@@ -221,7 +221,7 @@ for (let played = 0; played < args.hands; played += args.sessionHands) {
 
   const before = Object.fromEntries(ATTR_KEYS.map((k) => [k, agent.attrs[k]]));
   const growth = applySessionGrowth(agent, {
-    evidence, handsPlayed: agent.stats.handsPlayed, rand,
+    evidence, handsPlayed: agent.stats.handsPlayed,
     now: Date.now() + sessionsRun * 86400000,
   });
   sessionsRun++;
