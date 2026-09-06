@@ -131,6 +131,49 @@ describe('App shell', () => {
   });
 });
 
+// ── BUGS-A job 9 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 9 · the roster behind the avatar', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/thread', { sessionId: 's1', lines: [], count: 0 });
+  });
+
+  it('the top-right avatar opens it, over whatever tab is showing', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    const sheet = await screen.findByTestId('roster-sheet');
+    expect(within(sheet).getByText('The Grinder')).toBeInTheDocument();
+    expect(within(sheet).getByText('Loose Cannon')).toBeInTheDocument();
+    // A sheet, not a screen: the room is still behind it.
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument();
+  });
+
+  it('a row opens his thread, and Back goes to the tab it came down over', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    // Scoped to the sheet: the man's body in the room behind it answers to a
+    // very similar name, which is the point — one man, two places to find him.
+    const sheet = await screen.findByTestId('roster-sheet');
+    await user.click(within(sheet).getByRole('button', { name: /^Loose Cannon — / }));
+
+    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(screen.queryByTestId('roster-sheet')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await bootedOnHome()).toBeInTheDocument();
+  });
+});
+
 // ── BUGS-A job 4 ────────────────────────────────────────────────────────────
 
 describe('BUGS-A job 4 · back out of a thread goes to the door you came in by', () => {

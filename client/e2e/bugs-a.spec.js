@@ -317,3 +317,39 @@ test.describe('BUGS-A job 7 · the taps that did nothing', () => {
     await expect(page.getByRole('button', { name: /^the floor,/ })).toHaveCount(0);
   });
 });
+
+// ── job 9 ───────────────────────────────────────────────────────────────────
+
+test.describe('BUGS-A job 9 · the roster behind the avatar', () => {
+  test('the avatar opens a glass sheet over the room', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'Your agents' }).click();
+    await settled(page, '.roster__panel');
+
+    const sheet = page.getByTestId('roster-sheet');
+    await expect(sheet.getByText('The Clock')).toBeVisible();
+    await expect(sheet.getByText('at home').first()).toBeVisible();
+    await expect(sheet.getByText('at a table · 25/50')).toBeVisible();
+    // Glass: the room is still there behind it.
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-9-roster.png' });
+  });
+
+  test('a row opens his thread', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'Your agents' }).click();
+    await settled(page, '.roster__panel');
+    await page.getByTestId('roster-sheet').getByRole('button', { name: /^River Rat — / }).click();
+
+    await expect(page.getByPlaceholder('Message River Rat…')).toBeVisible();
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-9-thread-from-roster.png' });
+  });
+
+  test('the sheet is dragged down to dismiss, like every other sheet', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'Your agents' }).click();
+    await settled(page, '.roster__panel');
+    await dragDown(page, '.roster__panel', 220);
+    await expect(page.getByTestId('roster-sheet')).toHaveCount(0);
+  });
+});

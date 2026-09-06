@@ -140,6 +140,9 @@ export function Header({
   onToggleHistory, onLeave,
   agentName, isSpectator,
   mode,  // 'spectator' | 'vs-ai' | 'vs-human'; falls back to isSpectator when absent
+  // BUGS-A job 9: what the top-right avatar does. It has been an inert
+  // silhouette with a TODO beside it since this header was ported.
+  onOpenRoster,
 }) {
   const inGame = hasConfig && (mySeat != null || isSpectator);
   const gameMode = mode || (isSpectator ? 'spectator' : 'vs-ai');
@@ -224,11 +227,14 @@ export function Header({
       </div>
       <div className="dr-app-header__right">
         <AgentsCountPill />
-        {/* TODO: open profile drawer/sheet */}
+        {/* BUGS-A job 9: the avatar opens the roster — everybody who works for
+            you, and the way into each one's thread. It replaces the CHATS list
+            that CASINO-1 took off the tab bar. */}
         <button
           type="button"
           className="dr-app-header__profile-btn"
-          aria-label="Profile"
+          onClick={onOpenRoster}
+          aria-label="Your agents"
         >
           <PersonIcon />
         </button>

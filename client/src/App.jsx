@@ -4,6 +4,7 @@ import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
 import { resolveDeepLink } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
+import { RosterSheet } from './components/RosterSheet.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
@@ -147,6 +148,12 @@ export default function App() {
   // so the intent travels with the navigation. Ordinary tab navigation clears
   // it, which is what keeps the sheet from reopening every time he comes back.
   const [youMoneyOpen, setYouMoneyOpen] = useState(false);
+
+  // BUGS-A job 9: the roster, behind the top-right avatar. A sheet over
+  // whatever tab is showing rather than a tab of its own — CASINO-1's nav is
+  // HOME · CASINO · YOU and this is not a fourth place, it is a list you pull
+  // down to find somebody.
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   function navigateTo(tab) {
     setActiveTab(tab);
@@ -564,7 +571,19 @@ export default function App() {
 
     return (
       <div className="app">
-        <Header status={status} hasConfig={false} />
+        <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />
+        {rosterOpen && (
+          <RosterSheet
+            onClose={() => setRosterOpen(false)}
+            onCreateAgent={() => { setRosterOpen(false); setIsCreating(true); }}
+            onOpenThread={(agent) => {
+              // The row IS the way into his thread, and Back out of it goes to
+              // the tab the sheet came down over (job 4).
+              setRosterOpen(false);
+              openAgentChat(agent);
+            }}
+          />
+        )}
         <div className="pre-game" style={{ position: 'relative' }}>
           {/* HOME-1 · board 29 — the flat, seen from above. It takes the place
               CASINO-1 left the floor standing in: HOME is the household, CASINO
