@@ -15,12 +15,12 @@ import {
 
 const bars = (props) => render(<BodyBars {...props} />).container;
 const track = (c, which) => c.querySelector(`[data-bar="${which}"]`);
-const fill = (c, which) => track(c, which)?.querySelector('.body-bars__fill');
+const fill = (c, which) => track(c, which)?.querySelector('.felt-bars__fill');
 
 describe('the two bars', () => {
   it('are two, and each is two pixels', () => {
     const c = bars({ fatigue: 'settled', heat: 40 });
-    expect(c.querySelectorAll('.body-bars__track')).toHaveLength(2);
+    expect(c.querySelectorAll('.felt-bars__track')).toHaveLength(2);
     // jsdom computes no stylesheet height here, so the rule is the assertion —
     // asserted where the rule lives, in watchBody.test.jsx.
     expect(track(c, 'stamina')).toBeTruthy();
@@ -83,14 +83,14 @@ describe('the two bars', () => {
     expect(track(bars({ heat: 40 }), 'stamina')).toBeNull();
     expect(track(bars({ heat: 40 }), 'heat')).toBeTruthy();
     expect(track(bars({ fatigue: 'worn' }), 'heat')).toBeNull();
-    expect(bars({}).querySelector('.body-bars')).toBeNull();
-    expect(bars({ fatigue: null, heat: null }).querySelector('.body-bars')).toBeNull();
+    expect(bars({}).querySelector('.felt-bars')).toBeNull();
+    expect(bars({ fatigue: null, heat: null }).querySelector('.felt-bars')).toBeNull();
   });
 
   it('has a seat scale that is the same two bars', () => {
     const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
-    expect(c.querySelector('.body-bars').className).toContain('body-bars--seat');
-    expect(c.querySelectorAll('.body-bars__track')).toHaveLength(2);
+    expect(c.querySelector('.felt-bars').className).toContain('felt-bars--seat');
+    expect(c.querySelectorAll('.felt-bars__track')).toHaveLength(2);
   });
 });
 

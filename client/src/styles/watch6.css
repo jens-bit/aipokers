@@ -910,6 +910,10 @@
 
 
 /* ── WATCH-8 job 2 · THE BODY ON THE FELT ─────────────────────────────────
+   `felt-bars`, not `body-bars`: PROFILE-2's card has a component of its own by
+   that name with a 12px gap between its rows, and two components sharing one
+   class is how a 6px pair of lines silently became 16px of nothing.
+
    Two bars, two pixels each, riding the bottom edge of whatever already names
    the agent — his strip, or a seat's name pill. They cost the felt no height,
    which is the only reason there is room for them at all.
@@ -920,7 +924,7 @@
    "A confident agent can be worn; a tilted agent can be fresh." Two causes,
    two lines, two colour ranges that never meet — an owner must never have to
    work out which of the two a colour is for. */
-.body-bars {
+.felt-bars {
   position: absolute;
   left: 11px;
   right: 11px;
@@ -932,7 +936,7 @@
   pointer-events: none;
 }
 
-.body-bars__track {
+.felt-bars__track {
   position: relative;
   height: 2px;
   border-radius: 1px;
@@ -940,7 +944,7 @@
   overflow: hidden;
 }
 
-.body-bars__fill {
+.felt-bars__fill {
   position: absolute;
   left: 0;
   top: 0;
@@ -954,7 +958,7 @@
 /* Seat scale: inside the pill, clear of its radius, and one pixel of gap
    instead of two — a 18px pill has no room for more and the pair still reads
    as two lines rather than one thick one. */
-.body-bars--seat {
+.felt-bars--seat {
   left: 7px;
   right: 7px;
   bottom: 1px;
@@ -970,7 +974,7 @@
 .watch-hero__strip.watch-felt__hero { padding-bottom: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .body-bars__fill { transition: none; }
+  .felt-bars__fill { transition: none; }
 }
 
 /* ── FRIDGE-1's bottle ────────────────────────────────────────────────────
