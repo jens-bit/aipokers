@@ -1358,3 +1358,53 @@ button.home-flat__table:active { filter: brightness(1.12); }
  * scrolling page. */
 .dsk-panel--safe { overflow: hidden; }
 .dsk-panel--safe .money-sheet { flex: 1; min-height: 0; }
+
+/* ── HOME-2 job 7 · the chairs round the table ─────────────────────────────
+   An empty chair, from above: a dashed outline where a body would be. One per
+   agent the owner has and never fewer than one, so "nobody yet" is ONE CHAIR
+   and a retire is ONE CHAIR FEWER — both of them pictures rather than
+   sentences. A chair with somebody in it is not drawn at all; the body is the
+   chair being taken. */
+.home-chair {
+  position: absolute;
+  width: 28px;
+  height: 23px;
+  transform: translate(-50%, -100%);
+  border-radius: 4px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* ── HOME-2 job 7 · nobody yet ─────────────────────────────────────────────
+   Under the table, so the eye lands on the one empty chair on its way to the
+   one thing to press. Board 29 F01: "the line under the chair is an
+   observation rather than an instruction, and the only action names what
+   happens next." */
+.home1__ftu {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 240;
+  white-space: nowrap;
+}
+.home1__ftu-line {
+  font-size: 11.5px;
+  color: var(--text-muted, #6B6B6B);
+}
+.home1__ftu-draft {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--gold, #CDB380);
+  background: rgba(205, 179, 128, 0.09);
+  border: 1px solid rgba(205, 179, 128, 0.47);
+  border-radius: 11px;
+  padding: 10px 18px;
+  min-height: 0;
+  cursor: pointer;
+}

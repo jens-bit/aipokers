@@ -311,10 +311,11 @@ describe('agent creation is BirthScreen and nothing else', () => {
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
 
-    // HOME-1: nobody lives here yet, and there is one thing to do about it.
-    // (The floor's first-time stool is asserted where the floor now lives:
-    // CasinoFloor.test.jsx and the desktop shell.)
-    const only = await screen.findAllByRole('button', { name: /Make an agent/i });
+    // HOME-2 job 7: nobody lives here yet, and there is one thing to do about
+    // it — inside the ROOM, under its one empty chair. (The floor's first-time
+    // stool is asserted where the floor now lives: CasinoFloor.test.jsx and the
+    // desktop shell.)
+    const only = await screen.findAllByRole('button', { name: /DRAFT YOUR FIRST AGENT/i });
     expect(only).toHaveLength(1);
     await user.click(only[0]);
 
@@ -328,7 +329,7 @@ describe('agent creation is BirthScreen and nothing else', () => {
     fetchMock.route('/api/agents', { agents: [] });
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: /Make an agent/i }));
+    await user.click(await screen.findByRole('button', { name: /DRAFT YOUR FIRST AGENT/i }));
     await screen.findByPlaceholderText(/Describe how it should play/i);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));

@@ -48,7 +48,7 @@ import { useHomeState } from '../hooks/useHomeState.js';
 import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
-import { HomeGameTable, useHomeTable } from '../components/home/HomeGame.jsx';
+import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
 import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
@@ -56,7 +56,7 @@ import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
 import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
-import { homePositions, bubbleSide, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
+import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
@@ -567,9 +567,23 @@ export function HomeScreen({
   // the flat is there whether or not anybody is standing in it, and bodies
   // walking in a moment later is exactly what this screen already does. The
   // empty state waits for the roster to ANSWER, and to answer with zero.
-  if (loaded && agents.length === 0) {
+  //
+  // HOME-2 job 7 · AND WHEN IT DOES, THE ANSWER IS STILL THE ROOM.
+  //
+  // An empty room is still a room: floorboards, the safe, the frames, the
+  // television showing the casino, the door. One chair and one thing to press
+  // (board 29 F01). What this replaces is a centred card on a blank screen —
+  // which is exactly what FTU-1's own rule forbids ("an empty state is a room
+  // that breathes, not a placeholder sentence"), and the room had been built
+  // since then without the empty state being moved into it.
+  //
+  // The DESK keeps the card. DeskHome's stage is a room beside a rail rather
+  // than a room you are standing in, and its empty state is the shell's
+  // business (DESK-2) — this queue is the phone.
+  const nobodyYet = loaded && agents.length === 0;
+  if (nobodyYet && desktop) {
     return (
-      <div className={`home1${desktop ? ' home1--desk home1--empty' : ''}`} data-testid="home-screen">
+      <div className="home1 home1--desk home1--empty" data-testid="home-screen">
         <NotYet
           fact="Nobody lives here yet."
           voice="Make one and he moves in."
@@ -643,6 +657,28 @@ export function HomeScreen({
       ) : (
         <HomeGameTable board={[]} seatCount={0} running={false} />
       )}
+
+      {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
+          Nobody yet is one chair, nobody in it; a retire is one chair fewer.
+          Both are pictures rather than sentences. */}
+      <TableChairs taken={gameAgentIds.length} of={Math.max(1, agents.length)} />
+
+      {/* Nobody yet: the line under the table and the one thing to press. The
+          line is an OBSERVATION rather than an instruction — the only action
+          names what happens next, which is the rule the whole first-five-
+          minutes chain is built on. */}
+      {nobodyYet ? (
+        <div
+          className="home1__ftu"
+          style={{ left: FLAT.table.cx, top: FLAT.table.cy + 74 }}
+          data-testid="home-ftu"
+        >
+          <span className="home1__ftu-line">One chair, nobody in it.</span>
+          <button type="button" className="home1__ftu-draft" onClick={onCreateAgent}>
+            DRAFT YOUR FIRST AGENT
+          </button>
+        </div>
+      ) : null}
 
       {home.map((agent) => {
         const at = positions.get(String(agent.id));

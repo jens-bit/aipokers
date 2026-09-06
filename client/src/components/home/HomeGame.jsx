@@ -24,7 +24,7 @@
 // from a stack, so there is no value they could be read as.
 
 import { useEffect } from 'react';
-import { FLAT } from './flat.js';
+import { FLAT, TABLE_SEATS } from './flat.js';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 
 /**
@@ -40,6 +40,37 @@ export function useHomeTable(table, tableId) {
     watch({ tableId, displayName: 'Home' });
     return () => { try { disconnect?.(); } catch { /* already gone */ } };
   }, [tableId, watch, disconnect]);
+}
+
+/**
+ * HOME-2 job 7 — THE CHAIRS ROUND THE TABLE. Ported from `TableChairs` in
+ * design-refs/mood-home2.jsx.
+ *
+ * One chair per agent the owner HAS, and never fewer than one — because there
+ * is always a first seat and SLOTS-1 gives it away free. The ones with somebody
+ * in them are not drawn: a body IS a taken chair, and an outline behind him
+ * would be a second chair at the same seat.
+ *
+ * This is what makes both of job 7's empty states pictures rather than
+ * captions. Nobody yet is ONE CHAIR, nobody in it. A retire is the room with
+ * ONE CHAIR FEWER — and nothing else changes, because nothing else should: what
+ * is gone is gone, the others do not comment, and the room simply has more
+ * space in it (board 29 F16).
+ *
+ * @param taken  how many seats have a body in them
+ * @param of     how many chairs the table has
+ */
+export function TableChairs({ taken = 0, of = 4 }) {
+  const seats = TABLE_SEATS[4].slice(0, Math.max(0, Math.min(4, Math.round(of))));
+  return seats.map((seat, i) => (i < taken ? null : (
+    <span
+      key={`chair-${i}`}
+      className="home-chair"
+      style={{ left: seat.x, top: seat.y }}
+      data-chair={i}
+      aria-hidden
+    />
+  )));
 }
 
 /** The community cards as the felt has actually run them. */

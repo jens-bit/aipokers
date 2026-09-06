@@ -96,21 +96,27 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     // The flat is on screen and the claim about the owner is not made.
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
     expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Make an agent' })).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'DRAFT YOUR FIRST AGENT' })).toBeNull();
 
     // ...and when it answers with a household, the household is what appears.
     answer({ agents: [mkAgent('a1', 'The Clock')] });
     expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
   });
 
+  // HOME-2 job 7: and the answer is still the ROOM. An empty room is a room —
+  // this used to be a centred card on a blank screen, which is the one thing
+  // FTU-1's own rule forbids.
   it('a roster that answers with zero is the one thing that shows the empty state', async () => {
     defaults();
     serve([]);
     render(<HomeScreen wsUrl={WS} />);
-    expect(await screen.findByText(/Nobody lives here yet/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Make an agent' })).toBeInTheDocument();
+    expect(await screen.findByTestId('home-ftu')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT' })).toBeInTheDocument();
+    // Still the room, with its furniture in it.
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(screen.getByTestId('home-safe')).toBeInTheDocument();
   });
 
   it('a roster request that FAILS keeps the room, because a 500 is not an answer', async () => {
@@ -119,7 +125,7 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     render(<HomeScreen wsUrl={WS} />);
     const room = await screen.findByTestId('home-screen');
     await waitFor(() => expect(within(room).getByTestId('home-fridge')).toBeInTheDocument());
-    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
   });
 });
 
@@ -901,6 +907,74 @@ describe('HOME-2 job 5 · pick him up and put him down', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 60)); });
 
     expect(await bodyFor('Rocky')).toHaveAttribute('data-carried', 'false');
+  });
+});
+
+// ── HOME-2 job 7 · the two empty states ─────────────────────────────────────
+
+describe('HOME-2 job 7 · empty, not blank', () => {
+  const chairs = () => document.querySelectorAll('.home-chair').length;
+
+  // 53·G. An empty room is still a room, and what is missing is not a sentence
+  // about nothing — it is ONE CHAIR with nobody in it.
+  it('nobody yet is the room, one chair, and one thing to press', async () => {
+    defaults();
+    serve([]);
+    render(<HomeScreen wsUrl={WS} onCreateAgent={() => {}} />);
+
+    await screen.findByTestId('home-ftu');
+    expect(chairs()).toBe(1);
+    expect(screen.getByText('One chair, nobody in it.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT' })).toBeInTheDocument();
+    // The room itself is all there.
+    expect(screen.getByTestId('home-safe')).toBeInTheDocument();
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(document.querySelector('.home-flat__tv')).toBeTruthy();
+  });
+
+  it('and the one thing to press is the draft', async () => {
+    const onCreateAgent = vi.fn();
+    defaults();
+    serve([]);
+    render(<HomeScreen wsUrl={WS} onCreateAgent={onCreateAgent} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'DRAFT YOUR FIRST AGENT' }));
+    expect(onCreateAgent).toHaveBeenCalled();
+  });
+
+  // 53·H. A retirement is a chair that is EMPTY rather than a slot that is
+  // locked: the room does not shrink, the others do not comment, and nothing
+  // says anybody used to be there.
+  it('a retire is one chair fewer, and no placeholder text', async () => {
+    const three = [mkAgent('a1', 'Rocky'), mkAgent('a2', 'Blade'), mkAgent('a3', 'Cinch')];
+    const { roster, sock } = await boot(three);
+    expect(chairs()).toBe(3);
+
+    roster.agents = three.slice(0, 2);
+    await act(async () => {
+      sock.emit({ type: 'home_state', userId: 'u1', agents: roster.agents, game: null });
+    });
+
+    await waitFor(() => expect(chairs()).toBe(2));
+    // Nothing marks the seat he had. What is gone is gone.
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+    expect(document.querySelector('.home-flat').textContent).not.toMatch(/retired|empty|gone/i);
+  });
+
+  it('a body is a taken chair — no outline behind him', async () => {
+    await boot(
+      [mkAgent('a1', 'Rocky'), mkAgent('a2', 'Blade')],
+      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 1 },
+    );
+    await screen.findByRole('button', { name: /Rocky — / });
+    // Two agents, both seated: two chairs, both of them people.
+    expect(chairs()).toBe(0);
+  });
+
+  it('never more than four, whatever the roster says', async () => {
+    await boot(Array.from({ length: 7 }, (_, i) => mkAgent(`a${i}`, `Man${i}`)));
+    await screen.findByRole('button', { name: /Man0 — / });
+    expect(chairs()).toBeLessThanOrEqual(4);
   });
 });
 
