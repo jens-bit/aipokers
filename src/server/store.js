@@ -221,6 +221,13 @@ function applySchema(d) {
   // THREAD-2: the nightly exchange is ONE entry, not a run of loose lines, so
   // the lines it is made of ride with it as JSON. Null on every other kind.
   addColumnIfMissing(d, 'session_thread', 'lines', 'TEXT');
+  // WATCH-9: the room's voice has one line in it that is not neutral — where a
+  // low attribute cost him the hand — and the sheet draws that one in gold. It
+  // was a client-side flag on a live row and nothing else, so the moment the
+  // thread was refetched (a reconnect, or opening the sheet an hour later) the
+  // line came back in the room's ordinary grey. A stored line has to be able to
+  // say what it is; this is the column that lets it.
+  addColumnIfMissing(d, 'session_thread', 'cost', 'INTEGER');
 
   // SLOTS-1: what this owner's agents have won, ever — the sum of positive
   // session nets, and the only currency an agent slot can be unlocked with.
@@ -770,20 +777,21 @@ export const THREAD_CAP_PER_SESSION = 500;
  * Returns the row id, which is monotonic per database and therefore also the
  * order the sheet renders in.
  */
-export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null }) {
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null, cost = false }) {
   const d = conn();
   const sid = String(sessionId);
   let id = null;
   d.transaction(() => {
     const info = d.prepare(`
-      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sid, String(agentId), String(ownerId), tableId ?? null,
            Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
            String(kind), String(who), String(text), String(source ?? 'table'),
            from == null ? null : String(from),
            to == null ? null : String(to),
-           Array.isArray(lines) ? JSON.stringify(lines) : null);
+           Array.isArray(lines) ? JSON.stringify(lines) : null,
+           cost ? 1 : 0);
     id = info.lastInsertRowid;
     d.prepare(`
       DELETE FROM session_thread
@@ -800,7 +808,7 @@ export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, 
  */
 export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
   return conn().prepare(`
-    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost
       FROM session_thread
      WHERE session_id = ?
      ORDER BY id ASC
@@ -846,6 +854,11 @@ function threadRow(r) {
   // THREAD-2: only an `overheard` entry carries lines, and it always does.
   const lines = r.lines ? jsonParse(r.lines, null) : null;
   if (Array.isArray(lines)) line.lines = lines;
+  // WATCH-9: present only when it is true. Every other line in the thread is an
+  // ordinary one and a `cost: false` on all of them would be noise on the wire
+  // and a lie about how many kinds of line there are — there is one register
+  // that is gold, and a line either is it or says nothing.
+  if (r.cost) line.cost = true;
   return line;
 }
 

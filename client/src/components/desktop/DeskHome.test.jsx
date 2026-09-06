@@ -199,8 +199,10 @@ describe('DESK-2 · the fixtures open in the rail', () => {
 
     const sheet = await screen.findByTestId('home-fridge-sheet');
     expect(sheet.className).toContain('home-sheet--rail');
-    // No scrim, because there is nothing to close over.
-    expect(within(sheet).queryByRole('button', { name: '^Close$' })).toBeNull();
+    // No scrim, and no head of its own: the panel already names it and already
+    // has the close, so the sheet contributes only its stock.
+    expect(within(sheet).queryByRole('button', { name: /^Close$/ })).toBeNull();
+    expect(sheet.querySelector('.home-sheet__head')).toBeNull();
     expect(screen.getByTestId('home-give-beer')).toBeInTheDocument();
   });
 

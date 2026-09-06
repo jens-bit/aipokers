@@ -26,7 +26,9 @@
 // Two widths, because the app has two shells and they share almost nothing:
 // 390x844 is the Mini App's phone (tab bar, HomeScreen, WatchScreen) and
 // 1440x900 crosses useIsDesktop's 1100px line into DesktopHome (stage tabs,
-// wallet rail, DeskTableStage).
+// wallet rail, DeskTableStage). Since DESK-2 the HOME stage there is the same
+// room as the phone's — HomeScreen in `home1--desk`, with DeskHome's 520 rail
+// beside it — not a second desk-only layout.
 //
 // It talks to a server the workflow has already started against a scratch cwd,
 // with no ANTHROPIC_API_KEY and no TELEGRAM_BOT_TOKEN — so every agent decision
@@ -186,8 +188,12 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         // Opening the app is what sends FLOOR_SUB, and FLOOR_SUB is what makes
         // the server reconcile the home game. The WATCH step below depends on
         // this having happened.
-        const root = desktop ? page.locator('.dsk-root') : page.getByTestId('home-screen');
-        await expect(root).toBeVisible({ timeout: 20_000 });
+        // DESK-2: both shells render the same room. The desk wraps it in
+        // .dsk-root (top bar + stage + rail); the room itself is HomeScreen's
+        // home-screen either way, which is the thing worth asserting — the
+        // shell can mount while the room inside it throws.
+        if (desktop) await expect(page.locator('.dsk-root')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
         await shot(page, `${shell}-home`);
       });
 
@@ -212,15 +218,25 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
       await test.step('WATCH', async () => {
         if (desktop) {
-          // DesktopHome only reaches the felt through a live tile — there is no
-          // deep-link route into the desk stage — so this is the casino table
-          // seed() deployed FLOOR_UID's agent to, not the home game.
+          // Still the live tile, and still the casino table seed() deployed
+          // FLOOR_UID's agent to rather than the home game — there is no deep
+          // link into the desk stage. What DESK-2 changed is where the tile
+          // LIVES: StandupPanel used to sit permanently beside the stage, and
+          // is now one of the panels in DeskHome's rail. So it has to be asked
+          // for, and the top bar's Standup button is what asks.
           //
-          // The wallet from the step above has to go first: an open rail panel
-          // replaces StandupPanel (which holds the tiles) with the collapsed
-          // RosterStrip, so the tile does not exist while it is up.
-          await page.getByRole('button', { name: 'Close panel' }).click();
+          // Not the away frames on the wall, though they are the obvious
+          // candidate: a frame's onWatch subscribes to that agent and never
+          // sets deskTableId, so it lights the room's own live window and
+          // never opens the desk table stage. onFocusTable is the only route
+          // to .dtb, and a tile is the only thing wired to it.
+          //
+          // Back to the floor stage first — Standup only opens the standup
+          // while HOME is on stage; on CASINO the same button goes to flagged
+          // hands. Clicking it also drops the wallet rail from the YOU step,
+          // so that panel does not need closing on its own.
           await page.getByRole('button', { name: 'HOME', exact: true }).click();
+          await page.locator('.dsk-top__standup').click();
           const tile = page.locator('.dsk-tile__watch').first();
           await expect(tile).toBeVisible({ timeout: 30_000 });
           await tile.click();

@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { _closeForTests, THREAD_CAP_PER_SESSION } from './store.js';
-import { appendLine, readThread, latestSessionFor, ThreadKind, LINE_MAX } from './thread.js';
+import { appendLine, readThread, latestSessionFor, setLineListener, ThreadKind, LINE_MAX } from './thread.js';
 
 const ORIGINAL_CWD = process.cwd();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-thread-'));
@@ -104,4 +104,102 @@ test('SERVER-3: the thread is bounded per session', () => {
   assert.equal(rows.length, THREAD_CAP_PER_SESSION, 'a runaway session cannot fill a disk');
   assert.equal(rows[0].text, `line ${n - THREAD_CAP_PER_SESSION}`, 'the OLDEST lines are the ones dropped');
   assert.equal(rows.at(-1).text, `line ${n - 1}`);
+});
+
+// ── WATCH-9 · the gold line survives a refetch ──────────────────────────────
+//
+// The room's voice has one line in it that is not neutral: where a low
+// attribute cost him the hand. The felt drew it in gold from a flag it put on
+// its own live row, so the moment the thread was refetched — a reconnect, or a
+// look back an hour later — the line came back in the room's ordinary grey. A
+// stored line has to be able to say what it is.
+
+test('WATCH-9: a cost line says so on the way back out', () => {
+  appendLine(line({
+    sessionId: 's-cost',
+    text: 'he misjudged equity by 7 points — he had 41%, he played 48% · FOCUS',
+    cost: true,
+  }));
+  const [row] = readThread('s-cost', { owner: true });
+  assert.equal(row.cost, true);
+  assert.equal(row.kind, 'table', 'it is still the room talking — cost is not a fifth kind');
+});
+
+test('WATCH-9: every other line is silent about it rather than saying false', () => {
+  appendLine(line({ sessionId: 's-cost-not', text: 'Granite raised to 240' }));
+  const [row] = readThread('s-cost-not', { owner: true });
+  assert.equal('cost' in row, false, 'one register is gold; the rest do not carry a flag saying they are not');
+});
+
+test('WATCH-9: a line written before the column existed is not a cost line', () => {
+  // What a row inserted by the pre-WATCH-9 code looks like: no `cost` at all.
+  appendLine(line({ sessionId: 's-cost-legacy', text: 'The Grinder took 30 uncontested' }));
+  const [row] = readThread('s-cost-legacy', { owner: true });
+  assert.notEqual(row.cost, true);
+});
+
+// ── WATCH-9 · the push ──────────────────────────────────────────────────────
+
+test('WATCH-9: every stored line announces itself to the listener', () => {
+  const seen = [];
+  setLineListener((l) => seen.push(l));
+  try {
+    appendLine(line({ sessionId: 's-push', text: 'Granite raised to 240' }));
+    appendLine(line({ sessionId: 's-push', kind: ThreadKind.HIM, who: 'HIM', text: 'Not this time.' }));
+  } finally {
+    setLineListener(null);
+  }
+
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].text, 'Granite raised to 240');
+  assert.equal(seen[0].kind, 'table');
+  assert.equal(seen[0].tableId, 't1', 'the table is on it, which is how the push is routed');
+  assert.equal(seen[1].kind, 'him', 'and the private kinds are announced too — the gate is at delivery');
+  for (const l of seen) assert.ok(Number.isFinite(l.id), 'announced with the row id, so a client can merge by it');
+});
+
+test('WATCH-9: the announced line carries the cost flag, and only when it is one', () => {
+  const seen = [];
+  setLineListener((l) => seen.push(l));
+  try {
+    appendLine(line({ sessionId: 's-push-cost', text: 'he went off the line here · DISCIPLINE', cost: true }));
+    appendLine(line({ sessionId: 's-push-cost', text: 'Granite called' }));
+  } finally {
+    setLineListener(null);
+  }
+  assert.equal(seen[0].cost, true);
+  assert.equal(seen[1].cost, undefined);
+});
+
+test('WATCH-9: a line that was never stored is never announced', () => {
+  const seen = [];
+  setLineListener((l) => seen.push(l));
+  try {
+    appendLine(line({ sessionId: 's-push-bad', text: '   ' }));   // empty after trim
+    appendLine(line({ sessionId: 's-push-bad', kind: 'shouting' })); // not a kind
+    appendLine(line({ sessionId: null, text: 'nowhere to be read back from' }));
+  } finally {
+    setLineListener(null);
+  }
+  assert.equal(seen.length, 0, 'a push for a row nobody can read back is a line on a screen and nowhere else');
+});
+
+test('WATCH-9: a listener that throws does not take the write down with it', () => {
+  setLineListener(() => { throw new Error('the socket went away mid-send'); });
+  try {
+    assert.ok(appendLine(line({ sessionId: 's-push-throw', text: 'still stored' })) != null);
+  } finally {
+    setLineListener(null);
+  }
+  const [row] = readThread('s-push-throw', { owner: true });
+  assert.equal(row.text, 'still stored', 'a thread that can break a hand is worse than no thread');
+});
+
+test('WATCH-9: unwiring the listener stops the announcements', () => {
+  const seen = [];
+  setLineListener((l) => seen.push(l));
+  appendLine(line({ sessionId: 's-push-off', text: 'heard' }));
+  setLineListener(null);
+  appendLine(line({ sessionId: 's-push-off', text: 'not heard' }));
+  assert.deepEqual(seen.map((l) => l.text), ['heard']);
 });

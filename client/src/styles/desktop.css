@@ -1747,6 +1747,13 @@
  * The components are the mobile ones; what is here is the width they sit in.
  * ══════════════════════════════════════════════════════════════════════════ */
 
+/* .dsk-btn is authored for a panel, where it is a full-width row. In the top
+   bar it is a flex ITEM, and width:100% there resolves against the whole bar —
+   so the wallet stretched across everything between the standup and the clock.
+   The bar's buttons size to their own label. (Caught by DESK-2's 1440 pass;
+   it predates that wave.) */
+.dsk-top .dsk-btn { width: auto; }
+
 .dsk-top__wallet {
   font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
   font-size: 12px;

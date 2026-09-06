@@ -343,6 +343,13 @@ function commitAgent(profile, existingAgentId, agentData) {
   // must not render a phantom jump for it.
   agent.attrLog = [];
   const bornAt = Date.now();
+  // BIRTH-5 / BUG-32: when he came into existence, kept as a field rather than
+  // read back off `agent.id` (which encodes Date.now() in base 36 and is an
+  // implementation detail of the id, not a promise about it) or off attrLog[0]
+  // (which is the attribute record and would tie a walk-in animation to the
+  // skill engine). The room uses it to walk a newborn in through the door
+  // instead of teleporting him into a chair.
+  agent.bornAt = bornAt;
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
   }

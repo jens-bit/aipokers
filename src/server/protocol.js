@@ -171,6 +171,24 @@ export const ServerMsg = Object.freeze({
   // exactly what it saw before it existed.
   SESSION_END: 'session_end', // { type, sessionId, agentId, tableId, reason,
                               //   hands, net, biggestPot, duration, endedAt }
+  // WATCH-9 (additive): one line was just written into a table thread.
+  //
+  // SERVER-3 made the thread survive a reconnect by STORING it; the sheet then
+  // read the store when it was opened and never again, so a sheet left open
+  // went quiet while the table kept talking, and the only cure was to close it
+  // and open it. This is the push that makes it live. The stored line is the
+  // same object GET /api/agents/:id/thread serves — { id, ts, kind, who, text,
+  // cost? } — so a client merges it by id with what it already fetched and does
+  // not have to know which door it came through.
+  //
+  // OWNER-GATED THE SAME WAY THE READ IS. `him` and `you` lines carry what the
+  // sanitized DECISION payload withholds (BUG-12/15, AGE-33), so they go only
+  // to the spectator watching that seat; the room's lines and what people said
+  // out loud go to everyone at the table, because at a real table they are
+  // audible. A client that ignores this message sees exactly what it saw
+  // before it existed — the sheet just goes back to being as fresh as its last
+  // fetch.
+  THREAD_LINE: 'thread_line', // { type, tableId, sessionId, agentId, line }
   // HOME-STATE-1 (additive): where this owner's agents are and what they are
   // doing, pushed to his floor subscribers whenever it changes. OWNER-SCOPED,
   // like FLOOR_STATE and unlike the ticker: it is a description of one man's

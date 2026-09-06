@@ -19,7 +19,7 @@ import path from 'node:path';
 import {
   Where, Routine, ROUTINE_LABELS, ROUTINE_BY_NATURE, DEFAULT_ROUTINE,
   routineFor, natureRoutine, locationFor, stampLocation, timeAtLocation,
-  homeStateMessage,
+  homeStateMessage, isNewborn, NEWBORN_MS,
 } from './home.js';
 import { NATURES } from '../agent/attributes.js';
 import { ServerMsg } from './protocol.js';
@@ -159,6 +159,36 @@ test('HOME-STATE-1: the HOME_STATE body carries the card and nothing heavy', () 
   assert.equal(agent.unseenRecap, true);
   assert.equal('strategy' in agent, false, 'the strategy prompt never rides this message');
   assert.equal('recentHands' in agent, false);
+});
+
+// ── BUG-32 · the newborn marker ─────────────────────────────────────────────
+
+test('BUG-32: an agent born a moment ago is marked newborn on HOME_STATE', () => {
+  const now = 1_000_000;
+  const msg = homeStateMessage('u1', [{ id: 'a1', name: 'Fresh', bornAt: now - 4_000 }], null, { now });
+  const [agent] = msg.agents;
+  assert.equal(agent.newborn, true);
+  assert.equal(agent.bornAt, now - 4_000, 'the timestamp rides along for a client on an older server');
+});
+
+test('BUG-32: he stops being a newborn after the window, so a reconnect does not walk him in again', () => {
+  const now = 1_000_000;
+  const born = now - NEWBORN_MS - 1;
+  const [agent] = homeStateMessage('u1', [{ id: 'a1', name: 'Settled', bornAt: born }], null, { now }).agents;
+  assert.equal(agent.newborn, false);
+  assert.equal(agent.bornAt, born, 'and the record of when he was born survives the window closing');
+});
+
+test('BUG-32: an agent from before BIRTH-5 has no birth time and is never a newborn', () => {
+  const [agent] = homeStateMessage('u1', [{ id: 'legacy', name: 'The Old Man' }], null).agents;
+  assert.equal(agent.newborn, false);
+  assert.equal(agent.bornAt, null, 'null, not NaN — this goes on a wire');
+});
+
+test('BUG-32: isNewborn refuses a birth in the future rather than counting backwards', () => {
+  const now = 1_000_000;
+  assert.equal(isNewborn({ bornAt: now + 5_000 }, { now }), false);
+  assert.equal(isNewborn({ bornAt: now }, { now }), true, 'the instant of birth is inside the window');
 });
 
 // ── presentAgent, and the wire ──────────────────────────────────────────────
