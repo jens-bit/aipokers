@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes shimmer{0%,100%{opacity:.25}50%{opacity:.6}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(10px,-6px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+@keyframes pacewalk{0%,100%{transform:translate(-50%,-100%)}50%{transform:translate(calc(-50% + 34px),-100%)}}
+@keyframes walkout{0%{transform:translate(-50%,-100%)}100%{transform:translate(calc(-50% + 60px),-100%)}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fb.pink{color:#E48FB0;border-color:rgba(228,143,176,.35);background:rgba(228,143,176,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1180px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Wave 47 · Home, round 2</div>
+    <h1>The flat,<br/>seen from above.</h1>
+    <p>Round 1 was a waiting room. Agents stood in a line pretending to be a room, an agent at the casino was <b>a chair with a caption</b>, and nothing on the screen moved unless you did something. Three mechanics fix that, and all three are motion rather than layout.</p>
+
+    <div class="lbl">1 · The home game</div>
+    <p>Whenever two or more are home they <b>play each other at the kitchen table for nothing</b> — real hands with the board 26 characters, hands, chips, bubbles and folds, at seat scale. One agent alone plays <b>the house on the TV</b> in the corner. There is no pot pill, no P&amp;L and no money line at the table; the only label is <code>FOR NOTHING</code>. This is the fish tank: it is always moving, and it costs the owner nothing to watch.</p>
+
+    <div class="lbl">2 · Away is shown</div>
+    <p>An agent at the casino is <b>a framed live window on the wall</b> — his table in miniature and moving, his seat lit and pulsing, cards landing, the pot in the corner, a brass plate reading <code>25/50 · +$340 · 41 min</code>. Tap the frame to walk in and watch. Four away agents is <b>a wall of pictures</b>, and an empty hook is what a slot you are not using looks like.</p>
+
+    <div class="lbl">3 · Routines, and the door</div>
+    <p>Idle behaviour comes from <b>nature</b>, and state overrides it: a Hothead paces, a Rock reads the paper, a Shark shuffles, a Grinder counts chips — while <b>worn sleeps on the couch and busted faces the wall</b>. Sending him out and coming home are both walks through the door, drawn as strips, because an agent who teleports to the casino is a setting rather than a character.</p>
+
+    <div class="lbl">Two rules the layout now obeys</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>One coordinate space, with fixtures declared.</b> <code>FLAT</code> names the wall, table, couch, TV and door footprints, and occupants are placed against them. An occupant's <code>y</code> is his <b>feet</b>, not a distance from an edge — round 1 spent three passes on collisions caused by that confusion.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>A bubble picks its side from where it stands.</b> Near the right wall it flips left, so it never clips the frame and never reaches into a neighbour. The recap frame proves it: he is at the door on the right and his bubble opens inward.</span></div>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The room</div>
+  <div class="groupsub">Plan view, 390×470: the wall of frames along the top, the kitchen table centre, the couch and TV left, the door right. Everything an agent does happens in this one space.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">R1</span><span class="ft">One agent alone</span><span class="fb teal">playing the house</span></div>
+  <div id="r1"></div>
+  <div class="fa">With nobody to play he takes the couch and <b>plays the house on the TV</b> — the set is on, the felt inside it glows, and he is dealt in. Three <b>empty hooks</b> on the wall say what the other slots are for without a word of onboarding.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R2</span><span class="ft">Two home, two away</span><span class="fb">the home game</span></div>
+  <div id="r2"></div>
+  <div class="fa">The two at home are <b>heads-up across the kitchen table</b>: three community cards, chips scattered, one of them talking. Two frames on the wall are live tables. <b>Nothing at the table carries a number</b> — the label reads FOR NOTHING, which is the difference between the two halves of this screen.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R3</span><span class="ft">All four away</span><span class="fb gold">the wall is full</span></div>
+  <div id="r3"></div>
+  <div class="fa">Four frames, arranged as pictures. The room lights go down, the table is set with a dealt pair nobody is holding, and one line says <b>NOBODY AT THE TABLE</b>. The old floor's dead state was "Everyone's resting"; this one shows you exactly where everybody is, and one frame is <b>HOT</b>.</div>
+</div>
+
+<div class="frame" style="left:1980px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R4</span><span class="ft">A recap waiting</span><span class="fb gold">bubble flips</span></div>
+  <div id="r4"></div>
+  <div class="fa">He waits by the door with his bubble up, and because he is at the right wall <b>the bubble opens inward</b>. Behind him the room carries on: one reading the paper, one asleep on the couch. <b>Nothing about him waiting stops anything else happening</b> — that is the difference between a room and a queue.</div>
+</div>
+
+<div class="frame" style="left:2440px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R5</span><span class="ft">A return</span><span class="fb teal">+$2,740</span></div>
+  <div id="r5"></div>
+  <div class="fa">He comes through the door and <b>his frame on the wall is gone</b> — he is not in two places, so the picture comes down as he arrives. The session line rides above him, delta then pocket, and lands once. A per-hand result never appears in this room.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1300px">
+  <div class="grouphdr gold">Routines, verbs and the door</div>
+  <div class="groupsub">The three reference strips behind the room. Every routine is a prop object on the agent rather than a screen he appears in, so a Hothead paces wherever he is standing.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">R6</span><span class="ft">My four verbs</span><span class="fb">snack · whisper · send · rest</span></div>
+  <div id="r6"></div>
+  <div class="fa">Everything an owner can do at home, and <b>the reaction on the character</b> — the mood law applied to the room. Note what is absent: no verb costs anything, none has a cooldown, and <b>none of them is a chore you are punished for skipping</b>.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R7</span><span class="ft">Sending him out</span><span class="fb">1.8s · 3 frames</span></div>
+  <div id="r7"></div>
+  <div class="fa">He stands, crosses the room, and goes through the door. <b>The home game reseats behind him</b> — two players become one, and one plays the TV. An agent who blinks out of existence on his way to the casino is a setting; one who walks is a character.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">R8</span><span class="ft">Coming home</span><span class="fb teal">1.6s · 3 frames</span></div>
+  <div id="r8"></div>
+  <div class="fa">The reverse, with the session line above him from the moment the door opens. He <b>takes a seat at the table</b>, where the game already is — so arriving home means joining something rather than landing in a list.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-floor3.jsx"></script>
+<script type="text/babel" src="mood-home.jsx"></script>
+
+<script type="text/babel">
+[
+  ['r1', HomeAloneM], ['r2', HomeGameM], ['r3', HomeAllAwayM],
+  ['r4', HomeRecapWaitM], ['r5', HomeReturnM],
+  ['r6', HomeVerbsStripM], ['r7', HomeExitStripM], ['r8', HomeReturnStripM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) { p.frames.forEach(function (f) { f.style.top = p.top + 'px'; }); });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () { pending = null; if (!relayout() && tries++ < MAX_TRIES) schedule(250); }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) { if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true; }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) { var ro = new ResizeObserver(function () { schedule(60); }); frames().forEach(function (f) { ro.observe(f); }); }
+    if (window.MutationObserver) { new MutationObserver(function () { schedule(60); }).observe(document.body, { childList: true, subtree: true }); }
+  }
+  if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>
