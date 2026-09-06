@@ -355,6 +355,58 @@ Receive (server → client):
                 `duration` is milliseconds from sitting down to standing up.
                 SESSION_END always arrives BEFORE the TABLE_CLOSED that ends
                 the same session.
+  THREAD_LINE — { tableId, sessionId, agentId, line } — one line was just
+                written into that seat's thread. TABLE-SCOPED: it goes to the
+                sockets watching that seat and to the seat's own connection,
+                and nowhere else. Before this the history sheet read the store
+                when it was opened and never again, so a sheet left open went
+                quiet while the table carried on talking.
+                `line` is { id, ts, kind, who, text, cost? } — the same object
+                GET /api/agents/:agentId/thread serves for that row, so a
+                client merges it BY ID with what it already fetched and never
+                has to know which door it came through. `cost` is present, and
+                true, only on the room's line about an attribute that cost him
+                the hand.
+                Owner-gated the way the read is, and by the same mechanism: a
+                thread is per SESSION and a session belongs to one seat, so the
+                only sockets a line reaches are that seat's own and the
+                spectators watching it. `him` and `you` lines carry what the
+                sanitized DECISION payload withholds; the room's lines and what
+                was said out loud reach everyone at the table, because at a real
+                table they are audible.
+  OWNER_LINE  — { userId, sessionId, line } — the SAME written line arriving by
+                the other door: the owner's floor channel, for any connection
+                subscribed with FLOOR_SUB. Two names because two payload shapes;
+                one write behind both, so a client with both sockets open keys
+                on the line id, which is the row's own and identical on either.
+                Take THREAD_LINE if you are watching a felt. Take this one if
+                you are not — it is the only way a line said at HOME, where
+                there is no felt at all, can reach you live.
+                OWNER-SCOPED and, unlike every other owner-filtered message on
+                that channel, owner-PROVED: it is delivered only to a
+                subscription that passed initData in FLOOR_SUB, the same law
+                heroHole rides on. A subscriber who never proved ownership
+                loses the push and nothing else — the public half of a thread
+                is still readable over REST.
+                `line` is what the thread route returns for that row, minus the
+                ids a reader is not given —
+                  { id, sessionId, tableId, ts, kind, who, text, source,
+                    from, to, cost? }
+                plus `lines` on an `overheard` entry, where each inner line
+                carries its own `ts` (one millisecond apart: they happened
+                together, and the offsets only order them). `kind` is the closed
+                set table | him | you | opponent | overheard and `source` is
+                table | home. `tableId` is null for a line said at home.
+  TYPING      — { userId, agentId, sessionId } — one of your agents is composing
+                a reply, sent immediately before the model call that produces
+                it. Same channel and same gate as OWNER_LINE: announcing a line
+                to somebody who will not be shown the line is worse than
+                silence. There is no matching "stopped typing" — the OWNER_LINE
+                that follows IS the end of it, and a reply that never comes
+                (the model failed, the turn timed out) must not leave a client
+                waiting on a second message that is not coming. Clear the
+                indicator on the next OWNER_LINE from that agent, or on a
+                timeout of your own choosing.
   READ        — { tableId, seat, reads: [...] } — the agent's picture of each
                 opponent, sent to the OWNER'S SPECTATOR ONLY (the socket
                 attached to that seat) and never to a seated player or to a

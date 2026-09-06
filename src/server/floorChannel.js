@@ -13,6 +13,11 @@
 // the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
 // is pushed on change after that.
 //
+// SERVER-4 added a fifth and a sixth: OWNER_LINE, one line written into a
+// thread of this owner's, and TYPING, the beat before one of his agents
+// produces a reply. Both are owner-scoped AND owner-PROVED — see
+// broadcastOwnerLine.
+//
 // HOME-STATE-1 added a fourth: HOME_STATE, the owner's living room — where
 // each of his agents is, what he is doing there, and the home game if one is
 // running. Owner-filtered like FLOOR_STATE and pushed on the same triggers,
@@ -286,6 +291,62 @@ function relaySessionEnd(record) {
   } catch (err) {
     console.error('[floor] session end relay failed:', err.message);
   }
+}
+
+// ── SERVER-4 · a line was written ───────────────────────────────────────────
+//
+// Owner-scoped like SESSION_END and, unlike it, owner-PROVED: a thread carries
+// `him` lines, which are the reasoning AGE-33 withholds from everybody but the
+// owner's own spectator. FLOOR_SUB's userId is a claim; `owner` is the claim
+// checked against Telegram initData, and it is the flag heroHole already rides
+// on. Anything less would put a man's reasoning on the wire for anybody who
+// could guess his user id.
+//
+// OWNER_LINE, not THREAD_LINE. The table pushes the same written line to the
+// sockets watching that seat under the name THREAD_LINE, scoped by table; this
+// is the owner's own channel, scoped by user, and it is the only door a line
+// said at HOME can come through — there is no felt behind it. One sink in
+// thread.js feeds both. Two payload shapes, therefore two names: a client that
+// had to sniff which `thread_line` it just received would be reading a bug
+// waiting to happen.
+//
+// A subscriber who never proved ownership loses the push and nothing else: the
+// public half of a thread is still readable over REST, exactly as before.
+export function broadcastOwnerLine(userId, line) {
+  if (!userId || !line || subs.size === 0) return 0;
+  const owner = String(userId);
+  const payload = {
+    type: ServerMsg.OWNER_LINE,
+    userId: owner,
+    sessionId: line.sessionId ?? null,
+    line,
+  };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== owner || !entry.owner) continue;
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
+// SERVER-4: he is answering you. Sent immediately before the model call, and
+// gated identically to the OWNER_LINE it precedes — announcing that a line is
+// coming to somebody who will not be shown the line is worse than silence.
+export function broadcastTyping(userId, agentId, sessionId = null) {
+  if (!userId || !agentId || subs.size === 0) return 0;
+  const owner = String(userId);
+  const payload = {
+    type: ServerMsg.TYPING,
+    userId: owner,
+    agentId: String(agentId),
+    sessionId: sessionId ?? null,
+  };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (entry.userId !== owner || !entry.owner) continue;
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
 }
 
 // WANTS-1: one agent's want changed. Owner-filtered, like SESSION_END and

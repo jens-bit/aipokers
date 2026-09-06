@@ -10,12 +10,18 @@
 // THE ONE THING THIS TABLE MUST NOT HAVE IS MONEY, and that is Jens's
 // correction as much as it is the server's law: no pot pill, no P&L, no stack,
 // no buy-in. The server plays this game at no stakes and credits nobody; a
-// number on the felt would be the screen contradicting the model. What is
-// drawn instead is the ref's own tell — chips scattered on the table and the
-// words FOR NOTHING, which say the same thing in the opposite direction.
+// number on the felt would be the screen contradicting the model.
 //
-// The chips are scenery. They are drawn from the seat count, not from a stack,
-// so there is no value they could be read as.
+// FIX-6 job 4 — AND NO MONEY WORDS EITHER. The felt used to carry the ref's own
+// tell, the words FOR NOTHING, on the theory that saying there are no stakes is
+// the opposite of naming a stake. Design 52's rule is flatter than that and it
+// is the one that stands: no money words on the home table, and FOR NOTHING is
+// two of them. A running table now says nothing at all, which is what a kitchen
+// table looks like. The label is kept for the empty case, where it is not about
+// money — NOBODY AT THE TABLE is a fact about the room.
+//
+// The chips stay, and they are scenery. They are drawn from the seat count, not
+// from a stack, so there is no value they could be read as.
 
 import { useEffect } from 'react';
 import { FLAT } from './flat.js';
@@ -74,26 +80,21 @@ export function HomeGameTable({ board = [], seatCount = 2, running = true }) {
         </span>
       ) : null}
 
-      {/* the one label the table needs, and it is the opposite of a money line */}
-      {/* The ref puts this at the table's top-left rim — which in a heads-up game
-          is exactly where the far seat's body stands. Moved onto the empty left
-          of the felt, which is empty in every seat count the kitchen table
-          runs, so the one label the table has is never drawn over. */}
-      <span
-        className={`home-game__label${running ? '' : ' home-game__label--empty'}`}
-        style={running
-          // Left of the felt, which is empty at every seat count this table runs.
-          ? { left: FLAT.table.cx - FLAT.table.rx + 8, top: FLAT.table.cy - 2 }
-          // With nobody at it there are no bodies at the SEATS to duck — but the
-          // band just under the table is where the idle floor spots put their
-          // name pills, so "under the table" collides with whoever is standing
-          // in the room. It goes on the felt instead, below the two waiting
-          // card backs and above the rim.
-          : { left: FLAT.table.cx, top: FLAT.table.cy + 24, transform: 'translateX(-50%)' }}
-        data-testid="home-game-label"
-      >
-        {running ? 'FOR NOTHING' : 'NOBODY AT THE TABLE'}
-      </span>
+      {/* The only label left, and it is a fact about the room rather than about
+          money. With nobody at it there are no bodies at the SEATS to duck — but
+          the band just under the table is where the idle floor spots put their
+          name pills, so "under the table" collides with whoever is standing in
+          the room. It goes on the felt instead, below the two waiting card backs
+          and above the rim. */}
+      {running ? null : (
+        <span
+          className="home-game__label home-game__label--empty"
+          style={{ left: FLAT.table.cx, top: FLAT.table.cy + 24, transform: 'translateX(-50%)' }}
+          data-testid="home-game-label"
+        >
+          NOBODY AT THE TABLE
+        </span>
+      )}
     </>
   );
 }

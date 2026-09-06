@@ -108,6 +108,16 @@ const TABLE_SEATS = {
   4: [{ x: 208, y: 356 }, { x: 104, y: 276 }, { x: 208, y: 238 }, { x: 312, y: 276 }],
 };
 
+// ── the door, as the way to the casino ───────────────────────────────────
+// The tag hangs from the FRAME's right edge above the door, not rightward from the
+// door's own left edge: the door starts at x356 of 390, so the old anchor pushed
+// "THE CASINO →" 38px off screen in every home frame. right:0 cannot clip, ever.
+const DoorTap = () => (
+  <div style={{ position: 'absolute', right: 0, top: FLAT.door.y - 26, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, zIndex: 260 }}>
+    <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', color: M_TEAL, background: 'rgba(8,12,12,0.9)', border: `1px solid ${M_TEAL}66`, borderRadius: 8, padding: '3px 8px', whiteSpace: 'nowrap' }}>THE CASINO →</span>
+  </div>
+);
+
 const HomeFlat = ({ children, lit = true, tape }) => (
   <div style={{ position: 'relative', width: F_W, height: '100%', minHeight: F_H, flexShrink: 0, overflow: 'hidden', background: 'radial-gradient(ellipse at 52% 58%, #1C2523 0%, #141B1A 62%, #0F1514 100%)' }}>
     {/* floorboards, running away from the viewer */}
@@ -142,7 +152,9 @@ const HomeFlat = ({ children, lit = true, tape }) => (
     </div>
     {/* the kitchen table, from above */}
     <div style={{ position: 'absolute', left: FLAT.table.cx - FLAT.table.rx, top: FLAT.table.cy - FLAT.table.ry, width: FLAT.table.rx * 2, height: FLAT.table.ry * 2, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 22px rgba(0,0,0,0.45)' }}/>
-    {/* the door, right wall */}
+    {/* the door, right wall. Its tag is drawn by the nav layer and is anchored to
+        the FRAME's right edge, not to the door's left edge — at 390 the door starts
+        at x356, so anything laid out rightward from it leaves the screen. */}
     <div style={{ position: 'absolute', left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h, background: 'linear-gradient(90deg, #14120F 0%, #241F1A 100%)', borderTop: '2px solid rgba(255,255,255,0.13)', borderBottom: '2px solid rgba(255,255,255,0.13)', borderLeft: '2px solid rgba(255,255,255,0.13)' }}>
       <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 30%, ${M_GOLD}22 100%)` }}/>
       <span style={{ position: 'absolute', left: 6, top: '50%', width: 4, height: 4, borderRadius: '50%', background: M_GOLD, opacity: 0.7 }}/>
@@ -253,18 +265,20 @@ const RoutineProp = ({ kind, size }) => {
   return null;
 };
 
-// green draining to grey, teal warming to red. 2px, no labels at body scale: the
-// colour IS the label, and the profile header prints the words.
-const staminaCol = v => (v > 60 ? '#3FA96B' : v > 35 ? '#B8A83E' : v > 18 ? '#C77A32' : '#B4353A');
-const heatCol = v => (v < 30 ? '#8A6A3A' : v < 55 ? '#C9862E' : v < 80 ? '#D2632F' : '#C4372C');
+// BOTH BARS ARE ANCHORED AT THE LEFT WALL. Wave 55 pinned stamina on the right,
+// which made a spent agent show a stub floating away from the wall — unreadable next
+// to heat. Now: stamina full = the whole bar, and as it drains the RIGHT end recedes
+// toward the left, green → amber → red as it shortens. Heat empty = nothing, and the
+// fill grows left → right, ember → red. A worn, tilted agent therefore reads as a
+// short red stub on the left and a long red bar under it: two opposite shapes.
+const staminaCol = v => (v > 60 ? '#4BC07A' : v > 35 ? '#C9B840' : v > 18 ? '#D48838' : '#C93F44');
+const heatCol = v => (v < 30 ? '#9A7840' : v < 55 ? '#D89433' : v < 80 ? '#DE6E33' : '#D43F32');
 const ResourceBars = ({ stamina = 74, heat = 20, w = 54, h = 2.5, gap = 2.5, labels }) => {
   const row = (v, col, lbl, drains) => (
     <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
       {labels && <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED, width: 46 }}>{lbl}</span>}
       <div style={{ position: 'relative', width: w, height: h, borderRadius: h, background: 'rgba(255,255,255,0.09)', overflow: 'hidden' }}>
-        {/* drains right-to-left: the empty end is always the LEFT end, so a short
-            bar is a spent agent whichever bar you are looking at */}
-        <div style={{ position: 'absolute', [drains ? 'right' : 'left']: 0, top: 0, width: `${Math.max(2, Math.min(100, v))}%`, height: '100%', background: col, borderRadius: h }}></div>
+        <div style={{ position: 'absolute', left: 0, top: 0, width: `${Math.max(2, Math.min(100, v))}%`, height: '100%', background: col, borderRadius: h }}></div>
       </div>
       {labels && <Num size={8.5} weight={700} color={col}>{Math.round(v)}</Num>}
     </div>
@@ -307,7 +321,7 @@ const HomeOne = ({ a, at, routine, state, size = 46, says, unread, want, side, d
               return <MoodGhost mood={a.mood} accent={id.glow.c} size={size} event={r.face} ring={false} hood={id.hood} glow={id.glow.c}/>; })()}
         {dealt && !r.back && (
           <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', display: 'flex', gap: 2, zIndex: 4 }}>
-            {[0, 1].map(i => <CardBack key={i} w={size * 0.34} h={size * 0.46}/>)}
+            {[0, 1].map(i => <CardBack key={i} w={size * 0.29} h={size * 0.39}/>)}
           </div>
         )}
         {!r.back && (
@@ -370,7 +384,7 @@ const HomeGame = ({ players, says, ring }) => {
     <>
       {/* the community cards and a scatter of chips, mid-table */}
       <div style={{ position: 'absolute', left: FLAT.table.cx, top: FLAT.table.cy - 6, transform: 'translate(-50%,-50%)', display: 'flex', gap: 2.5, zIndex: 2 }}>
-        {[['9', 'h'], ['J', 's'], ['4', 'c']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={17} h={24}/>)}
+        {[['9', 'h'], ['J', 's'], ['4', 'c']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={14} h={20}/>)}
       </div>
       <div style={{ position: 'absolute', left: FLAT.table.cx + 34, top: FLAT.table.cy + 10, zIndex: 2 }}>
         {[0, 1, 2].map(i => <span key={i} style={{ position: 'absolute', bottom: i * 2.4, width: 12, height: 5, borderRadius: '50%', background: i % 2 ? '#2E7D53' : '#D8D4CC', border: '1px solid rgba(0,0,0,0.5)', boxSizing: 'border-box' }}/>)}
@@ -501,10 +515,10 @@ const HomeAloneM = () => (
         <AwayWall hooks={3}/>
         <HomeOne a={H_CAST.bal} at={STAND.couch} routine="tv" size={52} stamina={88} heat={14}
           says="Nobody home. I'll wait."/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.bal, text: 'The house never folds. Fine by me.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -520,10 +534,10 @@ const HomeGameM = () => (
         ]} hooks={1}/>
         <HomeGame players={[{ a: H_CAST.bal, stamina: 86, heat: 16 }, { a: H_CAST.val, stamina: 34, heat: 48 }]}
           says={{ i: 1, text: 'You always raise that. Always.' }}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.val, text: 'You always raise that. Always.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -541,15 +555,15 @@ const HomeAllAwayM = () => (
         ]}/>
         {/* the table is set and nobody is at it — the room says where they are */}
         <div style={{ position: 'absolute', left: FLAT.table.cx, top: FLAT.table.cy + 4, transform: 'translate(-50%,-50%)', display: 'flex', gap: 3, opacity: 0.4 }}>
-          {[0, 1].map(i => <CardBack key={i} w={16} h={22}/>)}
+          {[0, 1].map(i => <CardBack key={i} w={14} h={19}/>)}
         </div>
         <div style={{ position: 'absolute', left: FLAT.table.cx, top: FLAT.table.cy + 40, transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
           <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>NOBODY AT THE TABLE</span>
         </div>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.agg, text: 'Still here. 41 minutes in.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -565,10 +579,10 @@ const HomeRecapWaitM = () => (
           unread="Got a minute? That last hour was something."/>
         <HomeOne a={H_CAST.bal} at={STAND.lounge} size={44} stamina={78} heat={14}/>
         <HomeOne a={{ ...H_CAST.val, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={44} stamina={16} heat={26}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeThread latest={{ a: H_CAST.blf, text: 'Got a minute? That last hour was something.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
@@ -591,18 +605,18 @@ const HomeReturnM = () => (
         <HomeOne a={{ ...H_CAST.agg, mood: 'confident' }} at={{ x: 300, y: 330 }} size={52} name={false}/>
         <HomeOne a={H_CAST.bal} at={STAND.lounge} size={44} stamina={74} heat={18}/>
         <HomeOne a={{ ...H_CAST.val, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={14} heat={24}/>
+        <DoorTap/>
       </HomeFlat>
     </div>
     <HomeToast a={{ ...H_CAST.agg, mood: 'confident' }} text="is home. +$2,740 · pocket $4,180."/>
     <HomeThread latest={{ a: H_CAST.blf, text: 'Still out. 12 minutes in.' }}/>
-    <Nav3/>
   </PhoneShell>
 );
 
 Object.assign(window, {
   NAV3, Nav3, H_CAST, H_ROUTINE, NATURE_ROUTINE, routineFor,
   F_W, F_H, SHEET_COLLAPSED, FLAT, STAND, clearOf, travelTo, TABLE_SEATS, HomeFlat, H_BUB_W, H_BUB_MAX, staminaCol, heatCol, YouAvatar, H_BUB_GAP, H_PILL_HALF, bubAnchor, bubRoom, H_BOUND, H_EDGE, edgePin, bubbleSide, sideFor, HomeBubble,
-  RoutineProp, ResourceBars, HomeOne, AwayFrame, AwayWall, HomeGame, HomeHead,
+  DoorTap, RoutineProp, ResourceBars, HomeOne, AwayFrame, AwayWall, HomeGame, HomeHead,
   H_VERBS, HomeVerbsStripM, DoorStrip, HomeExitStripM, HomeReturnStripM,
   HomeAloneM, HomeGameM, HomeAllAwayM, HomeRecapWaitM, HomeReturnM,
 });

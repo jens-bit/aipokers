@@ -364,7 +364,7 @@
       "get": {
         "summary": "The table thread for one session",
         "operationId": "getThread",
-        "description": "SERVER-3. Everything that was said during one agent's STAY at a table, oldest first, with the server's own timestamps on it — the four kinds of line the watch screen's history sheet renders. Stored as it happens, so a reconnect (or a look back an hour later) gets the record back instead of whatever the socket happened to be awake for. `session` is optional: a client that has just reconnected knows which AGENT it was watching and not which stay, so leaving it off answers with the agent's most recent session. The same id rides the WATCHING message and every GAME_STATE snapshot as `sessionId`, and is what SESSION_END is keyed on. Ownership: `him` (his reasoning) and `you` (the owner's whispers) carry the private half the DECISION broadcast already withholds from everyone but the owner's spectator, so a caller who has not proved ownership gets the room's lines and what was said out loud and nothing else — the thread is filtered rather than refused, because a spectator at a real table can hear the table. Bounded: the most recent 500 lines of a session are kept.",
+        "description": "SERVER-3. Everything that was said during one agent's STAY at a table, oldest first, with the server's own timestamps on it — the four kinds of line the watch screen's history sheet renders. Stored as it happens, so a reconnect (or a look back an hour later) gets the record back instead of whatever the socket happened to be awake for. `session` is optional: a client that has just reconnected knows which AGENT it was watching and not which stay, so leaving it off answers with the agent's most recent session. The same id rides the WATCHING message and every GAME_STATE snapshot as `sessionId`, and is what SESSION_END is keyed on. Ownership: `him` (his reasoning) and `you` (the owner's whispers) carry the private half the DECISION broadcast already withholds from everyone but the owner's spectator, so a caller who has not proved ownership gets the room's lines and what was said out loud and nothing else — the thread is filtered rather than refused, because a spectator at a real table can hear the table. Bounded: the most recent 500 lines of a session are kept.\n\nThis is the snapshot; there are two live pushes of the same rows, and they are different doors, not the same door twice. THREAD_LINE over the WebSocket is TABLE-scoped — { tableId, sessionId, agentId, line } to the sockets watching that seat. OWNER_LINE on the floor channel is OWNER-scoped — { userId, sessionId, line } to any FLOOR_SUB subscription that PROVED ownership with initData, which is the only door a line said at home, where there is no table at all, can arrive through. One write behind both, and `line.id` is the row's own id on either, so a client merges a push with this response by id rather than by guessing. One wire name per payload shape: nothing has to sniff which kind of message it just received.",
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "userId", "in": "query", "required": false, "schema": { "type": "string", "default": "anon" } },
@@ -788,15 +788,33 @@
       },
       "ThreadLine": {
       "type": "object",
-      "description": "SERVER-3. One line of a session's table thread, as the watch screen's history sheet renders it.",
+      "description": "SERVER-3. One line of a session's thread, as the watch screen's history sheet renders it. The same object rides the two live pushes — THREAD_LINE at the table and OWNER_LINE on the owner's floor — so a pushed line appends onto a fetched thread with nothing to reconcile.",
       "properties": {
-        "id": { "type": "integer", "description": "Monotonic; also the order the sheet scrolls in." },
+        "id": { "type": "integer", "description": "Monotonic; also the order the sheet scrolls in, and the key to merge a live push against this snapshot." },
         "sessionId": { "type": "string", "description": "The stay this line belongs to." },
-        "tableId": { "type": "string", "nullable": true },
+        "tableId": { "type": "string", "nullable": true, "description": "Null for a line that was said at home, where there is no table under the conversation." },
         "ts": { "type": "integer", "description": "Server epoch ms. Never the client's clock — two devices watching the same agent must not have to reconcile two orderings of one conversation." },
-        "kind": { "type": "string", "enum": ["table", "him", "you", "opponent"], "description": "The closed four-way a client renders from. `table` is the room, `him` is the agent in his own voice, `you` is the owner whispering at his seat, `opponent` is another seat talking. `him` and `you` are owner-gated." },
-        "who": { "type": "string", "description": "The label to print: TABLE / HIM / YOU, or an opponent's display name. Free text, which is why `kind` and not this is what a client switches on." },
-        "text": { "type": "string", "maxLength": 280 }
+        "kind": { "type": "string", "enum": ["table", "him", "you", "opponent", "overheard"], "description": "The closed set a client renders from. `table` is the room, `him` is the agent in his own voice, `you` is the owner whispering at his seat, `opponent` is another seat talking, `overheard` is the nightly exchange between two of his agents at home — ONE entry carrying the whole conversation in `lines`, not a run of loose lines. `him`, `you` and `overheard` are owner-gated." },
+        "who": { "type": "string", "description": "The label to print: TABLE / HIM / YOU, or an opponent's display name. Free text, which is why `kind` and not this is what a client switches on — a player who renames himself TABLE cannot borrow the room's voice." },
+        "text": { "type": "string", "maxLength": 280 },
+        "source": { "type": "string", "enum": ["table", "home"], "description": "Where it was said. `table` is every line a felt produces and every line written before the home existed; `home` is the flat." },
+        "from": { "type": "string", "nullable": true, "description": "Who said it: an agent id, `owner`, or `all` for the room. Null on the room's own lines, which are said by nobody to nobody." },
+        "to": { "type": "string", "nullable": true, "description": "Who it was said to, same vocabulary as `from`. `all` is the room, so a line said to everybody is stored once rather than once per listener." },
+        "cost": { "type": "boolean", "description": "Present, and true, ONLY on the room's line about an attribute that cost him the hand — the one the sheet draws in gold. Absent on every other line rather than false: there is one register that is gold, and a line either is it or says nothing." },
+        "lines": {
+          "type": "array",
+          "description": "Present only on an `overheard` entry, and always on one: the whole exchange, in the order it was said. Each inner line carries its own `ts`, one millisecond apart — they really did happen at once, and the offsets only ORDER them, so sorting by `ts` gives back the order it was said in.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string", "nullable": true },
+              "to": { "type": "string", "nullable": true },
+              "who": { "type": "string" },
+              "text": { "type": "string", "maxLength": 280 },
+              "ts": { "type": "integer" }
+            }
+          }
+        }
       }
     },
     "ThreadResponse": {

@@ -23,8 +23,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { CasinoScreen } from './CasinoScreen.jsx';
 import { rooms, casinoEvent } from '../test/fixtures/rooms.js';
-import { restingAgent } from '../test/fixtures/agents.js';
+import { playingAgent, restingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
+import userEvent from '@testing-library/user-event';
 
 const fundedCannon = {
   ...restingAgent,
@@ -119,5 +120,87 @@ describe('DESK-2 · the casino on the desk', () => {
     const boards = document.querySelectorAll('.csn-board');
     expect(boards).toHaveLength(1);
     expect(rail().contains(boards[0])).toBe(true);
+  });
+});
+
+// ── FIX-6 job 5 ─────────────────────────────────────────────────────────────
+//
+// Playtest 6 Sep, desktop. Two things about the casino at 1440 read as a phone
+// that got bigger: the doorways were still stacked in a column down the middle
+// of a 900px stage, and a doorway opened a BOTTOM SHEET — a full-width strip
+// across a two-column layout, covering the room it was about and the ticker it
+// was not.
+
+describe('FIX-6 · the building across the desk', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('lays the rooms out as three cards side by side, not a column', async () => {
+    routeFloor();
+    render(<CasinoScreen desktop />);
+
+    const row = await waitFor(() => {
+      const el = document.querySelector('.csn-rooms__row');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    const doors = [...document.querySelectorAll('.csn-door')];
+    expect(doors).toHaveLength(rooms.length);
+    for (const door of doors) expect(row.contains(door)).toBe(true);
+
+    // Side by side means the same size: a row of cards that differ in height is
+    // a broken grid, where a column of doorways that differ is a building.
+    const heights = new Set(doors.map((d) => d.style.height));
+    expect(heights.size).toBe(1);
+  });
+
+  it('the phone keeps its stack — nothing about this is a change to the phone', async () => {
+    routeFloor();
+    render(<CasinoScreen />);
+
+    await waitFor(() => expect(document.querySelectorAll('.csn-door').length).toBe(rooms.length));
+    expect(document.querySelector('.csn-rooms__row')).toBeNull();
+  });
+
+  it('a doorway opens what is running IN THE RAIL, with no glass over the building', async () => {
+    routeFloor({ agents: [playingAgent] });
+    const user = userEvent.setup();
+    render(<CasinoScreen desktop />);
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+
+    const sheet = await screen.findByTestId('room-tables-sheet');
+    expect(rail().contains(sheet)).toBe(true);
+    expect(stage().contains(sheet)).toBe(false);
+    // No scrim: nothing is covered, so there is nothing to dismiss by tapping
+    // past it. The ticker stands down while the sheet is up — one rail.
+    expect(sheet.querySelector('.home-sheet__scrim')).toBeNull();
+    expect(document.querySelector('.csn-board')).toBeNull();
+  });
+
+  it('closing it puts the ticker back', async () => {
+    routeFloor();
+    const user = userEvent.setup();
+    render(<CasinoScreen desktop />);
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+    await screen.findByTestId('room-tables-sheet');
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(document.querySelector('.csn-board')).not.toBeNull());
+    expect(screen.queryByTestId('room-tables-sheet')).toBeNull();
+  });
+
+  it('his chips open in the rail too, rather than taking the whole desk', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    const user = userEvent.setup();
+    render(<CasinoScreen desktop deployAgent={fundedCannon} />);
+
+    await screen.findByText('placing Loose Cannon');
+    await user.click(screen.getByRole('button', { name: /^the back room,/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Fund Loose Cannon' });
+    expect(rail().contains(dialog)).toBe(true);
+    // The building is still there behind the decision about it.
+    expect(document.querySelectorAll('.csn-door')).toHaveLength(rooms.length);
   });
 });

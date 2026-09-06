@@ -92,14 +92,14 @@ const seatsFor = (handed = 6, cast = W4_SEATS) => {
 // by which you know who is speaking.
 const BUBBLE_FILL = { mine: 'rgba(12,26,24,0.94)', opp: 'rgba(18,20,22,0.92)' };
 
-const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
+const Bubble = ({ text, mine, at = 195, top, over, w = 152, felt = 390, flow }) => {
   const left = mine ? null : Math.max(8, Math.min(felt - w - 8, at - w / 2));
   const tail = mine ? null : at - left;
   return (
   <div style={{
     ...(flow
       ? { position: 'relative', maxWidth: 320 }
-      : { position: 'absolute', top, ...(mine ? { left: at, transform: 'translateX(-50%)' } : { left }), width: mine ? 'auto' : w, maxWidth: mine ? 320 : w }),
+      : { position: 'absolute', ...(over != null ? { top: over, transform: 'translateY(-100%)' } : { top }), ...(mine ? { left: at, transform: over != null ? 'translate(-50%,-100%)' : 'translateX(-50%)' } : { left }), width: mine ? 'auto' : w, maxWidth: mine ? 320 : w }),
     zIndex: 6, pointerEvents: 'none',
     animation: 'bubblein 0.22s ease-out both',
   }}>
@@ -114,7 +114,7 @@ const Bubble = ({ text, mine, at = 195, top, w = 152, felt = 390, flow }) => {
       lineHeight: 1.4,
       textAlign: mine ? 'center' : 'left',
       fontStyle: mine ? 'normal' : 'italic',
-      ...(mine ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }),
+      ...(mine ? {} : { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 3, overflow: 'hidden' }),
     }}>{mine ? text : <>&ldquo;{text}&rdquo;</>}</div>
     {/* the tail: the only thing that says who is talking, so it points at them */}
     <div style={{

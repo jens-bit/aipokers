@@ -158,8 +158,15 @@ function atTv(agent, userId) {
 
 // The front door. Deploy, whole: the pocket gate, the cut-off, the broke
 // moment, the matchmaker and the buy-in, none of which is re-stated here.
+//
+// MERGE: this is BUGS-B/1's deployAgent — the same function the owner's own
+// POST /deploy and the table's re-queue go through, taking (userId, agentId).
+// SERVER-5 had extracted a second one before that landed; there is one now,
+// which is the whole point of rule 3. No `rung` is passed: a fixture takes no
+// parameters (rule 1), so the door buys into whatever his pocket reaches, and
+// an owner who wants to pick the room has the deploy route for it.
 function atDoor(agent, userId) {
-  return deployAgent(agent, userId);
+  return deployAgent(userId, agent.id);
 }
 
 // ── The route ───────────────────────────────────────────────────────────────

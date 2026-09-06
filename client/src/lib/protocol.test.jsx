@@ -47,6 +47,13 @@ describe('protocol', () => {
       HOME_STATE: 'home_state',
       WANT: 'want',
       SESSION_END: 'session_end',
+      // BUG-33: the two PACE-1 frames. They were missing from this table for
+      // as long as it has existed, so `ServerMsg.PACE` was `undefined` and
+      // useTable's `case ServerMsg.PACE` matched a message type of undefined
+      // — which is to say, never. The server has been staging the all-in
+      // runout card by card since PACE-1 and no client has ever handled it.
+      PACE: 'pace',
+      READ: 'read',
       // WATCH-9: the thread's own push. The sheet used to read the store when
       // it was opened and never again; this is the server saying what it has
       // just written, and the client switches on it in useTable.

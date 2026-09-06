@@ -253,6 +253,62 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         await shot(page, `${shell}-watch`);
       });
 
+      // ── SIT-1 · the owner takes a chair at his own kitchen table ──────────
+      //
+      // The one flow in the product where he JOINs instead of watching, which
+      // is why it earns a step of its own here rather than riding on the WATCH
+      // above: everything below the felt is different code, and all of it only
+      // exists once a real socket has seated him.
+      //
+      // Phone only. Sitting down is a phone gesture — the desk's table is a
+      // rail panel and DESK-2 gave it no seat — so at 1440 there is nothing to
+      // walk.
+      if (!desktop) {
+        await test.step('SIT', async () => {
+          await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+          await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
+
+          // The table has one destination and it is the sheet (board 31 P17).
+          // The SIT DOWN section is only drawn once the server says a game is
+          // running, so the click is what waits for the home game to stand up.
+          await page.getByTestId('home-table').click();
+          const sit = page.getByTestId('home-table-sit');
+          await expect(sit).toBeVisible({ timeout: 45_000 });
+          await sit.click();
+
+          // The Watch v5 felt, with him in the hero seat.
+          await expect(page.locator('.watch-screen')).toBeVisible({ timeout: 30_000 });
+          const hero = page.getByTestId('owner-hero');
+          await expect(hero).toBeVisible({ timeout: 30_000 });
+          // SEE CARDS: his own two, and no ghost of his own beside them.
+          await expect(page.getByTestId('owner-hero-cards').locator('> *')).toHaveCount(2);
+          await expect(hero.locator('.mood-ghost')).toHaveCount(0);
+          // The verbs are where the whisper row was.
+          await expect(page.getByTestId('sit-strip')).toBeVisible();
+          await expect(page.locator('.watch-composer')).toHaveCount(0);
+          await shot(page, `${shell}-sit`);
+
+          // BET: the one verb that needs a number, so the one that opens a
+          // panel. Waiting for it to be pressable IS waiting for the action to
+          // reach him — the strip draws all four from the moment he sits down
+          // and enables only what the server has offered.
+          const betVerb = page.locator('.sit-verb--bet');
+          await expect(betVerb).toBeEnabled({ timeout: 90_000 });
+          await betVerb.click();
+          const panel = page.getByTestId('sit-bet-panel');
+          await expect(panel).toBeVisible();
+          await expect(panel.getByText('ALL IN')).toBeVisible();
+          await shot(page, `${shell}-sit-bet`);
+          // Out the way it came, without sending chips: CANCEL is a word.
+          await panel.getByText('CANCEL').click();
+          await expect(page.getByTestId('sit-strip')).toBeVisible();
+
+          // BACK: the room, from the top left.
+          await page.getByRole('button', { name: 'Leave table' }).click();
+          await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
+        });
+      }
+
       expect(seeded.floorTableId, 'the deployed agent landed at a table').toBeTruthy();
       expect(noise, `console output on ${shell}:\n${noise.join('\n')}`).toEqual([]);
     });

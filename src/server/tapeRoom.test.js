@@ -12,12 +12,26 @@
 // room makes none by construction, and this asserts it stays that way.
 delete process.env.ANTHROPIC_API_KEY;
 
-// Ninety seconds is the product; sixty milliseconds is the test. Set before
-// the module is imported, because that is when it reads it.
-process.env.HOME_STUDY_MS = '60';
-const STUDY_MS = 60;
+// Ninety seconds is the product; two seconds is the test. Set before the module
+// is imported, because that is when it reads it.
+//
+// BUG-34: this was sixty milliseconds, and sixty milliseconds is shorter than
+// this suite's own HTTP round trip on a loaded machine. "A second request is
+// refused rather than stacking another ninety seconds" only holds while the
+// first study is still running, so on a busy box the window closed between the
+// two POSTs, the second request was ACCEPTED, and the assertion lost a race it
+// was never about. Under `npm test` — four suites spawned at once — that is
+// roughly one run in five hundred; under an eight-wide stress it is one in
+// sixty.
+//
+// Two seconds cannot lose to a localhost round trip, and the one test that
+// actually waits the window out is the one testing the timer. Everything else
+// ends its study deliberately (finishStudy) instead of sleeping, so widening
+// the window costs the suite about a second and a half, once.
+process.env.HOME_STUDY_MS = '2000';
+const STUDY_MS = 2000;
 
-import test, { before, after } from 'node:test';
+import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -110,6 +124,24 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
+// BUG-34: the tape room is emptied between tests.
+//
+// The cascade is what made the original failure unreadable. One lost race in
+// the first test left a LIVE study on the record, and the next two tests then
+// came back 409 "He is already watching one" — from assertions about a missing
+// handId and about filing a second line, neither of which has anything to do
+// with a study being in progress. Three red tests, one cause, and nothing in
+// the output connecting them.
+//
+// The read book is deliberately NOT cleared: it is cumulative on purpose and
+// the tests that read it say so themselves.
+beforeEach(() => {
+  tape.reset();                                   // drop any pending timer
+  for (const id of ['student', 'seated']) {
+    try { profiles.setAgentStudy(id, 'tape', null); } catch { /* not seated yet */ }
+  }
+});
+
 after(async () => {
   tape.reset();
   await new Promise((r) => server.close(r));
@@ -192,10 +224,13 @@ test('HOME-STATE-1: what the tape room refuses', async () => {
   assert.equal(nobody.status, 404);
 
   const noHand = await postJson(`${base}/api/agents/student/study`, { userId: 'tape' });
-  assert.equal(noHand.status, 400);
+  // BUG-34: the route has three different 409s and the status alone does not
+  // say which one came back. A refusal that cannot be told from another
+  // refusal is what made this suite's intermittent failure unreadable.
+  assert.equal(noHand.status, 400, JSON.stringify(await noHand.json()));
 
   const unknownHand = await postJson(`${base}/api/agents/student/study`, { userId: 'tape', handId: 999 });
-  assert.equal(unknownHand.status, 404);
+  assert.equal(unknownHand.status, 404, JSON.stringify(await unknownHand.json()));
 
   // A hand recorded before opponents were stored with it. Filing a real
   // opinion under a guessed seat index is worse than refusing.
@@ -205,12 +240,23 @@ test('HOME-STATE-1: what the tape room refuses', async () => {
 });
 
 test('HOME-STATE-1: a second study files a second line under the same man', async () => {
-  const res = await postJson(`${base}/api/agents/student/study`, { userId: 'tape', handId: 42 });
-  assert.equal(res.status, 200);
-  assert.equal((await res.json()).subject.displayName, 'Doyle', 'he showed queens at the end of that one');
+  // BUG-34: what this test is about is the SECOND LINE, not the clock. It used
+  // to sleep the window out and read the book afterwards; it now ends the study
+  // deliberately through finishStudy — the documented early-finish path, which
+  // files the line and clears the room exactly as the timer does — so widening
+  // the window above costs it nothing and no part of it can race.
+  const before = (await getJson(`${base}/api/agents/student/study?userId=tape`)).body.count;
 
-  await sleep(STUDY_MS + 120);
+  const res = await postJson(`${base}/api/agents/student/study`, { userId: 'tape', handId: 42 });
+  const body42 = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body42));   // BUG-34: say which refusal
+  assert.equal(body42.subject.displayName, 'Doyle', 'he showed queens at the end of that one');
+
+  const filed = tape.finishStudy('student', 'tape');
+  assert.equal(filed?.displayName, 'Doyle', 'ending it early files the same line the timer would');
+
   const { body } = await getJson(`${base}/api/agents/student/study?userId=tape`);
-  assert.equal(body.count, 2);
-  assert.deepEqual(body.book.map((s) => s.displayName).sort(), ['Doyle', 'Granite']);
+  assert.equal(body.study, null, 'and takes him out of the room');
+  assert.equal(body.count, before + 1, 'one more man in the book than before');
+  assert.ok(body.book.some((entry) => entry.displayName === 'Doyle'), JSON.stringify(body.book.map((e) => e.displayName)));
 });

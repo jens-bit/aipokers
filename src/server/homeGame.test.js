@@ -148,6 +148,56 @@ test('HOME-STATE-1: two home means a game; nobody home means none', () => {
   assert.equal(registry.hasTable(running.tableId), false, 'and no table left dealing');
 });
 
+// ── SERVER-4 · what they are doing at the kitchen table ─────────────────────
+
+test('SERVER-4: a home seat says what he is doing, not only who he is', () => {
+  const roster = [home('one', 'The Clock'), home('two', 'River Rat')];
+  configure({ liveTables: registry, agentsFor: () => roster });
+  const running = sync('flat');
+  const table = registry.getTable(running.tableId);
+
+  // Between hands: nobody acting, nobody folded, and the stacks as they stand.
+  // The resting answer has to be the honest one, because it is the one a table
+  // sheet spends most of its time drawing.
+  for (const seat of running.seats) {
+    assert.equal(seat.acting, false);
+    assert.equal(seat.folded, false);
+    assert.equal(seat.stack, HOME_BUYIN, 'the chips in front of him');
+  }
+
+  // A hand in the air. Before this the sheet could name four people and
+  // nothing else, so a home game read as a cast list rather than as a game.
+  table.maybeStartHand();
+  assert.ok(table.game && table.game.street !== 'waiting', 'a hand is in the air');
+  const dealt = sync('flat');
+  const acting = dealt.seats.filter((s) => s.acting);
+  assert.equal(acting.length, 1, 'exactly one of them is on the clock');
+  assert.equal(acting[0].seat, table.game.toAct);
+
+  // Somebody folds, and the sheet knows he is out of it.
+  const folder = table.game.toAct;
+  table.game.act(folder, { type: 'fold' });
+  const after = sync('flat');
+  assert.equal(after.seats.find((s) => s.seat === folder).folded, true);
+  assert.equal(after.seats.find((s) => s.seat === folder).acting, false,
+    'a man who has folded is not on the clock');
+});
+
+test('SERVER-4: nobody is on the clock when there is no hand in the air', () => {
+  const roster = [home('one', 'The Clock'), home('two', 'River Rat')];
+  configure({ liveTables: registry, agentsFor: () => roster });
+  const running = sync('flat');
+  const table = registry.getTable(running.tableId);
+
+  table.maybeStartHand();
+  assert.equal(sync('flat').seats.some((s) => s.acting), true);
+
+  // `toAct` still points somewhere between hands. Drawing a spotlight on a man
+  // who is waiting for a deal is the same class of lie as BUG-16.
+  table.game.street = 'waiting';
+  assert.equal(sync('flat').seats.some((s) => s.acting), false);
+});
+
 test('HOME-STATE-1: one alone plays the House on the TV, the same way', () => {
   let roster = [home('one', 'The Clock'), home('two', 'River Rat')];
   configure({ liveTables: registry, agentsFor: () => roster });
