@@ -1,14 +1,15 @@
-// client/src/components/wallet/PocketRow.jsx — WUI-1, WALLET-5
+// client/src/components/wallet/PocketRow.jsx — WUI-1, WALLET-5, WALLET-7
 // One agent's pocket. Ported from PocketRow in design-refs/mood-wallet.jsx.
 //
-// WALLET-5: Fund is always on the row — it is the way into the mode as well as
-// the way chips get in. Collect joins it only when he is carrying something
-// home. Both at once is a legitimate row; no action at all is not.
+// WALLET-7: the row speaks the two verbs. "Give him chips" is always there —
+// it is the way chips get in and the only way to the refill toggle. Collect
+// joins it when he is up, and takes the winnings only. "Call him in" is the
+// second action while he is seated, and it is how the roll itself comes home.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { moodOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
+import { CALL_IN, GIVE, money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
 const M_TEXT = '#EDEDED';
@@ -17,7 +18,7 @@ const M_FAINT = '#3F3F3F';
 const M_TEAL = '#00D4AA';
 const M_RED = '#FF4D4F';
 
-// WALLET-5 · what a cut-off row says about itself, in the funding sheet's own
+// WALLET-5 · what a called-in row says about itself, in the sheet's own
 // register. While he is still at a table it is a promise about the next few
 // minutes; once he is at the bar it would be a lie, so it stops being said.
 function cutLine(agent) {
@@ -26,12 +27,13 @@ function cutLine(agent) {
     : 'at the bar · nothing pending';
 }
 
-export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }) {
+export function PocketRow({ agent, index = 0, onFund, onCollect, onCallIn, onOpenProfile }) {
   const pocket = pocketOf(agent);
   if (!pocket) return null;
 
   const accent = accentFor(agent, index);
-  const actions = rowActions(pocket);
+  const seated = presenceOf(agent) === 'playing';
+  const actions = rowActions(pocket, { seated });
   const isCut = pocket.mode === 'cut';
   const tone = pnlTone(pocket.pnl);
   const pnlColor = pocket.pnl === null ? M_MUTED : tone === 'down' ? M_RED : tone === 'flat' ? M_MUTED : M_TEAL;
@@ -90,6 +92,15 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }
       </div>
 
       <div className="wal-row__actions">
+        {actions.fund && (
+          <button
+            type="button"
+            className="wal-btn wal-btn--primary"
+            onClick={() => onFund?.(agent)}
+          >
+            {GIVE}
+          </button>
+        )}
         {actions.collect && (
           <button
             type="button"
@@ -99,13 +110,15 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }
             Collect
           </button>
         )}
-        {actions.fund && (
+        {/* Only where a host owns the call. A button that does nothing is
+            worse than no button, and this one moves the whole roll. */}
+        {actions.callIn && onCallIn && (
           <button
             type="button"
-            className="wal-btn wal-btn--primary"
-            onClick={() => onFund?.(agent)}
+            className="wal-btn wal-btn--outline"
+            onClick={() => onCallIn(agent)}
           >
-            Fund
+            {CALL_IN}
           </button>
         )}
       </div>
@@ -114,7 +127,7 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onOpenProfile }
 }
 
 // The pockets list, with the ref's own header line above it.
-export function PocketList({ agents, onFund, onCollect, onOpenProfile }) {
+export function PocketList({ agents, onFund, onCollect, onCallIn, onOpenProfile }) {
   if (!agents.length) return null;
   return (
     <>
@@ -130,6 +143,7 @@ export function PocketList({ agents, onFund, onCollect, onOpenProfile }) {
             index={i}
             onFund={onFund}
             onCollect={onCollect}
+            onCallIn={onCallIn}
             onOpenProfile={onOpenProfile}
           />
         ))}

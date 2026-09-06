@@ -138,7 +138,7 @@ describe('the profile card can reach the funding sheet', () => {
     fetchMock.route('/flagged', { flaggedHands: [] });
   });
 
-  it('renders Fund on the profile pocket line and lands on the YOU screen', async () => {
+  it('renders the give-him-chips button on the profile pocket line and lands on the YOU screen', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -157,7 +157,7 @@ describe('the profile card can reach the funding sheet', () => {
       return el;
     });
 
-    const fund = within(pocketLine).getByRole('button', { name: 'Fund' });
+    const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
     // The YOU screen owns the wallet and the funding sheet.

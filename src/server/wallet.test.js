@@ -17,9 +17,10 @@ import {
   POCKET_FLOAT, ENTRY_BUYIN, STAKES, MODES,
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
-  fund, collect, autoRefill, debitBuyIn, creditCashOut, floatFor,
+  fund, collect, collectable, autoRefill, debitBuyIn, creditCashOut, floatFor,
+  callIn, sweepRecall, modeForRequest,
   seedOwner, walletProjection, pocketProjection, benchCutSeat,
-  collectMoment, brokeMoment,
+  collectMoment, callInMoment, brokeMoment,
 } from './wallet.js';
 
 import { loadAgentStore, loadWallet, stakedTotal, openStore, _closeForTests } from './store.js';
@@ -117,42 +118,197 @@ test('every documented mode is accepted', () => {
 
 // ── Collect ──────────────────────────────────────────────────────────────────
 
-test('collect moves the surplus pocket → wallet and leaves the float', () => {
+// WALLET-7 replaces the old rule, which was "collect takes everything above
+// the float". The float is the roll he is kept at, not a statement about whose
+// money it is, and reading a balance above it as money to bring home is what
+// made a $4,000 one-time top-up offer a Collect that took the top-up straight
+// back out. The rule now: the WINNINGS are the owner's at any time; the
+// PRINCIPAL comes home when he does.
+
+test('collect moves the winnings pocket → wallet and leaves the principal', () => {
   const wallet = emptyWallet('o'); wallet.balance = 1_000;
-  const agent = { id: 'a1', pocket: emptyPocket({ mode: 'auto', cap: 3_000, balance: 6_400 }) };
+  const agent = { id: 'a1', pocket: emptyPocket({ mode: 'auto', cap: 3_000, balance: 3_000 }) };
+  debitBuyIn(agent.pocket, 3_000, 't1');
+  creditCashOut(agent.pocket, 6_400, 't1');            // up 3 400
   const before = totalChips(wallet, [agent]);
 
   const r = collect(wallet, agent.pocket);
   assert.equal(r.ok, true);
-  assert.equal(r.moved, 3_400, '6400 down to the 3000 float');
+  assert.equal(r.moved, 3_400, 'the 3400 he won, and not the 3000 he was staked');
   assert.equal(agent.pocket.balance, 3_000);
   assert.equal(wallet.balance, 4_400);
   assert.equal(totalChips(wallet, [agent]), before);
 });
 
-test('collect never leaves him unable to sit down again', () => {
+test('collect never takes the roll the owner staked out from under him', () => {
   const wallet = emptyWallet('o');
   const pocket = emptyPocket({ mode: 'topup', balance: 2_400 });
+  debitBuyIn(pocket, 2_000); creditCashOut(pocket, 2_400);     // up 400
   collect(wallet, pocket);
+  assert.equal(pocket.balance, 2_400, 'the staked 2400 stayed; only the 400 he won left');
   assert.ok(pocket.balance >= ENTRY_BUYIN, `left ${pocket.balance}, needs ${ENTRY_BUYIN}`);
 });
 
-test('collect can take everything when the owner asks for it', () => {
+test('collect can take everything when the owner calls him in', () => {
   const wallet = emptyWallet('o');
   const pocket = emptyPocket({ balance: 2_400 });
-  const r = collect(wallet, pocket, { leaveFloat: false });
+  const r = collect(wallet, pocket, { all: true });
   assert.equal(r.moved, 2_400);
   assert.equal(pocket.balance, 0);
   assert.equal(wallet.balance, 2_400);
 });
 
-test('collect with nothing above the float is refused, not a zero transfer', () => {
+test('collect with nothing won is refused, not a zero transfer', () => {
   const wallet = emptyWallet('o');
   const pocket = emptyPocket({ balance: 500 });
   const r = collect(wallet, pocket);
   assert.equal(r.ok, false);
   assert.equal(r.moved, 0);
   assert.equal(pocket.balance, 500);
+});
+
+// WALLET-7 · the reported symptom, at the level the rule lives at.
+test('WALLET-7: a pocket funded once and never played offers nothing to collect', () => {
+  const wallet = emptyWallet('o'); wallet.balance = 10_000;
+  const pocket = emptyPocket({ mode: 'auto', cap: 2_000 });
+  fund(wallet, pocket, { mode: 'auto', amount: 4_000, cap: 4_000 });
+
+  assert.equal(pocketProjection(pocket).pnl, 0, 'a top-up is not a win');
+  assert.equal(collectable(pocket), 0, 'and there is nothing of his to bring home');
+  assert.equal(collect(wallet, pocket).ok, false);
+  assert.equal(pocket.balance, 4_000, 'the roll the owner gave him stayed given');
+});
+
+test('WALLET-7: a losing pocket offers nothing to collect, however much it holds', () => {
+  const wallet = emptyWallet('o'); wallet.balance = 10_000;
+  const pocket = emptyPocket({ mode: 'allowance', cap: 5_000 });
+  fund(wallet, pocket, { mode: 'allowance', amount: 5_000, cap: 5_000 });
+  debitBuyIn(pocket, 2_000); creditCashOut(pocket, 1_100);     // down 900
+  assert.equal(collectable(pocket), 0);
+  assert.equal(collect(wallet, pocket).ok, false);
+});
+
+test('WALLET-7: collecting the winnings banks them, so the same win is not collected twice', () => {
+  const wallet = emptyWallet('o'); wallet.balance = 10_000;
+  const pocket = emptyPocket({ mode: 'allowance', cap: 3_000 });
+  fund(wallet, pocket, { mode: 'allowance', amount: 3_000, cap: 3_000 });
+  debitBuyIn(pocket, 2_000); creditCashOut(pocket, 2_500);     // up 500
+
+  assert.equal(collect(wallet, pocket).moved, 500);
+  assert.equal(pocketProjection(pocket).pnl, 0, 'the win is home; it is no longer uncollected');
+  assert.equal(collect(wallet, pocket).ok, false, 'and it cannot be collected a second time');
+  assert.equal(pocket.balance, 3_000, 'the staked roll is untouched by either call');
+});
+
+test('WALLET-7: an explicit amount cannot reach past the winnings', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'allowance', cap: 3_000, balance: 3_000 });
+  debitBuyIn(pocket, 2_000); creditCashOut(pocket, 2_400);     // up 400
+  const r = collect(wallet, pocket, { amount: 3_000 });
+  assert.equal(r.moved, 400, 'asking for more than he won takes what he won');
+  assert.equal(pocket.balance, 3_000);
+});
+
+test('WALLET-7: a called-in pocket is collectable to the last chip', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'cut', balance: 4_000 });
+  assert.equal(collectable(pocket), 4_000, 'he is not sitting down again, so none of it is his to keep');
+  assert.equal(collect(wallet, pocket).moved, 4_000);
+});
+
+test('WALLET-7: sweeping the principal home does not read as a loss', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'cut', balance: 4_000 });
+  collect(wallet, pocket, { all: true });
+  assert.equal(pocketProjection(pocket).pnl, 0, 'a transfer is not a P&L event, in either direction');
+});
+
+// ── WALLET-7: the two verbs ──────────────────────────
+
+test('WALLET-7: the two verbs map onto the four stored modes', () => {
+  assert.equal(modeForRequest({ verb: 'give' }).mode, 'allowance');
+  assert.equal(modeForRequest({ verb: 'give', refill: true }).mode, 'auto');
+  assert.equal(modeForRequest({ verb: 'callin' }).mode, 'cut');
+  assert.equal(modeForRequest({ verb: 'call-in' }).mode, 'cut');
+});
+
+test('WALLET-7: a one-time top-up folds into the allowance it always was', () => {
+  // Two names for one thing — chips now, no refill — and the split is what made
+  // the sheet ask four questions where there was one. Stored pockets keep the
+  // mode they have; nothing is rewritten.
+  assert.equal(modeForRequest({ mode: 'topup' }).mode, 'allowance');
+  assert.equal(modeForRequest({ mode: 'topup', refill: true }).mode, 'auto');
+  assert.ok(MODES.includes('topup'), 'the stored vocabulary is unchanged');
+});
+
+test('WALLET-7: the modes an older client still posts survive the round trip', () => {
+  for (const [mode, expected] of [['allowance', 'allowance'], ['auto', 'auto'], ['cut', 'cut']]) {
+    assert.equal(modeForRequest({ mode }).mode, expected, mode);
+  }
+});
+
+test('WALLET-7: no mode at all leaves the mode alone', () => {
+  const r = modeForRequest({ amount: 500 });
+  assert.equal(r.ok, true);
+  assert.equal(r.mode, undefined);
+});
+
+test('WALLET-7: an unknown verb is refused rather than guessed at', () => {
+  assert.equal(modeForRequest({ verb: 'nonsense' }).ok, false);
+  assert.equal(modeForRequest({ mode: 'bankrupt' }).ok, false);
+});
+
+test('WALLET-7: calling him in brings the pocket home and benches his seat', () => {
+  const wallet = emptyWallet('o');
+  const agent = { id: 'cannon', pocket: emptyPocket({ mode: 'auto', cap: 5_000, balance: 4_000 }) };
+  const table = fakeTable(['cannon']);
+  const before = totalChips(wallet, [agent]);
+
+  const r = callIn(wallet, agent.pocket, { table, agentId: 'cannon', seated: true });
+  assert.equal(r.moved, 4_000);
+  assert.equal(r.benched, true);
+  assert.deepEqual([...table.benchedAfterHand], [0], 'he finishes the hand he is in');
+  assert.equal(table.foldedOut.size, 0);
+  assert.equal(agent.pocket.mode, 'cut');
+  assert.equal(agent.pocket.balance, 0);
+  assert.equal(wallet.balance, 4_000);
+  assert.equal(totalChips(wallet, [agent]), before, 'not a chip made or lost');
+});
+
+test('WALLET-7: calling in an agent at a table flags the chips still in front of him', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'auto', cap: 5_000, balance: 2_000 });
+  debitBuyIn(pocket, 2_000, 't1');                     // his roll is on the table
+  callIn(wallet, pocket, { table: fakeTable(['cannon']), agentId: 'cannon', seated: true });
+  assert.equal(pocket.recall, true, 'the sweep has to remember them');
+
+  // Still seated: the sweep waits rather than emptying a pocket mid-hand.
+  assert.equal(sweepRecall(wallet, pocket, { seated: true }).ok, false);
+  assert.equal(pocket.recall, true);
+
+  // The session pays him back, and the next look at the wallet brings it home.
+  creditCashOut(pocket, 2_600, 't1');
+  const r = sweepRecall(wallet, pocket, { seated: false });
+  assert.equal(r.moved, 2_600);
+  assert.equal(pocket.balance, 0);
+  assert.equal(pocket.recall, false, 'and it only happens once');
+  assert.equal(sweepRecall(wallet, pocket, { seated: false }).ok, false);
+});
+
+test('WALLET-7: calling in an agent at the bar flags nothing to sweep', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'allowance', cap: 3_000, balance: 3_000 });
+  callIn(wallet, pocket, { table: null, agentId: 'a1', seated: false });
+  assert.equal(pocket.balance, 0);
+  assert.equal(pocket.recall, false, 'nothing is out there — all of it came home in the one call');
+});
+
+test('WALLET-7: a called-in pocket with nothing in it is still a valid call', () => {
+  const wallet = emptyWallet('o');
+  const pocket = emptyPocket({ mode: 'auto', cap: 2_000, balance: 0 });
+  const r = callIn(wallet, pocket, { seated: false });
+  assert.equal(r.moved, 0);
+  assert.equal(pocket.mode, 'cut', 'the decision stands whether or not money moved');
 });
 
 // ── Auto-refill ──────────────────────────────────────────────────────────────
@@ -244,7 +400,9 @@ test('pocketProjection carries money and stakes only — never an attribute', ()
   assert.equal(p.have, 6_400);
   assert.deepEqual(p.stakes, { smallBlind: 25, bigBlind: 50, label: '$25/$50' });
   assert.equal(p.broke, false);
-  assert.equal(p.collectable, 3_400);
+  // WALLET-7: he has won nothing, so nothing is collectable — a pocket bigger
+  // than its float is a well-funded pocket, not a pile of winnings.
+  assert.equal(p.collectable, 0);
   for (const forbidden of ['attrs', 'mood', 'band', 'strategy', 'focus']) {
     assert.equal(forbidden in p, false, `pocket projection must not carry ${forbidden}`);
   }
@@ -262,19 +420,26 @@ test('pocket pnl counts what he was given against what he holds and gave back', 
   const pocket = emptyPocket();
   fund(wallet, pocket, { mode: 'topup', amount: 3_000 });
   creditCashOut(pocket, 340);                    // won 340 at the table
-  assert.equal(pocketProjection(pocket).pnl, 340);
-  collect(wallet, pocket, { leaveFloat: false });
-  assert.equal(pocketProjection(pocket).pnl, 340, 'collecting is a transfer, not a loss');
+  assert.equal(pocketProjection(pocket).pnl, 340, 'funding is a transfer; the win is the P&L');
+
+  // WALLET-7: the pnl the row shows is the winnings still IN the pocket, so
+  // taking them home takes them out of it. What it must never do is read the
+  // principal coming home as a loss.
+  collect(wallet, pocket, { all: true });
+  assert.equal(pocketProjection(pocket).pnl, 0);
+  assert.equal(pocket.balance, 0);
 });
 
 // ── Voice ────────────────────────────────────────────────────────────────────
 
-test('the collect and broke lines are in his voice and carry no owner-guilt', () => {
+test('the collect, call-in and broke lines are in his voice and carry no owner-guilt', () => {
   const guilt = /you (never|forgot|left|abandoned)|why did you|please come|miss you|your fault/i;
   for (const n of [0, 1, 2, 3, 4]) {
     const c = collectMoment({ moved: 340 * (n + 1), left: 300, agentName: `A${n}` });
     const b = brokeMoment({ mode: MODES[n % MODES.length], agentName: `A${n}` });
-    for (const line of [c, b]) {
+    // WALLET-7: called in is its own beat, and it is held to the same law.
+    const i = callInMoment({ moved: 4_000 * (n + 1), agentName: `A${n}` });
+    for (const line of [c, b, i]) {
       assert.equal(typeof line, 'string');
       assert.ok(line.length > 0 && line.length < 200);
       assert.equal(guilt.test(line), false, `owner-guilt in: ${line}`);
@@ -576,25 +741,45 @@ test('WALLET-1e: float never drops below one buy-in at the entry rung', () => {
   }
 });
 
-test('WALLET-1e: float is exactly what collect leaves behind', () => {
-  // The receipt and the row must never disagree — collect() calls floatFor().
+// WALLET-7 — this asserted that collect stopped at the float. It no longer
+// does: the float is the roll the refill toggle tops him back up to, and it was
+// never an answer to "whose money is this". Collect stops at the winnings, and
+// what it leaves behind is the principal.
+test('WALLET-7: what collect leaves behind is the roll the owner staked', () => {
+  for (const mode of ['auto', 'allowance', 'topup']) {
+    const pocket = emptyPocket({ mode, cap: 5_000, balance: 5_000 });
+    debitBuyIn(pocket, 5_000, 't1');
+    creditCashOut(pocket, 9_000, 't1');                 // up 4 000
+    collect(emptyWallet('o'), pocket);
+    assert.equal(pocket.balance, 5_000, `${mode} left ${pocket.balance}, he was staked 5000`);
+  }
+  // Called in is the exception, and the whole point of the second verb.
+  const cut = emptyPocket({ mode: 'cut', balance: 9_000 });
+  collect(emptyWallet('o'), cut);
+  assert.equal(cut.balance, 0);
+});
+
+test('WALLET-1e/7: float is still the roll auto refills him back up to', () => {
+  // Unchanged, and still what the profile line reads ("refills to $3,000").
   for (const pocket of [
     emptyPocket({ mode: 'auto', cap: 3_000, balance: 9_000 }),
     emptyPocket({ mode: 'allowance', cap: 5_000, balance: 9_000 }),
-    emptyPocket({ mode: 'topup', balance: 9_000 }),
-    emptyPocket({ mode: 'cut', balance: 9_000 }),
   ]) {
-    const expected = floatFor(pocket);
-    collect(emptyWallet('o'), pocket);
-    assert.equal(pocket.balance, expected, `${pocket.mode} left ${pocket.balance}, float said ${expected}`);
-    assert.equal(pocketProjection(pocket).float, expected);
+    assert.equal(pocketProjection(pocket).float, floatFor(pocket));
   }
 });
 
 test('WALLET-1e: the projection carries float', () => {
-  const p = pocketProjection(emptyPocket({ mode: 'auto', cap: 3_000, balance: 6_400 }));
-  assert.equal(p.float, 3_000);
-  assert.equal(p.collectable, 3_400, 'collectable is balance minus float');
+  const pocket = emptyPocket({ mode: 'auto', cap: 3_000, balance: 3_000 });
+  assert.equal(pocketProjection(pocket).float, 3_000);
+  assert.equal(pocketProjection(pocket).collectable, 0, 'a full pocket he has not played is not winnings');
+
+  // WALLET-7: collectable is the winnings, and it is what the Collect button
+  // would actually take.
+  debitBuyIn(pocket, 3_000, 't1');
+  creditCashOut(pocket, 6_400, 't1');
+  assert.equal(pocketProjection(pocket).collectable, 3_400);
+  assert.equal(pocketProjection(pocket).float, 3_000, 'the float did not move because he won');
 });
 
 // ── WALLET-1e: pnl ───────────────────────────────────────────────────────────
@@ -615,15 +800,22 @@ test('WALLET-1e: pnl is realised table P&L, both signs', () => {
   assert.equal(pocketProjection(pocket).pnl, -600, 'a losing night can take it negative');
 });
 
-test('WALLET-1e: collecting does not change pnl', () => {
+// WALLET-7 — this asserted that collecting left pnl alone. Under the old rule
+// that was right: a collect took a slice off the top and said nothing about
+// winning. Under the new one pnl IS the uncollected winnings — the number the
+// Collect button offers to hand over — so leaving it untouched would offer the
+// same $3,400 forever and eat the staked roll one press at a time.
+test('WALLET-7: collecting the winnings takes them out of the uncollected P&L', () => {
   const wallet = emptyWallet('o'); wallet.balance = 20_000;
   const pocket = emptyPocket({ mode: 'auto', cap: 3_000 });
   fund(wallet, pocket, { mode: 'auto', amount: 3_000, cap: 3_000 });
   debitBuyIn(pocket, 2_000); creditCashOut(pocket, 5_400);
-  const before = pocketProjection(pocket).pnl;
-  assert.equal(before, 3_400);
+  assert.equal(pocketProjection(pocket).pnl, 3_400);
+
   collect(wallet, pocket);
-  assert.equal(pocketProjection(pocket).pnl, before, 'bringing it home is a transfer, not a loss');
+  assert.equal(pocketProjection(pocket).pnl, 0, 'what is home is no longer waiting to be collected');
+  assert.equal(pocket.balance, 3_000, 'and the roll he plays with is exactly what it was');
+  assert.equal(wallet.balance, 20_400, 'the wallet is up by the winnings, not by the roll');
 });
 
 test('WALLET-1e: pnl survives the ledger being capped', () => {

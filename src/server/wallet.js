@@ -34,7 +34,35 @@ export const STAKES = Object.freeze([
 
 export const ENTRY_BUYIN = STAKES[0].buyIn;
 
+// The STORED vocabulary. WALLET-7 replaced the owner-facing four modes with
+// two verbs — "give him chips" and "call him in" — but the store still speaks
+// these four, so no agents.json anywhere has to be migrated. modeForRequest()
+// below is the whole of the translation, and it happens at the route.
 export const MODES = Object.freeze(['topup', 'allowance', 'auto', 'cut']);
+
+// WALLET-7 — the two verbs, mapped to the four stored modes at the route.
+//
+//   give him chips            -> 'allowance'   (a roll, and when it is gone he stops)
+//   give him chips + refill   -> 'auto'        (the toggle: refill when he busts, up to the cap)
+//   call him in               -> 'cut'         (he finishes the hand and comes home)
+//
+// 'topup' folds into 'allowance': a one-time top-up and an allowance were the
+// same thing wearing two names — chips now, no refill — and the split is what
+// made the sheet offer four answers to one question. Pockets already stored as
+// 'topup' keep working; nothing rewrites them.
+//
+// Returns { ok, mode }. `mode: undefined` with ok means "leave the mode alone",
+// which is what a bare top-up of an existing pocket does.
+export function modeForRequest({ verb, mode, refill } = {}) {
+  const want = verb ?? mode;
+  if (want === undefined || want === null) return { ok: true, mode: undefined };
+  if (want === 'callin' || want === 'call-in' || want === 'cut') return { ok: true, mode: 'cut' };
+  if (want === 'give' || want === 'allowance' || want === 'topup') {
+    return { ok: true, mode: refill ? 'auto' : 'allowance' };
+  }
+  if (want === 'auto') return { ok: true, mode: 'auto' };
+  return { ok: false, mode: undefined };
+}
 
 // Ledgers are append-only and bounded, like the agent ledger they sit beside.
 const LEDGER_CAP = 100;
@@ -59,6 +87,10 @@ export function emptyPocket({ mode = 'topup', cap = null, balance = 0 } = {}) {
     // that outlives 50 sessions would start quietly forgetting its own record.
     // Funding and collecting are transfers and never touch it.
     realised: 0,
+    // WALLET-7: he has been called in and some of his chips are still on the
+    // table. Set by callIn(), cleared by sweepRecall() once he is off it —
+    // which is what stops the owner having to collect the same roll twice.
+    recall: false,
     ledger: [],
   };
 }
@@ -82,6 +114,7 @@ export function ensurePocket(agent) {
     // from whatever table entries their ledger still holds. Approximate for a
     // long-lived pocket, exact for every pocket written since.
     if (!Number.isFinite(agent.pocket.realised)) agent.pocket.realised = realisedFromLedger(agent.pocket.ledger);
+    if (typeof agent.pocket.recall !== 'boolean') agent.pocket.recall = false;
     return agent.pocket;
   }
   agent.pocket = emptyPocket();
@@ -148,27 +181,85 @@ export function fund(wallet, pocket, { mode, amount = 0, cap = null } = {}) {
   return { ok: true, moved: want };
 }
 
-// He brings it home. Default is to collect everything above the float, which
-// is the design ref's "pocket back to its $300 float" — collecting must never
-// leave him unable to sit down again unless the owner asks for all of it.
-export function collect(wallet, pocket, { amount = null, leaveFloat = true } = {}) {
-  const float = leaveFloat ? floatFor(pocket) : 0;
-  const collectable = Math.max(0, pocket.balance - float);
-  const want = amount === null || amount === undefined ? collectable : chips(amount);
-  const moved = Math.min(want, pocket.balance);
+// WALLET-7 — what is his to be taken back, and when.
+//
+//   The winnings are the owner's at any time. The principal comes home when
+//   he leaves the table.
+//
+// So the ceiling on a collect is the realised P&L, and only while it is
+// positive: money the owner put in is money he already gave, and taking it out
+// from under a seated agent is the thing the old "everything above the float"
+// rule did by accident. A pocket topped up to $4,000 and never played sat
+// $2,000 "above its float" and offered a Collect that took back the top-up —
+// which is exactly the one-time-top-up symptom this tree is named after.
+//
+// Called in ('cut') is the other half of the rule: he is not sitting down
+// again, so the whole pocket is collectable, principal included.
+export function collectable(pocket) {
+  const bal = chips(pocket?.balance);
+  if (pocket?.mode === 'cut') return bal;
+  const won = Number.isFinite(pocket?.realised) ? pocket.realised : 0;
+  return Math.max(0, Math.min(won, bal));
+}
+
+// He brings it home. `all` is the call-him-in path and takes the principal too;
+// everything else is capped at the winnings, so collecting can never be the
+// thing that leaves him unable to sit down at the stake he was staked for.
+export function collect(wallet, pocket, { amount = null, all = false } = {}) {
+  const ceiling = all ? chips(pocket.balance) : collectable(pocket);
+  const want = amount === null || amount === undefined ? ceiling : Math.min(chips(amount), ceiling);
+  const moved = Math.min(want, chips(pocket.balance));
   if (moved <= 0) return { ok: false, moved: 0, reason: 'nothing to collect' };
 
   pocket.balance -= moved;
   wallet.balance += moved;
+  // Winnings that came home stop being uncollected P&L. Without this the row
+  // would offer the same $340 every time it was drawn, and each Collect would
+  // eat a slice of the roll the owner staked. Only the winnings part is
+  // banked: sweeping the principal out of a called-in pocket is a transfer and
+  // must not read as a loss.
+  const banked = Math.min(moved, Math.max(0, pocket.realised ?? 0));
+  if (banked > 0) pocket.realised = (pocket.realised ?? 0) - banked;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'collect', amount: -moved });
   wallet.ledger = appendEntry(wallet.ledger, { type: 'collect', amount: moved, agentId: pocket.agentId ?? null });
   return { ok: true, moved };
 }
 
-// WALLET-1e: the float is one number with one meaning — what stays in the
-// pocket when the owner collects — and it is what `auto` refills back up to.
-// The UI reads it verbatim ("Pocket back to its $300 float"), so this function
-// and the collect path must never disagree; collect() calls it.
+// WALLET-7 — "Call him in", the second verb, and the only cut-off there is.
+//
+// He finishes the hand he is in and takes a seat at the bar, and everything in
+// the pocket comes back to the wallet. The seat is asked to sit out AFTER the
+// hand (benchCutSeat), so the promise the sheet makes is the promise the table
+// keeps.
+//
+// Chips still on the table cannot come home in this call — they are not in the
+// pocket, they are in front of him. `recall` is what remembers to sweep them
+// the moment the session pays them back, so calling him in is one decision the
+// owner takes once rather than a collect he has to remember to repeat.
+export function callIn(wallet, pocket, { table = null, agentId = null, seated = false } = {}) {
+  pocket.mode = 'cut';
+  pocket.cap = null;
+  const bench = table ? benchCutSeat(table, agentId) : { seat: -1, benched: false };
+  const home = collect(wallet, pocket, { all: true });
+  pocket.recall = !!seated;
+  return { moved: home.moved, benched: bench.benched, seat: bench.seat };
+}
+
+// The other half of callIn: the sweep that runs once he is off the table. A
+// no-op while he is still seated, and it clears the flag either way as soon as
+// he is not — an empty pocket is home too.
+export function sweepRecall(wallet, pocket, { seated = false } = {}) {
+  if (!pocket?.recall) return { ok: false, moved: 0, reason: 'nothing recalled' };
+  if (seated) return { ok: false, moved: 0, reason: 'still at the table' };
+  const r = collect(wallet, pocket, { all: true });
+  pocket.recall = false;
+  return r.ok ? r : { ok: false, moved: 0, reason: r.reason };
+}
+
+// WALLET-1e / WALLET-7: the float is the roll he is kept at — what the refill
+// toggle tops him back up to when he busts. It used to double as the line
+// collect stopped at; WALLET-7 took that job off it, because the winnings are
+// what a collect takes and the principal is not the float's business.
 //
 //   auto | allowance : the roll the owner committed (the cap)
 //   topup | cut      : one buy-in at the rung he is playing — nobody has
@@ -365,7 +456,10 @@ export function pocketProjection(pocket) {
     capBar: p.cap ?? nextRungBuyIn(p.balance),
     stakes: stakes ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, label: stakes.label } : null,
     broke,
-    collectable: Math.max(0, p.balance - float),
+    // WALLET-7: what a Collect would actually take — the winnings, or the whole
+    // pocket once he has been called in. Not "everything above the float": that
+    // read a top-up as money to bring home.
+    collectable: collectable(p),
     funded,
     collected,
     // WALLET-1e: realised P&L at tables, both signs — buy-ins out against
@@ -396,6 +490,18 @@ export function collectMoment({ moved, left, agentName = 'He' } = {}) {
     `That's ${moved} back to you. I'll go again on ${left}.`,
   ];
   return lines[Math.abs(hash(`${agentName}:${moved}:${left}`)) % lines.length];
+}
+
+// WALLET-7: he has been called in. The pocket is empty because the owner asked
+// for it back, which is a different beat from busting — no plea, no apology,
+// and the read book keeps either way.
+export function callInMoment({ moved, agentName = 'He' } = {}) {
+  const lines = [
+    `All ${moved} of it is back with you. I'll be at the bar.`,
+    `Cashed out — ${moved} home. I keep the read book.`,
+    `That's me done for now. ${moved} back to you.`,
+  ];
+  return lines[Math.abs(hash(`${agentName}:callin:${moved}`)) % lines.length];
 }
 
 export function brokeMoment({ mode = 'topup', agentName = 'He' } = {}) {

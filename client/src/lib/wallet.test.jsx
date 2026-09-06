@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   MODES,
+  callInAgent,
   collectFrom,
   fetchWallet,
   fundAgent,
@@ -16,13 +17,13 @@ import {
   pocketFill,
   pocketOf,
   rowActions,
-  collectLeavesFloat,
+  collectsEverything,
   signedMoney,
   stakesFor,
 } from './wallet.js';
 import {
   aggressiveAgent, balancedAgent, brokeAgent, cutPlayingAgent, legacyPocketAgent,
-  noPocketAgent, shortAgent, toppedUpAgent, wallet,
+  noPocketAgent, shortAgent, toppedUpAgent, upAndSeatedAgent, wallet,
 } from '../test/fixtures/wallet.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -84,19 +85,21 @@ describe('pocketOf', () => {
       balance: 6400,
       mode: 'auto',
       cap: 10000,
-      // Not sent directly: derived as balance - collectable, which is what
-      // collect leaves behind and what auto refills back up to.
-      float: 2000,
+      // WALLET-7: the float is sent, not derived. It used to be computed as
+      // balance - collectable, which only held while collect stopped at the
+      // float; collectable is now the winnings, and that subtraction would
+      // give the principal instead.
+      float: 10000,
       broke: false,
       stakesLabel: '$25/$50',
-      collectable: 4400,
+      collectable: 340,
       have: 6400,
       capBar: 10000,
       pnl: 340,
     });
   });
 
-  it('reads a float sent directly, when one ever is', () => {
+  it('reads the float the projection sends', () => {
     expect(pocketOf({ pocket: { balance: 6400, mode: 'auto', float: 2500 } }).float).toBe(2500);
   });
 
@@ -148,12 +151,11 @@ describe('pocketFill', () => {
   });
 });
 
-// WALLET-5 replaces the old "one primary action per row, never two" rule. That
-// rule is what the playtest reported: funding an agent past his float removed
-// the Fund button, leaving no way to change his mode or add more. Fund is now
-// unconditional and Collect is the second, optional action.
-describe('rowActions — Fund is always offered, Collect only when it is honest', () => {
-  it('always offers Fund — it is the only way into the mode', () => {
+// WALLET-7 — the row's three actions. "Give him chips" is unconditional,
+// Collect is the winnings and only when there are any, and "Call him in" is the
+// way the roll itself comes home — offered while he is at a table.
+describe('rowActions — give him chips always, the other two when they are honest', () => {
+  it('always offers to give him chips — it is the only way to the toggle', () => {
     for (const a of [balancedAgent, aggressiveAgent, brokeAgent, shortAgent, toppedUpAgent, cutPlayingAgent]) {
       expect(rowActions(pocketOf(a)).fund, a.name).toBe(true);
     }
@@ -161,36 +163,47 @@ describe('rowActions — Fund is always offered, Collect only when it is honest'
   });
 
   it('offers Collect beside it when he is up at the tables', () => {
-    expect(rowActions(pocketOf(balancedAgent))).toEqual({ fund: true, collect: true });
+    expect(rowActions(pocketOf(balancedAgent))).toMatchObject({ fund: true, collect: true });
   });
 
   it('does not call a top-up winnings — the reported bug', () => {
-    // 4,000 in the pocket against a 2,000 seeded cap: 2,000 of it is "above
-    // the float" without his having won a chip.
-    expect(rowActions(pocketOf(toppedUpAgent))).toEqual({ fund: true, collect: false });
+    // 4,000 in the pocket against a 2,000 seeded cap. Under the old rule 2,000
+    // of it was "above the float" and Collect offered to take the owner's own
+    // top-up back out.
+    expect(rowActions(pocketOf(toppedUpAgent))).toEqual({ fund: true, collect: false, callIn: false });
   });
 
   it('offers no Collect while he is down, however much he still holds', () => {
-    expect(rowActions(pocketOf(aggressiveAgent))).toEqual({ fund: true, collect: false });
-    expect(rowActions(pocketOf(shortAgent))).toEqual({ fund: true, collect: false });
+    expect(rowActions(pocketOf(aggressiveAgent)).collect).toBe(false);
+    expect(rowActions(pocketOf(shortAgent)).collect).toBe(false);
   });
 
-  it('offers Collect on a cut-off pocket that still holds a roll', () => {
-    // He is not going to play it, so all of it is the owner's to take back.
-    expect(rowActions(pocketOf(cutPlayingAgent))).toEqual({ fund: true, collect: true });
-    // Cut off and empty is Fund alone: there is nothing to bring home.
-    expect(rowActions(pocketOf(brokeAgent))).toEqual({ fund: true, collect: false });
+  it('offers Call him in while he is seated, and only then', () => {
+    expect(rowActions(pocketOf(aggressiveAgent), { seated: true }).callIn).toBe(true);
+    expect(rowActions(pocketOf(aggressiveAgent), { seated: false }).callIn).toBe(false);
+    // All three at once is a legitimate row: staked, up, and still playing.
+    expect(rowActions(pocketOf(upAndSeatedAgent), { seated: true }))
+      .toEqual({ fund: true, collect: true, callIn: true });
+  });
+
+  it('does not offer to call in an agent who has already been called in', () => {
+    // He is on his way to the bar; asking again would be a second answer to a
+    // question the owner has answered. Collect is how the rest of it comes home.
+    expect(rowActions(pocketOf(cutPlayingAgent), { seated: true }))
+      .toEqual({ fund: true, collect: true, callIn: false });
+    // Called in and empty: nothing to bring home, and chips are still offered.
+    expect(rowActions(pocketOf(brokeAgent))).toEqual({ fund: true, collect: false, callIn: false });
   });
 });
 
-describe('collectLeavesFloat — cutting him off hands back all of it', () => {
-  it('leaves the float behind for every mode that still plays', () => {
-    expect(collectLeavesFloat(pocketOf(balancedAgent))).toBe(true);
-    expect(collectLeavesFloat(pocketOf(aggressiveAgent))).toBe(true);
+describe('collectsEverything — a called-in pocket hands back all of it', () => {
+  it('takes the winnings only from every pocket that is still playing', () => {
+    expect(collectsEverything(pocketOf(balancedAgent))).toBe(false);
+    expect(collectsEverything(pocketOf(aggressiveAgent))).toBe(false);
   });
 
-  it('leaves nothing behind when he is cut off — the float buys him no seat', () => {
-    expect(collectLeavesFloat(pocketOf(cutPlayingAgent))).toBe(false);
+  it('takes the principal too once he has been called in', () => {
+    expect(collectsEverything(pocketOf(cutPlayingAgent))).toBe(true);
   });
 });
 
@@ -223,13 +236,23 @@ describe('stakesFor — the server owns the ladder', () => {
   });
 });
 
+// WALLET-7 — the store still holds four modes and the row still has to draw a
+// tag for each, but the owner-facing vocabulary is the two verbs plus the one
+// toggle. 'topup' and 'allowance' were the same thing under two names and now
+// read as one: STAKED.
 describe('modes', () => {
-  it('carries the four the funding sheet offers', () => {
+  it('still reads the four the store holds, because nothing was migrated', () => {
     expect(Object.keys(MODES)).toEqual(['topup', 'allowance', 'auto', 'cut']);
   });
 
-  it('labels cut off without a shred of guilt in the copy', () => {
-    expect(MODES.cut.label).toBe('CUT OFF');
+  it('draws the two staked modes as one thing, because they were one thing', () => {
+    expect(MODES.topup.label).toBe('STAKED');
+    expect(MODES.allowance.label).toBe('STAKED');
+    expect(MODES.auto.label).toBe('REFILLS');
+  });
+
+  it('labels being called in without a shred of guilt in the copy', () => {
+    expect(MODES.cut.label).toBe('CALLED IN');
     expect(MODES.cut.line).toContain('not a punishment');
   });
 
@@ -284,25 +307,42 @@ describe('fetchWallet — absence is a first-class answer', () => {
 describe('fund and collect', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('POSTs the funding decision in the contract shape', async () => {
+  it('POSTs the verb, the amount and the toggle', async () => {
     fetchMock.route('/fund', { ok: true }, { method: 'POST' });
-    await fundAgent('agent_aggressive', { mode: 'allowance', amount: 500, cap: null });
+    await fundAgent('agent_aggressive', { verb: 'give', amount: 500, cap: 500, refill: true });
 
     const [req] = fetchMock.requestsMatching('/fund');
     expect(req.method).toBe('POST');
     expect(req.url).toContain('agent_aggressive');
-    expect(req.body).toMatchObject({ mode: 'allowance', amount: 500, cap: null });
+    expect(req.body).toMatchObject({ verb: 'give', amount: 500, cap: 500, refill: true });
     expect(req.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
   });
 
-  it('POSTs a collect', async () => {
+  // The route maps the verbs onto the modes the store holds, so calling him in
+  // is the same endpoint as giving him chips: one decision about how he is
+  // backed, and it happens to move the money the other way.
+  it('POSTs the call-in as the second verb on the same route', async () => {
+    fetchMock.route('/fund', { collected: 4000 }, { method: 'POST' });
+    await callInAgent('agent_cannon');
+
+    const [req] = fetchMock.requestsMatching('/fund');
+    expect(req.url).toContain('agent_cannon');
+    expect(req.body).toMatchObject({ verb: 'callin', amount: null, cap: null });
+  });
+
+  it('POSTs a collect, which takes the winnings unless it is told otherwise', async () => {
     fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
     expect(await collectFrom('agent_balanced')).toEqual({ collected: 340 });
-    expect(fetchMock.requestsMatching('/collect')[0].method).toBe('POST');
+    const [req] = fetchMock.requestsMatching('/collect');
+    expect(req.method).toBe('POST');
+    expect(req.body).toMatchObject({ all: false });
+
+    await collectFrom('agent_cannon', { all: true });
+    expect(fetchMock.requestsMatching('/collect')[1].body).toMatchObject({ all: true });
   });
 
   it('throws on a refusal so the caller can leave the row as it was', async () => {
     fetchMock.route('/fund', () => ({ status: 402, body: {} }), { method: 'POST' });
-    await expect(fundAgent('a', { mode: 'topup', amount: 10 })).rejects.toThrow(/402/);
+    await expect(fundAgent('a', { verb: 'give', amount: 10 })).rejects.toThrow(/402/);
   });
 });

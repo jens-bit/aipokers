@@ -1,12 +1,23 @@
-// client/src/components/wallet/FundSheet.test.jsx — WUI-2
-// Three modes plus the cut-off, the cap field, and the copy law: cutting him
-// off is a legitimate answer drawn without a shred of guilt.
+// client/src/components/wallet/FundSheet.test.jsx — WUI-2, WALLET-7
+//
+// WALLET-7 rewrote this file's subject. It used to assert four modes drawn as
+// four choices of equal weight — a one-time top-up, an allowance, auto-refill
+// and cutting him off — with a cap field that changed its name per mode. Two of
+// those four were the same thing under different names, and a sheet that asks
+// the owner to classify his own generosity is a sheet that asks the wrong
+// question. What is asserted now is the two verbs:
+//
+//   GIVE HIM CHIPS   an amount, and one toggle for whether it refills
+//   CALL HIM IN      he finishes the hand and comes home with the money
+//
+// The copy law is unchanged and still asserted here: calling him in is a
+// legitimate answer, drawn without a shred of guilt, saying what he keeps.
 
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The cap field's size is a stylesheet rule, so the stylesheet has to be here
+// The amount field's size is a stylesheet rule, so the stylesheet has to be here
 // for getComputedStyle to see it (vite.config.js has css: true).
 import '../../styles/wallet.css';
 
@@ -27,9 +38,10 @@ function renderSheet(props = {}) {
 }
 
 // The choices live in the sheet body; the confirm button lives in the footer.
-// Scoping keeps "Allowance" the choice apart from "Set allowance" the action.
-const options = () => within(document.querySelector('.wal-sheet__body'));
-const option = (title) => options().getByRole('button', { name: new RegExp(title, 'i') });
+const body = () => within(document.querySelector('.wal-sheet__body'));
+const amountField = () => screen.getByLabelText(/Amount/i);
+const giveButton = () => within(document.querySelector('.wal-sheet__foot'))
+  .getByRole('button', { name: 'Give him chips' });
 
 describe('WUI-2 — where he stands', () => {
   beforeEach(() => { telegram.signIn(); });
@@ -73,183 +85,127 @@ describe('WALLET-5 — his face opens his profile', () => {
   });
 });
 
-describe('WUI-2 — the four ways he gets money', () => {
+describe('WALLET-7 — two verbs, not four modes', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('offers all four, cut-off included, as choices of equal weight', () => {
+  it('offers exactly two: give him chips, or call him in', () => {
     renderSheet();
-    expect(option('One-time top-up')).toBeInTheDocument();
-    expect(option('Allowance')).toBeInTheDocument();
-    expect(option('Auto-refill')).toBeInTheDocument();
-    expect(option('Cut him off')).toBeInTheDocument();
+    expect(giveButton()).toBeInTheDocument();
+    expect(body().getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
   });
 
-  it('explains each one in a line', () => {
-    renderSheet();
-    expect(screen.getByText(/one-time\. When it is gone, he stops\./)).toBeInTheDocument();
-    expect(screen.getByText(/a fixed budget\. He plays until it runs out\./)).toBeInTheDocument();
-    expect(screen.getByText(/he collects from the wallet when broke, up to a cap\./)).toBeInTheDocument();
+  it('has no mode to classify — the four names are gone from the sheet', () => {
+    const { container } = renderSheet();
+    const text = container.textContent;
+    for (const gone of ['One-time top-up', 'Allowance', 'Auto-refill', 'Cut him off']) {
+      expect(text, `the sheet must not ask about "${gone}"`).not.toContain(gone);
+    }
+    // And nothing to pick between: no radio list, no pressed-one-of-four.
+    expect(container.querySelectorAll('.wal-option')).toHaveLength(0);
   });
 
-  it('opens on the mode he is already on', () => {
+  it('offers the ladder as sizes of roll, not a keypad', () => {
     renderSheet();
-    expect(option('Allowance')).toHaveAttribute('aria-pressed', 'true');
-    expect(option('One-time top-up')).toHaveAttribute('aria-pressed', 'false');
+    for (const preset of ['$2,000', '$5,000', '$10,000']) {
+      expect(body().getByRole('button', { name: preset })).toBeInTheDocument();
+    }
   });
 
-  it('selects exactly one mode at a time', async () => {
+  it('a preset fills the amount, and the amount is still free text', async () => {
     const user = userEvent.setup();
     renderSheet();
 
-    await user.click(option('Auto-refill'));
-    expect(option('Auto-refill')).toHaveAttribute('aria-pressed', 'true');
-    expect(option('Allowance')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1);
+    await user.click(body().getByRole('button', { name: '$10,000' }));
+    expect(amountField()).toHaveValue(10000);
+
+    await user.clear(amountField());
+    await user.type(amountField(), '3500');
+    expect(amountField()).toHaveValue(3500);
   });
 
-  // WALLET-5 — this used to open on Allowance for a cut-off agent, on the
-  // reasoning that the sheet should not re-propose the cut. The playtest read
-  // it the other way and was right: the owner reopens the sheet to check what
-  // he set, and being shown Allowance says the cut never happened. A decision
-  // the owner took is not a state the sheet gets to forget.
-  it('opens on the cut for an agent who was cut off, because that is where he stands', () => {
-    renderSheet({ agent: brokeAgent });
-    expect(option('Cut him off')).toHaveAttribute('aria-pressed', 'true');
-    expect(option('Allowance')).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('opens on the cut with no amount to size, and keeps his money on show', () => {
-    renderSheet({ agent: cutPlayingAgent });
-    expect(option('Cut him off')).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('input')).toBeNull();
-    expect(screen.getByText('$4,000')).toBeInTheDocument();
-  });
-});
-
-describe('WUI-2 — the cap', () => {
-  beforeEach(() => { telegram.signIn(); });
-
-  it('offers an amount field with the mode\'s own default', () => {
-    renderSheet();
-    expect(screen.getByLabelText(/Amount/i)).toHaveValue(5000);
-  });
-
-  it('calls it a cap for auto-refill, because that is what it is', async () => {
+  it('states what the amount buys — bigger pocket, bigger stakes', async () => {
     const user = userEvent.setup();
     renderSheet();
-    await user.click(option('Auto-refill'));
-    expect(screen.getByLabelText(/Cap/i)).toHaveValue(10000);
-  });
-
-  it('states what the choice buys — bigger pocket, bigger stakes', async () => {
-    const user = userEvent.setup();
-    renderSheet();
-    // A 5,000 allowance is the $25/$50 rung; one 2,000 buy-in is the entry.
+    // He is on a 5,000 roll, which is the $25/$50 rung.
     expect(screen.getByText(/seats him at/)).toHaveTextContent('$25/$50');
 
-    await user.click(option('One-time top-up'));
+    await user.click(body().getByRole('button', { name: '$2,000' }));
     expect(screen.getByText(/seats him at/)).toHaveTextContent('$10/$20');
   });
 
-  it('will not confirm an empty or zero amount', async () => {
+  it('will not give him an empty or zero amount', async () => {
     const user = userEvent.setup();
     renderSheet();
-    const field = screen.getByLabelText(/Amount/i);
 
-    await user.clear(field);
-    expect(screen.getByRole('button', { name: /Set allowance/i })).toBeDisabled();
+    await user.clear(amountField());
+    expect(giveButton()).toBeDisabled();
 
-    await user.type(field, '2500');
-    expect(screen.getByRole('button', { name: /Set allowance/i })).toBeEnabled();
+    await user.type(amountField(), '2500');
+    expect(giveButton()).toBeEnabled();
   });
 
   // BUG-02: anything below 16px auto-zooms iOS Safari on focus.
   it('the amount field is at least 16px', () => {
     const { container } = renderSheet();
-    const field = container.querySelector('input');
+    const field = container.querySelector('.wal-cap');
     expect(parseFloat(window.getComputedStyle(field).fontSize)).toBeGreaterThanOrEqual(16);
   });
 });
 
-describe('WUI-2 — cutting him off, without guilt', () => {
+describe('WALLET-7 — the one toggle', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('says what he keeps, not what he loses', async () => {
+  it('is the whole of auto-refill: one line, and it names the cap', () => {
+    renderSheet();
+    const toggle = screen.getByRole('checkbox');
+    expect(toggle).toBeInTheDocument();
+    expect(screen.getByText('Refill from the wallet when he busts (cap $5,000)')).toBeInTheDocument();
+  });
+
+  it('follows the amount, so the cap it promises is the roll being given', async () => {
     const user = userEvent.setup();
     renderSheet();
-    await user.click(option('Cut him off'));
-
-    const copy = screen.getByText(/He finishes the hand he is in/);
-    expect(copy).toHaveTextContent('takes a seat at the bar');
-    expect(copy).toHaveTextContent('Nothing is lost');
-    expect(copy).toHaveTextContent('his attributes, his read book and his grudges all keep');
+    await user.click(body().getByRole('button', { name: '$10,000' }));
+    expect(screen.getByText('Refill from the wallet when he busts (cap $10,000)')).toBeInTheDocument();
   });
 
-  it('never scolds, pleads or warns', async () => {
-    const user = userEvent.setup();
-    const { container } = renderSheet();
-    await user.click(option('Cut him off'));
+  it('opens on where he stands: off for a staked pocket, on for a refilling one', () => {
+    renderSheet();
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
 
-    const text = container.textContent.toLowerCase();
-    for (const word of ['sorry', 'warning', 'careful', 'lose', 'lost forever', 'punish', 'are you sure']) {
-      expect(text, `the cut-off state must not say "${word}"`).not.toContain(word);
-    }
+    // The auto pocket in the fixtures is on the refill.
+    const refilling = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, mode: 'auto' } };
+    renderSheet({ agent: refilling });
+    expect(screen.getAllByRole('checkbox')[1]).toBeChecked();
   });
 
-  it('asks for no amount — there is nothing to size', async () => {
-    const user = userEvent.setup();
-    const { container } = renderSheet();
-    await user.click(option('Cut him off'));
-
-    expect(container.querySelector('input')).toBeNull();
-    expect(screen.queryByText(/seats him at/)).not.toBeInTheDocument();
-    expect(screen.getByText(/He keeps his seat at the bar until you say otherwise/)).toBeInTheDocument();
-  });
-
-  it('confirms as a plain choice, with no confirmation gauntlet', async () => {
-    const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    renderSheet({ onConfirm });
-
-    await user.click(option('Cut him off'));
-    await user.click(screen.getByRole('button', { name: 'Cut him off', exact: true }));
-
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'cut', amount: null, cap: null });
+  it('reopens on the amount the server holds, not on a default', () => {
+    const on7500 = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, cap: 7500 } };
+    renderSheet({ agent: on7500 });
+    expect(amountField()).toHaveValue(7500);
   });
 });
 
-describe('WUI-2 — confirming', () => {
+describe('WALLET-7 — giving him chips', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  // WALLET-5 — `cap` used to be sent only for auto-refill, so an allowance's
-  // size was never stored and the sheet reopened on the default rather than on
-  // what the owner set. Every mode that HAS a size now carries it: it is what
-  // the sheet reopens on and what the pocket bar fills against.
-  it('sends the allowance with its size, so the sheet can reopen on it', async () => {
+  it('sends the verb, the amount and the size he is set at', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     renderSheet({ onConfirm });
 
-    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 5000, cap: 5000 });
+    await user.click(giveButton());
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 5000, cap: 5000, refill: false });
   });
 
-  it("reopens on the amount the server holds, not the mode's default", () => {
-    // aggressiveAgent is on a 5,000 allowance; bump the stored size and the
-    // field has to follow it.
-    const on7500 = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, cap: 7500 } };
-    renderSheet({ agent: on7500 });
-    expect(screen.getByLabelText(/Amount/i)).toHaveValue(7500);
-  });
-
-  it('sends auto-refill with its cap on the cap field', async () => {
+  it('carries the refill toggle rather than a second mode', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     renderSheet({ onConfirm });
 
-    await user.click(option('Auto-refill'));
-    await user.click(screen.getByRole('button', { name: /Set auto-refill/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'auto', amount: 10000, cap: 10000 });
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(giveButton());
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 5000, cap: 5000, refill: true });
   });
 
   it('sends an edited amount, not the default', async () => {
@@ -257,12 +213,11 @@ describe('WUI-2 — confirming', () => {
     const onConfirm = vi.fn();
     renderSheet({ onConfirm });
 
-    const field = screen.getByLabelText(/Amount/i);
-    await user.clear(field);
-    await user.type(field, '7500');
-    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+    await user.clear(amountField());
+    await user.type(amountField(), '7500');
+    await user.click(giveButton());
 
-    expect(onConfirm).toHaveBeenCalledWith({ mode: 'allowance', amount: 7500, cap: 7500 });
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 7500, cap: 7500, refill: false });
   });
 
   it('cancels without funding anything', async () => {
@@ -283,5 +238,50 @@ describe('WUI-2 — confirming', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(onCancel).toHaveBeenCalled();
+  });
+});
+
+describe('WALLET-7 — calling him in, without guilt', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('says what he keeps and what comes home, not what he loses', () => {
+    renderSheet();
+    const copy = screen.getByText(/He finishes the hand he is in/);
+    expect(copy).toHaveTextContent('takes a seat at the bar');
+    expect(copy).toHaveTextContent('everything in his pocket comes back to your wallet');
+    expect(copy).toHaveTextContent('Nothing is lost');
+    expect(copy).toHaveTextContent('his attributes, his read book and his grudges all keep');
+  });
+
+  it('never scolds, pleads or warns', () => {
+    const { container } = renderSheet();
+    const text = container.textContent.toLowerCase();
+    for (const word of ['sorry', 'warning', 'careful', 'lose', 'lost forever', 'punish', 'are you sure']) {
+      expect(text, `the sheet must not say "${word}"`).not.toContain(word);
+    }
+  });
+
+  it('is one press, with no confirmation gauntlet', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    renderSheet({ onConfirm });
+
+    await user.click(body().getByRole('button', { name: 'Call him in' }));
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'callin', amount: null, cap: null, refill: false });
+  });
+
+  it('is offered for an agent already at the bar with a roll in his pocket', () => {
+    // He was called in mid-session and the chips have come back to him: calling
+    // him in again is how the rest of it gets home.
+    renderSheet({ agent: cutPlayingAgent });
+    expect(body().getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
+    expect(screen.getByText('$4,000')).toBeInTheDocument();
+  });
+
+  it('is not offered when there is nothing to call in', () => {
+    // Empty pocket, not at a table. The sheet asks for chips and nothing else.
+    renderSheet({ agent: brokeAgent });
+    expect(body().queryByRole('button', { name: 'Call him in' })).toBeNull();
+    expect(giveButton()).toBeInTheDocument();
   });
 });

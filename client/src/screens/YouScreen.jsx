@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
-import { collectFrom, collectLeavesFloat, fetchWallet, fundAgent, hasPocket, pocketOf } from '../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, hasPocket, pocketOf } from '../lib/wallet.js';
 import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
 import { PocketList } from '../components/wallet/PocketRow.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
@@ -294,10 +294,20 @@ export function YouScreen({ onOpenProfile }) {
   async function handleCollect(agent) {
     if (busyAgentId) return;
     setBusyAgentId(agent.id);
-    // WALLET-5: a cut-off pocket hands back all of it. He is not sitting down
-    // again, so the float that normally stays behind buys him nothing.
-    const leaveFloat = collectLeavesFloat(pocketOf(agent));
-    try { await collectFrom(agent.id, { leaveFloat }); await refreshMoney(); }
+    // WALLET-7: Collect takes the winnings. A called-in pocket is the one that
+    // hands back all of it — he is not sitting down again.
+    const all = collectsEverything(pocketOf(agent));
+    try { await collectFrom(agent.id, { all }); await refreshMoney(); }
+    catch { /* the row simply stays as it was */ }
+    finally { setBusyAgentId(null); }
+  }
+
+  // WALLET-7 — the second verb. He finishes the hand he is in, takes a seat at
+  // the bar, and everything in the pocket comes back to the wallet.
+  async function handleCallIn(agent) {
+    if (busyAgentId) return;
+    setBusyAgentId(agent.id);
+    try { await callInAgent(agent.id); await refreshMoney(); }
     catch { /* the row simply stays as it was */ }
     finally { setBusyAgentId(null); }
   }
@@ -376,7 +386,13 @@ export function YouScreen({ onOpenProfile }) {
 
       {/* ── WUI-1 · the wallet and the pockets ────────────────────── */}
       <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agentCount} />
-      <PocketList agents={pocketAgents} onFund={setFundTarget} onCollect={handleCollect} onOpenProfile={onOpenProfile} />
+      <PocketList
+        agents={pocketAgents}
+        onFund={setFundTarget}
+        onCollect={handleCollect}
+        onCallIn={handleCallIn}
+        onOpenProfile={onOpenProfile}
+      />
 
       {/* FTU-4: one session in, the only honest number on this screen is the
           balance. Saying so is better than four em dashes in a grid. */}

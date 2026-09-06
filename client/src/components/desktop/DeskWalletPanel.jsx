@@ -21,7 +21,7 @@ import { FundSheet } from '../wallet/FundSheet.jsx';
 import { PanelHead, RailBody } from './panelParts.jsx';
 
 export function DeskWalletPanel({
-  wallet, agents = [], onFund, onCollect, onClose,
+  wallet, agents = [], onFund, onCollect, onCallIn, onClose,
 }) {
   // Which agent the rail is currently funding. The sheet takes the panel the
   // way it takes the screen on mobile: choosing how an agent gets money is a
@@ -80,6 +80,7 @@ export function DeskWalletPanel({
               agents={pocketAgents}
               onFund={setFundTarget}
               onCollect={onCollect}
+              onCallIn={onCallIn}
             />
           </>
         )}

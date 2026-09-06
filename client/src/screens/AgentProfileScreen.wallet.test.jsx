@@ -44,7 +44,8 @@ describe('WUI-3 — the pocket line', () => {
 
     const row = within(line());
     expect(row.getByText('$6,400')).toBeInTheDocument();
-    expect(row.getByText('AUTO')).toBeInTheDocument();
+    // WALLET-7: the mode names are gone; the tag says what the toggle does.
+    expect(row.getByText('REFILLS')).toBeInTheDocument();
     expect(row.getByText(/plays \$25\/\$50/)).toBeInTheDocument();
 
     // No attribute, no band, no mood on this row: the pocket decides which
@@ -53,14 +54,14 @@ describe('WUI-3 — the pocket line', () => {
     expect(line().querySelector('svg')).toBeNull();
   });
 
-  it('says how the money behaves, per mode', () => {
+  it('says how the money behaves', () => {
     renderProfile(balancedAgent);
-    expect(within(line()).getByText(/refills to \$2,000/)).toBeInTheDocument();
+    expect(within(line()).getByText(/refills to \$10,000/)).toBeInTheDocument();
   });
 
-  it('names the allowance for an agent on one', () => {
+  it('names the roll a staked agent is on', () => {
     renderProfile(aggressiveAgent);
-    expect(within(line()).getByText(/\$5,000 allowance/)).toBeInTheDocument();
+    expect(within(line()).getByText(/\$5,000 staked/)).toBeInTheDocument();
   });
 
   it('draws the bar against the roll he was given', () => {
@@ -75,33 +76,61 @@ describe('WUI-3 — the pocket line', () => {
     expect(text.indexOf('Pocket')).toBeLessThan(text.indexOf('Career'));
   });
 
-  // WALLET-5 — the pocket line follows the pocket row: Fund is always offered
-  // (it is the only way into the mode) and Collect joins it while he is
-  // carrying something home. The old "one action, never two" rule is what made
-  // a topped-up agent unfundable.
-  it('offers Collect beside Fund while he is carrying money home', () => {
+  // WALLET-5/7 — the pocket line follows the pocket row: giving him chips is
+  // always offered (it is the only way to the toggle) and Collect joins it
+  // while he is up. The old "one action, never two" rule is what made a
+  // topped-up agent unfundable.
+  it('offers Collect beside the chips button while he is up', () => {
     renderProfile(balancedAgent);
     expect(within(line()).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
-    expect(within(line()).getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+    expect(within(line()).getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
   });
 
-  it('offers Fund when he is broke, and says so without guilt', () => {
+  it('offers chips when he is broke, and says so without guilt', () => {
     renderProfile(brokeAgent);
     const row = within(line());
-    expect(row.getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+    expect(row.getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
     expect(row.queryByRole('button', { name: 'Collect' })).toBeNull();
-    expect(row.getByText('cut off · nothing pending')).toBeInTheDocument();
-    expect(row.getByText('CUT OFF')).toBeInTheDocument();
+    expect(row.getByText('called in · nothing pending')).toBeInTheDocument();
+    expect(row.getByText('CALLED IN')).toBeInTheDocument();
   });
 
-  it('raises Fund to the caller rather than funding on the spot', async () => {
+  it('raises the chips button to the caller rather than funding on the spot', async () => {
     const user = userEvent.setup();
     const onFund = vi.fn();
     renderProfile(brokeAgent, { onFund });
 
-    await user.click(within(line()).getByRole('button', { name: 'Fund' }));
+    await user.click(within(line()).getByRole('button', { name: 'Give him chips' }));
     expect(onFund).toHaveBeenCalledWith(brokeAgent);
     expect(fetchMock.posts).toHaveLength(0);
+  });
+
+  // WALLET-7 — the second verb reaches the profile card too, and only while he
+  // is at a table.
+  it('offers Call him in while he is seated, and brings the whole pocket home', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/fund', { collected: 6400 }, { method: 'POST' });
+    const { container } = renderProfile(balancedAgent);
+
+    await user.click(within(line()).getByRole('button', { name: 'Call him in' }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    expect(fetchMock.requestsMatching('/fund')[0].body).toMatchObject({ verb: 'callin' });
+
+    // The same receipt a collect draws — it is the same motion, pocket to
+    // wallet, and this time the pocket is left empty.
+    const receipt = within(await waitFor(() => {
+      const el = container.querySelector('.wal-collect');
+      expect(el).toBeTruthy();
+      return el;
+    }));
+    expect(receipt.getByText('+$6,400')).toBeInTheDocument();
+    expect(receipt.getByText('→ $0')).toBeInTheDocument();
+  });
+
+  it('does not offer to call in an agent who is not at a table', () => {
+    renderProfile(brokeAgent);
+    expect(within(line()).queryByRole('button', { name: 'Call him in' })).toBeNull();
   });
 
   it('graceful absence: no pocket, no row', () => {
@@ -123,7 +152,12 @@ describe('WUI-3 — the collect receipt', () => {
 
   it('appears after a collect, drawn as a transfer', async () => {
     const user = userEvent.setup();
-    fetchMock.route('/collect', { moved: 4400, float: 2000, at: '02:14' }, { method: 'POST' });
+    // WALLET-7: the receipt reads the balance he was left with, not his refill
+    // float — a collect stops at the winnings now, so the two are not the same
+    // number any more.
+    fetchMock.route('/collect', {
+      collected: 340, at: '02:14', pocket: { balance: 6060 },
+    }, { method: 'POST' });
     const { container } = renderProfile(balancedAgent);
 
     await user.click(within(line()).getByRole('button', { name: 'Collect' }));
@@ -138,15 +172,15 @@ describe('WUI-3 — the collect receipt', () => {
     expect(receipt.getByText('Brought home')).toBeInTheDocument();
     expect(receipt.getByText('His pocket')).toBeInTheDocument();
     expect(receipt.getByText('$6,400')).toBeInTheDocument();
-    expect(receipt.getByText('→ $2,000')).toBeInTheDocument();
+    expect(receipt.getByText('→ $6,060')).toBeInTheDocument();
     expect(receipt.getByText('Your wallet')).toBeInTheDocument();
-    expect(receipt.getByText('+$4,400')).toBeInTheDocument();
-    expect(receipt.getByText('Pocket back to its $2,000 float')).toBeInTheDocument();
+    expect(receipt.getByText('+$340')).toBeInTheDocument();
+    expect(receipt.getByText('$6,060 left in his pocket')).toBeInTheDocument();
   });
 
-  it('POSTs the collect for the right agent', async () => {
+  it('POSTs the collect for the right agent, and asks for the winnings', async () => {
     const user = userEvent.setup();
-    fetchMock.route('/collect', { moved: 4400, float: 2000 }, { method: 'POST' });
+    fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
     renderProfile(balancedAgent);
 
     await user.click(within(line()).getByRole('button', { name: 'Collect' }));
@@ -155,6 +189,7 @@ describe('WUI-3 — the collect receipt', () => {
     const [req] = fetchMock.requestsMatching('/collect');
     expect(req.method).toBe('POST');
     expect(req.url).toContain('agent_balanced');
+    expect(req.body).toMatchObject({ all: false });
   });
 
   it('shows no receipt when the collect is refused', async () => {
@@ -173,7 +208,7 @@ describe('WUI-3 — the collect receipt', () => {
 describe('WUI-3 — the receipt is a transfer, not a jackpot', () => {
   it('states both ends of the motion and the direction between them', () => {
     const { container } = render(
-      <CollectCard pocketBefore={640} float={300} collected={340} at="02:14" />,
+      <CollectCard pocketBefore={640} left={300} collected={340} at="02:14" />,
     );
 
     // pocket -> wallet, with an arrow and nothing celebratory.
@@ -190,10 +225,10 @@ describe('WUI-3 — the receipt is a transfer, not a jackpot', () => {
   it('offers to leave it in only when the caller can act on it', async () => {
     const user = userEvent.setup();
     const onLeaveIn = vi.fn();
-    const { rerender } = render(<CollectCard pocketBefore={640} float={300} collected={340} />);
+    const { rerender } = render(<CollectCard pocketBefore={640} left={300} collected={340} />);
     expect(screen.queryByRole('button', { name: 'Leave it in' })).toBeNull();
 
-    rerender(<CollectCard pocketBefore={640} float={300} collected={340} onLeaveIn={onLeaveIn} />);
+    rerender(<CollectCard pocketBefore={640} left={300} collected={340} onLeaveIn={onLeaveIn} />);
     await user.click(screen.getByRole('button', { name: 'Leave it in' }));
     expect(onLeaveIn).toHaveBeenCalled();
   });
@@ -210,12 +245,12 @@ describe('WUI-3 — no dead buttons', () => {
   // The profile card is reachable from hosts that do not own the funding
   // sheet. Until App.jsx passes onFund, the row states the fact and offers
   // nothing — better than a button that does nothing when tapped.
-  it('omits Fund when the host cannot fund', () => {
+  it('omits the chips button when the host cannot fund', () => {
     renderProfile(brokeAgent, { onFund: undefined });
-    expect(within(line()).queryByRole('button', { name: 'Fund' })).toBeNull();
+    expect(within(line()).queryByRole('button', { name: 'Give him chips' })).toBeNull();
     // The state is still reported in full.
-    expect(within(line()).getByText('CUT OFF')).toBeInTheDocument();
-    expect(within(line()).getByText('cut off · nothing pending')).toBeInTheDocument();
+    expect(within(line()).getByText('CALLED IN')).toBeInTheDocument();
+    expect(within(line()).getByText('called in · nothing pending')).toBeInTheDocument();
   });
 });
 
@@ -227,17 +262,15 @@ describe('WUI-4 — float and pnl from the contract', () => {
     fetchMock.route('/flagged', { flaggedHands: [] });
   });
 
-  it('an auto pocket names the float it refills to, not its cap', () => {
+  it('a refilling pocket names the roll it is topped back up to', () => {
     renderProfile(balancedAgent);
-    // cap 10,000 is the ceiling; 2,000 is where collect leaves him and where
-    // auto tops him back up to. The sentence is about the float.
-    expect(within(line()).getByText(/refills to \$2,000/)).toBeInTheDocument();
-    expect(within(line()).queryByText(/refills to \$10,000/)).toBeNull();
+    // WALLET-7: the float and the cap are the same number for a refilling
+    // pocket — the roll the owner committed — and the sentence is about it.
+    expect(within(line()).getByText(/refills to \$10,000/)).toBeInTheDocument();
   });
 
-  it('the receipt leaves him at his float, taking only what is above it', async () => {
+  it('the receipt falls back to the pocket when the response carries no figures', async () => {
     const user = userEvent.setup();
-    // No float in the response: it still comes out right, from the pocket.
     fetchMock.route('/collect', {}, { method: 'POST' });
     const { container } = renderProfile(balancedAgent);
 
@@ -248,8 +281,9 @@ describe('WUI-4 — float and pnl from the contract', () => {
       expect(el).toBeTruthy();
       return el;
     }));
-    expect(receipt.getByText('→ $2,000')).toBeInTheDocument();
-    expect(receipt.getByText('+$4,400')).toBeInTheDocument();
+    // The winnings the projection offered, and what that leaves behind.
+    expect(receipt.getByText('+$340')).toBeInTheDocument();
+    expect(receipt.getByText('→ $6,060')).toBeInTheDocument();
   });
 
   it('an older projection with no float or pnl still renders, quietly', () => {

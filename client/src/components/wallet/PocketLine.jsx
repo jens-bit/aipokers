@@ -5,7 +5,7 @@
 // and stakes only — no attribute, no band, no mood — because the pocket decides
 // which tables he sits at and nothing about how well he plays at them.
 
-import { modeMeta, money, pocketOf, rowActions, stakesFor } from '../../lib/wallet.js';
+import { CALL_IN, GIVE, money, pocketOf, rowActions, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
 const M_MUTED = '#6B6B6B';
@@ -14,23 +14,24 @@ const M_MUTED = '#6B6B6B';
 // ref's own register: how he is seated, and how the money behaves.
 function noteFor(pocket) {
   if (pocket.broke) {
-    return pocket.mode === 'cut' ? 'cut off · nothing pending' : 'pocket empty · your call';
+    return pocket.mode === 'cut' ? 'called in · nothing pending' : 'pocket empty · your call';
   }
   const plays = `plays ${stakesFor(pocket)}`;
-  // The float is what auto refills back up to and what collect leaves behind,
-  // so it is the honest number for both of those sentences.
+  // WALLET-7: the float is the roll the refill toggle tops him back up to, and
+  // that is the only sentence it is the honest number for.
   if (pocket.mode === 'auto' && pocket.float) return `${plays} · refills to ${money(pocket.float)}`;
   if (pocket.mode === 'auto' && pocket.cap) return `${plays} · refills up to ${money(pocket.cap)}`;
-  if (pocket.mode === 'allowance' && pocket.cap) return `${plays} · ${money(pocket.cap)} allowance`;
+  if (pocket.mode === 'cut') return `${plays} · called in`;
+  if (pocket.cap) return `${plays} · ${money(pocket.cap)} staked`;
   return plays;
 }
 
-export function PocketLine({ agent, onFund, onCollect }) {
+export function PocketLine({ agent, onFund, onCollect, onCallIn }) {
   const pocket = pocketOf(agent);
   // Graceful absence: no pocket, no row. The profile card is what it is today.
   if (!pocket) return null;
 
-  const actions = rowActions(pocket);
+  const actions = rowActions(pocket, { seated: agent?.activeTableId != null || agent?.presence === 'playing' });
 
   return (
     <>
@@ -56,9 +57,14 @@ export function PocketLine({ agent, onFund, onCollect }) {
               Collect
             </button>
           )}
+          {actions.callIn && onCallIn && (
+            <button type="button" className="wal-btn wal-btn--outline" style={{ height: 28 }} onClick={() => onCallIn(agent)}>
+              {CALL_IN}
+            </button>
+          )}
           {actions.fund && onFund && (
             <button type="button" className="wal-btn wal-btn--primary" style={{ height: 28 }} onClick={() => onFund(agent)}>
-              Fund
+              {GIVE}
             </button>
           )}
         </div>
@@ -77,7 +83,10 @@ export function PocketLine({ agent, onFund, onCollect }) {
 
 const M_TEAL = '#00D4AA';
 
-export function CollectCard({ pocketBefore, float, collected, at, onLeaveIn }) {
+// WALLET-7: `left` is what stayed in his pocket. Under the old rule that was
+// always the float; a collect now takes the winnings and leaves the roll, so
+// the card reads the balance he was actually left with.
+export function CollectCard({ pocketBefore, left, collected, at, onLeaveIn }) {
   return (
     <div className="wal-collect">
       <div className="wal-collect__head">
@@ -91,7 +100,7 @@ export function CollectCard({ pocketBefore, float, collected, at, onLeaveIn }) {
           <Lbl size={8.5}>His pocket</Lbl>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
             <Num size={15} weight={700} color={M_MUTED}>{money(pocketBefore)}</Num>
-            <Num size={9} color={M_MUTED} weight={500}>→ {money(float)}</Num>
+            <Num size={9} color={M_MUTED} weight={500}>→ {money(left)}</Num>
           </div>
         </div>
 
@@ -109,7 +118,7 @@ export function CollectCard({ pocketBefore, float, collected, at, onLeaveIn }) {
 
       <div className="wal-collect__foot">
         <span style={{ flex: 1, fontSize: 11.5, color: M_MUTED }}>
-          Pocket back to its {money(float)} float
+          {money(left)} left in his pocket
         </span>
         {onLeaveIn && (
           <button type="button" className="wal-btn wal-btn--outline" style={{ height: 28 }} onClick={onLeaveIn}>

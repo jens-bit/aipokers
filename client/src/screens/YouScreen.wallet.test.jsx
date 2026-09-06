@@ -10,6 +10,7 @@ import {
   cutPlayingAgent,
   noWalletAgentsResponse,
   toppedUpAgent,
+  upAndSeatedAgent,
   wallet,
   walletAgentsResponse,
 } from '../test/fixtures/wallet.js';
@@ -126,14 +127,19 @@ describe('WUI-1 — pocket rows', () => {
     expect(within(aggressive).getByText('−$90')).toBeInTheDocument();
   });
 
+  // WALLET-7: the four mode names are gone from the owner's vocabulary. What
+  // is left is what the two verbs and the one toggle produce — a staked pocket,
+  // a refilling one, and one that has been called in.
   it('tags how each one gets money', async () => {
     render(<YouScreen />);
     await screen.findByText('Balanced v2.1');
 
-    expect(within(row('Balanced v2.1')).getByText('AUTO')).toBeInTheDocument();
-    expect(within(row('Aggressive v1.3')).getByText('ALLOWANCE')).toBeInTheDocument();
-    expect(within(row('Bluff Master')).getByText('TOP-UP')).toBeInTheDocument();
-    expect(within(row('Value Bot')).getByText('CUT OFF')).toBeInTheDocument();
+    expect(within(row('Balanced v2.1')).getByText('REFILLS')).toBeInTheDocument();
+    expect(within(row('Aggressive v1.3')).getByText('STAKED')).toBeInTheDocument();
+    // 'topup' and 'allowance' were the same thing under two names, so the row
+    // says the one thing they both are.
+    expect(within(row('Bluff Master')).getByText('STAKED')).toBeInTheDocument();
+    expect(within(row('Value Bot')).getByText('CALLED IN')).toBeInTheDocument();
   });
 
   it('draws the pocket bar against the roll he was given', async () => {
@@ -147,32 +153,47 @@ describe('WUI-1 — pocket rows', () => {
       .toHaveAttribute('aria-valuenow', '64');
   });
 
-  // WALLET-5 — this used to assert "exactly one action per row, and Collect
+  // WALLET-5/7 — this used to assert "exactly one action per row, and Collect
   // wins". The playtest showed what that costs: funding an agent past his
   // float removed Fund, so there was no way left to add more or to change how
-  // he gets money. Fund is unconditional now; Collect joins it when he is up,
-  // or when he is cut off and still holding a roll.
-  it('always offers Fund, whatever else the row offers', async () => {
+  // he gets money. Giving him chips is unconditional now; Collect joins it when
+  // he is up, and "Call him in" while he is seated.
+  it('always offers to give him chips, whatever else the row offers', async () => {
     render(<YouScreen />);
     await screen.findByText('Balanced v2.1');
 
     for (const name of ['Balanced v2.1', 'Aggressive v1.3', 'Bluff Master', 'Value Bot']) {
-      expect(within(row(name)).getByRole('button', { name: 'Fund' }), name).toBeInTheDocument();
+      expect(within(row(name)).getByRole('button', { name: 'Give him chips' }), name).toBeInTheDocument();
     }
   });
 
-  it('offers Collect beside it only for the ones carrying something home', async () => {
+  it('offers Collect beside it only for the ones who are up', async () => {
     render(<YouScreen />);
     await screen.findByText('Balanced v2.1');
 
     for (const [name, collect] of [
       ['Balanced v2.1', true],    // up $340
-      ['Aggressive v1.3', false], // down $90, whatever sits above his float
+      ['Aggressive v1.3', false], // down $90, however much he still holds
       ['Bluff Master', true],     // up $236
-      ['Value Bot', false],       // cut off, and empty
+      ['Value Bot', false],       // called in, and empty
     ]) {
       const q = within(row(name)).queryByRole('button', { name: 'Collect' });
       expect(Boolean(q), name).toBe(collect);
+    }
+  });
+
+  it('offers Call him in on the rows that are at a table', async () => {
+    render(<YouScreen />);
+    await screen.findByText('Balanced v2.1');
+
+    for (const [name, callIn] of [
+      ['Balanced v2.1', true],    // playing
+      ['Aggressive v1.3', true],  // playing
+      ['Bluff Master', false],    // resting — nothing to call him in from
+      ['Value Bot', false],       // already called in
+    ]) {
+      const q = within(row(name)).queryByRole('button', { name: 'Call him in' });
+      expect(Boolean(q), name).toBe(callIn);
     }
   });
 
@@ -198,7 +219,7 @@ describe('WUI-1 — the row actions', () => {
     withWallet();
   });
 
-  it('Collect brings it home and re-reads the money', async () => {
+  it('Collect takes the winnings and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
     render(<YouScreen />);
@@ -210,6 +231,8 @@ describe('WUI-1 — the row actions', () => {
     const [req] = fetchMock.requestsMatching('/collect');
     expect(req.method).toBe('POST');
     expect(req.url).toContain('agent_balanced');
+    // WALLET-7: the winnings, not the roll. `all` is the called-in path.
+    expect(req.body).toMatchObject({ all: false });
 
     // The wallet figure is re-read rather than guessed at locally.
     await waitFor(() => expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1));
@@ -228,12 +251,42 @@ describe('WUI-1 — the row actions', () => {
     expect(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
   });
 
-  it('Fund raises the intent for the funding sheet, and POSTs nothing on its own', async () => {
+  // WALLET-7 — the second verb, from the row. One press: he finishes the hand,
+  // takes a seat at the bar, and everything in the pocket comes home. It is the
+  // same route as giving him chips, because it is the same decision.
+  it('Call him in POSTs the verb and re-reads the money', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/fund', { collected: 6400 }, { method: 'POST' });
+    render(<YouScreen />);
+    await screen.findByText('Balanced v2.1');
+
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    const [req] = fetchMock.requestsMatching('/fund');
+    expect(req.url).toContain('agent_balanced');
+    expect(req.body).toMatchObject({ verb: 'callin' });
+    await waitFor(() => expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1));
+  });
+
+  it('a refused call-in leaves the row exactly as it was', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/fund', () => ({ status: 500, body: {} }), { method: 'POST' });
+    render(<YouScreen />);
+    await screen.findByText('Balanced v2.1');
+
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    expect(within(row('Balanced v2.1')).getByText('$6,400')).toBeInTheDocument();
+  });
+
+  it('giving him chips raises the intent for the sheet, and POSTs nothing on its own', async () => {
     const user = userEvent.setup();
     render(<YouScreen />);
     await screen.findByText('Value Bot');
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
 
     // Choosing a mode is the sheet's job (WUI-2); the row only asks for it.
     expect(fetchMock.requestsMatching('/fund')).toHaveLength(0);
@@ -247,37 +300,34 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
     withWallet();
   });
 
-  it('Fund opens the sheet for that agent', async () => {
+  it('opens the sheet for that agent', async () => {
     const user = userEvent.setup();
     render(<YouScreen />);
     await screen.findByText('Value Bot');
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
 
     expect(await screen.findByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
     // It is a decision, not a popover: the pockets list is not behind it.
     expect(screen.queryByText('Balanced v2.1')).not.toBeInTheDocument();
   });
 
-  it('confirming funds him and re-reads the money', async () => {
+  it('confirming gives him the chips and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { ok: true }, { method: 'POST' });
     render(<YouScreen />);
     await screen.findByText('Value Bot');
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
-    // WALLET-5: he was cut off, so the sheet opens on the cut — putting him
-    // back on an allowance is a choice the owner makes here.
-    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
-    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: '$5,000' }));
+    await user.click(within(document.querySelector('.wal-sheet__foot')).getByRole('button', { name: 'Give him chips' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     const [req] = fetchMock.requestsMatching('/fund');
     expect(req.url).toContain('agent_value');
-    // WALLET-5: the size rides along for every mode that has one, so the sheet
-    // can reopen on what was set rather than on a default.
-    expect(req.body).toMatchObject({ mode: 'allowance', amount: 5000, cap: 5000 });
+    // WALLET-7: the verb, the amount, the size he is set at, and the toggle.
+    expect(req.body).toMatchObject({ verb: 'give', amount: 5000, cap: 5000, refill: false });
 
     // Back to the list, with the wallet re-read rather than guessed at.
     await waitFor(() => expect(screen.getByText('Balanced v2.1')).toBeInTheDocument());
@@ -289,7 +339,7 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
     render(<YouScreen />);
     await screen.findByText('Value Bot');
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -303,10 +353,9 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
     render(<YouScreen />);
     await screen.findByText('Value Bot');
 
-    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
-    await user.click(within(document.querySelector('.wal-sheet__body')).getByRole('button', { name: /Allowance/i }));
-    await user.click(screen.getByRole('button', { name: /Set allowance/i }));
+    await user.click(within(document.querySelector('.wal-sheet__foot')).getByRole('button', { name: 'Give him chips' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     expect(screen.getByRole('dialog', { name: 'Fund Value Bot' })).toBeInTheDocument();
@@ -322,44 +371,62 @@ function withAgents(list) {
   fetchMock.route('/hands', { recentHands: [] });
 }
 
-describe('WALLET-5 — funding him past his float does not take Fund away', () => {
+describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('keeps Fund on a topped-up row, and calls none of it winnings', async () => {
-    // Seeded on auto at a 2,000 cap, then funded to 4,000. Half of it sits
-    // "above the float" without his having won a chip.
+  // WALLET-7 · the symptom this tree is named after. A one-time top-up could
+  // not be collected honestly under either rule: the old one offered a Collect
+  // that took the owner's own chips back out of the pocket, and there was no
+  // other way to empty it. Now the row says what is true — nothing to collect —
+  // and "Call him in" is the button that brings the roll home.
+  it('keeps the chips button on a topped-up row, and calls none of it winnings', async () => {
     withAgents([toppedUpAgent]);
     render(<YouScreen />);
     await screen.findByText('Topped Up');
 
     const r = within(row('Topped Up'));
-    expect(r.getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+    expect(r.getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
     expect(r.queryByRole('button', { name: 'Collect' })).not.toBeInTheDocument();
   });
 
-  it('draws both actions when he really is up', async () => {
-    withWallet();
+  it('and calling him in is the way that pocket comes home', async () => {
+    const user = userEvent.setup();
+    // The same pocket, at a table: one press ends the session and empties it.
+    withAgents([{ ...toppedUpAgent, presence: 'playing', activeTableId: 'tbl-1' }]);
+    fetchMock.route('/fund', { collected: 4000 }, { method: 'POST' });
     render(<YouScreen />);
-    await screen.findByText('Balanced v2.1');
+    await screen.findByText('Topped Up');
 
-    const r = within(row('Balanced v2.1'));
+    await user.click(within(row('Topped Up')).getByRole('button', { name: 'Call him in' }));
+
+    await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
+    expect(fetchMock.requestsMatching('/fund')[0].body).toMatchObject({ verb: 'callin' });
+  });
+
+  it('draws all three actions when he is staked, up, and still playing', async () => {
+    withAgents([upAndSeatedAgent]);
+    render(<YouScreen />);
+    await screen.findByText('Up And Seated');
+
+    const r = within(row('Up And Seated'));
+    expect(r.getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
     expect(r.getByRole('button', { name: 'Collect' })).toBeInTheDocument();
-    expect(r.getByRole('button', { name: 'Fund' })).toBeInTheDocument();
+    expect(r.getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
   });
 });
 
-describe('WALLET-5 — cutting him off is visible on the row', () => {
+describe('WALLET-5 — being called in is visible on the row', () => {
   beforeEach(() => {
     telegram.signIn();
     withAgents([cutPlayingAgent]);
   });
 
-  it('badges him CUT OFF and greys the stakes he is not going to play', async () => {
+  it('badges him CALLED IN and greys the stakes he is not going to play', async () => {
     const { container } = render(<YouScreen />);
     await screen.findByText('Loose Cannon');
 
     const r = row('Loose Cannon');
-    expect(within(r).getByText('CUT OFF')).toBeInTheDocument();
+    expect(within(r).getByText('CALLED IN')).toBeInTheDocument();
     expect(r).toHaveClass('wal-row--cut');
     // The rung is still stated — he can afford it — but drawn as something he
     // is not going to sit at.
@@ -388,7 +455,7 @@ describe('WALLET-5 — cutting him off is visible on the row', () => {
     expect(r.getByText('at the bar · nothing pending')).toBeInTheDocument();
   });
 
-  it('collects all of it — the float he would be left with buys him no seat', async () => {
+  it('collects all of it — he is not sitting down again, so none of it is his to keep', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 4000 }, { method: 'POST' });
     render(<YouScreen />);
@@ -397,27 +464,33 @@ describe('WALLET-5 — cutting him off is visible on the row', () => {
     await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Collect' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
-    expect(fetchMock.requestsMatching('/collect')[0].body).toMatchObject({ leaveFloat: false });
+    // WALLET-7: `all` replaced `leaveFloat: false`. Same chips, and the flag
+    // now says what it does rather than what it declines to leave behind.
+    expect(fetchMock.requestsMatching('/collect')[0].body).toMatchObject({ all: true });
   });
 });
 
-describe('WALLET-5 — the sheet opens on where he actually stands', () => {
+describe('WALLET-7 — the sheet opens on where he actually stands', () => {
   beforeEach(() => {
     telegram.signIn();
-    withAgents([cutPlayingAgent]);
+    withAgents([toppedUpAgent]);
   });
 
-  it('reopens on the cut he was put on, not on a default', async () => {
+  // WALLET-5 asserted this about the mode: reopening the sheet on a cut agent
+  // had to show the cut, because a decision the owner took is not a state the
+  // UI gets to forget. There is no mode to reopen on any more — what the sheet
+  // has to remember is the size he was set at and whether the wallet is
+  // backing his next bust.
+  it('reopens on the size he was set at and the state of the toggle', async () => {
     const user = userEvent.setup();
     render(<YouScreen />);
-    await screen.findByText('Loose Cannon');
+    await screen.findByText('Topped Up');
 
-    await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Topped Up')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
 
-    const body = within(document.querySelector('.wal-sheet__body'));
-    expect(body.getByRole('button', { name: /Cut him off/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(body.getByRole('button', { name: /Allowance/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByLabelText(/Amount/i)).toHaveValue(2000);
+    expect(screen.getByRole('checkbox')).toBeChecked();
   });
 });
 
@@ -445,7 +518,7 @@ describe('WALLET-5 — his face opens his profile', () => {
     render(<YouScreen onOpenProfile={onOpenProfile} />);
     await screen.findByText('Bluff Master');
 
-    await user.click(within(row('Bluff Master')).getByRole('button', { name: 'Fund' }));
+    await user.click(within(row('Bluff Master')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: /profile/i }));
 

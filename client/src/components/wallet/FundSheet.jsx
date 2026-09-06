@@ -1,18 +1,24 @@
-// client/src/components/wallet/FundSheet.jsx — WUI-2
-// Ported from FundSheetScreenM in design-refs/mood-wallet.jsx.
+// client/src/components/wallet/FundSheet.jsx — WUI-2, WALLET-7
+// The sheet's look is ported from FundSheetScreenM in design-refs/mood-wallet.jsx;
+// WALLET-7 changed what is inside it.
 //
-// Four ways he gets money, and cutting him off is one of them — drawn as a
-// choice with the same weight as the others, because it is. The copy for that
-// option says what he keeps, not what he loses: "He finishes the hand he is in
-// and takes a seat at the bar. Nothing is lost — his attributes, his read book
-// and his grudges all keep." No plea, no scolding, no guilt anywhere.
+// TWO VERBS, NOT FOUR MODES. The old sheet asked the owner to pick between a
+// one-time top-up, an allowance, auto-refill and cutting him off — four answers
+// to one question, and two of them ("top-up" and "allowance") were the same
+// thing wearing different names. What is left is what a backer actually does:
+//
+//   GIVE HIM CHIPS   an amount, and one toggle for whether it refills
+//   CALL HIM IN      he finishes the hand and comes home with the money
+//
+// The copy law is unchanged: calling him in is a legitimate answer, drawn
+// without a shred of guilt. It says what he keeps, never what he loses.
 
 import { useState } from 'react';
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { moodOf } from '../floor/agentView.js';
+import { moodOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { FUND_MODES, modeMeta, money, pocketOf, stakesFor } from '../../lib/wallet.js';
+import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, stakesFor } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
 
 const M_TEXT = '#EDEDED';
@@ -21,93 +27,37 @@ const M_MUTED = '#6B6B6B';
 const M_GOLD = '#CDB380';
 const M_BORDER = 'rgba(255,255,255,0.12)';
 
-// Presets on the real ladder (STAKES in src/server/wallet.js), not a keypad:
-// the owner is picking a size of roll, not typing an exact wager. One entry
-// buy-in, then the two rungs above it.
-const DEFAULT_AMOUNT = { topup: 2_000, allowance: 5_000, auto: 10_000, cut: null };
-
-// The cut-off copy, verbatim from the ref.
-const CUT_LINE =
-  'He finishes the hand he is in and takes a seat at the bar. Nothing is lost — '
-  + 'his attributes, his read book and his grudges all keep.';
-
-function amountLabel(mode, value) {
-  if (mode === 'cut') return null;
-  if (mode === 'auto') return `cap ${money(value)}`;
-  return money(value);
-}
-
-function FundOption({ mode, amount, selected, onSelect }) {
-  const m = modeMeta(mode);
-  return (
-    <button
-      type="button"
-      className="wal-option"
-      aria-pressed={selected}
-      onClick={() => onSelect(mode)}
-      style={{
-        background: selected ? `${m.color}0D` : undefined,
-        borderColor: selected ? m.color : undefined,
-      }}
-    >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span
-          className="wal-option__radio"
-          style={{
-            borderColor: selected ? m.color : undefined,
-            background: selected ? m.color : 'transparent',
-          }}
-        >
-          {selected && (
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="4" strokeLinecap="round" aria-hidden>
-              <path d="M5 12l5 5 9-11" />
-            </svg>
-          )}
-        </span>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: selected ? M_TEXT : M_DIM }}>
-          {m.title}
-        </span>
-        {amount && <Num size={13} weight={700} color={selected ? m.color : M_MUTED}>{amount}</Num>}
-      </span>
-      <span className="wal-option__line" style={{ display: 'block' }}>
-        {mode === 'cut' ? CUT_LINE : m.line}
-      </span>
-    </button>
-  );
-}
+// The rungs of the real ladder (STAKES in src/server/wallet.js), offered as
+// sizes of roll rather than a keypad: the owner is picking what he can play,
+// not typing an exact wager.
+const PRESETS = [2_000, 5_000, 10_000];
+const DEFAULT_AMOUNT = PRESETS[0];
 
 export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile }) {
   const pocket = pocketOf(agent);
-  // WALLET-5: the sheet opens on where he actually stands — the mode the
-  // server holds and the amount it was set with. 'cut' used to be excluded
-  // here, so cutting him off and reopening the sheet proposed an allowance as
-  // if the decision had never been made. A decision the owner took is not a
-  // state the UI gets to forget.
-  const [mode, setMode] = useState(pocket?.mode ?? 'allowance');
-  const [amounts, setAmounts] = useState({ ...DEFAULT_AMOUNT, ...(pocket?.cap ? { [pocket.mode]: pocket.cap } : {}) });
+  const seated = presenceOf(agent) === 'playing';
+
+  // The sheet opens on where he actually stands: the size he was last set at,
+  // and whether the wallet is backing his next bust. A decision the owner took
+  // is not a state the UI gets to forget.
+  const [amount, setAmount] = useState(pocket?.cap ?? DEFAULT_AMOUNT);
+  const [refill, setRefill] = useState(pocket?.mode === 'auto');
   const [busy, setBusy] = useState(false);
 
   const accent = accentFor(agent, index);
-  const amount = amounts[mode];
-  const m = modeMeta(mode);
-  const isCut = mode === 'cut';
 
-  // What the choice buys, in the ref's own words. Cutting him off buys no
-  // stakes, so the strip says what happens instead of pretending otherwise.
+  // What the amount buys, in the ref's own words.
   const impliedStakes = stakesFor({ balance: amount ?? 0, cap: amount, broke: false });
 
-  async function confirm() {
+  // Calling him in is only a thing to offer when there is something to call in:
+  // a seat at a table, or chips in the pocket.
+  const canCallIn = seated || (pocket?.balance ?? 0) > 0;
+
+  async function send(decision) {
     if (busy) return;
     setBusy(true);
     try {
-      await onConfirm({
-        mode,
-        amount: isCut ? null : amount,
-        // WALLET-5: the size he was set at is stored for every mode that has
-        // one, not just auto — it is what the sheet has to reopen on, and
-        // what the pocket bar fills against. Cutting him off sizes nothing.
-        cap: isCut ? null : amount,
-      });
+      await onConfirm(decision);
     } finally {
       setBusy(false);
     }
@@ -167,54 +117,82 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
           )}
         </div>
 
-        <Lbl size={9.5}>How he gets money</Lbl>
+        {/* ── verb one: give him chips ───────────────────────────────── */}
+        <Lbl size={9.5}>{GIVE}</Lbl>
         <div style={{ height: 8 }} />
 
-        {FUND_MODES.map((key) => (
-          <FundOption
-            key={key}
-            mode={key}
-            amount={amountLabel(key, amounts[key])}
-            selected={mode === key}
-            onSelect={setMode}
-          />
-        ))}
+        <div className="wal-presets">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="wal-preset"
+              aria-pressed={amount === preset}
+              onClick={() => setAmount(preset)}
+            >
+              {money(preset)}
+            </button>
+          ))}
+        </div>
 
-        {/* The cap. One field, and only for the mode that has one to set. */}
-        {!isCut && (
-          <div style={{ marginTop: 4, marginBottom: 10 }}>
-            <label>
-              <Lbl size={8.5}>{mode === 'auto' ? 'Cap' : 'Amount'}</Lbl>
-              <div style={{ marginTop: 5 }}>
-                <input
-                  className="wal-cap"
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="10"
-                  value={amount ?? ''}
-                  onChange={(e) => setAmounts((prev) => ({ ...prev, [mode]: e.target.value === '' ? null : Number(e.target.value) }))}
-                />
-              </div>
-            </label>
-          </div>
-        )}
+        <div style={{ marginTop: 10, marginBottom: 10 }}>
+          <label>
+            <Lbl size={8.5}>Amount</Lbl>
+            <div style={{ marginTop: 5 }}>
+              <input
+                className="wal-cap"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="10"
+                value={amount ?? ''}
+                onChange={(e) => setAmount(e.target.value === '' ? null : Number(e.target.value))}
+              />
+            </div>
+          </label>
+        </div>
+
+        {/* The one toggle. Auto-refill was a mode of its own and is now a
+            property of the chips being given: same roll, backed or not. */}
+        <label className="wal-toggle">
+          <input
+            type="checkbox"
+            checked={refill}
+            onChange={(e) => setRefill(e.target.checked)}
+          />
+          <span className="wal-toggle__text">{refillLabel(amount ?? 0)}</span>
+        </label>
 
         {/* Bigger pocket, bigger stakes — stated, never buried. */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
           borderRadius: 10, background: `${M_GOLD}0D`, border: `1px solid ${M_GOLD}33`,
-          marginTop: 4, marginBottom: 14,
+          marginTop: 12, marginBottom: 14,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden>
             <path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
           </svg>
           <span style={{ flex: 1, fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>
-            {isCut
-              ? 'He keeps his seat at the bar until you say otherwise. Nothing expires.'
-              : <>A {money(amount)} {m.title.toLowerCase()} seats him at <b style={{ color: M_TEXT }}>{impliedStakes}</b>. Bigger pocket, bigger stakes.</>}
+            A {money(amount)} pocket seats him at <b style={{ color: M_TEXT }}>{impliedStakes}</b>. Bigger pocket, bigger stakes.
           </span>
         </div>
+
+        {/* ── verb two: call him in ──────────────────────────────────── */}
+        {canCallIn && (
+          <div className="wal-callin">
+            <Lbl size={9.5}>Or call him in</Lbl>
+            <p className="wal-callin__line">{CALL_IN_LINE}</p>
+            <button
+              type="button"
+              className="wal-btn wal-btn--ghost"
+              style={{ height: 40, width: '100%' }}
+              disabled={busy}
+              onClick={() => send({ verb: 'callin', amount: null, cap: null, refill: false })}
+            >
+              {CALL_IN}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="wal-sheet__foot">
@@ -228,10 +206,10 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
             type="button"
             className="wal-btn wal-btn--primary"
             style={{ height: 46, width: '100%' }}
-            disabled={busy || (!isCut && !(amount > 0))}
-            onClick={confirm}
+            disabled={busy || !(amount > 0)}
+            onClick={() => send({ verb: 'give', amount, cap: amount, refill })}
           >
-            {isCut ? 'Cut him off' : `Set ${m.title.toLowerCase()}`}
+            {GIVE}
           </button>
         </div>
       </div>
