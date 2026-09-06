@@ -143,7 +143,7 @@ export function HomeScreen({
   onSend,
   sending = false,
 }) {
-  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant } =
+  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded } =
     useHomeState({ wsUrl });
 
   // The home game runs on its own spectator socket. The app's table socket
@@ -215,7 +215,20 @@ export function HomeScreen({
     else setThreadOpen(true);
   }, [onOpenThread]);
 
-  if (agents.length === 0) {
+  // BUGS-A job 2 · THE ROOM IS THE DEFAULT, NOT THE EMPTY STATE.
+  //
+  // "Nobody lives here yet" is a claim about the owner, and the screen used to
+  // make it out of an empty array it had not yet been given a reason to
+  // believe. Every trip back to HOME — from the casino, from a profile, from a
+  // retire with three agents left — remounts this screen with agents=[] for as
+  // long as the round trip takes, and for that beat the app told a man with a
+  // household that he had nobody.
+  //
+  // The room renders while the roster is in flight. It is the honest picture:
+  // the flat is there whether or not anybody is standing in it, and bodies
+  // walking in a moment later is exactly what this screen already does. The
+  // empty state waits for the roster to ANSWER, and to answer with zero.
+  if (loaded && agents.length === 0) {
     return (
       <div className="home1" data-testid="home-screen">
         <NotYet

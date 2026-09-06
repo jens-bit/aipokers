@@ -108,11 +108,18 @@ function AgentsCountPill() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  // BUGS-A job 2: the same law the room obeys. "— agents live" is the header
+  // announcing a number it has not been given, and a live dot beside it says
+  // the floor is empty when the truth is that nobody has answered yet. Until
+  // /api/stats replies there is nothing to report, so the pill is not drawn;
+  // zero is a real answer and is reported as one.
+  if (count == null) return null;
+
   return (
     <div className="dr-app-header__agents-pill">
       <span className="dr-app-header__agents-dot" aria-hidden />
       <span className="dr-app-header__agents-label">
-        {count == null ? '—' : `${count} agents live`}
+        {`${count} agent${count === 1 ? '' : 's'} live`}
       </span>
     </div>
   );

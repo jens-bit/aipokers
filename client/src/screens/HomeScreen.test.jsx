@@ -78,6 +78,47 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+// ── The empty state ─────────────────────────────────────────────────────────
+
+describe('BUGS-A job 2 · the room renders while the roster is in flight', () => {
+  it('an unanswered roster is not an empty household', async () => {
+    defaults();
+    // The roster never answers. This is the width of every trip back to HOME:
+    // CASINO -> HOME, a profile closing, a retire with agents left.
+    let answer;
+    fetchMock.route('/api/agents?', () => new Promise((resolve) => { answer = resolve; }));
+    render(<HomeScreen wsUrl={WS} />);
+
+    // The flat is on screen and the claim about the owner is not made.
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('home-fridge')).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Make an agent' })).toBeNull();
+
+    // ...and when it answers with a household, the household is what appears.
+    answer({ agents: [mkAgent('a1', 'The Clock')] });
+    expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+  });
+
+  it('a roster that answers with zero is the one thing that shows the empty state', async () => {
+    defaults();
+    serve([]);
+    render(<HomeScreen wsUrl={WS} />);
+    expect(await screen.findByText(/Nobody lives here yet/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Make an agent' })).toBeInTheDocument();
+  });
+
+  it('a roster request that FAILS keeps the room, because a 500 is not an answer', async () => {
+    defaults();
+    fetchMock.route('/api/agents?', () => ({ status: 500, body: {} }));
+    render(<HomeScreen wsUrl={WS} />);
+    const room = await screen.findByTestId('home-screen');
+    await waitFor(() => expect(within(room).getByTestId('home-fridge')).toBeInTheDocument());
+    expect(screen.queryByText(/Nobody lives here yet/)).toBeNull();
+  });
+});
+
 // ── The room ────────────────────────────────────────────────────────────────
 
 describe('HOME-1 · the room', () => {
