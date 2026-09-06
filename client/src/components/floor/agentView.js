@@ -65,6 +65,18 @@ export function lastMomentOf(agent) {
   return 'Never played a hand yet.';
 }
 
+// CHAT-2: the number the thread header carries. At a table it is the stack he
+// is actually sitting behind; away from one it is the pocket he would sit down
+// with. Never invented — an agent with neither shows nothing rather than $0.
+export function stackOf(agent) {
+  const live = agent?.liveGame?.heroStack;
+  if (Number.isFinite(live)) return live;
+  const pocket = agent?.pocket?.balance;
+  if (Number.isFinite(pocket)) return pocket;
+  const bankroll = Number.isFinite(agent?.bankroll) ? agent.bankroll : agent?.careerStats?.bankroll;
+  return Number.isFinite(bankroll) ? bankroll : null;
+}
+
 // Pot for the felt ticker. Only shown when a live number exists.
 export function potOf(agent, liveGame) {
   const pot = liveGame?.pot;

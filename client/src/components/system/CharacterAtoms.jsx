@@ -4,9 +4,9 @@
 // char-play.jsx (GrowthLine, TrainingLine, GrewBadge).
 // Styles in styles/attributes.css.
 
-import { FATIGUE, ATTR_SHORT, fatigueLineFor } from '../../lib/attributes.js';
+import { useState } from 'react';
 
-const M_TEAL = '#00D4AA';
+import { FATIGUE, ATTR_SHORT, fatigueLineFor } from '../../lib/attributes.js';
 
 // ── Fatigue, in words ───────────────────────────────────────────────────────
 // Fatigue is STATE, not skill: no button, nothing to spend, and it names its own
@@ -49,22 +49,31 @@ export function GrowthTick({ attr, from, to, cause }) {
 // ── Growth line · the thread form ───────────────────────────────────────────
 // Same tick, in his voice, sitting in the feed with the other events. Quiet on
 // purpose: a point of Reads is not a trophy.
+//
+// CHAT-2: quieter still. A card per tick — teal box, star well, the cause
+// quoted underneath — turned a six-attribute session into six posters, and the
+// thread they were stacked in is meant to be a conversation. What is left is
+// one line, "FOCUS 51 → 52 · 19:00", and the quote is behind a tap for the one
+// tick in six an owner actually wants the reason for.
 export function GrowthLine({ attr, from, to, line, time }) {
+  const [open, setOpen] = useState(false);
+  const voice = typeof line === 'string' && line.trim() ? line.trim() : null;
+
   return (
     <div className="growth-line">
-      <div className="growth-line__head">
-        <div className="growth-line__well">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={M_TEAL}
-            strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-        </div>
+      <button
+        type="button"
+        className="growth-line__row"
+        onClick={voice ? () => setOpen((v) => !v) : undefined}
+        aria-expanded={voice ? open : undefined}
+        disabled={!voice}
+      >
         <span className="growth-line__delta">
           {attr} {from} <span className="growth-tick__arrow">→</span> {to}
         </span>
-        {time && <span className="growth-line__time">{time}</span>}
-      </div>
-      {line && <div className="growth-line__voice">“{line}”</div>}
+        {time && <span className="growth-line__time">· {time}</span>}
+      </button>
+      {open && voice && <div className="growth-line__voice">“{voice}”</div>}
     </div>
   );
 }
