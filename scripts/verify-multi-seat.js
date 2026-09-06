@@ -3,7 +3,9 @@
 // on a random port and proves the tree's promise: agents share a felt.
 //
 // Walk:
-//   1. deploy three agents -> all three land at ONE table
+//   1. deploy three agents, one per owner -> all three land at ONE table
+//      (MATCH-1: a shared felt is for agents of DIFFERENT owners; two of one
+//      owner's are refused each other's table and open their own)
 //   2. hands advance autonomously with nobody watching
 //   3. deploy a fourth MID-HAND -> seated at once, dealt into the NEXT hand,
 //      the hand in progress untouched
@@ -89,14 +91,21 @@ const j = async (method, path, body, { owner = true } = {}) => {
   catch { return { status: res.status, body: text }; }
 };
 
+// MATCH-1: one owner per agent. Two agents of the same owner are refused a
+// shared felt now (a stable playing itself is not a game), so a suite about
+// agents SHARING a table has to hand each of them a different backer — which
+// is also what the floor actually looks like. `ownerOf` is the whole change;
+// every helper below simply takes the owner it is asking about.
 const userId = 'e2e-multi-seat-user';
-const cleanupAgentIds = [];
+const ownerOf = (n) => `${userId}-${n}`;
+const cleanup = [];   // { id, owner }
 
-const listAgents = async ({ owner = true } = {}) =>
-  (await j('GET', `/api/agents?userId=${userId}`, null, { owner })).body?.agents ?? [];
-const getAgent = async (agentId, opts) => (await listAgents(opts)).find((a) => a.id === agentId) ?? null;
-const handsPlayed = async (agentId) => {
-  const r = await j('GET', `/api/agents/${agentId}/hands?userId=${userId}`);
+const listAgents = async (owner, { auth = true } = {}) =>
+  (await j('GET', `/api/agents?userId=${owner}`, null, { owner: auth })).body?.agents ?? [];
+const getAgent = async (agentId, owner, opts) =>
+  (await listAgents(owner, opts)).find((a) => a.id === agentId) ?? null;
+const handsPlayed = async (agentId, owner) => {
+  const r = await j('GET', `/api/agents/${agentId}/hands?userId=${owner}`);
   return r.body?.stats?.handsPlayed ?? 0;
 };
 
@@ -111,34 +120,39 @@ const waitFor = async (label, read, predicate, budgetMs = 60_000, everyMs = 100)
   return { ok: false, value: last, label };
 };
 
-const newAgent = async (label) => {
-  await j('POST', '/api/agents/chat/reset', { userId });
-  const r = await j('POST', '/api/agents/build', { userId });
+const newAgent = async (label, owner) => {
+  await j('POST', '/api/agents/chat/reset', { userId: owner });
+  const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;
-  if (id) cleanupAgentIds.push(id);
+  if (id) cleanup.push({ id, owner });
   if (!id) console.error(`  (agent build failed for ${label}: ${JSON.stringify(r.body)})`);
   return id;
 };
 
 // ── 1) three deploys, one table ──────────────────────────────────────────────
-console.log('\n[verify] 1) three agents deploy and land at ONE table');
-const agentIds = [];
+console.log('\n[verify] 1) three agents of three owners deploy and land at ONE table');
+const agents = [];   // { id, owner }
 const deploys = [];
 for (let i = 0; i < 3; i++) {
-  const id = await newAgent(`agent ${i + 1}`);
+  const owner = ownerOf(i + 1);
+  const id = await newAgent(`agent ${i + 1}`, owner);
   check(`agent ${i + 1} created`, !!id);
-  agentIds.push(id);
-  const r = await j('POST', `/api/agents/${id}/deploy`, { userId });
+  agents.push({ id, owner });
+  const r = await j('POST', `/api/agents/${id}/deploy`, { userId: owner });
   check(`agent ${i + 1} deployed`, r.status === 200, `got ${r.status}`);
   deploys.push(r.body);
 }
+const agentIds = agents.map((a) => a.id);
 const tableId = deploys[0]?.tableId;
 check('all three agents share one tableId', deploys.every((d) => d?.tableId === tableId),
   deploys.map((d) => d?.tableId).join(', '));
 check('the first deploy created the table', deploys[0]?.joinedExisting !== true);
 check('the second joined it',               deploys[1]?.joinedExisting === true);
 check('the third joined it too',            deploys[2]?.joinedExisting === true);
-check('exactly one table exists',           registry.tableCount() === 1, `${registry.tableCount()}`);
+// The floor, not the registry: a household that is briefly all home stands up
+// its own kitchen table, and that table is deliberately not on the floor.
+check('exactly one table is on the floor',  registry.listFloorTables().length === 1,
+  registry.listFloorTables().map((t) => t.tableId).join(', '));
 
 const table = registry.getTable(tableId);
 check('the table seats more than two',      table?.maxSeats > 2, `maxSeats=${table?.maxSeats}`);
@@ -155,14 +169,15 @@ console.log('\n[verify] 2) hands advance autonomously, four-handed');
   check('all four seats were dealt in', table.game?.seats.length === 4, `${table.game?.seats.length}`);
   check('no WebSocket clients are attached',
     table.spectators.length === 0 && table.connections.every((c) => c === null));
-  for (let i = 0; i < agentIds.length; i++) {
-    check(`agent ${i + 1} is playing`, (await getAgent(agentIds[i]))?.presence === 'playing');
+  for (let i = 0; i < agents.length; i++) {
+    check(`agent ${i + 1} is playing`, (await getAgent(agents[i].id, agents[i].owner))?.presence === 'playing');
   }
 }
 
 // ── 3) a fourth agent deploys MID-HAND ───────────────────────────────────────
 console.log('\n[verify] 3) a fourth agent deploys mid-hand and joins the NEXT hand');
-const lateId = await newAgent('late agent');
+const lateOwner = ownerOf(4);
+const lateId = await newAgent('late agent', lateOwner);
 {
   const live = await waitFor('hand in progress', async () => table.game,
     (g) => !!g && g.street !== Streets.WAITING && g.street !== Streets.COMPLETE, 60_000, 40);
@@ -170,14 +185,14 @@ const lateId = await newAgent('late agent');
   const handAtJoin = table.game.handNumber;
   const seatsAtJoin = table.game.seats.length;
 
-  const r = await j('POST', `/api/agents/${lateId}/deploy`, { userId });
+  const r = await j('POST', `/api/agents/${lateId}/deploy`, { userId: lateOwner });
   check('the late deploy joined the running table', r.body?.joinedExisting === true && r.body?.tableId === tableId,
     JSON.stringify({ joined: r.body?.joinedExisting, table: r.body?.tableId }));
   check('the seat was taken immediately', table.seatedCount() === 5, `${table.seatedCount()}`);
   check('the hand in progress was NOT restarted', table.game.handNumber === handAtJoin);
   check('the late agent is not in the live hand', table.game.seats.length === seatsAtJoin,
     `${table.game.seats.length} vs ${seatsAtJoin}`);
-  const midHand = await getAgent(lateId);
+  const midHand = await getAgent(lateId, lateOwner);
   check('presence already reports playing', midHand?.presence === 'playing', `${midHand?.presence}`);
   check('liveGame flags it as not yet dealt in', midHand?.liveGame?.dealtIn === false,
     JSON.stringify(midHand?.liveGame?.dealtIn));
@@ -185,7 +200,7 @@ const lateId = await newAgent('late agent');
   const dealtIn = await waitFor('next hand', async () => table.game,
     (g) => !!g && g.seats.length === seatsAtJoin + 1, 90_000, 100);
   check('dealt into the next hand', dealtIn.ok, `game seats=${table.game?.seats.length}`);
-  const seated = await waitFor('hole cards', async () => await getAgent(lateId),
+  const seated = await waitFor('hole cards', async () => await getAgent(lateId, lateOwner),
     (a) => Array.isArray(a?.liveGame?.heroHole) && a.liveGame.heroHole.length === 2, 30_000, 100);
   check('and holds two hole cards of its own', seated.ok, JSON.stringify(seated.value?.liveGame?.heroHole));
   check('five-handed now', table.game.seats.length === 5, `${table.game?.seats.length}`);
@@ -194,12 +209,13 @@ const lateId = await newAgent('late agent');
 // ── 4) one SIT_OUT, everyone else plays on ───────────────────────────────────
 console.log('\n[verify] 4) one agent sits out — the seat frees, the table plays on');
 {
-  const quitter = agentIds[1];
+  const quitter = agents[1].id;
+  const quitterOwner = agents[1].owner;
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const seen = [];
   await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
   ws.on('message', (d) => { try { seen.push(JSON.parse(d.toString())); } catch { /* ignore */ } });
-  ws.send(JSON.stringify({ type: ClientMsg.WATCH, tableId, agentId: quitter, userId }));
+  ws.send(JSON.stringify({ type: ClientMsg.WATCH, tableId, agentId: quitter, userId: quitterOwner }));
   const watching = await waitFor('watching', async () => seen.find((m) => m.type === ServerMsg.WATCHING),
     (m) => !!m, 10_000, 40);
   check('a watcher attached to the quitting agent', watching.ok);
@@ -220,16 +236,16 @@ console.log('\n[verify] 4) one agent sits out — the seat frees, the table play
     `${seatsBefore} -> ${table.seatedCount()}`);
   check('the quitter is off the felt', !table.agentIds.includes(quitter));
 
-  const rested = await waitFor('quitter resting', async () => await getAgent(quitter),
+  const rested = await waitFor('quitter resting', async () => await getAgent(quitter, quitterOwner),
     (a) => a?.presence === 'resting', 20_000, 100);
   check('the quitter is resting',          rested.ok, `${rested.value?.presence}`);
   check('its table reference was cleared', !rested.value?.activeTableId);
   check('it carries a session recap',      !!rested.value?.sessionRecap?.text);
   console.log(`       recap: "${rested.value?.sessionRecap?.text}"`);
 
-  const others = [agentIds[0], agentIds[2], lateId];
-  for (const id of others) {
-    check(`the others keep playing (${id.slice(-6)})`, (await getAgent(id))?.presence === 'playing');
+  const others = [agents[0], agents[2], { id: lateId, owner: lateOwner }];
+  for (const { id, owner } of others) {
+    check(`the others keep playing (${id.slice(-6)})`, (await getAgent(id, owner))?.presence === 'playing');
   }
   const kept = await waitFor('more hands', async () => table.handsThisSession,
     (n) => n > table.handsThisSession - 1 && n >= handsBefore + 2, 90_000, 200);
@@ -297,28 +313,38 @@ console.log('\n[verify] 5) a forced multiway all-in — side pots, every chip ac
 // ── 6) liveGame for every seated agent, heroHole scoped to the owner ─────────
 console.log('\n[verify] 6) GET /api/agents — liveGame for all seated agents, heroHole owner-only');
 {
-  const seatedIds = table.agentIds.filter(Boolean);
-  check('three agents are still seated', seatedIds.length === 3, `${seatedIds.length}`);
+  // MATCH-1: every seat belongs to a different backer, so the roster is read
+  // per owner. The seats themselves say who to ask, which is also the honest
+  // way round — the table is the witness, not the test's bookkeeping.
+  const seated = table.agentIds
+    .map((id, seat) => (id ? { id, owner: table.agentUserIds[seat] } : null))
+    .filter(Boolean);
+  check('three agents are still seated', seated.length === 3, `${seated.length}`);
+
+  const readSeated = async ({ auth }) => {
+    const out = [];
+    for (const { id, owner } of seated) {
+      const a = await getAgent(id, owner, { auth });
+      if (a) out.push(a);
+    }
+    return out;
+  };
 
   const owned = await waitFor('hole cards for every seated agent',
-    async () => await listAgents({ owner: true }),
-    (list) => seatedIds.every((id) => {
-      const a = list.find((x) => x.id === id);
-      return a?.presence === 'playing'
+    async () => await readSeated({ auth: true }),
+    (list) => list.length === seated.length && list.every((a) =>
+      a?.presence === 'playing'
         && a?.liveGame?.tableId === tableId
-        && Array.isArray(a.liveGame.heroHole) && a.liveGame.heroHole.length === 2;
-    }),
+        && Array.isArray(a.liveGame.heroHole) && a.liveGame.heroHole.length === 2),
     60_000, 100);
   check('every seated agent reports liveGame at this table with its own hole cards', owned.ok);
-  for (const id of seatedIds) {
-    const a = owned.value.find((x) => x.id === id);
+  for (const a of owned.value ?? []) {
     console.log(`       ${a?.name} seat ${a?.liveGame?.heroSeat} hole ${JSON.stringify(a?.liveGame?.heroHole)} of ${a?.liveGame?.seatCount} seats`);
   }
-  const holes = seatedIds.map((id) => JSON.stringify(owned.value.find((x) => x.id === id)?.liveGame?.heroHole));
+  const holes = (owned.value ?? []).map((a) => JSON.stringify(a?.liveGame?.heroHole));
   check('each agent sees a DIFFERENT hand — its own', new Set(holes).size === holes.length, holes.join(' '));
 
-  const stranger = await listAgents({ owner: false });
-  const strangerSeated = stranger.filter((a) => seatedIds.includes(a.id));
+  const strangerSeated = await readSeated({ auth: false });
   check('an unauthenticated caller still sees presence and the table',
     strangerSeated.length === 3 && strangerSeated.every((a) => a.liveGame?.tableId === tableId));
   check('but never a hole card', strangerSeated.every((a) => a.liveGame?.heroHole === null),
@@ -330,8 +356,8 @@ console.log('\n[verify] 6) GET /api/agents — liveGame for all seated agents, h
 // ── cleanup ──────────────────────────────────────────────────────────────────
 console.log('\n[verify] cleanup');
 registry.resetRegistry('e2e run finished');
-for (const id of cleanupAgentIds) {
-  await j('DELETE', `/api/agents/${id}?userId=${userId}`);
+for (const { id, owner } of cleanup) {
+  await j('DELETE', `/api/agents/${id}?userId=${owner}`);
 }
 wss.close();
 await new Promise((res) => httpServer.close(res));

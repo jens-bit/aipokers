@@ -112,9 +112,11 @@ export function getLiveGame(tableId, { agentId, includeHole = false } = {}) {
 
 // MST-2: the best open AI-only table for a deploying agent, or null when it
 // should get a fresh table of its own. Returns { table, score, seated }.
-// MATCH-2: userId lets the scorer prefer same-owner tables and skip MIN_SCORE.
-export function findJoinableTable({ profile = null, agentId = null, userId = null } = {}) {
-  return pickTableToJoin(tables.values(), { profile, agentId, userId });
+// MATCH-1: userId now DISQUALIFIES any table already holding one of that
+// owner's agents, and `room` (a rooms.js room id) keeps the replacement on the
+// same floor rather than wherever the action happens to be.
+export function findJoinableTable({ profile = null, agentId = null, userId = null, room = null } = {}) {
+  return pickTableToJoin(tables.values(), { profile, agentId, userId, room });
 }
 
 export function getOrCreateTable(tableId, opts = {}) {
