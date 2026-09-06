@@ -41,13 +41,20 @@ import {
   recordOwnerEvent, tickOwnerMemorySession, ownerMemoryContext,
   isAskingAboutOwner, whatDoYouThinkOfMe, ownerToneScore,
 } from '../agent/ownerMemory.js';
-import { ITEMS, isItem, priceOf, wantTrigger, buildWant } from '../agent/wants.js';
+import {
+  // RELATE-1d — the one item, and the hand-end trigger that asks for it.
+  ITEMS, isItem, priceOf, wantTrigger, buildWant, DEFAULT_ITEM,
+  // WANTS-1 — the ask layer: the trigger table, the priority rule, the lines.
+  ASK_SNOOZE_MS, ASK_REASK_MS, ASK_WEEK_MS,
+  askFor, buildAsk, replaces, askSatisfied, isAnswered, isActiveWant,
+} from '../agent/wants.js';
+import { roomForBigBlind, roomPhrase } from './rooms.js';
+import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import {
   Where, locationFor, routineFor, stampLocation, homeStateMessage,
 } from './home.js';
-import { roomForBigBlind } from './rooms.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import { emitSessionEnd } from './sessions.js';
@@ -1016,6 +1023,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     mood: agent.mood?.state ?? 'neutral',
     net: typeof sessionPnl === 'number' ? sessionPnl : null,
     hands: sessionHands || 0,
+    // WANTS-1: the biggest pot he had money in this stay. The brag ask measures
+    // a night against the week, and `recentHands` only holds twenty, so the
+    // week has to be recorded per session or it is not on file at all. Older
+    // records have no field and read as zero, which is the honest answer.
+    biggestPot: Math.max(0, Number(sessionEnd?.biggestPot) || 0),
   });
   if (agent.sessionLog.length > 10) agent.sessionLog = agent.sessionLog.slice(-10);
   agent.stats.netWon = (agent.stats.netWon ?? 0) + (typeof sessionPnl === 'number' ? sessionPnl : 0);
@@ -1442,7 +1454,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
   const location = stampLocation(agent, locationFor({
     presence,
     tableId: agent.activeTableId ?? null,
-    room: tableBigBlind === null ? null : roomForBigBlind(tableBigBlind),
+    room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
   }));
   const routine = routineFor({
     nature: agent.nature,
@@ -1454,6 +1466,15 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
     unseenRecap: !!agent.unseenRecap,
   });
 
+  // WANTS-1: the want is computed here, from the fatigue and the presence this
+  // function has just worked out, so there is exactly one reading of his state
+  // behind it. It rides every projection for free; the push that tells a
+  // client it CHANGED is refreshWantsFor's job, not this one's.
+  try {
+    computeWant(agent, { fatigue, atTable: presence === 'playing', broke: presence === 'broke' });
+  } catch (err) {
+    console.error('[wants] compute failed:', err.message);
+  }
   const careerStats = {
     hands: agent.stats?.handsPlayed ?? 0,
     sessions: sessionLog.length,
@@ -1478,6 +1499,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
       updatedAt: agent.mood.updatedAt ?? null,
     } : null,
     lastMoment: agent.lastMoment ?? null,
+    // WANTS-1: the one thing he is asking for, or null. Never a queue.
+    want: wantView(agent),
     sessionRecap: agent.sessionRecap ?? null,
     // BIO-2b: the three relationships, each with the one fact it is built on
     // and his opinion of it. Derived, never stored as a badge — and never
@@ -1525,6 +1548,9 @@ export function floorSnapshot(userId, { owner = false } = {}) {
       presence: p.presence,
       mood: p.mood,
       lastMoment: p.lastMoment,
+      // WANTS-1: the floor draws the ask on the ghost, so it rides the compact
+      // projection as well as the full one.
+      want: p.want,
       sessionRecap: p.sessionRecap,
       unseenRecap: p.unseenRecap,
       proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
@@ -1686,7 +1712,10 @@ export function applyOwnerMessageToMood(agentId, userId, text) {
 export function maybeRaiseWant(agent, { ownerId = null } = {}) {
   ensureMood(agent);
   ensureStats(agent);
-  if (agent.want && !agent.want.answered) return null;    // one pending, always
+  // WANTS-1: one pending, always — and now also "only if it outranks what is
+  // pending". This path raises a beer (priority 3), so it yields to a man
+  // asking to sit one out and beats nothing already on the table.
+  if (agent.want && !isAnswered(agent.want) && !replaces({ kind: 'beer' }, agent.want)) return null;
 
   const trigger = wantTrigger({
     heat: agent.mood?.heat ?? 0,
@@ -1708,6 +1737,459 @@ export function maybeRaiseWant(agent, { ownerId = null } = {}) {
     });
   }
   return agent.want;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WANTS-1 · wants as asks
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The trigger table lives in src/agent/wants.js and takes plain numbers. This
+// half is the part that has to touch the world: it reads his state, hands the
+// numbers over, stores at most one want, and answers it.
+//
+// RELATE-1d's `maybeRaiseWant` above is the hand-end path and was never wired
+// to a caller. `computeWant` is the live one, and the two cannot fight because
+// both go through `replaces()`.
+//
+// WHAT IS NOT HERE, and the absence is the design: no interval, no cron, no
+// sweep. Every want in the product is computed inside a call the owner or the
+// table already made, from state that was already true. There is nowhere for a
+// "he has not been played in a while, make him sad" to live.
+
+// ── Where his nemesis is ────────────────────────────────────────────────────
+//
+// The floor's `nemesisSeated` event is public and carries headlines only, so
+// the playerId that would let us match it to a grudge cannot ride it. It rides
+// the `detail` channel instead — events.js's owner-addressed half, the same
+// seam NOTIFY-2 uses — and lands here.
+//
+// A sighting is not a timer. It is true for exactly as long as the table is
+// still running, which is checked at read time against the live registry, so a
+// man who left is not still "in the back room" thirty seconds later. Nothing
+// ages out on a clock.
+const nemesisSightings = new Map();   // playerId -> { displayName, tableId, bigBlind, at }
+const NEMESIS_SIGHTINGS_MAX = 200;
+
+/**
+ * Someone who is somebody's nemesis just took a seat. Called from the events
+ * bus; exported so a test can say it happened without standing up a table.
+ */
+export function noteNemesisSeated({ playerId, displayName = null, tableId = null, bigBlind = null } = {}) {
+  if (!playerId || !tableId) return null;
+  const key = String(playerId);
+  if (!nemesisSightings.has(key) && nemesisSightings.size >= NEMESIS_SIGHTINGS_MAX) {
+    // Maps iterate in insertion order, so the first key is the oldest sighting.
+    const oldest = nemesisSightings.keys().next().value;
+    if (oldest !== undefined) nemesisSightings.delete(oldest);
+  }
+  const sighting = {
+    displayName: displayName == null ? null : String(displayName),
+    tableId: String(tableId),
+    bigBlind: Number(bigBlind) || null,
+    at: Date.now(),
+  };
+  nemesisSightings.set(key, sighting);
+  return sighting;
+}
+
+/**
+ * Test seam: the stored agent record, by reference.
+ *
+ * Everything else in this module hands out projections, which is right — but a
+ * test that has to wind a snooze back or age a fatigue stage is testing the
+ * server's reading of stored state and needs the state itself. Named so it is
+ * obvious at the call site that this is not a route's business.
+ */
+export function _agentRecordForTests(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  return profile.agents.find((a) => a.id === agentId) ?? null;
+}
+
+/** Test seam: forget every sighting. */
+export function resetNemesisSightings() {
+  nemesisSightings.clear();
+}
+
+/**
+ * Is this agent's nemesis in the building right now, and where?
+ *
+ * Returns { name, room, roomPhrase, tableId } or null. Null when he has no
+ * nemesis, when the man is not seated, when the table has since closed, when
+ * the table is at blinds no room runs (a bespoke game is not somewhere you can
+ * be "sent"), or when he is already sitting at it.
+ */
+function nemesisSightingFor(agent) {
+  const nemesis = agent?.bio?.nemesis;
+  if (!nemesis?.playerId) return null;
+  const key = String(nemesis.playerId);
+  const seen = nemesisSightings.get(key);
+  if (!seen) return null;
+
+  // State truth, not expiry: gone from the registry means gone from the floor.
+  if (liveTables && !liveTables.hasTable?.(seen.tableId)) {
+    nemesisSightings.delete(key);
+    return null;
+  }
+  if (agent.activeTableId && String(agent.activeTableId) === seen.tableId) return null;
+
+  const room = roomForBigBlind(seen.bigBlind);
+  const phrase = room ? roomPhrase(room) : null;
+  if (!room || !phrase) return null;
+
+  return {
+    name: nemesis.displayName || seen.displayName || null,
+    room: room.id,
+    roomName: room.name,
+    roomPhrase: phrase,
+    tableId: seen.tableId,
+  };
+}
+
+// ── The state the trigger reads ─────────────────────────────────────────────
+
+/**
+ * Broke enough to ask for a stake: at the bar, unable to cover a buy-in, and
+ * with no way back without you.
+ *
+ * The same rule presentAgent draws the 'broke' presence from, and the reason it
+ * is a function rather than `isBroke(pocket.balance)` at two call sites: an
+ * agent on auto-refill with money in the wallet is ONE automatic collection
+ * away, and having him ask to be fronted would be a lie about his position.
+ * When the wallet is unknown, auto is assumed coverable — the optimistic read,
+ * matching presentAgent.
+ */
+function needsAStake(agent, { seated = false, walletBalance = null } = {}) {
+  if (seated) return false;
+  if (!isBroke(agent?.pocket?.balance)) return false;
+  const canRefill = agent?.pocket?.mode === 'auto' && (walletBalance === null || walletBalance > 0);
+  return !canRefill;
+}
+
+
+/**
+ * The biggest pot he had money in over the last week.
+ *
+ * Session-level first — `sessionLog` carries a `biggestPot` per stay from
+ * WANTS-1 on, which is the durable record — and the last twenty hands as the
+ * backstop for a session still in progress and for records written before the
+ * field existed. Zero when there is nothing on file, which is what stops the
+ * brag ask firing on a first session against a bar of nothing.
+ */
+export function weekBiggestPot(agent, { now = Date.now(), windowMs = ASK_WEEK_MS } = {}) {
+  const cutoff = now - windowMs;
+  let best = 0;
+  for (const s of Array.isArray(agent?.sessionLog) ? agent.sessionLog : []) {
+    if (!Number.isFinite(s?.endedAt) || s.endedAt < cutoff) continue;
+    const pot = Number(s.biggestPot) || 0;
+    if (pot > best) best = pot;
+  }
+  for (const h of Array.isArray(agent?.recentHands) ? agent.recentHands : []) {
+    if (!Number.isFinite(h?.timestamp) || h.timestamp < cutoff) continue;
+    const pot = Number(h.potSize) || 0;
+    if (pot > best) best = pot;
+  }
+  return best;
+}
+
+/**
+ * His fatigue right now, from the one place that knows: the live seat while he
+ * is in one, the stored stage recovering with the hours since he left when he
+ * is not. Same rule RIDERS-1 put in presentAgent, factored out so the deploy
+ * gate and the want cannot read it two different ways.
+ */
+export function fatigueNow(agent, { now = Date.now() } = {}) {
+  const atTable = !!(agent?.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
+  if (atTable) {
+    const live = liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id }) ?? null;
+    const sessionHands = live?.heroSessionHands ?? live?.handsThisSession ?? 0;
+    return effectiveAttrs(agent, { sessionHands }).fatigue;
+  }
+  const hours = Number.isFinite(agent?.restedAt) ? (now - agent.restedAt) / 3_600_000 : Infinity;
+  return restedFatigue(agent?.fatigue ?? 'fresh', hours);
+}
+
+// ── Computing the one want ──────────────────────────────────────────────────
+
+/**
+ * Refresh `agent.want` from his state. Mutates and returns the stored want (or
+ * null). No save, no notification, no broadcast — this is a pure-ish read that
+ * every projection can afford to make, and `refreshWantsFor` below is the one
+ * that decides something changed and tells the world.
+ *
+ * Deliberately silent: a want does NOT fire a push notification. RELATE-1d's
+ * `want` notification is for the one he raises off a rough night, which is a
+ * moment. "Put me in" is a standing state, and a standing state that pushes is
+ * a nag with a badge on it.
+ */
+export function computeWant(agent, { fatigue = null, atTable = null, broke = null, walletBalance = null, now = Date.now() } = {}) {
+  if (!agent) return null;
+  ensureMood(agent);
+  ensureStats(agent);
+  ensureBio(agent);
+  ensurePocket(agent);
+
+  const seated = atTable == null
+    ? !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+    : !!atTable;
+  const worn = fatigue ?? fatigueNow(agent, { now });
+  const skint = broke == null ? needsAStake(agent, { seated, walletBalance }) : !!broke;
+  const heat = Number.isFinite(agent.mood?.heat) ? agent.mood.heat : heatForState(agent.mood?.state);
+
+  // The rest bench clears itself the moment he is fresh. It is a state, not a
+  // sentence: nothing has to be pressed to let him play again.
+  if (agent.restBench && worn === 'fresh' && !seated) agent.restBench = null;
+
+  const current = agent.want ?? null;
+
+  // Rule 4 — the world answered it. Never a clock; every branch of
+  // `askSatisfied` names the thing he asked for.
+  if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat })) {
+    current.answered = 'fulfilled';
+    current.answeredAt = now;
+  }
+
+  const lastSession = (Array.isArray(agent.sessionLog) ? agent.sessionLog : []).at(-1) ?? null;
+  const sighting = seated ? null : nemesisSightingFor(agent);
+
+  const candidate = askFor({
+    fatigue: worn,
+    atTable: seated,
+    idleMs: Number.isFinite(agent.restedAt) ? now - agent.restedAt : (agent.stats?.handsPlayed > 0 ? Infinity : 0),
+    heat,
+    sinceLeftMs: Number.isFinite(agent.restedAt) ? now - agent.restedAt : Infinity,
+    broke: skint,
+    sessionNet: typeof lastSession?.net === 'number' ? lastSession.net : null,
+    weekBiggestPot: weekBiggestPot(agent, { now }),
+    nemesis: sighting,
+  });
+
+  if (candidate && !onReAskCooldown(agent, candidate.kind, now) && replaces(candidate, agent.want)) {
+    const built = buildAsk(candidate, {
+      // The seed is his hand count, so the alternate he picks is stable for as
+      // long as the want is — the same reason formatOpener seeds on the session.
+      seed: agent.stats?.handsPlayed ?? 0,
+      moodState: agent.mood?.state ?? 'neutral',
+      nemesisName: sighting?.name ?? null,
+      roomPhrase: sighting?.roomPhrase ?? null,
+      now,
+    });
+    if (built) agent.want = built;
+  }
+
+  return agent.want ?? null;
+}
+
+/**
+ * Recompute every want in the building. Only the nemesis sighting needs this:
+ * one man sitting down is news to agents belonging to owners who are not in
+ * this request, so there is no single roster to refresh.
+ *
+ * Rare by construction — `nemesisSeated` fires at most once per seat per
+ * session — which is why walking the store is affordable here and would not
+ * be on a hand-end path.
+ */
+export function refreshAllWants() {
+  let changed = 0;
+  for (const userId of Object.keys(db())) changed += refreshWantsFor(userId);
+  return changed;
+}
+
+// The floor's `nemesisSeated` headline cannot carry a playerId (EVENT-1 rule
+// 1: no headline may say more than a spectator is entitled to). The private
+// half rides the `detail` channel, which is exactly the seam events.js built
+// for owner-addressed facts, and this is its second subscriber after notify.js.
+//
+// Registered at module load. ES modules are evaluated once per process, so
+// this is one listener no matter how many servers a test file composes.
+casinoBus.on('detail', (record) => {
+  if (record?.kind !== 'nemesisSeated') return;
+  try {
+    if (!noteNemesisSeated(record)) return;
+    refreshAllWants();
+  } catch (err) {
+    console.error('[wants] nemesis sighting failed:', err.message);
+  }
+});
+
+// A kind that was answered yes or no inside ASK_REASK_MS does not come back.
+// `later` never writes here — see the constant's note in wants.js.
+function onReAskCooldown(agent, kind, now) {
+  const at = agent?.wantCooldowns?.[kind];
+  return Number.isFinite(at) && now - at < ASK_REASK_MS;
+}
+
+function noteReAskCooldown(agent, kind, now = Date.now()) {
+  if (!agent.wantCooldowns || typeof agent.wantCooldowns !== 'object') agent.wantCooldowns = {};
+  agent.wantCooldowns[kind] = now;
+}
+
+/**
+ * The want as it goes on the wire: the one he is actually asking right now, or
+ * null. A snoozed want is null here and comes back by itself — the client is
+ * never told there is something being withheld, because a "1 hidden" badge is
+ * the nag the snooze existed to prevent.
+ */
+export function wantView(agent, { now = Date.now() } = {}) {
+  const want = agent?.want ?? null;
+  if (!isActiveWant(want, { now })) return null;
+  return {
+    // A want stored by RELATE-1d predates every field below it. It was a beer
+    // and it projects as one, so the client never has to branch on the absence
+    // of a field rather than on a kind.
+    kind: want.kind ?? 'beer',
+    text: want.text,
+    needs: want.needs ?? null,
+    dangerous: !!want.dangerous,
+    item: want.item ?? null,
+    room: want.room ?? null,
+    mood: want.mood ?? null,
+    at: want.at ?? null,
+  };
+}
+
+// ── Telling the floor ───────────────────────────────────────────────────────
+//
+// Injected exactly like the agent-change listener, and for the same reason:
+// nothing imports back out of this module.
+let wantListener = null;
+
+export function setWantListener(fn) {
+  wantListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitWantChange(userId, agentId, want) {
+  if (!wantListener) return;
+  try { wantListener(String(userId ?? 'anon'), String(agentId), want); }
+  catch (err) { console.error('[wants] change listener failed:', err.message); }
+}
+
+// What makes two wants the same want on the wire. The timestamp is not in it:
+// a want rebuilt identically after a restart is the same ask, and pushing WANT
+// because a number moved is how a quiet channel becomes a noisy one.
+function wantSignature(view) {
+  return view ? `${view.kind}|${view.text}|${view.dangerous ? 1 : 0}|${view.room ?? ''}` : '';
+}
+
+/**
+ * Recompute every want this owner has and push WANT for the ones that changed.
+ *
+ * Called from the surfaces that already load the roster — the agent list, one
+ * agent, the floor snapshot — so a want appears on the next thing the client
+ * asks for rather than on a timer of its own.
+ */
+export function refreshWantsFor(userId, { now = Date.now() } = {}) {
+  const uid = String(userId ?? 'anon');
+  const profile = getOrCreate(uid);
+  // Read once, not per agent: it is the same wallet behind all of them, and it
+  // is what decides whether a flat pocket is "broke" or one refill from fine.
+  const wallet = walletFor(uid).balance;
+  let changed = 0;
+  for (const agent of activeAgents(profile)) {
+    const before = wantSignature(wantView(agent, { now }));
+    try {
+      computeWant(agent, { now, walletBalance: wallet });
+    } catch (err) {
+      console.error('[wants] compute failed:', err.message);
+      continue;
+    }
+    const view = wantView(agent, { now });
+    if (wantSignature(view) === before) continue;
+    changed++;
+    emitWantChange(uid, agent.id, view);
+  }
+  if (changed > 0) saveStore(uid);
+  return changed;
+}
+
+// ── Answering one ───────────────────────────────────────────────────────────
+
+/**
+ * The item path, lifted out of POST /give so POST /want can answer a beer with
+ * exactly the same 200 chips, the same shared pep-talk cooldown and the same
+ * ledger line. Two routes, one behaviour — the alternative was a second way to
+ * buy a drink that drifted from the first.
+ *
+ * Returns { ok, status?, body } — the caller decides how to dress it.
+ */
+export function giveItemTo(agent, userId, item) {
+  if (!isItem(item)) {
+    return { ok: false, status: 400, body: { error: `item must be one of ${Object.keys(ITEMS).join(', ')}` } };
+  }
+  ensureMood(agent);
+  ensureStats(agent);
+
+  // "He's fine. Save it." — the ref's own line. Giving a snack to a level agent
+  // spends nothing, because there is no mood to soothe.
+  if (!isMoodSoothable(agent.mood)) {
+    return { ok: false, status: 400, body: { error: "He's fine. Save it.", spent: 0, soothed: false } };
+  }
+
+  const profile = getOrCreate(userId);
+  const wallet = walletFor(userId);
+  const price = priceOf(item);
+  if (wallet.balance < price) {
+    return { ok: false, status: 400, body: { error: 'wallet does not cover that', available: wallet.balance } };
+  }
+
+  // The effect is the pep talk's, and it shares the pep talk's cooldown — an
+  // item is not a way around a rate limit.
+  const result = applyMoodPepTalk(agent.mood, agent.stats?.handsPlayed ?? 0);
+  if (!result.soothed) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: 'Snacked recently — shared with the pep talk.', spent: 0, soothed: false, reason: result.reason },
+    };
+  }
+
+  wallet.balance -= price;
+  wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -price, agentId: agent.id, item });
+  agent.mood = result.mood;
+  recordOwnerEvent(agent, 'item_given', { item });
+  agent.lastMoment = {
+    text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
+    mood: agent.mood?.state ?? 'neutral',
+    at: Date.now(),
+  };
+  saveWalletFor(userId);
+  return {
+    ok: true,
+    body: {
+      given: item,
+      spent: price,
+      soothed: true,
+      mood: { state: agent.mood.state, heat: agent.mood.heat },
+      moment: agent.lastMoment,
+      wallet: walletProjection(wallet, profile.agents),
+    },
+  };
+}
+
+/**
+ * "Sit one out." He comes off the felt and stays off until STAMINA has him
+ * back at `fresh` — which is time at the bar, on attributes.js's own recovery
+ * curve, and nothing the owner has to remember to undo.
+ *
+ * Seated, he finishes the hand he is in: benchCutSeat is the wallet's bench,
+ * not a fold, so no chips are forfeited to a decision he did not make.
+ */
+function benchForRest(agent, userId) {
+  agent.restBench = { since: Date.now(), until: 'fresh' };
+  const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+  if (table) benchCutSeat(table, agent.id);
+  const stillSeated = !!agent.activeTableId && !!liveTables?.hasTable?.(agent.activeTableId);
+  agent.lastMoment = {
+    text: stillSeated ? 'One more hand and I am out.' : 'Right. I am at the bar.',
+    mood: agent.mood?.state ?? 'neutral',
+    at: Date.now(),
+  };
+  return { benched: true, pending: stillSeated, restingUntil: 'fresh' };
+}
+
+/** Is he sitting out on his own request, and not yet recovered? */
+export function isRestBenched(agent, { now = Date.now() } = {}) {
+  if (!agent?.restBench) return false;
+  return fatigueNow(agent, { now }) !== 'fresh';
 }
 
 // RELATE-1a: one place the routes call to write an owner-ledger line and
@@ -1952,7 +2434,8 @@ export function installAgentProfileRoutes(app) {
     res.json({
       userId: profile.userId,
       hasAgents: activeAgents(profile).length > 0,
-      agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
+      agents: (refreshWantsFor(userId), rosterFor(req, profile))
+        .map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
       chat: profile.chat,
     });
   });
@@ -2224,59 +2707,121 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
     const item = String(req.body?.item || agent.want?.item || 'snack');
-    if (!isItem(item)) {
-      return res.status(400).json({ error: `item must be one of ${Object.keys(ITEMS).join(', ')}` });
-    }
 
-    ensureMood(agent);
-    ensureStats(agent);
-
-    // "He's fine. Save it." — the ref's own line. Giving a snack to a level
-    // agent spends nothing, because there is no mood to soothe.
-    if (!isMoodSoothable(agent.mood)) {
-      return res.status(400).json({ error: "He's fine. Save it.", spent: 0, soothed: false });
-    }
-
-    const wallet = walletFor(userId);
-    const price = priceOf(item);
-    if (wallet.balance < price) {
-      return res.status(400).json({ error: 'wallet does not cover that', available: wallet.balance });
-    }
-
-    // The effect is the pep talk's, and it shares the pep talk's cooldown —
-    // an item is not a way around a rate limit.
-    const result = applyMoodPepTalk(agent.mood, agent.stats?.handsPlayed ?? 0);
-    if (!result.soothed) {
-      return res.status(400).json({ error: 'Snacked recently — shared with the pep talk.', spent: 0, soothed: false, reason: result.reason });
-    }
-
-    wallet.balance -= price;
-    wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -price, agentId: agent.id, item });
-    agent.mood = result.mood;
+    // WANTS-1: the purchase, the shared pep-talk cooldown and the ledger line
+    // all moved into giveItemTo so POST /want can answer a beer with exactly
+    // this behaviour rather than a second implementation of it.
+    const given = giveItemTo(agent, userId, item);
+    if (!given.ok) return res.status(given.status).json(given.body);
 
     // The answer becomes a ledger line either way; this is the "given" half.
-    recordOwnerEvent(agent, 'item_given', { item });
-    if (agent.want && !agent.want.answered) {
+    if (agent.want && !isAnswered(agent.want)) {
       agent.want.answered = 'given';
       agent.want.answeredAt = Date.now();
+      noteReAskCooldown(agent, agent.want.kind ?? 'beer');
     }
-    agent.lastMoment = {
-      text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
-      mood: agent.mood?.state ?? 'neutral',
-      at: Date.now(),
-    };
 
     saveStore(userId);
-    saveWalletFor(userId);
     emitAgentChange(userId);
-    res.json({
-      given: item,
-      spent: price,
-      soothed: true,
-      mood: { state: agent.mood.state, heat: agent.mood.heat },
-      moment: agent.lastMoment,
-      wallet: walletProjection(wallet, profile.agents),
-    });
+    emitWantChange(userId, agent.id, null);
+    res.json(given.body);
+  });
+
+
+  // ── WANTS-1 — POST /api/agents/:agentId/want?userId=...  { answer } ───────
+  //
+  //   yes    do the thing, where the server can. Where it cannot, say what the
+  //          client has to open: { needs: 'deploy' | 'fund' | 'thread' }.
+  //   later  thirty minutes of quiet, then the SAME want comes back unanswered.
+  //   no     it is gone.
+  //
+  // All three write a line in the owner ledger, because all three are things
+  // you did. `later` and `no` are NEUTRAL there — see the writers' note in
+  // ownerMemory.js — so an owner who says no to everything he was right to say
+  // no to does not drift the man's resting heat by a point.
+  //
+  // No model call, so no rate limiter of its own beyond index.js's /api one.
+  // It is behind Telegram auth and an ownership check like every other route
+  // that changes an agent.
+  app.post('/api/agents/:agentId/want', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const answer = String(req.body?.answer || '').toLowerCase();
+    if (!['yes', 'later', 'no'].includes(answer)) {
+      return res.status(400).json({ error: 'answer must be one of yes, later, no' });
+    }
+
+    // Recompute before answering: the want you are answering has to be the one
+    // that is true now, not the one that was true when the screen was drawn.
+    const now = Date.now();
+    computeWant(agent, { now, walletBalance: walletFor(userId).balance });
+    const want = agent.want;
+    if (!isActiveWant(want, { now })) return res.status(400).json({ error: 'nothing pending' });
+
+    const kind = want.kind ?? 'beer';
+
+    // ── later ──────────────────────────────────────────────────────────────
+    if (answer === 'later') {
+      want.snoozedUntil = now + ASK_SNOOZE_MS;
+      recordOwnerEvent(agent, 'want_snoozed', { kind });
+      saveStore(userId);
+      emitAgentChange(userId);
+      emitWantChange(userId, agent.id, null);
+      return res.json({ answered: 'later', kind, snoozedUntil: want.snoozedUntil, want: null });
+    }
+
+    // ── no ─────────────────────────────────────────────────────────────────
+    if (answer === 'no') {
+      want.answered = 'no';
+      want.answeredAt = now;
+      noteReAskCooldown(agent, kind, now);
+      recordOwnerEvent(agent, 'want_refused', { kind });
+      saveStore(userId);
+      emitAgentChange(userId);
+      emitWantChange(userId, agent.id, null);
+      return res.json({ answered: 'no', kind, want: null });
+    }
+
+    // ── yes ────────────────────────────────────────────────────────────────
+    // The beer is the one answer that can fail on its own terms — an empty
+    // wallet, a mood with nothing to soothe, the pep talk's cooldown. It is
+    // settled BEFORE the want is marked answered, so a refused purchase leaves
+    // the want exactly where it was rather than silently eating it.
+    let performed = null;
+    if (kind === 'beer') {
+      const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
+      if (!given.ok) return res.status(given.status).json(given.body);
+      performed = given.body;
+    } else if (kind === 'rest') {
+      performed = benchForRest(agent, userId);
+    }
+
+    want.answered = 'yes';
+    want.answeredAt = now;
+    noteReAskCooldown(agent, kind, now);
+
+    // The dangerous yes is its own ledger type rather than a flag, so a later
+    // feature can ask "how often has he been let straight back in steaming"
+    // without parsing a sentence. bio/relate is the intended reader.
+    recordOwnerEvent(agent, want.dangerous ? 'want_yes_dangerous' : 'want_granted', { kind });
+
+    saveStore(userId);
+    emitAgentChange(userId);
+    emitWantChange(userId, agent.id, null);
+
+    // `needs` is the half the server cannot do: open the casino with him
+    // selected, open the wallet, open the thread. `room` rides `deploy` so the
+    // client lands in the room he named rather than on the lobby's front page.
+    const body = { answered: 'yes', kind, want: null, ...(performed ?? {}) };
+    if (want.needs) {
+      body.needs = want.needs;
+      if (want.needs === 'deploy') body.room = want.room ?? null;
+    }
+    res.json(body);
   });
 
   // RELATE-1d — POST /api/agents/:agentId/want/dismiss?userId=...
@@ -2292,6 +2837,7 @@ export function installAgentProfileRoutes(app) {
 
     agent.want.answered = 'ignored';
     agent.want.answeredAt = Date.now();
+    noteReAskCooldown(agent, agent.want.kind ?? 'beer');
     recordOwnerEvent(agent, 'want_ignored', { item: agent.want.item });
     saveStore(userId);
     emitAgentChange(userId);
@@ -2309,6 +2855,10 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     const owner = isOwner(req, userId);
+    // WANTS-1: refresh before projecting, so opening his card is one of the
+    // moments a want can appear — and so the WANT push and this response can
+    // never disagree about what he is asking for.
+    refreshWantsFor(userId);
     const view = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
     // Owner-scoped exactly like /:agentId/flagged: hole cards are the owner's
     // alone, and the same rule has to hold on every route that can carry them,
@@ -2360,6 +2910,22 @@ export function installAgentProfileRoutes(app) {
     ensureMemory(agent);
     ensureProfile(agent);
     ensureBankroll(agent);
+
+    // WANTS-1: he asked to sit one out and you said yes. The bench has to mean
+    // something or the answer was theatre. It clears itself the moment STAMINA
+    // has him back at 'fresh' — nothing to remember to undo.
+    // Not while he is still in a seat: a bench that has not taken effect yet
+    // must not also swallow the "hand back the table he is already at" reply
+    // below, or a client polling deploy loses the session he is finishing.
+    const seatedNow = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
+    if (!seatedNow && isRestBenched(agent)) {
+      return res.status(409).json({
+        error: 'agentResting',
+        message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes.`,
+        fatigue: fatigueNow(agent),
+        restingUntil: 'fresh',
+      });
+    }
 
     // Already at a live table — hand back the same one rather than stacking a
     // second autonomous session on top of the first.

@@ -95,6 +95,12 @@ const userId = 'e2e-watch-v2-user';
 // interact, so the hero gets his own. Nothing asserted here changes.
 const heroUserId = 'e2e-watch-v2-hero';
 
+// AGENTS-2 caps a roster at four. Sections 1 and 2 spend all four between
+// them, so section 6 — added later, by SERVER-3 — was building a fifth and
+// getting a 409 back: every check in it failed on a full roster rather than on
+// anything it was written to test. Both helpers take an owner so a section can
+// have a roster of its own; the default is the file's, so sections 1-5 are
+// unchanged.
 const newAgent = async (label, owner = userId) => {
   await j('POST', '/api/agents/chat/reset', { userId: owner });
   const r = await j('POST', '/api/agents/build', { userId: owner });
@@ -382,6 +388,8 @@ console.log('\n[verify] 5) SEAT-1a — seat.mood on the wire');
 // from, and the thread that survives the socket.
 console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and the thread');
 {
+  // His own roster — see the note on newAgent. Nothing in this section is
+  // about sharing an owner with sections 1-5.
   const agentId = await newAgent('server3 hero', heroUserId);
   const agent = await getAgent(agentId, heroUserId);
   check('an agent to watch', !!agent);

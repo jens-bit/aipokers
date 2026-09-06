@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, hasPocket, pocketOf } from '../lib/wallet.js';
+import { fetchNotifyBudget } from '../lib/notifyApi.js';
 import { WalletBlock } from '../components/wallet/WalletBlock.jsx';
 import { PocketList } from '../components/wallet/PocketRow.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
@@ -209,10 +210,21 @@ export function YouScreen({ onOpenProfile }) {
   // wallet. Absence is a first-class answer — the screen then shows exactly
   // what it showed before the wallet existed.
   const [wallet, setWallet]   = useState(null);
+  // DEEPLINK-1 — how much of today's three the bot has already spent. Null
+  // until the answer arrives, and null forever on a deployment with no
+  // notifier: the row then reads as it always did rather than quoting a cap
+  // nobody is enforcing.
+  const [notifyBudget, setNotifyBudget] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchWallet().then((w) => { if (!cancelled) setWallet(w); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchNotifyBudget().then((b) => { if (!cancelled) setNotifyBudget(b); });
     return () => { cancelled = true; };
   }, []);
 
@@ -459,7 +471,16 @@ export function YouScreen({ onOpenProfile }) {
         <Lbl size={9.5}>Settings</Lbl>
       </div>
       <div style={{ margin: '0 14px 24px', borderRadius: 12, overflow: 'hidden', background: M_PANEL_2, border: `1px solid ${M_BORDER}`, flexShrink: 0 }}>
-        <SettingRow glyph={<BellGlyph />} label="Notifications" value="All agents" />
+        {/* DEEPLINK-1: the cap is part of the design, not a setting — so this
+            row reports it instead of offering a dial. Three a day, owner-wide,
+            and what is left of today's is the only number worth showing. The
+            per-agent mute lives on his profile, where the rest of what an owner
+            does TO an agent already is. */}
+        <SettingRow
+          glyph={<BellGlyph />}
+          label="Notifications"
+          value={notifyBudget ? `${notifyBudget.used}/${notifyBudget.max} today` : 'All agents'}
+        />
         <SettingRow glyph={<ShieldGlyph />} label="Table limits" value="$10/$20" />
         <SettingRow glyph={<InfoGlyph />} label="Help & rules" last />
         {webLogin && <LogoutRow />}

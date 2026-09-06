@@ -58,16 +58,23 @@ export const ROOMS = Object.freeze(STAKES.map((s, i) => Object.freeze({
 const ROOM_BY_BIG_BLIND = new Map(ROOMS.map((room) => [room.stakes.bigBlind, room]));
 
 /**
- * The room a table at these blinds is in, by id, or null when it is in none.
+ * The room a table at these blinds is in, or null when it is in none.
  *
- * HOME-STATE-1 asks this to say where an agent is standing. Null is a real
- * answer and not a failure: a bespoke heads-up game somebody stood up over the
- * socket is at no rung, and neither is a home game — see the note in
- * roomsSnapshot, which excludes exactly the same tables for exactly the same
- * reason.
+ * HOME-STATE-1 asks this to say where an agent is standing; WANTS-1 asks it to
+ * name the room a nemesis was seen in. Null is a real answer and not a failure:
+ * a bespoke heads-up game somebody stood up over the socket is at no rung, and
+ * neither is a home game — see the note in roomsSnapshot, which excludes
+ * exactly the same tables for exactly the same reason.
+ *
+ * Returns the ROOM, not its id. HOME-STATE-1 and WANTS-1 each landed a
+ * roomForBigBlind of their own and they disagreed on that — one returned
+ * `room.id`, the other the object — so the merge keeps the object, which is the
+ * superset, and the id-shaped caller takes `?.id` at the callsite.
  */
 export function roomForBigBlind(bigBlind) {
-  return ROOM_BY_BIG_BLIND.get(Number(bigBlind))?.id ?? null;
+  const bb = Number(bigBlind);
+  if (!Number.isFinite(bb)) return null;
+  return ROOM_BY_BIG_BLIND.get(bb) ?? null;
 }
 
 // ── The snapshot ────────────────────────────────────────────────────────────
@@ -169,4 +176,33 @@ export function installRoomRoutes(app, { liveTables: provider = null } = {}) {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ rooms: currentRooms({ liveTables: provider }), hotWindowMs: HOT_RECENT_MS });
   });
+}
+
+// ── WANTS-1: naming a room out loud ─────────────────────────────────────────
+//
+// The room ids and names live here, so the two ways of saying one out loud
+// live here too rather than being re-derived by whoever needs a sentence.
+//
+// `name` is a label — it goes in a heading, or a chip on a lobby card. It is
+// NOT a phrase: "Marlow is in upstairs" is not English, and a want that says
+// it is a want nobody believes came from a person. `roomPhrase` is the same
+// room with its preposition attached, which is the form a sentence needs:
+//
+//   the floor     -> "on the floor"
+//   upstairs      -> "upstairs"
+//   the back room -> "in the back room"
+//
+// A deployment that adds a rung gets "in <its label>", which is at least
+// grammatical until somebody names the room properly.
+const ROOM_PHRASES = Object.freeze({
+  floor: 'on the floor',
+  upstairs: 'upstairs',
+  backroom: 'in the back room',
+});
+
+/** The room as it is said in a sentence: "<name> is <roomPhrase>. Send me." */
+export function roomPhrase(room) {
+  const r = typeof room === 'string' ? ROOMS.find((x) => x.id === room) : room;
+  if (!r) return null;
+  return ROOM_PHRASES[r.id] ?? `in ${r.name}`;
 }
