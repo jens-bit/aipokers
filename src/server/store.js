@@ -154,6 +154,36 @@ function applySchema(d) {
     );
     CREATE INDEX IF NOT EXISTS session_thread_session ON session_thread (session_id, id);
     CREATE INDEX IF NOT EXISTS session_thread_agent   ON session_thread (agent_id, id DESC);
+
+    -- METER-1: what the models cost, rolled up as it happens.
+    --
+    -- One row per (day, owner, kind, model) rather than one per call. A busy
+    -- floor makes tens of thousands of decisions a day and the question this
+    -- table exists to answer — "what did today cost, and whose was it" — has
+    -- the same answer either way, so the log would be a bigger table than the
+    -- hand history, bought with nothing. The four columns in the key are the four
+    -- axes anybody actually slices on: when, who, what for, and on which
+    -- model (which is the MODEL-1 tiers question, answered from production
+    -- rather than from the arena).
+    --
+    -- "unpriced" is carried rather than swallowed, exactly as pricing.js
+    -- carries it: a total that silently omits an unpriced model is a total
+    -- that understates the bill.
+    CREATE TABLE IF NOT EXISTS model_calls (
+      day                 TEXT    NOT NULL,
+      owner_id            TEXT    NOT NULL,
+      kind                TEXT    NOT NULL,
+      model               TEXT    NOT NULL,
+      calls               INTEGER NOT NULL DEFAULT 0,
+      input_tokens        INTEGER NOT NULL DEFAULT 0,
+      output_tokens       INTEGER NOT NULL DEFAULT 0,
+      cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+      usd                 REAL    NOT NULL DEFAULT 0,
+      unpriced            INTEGER NOT NULL DEFAULT 0,
+      updated_at          INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, owner_id, kind, model)
+    );
+    CREATE INDEX IF NOT EXISTS model_calls_day ON model_calls (day);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -827,6 +857,71 @@ export function putOverheardEntry({ sessionId, agentId, ownerId, ts, who, text, 
     id = info.lastInsertRowid;
   })();
   return id;
+}
+
+// ── The model meter (METER-1) ────────────────────────────────────────────────
+//
+// Add-and-forget: one UPSERT per call that sums into the day's row. There is
+// no read-modify-write here on purpose — two hands finishing in the same
+// millisecond both land, and neither has to hold anything.
+
+export function addModelCall({
+  day, ownerId, kind, model,
+  calls = 1, inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, usd = 0, unpriced = 0,
+} = {}) {
+  conn().prepare(`
+    INSERT INTO model_calls
+      (day, owner_id, kind, model, calls, input_tokens, output_tokens, cached_input_tokens, usd, unpriced, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, owner_id, kind, model) DO UPDATE SET
+      calls               = calls               + excluded.calls,
+      input_tokens        = input_tokens        + excluded.input_tokens,
+      output_tokens       = output_tokens       + excluded.output_tokens,
+      cached_input_tokens = cached_input_tokens + excluded.cached_input_tokens,
+      usd                 = usd                 + excluded.usd,
+      unpriced            = unpriced            + excluded.unpriced,
+      updated_at          = excluded.updated_at
+  `).run(
+    String(day), String(ownerId), String(kind), String(model),
+    Math.max(0, Math.floor(calls)),
+    Math.max(0, Math.floor(inputTokens)),
+    Math.max(0, Math.floor(outputTokens)),
+    Math.max(0, Math.floor(cachedInputTokens)),
+    Number.isFinite(Number(usd)) ? Number(usd) : 0,
+    Math.max(0, Math.floor(unpriced)),
+    Date.now(),
+  );
+}
+
+/**
+ * The rolled-up rows, oldest day first. `sinceDay` is an inclusive 'YYYY-MM-DD'
+ * bound (string comparison is date order for ISO days, which is the whole
+ * reason the key is a string); `ownerId` narrows it to one owner's bill.
+ */
+export function readModelCalls({ sinceDay = null, ownerId = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceDay) { where.push('day >= ?'); args.push(String(sinceDay)); }
+  if (ownerId !== null) { where.push('owner_id = ?'); args.push(String(ownerId)); }
+  const rows = conn().prepare(`
+    SELECT day, owner_id, kind, model, calls, input_tokens, output_tokens,
+           cached_input_tokens, usd, unpriced
+    FROM model_calls
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY day, owner_id, kind, model
+  `).all(...args);
+  return rows.map((r) => ({
+    day: r.day,
+    ownerId: r.owner_id,
+    kind: r.kind,
+    model: r.model,
+    calls: r.calls ?? 0,
+    inputTokens: r.input_tokens ?? 0,
+    outputTokens: r.output_tokens ?? 0,
+    cachedInputTokens: r.cached_input_tokens ?? 0,
+    usd: r.usd ?? 0,
+    unpriced: r.unpriced ?? 0,
+  }));
 }
 
 // ── Test / tooling hooks ─────────────────────────────────────────────────────

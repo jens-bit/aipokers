@@ -43,6 +43,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { appendOverheard } from './thread.js';
+import { recordAnthropicCall, Kind as MeterKind } from './meter.js';
 import { Where } from './home.js';
 import { capWords, isSolverSpeak } from '../agent/voice.js';
 
@@ -168,7 +169,7 @@ export async function maybeRunNightly(ownerId, agents, { now = Date.now(), call 
 
   let raw = null;
   try {
-    raw = await call(buildPrompt(a, b, pair));
+    raw = await call({ ...buildPrompt(a, b, pair), ownerId: owner });
   } catch (err) {
     console.error('[home-night] model call failed:', err.message);
     return null;
@@ -230,7 +231,10 @@ export function buildPrompt(a, b, pair) {
   };
 }
 
-async function callModel({ system, user }) {
+// METER-1: `ownerId` is here for the ledger, not for the prompt — the flat is
+// his, the agents in it are his, and the once-a-day exchange between them is
+// spent on his behalf even though he never asked for it.
+async function callModel({ system, user, ownerId = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;   // no key, no call — and no bill
   const client = new Anthropic({ apiKey });
@@ -243,6 +247,7 @@ async function callModel({ system, user }) {
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: user }],
     }, { signal: controller.signal });
+    recordAnthropicCall({ ownerId, kind: MeterKind.HOME, model: MODEL, msg: res });
     return res.content[0]?.text ?? '';
   } finally {
     clearTimeout(timer);

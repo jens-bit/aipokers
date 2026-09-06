@@ -30,6 +30,10 @@ import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
 } from './events.js';
+// METER-1: every model call this table makes is filed under the owner of the
+// seat that made it. Best-effort by construction — recordModelCall swallows
+// its own errors, because a meter that can break a hand is worse than none.
+import { recordModelCall, Kind as MeterKind } from './meter.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -3285,6 +3289,15 @@ export class Table {
       potSize: this.game?.pot ?? 0,
       street: this.game?.street ?? 'preflop',
       lastOpponentChat,
+      // METER-1: trash talk is a model call too, and a meter that counted only
+      // decisions would understate a talkative table.
+      onUsage: ({ usage, model, provider }) => recordModelCall({
+        ownerId: this.agentUserIds[aiSeat],
+        kind: MeterKind.TALK,
+        model,
+        provider,
+        usage,
+      }),
     })
       .then((line) => {
         if (!line) return;
@@ -3636,7 +3649,21 @@ export class Table {
 
     console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
     const memoryContext = this.agentMemory[aiSeat] ?? '';
-    let { action, reasoning } = await getAgentAction(gameState, strategy, memoryContext);
+    const decision = await getAgentAction(gameState, strategy, memoryContext);
+    let { action, reasoning } = decision;
+    // METER-1: the decision call, priced by MODEL-1b and filed here. A
+    // fallback (no key, an API error) carries no usage and is not a call, so
+    // it is not counted as one.
+    if (decision.usage) {
+      recordModelCall({
+        ownerId: this.agentUserIds[aiSeat],
+        kind: MeterKind.DECISION,
+        model: decision.model,
+        provider: decision.provider,
+        usage: decision.usage,
+        costUsd: decision.costUsd,
+      });
+    }
 
     // One final guard before mutating game state.
     if (!this.game || this.game.toAct !== aiSeat) return;
