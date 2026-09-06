@@ -146,20 +146,36 @@ function TableRow({ row, onWatch }) {
  * @param events   the ticker, for headlines on tables already listed
  * @param onWatch  (tableId) => spectate it
  * @param onClose  put the sheet away
+ * @param variant  'sheet' (the phone: glass over the building, with a scrim) or
+ *                 'rail' (the desk: the same list, inline in the rail beside
+ *                 the building). FIX-6 job 5 — a bottom sheet on a 1440 screen
+ *                 is a 1440-wide strip across a two-column layout, covering the
+ *                 doorway it is about. The desk has a rail; that is what it is
+ *                 for. Nothing inside the list differs.
  */
-export function RoomTablesSheet({ room, agents = [], events = [], onWatch, onClose }) {
+export function RoomTablesSheet({ room, agents = [], events = [], onWatch, onClose, variant = 'sheet' }) {
+  const inRail = variant === 'rail';
   const drag = useSheetDrag(onClose);
   const rows = liveTablesIn(room, { agents, events });
   const unnamed = unnamedCount(room, rows.length);
 
   return (
-    <div className="home-sheet" role="dialog" aria-label={`${room.name} — what is running`} data-testid="room-tables-sheet">
-      <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+    <div
+      className={`home-sheet${inRail ? ' home-sheet--rail' : ''}`}
+      role={inRail ? 'group' : 'dialog'}
+      aria-label={`${room.name} — what is running`}
+      data-testid="room-tables-sheet"
+    >
+      {inRail ? null : (
+        <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
+      )}
+      {/* The drag belongs to the SHEET. In the rail this is a panel in a column
+          — there is nowhere to drag it to, and it would only spring back. */}
       <div
-        className={`home-sheet__panel${drag.dragging ? ' is-dragging' : ''}`}
-        ref={drag.ref}
-        style={drag.style}
-        {...drag.handlers}
+        className={`home-sheet__panel${!inRail && drag.dragging ? ' is-dragging' : ''}`}
+        ref={inRail ? undefined : drag.ref}
+        style={inRail ? undefined : drag.style}
+        {...(inRail ? {} : drag.handlers)}
       >
         <div className="home-sheet__head">
           <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT }}>

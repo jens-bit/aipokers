@@ -247,6 +247,69 @@ export function draftProfile(brief) {
   return { profile: null, nature: null, ready: false, source: null };
 }
 
+// ── BUGS-B/4 · the one question the draft always asks ───────────────────────
+//
+// A name is the first thing an owner gives him and the only thing every
+// surface shows. It cannot be left to whether the model happened to ask: the
+// draft asks for it exactly once, deterministically, the moment there is
+// enough of a character to hang a name on.
+//
+// Asked here rather than only in the system prompt for the same reason the
+// output is guarded here rather than only asked for there — a model that
+// ignores an instruction is caught, not forwarded.
+export const NAME_QUESTION = "One more — what's my name?";
+
+// Has the recruiter already asked? Matched loosely, because the model asks it
+// in its own words when it feels like it and being asked twice is worse than
+// the phrasing being off.
+const NAME_ASK = /what(?:'|’)?s\s+(?:my|his|its|the)\s+name|what\s+(?:should|shall|do)\s+(?:i|we|you)\s+call|(?:pick|choose|give)\s+(?:him|it|them)\s+a\s+name|what\s+do\s+you\s+want\s+(?:to\s+call|him\s+called)/i;
+
+export function asksForName(text) {
+  return NAME_ASK.test(String(text ?? ''));
+}
+
+/** Has the draft asked for a name at any point? */
+export function hasAskedName(chat = []) {
+  return chat.some((m) => m?.role === 'assistant' && asksForName(m.content));
+}
+
+/**
+ * What the owner said when he was asked. The turn straight after the question
+ * — not "any turn containing a name", because the owner's brief is full of
+ * words and none of them are what he wants his agent called.
+ *
+ * Returns null when he was never asked, or never answered.
+ */
+export function nameAnswerFrom(chat = []) {
+  for (let i = chat.length - 1; i >= 0; i--) {
+    const m = chat[i];
+    if (m?.role !== 'assistant' || !asksForName(m.content)) continue;
+    for (let j = i + 1; j < chat.length; j++) {
+      if (chat[j]?.role !== 'user') continue;
+      const answer = String(chat[j].content ?? '');
+      // "lets go" is an owner who did not answer, not an owner naming him
+      // "Lets Go". A GO signal ends the draft; it never names anybody.
+      return isGoSignal(answer) ? null : (answer || null);
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * The recruiter's reply with the name question folded in when it is due.
+ *
+ * Due once: the draft has enough to build (so the question is the LAST thing
+ * asked, not an interrogation before a character exists), and nobody has asked
+ * yet. A model reply that already asks is left exactly alone.
+ */
+export function withNameQuestion(text, { chat = [], ready = false } = {}) {
+  const body = String(text ?? '').trim();
+  if (!ready || !body) return body;
+  if (asksForName(body) || hasAskedName(chat)) return body;
+  return `${body} ${NAME_QUESTION}`;
+}
+
 // The recruiter's reply when nothing else can be said: a real question about
 // play, never an apology and never "something went wrong".
 export const DRAFT_FALLBACK_LINE =

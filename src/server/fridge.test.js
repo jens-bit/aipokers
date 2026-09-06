@@ -216,6 +216,23 @@ test('FRIDGE-1: GET /api/fridge and POST /api/fridge/stock', async (t) => {
       assert.deepEqual(await getJson(`${base}/api/fridge?userId=u1`), fridgeProjection({}));
     });
 
+    // SERVER-4: the route is where the PRICES live, so the client stops
+    // carrying its own copy of them. A price list in two places is a price
+    // change that has to be deployed twice and lands wrong once.
+    await t.test('SERVER-4: the route answers counts AND prices, per shelf', async () => {
+      const body = await getJson(`${base}/api/fridge?userId=u1`);
+      assert.deepEqual(body.items.map((i) => i.id), ITEM_IDS, 'a stable order to draw shelves in');
+      for (const shelf of body.items) {
+        assert.equal(shelf.price, ITEMS[shelf.id].price, 'the price is the server’s, not the client’s');
+        assert.equal(shelf.label, ITEMS[shelf.id].label);
+        assert.equal(typeof shelf.count, 'number');
+      }
+      // The flat counts too, so a caller answering "is there a beer" does not
+      // have to walk the list.
+      assert.equal(body.beer, 0);
+      assert.equal(body.snack, 0);
+    });
+
     await t.test('stocking moves money out of the wallet and beer into the fridge', async () => {
       const res = await postJson(`${base}/api/fridge/stock?userId=u1`, { userId: 'u1', item: 'beer', qty: 3 });
       const body = await res.json();

@@ -48,10 +48,19 @@ captions carry decisions the later ones assume.
 - **No bottom bar** (wave 53) — HOME · CASINO · YOU are things in the world, not tabs
   over it: YOU is the avatar top-right (roster sheet, money behind it), CASINO is the
   door, HOME is where you already are. The composer is the only thing at the bottom.
-- **Identity is rolled at birth** (wave 53) — six hoods × six glows, fixed for life.
-  Mood moves the face, never the colour.
-- **The two bars run opposite ways** (wave 53) — stamina drains right-to-left, heat
-  fills left-to-right, so the empty end of both is the left end.
+- **Identity is rolled at birth** (wave 53, corrected 56) — six hoods × six glows,
+  fixed for life. Mood moves the face, never the colour. The roll is a *preference*
+  and the roster is the authority: a hood already worn in your room is taken, so four
+  agents always wear four hoods (`rollRoster`). A uniform hash alone still collided
+  about half the time.
+- **Both bars are anchored at the left wall** (wave 56) — stamina full is the whole
+  bar and its right end recedes leftward as it drains, green → amber → red; heat
+  empty is nothing and its fill grows rightward, ember → red. A worn, tilted agent is
+  a short red stub over a long red bar: two opposite shapes.
+- **Every panel over the felt or the room is one glass** (wave 56) — `V5GLASS` from
+  board 26's ThreadSheet. Sheets take `raised`, strips and toasts take `panel`, the
+  hairline is `edgeUp`. No solid grey bands anywhere, including the owner's action
+  strip and the BET panel.
 - **The owner never plays the hand**, and never looks like he does. No guilt anywhere.
 
 ## Component files

@@ -148,3 +148,35 @@ export function pickCastMember(opposing) {
   // Default: TAG
   return HOUSE_CAST.find((m) => m.id === 'doyle_v3');
 }
+
+// BUGS-B/1: the next regular to sit down at a table that is short of bodies.
+//
+// pickCastMember answers "who complements this room", and for a given room it
+// always answers the same man — which is right when one seat is being filled
+// and wrong when three are. `exclude` is the cast ids already at the felt: the
+// house has six regulars and never two of the same man at one table, because a
+// cast seat's playerId is `house_<id>` and both the button and opponentStats
+// are keyed on it.
+//
+// The fallback ranking is the same judgement the primary one makes — CONTRAST
+// generates action — applied to whoever is left rather than to the whole cast.
+// Ties break on id so a table fills the same way twice.
+//
+// Returns null when the entire cast is already seated.
+export function pickCastMemberExcluding(opposing, exclude = []) {
+  const taken = new Set(exclude ?? []);
+  const preferred = pickCastMember(opposing);
+  if (preferred && !taken.has(preferred.id)) return preferred;
+
+  const raw = Array.isArray(opposing) ? opposing : (opposing ? [opposing] : []);
+  const profiles = raw.filter((p) => p && Number.isFinite(Number(p.tightness)));
+  const meanTightness = profiles.length === 0
+    ? 50
+    : profiles.reduce((sum, p) => sum + Number(p.tightness), 0) / profiles.length;
+
+  const left = HOUSE_CAST.filter((m) => !taken.has(m.id));
+  if (left.length === 0) return null;
+  return [...left].sort((a, b) =>
+    Math.abs(b.profile.tightness - meanTightness) - Math.abs(a.profile.tightness - meanTightness)
+    || a.id.localeCompare(b.id))[0];
+}

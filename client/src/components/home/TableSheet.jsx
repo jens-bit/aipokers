@@ -83,11 +83,12 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
 
   return (
     <div className="table-sheet" data-testid="home-table-sheet">
-      {/* The felt, as it is right now. No money on it: the server plays the home
-          game at no stakes and a number here would be the screen contradicting
-          the model. The ref's own tell instead. */}
+      {/* The felt, as it is right now. No money on it, and FIX-6 job 4: no money
+          WORDS on it either. This carried the same FOR NOTHING the kitchen table
+          did, on the same theory, and design 52's rule takes both — the sheet is
+          a picture of the home table and the home table does not talk about
+          money. What is left is who is at it and how many chairs are free. */}
       <div className="table-sheet__felt">
-        <span className="table-sheet__felt-label">FOR NOTHING</span>
         <span className="table-sheet__felt-line" data-testid="home-table-seated">
           {seated === 1 ? '1 at the table' : `${seated} at the table`}
           {' · '}

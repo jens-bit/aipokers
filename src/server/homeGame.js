@@ -42,6 +42,9 @@
 //      a household that is permanently at home does not deal forever.
 
 import { Where } from './home.js';
+// The street names only — a constant, not a table. Nothing else about the
+// engine reaches this module.
+import { Streets } from '../engine/game.js';
 
 // ── Dials ───────────────────────────────────────────────────────────────────
 
@@ -305,15 +308,38 @@ export function state(userId) {
   if (!table || table.closed) {
     return { tableId: household.tableId, state: 'paused', seats: [], handsPlayed: 0 };
   }
+  const game = table.game ?? null;
   const seats = [];
   for (let seat = 0; seat < table.maxSeats; seat++) {
     if (!table.pending[seat]) continue;
+    // SERVER-4: what he is DOING at the kitchen table.
+    //
+    // The table sheet could name the four people sitting there and nothing
+    // else, so a home game read as a cast list rather than as a hand — four
+    // names that never moved. These three fields are the smallest set that
+    // makes it a game: whose turn it is, who is out of the hand, and what is
+    // in front of each of them.
+    //
+    // All THREE are read off the live Game, and all three are the resting
+    // answer when there is no hand in the air (nobody acting, nobody folded,
+    // stacks as they stand). A seat that joined mid-hand is not in
+    // `game.seats` at all, which is why every read is guarded rather than
+    // indexed — the same MST-1 case liveGameView spells out as `dealtIn`.
+    const inGame = game && seat < game.seats.length ? game.seats[seat] : null;
     seats.push({
       seat,
       agentId: table.agentIds[seat] ?? null,
       name: table.pending[seat].displayName ?? null,
       // A seat with no agentId behind it is the House on the TV.
       house: !table.agentIds[seat],
+      // Whose turn it is. Only while a hand is actually running: `toAct` still
+      // points somewhere between hands, and drawing a spotlight on a man who
+      // is waiting for a deal is the same class of lie as BUG-16.
+      acting: !!inGame && game.street !== Streets.WAITING && game.toAct === seat,
+      folded: !!inGame?.folded,
+      // The banked stack first, exactly as seatStack does — it is the one that
+      // survives a Game rebuild between hands.
+      stack: table.seatStack ? table.seatStack(seat) : (inGame?.stack ?? 0),
     });
   }
   return {

@@ -29,14 +29,18 @@ import { pillName } from '../../lib/names.js';
 
 // ── The bubble ──────────────────────────────────────────────────────────────
 
-export function HomeBubble({ text, x, gold = false, testId }) {
+export function HomeBubble({ text, x, gold = false, side = null, testId }) {
   if (!text) return null;
-  const side = bubbleSide(x);
+  // FIX-6 job 3: the room places the bubble now (roomBubbles.js), because the
+  // side that clears the WALL is not always the side that clears the man
+  // standing next to him. Left to itself it still picks its own side off the
+  // edge rule, which is what every caller outside the room does.
+  const open = side ?? bubbleSide(x);
   return (
     <div className="home-bubble-slot">
       <div
-        className={`home-bubble home-bubble--${side}${gold ? ' home-bubble--gold' : ''}`}
-        data-side={side}
+        className={`home-bubble home-bubble--${open}${gold ? ' home-bubble--gold' : ''}`}
+        data-side={open}
         data-testid={testId}
       >
         {text}
@@ -117,8 +121,16 @@ export function HomeOne({
   at,
   accent = '#00D4AA',
   size = 46,
-  says,
-  news,
+  // FIX-6 job 3 — ONE BUBBLE, or none. It used to be two props (`says` and
+  // `news`) and both could be set at once, which is how a man ended up wearing
+  // two boxes. The room decides which of the things he has to say is the one
+  // worth a box, whether the room has a place for it, and which side it opens;
+  // this draws what it is handed. { text, gold, side } or null.
+  bubble = null,
+  // Whether he has news AT ALL, which is not the same question: a want still
+  // waiting its turn in the queue must still read as a want on the pill, or
+  // queueing his line would be the same as swallowing it.
+  news = false,
   dealt = false,
   walking = false,
   onClick,
@@ -141,8 +153,15 @@ export function HomeOne({
       onClick={onClick}
       aria-label={`${agent?.name ?? 'Agent'} — ${r.label}`}
     >
-      {news ? <HomeBubble text={news} x={at.x} gold testId={`home-news-${agent?.id}`} /> : null}
-      {says ? <HomeBubble text={says} x={at.x} testId={`home-says-${agent?.id}`} /> : null}
+      {bubble ? (
+        <HomeBubble
+          text={bubble.text}
+          x={at.x}
+          side={bubble.side}
+          gold={bubble.gold}
+          testId={`home-${bubble.gold ? 'news' : 'says'}-${agent?.id}`}
+        />
+      ) : null}
 
       <NamePill name={agent?.name} accent={accent} fatigue={fatigue} heat={heat} news={!!news} />
 

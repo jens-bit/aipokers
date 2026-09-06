@@ -206,19 +206,30 @@ describe('CASINO-1 deploy', () => {
     expect(screen.getByText('pocket $6,000 · buy-in at $25/$50 is $5,000')).toBeInTheDocument();
   });
 
-  it('picking an open room re-states the decision in the tray', async () => {
+  // FIX-6 job 2 replaces the old rule here. It used to be "picking an open room
+  // re-states the decision in the tray" — a doorway SELECTED and the tray
+  // CONFIRMED. The want already asked the question ("put me in?") and the owner
+  // already answered it, so the confirmation was asking it a second time. The
+  // doorway is the deal now, and the test says so rather than being loosened.
+  it('tapping an open room deals him into it — one tap, no second confirmation', async () => {
     routeFloor({ agents: [richCannon] });
+    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon' }, { method: 'POST' });
+    const onDeployed = vi.fn();
     const user = userEvent.setup();
-    renderCasino({ deployAgent: richCannon });
+    renderCasino({ deployAgent: richCannon, onDeployed });
 
     await screen.findByText('pocket $6,000 · buy-in at $25/$50 is $5,000');
     await user.click(door('the floor'));
-    expect(await screen.findByText('pocket $6,000 · buy-in at $10/$20 is $2,000'))
-      .toBeInTheDocument();
+
+    await waitFor(() => expect(onDeployed).toHaveBeenCalled());
+    const post = fetchMock.posts.find((c) => c.url.includes('/queue'));
+    expect(post.body).toMatchObject({ rung: 0, stakes: { bigBlind: 20, buyIn: 2_000 } });
+    expect(onDeployed.mock.calls[0][2].id).toBe('floor');
   });
 
   it('tapping a shut room opens his chips — the only thing that opens it', async () => {
     routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', { tableId: 'tbl-new' }, { method: 'POST' });
     const user = userEvent.setup();
     renderCasino({ deployAgent: fundedCannon });
 
@@ -226,6 +237,9 @@ describe('CASINO-1 deploy', () => {
     await user.click(door('the back room'));
 
     expect(await screen.findByRole('dialog', { name: 'Fund Loose Cannon' })).toBeInTheDocument();
+    // FIX-6 job 2: one tap deals him in, and a shut door is the one doorway
+    // that is not a deal. Law 4 survives the shortcut.
+    expect(fetchMock.posts.filter((c) => c.url.includes('/queue'))).toHaveLength(0);
   });
 
   it('a pocket that covers nothing offers his chips instead of the deal', async () => {
@@ -236,7 +250,11 @@ describe('CASINO-1 deploy', () => {
     expect(screen.queryByRole('button', { name: 'Deal him in' })).toBeNull();
   });
 
-  it('Deal him in POSTs the deploy with the room he picked, and hands back the table', async () => {
+  // The tray's own button is not the confirmation the doorway lost — it is the
+  // same one action, for the room the tray already opened on. It stays because
+  // a man arriving from a want has a rung his pocket buys and no opinion about
+  // which doorway to look at.
+  it('Deal him in POSTs the deploy for the room the tray opened on, and hands back the table', async () => {
     routeFloor({ agents: [richCannon] });
     fetchMock.route('/queue', {
       tableId: 'tbl-new', agentId: 'agent_cannon', agentName: 'Loose Cannon',
@@ -246,16 +264,14 @@ describe('CASINO-1 deploy', () => {
     const user = userEvent.setup();
     renderCasino({ deployAgent: richCannon, onDeployed });
 
-    await screen.findByText('placing Loose Cannon');
-    await user.click(door('the floor'));
-    await screen.findByText('pocket $6,000 · buy-in at $10/$20 is $2,000');
+    await screen.findByText('pocket $6,000 · buy-in at $25/$50 is $5,000');
     await user.click(screen.getByRole('button', { name: 'Deal him in' }));
 
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
     const post = fetchMock.posts.find((c) => c.url.includes('/queue'));
-    expect(post.body).toMatchObject({ rung: 0, stakes: { bigBlind: 20, buyIn: 2_000 } });
+    expect(post.body).toMatchObject({ rung: 1, stakes: { bigBlind: 50, buyIn: 5_000 } });
     expect(onDeployed.mock.calls[0][0]).toMatchObject({ tableId: 'tbl-new' });
-    expect(onDeployed.mock.calls[0][2].id).toBe('floor');
+    expect(onDeployed.mock.calls[0][2].id).toBe('upstairs');
   });
 
   it('a broke pocket never reaches the deploy route at all', async () => {
@@ -315,15 +331,17 @@ describe('BUGS-A job 7 · a doorway is a place you look into', () => {
     await waitFor(() => expect(screen.queryByTestId('room-tables-sheet')).toBeNull());
   });
 
-  it('with an agent in the tray a doorway is still the choice of where to seat him', async () => {
+  it('with an agent in the tray a doorway seats him rather than listing the room', async () => {
     const user = userEvent.setup();
     routeFloor({ agents: [richCannon] });
-    renderCasino({ deployAgent: richCannon });
+    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon' }, { method: 'POST' });
+    const onDeployed = vi.fn();
+    renderCasino({ deployAgent: richCannon, onDeployed });
 
     await screen.findByText('placing Loose Cannon');
     await user.click(screen.getByRole('button', { name: /^the floor,/ }));
 
     expect(screen.queryByTestId('room-tables-sheet')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Deal him in' })).toBeInTheDocument();
+    await waitFor(() => expect(onDeployed).toHaveBeenCalled());
   });
 });
