@@ -361,6 +361,12 @@ export async function generateAiChatLine({
   potSize,
   street,
   lastOpponentChat = null,
+  // METER-1: what this call cost, handed back to whoever knows whose it was.
+  // A callback rather than an import: trash talk is generated in src/agent and
+  // the ledger lives in src/server, and the arrow between those two only ever
+  // points one way. table.js is the caller, table.js knows the owner of the
+  // seat, so table.js does the filing.
+  onUsage = null,
 } = {}) {
   if (!process.env.ANTHROPIC_API_KEY) return null;
 
@@ -408,6 +414,16 @@ export async function generateAiChatLine({
       system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userText }],
     });
+    if (onUsage) {
+      const usage = {
+        inputTokens: msg?.usage?.input_tokens,
+        outputTokens: msg?.usage?.output_tokens,
+        cachedInputTokens: msg?.usage?.cache_read_input_tokens,
+      };
+      // A meter that throws must not cost the table its line.
+      try { onUsage({ usage, model: MODEL, provider: 'anthropic' }); }
+      catch (err) { console.error('[agent] chat usage hook failed:', err.message); }
+    }
     const raw = msg.content[0]?.text ?? '';
     const line = stripWrappingQuotes(raw).slice(0, 280);
     return line || null;
