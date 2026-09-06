@@ -17,6 +17,7 @@
     "test:data": "node scripts/verify-chips.js",
     "export:json": "node scripts/export-json.js",
     "smoke": "node scripts/smoke-hand.js",
+    "smoke:browser": "playwright test -c playwright.smoke.config.js",
     "smoke:agent": "node scripts/smoke-agent-profile.js",
     "smoke:ws": "node scripts/smoke-ws.js"
   },
@@ -35,5 +36,8 @@
   "private": true,
   "overrides": {
     "qs": "^6.16.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

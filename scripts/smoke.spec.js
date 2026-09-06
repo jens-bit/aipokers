@@ -1,0 +1,244 @@
+// scripts/smoke.spec.js — CI-2
+//
+// The smoke test the suite did not have: a real browser, against the real
+// built client, served by the real server.
+//
+// `npm test` and `npm run test:e2e` both prove the SERVER is right — they play
+// hands to completion and assert on payloads — and `npm run test:client` proves
+// each component renders in jsdom. Nothing until now loaded the shipped bundle
+// in a browser, so a screen that throws only once Vite has minified it, a style
+// import that resolves in the test runner but 404s from dist, or a socket URL
+// that is wrong outside of jsdom, all reached the VPS before anybody saw them.
+//
+// What it asserts, and deliberately no more:
+//
+//   1. Each of the four surfaces mounts and stays mounted — HOME, CASINO, YOU,
+//      and a WATCH on a seeded table (the owner's home game on the phone; the
+//      desk has no deep link into its stage, so there it is the live tile).
+//   2. Nothing lands in the console. A React error boundary, a failed import,
+//      an unhandled rejection: all of them are console noise before they are
+//      anything else, and a screen that renders while shouting is not green.
+//   3. One screenshot per screen per width, uploaded as a workflow artifact.
+//      Not compared to a baseline — pixel-diffing a screen full of live poker
+//      would be flaky by construction. They are there to be LOOKED at when a
+//      run fails.
+//
+// Two widths, because the app has two shells and they share almost nothing:
+// 390x844 is the Mini App's phone (tab bar, HomeScreen, WatchScreen) and
+// 1440x900 crosses useIsDesktop's 1100px line into DesktopHome (stage tabs,
+// wallet rail, DeskTableStage).
+//
+// It talks to a server the workflow has already started against a scratch cwd,
+// with no ANTHROPIC_API_KEY and no TELEGRAM_BOT_TOKEN — so every agent decision
+// is the deterministic check/fold fallback and auth is open, which is what lets
+// the seeding below be three HTTP calls instead of a signed Telegram session.
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { expect, test } from '@playwright/test';
+
+const BASE  = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:8765';
+const SHOTS = process.env.SMOKE_SHOT_DIR ?? 'smoke-shots';
+
+// TWO OWNERS, one agent each, because SLOTS-1 says so: the first slot is free
+// and the second costs 10,000 EARNED, which a fresh owner does not have and
+// cannot be given. So a single owner cannot have a man at home AND a man at the
+// casino, and the two shells want different ones —
+//
+//   phone   watches the home game, which needs him at home
+//   desk    reaches the felt only through a live tile, which needs him deployed
+//
+// Both ids must survive homeGame.homeTableId()'s [^A-Za-z0-9_-] strip unchanged
+// or the deep link below points at a table the server never built.
+const HOME_UID  = process.env.SMOKE_HOME_USER  ?? 'smokehome';
+const FLOOR_UID = process.env.SMOKE_FLOOR_USER ?? 'smokefloor';
+
+const HOME_TABLE = `home-${HOME_UID}`;
+
+// Console lines that are the environment talking, not the app. Each one needs a
+// reason; an empty-handed entry here is how a real error gets ignored forever.
+const IGNORED_CONSOLE = [
+  // The scratch server serves no favicon, and Chromium reports the 404 as a
+  // console error on every navigation.
+  /favicon\.ico/i,
+];
+
+const isIgnored = (text) => IGNORED_CONSOLE.some((re) => re.test(text));
+
+fs.mkdirSync(SHOTS, { recursive: true });
+
+// ── Seeding ─────────────────────────────────────────────────────────────────
+
+async function api(method, url, body) {
+  const res = await fetch(BASE + url, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let parsed = text;
+  try { parsed = JSON.parse(text); } catch { /* keep the text */ }
+  return { status: res.status, body: parsed };
+}
+
+async function roster(userId) {
+  const res = await api('GET', `/api/agents?userId=${encodeURIComponent(userId)}`);
+  return Array.isArray(res.body?.agents) ? res.body.agents : [];
+}
+
+/**
+ * The owner's one agent, built if he does not have one yet.
+ *
+ * Idempotent on purpose. CI always starts from an empty scratch data dir, but a
+ * developer running this against `npm start` runs it more than once against the
+ * same database — and the second build comes back 409 slotLocked, because the
+ * second slot costs 10,000 earned and nothing here earns it.
+ */
+async function agentFor(userId) {
+  const existing = await roster(userId);
+  if (existing.length) return existing[0];
+
+  // A build reads the creation chat; resetting first means the agent is built
+  // from an empty conversation and therefore from inferFallback(), which needs
+  // no model and no key.
+  await api('POST', '/api/agents/chat/reset', { userId });
+  const built = await api('POST', '/api/agents/build', { userId });
+  const agent = built.body?.createdAgent;
+  if (!agent?.id) {
+    throw new Error(`agent build for ${userId} failed: ${built.status} ${JSON.stringify(built.body)}`);
+  }
+  return agent;
+}
+
+async function seed() {
+  // Left at home. homeGame.js stands the kitchen table up for anyone home and
+  // idle, and one man alone plays the House on the TV — so a roster of one is
+  // a real home game with a real socket behind it.
+  const homeAgent = await agentFor(HOME_UID);
+
+  const floorAgent = await agentFor(FLOOR_UID);
+  let floorTableId = floorAgent.activeTableId ?? null;
+  if (!floorTableId) {
+    const deployed = await api('POST', `/api/agents/${floorAgent.id}/deploy`, { userId: FLOOR_UID });
+    if (deployed.status !== 200) {
+      throw new Error(`deploy failed: ${deployed.status} ${JSON.stringify(deployed.body)}`);
+    }
+    floorTableId = deployed.body?.tableId ?? null;
+  }
+
+  return { homeAgentId: homeAgent.id, floorAgentId: floorAgent.id, floorTableId };
+}
+
+// Memoised rather than a beforeAll: there is one describe per width and both
+// rosters are built once for both. A second build for either owner comes back
+// 409 slotLocked, which is the product working, not a flake.
+let seeding = null;
+const seedOnce = () => (seeding ??= seed());
+
+// ── Per-test plumbing ───────────────────────────────────────────────────────
+
+/**
+ * Collects everything the page complains about. The returned array is live —
+ * read it at the end of the test, not at the start.
+ */
+function watchConsole(page) {
+  const noise = [];
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return;
+    const text = msg.text();
+    if (!isIgnored(text)) noise.push(`console.error: ${text}`);
+  });
+  page.on('pageerror', (err) => noise.push(`pageerror: ${err.message}`));
+  return noise;
+}
+
+async function shot(page, name) {
+  await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+}
+
+// ── The walk ────────────────────────────────────────────────────────────────
+
+const SHELLS = {
+  mobile:  { width: 390,  height: 844 },
+  desktop: { width: 1440, height: 900 },
+};
+
+for (const [shell, viewport] of Object.entries(SHELLS)) {
+  const desktop = shell === 'desktop';
+  const uid = desktop ? FLOOR_UID : HOME_UID;
+
+  test.describe(`${shell} ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport });
+
+    test('HOME, CASINO, YOU and a WATCH all render clean', async ({ page }) => {
+      const seeded = await seedOnce();
+      const noise = watchConsole(page);
+
+      // Outside Telegram getUserId() falls back to a localStorage id, so this
+      // is the whole of "log in as the owner we just seeded".
+      await page.addInitScript((id) => {
+        try { window.localStorage.setItem('agentic_uid', id); } catch { /* private mode */ }
+      }, uid);
+
+      await test.step('HOME', async () => {
+        await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+        // Opening the app is what sends FLOOR_SUB, and FLOOR_SUB is what makes
+        // the server reconcile the home game. The WATCH step below depends on
+        // this having happened.
+        const root = desktop ? page.locator('.dsk-root') : page.getByTestId('home-screen');
+        await expect(root).toBeVisible({ timeout: 20_000 });
+        await shot(page, `${shell}-home`);
+      });
+
+      await test.step('CASINO', async () => {
+        await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+        await expect(page.locator('.csn').first()).toBeVisible({ timeout: 20_000 });
+        await shot(page, `${shell}-casino`);
+      });
+
+      await test.step('YOU', async () => {
+        if (desktop) {
+          // There is no YOU tab at 1440 — the money is a rail panel opened from
+          // the balance in the top bar (DP-2).
+          await page.locator('.dsk-top__wallet').click();
+          await expect(page.locator('.dsk-wallet')).toBeVisible({ timeout: 20_000 });
+        } else {
+          await page.getByRole('button', { name: 'YOU', exact: true }).click();
+          await expect(page.locator('.wal.dr-app')).toBeVisible({ timeout: 20_000 });
+        }
+        await shot(page, `${shell}-you`);
+      });
+
+      await test.step('WATCH', async () => {
+        if (desktop) {
+          // DesktopHome only reaches the felt through a live tile — there is no
+          // deep-link route into the desk stage — so this is the casino table
+          // seed() deployed FLOOR_UID's agent to, not the home game.
+          //
+          // The wallet from the step above has to go first: an open rail panel
+          // replaces StandupPanel (which holds the tiles) with the collapsed
+          // RosterStrip, so the tile does not exist while it is up.
+          await page.getByRole('button', { name: 'Close panel' }).click();
+          await page.getByRole('button', { name: 'HOME', exact: true }).click();
+          const tile = page.locator('.dsk-tile__watch').first();
+          await expect(tile).toBeVisible({ timeout: 30_000 });
+          await tile.click();
+          await expect(page.locator('.dtb')).toBeVisible({ timeout: 30_000 });
+        } else {
+          // The DEEPLINK-1 table route, which is how a notification's "watch
+          // him" button arrives. `home-<uid>` is homeGame.js's stable id.
+          await page.goto(`${BASE}/?startapp=table_${HOME_TABLE}`, { waitUntil: 'domcontentloaded' });
+          await expect(page.locator('.watch-screen')).toBeVisible({ timeout: 30_000 });
+        }
+        // A felt that mounts and then throws one beat later is the failure this
+        // whole file exists to catch, so give it a beat.
+        await page.waitForTimeout(2_000);
+        await shot(page, `${shell}-watch`);
+      });
+
+      expect(seeded.floorTableId, 'the deployed agent landed at a table').toBeTruthy();
+      expect(noise, `console output on ${shell}:\n${noise.join('\n')}`).toEqual([]);
+    });
+  });
+}
