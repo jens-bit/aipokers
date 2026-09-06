@@ -135,6 +135,10 @@ export function studyTag(book) {
 export function HomeScreen({
   wsUrl = null,
   onWatch,
+  // BUGS-A job 7: watch a table by id, with no agent behind it. The kitchen
+  // table is a real table (HOME-STATE-1) and it is nobody's deployment, so
+  // "watch him" is the wrong shape for it.
+  onWatchTable,
   onProfile,
   onDeploy,
   onCreateAgent,
@@ -257,6 +261,14 @@ export function HomeScreen({
             onFridge={() => setFridgeOpen(true)}
             onTv={studying ? () => onProfile?.(studying) : undefined}
             tvLabel={studying ? `${studying.name} is watching a hand back` : null}
+            // BUGS-A job 7: the kitchen table with a game on it is a table you
+            // can go and watch. Only when there IS one — an empty table stays
+            // furniture rather than becoming a button that does nothing, which
+            // is the bug this job is about.
+            onTable={game?.state === 'running' && game?.tableId && onWatchTable
+              ? () => onWatchTable(game.tableId)
+              : undefined}
+            tableLabel="Watch the home game"
           >
             <AwayWall
               away={away}

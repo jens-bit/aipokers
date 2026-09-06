@@ -188,7 +188,18 @@
   background: radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%);
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  /* base.css floors every button at 44px and paints them like chrome; the
+   * table is furniture that happens to be tappable (BUGS-A job 7), so it keeps
+   * its own size and its own surface. */
+  padding: 0;
+  min-height: 0;
+  z-index: 0;
 }
+/* A table with a game on it takes a tap. Nothing about it LOOKS different —
+ * the hand playing on it is the affordance, and a "tap me" ring around the
+ * kitchen table would be the room shouting. */
+.home-flat__table.is-live { cursor: pointer; }
+.home-flat__table.is-live:active { filter: brightness(1.12); }
 
 .home-flat__door {
   position: absolute;
@@ -499,13 +510,18 @@
 
 /* ── The home game ───────────────────────────────────────────────────────── */
 
+/* The board, the chips and the FOR NOTHING label are what is ON the table —
+ * scenery, drawn over it. BUGS-A job 7 made the table itself a control, and
+ * a tap in the middle of it landed on the board instead: Playwright's own
+ * words, "subtree intercepts pointer events". Scenery takes no pointer. */
 .home-game__centre {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 2;
+  pointer-events: none;
 }
 .home-game__board { display: flex; gap: 2.5px; }
-.home-game__chips { position: absolute; z-index: 2; }
+.home-game__chips { position: absolute; z-index: 2; pointer-events: none; }
 .home-game__chips i {
   position: absolute;
   width: 12px; height: 5px;
@@ -521,6 +537,7 @@
   /* Above the bodies: they are z-indexed by their y, and the far seat stands
    * exactly where the ref puts this label. */
   z-index: 400;
+  pointer-events: none;
   white-space: nowrap;
   font-family: var(--font-display, 'Oswald', sans-serif);
   font-size: 7.5px;

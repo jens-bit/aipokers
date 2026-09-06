@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CasinoBoard, CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
+import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
@@ -113,6 +114,11 @@ export function CasinoScreen({
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  // BUGS-A job 7: which doorway the owner has walked up to and looked into.
+  // Only ever set when he is NOT placing an agent — with somebody in the tray
+  // a doorway is the choice of where to seat him, and that is the older and
+  // more important meaning of the tap.
+  const [openRoomId, setOpenRoomId] = useState(null);
 
   const { rooms } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
@@ -193,6 +199,12 @@ export function CasinoScreen({
     setSelectedRoomId(room.id);
   }
 
+  // BUGS-A job 7: with nobody in the tray, a doorway is a place you look INTO.
+  // It was scenery — the one tap on this screen that did nothing.
+  function lookIntoRoom(room) {
+    setOpenRoomId(room.id);
+  }
+
   async function handleFund(decision) {
     if (!fundTarget) return;
     try {
@@ -263,10 +275,12 @@ export function CasinoScreen({
         shutFor={trayAgent?.name ?? null}
         selected={!!trayAgent && room.id === selectedRoomId}
         h={doorHeight({ hot, shut, index })}
-        onSelect={trayAgent ? selectRoom : null}
+        onSelect={trayAgent ? selectRoom : lookIntoRoom}
       />
     );
   });
+
+  const openRoom = rooms.find((r) => r.id === openRoomId) ?? null;
 
   const board = (
     <CasinoBoard
@@ -353,6 +367,16 @@ export function CasinoScreen({
             decision is the tray, so it reads as two lines and not as five. */}
         {trayAgent && board}
       </div>
+
+      {openRoom && !trayAgent && (
+        <RoomTablesSheet
+          room={openRoom}
+          agents={mineByRoom[openRoom.id] ?? []}
+          events={events}
+          onClose={() => setOpenRoomId(null)}
+          onWatch={(tableId) => { setOpenRoomId(null); onSpectate?.(tableId); }}
+        />
+      )}
 
       {trayAgent && (
         <DeployTray

@@ -274,3 +274,46 @@ test.describe('BUGS-A job 5 · sheets are above the room, and a finger puts them
     await expect(page.locator('.home-thread__sheet')).toHaveCount(0);
   });
 });
+
+// ── job 7 ───────────────────────────────────────────────────────────────────
+
+test.describe('BUGS-A job 7 · the taps that did nothing', () => {
+  test('the kitchen table with a game on it opens the watch', async ({ page }) => {
+    await open(page, { game: HOME_GAME });
+    await page.getByTestId('home-table').click();
+    // The watch screen replaces the room. Its own header says who it is about.
+    await expect(page.getByTestId('home-screen')).toHaveCount(0);
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-7-home-table-watch.png' });
+  });
+
+  test('an empty kitchen table is furniture, not a dead button', async ({ page }) => {
+    await open(page);
+    await expect(page.getByTestId('home-table')).toHaveCount(0);
+  });
+
+  test('an away frame goes to the table in the picture', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('home-frame-a3').click();
+    await expect(page.getByTestId('home-screen')).toHaveCount(0);
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-7-frame-watch.png' });
+  });
+
+  test('a room in the casino lists what is running in it', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.getByRole('button', { name: /^the floor,/ }).click();
+    const sheet = page.getByTestId('room-tables-sheet');
+    await settled(page, '[data-testid="room-tables-sheet"] .home-sheet__panel');
+    await expect(sheet.getByText('#t9')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Watch' }).first()).toBeVisible();
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-7-room-tables.png' });
+  });
+
+  test('a line on the board goes to the felt it happened at', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.getByRole('button', { name: /Watch this table/ }).first().click();
+    // Off the casino and onto a felt.
+    await expect(page.getByRole('button', { name: /^the floor,/ })).toHaveCount(0);
+  });
+});

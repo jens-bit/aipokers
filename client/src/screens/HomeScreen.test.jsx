@@ -9,7 +9,7 @@
 // break.
 
 import { StrictMode } from 'react';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -423,6 +423,47 @@ describe('HOME-1 · the thread', () => {
     await waitFor(() => expect(input).toHaveValue(''));
     expect(screen.queryByTestId('home-thread-rows')).toBeNull();
     expect(sent).toBeNull();
+  });
+});
+
+// ── BUGS-A job 7 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 7 · the taps that did nothing', () => {
+  const GAME = {
+    tableId: 'home-u1',
+    state: 'running',
+    seats: [
+      { seat: 0, agentId: 'a1', name: 'The Clock', house: false },
+      { seat: 1, agentId: 'a2', name: 'River Rat', house: false },
+    ],
+  };
+
+  it('the kitchen table with a game on it is a table you can watch', async () => {
+    const onWatchTable = vi.fn();
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      GAME,
+      { onWatchTable },
+    );
+    await userEvent.click(await screen.findByTestId('home-table'));
+    expect(onWatchTable).toHaveBeenCalledWith('home-u1');
+  });
+
+  it('an empty table stays furniture rather than becoming a dead button', async () => {
+    await boot([mkAgent('a1', 'The Clock')], null, { onWatchTable: () => {} });
+    expect(screen.queryByTestId('home-table')).toBeNull();
+  });
+
+  it('an away frame goes to the table in the picture', async () => {
+    const onWatch = vi.fn();
+    const away = mkAgent('a3', 'Big Slick', {
+      location: loc('table', { tableId: 't1', room: 'upstairs' }),
+      activeTableId: 't1',
+      liveGame: { tableId: 't1', pot: 480, board: ['Ah', 'Kd', '2c'], street: 'flop' },
+    });
+    await boot([mkAgent('a1', 'The Clock'), away], null, { onWatch });
+    await userEvent.click(await screen.findByTestId('home-frame-a3'));
+    expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
   });
 });
 

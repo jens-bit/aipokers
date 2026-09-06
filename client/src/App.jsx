@@ -580,8 +580,30 @@ export default function App() {
               onOpenThread={openAgentChat}
               onOpenWallet={(agent) => (agent ? openAgentProfile(agent) : navigateTo('you'))}
               onSend={sendToAgent}
+              // BUGS-A job 7: an away frame is a picture of the table he is at,
+              // and tapping it goes there. HOME_STATE's compact projection does
+              // not always carry `activeTableId` — the frame itself is drawn
+              // from `liveGame`, and `location.tableId` is what says where he is
+              // standing — so the tap reads all three rather than one. A frame
+              // that could name a table and still did nothing is exactly the
+              // dead tap this job is about.
+              onWatchTable={(tableId) => {
+                if (!tableId) return;
+                watchOriginRef.current = hereOrigin();
+                setActiveAgent(null, null);
+                watch({
+                  tableId,
+                  userId: getUserId(),
+                  displayName: getTelegramDisplayName() || 'Watcher',
+                  wantOpponentAI: false,
+                });
+              }}
               onWatch={async (agent) => {
-                if (!agent?.activeTableId) return;
+                const tableId = agent?.activeTableId
+                  || agent?.liveGame?.tableId
+                  || agent?.location?.tableId
+                  || null;
+                if (!tableId) return;
                 watchOriginRef.current = hereOrigin();
                 let memoryContext = '';
                 try {
@@ -590,7 +612,7 @@ export default function App() {
                 } catch { /* watch with empty context */ }
                 setActiveAgent(agent.id, agent);
                 watch({
-                  tableId: agent.activeTableId,
+                  tableId,
                   agentId: agent.id,
                   userId: getUserId(),
                   agentStrategy: agent.strategy,
