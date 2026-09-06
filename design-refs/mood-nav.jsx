@@ -86,7 +86,7 @@ const NAV_TICKER = [
   { amt: '$6,100',  who: 'Granite',    what: 'quads into a flush', room: '25/50' },
 ];
 
-const RankedTicker = ({ items = NAV_TICKER, label = 'ON THE FLOOR' }) => {
+const RankedTicker = ({ items = NAV_TICKER, label = 'ON THE FLOOR RIGHT NOW' }) => {
   const [head, ...rest] = items;
   return (
     <div style={{ background: '#0C1211', border: `1px solid ${M_BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -161,16 +161,26 @@ const NavRosterM = () => (
 // N3 · the casino, reached through the door — still no bottom bar
 const NavCasinoM = () => (
   <PhoneShell>
-    <div style={{ flexShrink: 0, height: 46, display: 'flex', alignItems: 'center', gap: 9, padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
+    <div style={{ flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9, padding: '7px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
       <span style={{ fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM, cursor: 'pointer' }}>← HOME</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>The casino</div>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.3, whiteSpace: 'nowrap' }}>The casino</div>
         <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>1,604 playing · 1 of yours</div>
       </div>
       <YouAvatar/>
     </div>
     <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <RankedTicker/>
+      {/* the rooms, as three doors you can walk through */}
+      <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+        {[['THE FLOOR', '10/20', '412 in'], ['UPSTAIRS', '25/50', '186 in'], ['BACK ROOM', '50/100', '41 in']].map(([nm, st, inn]) => (
+          <div key={nm} style={{ flex: 1, borderRadius: 9, border: `1px solid ${M_BORDER}`, background: 'rgba(255,255,255,0.03)', padding: '7px 8px 8px', cursor: 'pointer' }}>
+            <div style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.11em', color: M_MUTED }}>{nm}</div>
+            <div style={{ marginTop: 2 }}><Num size={11} weight={700} color={M_TEXT}>{st}</Num></div>
+            <div style={{ fontFamily: MONO, fontSize: 8, color: M_MUTED, marginTop: 1 }}>{inn}</div>
+          </div>
+        ))}
+      </div>
       <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: `1px solid ${M_BORDER}`, background: 'radial-gradient(ellipse at 50% 40%, #24312C 0%, #16201E 70%)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', left: 12, top: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.15em', color: M_GOLD }}>YOUR TABLE · 10/20</span>
