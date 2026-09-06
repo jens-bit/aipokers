@@ -1133,13 +1133,26 @@ export class Table {
   // "it is the one thing about an opponent a person at a real table can see");
   // so is this. You can see across a felt that somebody has been sitting there
   // all night. A client that ignores the field sees what it saw before.
+  // Memoised per (seat, hand): fatigue is a function of how many hands this
+  // seat has played, so it can only move when that number does — and this is
+  // read for every seat on every state broadcast, which is far too often to be
+  // doing a store lookup and an attribute pass each time.
   _seatFatigue(seat) {
+    // Keyed on the occupant as well as the hand count: a seat can change hands
+    // between deals, and serving the last agent's fatigue to the next one would
+    // be the felt telling a lie about somebody who just sat down.
+    const at = `${this.handsThisSession}:${this.agentIds[seat] ?? ''}`;
+    const memo = this._fatigueMemo || (this._fatigueMemo = []);
+    const hit = memo[seat];
+    if (hit && hit.at === at) return hit.value;
+    let value = null;
     try {
-      return this._seatAttrs(seat)?.fatigue ?? null;
+      value = this._seatAttrs(seat)?.fatigue ?? null;
     } catch (err) {
       console.error(`[table:${this.tableId}] seat fatigue read failed:`, err.message);
-      return null;
     }
+    memo[seat] = { at, value };
+    return value;
   }
 
   // ATTR-1: the seat's six attributes after within-session fatigue. Read from

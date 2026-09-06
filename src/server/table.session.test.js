@@ -344,6 +344,23 @@ test('WATCH-8: a seat with no agent behind it is not made to look fresh', () => 
     'a House regular has no fatigue, and inventing one would be a lie on the felt');
 });
 
+// Fatigue is read for every seat on every broadcast, so it is memoised per
+// (seat, hand, occupant). The occupant is in that key because a seat changes
+// hands between deals, and serving the last agent's fatigue to the next one
+// would be the felt telling a lie about somebody who just sat down.
+test("WATCH-8: a seat that changes hands does not inherit the last agent's fatigue", () => {
+  const { table, sockets } = seatedTable();
+  table.maybeStartHand({ clientDriven: true });
+  const worn = sockets[0].of('state').at(-1).state.seats[0].fatigue;
+  assert.ok(worn, 'the hero has one to inherit');
+
+  // Somebody else takes the chair, and no hand has been played since.
+  table.agentIds[0] = null;
+  table._broadcastState();
+  assert.equal(sockets[0].of('state').at(-1).state.seats[0].fatigue, null,
+    'the memo is keyed on who is sitting there, not only on the hand count');
+});
+
 test('SERVER-3: a human seat gets no ring, because nothing would enforce it', () => {
   const { table, sockets } = seatedTable();
   table.maybeStartHand({ clientDriven: true });
