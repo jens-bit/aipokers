@@ -17,7 +17,7 @@ import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, cl
 import { fetchWallet, money } from '../lib/wallet.js';
 import { fetchNotifyBudget } from '../lib/notifyApi.js';
 import { fetchSlots, slotsLine } from '../lib/slots.js';
-import { MoneySheet } from '../components/wallet/MoneySheet.jsx';
+import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import { LedgerList } from '../components/wallet/LedgerList.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 
@@ -342,23 +342,15 @@ export function YouScreen({ onOpenProfile, openMoney = false }) {
     return String(n);
   }
 
-  // YOU-2: the money takes the whole screen, the way the funding sheet inside
-  // it always has. It is a decision, not a popover on top of a scrolling list —
-  // and it is the SAME sheet any other surface opens, so there is one place
-  // where money is worked on rather than one per screen that wants to.
-  if (moneyOpen) {
-    return (
-      <MoneySheet
-        wallet={wallet}
-        agents={agents}
-        onRefresh={refreshMoney}
-        onClose={() => setMoneyOpen(false)}
-        onOpenProfile={onOpenProfile}
-      />
-    );
-  }
-
-  return (
+  // SAFE-2: the money is the SAFE, and a safe is a sheet over the place you
+  // opened it from rather than a screen that replaces it. YOU-2 made it the
+  // whole screen because the surface it opened was a scrolling grid of pockets;
+  // what opens now is one number with three verbs under it, and covering the
+  // summary you tapped to get there would be covering the same figure twice.
+  //
+  // It is still the SAME sheet the room's safe raises — one money surface, two
+  // doors into it — which is the rule YOU-2 was actually protecting.
+  const screen = (
     <div
       className="wal dr-app"
       style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG }}
@@ -506,6 +498,21 @@ export function YouScreen({ onOpenProfile, openMoney = false }) {
         <SettingRow glyph={<InfoGlyph />} label="Help & rules" last />
         {webLogin && <LogoutRow />}
       </div>
+    </div>
+  );
+
+  return (
+    <div className="you-shell" style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      {screen}
+      {moneyOpen ? (
+        <SafeSheet
+          wallet={wallet}
+          agents={agents}
+          onRefresh={refreshMoney}
+          onClose={() => setMoneyOpen(false)}
+          onOpenProfile={onOpenProfile}
+        />
+      ) : null}
     </div>
   );
 }

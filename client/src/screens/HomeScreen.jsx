@@ -60,7 +60,8 @@ import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { signedMoney } from '../lib/wallet.js';
+import { fetchWallet, signedMoney } from '../lib/wallet.js';
+import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import '../styles/home1.css';
 
 // A crossing, not a cut. The ref times the walk out at 1.8s and the walk home at
@@ -321,6 +322,11 @@ export function HomeScreen({
   const focusId = focusIdProp ?? focusIdLocal;
   const setFocusId = onFocusId ?? setFocusIdLocal;
   const [fridgeOpen, setFridgeOpen] = useState(false);
+  // SAFE-2 — the safe opens IN THE ROOM, the way the fridge does. It used to
+  // send the owner to the YOU tab, which answered "how much is in the safe"
+  // with a screen change and a second tap; board 29 F12 opens it where he is
+  // standing, over the room he opened it from.
+  const [safeOpen, setSafeOpen] = useState(false);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
@@ -510,7 +516,7 @@ export function HomeScreen({
   const flat = (
     <HomeFlat
       lit={lit}
-      onSafe={desktop ? () => setRail('safe') : () => onOpenWallet?.(null)}
+      onSafe={desktop ? () => setRail('safe') : () => setSafeOpen(true)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
@@ -651,6 +657,20 @@ export function HomeScreen({
         ) : null}
       />
 
+      {/* SAFE-2 · board 29 F12. The same SafeSheet the desk raises in its rail
+          and YOU opens behind its summary — one money surface, three doors —
+          mounted here as glass over the room. The wallet is read when it is
+          opened rather than on every mount of a screen most owners never open
+          it from, which is exactly what MobileTableSheet does with /api/slots. */}
+      {safeOpen ? (
+        <MobileSafeSheet
+          agents={agents}
+          onClose={() => setSafeOpen(false)}
+          onMoved={() => refresh()}
+          onOpenProfile={onProfile}
+        />
+      ) : null}
+
       {fridgeOpen ? (
         <FridgeSheet
           agents={home}
@@ -684,6 +704,39 @@ export function HomeScreen({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * SAFE-2 — the safe, in the room.
+ *
+ * The sheet itself is the one YOU and the desk rail both open; what this adds
+ * is the read. HomeScreen already holds the roster (pockets ride the same
+ * projection the bodies do, presentAgent §WALLET-1), so the only thing missing
+ * is the wallet — and it is fetched when the safe is opened rather than on
+ * every mount of HOME, which is MobileTableSheet's rule for /api/slots.
+ *
+ * `onMoved` is the room's re-read: giving a man chips changes what he can sit
+ * down at, and the room is where that shows.
+ */
+function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
+  const [wallet, setWallet] = useState(null);
+
+  const read = useCallback(async () => {
+    const w = await fetchWallet();
+    setWallet(w);
+  }, []);
+
+  useEffect(() => { read(); }, [read]);
+
+  return (
+    <SafeSheet
+      wallet={wallet}
+      agents={agents}
+      onRefresh={async () => { await read(); onMoved?.(); }}
+      onClose={onClose}
+      onOpenProfile={onOpenProfile}
+    />
   );
 }
 

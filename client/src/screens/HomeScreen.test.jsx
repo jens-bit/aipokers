@@ -625,13 +625,19 @@ describe('HOME-1 · the safe and the fridge', () => {
     expect(room.textContent).not.toMatch(/\$/);
   });
 
+  // SAFE-2 changed WHERE the money opens, not whether the fixture is the way
+  // to it. It used to send the owner to the YOU tab — a screen change and a
+  // second tap to answer "how much is in the safe"; board 29 F12 opens the
+  // safe where he is standing, over the room he opened it from. The other half
+  // of the rule is untouched: the fixture itself still says nothing.
   it('the safe is the way to the money and is not a number in the room', async () => {
-    let opened = false;
-    await boot([mkAgent('a1', 'The Clock')], null, { onOpenWallet: () => { opened = true; } });
+    await boot([mkAgent('a1', 'The Clock')]);
     const safe = await screen.findByTestId('home-safe');
     expect(safe.textContent).toBe('');
     await userEvent.click(safe);
-    expect(opened).toBe(true);
+    expect(await screen.findByTestId('safe-sheet')).toBeInTheDocument();
+    // Over the room, not instead of it.
+    expect(document.querySelector('.home-flat')).toBeTruthy();
   });
 });
 
