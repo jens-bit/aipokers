@@ -28,7 +28,7 @@ import { FloorGhost, safeMood } from '../floor/atoms.jsx';
 import { PlayingCard, CardBack } from './PlayingCard.jsx';
 import { SeatClock } from './SeatClock.jsx';
 import { GhostHandLayer, SEAT_GRIP } from './GhostHands.jsx';
-import { BodyBars, Bottle } from './BodyBars.jsx';
+import { BodyBars, Bottle } from './FeltBodyBars.jsx';
 
 export const SEAT_BODY = 40;
 // The ref calls this 6 and the stack 64. It cannot be both: SEAT_GRIP puts a

@@ -19,7 +19,7 @@ import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { WatchScreen } from './WatchScreen.jsx';
-import { HEAT_COLD, HEAT_HOT, STAMINA_FULL } from './system/BodyBars.jsx';
+import { HEAT_COLD, HEAT_HOT, STAMINA_FULL } from './system/FeltBodyBars.jsx';
 import { midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';

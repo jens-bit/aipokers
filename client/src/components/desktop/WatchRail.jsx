@@ -9,6 +9,7 @@ import { PanelHead, RailBody, PComposer } from './panelParts.jsx';
 import { equityPct, phaseOf } from './DeskTableStage.jsx';
 import { RiverAttrPanel } from '../AnalysisPanel.jsx';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
+import { mergeThread } from '../../lib/thread.js';
 
 export function AnalysisPanel({ title, action, onAction, children }) {
   return (
@@ -46,6 +47,10 @@ function fmtMoney(n) {
 
 export function WatchRail({
   agent, game, lastDecision, heroSeat, hands, thread,
+  // WATCH-8 job 3: the STORED half of the record — this stay's lines, with the
+  // server's timestamps. The rail used to hold only what the socket happened to
+  // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
+  stored = [],
   draft, onDraftChange, onSend, sending, onClose,
 }) {
   const between = phaseOf(game) === 'between';
@@ -64,16 +69,25 @@ export function WatchRail({
   // HIM / YOU / TABLE, in the order it happened — the same four registers the
   // phone's sheet draws, from the same component, so the two cannot disagree
   // about who said what.
-  const tableRows = [
+  const liveRows = [
     ...(heroDecision?.reasoning
-      ? [{ id: 'live', who: 'HIM', text: heroDecision.reasoning }]
+      ? [{ id: 'live', kind: 'him', who: 'HIM', text: heroDecision.reasoning, t: Date.now() }]
       : []),
-    ...(Array.isArray(thread) ? thread : []).map((m, i) => ({
-      id: m._id ?? `t${i}`,
-      who: m.role === 'user' ? 'YOU' : 'HIM',
-      text: m.content,
-    })),
+    ...(Array.isArray(thread) ? thread : []).map((m, i) => {
+      const you = m.role === 'user';
+      return {
+        id: m._id ?? `t${i}`,
+        kind: you ? 'you' : 'him',
+        who: you ? 'YOU' : 'HIM',
+        text: m.content,
+        t: m.t ?? null,
+      };
+    }),
   ];
+
+  // The record and what is being said now, in one order — by id, stored copy
+  // wins. The same merge the phone's sheet runs, from the same module.
+  const tableRows = mergeThread(Array.isArray(stored) ? stored : [], liveRows);
 
   return (
     <div className="dsk-panel dsk-panel--watch">

@@ -35,7 +35,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { ChipStack, BetSpot, PotChip, potBand, stackBand } from './system/Chips.jsx';
-import { Bottle, isDrinking } from './system/BodyBars.jsx';
+import { Bottle, isDrinking } from './system/FeltBodyBars.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { Streets } from '../lib/protocol.js';
@@ -62,7 +62,8 @@ import {
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 import { attrCostOf } from '../lib/attributes.js';
-import { isReconnect, mergeThread, rowsFromThread, threadUrl } from '../lib/thread.js';
+import { mergeThread } from '../lib/thread.js';
+import { useTableThread } from '../hooks/useTableThread.js';
 import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
 
 // ---- helpers ---------------------------------------------------------------
@@ -1248,43 +1249,10 @@ export function WatchScreen({
   // ── WATCH-8 · job 1 · THE THREAD SURVIVES ────────────────────────────────
   // The sheet used to be assembled from whatever the socket happened to be
   // awake for, so a reconnect got an empty sheet and a look back an hour later
-  // got nothing at all. SERVER-3 stores the lines; these are them. Fetched when
-  // the sheet is opened and again whenever the connection comes back, because
-  // the record the table wrote while the owner was gone is exactly the part he
-  // cannot have heard.
+  // got nothing at all. SERVER-3 stores the lines; useTableThread fetches them
+  // — here when the sheet is opened, and on the desk for a rail that is always
+  // open. One hook, so the two surfaces cannot disagree about what was said.
   var sessionId = game ? game.sessionId : null;
-  var [storedRows, setStoredRows] = useState([]);
-  var threadReqRef = useRef(0);
-
-  var loadThread = useCallback(function () {
-    var url = threadUrl({ agentId: agentId, sessionId: sessionId, userId: getUserId() });
-    if (!url) return;
-    var seq = ++threadReqRef.current;
-    fetch(url, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        // A slower earlier request must not overwrite a newer answer.
-        if (!data || seq !== threadReqRef.current) return;
-        setStoredRows(rowsFromThread(data));
-      })
-      .catch(function () {});
-  }, [agentId, sessionId]);
-
-  // A new stay is a new thread. Dropping what the last one said is the point:
-  // "it is his stay that ended, and his stay the ceremony summarises."
-  var sessionSeenRef = useRef(sessionId);
-  useEffect(function () {
-    if (sessionSeenRef.current === sessionId) return;
-    sessionSeenRef.current = sessionId;
-    setStoredRows([]);
-  }, [sessionId]);
-
-  var connSeenRef = useRef(connection);
-  useEffect(function () {
-    var prev = connSeenRef.current;
-    connSeenRef.current = connection;
-    if (isReconnect(prev, connection)) loadThread();
-  }, [connection, loadThread]);
 
   var mood   = agent ? moodOf(agent)   : 'neutral';
   var cause  = agent ? causeOf(agent)  : null;
@@ -1652,10 +1620,11 @@ export function WatchScreen({
     setThreadOpen(true);
   }, [onOpenThread]);
 
-  // Opening the sheet is the other moment the record has to be current.
-  useEffect(function () {
-    if (threadOpen) loadThread();
-  }, [threadOpen, loadThread]);
+  // Opening the sheet is the moment the record has to be current; a reconnect
+  // is the other one, and the hook owns both.
+  var storedRows = useTableThread({
+    agentId: agentId, sessionId: sessionId, connection: connection, want: threadOpen,
+  });
 
   // ── the thread, in one ordered list ─────────────────────────────────────
   // HIM / YOU / TABLE, plus an opponent under their own name. Everything the

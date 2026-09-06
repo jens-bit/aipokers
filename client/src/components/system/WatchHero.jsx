@@ -33,7 +33,7 @@ import { TugBar } from './TugBar.jsx';
 import { Glass } from './Glass.jsx';
 import { Bubble } from './Bubble.jsx';
 import { SeatClock } from './SeatClock.jsx';
-import { BodyBars } from './BodyBars.jsx';
+import { BodyBars } from './FeltBodyBars.jsx';
 import { SEAT_BODY, SEAT_H } from './SeatGhost.jsx';
 
 // TWICE AN OPPONENT, and measured BODY TO BODY: 96 against the seat's 40. The

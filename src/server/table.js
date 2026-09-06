@@ -401,6 +401,17 @@ export class Table {
   seatedCount() { return this.pending.filter((p) => p !== null).length; }
   freeSeatCount() { return this.pending.filter((p) => p === null).length; }
   hasFreeSeat() { return !this.closed && this.pending.some((p) => p === null); }
+
+  // MATCH-1: does this owner already hold a seat here? Asked on both doors
+  // into a seat (deploy's joinAgentSession, WATCH's addSpectator) so neither
+  // can let a stable share a felt. Deliberately reads the live seat arrays
+  // rather than a cached set — a seat that stood up is not here any more.
+  seatsAgentOfOwner(userId) {
+    if (userId == null || userId === '') return false;
+    const owner = String(userId);
+    return this.agentUserIds.some((uid, seat) =>
+      uid != null && String(uid) === owner && this.agentIds[seat] != null);
+  }
   defaultBuyIn() { return this.bigBlind * 100; }
 
   // The stack a seat carries into the next hand.
@@ -711,6 +722,16 @@ export class Table {
     if (this.closed) return null;
     if (!this.hasFreeSeat()) return null;
     if (agentId && this.agentIds.includes(agentId)) return null;
+    // MATCH-1: two agents of the same owner never sit at the same CASINO
+    // table. The matchmaker refuses these before they get here, but the
+    // matchmaker is not the only door into a seat, and a rule that only holds
+    // on one path is not a rule. Refusing with null is exactly what a full
+    // table does, so every caller already handles it: the deploy opens a
+    // table of its own instead.
+    //
+    // The home game is the exception, and it is the whole point of the home
+    // game — see homeGame.js, which seats a household this way on purpose.
+    if (!this.home && this.seatsAgentOfOwner(userId)) return null;
 
     const seat = this.seatAI({
       displayName: displayName || 'Agent',
@@ -1371,6 +1392,16 @@ export class Table {
     if (attachSeat !== -1) {
       this.spectators.push({ ws, spectatorSeat: attachSeat });
       return attachSeat;
+    }
+
+    // MATCH-1: WATCH is the other door into a seat — the first watcher seats
+    // its agent, the second seats another, and that is how a table assembles
+    // itself with nobody deploying. The same law applies to it: not two of one
+    // owner's agents at one casino table. It throws rather than returning a
+    // seat, because a WATCH that quietly attached the watcher to somebody
+    // else's seat would be a worse answer than an error the client can show.
+    if (!this.home && this.seatsAgentOfOwner(userId)) {
+      throw new Error('another of your agents is already at this table');
     }
 
     // A second spectator (new agent joining) cancels any pending House fallback.

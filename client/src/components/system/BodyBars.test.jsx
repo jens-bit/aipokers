@@ -1,118 +1,99 @@
-// BodyBars — WATCH-8 job 2, the body on the felt.
+// client/src/components/system/BodyBars.test.jsx — PROFILE-2
 //
-// "Fatigue is not mood. Mood comes from OUTCOMES and shows in the eyes and the
-// aura; fatigue comes from VOLUME and shows in posture and the meter. A
-// confident agent can be worn; a tilted agent can be fresh. They never share a
-// channel." Two bars, two causes, two colour ranges that cannot be confused.
+// The body half of the split. What is under test is the one thing that makes
+// these two bars different from the four below them: HEAT runs the other way.
+// A skill bar filling up is good news; a heat bar filling up is not, and the
+// colour has to say so without the owner reading a number.
 
-import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
-import {
-  BodyBars, Bottle, HEAT_COLD, HEAT_HOT, HEAT_WARM, STAMINA_FULL, STAMINA_SPENT,
-  heatColor, isDrinking, staminaColor, staminaOf,
-} from './BodyBars.jsx';
+import { BodyBars, HeatBar, heatBand } from './BodyBars.jsx';
 
-const bars = (props) => render(<BodyBars {...props} />).container;
-const track = (c, which) => c.querySelector(`[data-bar="${which}"]`);
-const fill = (c, which) => track(c, which)?.querySelector('.body-bars__fill');
+const staminaRow = { key: 'STAMINA', cur: 63, lo: 64, hi: 70, fatigued: false, narrowed: false };
 
-describe('the two bars', () => {
-  it('are two, and each is two pixels', () => {
-    const c = bars({ fatigue: 'settled', heat: 40 });
-    expect(c.querySelectorAll('.body-bars__track')).toHaveLength(2);
-    // jsdom computes no stylesheet height here, so the rule is the assertion —
-    // asserted where the rule lives, in watchBody.test.jsx.
-    expect(track(c, 'stamina')).toBeTruthy();
-    expect(track(c, 'heat')).toBeTruthy();
+const track = (container) => container.querySelector('.attr-track--heat');
+
+describe('heatBand', () => {
+  it('names the four rooms off mood-heat.jsx thresholds', () => {
+    expect(heatBand(0).word).toBe('cold');
+    expect(heatBand(24).word).toBe('cold');
+    expect(heatBand(25).word).toBe('warm');
+    expect(heatBand(49).word).toBe('warm');
+    expect(heatBand(50).word).toBe('hot');
+    expect(heatBand(74).word).toBe('hot');
+    expect(heatBand(75).word).toBe('boiling');
+    expect(heatBand(100).word).toBe('boiling');
   });
 
-  // The same 3 / 2 / 1 the block meter already uses, so two readings of fatigue
-  // on two surfaces cannot disagree.
-  it('reads stamina off fatigue, in the meter\'s own thirds', () => {
-    expect(staminaOf('fresh')).toBe(1);
-    expect(staminaOf('settled')).toBeCloseTo(2 / 3);
-    expect(staminaOf('worn')).toBeCloseTo(1 / 3);
-    expect(staminaOf(undefined)).toBeNull();
-    expect(staminaOf('nonsense')).toBeNull();
-
-    expect(fill(bars({ fatigue: 'fresh' }), 'stamina').style.width).toBe('100%');
-    expect(fill(bars({ fatigue: 'worn' }), 'stamina').style.width)
-      .toMatch(/^33\.33/);
-  });
-
-  it('fills heat from 0 to 100', () => {
-    expect(fill(bars({ heat: 0 }), 'heat').style.width).toBe('0%');
-    expect(fill(bars({ heat: 62 }), 'heat').style.width).toBe('62%');
-    expect(fill(bars({ heat: 100 }), 'heat').style.width).toBe('100%');
-    // Nothing off the wire can push it past either end.
-    expect(fill(bars({ heat: 480 }), 'heat').style.width).toBe('100%');
-    expect(fill(bars({ heat: -20 }), 'heat').style.width).toBe('0%');
-  });
-
-  // Green means tiredness and red means heat, at both ends and nowhere in
-  // between: an owner must never have to work out which cause a colour is for.
-  it('runs green to grey and teal to red, and the two never meet', () => {
-    expect(staminaColor(1).toUpperCase()).toBe(STAMINA_FULL);
-    expect(staminaColor(0).toUpperCase()).toBe(STAMINA_SPENT);
-    expect(heatColor(0).toUpperCase()).toBe(HEAT_COLD);
-    expect(heatColor(100).toUpperCase()).toBe(HEAT_HOT);
-
-    const stam = [0, 0.5, 1].map((v) => staminaColor(v).toUpperCase());
-    const hot = [0, 25, 50, 75, 100].map((h) => heatColor(h).toUpperCase());
-    for (const s of stam) expect(hot).not.toContain(s);
-  });
-
-  // Straight across, teal and red meet at khaki — a midpoint that reads as
-  // neither end and as no state the system has a name for. Gold is already the
-  // warning colour on this screen and it is the heat bands' own middle.
-  it('passes through gold rather than through mud', () => {
-    expect(heatColor(50).toUpperCase()).toBe(HEAT_WARM);
-    // Every step is more red than the one before it, and none of them is grey.
-    const reds = [0, 25, 50, 75, 100].map((h) => parseInt(heatColor(h).slice(1, 3), 16));
-    for (let i = 1; i < reds.length; i++) expect(reds[i]).toBeGreaterThan(reds[i - 1]);
-    for (const h of [25, 50, 75]) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(heatColor(h).slice(i, i + 2), 16));
-      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeGreaterThan(40);
-    }
-  });
-
-  // A House regular has no agent behind him: no fatigue, no heat. Drawing a
-  // full green line for him would be the felt making something up.
-  it('draws only the bar it has data for, and nothing at all with neither', () => {
-    expect(track(bars({ heat: 40 }), 'stamina')).toBeNull();
-    expect(track(bars({ heat: 40 }), 'heat')).toBeTruthy();
-    expect(track(bars({ fatigue: 'worn' }), 'heat')).toBeNull();
-    expect(bars({}).querySelector('.body-bars')).toBeNull();
-    expect(bars({ fatigue: null, heat: null }).querySelector('.body-bars')).toBeNull();
-  });
-
-  it('has a seat scale that is the same two bars', () => {
-    const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
-    expect(c.querySelector('.body-bars').className).toContain('body-bars--seat');
-    expect(c.querySelectorAll('.body-bars__track')).toHaveLength(2);
+  it('clamps rather than falling off either end', () => {
+    expect(heatBand(-40).word).toBe('cold');
+    expect(heatBand(400).word).toBe('boiling');
+    expect(heatBand(undefined).word).toBe('cold');
   });
 });
 
-// FRIDGE-1 may land later. Until it does the field is simply absent, and the
-// felt has to render exactly what it renders today.
-describe('the bottle', () => {
-  it('is drawn only on a seat that says, in so many words, that it is drinking', () => {
-    expect(isDrinking({ drinking: true })).toBe(true);
-    expect(isDrinking({ drinking: false })).toBe(false);
-    expect(isDrinking({})).toBe(false);
-    expect(isDrinking(null)).toBe(false);
-    expect(isDrinking(undefined)).toBe(false);
-    // Not a truthy value — the field, exactly.
-    expect(isDrinking({ drinking: 1 })).toBe(false);
-    expect(isDrinking({ drinking: 'yes' })).toBe(false);
+describe('HeatBar', () => {
+  it('shows the reading, the room it puts him in, and the stat underneath', () => {
+    render(<HeatBar heat={82} composure={44} />);
+    expect(screen.getByText('HEAT')).toBeInTheDocument();
+    expect(screen.getByText('82')).toBeInTheDocument();
+    expect(screen.getByText('boiling')).toBeInTheDocument();
+    expect(screen.getByText('composure 44')).toBeInTheDocument();
   });
 
-  it('is a silhouette, not a label', () => {
-    const { container } = render(<Bottle size={11} />);
-    const svg = container.querySelector('svg.bottle');
-    expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect(svg.querySelector('text')).toBeNull();
-    expect(Number(svg.getAttribute('height'))).toBe(11);
+  // The polarity is the whole reason heat cannot be a seventh row in the
+  // cluster: at 82 it is red, and skill teal at 82 would read as an
+  // achievement.
+  it('is coloured by band, not in skill teal', () => {
+    const { container } = render(<HeatBar heat={82} composure={44} />);
+    expect(track(container).style.getPropertyValue('--heat-color')).toBe('#FF4D4F');
+  });
+
+  it('is teal only when he is cold, which is the one time a full-looking bar is calm', () => {
+    const { container } = render(<HeatBar heat={8} />);
+    expect(track(container).style.getPropertyValue('--heat-color')).toBe('#00D4AA');
+    expect(screen.getByText('cold')).toBeInTheDocument();
+  });
+
+  it('fills to the reading', () => {
+    const { container } = render(<HeatBar heat={38} />);
+    expect(track(container).style.getPropertyValue('--cur')).toBe('38%');
+  });
+
+  it('says nothing about composure when the engine has not sent one', () => {
+    render(<HeatBar heat={38} composure={null} />);
+    expect(screen.queryByText(/composure/)).toBeNull();
+  });
+});
+
+describe('BodyBars', () => {
+  it('draws the two, and only the two', () => {
+    render(<BodyBars staminaRow={staminaRow} heat={38} composure={44} />);
+    expect(screen.getByText('STAMINA')).toBeInTheDocument();
+    expect(screen.getByText('HEAT')).toBeInTheDocument();
+    for (const skill of ['READS', 'FOCUS', 'DISCIPLINE', 'DECEPTION']) {
+      expect(screen.queryByText(skill)).toBeNull();
+    }
+  });
+
+  // STAMINA is a trained attribute with a band and a 90-day series; heat has
+  // nothing behind it, because heat is now.
+  it('opens STAMINA like a skill, and offers no such thing on HEAT', async () => {
+    const user = userEvent.setup();
+    const onExpand = vi.fn();
+    render(<BodyBars staminaRow={staminaRow} heat={38} composure={44} onExpand={onExpand} />);
+
+    await user.click(screen.getByRole('button', { name: 'STAMINA 63' }));
+    expect(onExpand).toHaveBeenCalledWith('STAMINA');
+
+    expect(screen.queryByRole('button', { name: /HEAT/ })).toBeNull();
+  });
+
+  it('still draws heat for an agent with no attributes scouted yet', () => {
+    render(<BodyBars staminaRow={null} heat={12} />);
+    expect(screen.getByText('HEAT')).toBeInTheDocument();
+    expect(screen.queryByText('STAMINA')).toBeNull();
   });
 });

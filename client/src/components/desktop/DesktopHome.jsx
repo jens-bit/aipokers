@@ -8,6 +8,7 @@ import { ThreadPanel } from './ThreadPanel.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
+import { useTableThread } from '../../hooks/useTableThread.js';
 import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
 import { BirthCardRail } from './PlayerCardRail.jsx';
@@ -16,6 +17,7 @@ import { DeskReplayStage } from './DeskReplayStage.jsx';
 import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
 import { RosterStrip } from './RosterStrip.jsx';
+import { CasinoScreen } from '../../screens/CasinoScreen.jsx';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -23,6 +25,15 @@ const IDLE_KEY = '__standup__';
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
+  // WATCH-8: the socket's own status, so the desk's rail refetches the stored
+  // thread when the connection comes back — the same rule the phone's sheet
+  // follows, from the same hook.
+  connection = null,
+  // CASINO-1: the casino is the same screen on the desk, in the stage, per
+  // board 31's frame — top bar across, rail on the right, only the stage
+  // swapped. An agent handed to `deployAgent` puts it there on its own,
+  // because being handed one IS the walk into the building.
+  wsUrl = null, deployAgent = null, onDeployed = null, onSpectate = null, onCancelDeploy = null,
   // DP-4: the draft, when one is under way. It runs on the stage as a sheet so
   // the shell around it — top bar, roster, open panel — stays mounted; App
   // returning it on its own would take the desk down for the duration.
@@ -47,6 +58,11 @@ export function DesktopHome({
   // D3ReplayScreenM's own split.
   const [replay, setReplay] = useState(null);
   const [wallet, setWallet] = useState(null);
+  // CASINO-1: 'floor' (today's room) or 'casino' (the building). Local to the
+  // desk because the desktop shell has no tab bar to hold it.
+  const [stage, setStage] = useState('floor');
+
+  useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +165,11 @@ export function DesktopHome({
       onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
       onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
+      stage={stage}
+      onStage={(next) => {
+        if (next === 'floor' && deployAgent) onCancelDeploy?.();
+        setStage(next);
+      }}
     />
   );
 
@@ -200,6 +221,7 @@ export function DesktopHome({
             agent={deskAgent}
             game={watchedId === deskAgent.id ? game : null}
             lastDecision={watchedId === deskAgent.id ? lastDecision : null}
+            connection={connection}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
             onBack={() => setDeskTableId(null)}
@@ -231,16 +253,27 @@ export function DesktopHome({
             </div>
           )}
           {draft && <div className="dsk-sheet">{draft}</div>}
-          <CasinoFloor
-            desktopMode
-            selectedAgentId={selectedId}
-            onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
-            onChat={(agent) => setSelectedId(agent.id)}
-            onWatch={onWatchAgent}
-            onProfile={() => {}}
-            onDeploy={onDeployAgent}
-            onCreateAgent={onCreateAgent}
-          />
+          {stage === 'casino' ? (
+            <CasinoScreen
+              desktop
+              wsUrl={wsUrl}
+              deployAgent={deployAgent}
+              onDeployed={onDeployed}
+              onSpectate={onSpectate}
+              onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
+            />
+          ) : (
+            <CasinoFloor
+              desktopMode
+              selectedAgentId={selectedId}
+              onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
+              onChat={(agent) => setSelectedId(agent.id)}
+              onWatch={onWatchAgent}
+              onProfile={() => {}}
+              onDeploy={onDeployAgent}
+              onCreateAgent={onCreateAgent}
+            />
+          )}
         </div>
 
         {walletOpen ? (
@@ -315,11 +348,21 @@ export function DesktopHome({
 
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
-function DeskWatch({ agent, game, lastDecision, draft, onDraftChange, onBack, onSitOut }) {
+function DeskWatch({ agent, game, lastDecision, connection, draft, onDraftChange, onBack, onSitOut }) {
   const { chat, sending, send } = useAgentThread(agent);
   const seats = game?.seats || [];
   const named = seats.findIndex((s) => s?.displayName === agent.name);
   const heroSeat = named >= 0 ? named : 0;
+
+  // WATCH-8 job 3: the stored record of this stay. At 1440 the rail is always
+  // open, so it is always wanted — where the phone asks for it when the sheet
+  // comes up. Same hook, same lines, same server clock.
+  const stored = useTableThread({
+    agentId: agent?.id,
+    sessionId: game?.sessionId ?? null,
+    connection,
+    want: true,
+  });
 
   return (
     <>
@@ -337,6 +380,7 @@ function DeskWatch({ agent, game, lastDecision, draft, onDraftChange, onBack, on
         heroSeat={heroSeat}
         hands={agent.recentHands}
         thread={chat}
+        stored={stored}
         draft={draft}
         sending={sending}
         onDraftChange={onDraftChange}
