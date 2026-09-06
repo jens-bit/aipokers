@@ -15,7 +15,7 @@ import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
-import { collectFrom, pocketOf } from '../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, pocketOf } from '../lib/wallet.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
@@ -227,23 +227,231 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
   );
 }
 
+// ── CHAT-2 · the control centre ────────────────────────────────────────────
+// The thread stopped being one. Everything an owner does TO an agent lives
+// here now, in a row that does not scroll away: the one thing that changes
+// where he is, the one thing that changes what he can afford, and — behind an
+// overflow, because it is not a neighbour of Deploy — the one that ends him.
+//
+// "Call him in" is Deploy's opposite and takes its slot rather than sitting
+// beside it; only one of the two is ever true.
+function ActionRow({ live, onPrimary, onFund, onRetire }) {
+  const [menu, setMenu] = useState(false);
+
+  return (
+    <div
+      className="profile-actions"
+      style={{
+        flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
+        padding: '9px 14px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onPrimary}
+        style={{
+          flex: 1.4, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+          background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
+          fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+          textTransform: 'uppercase', whiteSpace: 'nowrap',
+        }}
+      >{live ? 'Call him in' : 'Deploy'}</button>
+
+      <button
+        type="button"
+        onClick={onFund}
+        style={{
+          flex: 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+          background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
+          fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+          textTransform: 'uppercase', whiteSpace: 'nowrap',
+        }}
+      >Give him chips</button>
+
+      <button
+        type="button"
+        aria-label="More actions"
+        aria-expanded={menu}
+        onClick={() => setMenu((v) => !v)}
+        style={{
+          width: 34, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer', flexShrink: 0,
+          background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+          fontSize: 15, lineHeight: 1,
+        }}
+      >…</button>
+
+      {/* Tapping anywhere else puts the menu away. Without it the only way out
+          of an overflow opened by accident is to hit the same 34px target
+          again, which on a phone is how you end up tapping Retire. */}
+      {menu && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setMenu(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 4, minHeight: 0,
+            background: 'transparent', border: 'none', padding: 0, cursor: 'default',
+          }}
+        />
+      )}
+
+      {menu && (
+        <div
+          style={{
+            position: 'absolute', top: 47, right: 14, zIndex: 5, minWidth: 132,
+            borderRadius: 10, background: M_PANEL_2, border: `1px solid ${M_BORDER}`,
+            boxShadow: '0 10px 26px rgba(0,0,0,0.45)', overflow: 'hidden',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => { setMenu(false); onRetire?.(); }}
+            style={{
+              width: '100%', height: 38, minHeight: 0, padding: '0 13px', textAlign: 'left',
+              background: 'none', border: 'none', color: M_RED, cursor: 'pointer',
+              fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >Retire</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// The confirmation. Retiring is the one action here that cannot be taken back,
+// so it is the one that asks — and what it says is what actually happens to
+// him, not a warning about data loss.
+function RetireSheet({ agent, busy, error, onCancel, onConfirm }) {
+  return (
+    <div
+      className="retire-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Retire ${agent.name}`}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 20, display: 'flex',
+        flexDirection: 'column', justifyContent: 'flex-end',
+        background: 'rgba(10,10,12,0.72)',
+      }}
+    >
+      <div style={{
+        background: M_PANEL, borderTop: `1px solid ${M_BORDER}`,
+        borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+      }}>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 17, fontWeight: 600, color: M_TEXT }}>
+          Retire {agent.name}?
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.5, color: M_DIM, marginTop: 8 }}>
+          He finishes the hand, his chips come home, his record is kept.
+        </div>
+        {error && (
+          <div style={{ fontSize: 12, color: M_RED, marginTop: 8 }}>{error}</div>
+        )}
+        <div style={{ display: 'flex', gap: 9, marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            style={{
+              flex: 1, height: 40, minHeight: 0, borderRadius: 10, cursor: 'pointer',
+              background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
+              fontFamily: OSWALD, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >Cancel</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              flex: 1, height: 40, minHeight: 0, borderRadius: 10, cursor: 'pointer',
+              background: `${M_RED}1A`, border: `1px solid ${M_RED}`, color: M_RED,
+              fontFamily: OSWALD, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >{busy ? 'Retiring…' : 'Retire him'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// DELETE /api/agents/:id is what the server offers today (agentProfiles.js).
+// NOTE for the server side: it splices the record out, so of the three
+// promises the sheet makes it currently keeps none — he does not finish the
+// hand, his pocket is not collected, and the record is gone rather than kept.
+// A POST /:id/retire that ends the session, collects, and marks him retired is
+// the endpoint this call wants; when it lands, point `retireAgent` at it and
+// nothing else on this screen changes.
+async function retireAgent(agentId) {
+  const res = await fetch(
+    `/api/agents/${encodeURIComponent(agentId)}?userId=${encodeURIComponent(getUserId())}`,
+    { method: 'DELETE', headers: { 'x-telegram-init-data': getTelegramInitData() } },
+  );
+  if (!res.ok) throw new Error(`retire failed (${res.status})`);
+  return res.json().catch(() => ({}));
+}
+
+
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund }) {
+export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired }) {
   // WUI-3: the receipt for a collect that just happened. Drawn as a transfer,
   // pocket -> wallet, and only while it is the freshest thing on the card.
   const [collected, setCollected] = useState(null);
+  // CHAT-2: the retire flow. `pending` is the confirm sheet; `busy` and
+  // `error` belong to the DELETE it fires.
+  const [retirePending, setRetirePending] = useState(false);
+  const [retireBusy, setRetireBusy] = useState(false);
+  const [retireError, setRetireError] = useState(null);
 
   async function handleCollect(target) {
     const before = pocketOf(target);
     if (!before) return;
     try {
-      const res = await collectFrom(target.id);
-      const float = Number.isFinite(Number(res?.float)) ? Number(res.float) : (before.float ?? before.cap ?? 0);
-      const amount = Number.isFinite(Number(res?.moved ?? res?.collected))
-        ? Number(res.moved ?? res.collected)
-        : (before.collectable ?? Math.max(0, before.balance - float));
-      setCollected({ pocketBefore: before.balance, float, amount, at: res?.at ?? null });
+      // WALLET-7: a called-in pocket hands back all of it; every other collect
+      // takes the winnings and leaves the roll the owner staked.
+      const all = collectsEverything(before);
+      const res = await collectFrom(target.id, { all });
+      const amount = Number.isFinite(Number(res?.collected ?? res?.moved))
+        ? Number(res.collected ?? res.moved)
+        : (before.collectable ?? 0);
+      const left = Number.isFinite(Number(res?.pocket?.balance ?? res?.left))
+        ? Number(res.pocket?.balance ?? res.left)
+        : Math.max(0, before.balance - amount);
+      setCollected({ pocketBefore: before.balance, left, amount, at: res?.at ?? null });
     } catch { /* the row stays as it was */ }
+  }
+
+  // WALLET-7 — the second verb, from the profile card. He finishes the hand and
+  // everything in the pocket comes home; the receipt is the same transfer.
+  async function handleCallIn(target) {
+    const before = pocketOf(target);
+    if (!before) return;
+    try {
+      const res = await callInAgent(target.id);
+      const amount = Number(res?.collected) || 0;
+      setCollected({ pocketBefore: before.balance, left: 0, amount, at: Date.now() });
+    } catch { /* the row stays as it was */ }
+  }
+
+  async function handleRetireConfirm() {
+    if (!agent?.id) return;
+    setRetireBusy(true);
+    setRetireError(null);
+    try {
+      await retireAgent(agent.id);
+      setRetirePending(false);
+      onRetired?.(agent);
+    } catch {
+      setRetireError('Could not retire him. Try again.');
+    } finally {
+      setRetireBusy(false);
+    }
   }
 
   // Which bar is tapped open. Null = the cluster reads as one silhouette.
@@ -297,7 +505,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
   }
 
   return (
-    <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
+    <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG, position: 'relative' }}>
 
       {/* Header */}
       <div style={{
@@ -320,7 +528,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
         </span>
       </div>
 
-      {/* MoodBand */}
+      {/* MoodBand — how he is, and the one way to go and look at him. */}
       <MoodBand
         accent={accent}
         mood={mood}
@@ -328,6 +536,15 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
         state={state}
         action={actionLabel}
         onAction={handleAction}
+      />
+
+      {/* CHAT-2 — the fixed action row. It does not scroll: the whole point of
+          taking these off the thread was that they are always to hand. */}
+      <ActionRow
+        live={isLive}
+        onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))}
+        onFund={() => onFund?.(agent)}
+        onRetire={() => { setRetireError(null); setRetirePending(true); }}
       />
 
       {/* Scrollable body */}
@@ -376,12 +593,12 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
         {collected && (
           <CollectCard
             pocketBefore={collected.pocketBefore}
-            float={collected.float}
+            left={collected.left}
             collected={collected.amount}
             at={collected.at}
           />
         )}
-        <PocketLine agent={agent} onFund={onFund} onCollect={handleCollect} />
+        <PocketLine agent={agent} onFund={onFund} onCollect={handleCollect} onCallIn={handleCallIn} />
 
         {/* Career */}
         <div style={{ padding: '11px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -450,6 +667,16 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund 
         </button>
 
       </div>
+
+      {retirePending && (
+        <RetireSheet
+          agent={agent}
+          busy={retireBusy}
+          error={retireError}
+          onCancel={() => setRetirePending(false)}
+          onConfirm={handleRetireConfirm}
+        />
+      )}
     </div>
   );
 }

@@ -95,13 +95,22 @@
 
 .wal-row__body { flex: 1; min-width: 0; }
 
-/* WALLET-5: two actions can stand on one row — Collect when he is carrying
-   something home, and Fund, which is always offered. */
+/* WALLET-7: up to three actions stand on one row — "Give him chips", which is
+   always offered, Collect when he is up, and "Call him in" while he is seated.
+   Verbs are longer than "Fund" was, so they stack: side by side, three of them
+   would push the name and the figures off a phone. */
 .wal-row__actions {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   flex-shrink: 0;
+  max-width: 44%;
+}
+.wal-row__actions .wal-btn {
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
 }
 
 /* Cut off is drawn quieter, never redder: the rung his money would buy is
@@ -268,38 +277,6 @@
   background: var(--wal-panel);
 }
 
-.wal-option {
-  padding: 11px 13px;
-  border-radius: 11px;
-  margin-bottom: 8px;
-  width: 100%;
-  text-align: left;
-  background: var(--wal-panel-2);
-  border: 1px solid var(--wal-border);
-  cursor: pointer;
-  font: inherit;
-  display: block;
-}
-
-.wal-option__radio {
-  width: 15px;
-  height: 15px;
-  border-radius: 8px;
-  flex-shrink: 0;
-  border: 1px solid var(--wal-border-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.wal-option__line {
-  font-size: 11.5px;
-  color: var(--wal-muted);
-  line-height: 1.45;
-  margin-top: 6px;
-  padding-left: 24px;
-}
-
 .wal-cap {
   height: 38px;
   width: 100%;
@@ -314,6 +291,72 @@
   outline: none;
 }
 .wal-cap:focus { border-color: var(--wal-teal); }
+
+/* ── WALLET-7: the two verbs ──────────────────────────────────────────── */
+/* Sizes of roll, not a keypad: the owner is picking what the pocket can play,
+   and the ladder in src/server/wallet.js is what the three presets are. */
+
+.wal-presets {
+  display: flex;
+  gap: 7px;
+}
+
+.wal-preset {
+  flex: 1;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--wal-panel-2);
+  border: 1px solid var(--wal-border);
+  color: var(--wal-dim);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wal-preset[aria-pressed='true'] {
+  border-color: var(--wal-teal);
+  color: var(--wal-text);
+  background: rgba(0, 212, 170, 0.06);
+}
+
+/* One toggle, one sentence. It replaces a whole mode. */
+.wal-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: var(--wal-panel-2);
+  border: 1px solid var(--wal-border);
+  cursor: pointer;
+}
+.wal-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--wal-teal);
+  cursor: pointer;
+}
+.wal-toggle__text {
+  font-size: 12.5px;
+  color: var(--wal-text);
+  line-height: 1.35;
+}
+
+/* Calling him in is a choice of the same weight as giving him chips, and it is
+   drawn quietly: no red, no border of warning, no confirmation gauntlet. */
+.wal-callin {
+  margin-top: 6px;
+  padding-top: 13px;
+  border-top: 1px solid var(--wal-border);
+}
+.wal-callin__line {
+  margin: 7px 0 11px;
+  font-size: 11.5px;
+  color: var(--wal-muted);
+  line-height: 1.45;
+}
 
 /* ── the collect card ─────────────────────────────────────────────────── */
 /* pocket -> wallet, drawn as a transfer and not a reward: no burst, no coin,

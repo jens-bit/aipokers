@@ -10,7 +10,8 @@ import {
   POCKET_FLOAT, ENTRY_BUYIN, STAKES, MODES,
   emptyWallet, emptyPocket,
   stakesFor, isBroke, canAffordTable,
-  fund, collect, autoRefill, debitBuyIn, creditCashOut,
+  fund, collect, collectable, callIn, sweepRecall, modeForRequest,
+  autoRefill, debitBuyIn, creditCashOut,
   seedOwner, walletProjection, pocketProjection,
   collectMoment, brokeMoment,
 } from '../src/server/wallet.js';
@@ -160,7 +161,8 @@ console.log('\n[verify] 3) a winning night — deploy, play, collect');
 
   const walletBefore = w.wallet.balance;
   const r = collect(w.wallet, byId(w, 'a1').pocket);
-  check('collect moved the surplus', r.ok && r.moved > 0, `moved ${r.moved}`);
+  check('collect moved the winnings', r.ok && r.moved === 3_400, `moved ${r.moved}`);
+  assert('and left the roll the owner staked', byId(w, 'a1').pocket.balance, 2_000);
   assert('wallet grew by exactly that', w.wallet.balance - walletBefore, r.moved);
   check('and he can still sit down', !isBroke(byId(w, 'a1').pocket.balance));
   conserved(w, 'after collecting');
@@ -256,7 +258,7 @@ console.log('\n[verify] 8) a long night — many sessions, conservation holds th
   }
   check('sessions actually ran', sessions >= 6, `only ${sessions}`);
 
-  // Collect from everyone who has something above their float, then re-check.
+  // Collect the winnings from everyone who has any, then re-check.
   for (const a of w.profile.agents) collect(w.wallet, a.pocket);
   conserved(w, 'after collecting from everyone');
 }
@@ -287,7 +289,7 @@ console.log('\n[verify] 10) ledgers reconcile — every transfer has two sides')
   const w = makeWorld();
   const agent = byId(w, 'a1');
   fund(w.wallet, agent.pocket, { mode: 'auto', amount: 3_000, cap: 5_000 });
-  collect(w.wallet, agent.pocket, { amount: 1_000, leaveFloat: false });
+  collect(w.wallet, agent.pocket, { amount: 1_000, all: true });
 
   const walletMoves = w.wallet.ledger.filter((e) => e.type === 'fund' || e.type === 'collect');
   const pocketMoves = agent.pocket.ledger.filter((e) => e.type === 'fund' || e.type === 'collect');
@@ -326,22 +328,77 @@ console.log('\n[verify] 11) WALLET-1e - float, pnl and cut in the projection');
   endSession(w2, 'a2', -2_000);
   assert('and a losing one takes it back down', pocketProjection(a2.pocket).pnl, -600);
   const pnlBefore = pocketProjection(a2.pocket).pnl;
-  collect(w2.wallet, a2.pocket);
-  assert('collecting does not move pnl', pocketProjection(a2.pocket).pnl, pnlBefore);
+  check('a losing pocket has nothing to collect', !collect(w2.wallet, a2.pocket).ok);
+  assert('and a refused collect moves nothing', pocketProjection(a2.pocket).pnl, pnlBefore);
   fund(w2.wallet, a2.pocket, { mode: 'auto', amount: 1_000, cap: 5_000 });
-  assert('and neither does funding', pocketProjection(a2.pocket).pnl, pnlBefore);
+  assert('funding is a transfer, not a win', pocketProjection(a2.pocket).pnl, pnlBefore);
   conserved(w2, 'after a winning and a losing night');
 
-  // float and collect can never disagree - the receipt reads one number.
+  // WALLET-7: collect and the projection can never disagree - the row offers
+  // one number and the call has to move exactly it.
   for (const mode of MODES) {
     const w3 = makeWorld();
     const a3 = byId(w3, 'a1');
     fund(w3.wallet, a3.pocket, { mode, amount: 9_000, cap: 3_000 });
-    const expected = pocketProjection(a3.pocket).float;
-    collect(w3.wallet, a3.pocket);
-    assert(`${mode}: collect leaves exactly the projected float`, a3.pocket.balance, expected);
+    const staked = a3.pocket.balance;
+    const offered = pocketProjection(a3.pocket).collectable;
+    const r3 = collect(w3.wallet, a3.pocket);
+    assert(`${mode}: collect moves exactly what the row offered`, r3.moved || 0, offered);
+    if (mode !== 'cut') {
+      assert(`${mode}: an unplayed top-up is not winnings`, offered, 0);
+      assert(`${mode}: and the staked roll is untouched`, a3.pocket.balance, staked);
+    } else {
+      assert('cut: a called-in pocket comes home to the last chip', a3.pocket.balance, 0);
+    }
     conserved(w3, `after collecting on ${mode}`);
   }
+}
+
+console.log('\n[verify] 11b) WALLET-7 - two verbs, and the rule that money is his or yours');
+{
+  // The verbs the client speaks, mapped onto the modes the store speaks.
+  assert('give him chips is an allowance', modeForRequest({ verb: 'give' }).mode, 'allowance');
+  assert('with the refill toggle it is auto', modeForRequest({ verb: 'give', refill: true }).mode, 'auto');
+  assert('call him in is the cut', modeForRequest({ verb: 'callin' }).mode, 'cut');
+  assert('a one-time top-up folds into the allowance', modeForRequest({ mode: 'topup' }).mode, 'allowance');
+  check('and an unknown verb is refused', !modeForRequest({ verb: 'nonsense' }).ok);
+
+  // Winnings are collectable at any time; the principal comes home with him.
+  const w = makeWorld();
+  const agent = byId(w, 'a1');
+  fund(w.wallet, agent.pocket, { mode: 'allowance', amount: 5_000, cap: 5_000 });
+  const staked = agent.pocket.balance;
+  assert('a pocket funded once has nothing to collect', collectable(agent.pocket), 0);
+  check('and the call is refused rather than silently taking the top-up back',
+    !collect(w.wallet, agent.pocket).ok);
+
+  deploy(w, 'a1');
+  endSession(w, 'a1', 1_200);
+  assert('a winning night is collectable', collectable(agent.pocket), 1_200);
+  assert('and collecting takes exactly the winnings', collect(w.wallet, agent.pocket).moved, 1_200);
+  assert('leaving the staked roll where it was', agent.pocket.balance, staked);
+  assert('with nothing left waiting to be collected', collectable(agent.pocket), 0);
+  conserved(w, 'after collecting the winnings');
+
+  // Call him in: everything comes home, and what is still on the felt follows.
+  const w2 = makeWorld();
+  const a2 = byId(w2, 'a2');
+  fund(w2.wallet, a2.pocket, { mode: 'auto', amount: 5_000, cap: 5_000 });
+  deploy(w2, 'a2');
+  const inHand = a2.pocket.balance;
+  const home = callIn(w2.wallet, a2.pocket, { seated: true });
+  assert('the pocket came home on the call', home.moved, inHand);
+  assert('he is on the cut', a2.pocket.mode, 'cut');
+  check('and the chips on the felt are remembered', a2.pocket.recall === true);
+  conserved(w2, 'after calling him in mid-session');
+
+  endSession(w2, 'a2', 900);
+  const swept = sweepRecall(w2.wallet, a2.pocket, { seated: false });
+  check('the sweep brings the rest home once he is off the table', swept.ok && swept.moved > 0,
+    `moved ${swept.moved}`);
+  assert('his pocket is empty', a2.pocket.balance, 0);
+  check('and the sweep does not run twice', !sweepRecall(w2.wallet, a2.pocket, { seated: false }).ok);
+  conserved(w2, 'after the recall sweep');
 }
 
 console.log('\n[verify] 12) modes are exactly the four the design ref draws');

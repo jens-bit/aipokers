@@ -51,8 +51,9 @@ import {
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
   debitBuyIn, creditCashOut,
+  modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
-  collectMoment, brokeMoment, appendEntry,
+  collectMoment, callInMoment, brokeMoment, appendEntry,
 } from './wallet.js';
 import {
   DRAFT_MAX_WORDS,
@@ -406,6 +407,15 @@ function recordCollectMoment(agent, moved) {
   return text;
 }
 
+// WALLET-7: called in is its own beat. recordCollectMoment's line says what he
+// kept to sit down with, and after a call-in that is nothing — the copy would
+// read as a complaint about an empty pocket.
+function recordCallInMoment(agent, moved) {
+  const text = callInMoment({ moved, agentName: agent.name || 'He' });
+  agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
+  return text;
+}
+
 function recordBrokeMoment(agent) {
   const text = brokeMoment({ mode: agent.pocket?.mode ?? 'topup', agentName: agent.name || 'He' });
   agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: Date.now() };
@@ -434,6 +444,58 @@ function notifyBrokeOnce(userId, agent) {
 }
 
 // Append one entry to an agent's append-only ledger, capped at LEDGER_CAP.
+// ── AGENTS-2 · lifecycle ─────────────────────────────────────────────────────
+// How many agents one owner may have on the floor at once. Four is the number
+// the birth flow promises ("one open seat"), and it is a design constraint, not
+// a billing one: an owner with twelve agents has a fleet, and the game is about
+// knowing a handful of characters well enough to have opinions about them.
+export const AGENT_CAP = 4;
+
+// An archived agent is a RECORD, not a roster entry: kept in full, hidden from
+// every surface that lists who you have. Nothing here deletes anything.
+export function isArchived(agent) {
+  return !!agent?.archived;
+}
+
+// The roster, which is what the cap counts and what every list route serves.
+function activeAgents(profile) {
+  return (profile?.agents ?? []).filter((a) => !isArchived(a));
+}
+
+// The end of a career. He hands back everything he is holding — float included,
+// because a float is money set aside so he can sit down again and he is not
+// sitting down again — and the record closes. Idempotent, and there is no
+// un-retire from the API.
+function archiveAgent(profile, agent) {
+  if (!agent || agent.archived) return 0;
+  const userId = profile.userId;
+  const wallet = walletFor(userId);
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+
+  const result = walletCollect(wallet, pocket, { amount: null, leaveFloat: false });
+  const collected = result.ok ? result.moved : 0;
+  if (collected > 0) {
+    appendLedger(agent, { ts: Date.now(), type: 'retire', amount: -collected, tableId: null });
+  }
+
+  // Cut, so no refill path can quietly put a retired agent back in a seat.
+  pocket.mode = 'cut';
+  agent.retiring = false;
+  agent.archived = true;
+  agent.archivedAt = Date.now();
+  agent.status = 'idle';
+  agent.activeTableId = null;
+  // Nothing left for the owner to answer: a retired agent does not propose a
+  // strategy change, does not ask for a beer, and has no unread recap.
+  agent.proposal = null;
+  agent.want = null;
+  agent.unseenRecap = false;
+  mirrorBankroll(agent);
+  console.log(`[agentProfiles] retired "${agent.name}" — ${collected} back to the wallet`);
+  return collected;
+}
+
 function appendLedger(agent, entry) {
   if (!Array.isArray(agent.ledger)) agent.ledger = [];
   agent.ledger.push(entry);
@@ -982,8 +1044,16 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.sessionHands = 0;
   agent.wornSaidAtHand = null;
 
+  // AGENTS-2: he was called in to retire. The session is booked in full first —
+  // the recap, the growth he earned tonight, the ledger — and only then does the
+  // pocket come home and the record close. Retiring is an ending, not a rollback.
   const hadProposalBefore = !!agent.proposal;
-  try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  if (agent.retiring && !agent.archived) {
+    archiveAgent(profile, agent);
+    saveWalletFor(userId ?? 'anon');
+  } else {
+    try { maybeCreateProposal(agent); } catch (err) { console.error('[agents] proposal build failed:', err.message); }
+  }
   const thirdWin = typeof sessionPnl === 'number'
     ? recordSessionOutcome(agent, sessionPnl > 0)
     : false;
@@ -1000,6 +1070,9 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // one of the two.
   const ownerId = String(userId ?? 'anon');
   const agentName = agent.name || 'Your agent';
+
+  // AGENTS-2: an agent who has just retired is not owed a push notification.
+  if (agent.archived) return agent;
 
   // Proposal: freshly created this session end.
   if (!hadProposalBefore && agent.proposal) {
@@ -1321,7 +1394,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null } = {}
 // liveGame and is only present when `owner` is true.
 export function floorSnapshot(userId, { owner = false } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
-  return profile.agents.map((agent) => {
+  // AGENTS-2: the floor draws the roster, and a retired agent is not on it.
+  return activeAgents(profile).map((agent) => {
     const p = presentAgent(agent, { owner, walletBalance: walletFor(userId).balance });
     return {
       id: p.id,
@@ -1605,7 +1679,27 @@ export function addFlaggedHand(agentId, userId, entry) {
   return agent;
 }
 
+// SHARE-2: one flagged hand of one agent, by hand number, with the name to put
+// on the card beside it. The share routes need both and have no business
+// reaching into a profile themselves. Hole cards come back untouched — the
+// caller is the owner-gated prepare route, and the card it builds is his.
+export function getFlaggedHand(agentId, userId, handNumber) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const hand = (agent.sessionFlagged ?? [])
+    .find((h) => String(h?.handNumber) === String(handNumber));
+  return hand ? { agentName: agent.name ?? 'Your agent', hand } : null;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
+
+// AGENTS-2: the agents a list route serves. Archived records are excluded
+// unless the caller explicitly asks for them with ?all=1.
+function rosterFor(req, profile) {
+  const all = String(req?.query?.all ?? '') === '1';
+  return all ? (profile.agents ?? []) : activeAgents(profile);
+}
 
 export function installAgentProfileRoutes(app) {
   // Tighter rate limit for LLM-spending endpoints (chat + build).
@@ -1622,8 +1716,8 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.json({
       userId: profile.userId,
-      hasAgents: profile.agents.length > 0,
-      agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
+      hasAgents: activeAgents(profile).length > 0,
+      agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
       chat: profile.chat,
     });
   });
@@ -1641,8 +1735,38 @@ export function installAgentProfileRoutes(app) {
     const owner = isOwner(req, userId);
     res.setHeader('Cache-Control', 'no-store');
     const walletBalance = walletFor(userId).balance;
-    res.json({ agents: profile.agents.map((a) => presentAgent(a, { owner, walletBalance })) });
+    // AGENTS-2: retired agents are off the roster. `?all=1` is the one way to
+    // see them, and it is what a career/archive view would ask for.
+    res.json({ agents: rosterFor(req, profile).map((a) => presentAgent(a, { owner, walletBalance })) });
   });
+
+  // WALLET-7 — the back half of "call him in".
+  //
+  // The chips in front of him at the table are not in his pocket, so calling
+  // him in cannot bring them home in the same breath; they arrive when the
+  // session cashes him out. This sweeps every pocket that is flagged for
+  // recall and is no longer at a table, and it runs whenever the owner reads
+  // his wallet — which is the screen the money is going to be looked at on.
+  // The owner made the decision once; he does not get asked to collect twice.
+  function sweepRecalled(userId, profile) {
+    const wallet = walletFor(userId);
+    let moved = 0;
+    let touched = false;
+    for (const agent of profile.agents) {
+      const pocket = ensurePocket(agent);
+      if (!pocket.recall) continue;
+      pocket.agentId = agent.id;
+      const before = pocket.recall;
+      const r = sweepRecall(wallet, pocket, { seated: !!agent.activeTableId });
+      if (r.moved > 0) { moved += r.moved; mirrorBankroll(agent); }
+      if (before !== pocket.recall) touched = true;
+    }
+    if (moved > 0 || touched) {
+      saveStore(userId);
+      saveWalletFor(userId);
+    }
+    return moved;
+  }
 
   // ── WALLET-1 (spec v11 §7.1) ───────────────────────────────────────────────
   // Owner-scoped and behind auth: this is the player's money. Every route
@@ -1655,6 +1779,7 @@ export function installAgentProfileRoutes(app) {
     const userId = String(req.query.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your wallet' });
     const profile = getOrCreate(userId);
+    sweepRecalled(userId, profile);
     for (const a of profile.agents) mirrorBankroll(a);
     const sessionNet = profile.agents.reduce((n, a) => {
       const last = Array.isArray(a.sessionLog) && a.sessionLog.length ? a.sessionLog[a.sessionLog.length - 1] : null;
@@ -1664,10 +1789,14 @@ export function installAgentProfileRoutes(app) {
     res.json(walletProjection(walletFor(userId), profile.agents, { sessionNet }));
   });
 
-  // POST /api/agents/:agentId/fund?userId=...  { mode, amount, cap }
-  // One call does both jobs the FundSheet offers: move money and set how he
-  // gets it next time. `cut` is a mode like any other — he keeps the roll he
-  // has and simply stops being deployed.
+  // POST /api/agents/:agentId/fund?userId=...  { verb | mode, amount, cap, refill }
+  //
+  // WALLET-7: the client speaks two verbs and the store speaks the four modes
+  // it always did, and this is where they meet. "Give him chips" is an amount
+  // plus one toggle (refill when he busts) and lands as 'allowance' or 'auto';
+  // "call him in" lands as 'cut' and, unlike every other funding decision,
+  // moves money the other way. Old clients still POST { mode: 'topup' | ... }
+  // and are mapped by the same call, so nothing has to be migrated.
   app.post('/api/agents/:agentId/fund', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || req.body?.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
@@ -1675,9 +1804,10 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    const { mode, amount = 0, cap } = req.body ?? {};
-    if (mode !== undefined && !MODES.includes(mode)) {
-      return res.status(400).json({ error: `mode must be one of ${MODES.join(', ')}` });
+    const { amount = 0, cap } = req.body ?? {};
+    const wanted = modeForRequest(req.body ?? {});
+    if (!wanted.ok) {
+      return res.status(400).json({ error: `mode must be one of give, callin (or ${MODES.join(', ')})` });
     }
     if (amount !== undefined && amount !== null && !Number.isFinite(Number(amount))) {
       return res.status(400).json({ error: 'amount must be a number' });
@@ -1687,37 +1817,58 @@ export function installAgentProfileRoutes(app) {
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
     const result = walletFund(wallet, pocket, {
-      mode,
+      mode: wanted.mode,
       amount: Number(amount) || 0,
       cap: cap === undefined ? undefined : (cap === null ? null : Number(cap)),
     });
     if (!result.ok) return res.status(400).json({ error: result.reason, available: result.available });
 
-    // RELATE-1a: staking him and cutting him off are both things he remembers.
-    if (pocket.mode === 'cut') {
+    // RELATE-1a: staking him and calling him in are both things he remembers.
+    //
+    // The branch is on the VERB the owner used, not on the mode the pocket
+    // ended up in: a bare top-up of an already called-in pocket must not sweep
+    // the chips it has just been given straight back out.
+    let collected = 0;
+    if (wanted.mode === 'cut') {
       recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
-      // WALLET-5: and it is the one mode that acts on a table already running.
-      // The sheet promises "he finishes the hand he is in and takes a seat at
-      // the bar", and until now nothing made that true — the row changed a tag
-      // and he kept playing on money the owner had stopped backing.
-      if (agent.activeTableId) {
-        const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
-        if (table) benchCutSeat(table, agent.id);
-      }
-    } else if (result.moved > 0) {
-      recordOwnerEvent(agent, 'funded', { amount: result.moved });
+      // WALLET-5/7: the one verb that acts on a table already running. The
+      // sheet promises "he finishes the hand he is in and takes a seat at the
+      // bar, and everything in his pocket comes back to your wallet" — the
+      // bench keeps the first half, callIn keeps the second. Chips still in
+      // front of him at the table come home on the recall sweep below, once
+      // the session has paid them back.
+      const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+      collected = walletCallIn(wallet, pocket, {
+        table, agentId: agent.id, seated: !!agent.activeTableId,
+      }).moved;
+      if (collected > 0) recordCallInMoment(agent, collected);
+    } else {
+      // Giving him chips again lifts a recall: the owner changed his mind
+      // before the sweep ran, and a pocket that is being funded is not one
+      // that is on its way home.
+      pocket.recall = false;
+      if (result.moved > 0) recordOwnerEvent(agent, 'funded', { amount: result.moved });
     }
     mirrorBankroll(agent);
     saveStore(userId);
     saveWalletFor(userId);
     emitAgentChange(userId);
-    res.json({ moved: result.moved, wallet: walletProjection(wallet, profile.agents), pocket: pocketProjection(pocket) });
+    res.json({
+      moved: result.moved,
+      // What came home, when the verb was "call him in". Zero for every other.
+      collected,
+      wallet: walletProjection(wallet, profile.agents),
+      pocket: pocketProjection(pocket),
+    });
   });
 
-  // POST /api/agents/:agentId/collect?userId=...  { amount?, leaveFloat? }
-  // He brings it home. Default takes everything above his float, which is the
-  // design ref's "pocket back to its $300 float" — collecting must never be
-  // the thing that leaves him unable to sit down.
+  // POST /api/agents/:agentId/collect?userId=...  { amount?, all? }
+  //
+  // WALLET-7: he brings the WINNINGS home. The default takes everything the
+  // pocket has made above what the owner gave him and not a chip more, so
+  // collecting can never be the thing that leaves him unable to sit down at
+  // the stake he was staked for. `all` (and the older `leaveFloat: false`)
+  // takes the principal too, and is what a called-in pocket answers with.
   app.post('/api/agents/:agentId/collect', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || req.body?.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
@@ -1728,11 +1879,11 @@ export function installAgentProfileRoutes(app) {
     const wallet = walletFor(userId);
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
-    const { amount = null, leaveFloat = true } = req.body ?? {};
+    const { amount = null, all = false, leaveFloat } = req.body ?? {};
     const pocketBefore = pocket.balance;
     const result = walletCollect(wallet, pocket, {
       amount: amount === null || amount === undefined ? null : Number(amount),
-      leaveFloat: leaveFloat !== false,
+      all: all === true || leaveFloat === false,
     });
     if (!result.ok) return res.status(400).json({ error: result.reason });
 
@@ -1751,6 +1902,11 @@ export function installAgentProfileRoutes(app) {
     const view = pocketProjection(pocket);
     res.json({
       collected: result.moved,
+      // WALLET-7: what he was left holding. It used to be the float, because
+      // the float was where a collect stopped; a collect now stops at the
+      // winnings, so the receipt has to read the balance itself. `float` is
+      // still sent for the one release the older clients need.
+      left: view.balance,
       float: view.float,
       at: Date.now(),
       pocketBefore,
@@ -1758,6 +1914,64 @@ export function installAgentProfileRoutes(app) {
       wallet: walletProjection(wallet, profile.agents),
       pocket: view,
       moment: agent.lastMoment,
+    });
+  });
+
+  // ── AGENTS-2 · POST /api/agents/:agentId/retire?userId=... ────────────────
+  //
+  // Calling him in for good. If he is in a seat he finishes the hand he is in
+  // (the wallet's bench, not a fold — no forfeited chips), and the record closes
+  // when the pocket comes home at the end of that session. If he is at the bar
+  // it all happens on this call.
+  //
+  // Archived is hidden, never deleted: he is off the floor, out of CHATS and off
+  // YOU, and every hand he played is still on his record. Cannot be undone from
+  // the API for now — an un-retire is a product decision, not a route.
+  app.post('/api/agents/:agentId/retire', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    // Retiring a retired agent is a no-op, not an error — the button may well
+    // be pressed twice on a slow connection.
+    if (agent.archived) {
+      return res.json({
+        agentId: agent.id, name: agent.name,
+        archived: true, pending: false, collected: 0,
+        archivedAt: agent.archivedAt ?? null,
+        wallet: walletProjection(walletFor(userId), profile.agents),
+      });
+    }
+
+    agent.retiring = true;
+    agent.retiringAt = Date.now();
+
+    // Seated: call him in. benchCutSeat is the wallet's own bench — he finishes
+    // the hand he is in and the seat frees the moment it completes. Between
+    // hands that path ends the session synchronously, which archives him here.
+    const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+    if (table) benchCutSeat(table, agent.id);
+
+    const stillSeated = !!agent.activeTableId && !!liveTables?.hasTable?.(agent.activeTableId);
+    let collected = 0;
+    if (!agent.archived && !stillSeated) collected = archiveAgent(profile, agent);
+
+    saveStore(userId);
+    saveWalletFor(userId);
+    emitAgentChange(userId);
+    res.json({
+      agentId: agent.id,
+      name: agent.name,
+      archived: !!agent.archived,
+      // Still at the table: he is coming in, and the record closes when the
+      // hand he is in is over.
+      pending: !agent.archived,
+      collected,
+      archivedAt: agent.archivedAt ?? null,
+      pocket: pocketProjection(agent.pocket),
+      wallet: walletProjection(walletFor(userId), profile.agents),
     });
   });
 
@@ -1903,6 +2117,10 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    // AGENTS-2: retired is retired. And an agent who has been called in does not
+    // get a second seat on the way out.
+    if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
+    if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
 
     ensureMemory(agent);
     ensureProfile(agent);
@@ -2086,6 +2304,9 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    // AGENTS-2: the other door to a seat answers the same way deploy does.
+    if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
+    if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
 
     // Clear expired slot (5-min TTL).
     if (matchmakingSlot && Date.now() > matchmakingSlot.expiresAt) {
@@ -2427,6 +2648,13 @@ export function installAgentProfileRoutes(app) {
     const briefSoFar = ownerSaid();
     const hasBrief = profile.chat.some((m) => m.role === 'user' && !isGoSignal(m.content));
     if (isGoSignal(content) && hasBrief) {
+      // AGENTS-2: the cap is checked BEFORE the build, so a full roster costs no
+      // model call — and the draft is left intact, ready to finish the moment
+      // the owner makes room.
+      if (activeAgents(profile).length >= AGENT_CAP) {
+        saveStore(userId);
+        return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+      }
       const built = await buildFromDraft(profile, briefSoFar);
       const agent = commitAgent(profile, null, built.agent);
       const line = built.line;
@@ -2483,6 +2711,13 @@ export function installAgentProfileRoutes(app) {
     const existingAgentId = req.body?.existingAgentId ?? null;
 
     const profile = getOrCreate(userId);
+
+    // AGENTS-2: same cap, same 409, on the other door into commitAgent. A
+    // REBUILD of an agent who already exists is not a new agent and is never
+    // capped — otherwise a full roster could not edit its own agents.
+    if (!existingAgentId && activeAgents(profile).length >= AGENT_CAP) {
+      return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+    }
 
     const existingAgentForCtx = existingAgentId
       ? profile.agents.find((a) => a.id === existingAgentId)

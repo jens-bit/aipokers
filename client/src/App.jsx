@@ -88,6 +88,24 @@ export default function App() {
   // agent that started the watch is kept for as long as the watch lasts.
   const [watchedAgent, setWatchedAgent] = useState(null);
 
+  // CHAT-2 item 4: where the owner was standing when the watch started, so
+  // leaving the table puts him back there. Deploying from a thread used to
+  // clear that thread on the way to the socket, so watching one hand cost you
+  // the conversation you were having — you came back to the roster, or to the
+  // floor. A ref, not state: nothing renders from it, and handleLeave is a
+  // useCallback that must never read a stale copy.
+  //
+  // No deploy path clears the nav state today, so on paper the restore below
+  // is a no-op. It is here anyway because that is an accident of five call
+  // sites rather than a rule, and this makes it one: App.test.jsx proves the
+  // return still holds when a deploy path does drop the open thread.
+  const watchOriginRef = useRef(null);
+  // Where "here" is at the instant a watch begins. The profile is an overlay
+  // over whichever tab opened it, so this answers the floor for a profile
+  // opened from the floor and the thread for one opened from a thread —
+  // without either call site having to know which.
+  const hereOrigin = () => ({ tab: activeTab, chatAgent: agentChatTarget });
+
   function setActiveAgent(id, agent = null) {
     activeAgentIdRef.current = id;
     setActiveAgentId(id);
@@ -194,6 +212,15 @@ export default function App() {
     }
     setDesktopWatchAgent(null);
     disconnect();
+    // CHAT-2 item 4. Spent on use: a second leave with no watch behind it must
+    // not teleport anyone. The tab bar and "Chat" both run this and then
+    // navigate themselves, so an explicit destination still wins.
+    const origin = watchOriginRef.current;
+    watchOriginRef.current = null;
+    if (origin) {
+      setActiveTab(origin.tab);
+      setAgentChatTarget(origin.chatAgent ?? null);
+    }
   }, [disconnect, callAgentFinish]);
 
   const buyInRef = useRef(null);
@@ -313,6 +340,9 @@ export default function App() {
             onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
             onWatch={async (ag) => {
               if (!ag?.activeTableId) return;
+              // CHAT-2: captured before the overlay closes, so it still knows
+              // whether a thread or the floor is underneath it.
+              watchOriginRef.current = hereOrigin();
               let memoryContext = '';
               try {
                 const res = await fetch(`/api/agents/${ag.id}/memory?userId=${getUserId()}`);
@@ -330,6 +360,35 @@ export default function App() {
                 memoryContext,
               });
             }}
+            // CHAT-2 item 3 — the control centre's own actions.
+            onDeploy={async (ag) => {
+              watchOriginRef.current = hereOrigin();
+              const res = await fetch(`/api/agents/${ag.id}/queue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: getUserId() }),
+              });
+              if (!res.ok) return;
+              const payload = await res.json();
+              setAgentProfileTarget(null);
+              setActiveAgent(payload.agentId, ag);
+              watch({
+                tableId: payload.tableId,
+                agentId: payload.agentId,
+                userId: getUserId(),
+                agentStrategy: payload.strategy,
+                displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
+                wantOpponentAI: false,
+                memoryContext: payload.memoryContext ?? '',
+              });
+            }}
+            // Deploy's opposite. /finish is the route that ends a session, and
+            // it is the same one the watch screen's exit already calls.
+            onCallIn={(ag) => {
+              callAgentFinish(ag.id);
+              setAgentProfileTarget(null);
+            }}
+            onRetired={() => setAgentProfileTarget(null)}
           />
         </div>
       );
@@ -353,6 +412,7 @@ export default function App() {
                 if (!agent?.activeTableId) return;
                 // Taking the offer spends it — a second hand is just poker.
                 setNewlyBornAgent(null);
+                watchOriginRef.current = hereOrigin();
                 let memoryContext = '';
                 try {
                   const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
@@ -370,6 +430,7 @@ export default function App() {
                 });
               }}
               onDeploy={async (agent) => {
+                watchOriginRef.current = hereOrigin();
                 const res = await fetch(`/api/agents/${agent.id}/queue`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -390,6 +451,9 @@ export default function App() {
               }}
             />
           )}
+          {/* CHAT-2: the thread has no Deploy and no Watch any more — the face
+              and the name open the profile, and the profile is where an owner
+              acts on him. hereOrigin() is what gets him back here after. */}
           {activeTab === 'chats' && (
             <ChatsScreen
               selectedAgent={agentChatTarget}
@@ -397,45 +461,6 @@ export default function App() {
               onBack={() => setAgentChatTarget(null)}
               onCreateAgent={() => setIsCreating(true)}
               onOpenProfile={openAgentProfile}
-              onDeploy={async (agent) => {
-                setAgentChatTarget(null);
-                const res = await fetch(`/api/agents/${agent.id}/queue`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ userId: getUserId() }),
-                });
-                if (!res.ok) return;
-                const payload = await res.json();
-                setActiveAgent(payload.agentId, agent);
-                watch({
-                  tableId: payload.tableId,
-                  agentId: payload.agentId,
-                  userId: getUserId(),
-                  agentStrategy: payload.strategy,
-                  displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext: payload.memoryContext ?? '',
-                });
-              }}
-              onWatch={async (agent) => {
-                if (!agent?.activeTableId) return;
-                let memoryContext = '';
-                try {
-                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
-                  if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-                } catch { /* watch with empty context */ }
-                setAgentChatTarget(null);
-                setActiveAgent(agent.id, agent);
-                watch({
-                  tableId: agent.activeTableId,
-                  agentId: agent.id,
-                  userId: getUserId(),
-                  agentStrategy: agent.strategy,
-                  displayName: agent.name || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext,
-                });
-              }}
             />
           )}
           {activeTab === 'you' && <YouScreen onOpenProfile={openAgentProfile} />}
@@ -474,6 +499,7 @@ export default function App() {
 
   // Mobile spectator: full-screen WatchScreen replaces the legacy layout
   if (config?.isSpectator && !isDesktop) {
+    const sessionEnd = findSessionEnd(history);
     return (
       <WatchScreen
         // W5-1: the paced bundle, not the live one. `paced.game` is null only
@@ -500,6 +526,12 @@ export default function App() {
           handleLeave();
           openAgentChat(watchedAgent);
         } : undefined}
+        // WATCH-7: the ceremony, once, when the session is over — and the two
+        // ways out of the evening it offers. Funding him is the wallet, which
+        // is where YOU already keeps the buy-in.
+        sessionEnd={sessionEnd}
+        onFund={() => { handleLeave(); navigateTo('you'); }}
+        onBackToFloor={() => { handleLeave(); navigateTo('casino'); }}
         config={config}
       />
     );
@@ -634,6 +666,27 @@ function LastAgentHandPanel({ hand, open, onToggle }) {
       )}
     </section>
   );
+}
+
+// WATCH-7 · the session-finished signal.
+//
+// SERVER-3 is adding a SESSION_END message. Until it lands, the signal the
+// client already has is TABLE_CLOSED — appended to the history as a `closed`
+// entry with the server's own recap as its reason. It is read off the history
+// rather than off `status` on purpose: the socket closes right behind the
+// message and useTable moves status to 'reconnecting', so a session end read
+// from status would flicker away a second after it appeared. The history entry
+// is durable.
+function findSessionEnd(history) {
+  for (const hand of history) {
+    const entries = hand.entries || [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index].kind === 'closed') {
+        return { reason: entries[index].reason ?? null, hands: hand.handNumber ?? null };
+      }
+    }
+  }
+  return null;
 }
 
 function findLatestResult(history) {

@@ -236,13 +236,13 @@ describe('CLEAN-1: the v4b beats, through the screen', () => {
     };
     act(() => { render(<WatchScreen {...props} game={settled} />); });
 
-    // The pot first — he lost this one, and losing is quiet.
-    expect(impacts).toEqual(['soft']);
+    // The pot first. WATCH-7: the hand end is one light tap, win or lose.
+    expect(impacts).toEqual(['light']);
 
     // Then the cards, on HAPTIC4's own 140ms interval, which is the one number
     // in that table set above the 120ms floor.
     act(() => { vi.advanceTimersByTime(140); });
-    expect(impacts).toEqual(['soft', 'medium']);
+    expect(impacts).toEqual(['light', 'medium']);
   });
 });
 

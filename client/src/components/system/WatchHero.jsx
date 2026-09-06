@@ -53,6 +53,10 @@ export function WatchHero({
   equity, villain, bigRope, deadRope,
   stack, pos, street, toCall = 0, action, tag, warm, note,
   cost, onTapFace,
+  // WATCH-7: the hand-end receipt. It rides ON the strip — over his own money,
+  // which is what it is about — and it is part of the column, so it can never
+  // land on the board or on him.
+  toast,
 }) {
   const cards = hole && hole.length ? hole : [null, null];
   return (
@@ -101,8 +105,12 @@ export function WatchHero({
         <TugBar equity={equity} villain={villain} big={bigRope} dead={deadRope} />
       </div>
 
-      {/* The strip: stack, street or to-call, his action. */}
+      {/* The strip: stack, street or to-call, his action — and, for a second and
+          a half after a hand, what the hand did to him. The toast hangs off the
+          strip itself rather than off the felt, so it can never land on the
+          board and the column stays the flow WATCH-6 settled. */}
       <Glass className={`watch-felt__hero watch-hero__strip${action ? ' is-active' : ''}${warm ? ' is-warm' : ''}`}>
+        {toast}
         <div>
           <span className="watch-felt__hero-lbl">Stack</span>
           <div className="watch-hero__stack-row">

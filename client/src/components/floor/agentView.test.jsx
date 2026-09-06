@@ -14,6 +14,7 @@ import {
   potOf,
   presenceOf,
   splitFloor,
+  stackOf,
   standupLine,
   stateOf,
 } from './agentView.js';
@@ -188,5 +189,39 @@ describe('standupLine', () => {
 
   it('drops the resting half when everyone is playing', () => {
     expect(line(3, 0, 0, 3)).toBe('3 playing');
+  });
+});
+
+// ── CHAT-2 · the number the thread header carries ───────────────────────────
+// One question, asked in the order that matters: what is he sitting behind
+// right now, and if he is not sitting anywhere, what would he sit down with.
+describe('stackOf', () => {
+  it('is the stack at the table while he is at one', () => {
+    expect(stackOf(playingAgent)).toBe(940);
+  });
+
+  it('prefers the live stack over the pocket he left home with', () => {
+    expect(stackOf({ ...playingAgent, pocket: { balance: 6400 } })).toBe(940);
+  });
+
+  it('is the pocket when he is not at a table', () => {
+    expect(stackOf({ ...restingAgent, pocket: { balance: 3000 } })).toBe(3000);
+  });
+
+  it('falls back to the bankroll for a projection with no pocket', () => {
+    expect(stackOf(restingAgent)).toBe(9680);
+  });
+
+  it('reads careerStats.bankroll when the record carries only that', () => {
+    expect(stackOf({ careerStats: { bankroll: 1200 } })).toBe(1200);
+  });
+
+  it('is null rather than zero when nothing is known', () => {
+    expect(stackOf({})).toBeNull();
+    expect(stackOf(null)).toBeNull();
+  });
+
+  it('keeps a real zero — broke is a number, not an absence', () => {
+    expect(stackOf({ pocket: { balance: 0 } })).toBe(0);
   });
 });

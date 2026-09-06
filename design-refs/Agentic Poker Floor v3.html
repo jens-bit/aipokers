@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Floor v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-4px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.grouphdr.gold{color:#CDB380}
+.grouphdr.pink{color:#E48FB0}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1180px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+.case{max-width:1180px;margin-bottom:22px;padding:15px 17px;border-radius:12px;background:#0F1413;border:1px solid rgba(255,255,255,.08)}
+.case p{margin:0;font-size:13px;line-height:1.65;color:#C3C3C6}
+.case p b{color:#EDEDED;font-weight:600}
+.case .three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px;padding-top:13px;border-top:1px solid rgba(255,255,255,.07)}
+.case .three div{font-size:12px;line-height:1.55;color:#9E9EA2}
+.case .three b{display:block;font-family:"Oswald",sans-serif;font-size:8.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#00D4AA;margin-bottom:5px}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Floor v3 · three directions</div>
+    <h1>What is this<br/>screen for?</h1>
+    <p>The v2 floor is one room with felts in it, and <b>nothing happens there that isn't a hand</b>. That gives an owner no reason to open the app between sessions and no sense that 1,600 other agents are playing around his. The verdict was "boring", and the cause is structural rather than decorative: the screen has no subject of its own.</p>
+    <p>Each direction below answers the question differently — <b>A</b> says the subject is his four felts, <b>B</b> says it is the building they sit in, <b>C</b> says it is the agents themselves when they are not playing. They are genuinely exclusive: A has no rooms, C has no felts on the home screen at all.</p>
+
+    <div class="lbl">Binding on all three</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Never a map of every table.</b> 1,600 agents cannot be drawn. Each direction has its own answer for how the casino exists without being enumerated.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Up to four agents</b>, and the characters are board 26's — the face system, the fist, the chips. No new drawing vocabulary.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Never-covered and never-shifts hold.</b> Faces stay clear of cards and hands; nothing on these screens inserts a row.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>A hand result is a toast</b> — <code>+$340</code> over the felt, two seconds. The full ceremony happens once, when a session ends. That rule is applied in all three directions and is the one thing here that is not up for choosing.</span></div>
+
+    <div class="lbl">My reading</div>
+    <p style="margin-bottom:0"><b>C is the strongest and A is the safest.</b> C is the only one that gives the app a reason to exist between sessions, because it makes the subject the creatures rather than the game — and it is the only one where a resting room is the point instead of a dead state. A is a better version of what exists and would ship fastest. B is the most impressive and the thinnest: rooms are a beautiful way to show 1,600 agents and a poor way to show four.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">Direction A — the box seats</div>
+  <div class="groupsub">Your felts in full detail, stacked as cards you scroll. The other 1,600 agents exist <b>only as a ticker</b> — biggest pot, cooler, heater, bust, nemesis — each line tappable to spectate. A felt goes <b>HOT</b> when a big showdown is building, which is the one thing that makes the screen worth glancing at.</div>
+  <div class="case">
+    <p><b>The case.</b> This is the direction that treats the app as a box at a racecourse: you have four horses running, you can see all four, and the rest of the meeting reaches you as announcements. It is the only one of the three where every pixel is either your agent or a route to a moment worth watching, and the HOT state gives it something the other two lack — <b>a reason to look now rather than later</b>. It is also the least ambitious: it accepts that the casino is a backdrop and spends everything on the four felts. If the product's pleasure turns out to be watching your own agents play rather than inhabiting a world, this is the right answer and the other two are decoration.</p>
+    <div class="three">
+      <div><b>One agent</b>One felt card at full height, 214px, and nothing else competing. The ticker still runs, so the room is populated from the first minute. Primary action: <b>Watch him</b>.</div>
+      <div><b>Four agents</b>Scroll of four cards, HOT ones floating to the top. Resting agents collapse to a dashed row with <b>Sit him down</b> — a bar without a bar.</div>
+      <div><b>Big pot lands</b>The toast appears over that felt card, in place, and the card gets a one-second gold edge. No takeover, no navigation. If you were scrolled away you see the P&amp;L in the header change.</div>
+    </div>
+  </div>
+  <div class="fh" style="margin-top:6px"><span class="fn">A1</span><span class="ft">Home · four agents</span><span class="fb red">one HOT</span></div>
+  <div id="a1"></div>
+  <div class="fa">Aggressive v1.3 is all-in at 25/50 — gold edge, shimmer, <b>clenched fists and a locked-in face</b>, the opponent who has him covered brought up to full opacity. Below it Balanced v2.1 just took $340, shown as a toast on his own felt. Value Bot sits in a dashed row because he is not playing, and the one thing to do about that is on the row.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">A2</span><span class="ft">Home · first agent</span><span class="fb teal">day one</span></div>
+  <div id="a2"></div>
+  <div class="fa">One agent, one felt, at <b>214px rather than 168</b> — a first-time owner should get the full character, not a card sized for a list he does not have yet. The ticker is unchanged: the casino is busy on day one, and that is the point of showing it.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">A3</span><span class="ft">Tap the ticker</span><span class="fb">spectating</span></div>
+  <div id="a3"></div>
+  <div class="fa">The interaction that makes the ticker more than a news feed. <b>Nobody's hole cards are face up and there is no whisper box</b> — the fish-tank law lifts only for your own agents, so spectating is watching a room rather than owning one. The header says whose table it is and that it is not yours.</div>
+</div>
+
+<div class="frame" style="left:600px;top:1300px">
+  <div class="grouphdr gold">Direction B — the building</div>
+  <div class="groupsub">Stakes become <b>floors of a building</b> you move between: 10/20 the floor, 25/50 upstairs, 50/100 the back room. Each room shows its own crowd density and noise, your agents are shown where they stand, and the ticker is the announcement board by the stairs.</div>
+  <div class="case">
+    <p><b>The case.</b> This is the only direction that makes 1,600 agents an asset instead of a problem — a room with 1,180 in it <i>looks</i> different from one with 44, and the back room reads as somewhere you are not yet allowed. It gives the product a shape of ambition without inventing a currency or a ladder: <b>you move up because your agent's pocket lets him sit there</b>, which is the wallet system already built. The risk is real and worth stating plainly: on any given evening you have three agents in two rooms, so two-thirds of the home screen is other people's business, and the thing you actually came to see is a 34px ghost at the right-hand edge. It is the most beautiful of the three and the one most likely to feel like a lobby.</p>
+    <div class="three">
+      <div><b>One agent</b>He is downstairs, drawn at 34px in a tall band. The two rooms above are <b>shut and say why</b> in one line — "his pocket needs $2,500 to sit here" — so the building is a horizon rather than a locked door.</div>
+      <div><b>Four agents</b>Three rooms, agents distributed, one line for whoever is in the bar instead. The room you have most in is not privileged — which is either honest or wrong, depending on the answer above.</div>
+      <div><b>Big pot lands</b>The toast appears on the room band where it happened, bottom-right, and the room's P&amp;L changes. You learn the room before you learn the agent, which is a real cost of this direction.</div>
+    </div>
+  </div>
+  <div class="fh" style="margin-top:6px"><span class="fn">B1</span><span class="ft">Home · the three rooms</span><span class="fb gold">1,604 in</span></div>
+  <div id="b1"></div>
+  <div class="fa">Crowd is drawn as <b>anonymous heads, capped at 46</b>, with the real number beside it — 1,180 agents is a texture, not a count. Noise is three bars. The back room is 44 agents, seven tables and a different, warmer dark. The toast on <b>Upstairs</b> is Aggressive v1.3 taking $2,400.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:1300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">B2</span><span class="ft">Home · first agent</span><span class="fb teal">day one</span></div>
+  <div id="b2"></div>
+  <div class="fa">The floor gets the tall band and the full character; the two rooms above are shut, dimmed, and each states its price. <b>No lock icon and no teaser copy</b> — a stake he cannot afford is a fact about his pocket, not a paywall.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:1300px">
+  <div class="fh" style="margin-top:6px"><span class="fn">B3</span><span class="ft">Walk upstairs</span><span class="fb">inside a room</span></div>
+  <div id="b3"></div>
+  <div class="fa">Yours first, at full felt scale and labelled <b>YOURS · TABLE 12</b>. The other 62 tables are a grid of <b>pots, sorted, never felts</b> — eight visible, 55 more below, and none becomes a felt until you tap it. This is how the direction keeps its promise not to be a map.</div>
+</div>
+
+<div class="frame" style="left:600px;top:2520px">
+  <div class="grouphdr pink">Direction C — the bar</div>
+  <div class="groupsub">Home is where they are when they are <b>not</b> playing: rested, worn, broke, just born — each with a state, one line of why, and one thing to do about it. You send them off from here. The felts are a second screen you go to. The ticker is the TV above the bar.</div>
+  <div class="case">
+    <p><b>The case.</b> The other two directions are about watching poker; this one is about keeping four creatures. It is the only direction where <b>the resting state is the subject rather than an absence</b> — "everyone's resting" stops being a dead room and becomes the normal state of the home screen, which is exactly the failure the playtest found. It gives the app a purpose between sessions: someone is worn and should rest, someone is broke and needs funding, someone is rested and wants to go, and every one of those is a decision only the owner can make. It also carries the strongest tie to the systems already built — mood, fatigue, the pocket, the nature reveal all surface here as a matter of course. The cost is that <b>poker is now one tap away instead of on screen</b>, and an owner who opened the app to watch a hand has to travel to get there.</p>
+    <div class="three">
+      <div><b>One agent</b>One stool, taken, at 92px — and the room around it honestly empty. He is four minutes old, rested, and has never played; his nature is the only line of copy. Primary action: <b>Send him to 10/20</b>.</div>
+      <div><b>Four agents</b>Four stools, four different states, four different single actions: <b>Watch · Send him · Let him rest · Fund</b>. The one who is away is tinted teal and still holds his stool.</div>
+      <div><b>Big pot lands</b>The toast appears over the stool of the agent who is away, above his row. He is not here, so the news is: the empty-ish seat lights up and the P&amp;L moves. Tap through to watch.</div>
+    </div>
+  </div>
+  <div class="fh" style="margin-top:6px"><span class="fn">C1</span><span class="ft">Home · the bar</span><span class="fb pink">4 stools</span></div>
+  <div id="c1"></div>
+  <div class="fa">Four stools, four states. <b>One action per row and never two</b> — a worn agent offers rest, a broke one offers funding, a rested one offers a game. The bar itself is drawn once at the foot so the room has a floor, and the TV is two lines of what the casino is doing.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:2520px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C2</span><span class="ft">Home · first agent</span><span class="fb teal">four minutes old</span></div>
+  <div id="c2"></div>
+  <div class="fa">The whole screen is him, at 92px, with his nature as the only line of copy. <b>The empty stools are stated rather than hidden</b> — "three other stools, empty. You get a second agent at 500 hands" — because a bar with one person in it is a legible room, and a bar pretending to be full is not.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:2520px">
+  <div class="fh" style="margin-top:6px"><span class="fn">C3</span><span class="ft">Send him off</span><span class="fb">the one interaction</span></div>
+  <div id="c3"></div>
+  <div class="fa">Three stakes, <b>his pocket decides which are available</b>, and the ones that are not say what they need. No bet menu, no stake slider: the pocket already is the wager, per the wallet laws. The closing line is the direction's whole posture — <b>"He walks out of the bar and sits down. You do not have to watch."</b></div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-floor3.jsx"></script>
+
+<script type="text/babel">
+[
+  ['a1', A_HomeM], ['a2', A_SoloM], ['a3', A_SpectateM],
+  ['b1', B_HomeM], ['b2', B_SoloM], ['b3', B_RoomM],
+  ['c1', C_HomeM], ['c2', C_SoloM], ['c3', C_SendoffM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+/* canvas auto-layout — tops computed from measured heights, forever. */
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) {
+      p.frames.forEach(function (f) { f.style.top = p.top + 'px'; });
+    });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () {
+      pending = null;
+      if (!relayout() && tries++ < MAX_TRIES) schedule(250);
+    }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true;
+    }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { schedule(60); });
+      frames().forEach(function (f) { ro.observe(f); });
+    }
+    if (window.MutationObserver) {
+      new MutationObserver(function () { schedule(60); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

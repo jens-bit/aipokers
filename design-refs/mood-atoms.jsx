@@ -58,9 +58,9 @@ const HAND_FILL = '#BDBDBD';
 const HAND_LINE = '#16191B';
 // authored extent: x −9→12.3 (thumb included), y 0→14.6. Origin = top centre.
 const HAND_BOX = 21.3;
-const handW = size => (size >= 72 ? 26 : 12);
+const handW = size => Math.max(9, Math.min(30, size * 0.275));
 const handScale = size => (handW(size) * (80 / size)) / HAND_BOX;
-const handStroke = size => (size >= 72 ? 3 : 1.5);
+const handStroke = size => (size >= 72 ? 3 : size >= 48 ? 2.2 : 1.5);
 
 // the whole drawing: a rounded fist, a small thumb bump, two knuckle strokes
 const Fist = ({ size = 96 }) => {
@@ -543,7 +543,7 @@ const TabBar = ({ active = 'chats' }) => {
 // ── LAW 1 · the global header. Right side is identical on every screen. ──
 const SpadeLogo = () => (
   <svg width="17" height="21" viewBox="0 0 22 26" style={{ display: 'block', flexShrink: 0 }}>
-    <path d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z" fill="none" stroke={M_TEAL} strokeWidth="1.6" strokeLinejoin="round"/>
+    <path d="M11 1.6 C11 1.6 2.2 9.4 2.2 15.6 C2.2 19 4.5 21.4 7.5 21.4 C8.9 21.4 10 20.9 10.7 20.1 C10.8 22.5 10 24.5 8 25.7 L14 25.7 C12 24.5 11.2 22.5 11.3 20.1 C12 20.9 13.1 21.4 14.5 21.4 C17.5 21.4 19.8 19 19.8 15.6 C19.8 9.4 11 1.6 11 1.6 Z" fill="none" stroke={M_TEAL} strokeWidth="1.6" strokeLinejoin="round"/>
     <path d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12" stroke={M_TEAL} strokeWidth="1.4" fill="none" strokeLinecap="round"/>
   </svg>
 );

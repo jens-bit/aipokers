@@ -21,9 +21,9 @@ import {
   SCOUT_STAGES,
   EVIDENCE_FIELD,
   EVIDENCE_FULL,
-  MAX_TICK_CHANCE,
+  MAX_SESSION_PROGRESS,
   growthProximity,
-  growthChance,
+  growthProgress,
   growthCause,
   scoutStageFor,
   narrowedBand,
@@ -382,14 +382,28 @@ console.log('\n' + GROWTH_BANNER);
     return true;
   })());
 
-  // Evidence gates the chance; no evidence is no chance, whatever the room.
-  check('no evidence, no tick', growthChance('READS', {}, 35, band) === 0);
-  check('evidence with no room, no tick', growthChance('READS', FULL, 88, band) === 0);
-  check('a full session below the band is at the ceiling chance',
-    near(growthChance('STAMINA', FULL, 35, band), MAX_TICK_CHANCE, 1e-9));
-  check('a fraction of the evidence is a fraction of the chance',
-    growthChance('READS', { readsFormed: 1 }, 35, band) < growthChance('READS', { readsFormed: 4 }, 35, band));
-  check('even a perfect session is never a certainty', MAX_TICK_CHANCE <= 0.5);
+  // AGENTS-2. Growth was a per-session coin flip (P(+1) = evidence x room,
+  // capped at 0.5), which moved an attribute 51 -> 52 after a single evening.
+  // A session now BUYS fractional progress instead of rolling for a point, so
+  // the checks below encode a rate where they used to encode a probability.
+  // The curve itself (growthProximity, above) is unchanged — only its scale.
+  //
+  // Evidence gates the progress; no evidence is no progress, whatever the room.
+  check('no evidence, no progress', growthProgress('READS', {}, 35, band) === 0);
+  check('evidence with no room, no progress', growthProgress('READS', FULL, 88, band) === 0);
+  check('a full session at full room is worth the full session rate',
+    near(growthProgress('STAMINA', FULL, 30, band), MAX_SESSION_PROGRESS, 1e-9));
+  check('a fraction of the evidence is a fraction of the progress',
+    growthProgress('READS', { readsFormed: 1 }, 35, band) < growthProgress('READS', { readsFormed: 4 }, 35, band));
+  check('a session is never a whole point on its own', MAX_SESSION_PROGRESS < 1);
+  check('at the start a point is about three full sessions',
+    Math.round(1 / growthProgress('STAMINA', FULL, 30, band)) === 3);
+  check('at the low edge of the band it is already far slower than three',
+    Math.ceil(1 / growthProgress('STAMINA', FULL, band.lo, band)) >= 8);
+  check('inside the top half it is a season',
+    Math.ceil(1 / growthProgress('STAMINA', FULL, 80, band)) >= 50);
+  check('the pace is deterministic — two identical sessions are worth the same',
+    growthProgress('READS', FULL, 35, band) === growthProgress('READS', FULL, 35, band));
   check('every key has an evidence field and a scale',
     ATTR_KEYS.every((k) => typeof EVIDENCE_FIELD[k] === 'string' && EVIDENCE_FULL[k] > 0));
   check('every key has a cause in his world',
@@ -407,33 +421,53 @@ console.log('\n' + GROWTH_BANNER);
     return a;
   };
 
-  const always = () => 0;      // every roll succeeds
-  const never = () => 1;       // every roll fails
+  // AGENTS-2: one session is never a point. It banks a fraction, silently, and
+  // the attrLog stays empty until a whole point actually ticks.
+  const oneEvening = mk({ READS: 35 });
+  const first = applySessionGrowth(oneEvening, { evidence: FULL, handsPlayed: 0, now: 1000 });
+  check('a single session never moves an attribute',
+    first.ticks.length === 0 && oneEvening.attrs.READS === 35);
+  check('a single session writes no attrLog line', oneEvening.attrLog.length === 0);
+  check('but the session is banked on the record',
+    ATTR_KEYS.every((k) => oneEvening.attrProgress[k] > 0 && oneEvening.attrProgress[k] < 1));
 
-  const grew = mk({ READS: 35 });
-  const res = applySessionGrowth(grew, { evidence: FULL, handsPlayed: 0, rand: always, now: 1000 });
+  // Three of them, at the start, are.
+  const grew = mk(Object.fromEntries(ATTR_KEYS.map((k) => [k, 30])));
+  let res = null;
+  for (let i = 0; i < 3; i++) {
+    res = applySessionGrowth(grew, { evidence: FULL, handsPlayed: 0, now: 1000 });
+  }
   check('a tick is exactly one point', res.ticks.every((t) => t.to - t.from === 1));
-  check('every attribute with evidence can tick', res.ticks.length === ATTR_KEYS.length);
-  check('the tick is written to the record', grew.attrs.READS === 36);
+  check('every attribute with evidence ticks on the third session',
+    res.ticks.length === ATTR_KEYS.length);
+  check('the tick is written to the record', grew.attrs.READS === 31);
   check('every tick is an attrLog entry with a cause',
     grew.attrLog.length === ATTR_KEYS.length &&
     grew.attrLog.every((e) => e.ts === 1000 && typeof e.cause === 'string' && e.cause.length > 12));
-  check('nothing grows when the dice say no',
-    applySessionGrowth(mk({ READS: 35 }), { evidence: FULL, rand: never }).ticks.length === 0);
+  check('the remainder carries — nothing earned is thrown away',
+    ATTR_KEYS.every((k) => grew.attrProgress[k] >= 0 && grew.attrProgress[k] < 1));
 
   // At the ceiling: never above hi, ever.
   const atCeiling = mk({ READS: 88 });
-  const ceilRes = applySessionGrowth(atCeiling, { evidence: FULL, rand: always });
+  const ceilRes = applySessionGrowth(atCeiling, { evidence: FULL });
   check('an attribute at hi never grows past it',
     atCeiling.attrs.READS === 88 && !ceilRes.ticks.some((t) => t.key === 'READS'));
+  check('an attribute at hi banks nothing either', atCeiling.attrProgress.READS === 0);
+
   const oneBelow = mk({ READS: 87 });
-  applySessionGrowth(oneBelow, { evidence: FULL, rand: always });
+  let toTheTop = 0;
+  while (oneBelow.attrs.READS < 88 && toTheTop < 5000) {
+    applySessionGrowth(oneBelow, { evidence: FULL });
+    toTheTop++;
+  }
   check('an attribute one below hi may reach hi exactly', oneBelow.attrs.READS === 88);
+  check('and the last point inside the band is a season, not an evening', toTheTop > 100);
 
   check('a session that never happened grows nothing', (() => {
     const idle = mk({ READS: 35 });
-    const r = applySessionGrowth(idle, { evidence: {}, rand: always });
-    return r.ticks.length === 0 && idle.attrs.READS === 35;
+    const r = applySessionGrowth(idle, { evidence: {} });
+    return r.ticks.length === 0 && idle.attrs.READS === 35 &&
+      ATTR_KEYS.every((k) => idle.attrProgress[k] === 0);
   })());
 
   console.log('\n' + NARROW_BANNER);
@@ -450,11 +484,11 @@ console.log('\n' + GROWTH_BANNER);
 
   const scout = mk({ READS: 35 });
   const before = { ...scout.potential.READS };
-  const r119 = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 119, rand: never });
+  const r119 = applySessionGrowth(scout, { evidence: {}, handsPlayed: 119 });
   check('nothing narrows before the first stage',
     r119.narrowed.length === 0 && scout.potential.READS.hi - scout.potential.READS.lo === 30);
 
-  const r120 = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 120, rand: never, now: 2000 });
+  const r120 = applySessionGrowth(scout, { evidence: {}, handsPlayed: 120, now: 2000 });
   check('the first stage narrows every key', r120.narrowed.length === ATTR_KEYS.length);
   check('the band closes to the stage width',
     scout.potential.READS.hi - scout.potential.READS.lo === 24);
@@ -467,13 +501,13 @@ console.log('\n' + GROWTH_BANNER);
   check('agent.narrowed carries the keys for the caret',
     Array.isArray(scout.narrowed) && scout.narrowed.length === ATTR_KEYS.length);
 
-  const rAgain = applySessionGrowth(scout, { evidence: FULL, handsPlayed: 130, rand: never });
+  const rAgain = applySessionGrowth(scout, { evidence: {}, handsPlayed: 130 });
   check('the same stage never narrows twice', rAgain.narrowed.length === 0);
   check('agent.narrowed is transient — cleared on the next session', scout.narrowed === null);
 
-  applySessionGrowth(scout, { evidence: FULL, handsPlayed: 500, rand: never });
+  applySessionGrowth(scout, { evidence: {}, handsPlayed: 500 });
   check('the second stage closes it to 8', scout.potential.READS.hi - scout.potential.READS.lo === 8);
-  applySessionGrowth(scout, { evidence: FULL, handsPlayed: 2000, rand: never });
+  applySessionGrowth(scout, { evidence: {}, handsPlayed: 2000 });
   check('the last stage closes it to 2', scout.potential.READS.hi - scout.potential.READS.lo === 2);
   check('the band is nearly a number, and inside the original',
     scout.potential.READS.lo >= before.lo && scout.potential.READS.hi <= before.hi);
@@ -483,7 +517,7 @@ console.log('\n' + GROWTH_BANNER);
       const a = mk({}, band, { id: `agent_${seed}` });
       let prev = ATTR_KEYS.map((k) => ({ ...a.potential[k] }));
       for (const hands of [120, 500, 2000]) {
-        applySessionGrowth(a, { evidence: FULL, handsPlayed: hands, rand: never });
+        applySessionGrowth(a, { evidence: {}, handsPlayed: hands });
         const now = ATTR_KEYS.map((k) => ({ ...a.potential[k] }));
         for (let i = 0; i < ATTR_KEYS.length; i++) {
           if (now[i].lo < prev[i].lo || now[i].hi > prev[i].hi) return false;
@@ -512,17 +546,15 @@ console.log('\n' + GROWTH_BANNER);
     const a = mk({ READS: 35 }, band, { nature: { name: 'Rock', up: 'DISCIPLINE', down: 'READS' } });
     const natureBefore = JSON.stringify(a.nature);
     const birthBefore = JSON.stringify(a.potentialBirth);
-    applySessionGrowth(a, { evidence: FULL, handsPlayed: 2000, rand: always });
+    for (let i = 0; i < 4; i++) applySessionGrowth(a, { evidence: FULL, handsPlayed: 2000 });
     return JSON.stringify(a.nature) === natureBefore && JSON.stringify(a.potentialBirth) === birthBefore;
   })());
 
   check('nothing ever regresses across a long career', (() => {
     const a = mk({}, band, { id: 'agent_career' });
     let prev = ATTR_KEYS.map((k) => a.attrs[k]);
-    let r = 7;
-    const lcg = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
     for (let session = 1; session <= 60; session++) {
-      applySessionGrowth(a, { evidence: FULL, handsPlayed: session * 40, rand: lcg });
+      applySessionGrowth(a, { evidence: FULL, handsPlayed: session * 40 });
       const now = ATTR_KEYS.map((k) => a.attrs[k]);
       for (let i = 0; i < now.length; i++) {
         if (now[i] < prev[i]) return false;

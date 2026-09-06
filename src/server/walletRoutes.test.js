@@ -1,4 +1,4 @@
-// src/server/walletRoutes.test.js — WALLET-5
+// src/server/walletRoutes.test.js — WALLET-5, WALLET-7
 //
 // The two money routes, over a real server, against the two playtest bugs that
 // were about the SERVER and not the drawing:
@@ -10,6 +10,11 @@
 //   #2  "Cut him off" must persist AND reach the table he is sitting at. The
 //       funding sheet promises "he finishes the hand he is in and takes a seat
 //       at the bar"; until now the promise was decoration.
+//
+// WALLET-7 turned that second one into "call him in" — the same promise plus
+// the money: everything in the pocket comes home, and the chips still in front
+// of him follow when the session pays them back. The verbs the client speaks
+// are mapped to the stored modes here, at the route, so nothing is migrated.
 //
 // This lives beside wallet.test.js rather than inside it because agentProfiles
 // caches the whole agent store in a module-level `store` on first read. Only
@@ -108,6 +113,19 @@ test('WALLET-5: the fund route', async (t) => {
             bankroll: 2_000,
             pocket: { balance: 2_000, mode: 'auto', cap: 2_000, realised: 0, ledger: [] },
           },
+          // WALLET-7: the two verbs, on an agent of their own.
+          {
+            id: 'giver', name: 'Given Chips', status: 'idle', activeTableId: null,
+            bankroll: 0,
+            pocket: { balance: 0, mode: 'topup', cap: null, realised: 0, ledger: [] },
+          },
+          // WALLET-7: called in while seated, and the table has since paid him
+          // back — this is the pocket the recall sweep exists for.
+          {
+            id: 'homer', name: 'On His Way Home', status: 'idle', activeTableId: null,
+            bankroll: 2_600,
+            pocket: { balance: 2_600, mode: 'cut', cap: null, realised: 0, recall: true, ledger: [] },
+          },
         ],
       });
 
@@ -127,22 +145,31 @@ test('WALLET-5: the fund route', async (t) => {
         assert.equal(body.pocket.pnl, 0);
       });
 
-      await t.test('cutting him off persists the mode', async () => {
+      // WALLET-7 — this asserted that cutting him off "costs him nothing", i.e.
+      // left the pocket exactly as it was. That was the old four-mode cut: a
+      // tag change. The verb is now "call him in", and calling a horse in means
+      // the money comes back with him — that is the whole difference between
+      // the two verbs and the four modes. He still loses nothing he cares
+      // about: attributes, read book and grudges all keep.
+      await t.test('calling him in brings the pocket home and persists the decision', async () => {
+        const before = await fetch(`${base}/api/wallet?userId=u1`).then((r) => r.json());
         const res = await postJson(`${base}/api/agents/cannon/fund?userId=u1`, {
-          userId: 'u1', mode: 'cut', amount: null, cap: null,
+          userId: 'u1', verb: 'callin', amount: null, cap: null,
         });
         const body = await res.json();
         assert.equal(res.status, 200, JSON.stringify(body));
 
         assert.equal(body.pocket.mode, 'cut');
-        assert.equal(body.pocket.balance, 4_000, 'cutting him off costs him nothing');
+        assert.equal(body.collected, 4_000, 'everything in the pocket came back');
+        assert.equal(body.pocket.balance, 0);
+        assert.equal(body.wallet.balance, before.balance + 4_000, 'and it landed in the wallet');
 
-        // The reported bug: reopening the sheet showed Allowance again. The
-        // mode has to survive the round trip the sheet actually makes.
+        // The reported bug this file was opened for: reopening the sheet showed
+        // Allowance again. The decision has to survive the round trip.
         const after = await fetch(`${base}/api/agents?userId=u1`).then((r) => r.json());
         const cannon = after.agents.find((a) => a.id === 'cannon');
         assert.equal(cannon.pocket.mode, 'cut');
-        assert.equal(cannon.pocket.balance, 4_000);
+        assert.equal(cannon.pocket.balance, 0);
       });
 
       await t.test('cutting him off benches his seat at the table he is at', async () => {
@@ -151,6 +178,67 @@ test('WALLET-5: the fund route', async (t) => {
         // he plays that hand out rather than folding out of it.
         assert.deepEqual([...table.benchedAfterHand], [0], 'his seat, and nobody else’s');
         assert.equal(table.foldedOut.size, 0, 'he finishes the hand he is in');
+      });
+
+      await t.test('WALLET-7: "give him chips" is an allowance, and the toggle makes it a refill', async () => {
+        const plain = await postJson(`${base}/api/agents/giver/fund?userId=u1`, {
+          userId: 'u1', verb: 'give', amount: 2_000, cap: 2_000, refill: false,
+        }).then((r) => r.json());
+        assert.equal(plain.moved, 2_000);
+        assert.equal(plain.pocket.mode, 'allowance', 'no refill is the allowance the store already knows');
+        assert.equal(plain.pocket.balance, 2_000);
+        assert.deepEqual(plain.pocket.stakes, { smallBlind: 10, bigBlind: 20, label: '$10/$20' });
+
+        const refilling = await postJson(`${base}/api/agents/giver/fund?userId=u1`, {
+          userId: 'u1', verb: 'give', amount: 3_000, cap: 5_000, refill: true,
+        }).then((r) => r.json());
+        assert.equal(refilling.pocket.mode, 'auto', 'the toggle is the whole of auto-refill');
+        assert.equal(refilling.pocket.cap, 5_000, 'and the cap is what it refills to');
+        assert.equal(refilling.pocket.balance, 5_000);
+      });
+
+      await t.test('WALLET-7: a pocket funded once with no winnings has nothing to collect', async () => {
+        // The symptom the tree is named after: under the old rule the $5,000
+        // above his float read as money to bring home, and Collect took the
+        // owner's own top-up straight back out of the pocket he had just filled.
+        const agents = await fetch(`${base}/api/agents?userId=u1`).then((r) => r.json());
+        const giver = agents.agents.find((a) => a.id === 'giver');
+        assert.equal(giver.pocket.pnl, 0);
+        assert.equal(giver.pocket.collectable, 0, 'the row draws no Collect from this');
+
+        const refused = await postJson(`${base}/api/agents/giver/collect?userId=u1`, { userId: 'u1' });
+        assert.equal(refused.status, 400);
+        assert.match((await refused.json()).error, /nothing to collect/);
+      });
+
+      await t.test('WALLET-7: and calling that same pocket in works', async () => {
+        const res = await postJson(`${base}/api/agents/giver/fund?userId=u1`, {
+          userId: 'u1', verb: 'callin',
+        });
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.collected, 5_000, 'all of it, principal included — he is done');
+        assert.equal(body.pocket.balance, 0);
+        assert.equal(body.pocket.mode, 'cut');
+      });
+
+      await t.test('WALLET-7: chips still at the table come home on the next look at the wallet', async () => {
+        // `homer` was called in while seated and the session has since paid him
+        // back into his pocket. Reading the wallet is what sweeps it: the owner
+        // took the decision once and is not asked to collect a second time.
+        const w = await fetch(`${base}/api/wallet?userId=u1`).then((r) => r.json());
+        const swept = w.ledger.filter((e) => e.agentId === 'homer' && e.type === 'collect');
+        assert.equal(swept.length, 1, 'the sweep is a collect in the wallet ledger, like any other');
+        assert.equal(swept[0].amount, 2_600);
+
+        const agents = await fetch(`${base}/api/agents?userId=u1`).then((r) => r.json());
+        const homer = agents.agents.find((a) => a.id === 'homer');
+        assert.equal(homer.pocket.balance, 0, 'his pocket is empty because it is all in the wallet');
+
+        // And it happens exactly once, however often the screen is opened.
+        const again = await fetch(`${base}/api/wallet?userId=u1`).then((r) => r.json());
+        assert.equal(again.balance, w.balance);
+        assert.equal(again.ledger.filter((e) => e.agentId === 'homer' && e.type === 'collect').length, 1);
       });
 
       await t.test('funding him again lifts the cut and leaves the seat alone', async () => {

@@ -120,7 +120,7 @@ function SheetHeader({ title, onBack, action }) {
 // SHARE-1 puts a ghost Share beside the row, so the row itself is no longer
 // one button — a button inside a button is not a thing the DOM allows. The tap
 // target is unchanged: everything but the Share still opens the review.
-function HandListRow({ hand, agentName, agentMood, agentHeat, onClick }) {
+function HandListRow({ hand, agentId, agentName, agentMood, agentHeat, onClick }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
@@ -151,12 +151,12 @@ function HandListRow({ hand, agentName, agentMood, agentHeat, onClick }) {
           <path d="M9 18l6-6-6-6" />
         </svg>
       </button>
-      <ShareButton hand={hand} agentName={agentName} mood={agentMood} heat={agentHeat} />
+      <ShareButton hand={hand} agentId={agentId} agentName={agentName} mood={agentMood} heat={agentHeat} />
     </div>
   );
 }
 
-function ListView({ agentName, agentMood, agentHeat, hands, onSelect, onReplay, onBack }) {
+function ListView({ agentId, agentName, agentMood, agentHeat, hands, onSelect, onReplay, onBack }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 9,
@@ -180,6 +180,7 @@ function ListView({ agentName, agentMood, agentHeat, hands, onSelect, onReplay, 
               <HandListRow
                 key={`${hand.handNumber ?? i}-${hand.flagType}`}
                 hand={hand}
+                agentId={agentId}
                 agentName={agentName}
                 agentMood={agentMood}
                 agentHeat={agentHeat}
@@ -608,6 +609,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
       <div className="watch-sheet-overlay">
         <ReplayTheatre
           hand={{ ...replayHand, agentName }}
+          agentId={agent?.id}
           onBack={() => setReplayHand(null)}
           onOpenHand={() => { setSelectedHand(replayHand); setReplayHand(null); }}
         />
@@ -630,6 +632,7 @@ export function FlaggedHandsSheet({ agent, onBack }) {
 
   return (
     <ListView
+      agentId={agent?.id}
       agentName={agentName}
       agentMood={agentMood}
       agentHeat={agentHeat}

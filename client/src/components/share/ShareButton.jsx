@@ -76,7 +76,7 @@ function ActionButton({ children, onClick, primary, disabled }) {
  * The sheet. Exported for tests and for anywhere that wants the preview
  * without the button in front of it.
  */
-export function ShareSheet({ model, onClose }) {
+export function ShareSheet({ model, agentId = null, onClose }) {
   const ghostRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null);
@@ -87,9 +87,10 @@ export function ShareSheet({ model, onClose }) {
     try {
       const png = await renderSharePng(model, { ghostNode: ghostRef.current?.querySelector('svg') ?? null });
       const via = share
-        ? await shareHand({ model, png })
+        ? await shareHand({ model, png, agentId })
         // "Save image" is the same last route the share falls back to, asked
-        // for on purpose rather than arrived at.
+        // for on purpose rather than arrived at. No agentId: it must not spend
+        // a prepare on the server for a file that is going to a folder.
         : await shareHand({ model, png, webApp: null, nav: pickerlessNav() });
       setOutcome(OUTCOME[via] ?? OUTCOME.none);
     } catch {
@@ -97,7 +98,7 @@ export function ShareSheet({ model, onClose }) {
     } finally {
       setBusy(false);
     }
-  }, [model]);
+  }, [model, agentId]);
 
   return (
     <div
@@ -154,10 +155,14 @@ function pickerlessNav() {
 }
 
 /**
- * @param {{ hand: object, agentName?: string, mood?: string, heat?: number, label?: string,
- *           style?: object }} props
+ * `agentId` is what makes route 2 reachable: /api/share/prepare is owner-gated
+ * and looks the hand up inside that agent's session, so without it the share
+ * falls through to the chat picker. Every caller has it — pass it.
+ *
+ * @param {{ hand: object, agentId?: string, agentName?: string, mood?: string,
+ *           heat?: number, label?: string, style?: object }} props
  */
-export function ShareButton({ hand, agentName, mood, heat, label = 'Share', style }) {
+export function ShareButton({ hand, agentId, agentName, mood, heat, label = 'Share', style }) {
   const [open, setOpen] = useState(false);
   if (!hand) return null;
 
@@ -172,6 +177,7 @@ export function ShareButton({ hand, agentName, mood, heat, label = 'Share', styl
       {open && (
         <ShareSheet
           model={buildShareModel(hand, { agentName, mood, heat })}
+          agentId={agentId ?? hand?.agentId ?? null}
           onClose={() => setOpen(false)}
         />
       )}

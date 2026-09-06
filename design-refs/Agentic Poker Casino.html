@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Agentic Poker · Casino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes shimmer{0%,100%{opacity:.25}50%{opacity:.6}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(10px,-6px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fb.pink{color:#E48FB0;border-color:rgba(228,143,176,.35);background:rgba(228,143,176,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:22px;flex-shrink:0;padding-top:2px;color:#00D4AA}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1180px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Wave 46 · direction B, chosen</div>
+    <h1>A place you<br/>walk into.</h1>
+    <p>The casino is <b>the building</b>: rooms by stakes, seen through their doorways. It is where poker happens and the only place you deploy — pick the agent, pick the room, his pocket has to cover the buy-in, <b>Deal him in</b>.</p>
+    <p>The three-direction exploration is in <code>archive/</code> as the decision record. A won and B won different jobs, so both are here: <b>Home took A and C's subject</b> (your agents, and the room they live in), <b>Casino took B's</b> (the building, and the 1,600 strangers in it).</p>
+
+    <div class="lbl">How 1,600 agents exist without being drawn</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Crowd is a texture, not a count.</b> Population maps to a capped field of faceless ghosts on a perspective floor — smaller and dimmer toward the back — with the real number beside it for anyone who wants the truth. A room with 1,180 in it looks different from one with 44.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>Felts are ellipses on that floor</b>, receding. You cannot count seats at one and you are not meant to — a felt becomes a felt when you tap it.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Yours stand in the doorway at character scale</b>, with their name and P&amp;L. Everything else in the room is 9–17px. Finding your own agent is never a search.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>A room he cannot afford is shut and says the price</b> — "his pocket needs $5,000 to sit here". A fact about his pocket, never a paywall, and never a lock icon.</span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>HOT is the only thing that asks for you now.</b> A felt with a big showdown building glows, shimmers, and offers one action: watch him.</span></div>
+
+    <div class="lbl">The crowd ghost</div>
+    <p style="margin-bottom:0">The crowd is <b>not</b> the mood ghost at a small size — at 12px a face system is an expensive smudge, and forty of them is a frame budget. It is the same silhouette with three drawing operations and no face, which is all a crowd needs to be. The characters keep the full anatomy; the strangers get the shape.</p>
+  </div>
+</div>
+
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr gold">The building</div>
+  <div class="groupsub">Three rooms, three doorways, one deploy tray. The board by the stairs carries what the rest of the casino is doing — biggest pot, cooler, heater, bust, and the one line that is about you: <b>a nemesis sitting down at your table</b>.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">K1</span><span class="ft">Arriving with an agent</span><span class="fb teal">from Home</span></div>
+  <div id="k1"></div>
+  <div class="fa">You came from Home with Value Bot, so <b>he is in the tray and not in a picker</b>. The tray states his pocket and the buy-in in the same line, which is the entire decision. The back room is shut and says what it needs. <b>No stake slider anywhere</b> — the pocket already is the wager.</div>
+</div>
+
+<div class="frame" style="left:1060px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">K2</span><span class="ft">The board by the stairs</span><span class="fb gold">5 lines</span></div>
+  <div id="k2"></div>
+  <div class="fa">All five lines, and the <b>stairs drawn as furniture</b> — the one element that says the building has floors. The nemesis line is gold because it is the only one that concerns your agent; the rest is the casino's business and reads as gossip you overhear.</div>
+</div>
+
+<div class="frame" style="left:1520px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">K3</span><span class="ft">A felt goes hot</span><span class="fb red">all-in upstairs</span></div>
+  <div id="k3"></div>
+  <div class="fa">The doorway grows to 176px, the centre felt glows gold and shimmers, and one row underneath states the pot and that <b>the runout is being held for you</b>. That hold is the spectator rule from wave 33 — the felt waits because somebody is watching, and only then.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-home.jsx"></script>
+<script type="text/babel" src="mood-floor3.jsx"></script>
+
+<script type="text/babel">
+[
+  ['k1', CasinoDeployM], ['k2', CasinoBoardM], ['k3', CasinoHotM],
+].forEach(([id, Comp]) => {
+  const el = document.getElementById(id);
+  if (el) ReactDOM.createRoot(el).render(<Comp/>);
+});
+</script>
+<script>
+(function () {
+  var GUTTER = 80, FIRST = 80, MIN_CONTENT = 40, tries = 0, MAX_TRIES = 40;
+  function frames() { return [].slice.call(document.querySelectorAll('.frame')); }
+  function relayout() {
+    var all = frames();
+    if (!all.length) return false;
+    var fs = all.filter(function (f) {
+      if (!f.dataset.row) f.dataset.row = String(parseInt(f.style.top, 10) || 0);
+      return (parseInt(f.style.left, 10) || 0) >= 500;
+    });
+    if (!fs.length) return false;
+    var rows = fs.map(function (f) { return +f.dataset.row; })
+      .filter(function (v, i, a) { return a.indexOf(v) === i; })
+      .sort(function (a, b) { return a - b; });
+    var plan = [], y = FIRST;
+    for (var r = 0; r < rows.length; r++) {
+      var inRow = fs.filter(function (f) { return +f.dataset.row === rows[r]; });
+      var max = MIN_CONTENT;
+      inRow.forEach(function (f) {
+        var best = Math.max(f.offsetHeight, parseFloat(f.dataset.h || '0') || 0);
+        f.dataset.h = String(best);
+        max = Math.max(max, best);
+      });
+      plan.push({ frames: inRow, top: y });
+      y += Math.ceil(max) + GUTTER;
+    }
+    plan.forEach(function (p) { p.frames.forEach(function (f) { f.style.top = p.top + 'px'; }); });
+    return true;
+  }
+  var pending = null;
+  function schedule(delay) {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(function () { pending = null; if (!relayout() && tries++ < MAX_TRIES) schedule(250); }, delay || 0);
+  }
+  function stale() {
+    var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
+    for (var i = 0; i < fs.length; i++) { if (fs[i].offsetHeight - parseFloat(fs[i].dataset.h || '0') > 2) return true; }
+    return false;
+  }
+  function boot() {
+    schedule(0);
+    [120, 400, 900, 1800, 3200].forEach(function (d) { setTimeout(function () { schedule(0); }, d); });
+    setInterval(function () { if (stale()) schedule(0); }, 2000);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(0); });
+    if (window.ResizeObserver) { var ro = new ResizeObserver(function () { schedule(60); }); frames().forEach(function (f) { ro.observe(f); }); }
+    if (window.MutationObserver) { new MutationObserver(function () { schedule(60); }).observe(document.body, { childList: true, subtree: true }); }
+  }
+  if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);
+  window.__relayout = relayout;
+})();
+</script>
+
+</body>
+</html>

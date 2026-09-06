@@ -634,6 +634,12 @@ export function BirthScreen({ onBack, onBirth, agent }) {
     setTimeout(() => setBeat('card'), 2200);
   }
 
+  // AGENTS-2: four is the roster, and the way past it is to retire someone —
+  // never to delete him. The line says which action to take, in the recruiter's
+  // own register, because it is the recruiter who is turning the seat down.
+  const CAP_LINE = (cap) =>
+    `You already have ${cap || 4} agents. Retire one to make room, and I'll finish this one.`;
+
   async function send(content = draft) {
     const text = content.trim();
     if (!text || loading) return;
@@ -649,6 +655,13 @@ export function BirthScreen({ onBack, onBirth, agent }) {
         body: JSON.stringify({ userId, content: text, ...(isEdit ? { agentId: agent.id } : {}) }),
       });
       const data = await res.json();
+
+      // AGENTS-2: the roster is full. The draft is untouched on the server, so
+      // this is the whole message — make room and say "lets go" again.
+      if (res.status === 409 && data?.error === 'agentCap') {
+        setChat((prev) => [...prev, mkMsg('assistant', CAP_LINE(data.cap))]);
+        return;
+      }
 
       // Pick up the AI reply
       const allAi = (data.chat || []).filter((m) => m.role === 'assistant');

@@ -15,10 +15,18 @@ export const SOUNDS = {
   heating: { file: 'low-swell', ms: 400, note: 'once per hand' },
   allin: { file: 'heavy-hit', ms: 700, note: 'heavy hit + room hush' },
   runoutCard: { file: 'deal-tick-up', ms: 12, note: 'pitched up, during the hold' },
-  wonPot: { file: 'chips-sliding', ms: 700, note: 'no fanfare, no jingle' },
-  // Losing is quiet on purpose. A loss sound is the product telling the owner
-  // off, and there is no guilt in this design.
-  lostPot: null,
+  // WATCH-7: the hand end is the result toast, and the toast has a voice.
+  // Winning is a short chip CHING — one chip set down on a stack, not a
+  // cascade and not a jingle.
+  wonPot: { file: 'chip-ching', ms: 220, note: 'a short chip ching under the +$ toast' },
+  // W3-3 held that losing is silent, "because a loss sound is the product
+  // telling the owner off". The WATCH-7 playtest overrules it: with the WON/LOST
+  // ceremony gone from the hand end, a silent loss is not restraint, it is the
+  // screen failing to say anything happened. So a loss gets a LOW DESCENDING
+  // WOMP — 300ms, falling, no sting and no near-miss — and no guilt with it.
+  // It is a sound, not a verdict, and the toggle silences it like everything
+  // else here.
+  lostPot: { file: 'low-womp', ms: 300, note: 'a low descending womp under the −$ toast' },
   readForms: null,
   predictionRight: null,
   collectConfirmed: { file: 'soft-note', ms: 300, note: 'a transfer, not a jackpot' },

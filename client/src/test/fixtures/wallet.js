@@ -4,9 +4,15 @@
 // change there fails a client test rather than reaching a screen:
 //
 //   walletProjection  -> { balance, staked, session, playing:{live,total}, ledger[] }
-//   pocketProjection  -> { balance, mode, cap, have, capBar,
+//   pocketProjection  -> { balance, mode, cap, float, have, capBar,
 //                          stakes:{smallBlind,bigBlind,label}|null, broke,
 //                          collectable, funded, collected, pnl }
+//
+// WALLET-7: `collectable` is what a Collect would actually take — the WINNINGS
+// (pnl, while it is positive), or the whole pocket once he has been called in.
+// It used to be "everything above the float", which read a top-up as winnings.
+// `float` is the roll the refill toggle tops him back up to, and it is sent
+// rather than derived.
 //
 // The ladder is real chips, not the design sheet's dollars: the entry rung is
 // a 2,000 buy-in at $10/$20 (STAKES in src/server/wallet.js), and `broke`
@@ -56,10 +62,10 @@ export const balancedAgent = agent({
   presence: 'playing',
   activeTableId: 'tbl-1',
   pocket: {
-    balance: 6400, mode: 'auto', cap: 10000,
+    balance: 6400, mode: 'auto', cap: 10000, float: 10000,
     have: 6400, capBar: 10000,
     stakes: { smallBlind: 25, bigBlind: 50, label: '$25/$50' },
-    broke: false, collectable: 4400, funded: 6060, collected: 0, pnl: 340,
+    broke: false, collectable: 340, funded: 6060, collected: 0, pnl: 340,
   },
 });
 
@@ -71,10 +77,10 @@ export const aggressiveAgent = agent({
   presence: 'playing',
   activeTableId: 'tbl-1',
   pocket: {
-    balance: 2100, mode: 'allowance', cap: 5000,
+    balance: 2100, mode: 'allowance', cap: 5000, float: 5000,
     have: 2100, capBar: 5000,
     stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
-    broke: false, collectable: 100, funded: 2190, collected: 0, pnl: -90,
+    broke: false, collectable: 0, funded: 2190, collected: 0, pnl: -90,
   },
 });
 
@@ -85,10 +91,10 @@ export const bluffAgent = agent({
   mood: { state: 'confident', cause: null, updatedAt: null },
   unseenRecap: true,
   pocket: {
-    balance: 3000, mode: 'topup', cap: 3000,
+    balance: 3000, mode: 'topup', cap: 3000, float: 2000,
     have: 3000, capBar: 3000,
     stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
-    broke: false, collectable: 1000, funded: 2764, collected: 0, pnl: 236,
+    broke: false, collectable: 236, funded: 2764, collected: 0, pnl: 236,
   },
 });
 
@@ -98,14 +104,14 @@ export const brokeAgent = agent({
   name: 'Value Bot',
   mood: { state: 'sulking', cause: 'pocket empty', updatedAt: null },
   pocket: {
-    balance: 0, mode: 'cut', cap: null,
+    balance: 0, mode: 'cut', cap: null, float: 2000,
     have: 0, capBar: 2000,
     stakes: null,
     broke: true, collectable: 0, funded: 0, collected: 0, pnl: 0,
   },
 });
 
-// WALLET-5 · cut off mid-session: still at a table, still holding a roll, and
+// WALLET-5 · called in mid-session: still at a table, still holding a roll, and
 // nothing lost. Deliberately not in `pocketAgents` — the four above are the
 // design ref's own cast and the row-count assertions read them.
 export const cutPlayingAgent = agent({
@@ -115,24 +121,26 @@ export const cutPlayingAgent = agent({
   activeTableId: 'tbl-1',
   mood: { state: 'confident', cause: null, updatedAt: null },
   pocket: {
-    balance: 4000, mode: 'cut', cap: null,
+    balance: 4000, mode: 'cut', cap: null, float: 2000,
     have: 4000, capBar: 5000,
     stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
-    broke: false, collectable: 2000, funded: 4000, collected: 0, pnl: 0,
+    // Called in: all of it is the owner's to take back, winnings or not.
+    broke: false, collectable: 4000, funded: 4000, collected: 0, pnl: 0,
   },
 });
 
-// WALLET-5 · the reported shape: seeded on auto at a 2,000 cap, then topped up
-// to 4,000. He has won nothing, so 2,000 of it reads as "above the float"
-// without being winnings — the row must still offer Fund.
+// WALLET-5/7 · the reported shape: seeded on auto at a 2,000 cap, then given
+// 4,000. He has won nothing, so under the old rule 2,000 of it read as "above
+// the float" and the row offered to collect the owner's own top-up. The server
+// now says collectable: 0, and the row offers no Collect at all.
 export const toppedUpAgent = agent({
   id: 'agent_topped',
   name: 'Topped Up',
   pocket: {
-    balance: 4000, mode: 'auto', cap: 2000,
+    balance: 4000, mode: 'auto', cap: 2000, float: 2000,
     have: 4000, capBar: 2000,
     stakes: { smallBlind: 10, bigBlind: 20, label: '$10/$20' },
-    broke: false, collectable: 2000, funded: 4000, collected: 0, pnl: 0,
+    broke: false, collectable: 0, funded: 4000, collected: 0, pnl: 0,
   },
 });
 
@@ -151,10 +159,24 @@ export const shortAgent = agent({
   name: 'Short Stack',
   mood: { state: 'frustrated', cause: null, updatedAt: null },
   pocket: {
-    balance: 900, mode: 'allowance', cap: 5000,
+    balance: 900, mode: 'allowance', cap: 5000, float: 5000,
     have: 900, capBar: 5000,
     stakes: null,
     broke: true, collectable: 0, funded: 5000, collected: 0, pnl: -4100,
+  },
+});
+
+// WALLET-7 · seated and up: the row that carries all three actions at once.
+export const upAndSeatedAgent = agent({
+  id: 'agent_up',
+  name: 'Up And Seated',
+  presence: 'playing',
+  activeTableId: 'tbl-1',
+  pocket: {
+    balance: 5400, mode: 'auto', cap: 3000, float: 3000,
+    have: 5400, capBar: 3000,
+    stakes: { smallBlind: 25, bigBlind: 50, label: '$25/$50' },
+    broke: false, collectable: 2400, funded: 3000, collected: 0, pnl: 2400,
   },
 });
 
