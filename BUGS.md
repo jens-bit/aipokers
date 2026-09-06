@@ -1,10 +1,20 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (WATCH-9) — 5 open, 27 resolved
+Last updated: 2026-09-06 (SERVER-5) — 6 open, 27 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-34 — `verify-watch-v2.js` flakes on "and so did HIS reasoning" (~1 run in 3)
+**Severity:** Medium (a red e2e run that means nothing — the exact thing TEST-2 exists to prevent)
+**Where:** scripts/verify-watch-v2.js:595, in the WATCH-9 pushed-thread block
+**What:** The check asserts that at least one THREAD_LINE pushed to the watcher during the watched hands has `kind: 'him'` — his own reasoning. A `him` line is only written when a DECISION carries a non-empty `reasoning` string (table.js `_broadcastDecision`), and with no ANTHROPIC_API_KEY the decisions come from the compiled policy. Whether the hero is faced, inside that one watch window, with a spot that produces reasoning depends on the deck. When he is not, the run collects only `["table"]` or `["table","opponent"]` and the whole e2e suite goes red.
+**Found by:** SERVER-5, on a `npm run test:all` that failed once and then passed six times. Measured rather than guessed: 1 failure in 3 runs on `feature/server-5`, and **2 failures in 4 runs on `origin/main` (379f453) in a clean worktree** — so it predates the branch and is not caused by it.
+**Not to be fixed by loosening the assertion.** The rule it encodes is right and WATCH-9 put it there deliberately: the owner's spectator is entitled to his reasoning, and a push channel that never carries it is broken. Testing law 5 applies.
+**Fix:** make the WINDOW deterministic rather than the assertion weaker — play the watched stretch until a `him` line arrives or a bounded number of hands have gone by, and fail on the bound. The script already polls for hands elsewhere; this check should wait on the same kind of condition instead of sampling whatever happened to be in `seen` at that instant.
+
+---
 
 ### BUG-33 — `ServerMsg.PACE` does not exist on the client, so the staged runout is dropped
 **Severity:** Medium (a beat PACE-1 built and shipped, dead on every client)
