@@ -64,9 +64,11 @@ describe('F-4: one primary action per screen, naming the next one', () => {
     render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
     await userEvent.click(await screen.findByRole('button', { name: /aggressive bluffer/i }));
 
-    // The band's control runs onBack. It said "Deal me in" while the card below
-    // said "Deal him in", and the two did opposite things.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument());
+    // The exit runs onBack. It said "Deal me in" while the card below said
+    // "Deal him in", and the two did opposite things. DRAFT-2 collapsed the old
+    // header's Back and the band's Skip into the one exit wave 56's frame has;
+    // the rule — the exit never dresses as the primary action — is unchanged.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /deal me in/i })).toBeNull();
   });
 
@@ -76,7 +78,7 @@ describe('F-4: one primary action per screen, naming the next one', () => {
     render(<BirthScreen onBack={onBack} onBirth={() => {}} />);
     await userEvent.click(await screen.findByRole('button', { name: /aggressive bluffer/i }));
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Skip' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalled();
   });
 

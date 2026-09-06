@@ -538,6 +538,11 @@ export function HomeScreen({
           : () => onProfile?.(studying)
       ) : undefined}
       tvLabel={studying ? `${studying.name} is watching a hand back` : null}
+      // DRAFT-2: the wave-53 law makes the door the way to the casino ("CASINO
+      // is the door"), and the ref hangs the tag over it on every HOME frame
+      // (design-refs/mood-nav.jsx `navRoom`). It is a label, not a control — the
+      // door itself is still furniture, exactly as it was.
+      doorTag="THE CASINO →"
     >
       <AwayWall
         away={away}

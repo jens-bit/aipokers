@@ -86,13 +86,18 @@ describe('FIX-2a header density', () => {
     expect(header.style.borderBottom).toBe('');
   });
 
-  it('FIX-2a: the draft status strip matches the ww-ref band height', async () => {
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    const band = rowOf(await screen.findByRole('button', { name: 'Skip' }));
-
-    expect(band.style.padding).toBe('9px 14px 8px');
-    expect(rowHeight(band)).toBe(REF_BAND_H);
-  });
+  // RETIRED BY DRAFT-2, not weakened. These two cases pinned the geometry of the
+  // DraftBand — the 56px status strip with the forming chip and the Skip button
+  // — and of the 96px of chrome it made with the header above it. Board 29's
+  // wave-56 frames F02/F03 delete that band outright: the draft is now the glass
+  // sheet over the room, and the thing that reports how formed he is is HIM,
+  // forming in the band above the sheet, rather than a strip of furniture
+  // reporting on him. There is no band left to measure, so a test that measures
+  // one cannot be made honest by loosening it.
+  //
+  // What replaces them is in components/draft/DraftSheet.test.jsx and
+  // screens/draftGlass.test.jsx: the sheet leaves the room's upper band alone,
+  // and the header is still the one 40px row the case below pins.
 
   // CHAT-2 supersedes FIX-2a for this one screen. The thread had a 40px
   // GlobalHeader AND a 56px MoodBand, and the band existed to carry DEPLOY and
@@ -144,13 +149,6 @@ describe('FIX-2a header density', () => {
     expect(rowHeight(header)).toBeLessThan(REF_HEADER_H + REF_BAND_H);
   });
 
-  it('FIX-2a: the chrome above the draft feed is 96px, not 104px', async () => {
-    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
-    const header = rowOf(await screen.findByRole('button', { name: 'Back' }));
-    const band = rowOf(await screen.findByRole('button', { name: 'Skip' }));
-
-    expect(rowHeight(header) + rowHeight(band)).toBe(REF_HEADER_H + REF_BAND_H);
-  });
 });
 
 // FIX-4 (playtest 2026-09-05): "the watch header is still too fat — it should
