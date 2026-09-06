@@ -70,6 +70,19 @@ function createTelegram() {
       return listeners.get(name)?.size ?? 0;
     },
 
+    // DEEPLINK-1 — the start param a launch carries. Telegram exposes it on
+    // initDataUnsafe, so that is where it goes.
+    startWith(param) {
+      webApp.initDataUnsafe = { ...webApp.initDataUnsafe, start_param: param };
+      return webApp;
+    },
+
+    // Any SDK event, for the ones with no dedicated control above. `activated`
+    // is what fires when a deep link is tapped with the app already open.
+    emit(name, payload = {}) {
+      for (const fn of listeners.get(name) ?? []) fn(payload);
+    },
+
     reset() {
       listeners.clear();
       webApp.initData = '';
