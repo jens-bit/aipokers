@@ -1,98 +1,63 @@
-# Agentic Poker — file map
+# Agentic Poker — design boards
 
-Boards are numbered by **layer, then platform**, so the page list sorts into the
-order you'd read them in. Everything at the root is current; `archive/` is
-superseded.
+A Tamagotchi-skinned poker manager in Telegram. You draft an agent in conversation,
+he plays hands without you, and you live with who he turns out to be.
+
+Boards are numbered by layer, not by date. Open the highest number in a family for
+the current thinking; earlier boards in the same family are kept because their
+captions carry decisions the later ones assume.
 
 ## Boards
 
-| | Board | What it settles |
+| # | Board | What it holds |
 |---|---|---|
-| 01 | Foundations · Design System | Tokens, atoms, the anatomy sheets, the state matrix |
-| 02 | Foundations · Faces | 5 states × 3 heat tiers, 6 event expressions, 4 sizes |
-| 10 | System · Character | Attributes, natures, potential, growth & fatigue (S0–S7) |
-| 11 | System · Biography | Nemesis / rival / favourite victim, the grudge ledger |
-| 20 | Mobile · Mood and Casino | The main canvas — thread, birth, profile, snacks, zooms |
-| 21 | Mobile · Watch & Wallet | Pacing states, the rope, owner wallet and agent pockets |
-| 22 | Mobile · Watch v4b | Bubbles, seated opponents, the read sheet, the TABLE tab |
-| 23 | Mobile · Forward Motion | The draft→birth→floor→watch chain, floor v2 |
-| 24 | Mobile · First Five Minutes | The complete first-run path and every empty state |
-| 25 | Mobile · Notifications | The ladder, the budget board, the violations board |
-| 26 | Mobile · Watch v5 | Seated hero, the fist system, seat anatomy, table sizes |
-| 27 | Mobile · Casino | The building — rooms by stakes, the crowd, deploy, HOT |
-| 29 | Mobile · Home | Where the agents live; the thread as a sheet |
-| 30 | Desktop · Command Center | The 1440 shell — stage, rail, roster |
-| 31 | Desktop · Parity | The audit, the missing states, one desktop matrix |
-| 40 | Marketing · Landing | The public page |
+| 01 | Foundations · Design System | Tokens, type, MoodBand, GhostChip, anatomy sheets |
+| 02 | Foundations · Faces | The ghost, its moods, hands and postures |
+| 10 | System · Character | S0–S6: six attributes, natures, current vs potential, growth, fatigue |
+| 11 | System · Biography | Nemesis, rival, favourite victim, the grudge ledger |
+| 20 | Mobile · Mood and Casino | The mood suite and the original casino floor |
+| 21 | Mobile · Watch & Wallet | Watch v3, replay theatre, owner wallet and agent pockets |
+| 22 | Mobile · Watch v4b | Deal beat, seated opponents, the voice feed |
+| 23 | Mobile · Forward Motion | Draft → birth → floor → watch, one primary action per screen |
+| 24 | Mobile · First Five Minutes | The whole first run, every empty state a room that breathes |
+| 25 | Mobile · Notifications | The notification kit and its budget laws |
+| 26 | Mobile · Watch v5 | Current watch screen |
+| 27 | Mobile · Casino | Current casino floor |
+| 29 | Mobile · Home | **Current.** The flat: the home game, the away wall, routines, the safe, the fridge, four chairs |
+| 30 | Desktop · Command Center | The desktop product |
+| 31 | Desktop · Parity | Desktop versions of everything mobile drew first, including home |
+| 40 | Marketing · Landing | "How it plays" in plain language |
 
-## Component layer
+## Laws that bind every board
 
-Boards load plain `.jsx` files from the root by `<script type="text/babel" src>`.
-They are **not** modules — each defines globals and exports them via
-`Object.assign(window, {...})`, so **load order matters** and every board lists
-its own dependencies.
+- **Fish-tank law** — his own hole cards face up, everyone else's face down.
+- **Mood law** — every mood effect is visible, bounded, and counterable through play.
+- **Character laws** — no purchase path for attributes, ever; attributes never gate
+  whether he can play; the ceiling is never a number on a bar (only inside a tapped
+  bar, once, in gold); every cost line is *his* misjudgment, never the app's;
+  biography touches voice, table talk and mood only.
+- **Density** — a panel is a picture, not a paragraph. Long voice lives in the
+  thread; the felt gets one line of twelve words or fewer.
+- **The room shows, it doesn't label** (wave 52) — what an agent is doing is visible,
+  so it is not written. His name sits in a pill above his head with his two resource
+  bars inside it, and nothing sits under his feet.
+- **The owner never plays the hand**, and never looks like he does. No guilt anywhere.
 
-| Prefix | Holds |
-|---|---|
-| `icons` `cards` `header` `ios-frame` | Primitives shared by everything |
-| `mood-atoms` | Tokens, `MoodGhost` + the face system, `MoodBand`, `LiveBar`, shells |
-| `mood-screens-a…f` | Mobile screen sets (thread, watch, floor, hand review) |
-| `mood-casino` `mood-casino2` | The floor: layouts, dioramas, occupants; v2 adds heat/walk-in |
-| `mood-watch` `-2` `-3` `-4` `-4b` `-4c` `-5` | Watch v1 → v5 |
-| `mood-hands` | The hand reference sheet (geometry lives in `mood-atoms`) |
-| `mood-home` | HOME — the room, the agents in it, `Nav3` (HOME · CASINO · YOU) |
-| `mood-floor3` | CASINO — doorways, crowd field, deploy tray; plus the floor-v3 exploration parts |
-| `mood-replay` `mood-notify` `mood-ww-ref` | Replay theatre, notifications, the watch/wallet matrix |
-| `mood-desktop` `-2` `-3` | The desktop shell and its screen sets |
-| `mood-desk-parity` `-parity2` | The wave-39 audit, heat, and the missing desktop states |
-| `mood-birth` `-2` `-3` | The draft and birth flow |
-| `mood-flow2` `mood-ftu2` | Forward motion, and the first-run path |
-| `mood-wallet` `mood-snack` | Money, and the only item |
-| `mood-heat` `mood-relate` `mood-share` | Heat, wants + the ledger, the share card |
-| `mood-faces` | The faces reference sheet (geometry lives in `mood-atoms`) |
-| `char-*` | The character system: attributes, profile v2, birth, biography |
-| `mood-system` `mood-system2` | The design-system sheets |
-| `mood-landing` | The landing page sections |
+## Component files
 
-Nothing outside `archive/` is dead: every `.jsx` at the root is loaded by at least
-one board. The pre-mood prototype layer (`table`, `analysis`, `home`, `play`,
-`profile`, `desktop-home*`, `desktop-spectate*` and the rest) now lives in
-`archive/` beside the boards that load it.
+Shared atoms first, then one file per wave. Every board loads the chain it needs, so
+a file is rarely owned by a single board.
 
-## Wave 46 · the split
+- `mood-atoms.jsx`, `mood-faces.jsx`, `mood-hands.jsx`, `cards.jsx`, `icons.jsx`,
+  `header.jsx`, `ios-frame.jsx` — the shared layer.
+- `char-*.jsx` — the character system. **Locked**: the attribute primitives, the
+  profile card and the birth card are not edited by later waves.
+- `mood-home.jsx` / `mood-home2.jsx` / `mood-home-desk.jsx` — the flat: coordinate
+  space (`FLAT`, `STAND`, `TABLE_SEATS`), bodies, fixtures, sheets, and the desktop
+  room.
+- `mood-watch*.jsx`, `mood-wallet.jsx`, `mood-casino*.jsx`, `mood-birth*.jsx`,
+  `mood-flow*.jsx`, `mood-ftu2.jsx`, `mood-notify.jsx` — one family per system.
+- `mood-desktop*.jsx`, `mood-desk-parity*.jsx` — the desktop shell and its screens.
 
-Nav is **HOME · CASINO · YOU**. Chats is not a tab: a thread opens by tapping the
-agent it belongs to. `Nav3` in `mood-home.jsx` is the current nav — `TabBar` in
-`mood-atoms.jsx` is the four-tab legacy, left alone on boards 20–25 rather than
-churning fifteen boards' footers for a decision they predate.
-
-Retired in place on board 20: the floor screens (`f0 f1 f1b f1d f1c ftrio`) and
-the chats list (`s1`). Their components stay in `mood-casino.jsx` and
-`mood-screens-a.jsx` because later boards still cite them.
-
-## archive/
-
-| | Holds |
-|---|---|
-| `archive/*.html` | Superseded boards — the pre-mood prototype and the desktop v1–v3 line |
-| `archive/Floor v3 exploration (three directions).html` | The wave-45 board. A and C won Home's subject, B won Casino's — kept as the decision record |
-| `archive/*.jsx` | The component layer those boards load, plus a copy of the four primitives so they still render in place |
-| `archive/handoff-wave33/` | The wave-33 handoff snapshot. A frozen copy, never a source — edit the root files |
-
-## Naming rules, so this stays clean
-
-- **Boards** get `NN Layer · Name.html`. Numbers leave gaps (10, 11, 20, 21…) so a
-  new board slots in without renumbering.
-- **No `&` in filenames.** Two boards shipped with one and both broke tooling that
-  could not address the path; board 20 was renamed to `Mood and Casino` for this.
-  The `·` has the same problem for scripted edits — copy to a temp name, edit,
-  move back.
-- **Component files** keep their `mood-`/`char-` prefix and their suffix number.
-  Do not rename them: every board's `<script src>` list points at these paths.
-- **Superseded boards** move to `archive/` rather than being deleted, **with the
-  `.jsx` they load** — a board whose sources stay at the root is a board that
-  silently breaks the day those sources change under it.
-- **The live component layer stays flat at the root.** Board filenames contain a
-  `·`, which the file tooling cannot address, so moving sources into folders
-  would mean renaming all fifteen boards first. Worth doing if the layer grows
-  again; not worth it for 50 files with a documented prefix scheme.
+`archive/` holds superseded prototypes and their component files. Nothing in it is
+referenced by a numbered board.

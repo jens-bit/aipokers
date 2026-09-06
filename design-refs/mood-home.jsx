@@ -68,9 +68,9 @@ const FLAT = {
   wall:  { x: 10, y: 8,   w: 370, h: 78 },    // the frames hang here
   table: { cx: 208, cy: 268, rx: 86, ry: 52 }, // the kitchen table
   couch: { x: 8,  y: 330, w: 96,  h: 116 },
-  safe:  { x: 16,  y: 100, w: 60,  h: 50 },   // on the floor, under the wall of frames
-  fridge:{ x: 258, y: 96,  w: 54,  h: 86 },   // the kitchen wall, clear of the door
-  door:  { x: 330, y: 148, w: 52,  h: 104 },
+  safe:  { x: 16,  y: 94,  w: 60,  h: 50 },   // against the wall, under the frames
+  fridge:{ x: 250, y: 94,  w: 54,  h: 86 },   // the kitchen wall, beside the table
+  door:  { x: 356, y: 152, w: 34,  h: 112 },  // IN the right wall, not floating in the room
   tape:  { x: 244, y: F_H - 126, w: 132, h: 112 },   // the tape room, bottom band
 };
 // Anchor an element's edge to a fixture's edge. Returns absolute-position props, so
@@ -114,14 +114,15 @@ const HomeFlat = ({ children, lit = true, tape }) => (
     {Array.from({ length: Math.ceil((F_H - 96) / 42) }).map((_, i) => (
       <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: 96 + i * 42, height: 1, background: 'rgba(255,255,255,0.028)' }}/>
     ))}
+    {/* the right wall, which the door is cut into */}
+    <div style={{ position: 'absolute', right: 0, top: FLAT.wall.y + FLAT.wall.h + 8, bottom: 0, width: 8, background: 'linear-gradient(90deg, rgba(0,0,0,0.25) 0%, #131A19 100%)', borderLeft: '1px solid rgba(255,255,255,0.05)' }}></div>
     {/* the wall the frames hang on */}
     <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: FLAT.wall.y + FLAT.wall.h + 8, background: 'linear-gradient(180deg, #101616 0%, #131A19 100%)', borderBottom: '1px solid rgba(255,255,255,0.055)' }}/>
     {/* THE SAFE: the wallet as furniture. Tap for the money sheet. */}
     <div style={{ position: 'absolute', left: FLAT.safe.x, top: FLAT.safe.y, width: FLAT.safe.w, height: FLAT.safe.h, borderRadius: 4, background: 'linear-gradient(160deg, #23211C 0%, #16150F 100%)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 6px 14px rgba(0,0,0,0.5)', cursor: 'pointer', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 4, borderRadius: 2, border: `1px solid ${M_GOLD}2E` }}></div>
       <div style={{ position: 'absolute', right: 7, top: '50%', marginTop: -5, width: 10, height: 10, borderRadius: '50%', border: `1.5px solid ${M_GOLD}88` }}></div>
-      <div style={{ position: 'absolute', left: 8, top: 9, fontFamily: OSWALD, fontSize: 6, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE SAFE</div>
-      <div style={{ position: 'absolute', left: 8, bottom: 8, fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: M_GOLD, letterSpacing: '-0.01em' }}>$54,000</div>
+      <div style={{ position: 'absolute', left: 8, top: '50%', marginTop: -7, fontFamily: MONO, fontSize: 11, fontWeight: 700, color: M_GOLD, letterSpacing: '-0.01em' }}>$54,000</div>
     </div>
     {/* THE FRIDGE: beer and snacks live here, bought from the wallet. Tap for stock. */}
     <div style={{ position: 'absolute', left: FLAT.fridge.x, top: FLAT.fridge.y, width: FLAT.fridge.w, height: FLAT.fridge.h, borderRadius: '3px 3px 4px 4px', background: 'linear-gradient(100deg, #1E2624 0%, #161D1C 62%, #1A2220 100%)', border: '1px solid rgba(255,255,255,0.11)', boxShadow: '0 6px 16px rgba(0,0,0,0.45)', cursor: 'pointer', overflow: 'hidden' }}>
@@ -142,9 +143,9 @@ const HomeFlat = ({ children, lit = true, tape }) => (
     {/* the kitchen table, from above */}
     <div style={{ position: 'absolute', left: FLAT.table.cx - FLAT.table.rx, top: FLAT.table.cy - FLAT.table.ry, width: FLAT.table.rx * 2, height: FLAT.table.ry * 2, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 22px rgba(0,0,0,0.45)' }}/>
     {/* the door, right wall */}
-    <div style={{ position: 'absolute', left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h, borderRadius: '3px 0 0 3px', background: 'linear-gradient(90deg, #1B1917 0%, #2A2622 100%)', border: '1px solid rgba(255,255,255,0.08)', borderRight: 'none' }}>
-      <div style={{ position: 'absolute', inset: 4, borderRadius: 2, background: `linear-gradient(90deg, transparent 40%, ${M_GOLD}1C 100%)` }}/>
-      <span style={{ position: 'absolute', left: 8, top: '50%', width: 4, height: 4, borderRadius: '50%', background: M_GOLD, opacity: 0.6 }}/>
+    <div style={{ position: 'absolute', left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h, background: 'linear-gradient(90deg, #14120F 0%, #241F1A 100%)', borderTop: '2px solid rgba(255,255,255,0.13)', borderBottom: '2px solid rgba(255,255,255,0.13)', borderLeft: '2px solid rgba(255,255,255,0.13)' }}>
+      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 30%, ${M_GOLD}22 100%)` }}/>
+      <span style={{ position: 'absolute', left: 6, top: '50%', width: 4, height: 4, borderRadius: '50%', background: M_GOLD, opacity: 0.7 }}/>
     </div>
     {/* THE TAPE ROOM: a chair and a small screen where he reviews his flagged hands */}
     {/* the tape room's edge lands ON a floorboard rather than 6px above one:
@@ -265,6 +266,12 @@ const HomeOne = ({ a, at, routine, state, size = 46, says, unread, dim, dealt, s
     <div style={{ position: 'absolute', left: at.x, top: at.y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', zIndex: Math.round(at.y), animation: r.anim || (walking ? 'walkout 2.6s ease-in-out infinite' : 'none'), '--travel': travelTo(at.x, size, walking ? 60 : 34) + 'px' }}>
       {unread && <HomeBubble text={unread} x={at.x} gold/>}
       {says && <HomeBubble text={says} x={at.x}/>}
+      {name && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5, padding: '2.5px 7px 4px', borderRadius: 8, background: 'rgba(8,12,12,0.9)', border: `1px solid ${unread ? `${M_GOLD}66` : M_BORDER}`, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 8.5, color: M_TEXT, lineHeight: 1.1 }}>{a.name.split(' ')[0]}</span>
+          <ResourceBars stamina={stamina} heat={heat} w={44} h={2} gap={2}/>
+        </div>
+      )}
       <div style={{ position: 'relative', width: size, height: size, opacity: dim ? 0.55 : 1 }}>
         {/* facing the wall: the silhouette with no face, which is the whole point */}
         {r.back
@@ -283,17 +290,7 @@ const HomeOne = ({ a, at, routine, state, size = 46, says, unread, dim, dealt, s
         {r.prop && <RoutineProp kind={r.prop} size={size}/>}
         {snack && <span style={{ position: 'absolute', right: -5, top: size * 0.5, width: 12, height: 8, borderRadius: 2, background: '#C9A227', border: '1px solid #7A6217' }}/>}
       </div>
-      {name && (
-        <div style={{ position: 'relative', width: 0, height: 34 }}>
-          <div style={{ position: 'absolute', top: 0, ...edgePin(at.x, 40), display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, maxWidth: F_W - H_EDGE * 2, whiteSpace: 'nowrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 7px 3px', borderRadius: 8, background: 'rgba(8,12,12,0.92)', border: `1px solid ${unread ? `${M_GOLD}66` : M_BORDER}` }}>
-              <span style={{ fontSize: 8.5, color: M_TEXT, lineHeight: 1.15 }}>{a.name.split(' ')[0]}</span>
-              <span style={{ fontFamily: OSWALD, fontSize: 6.5, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED, lineHeight: 1.15 }}>{r.lbl.toUpperCase()}</span>
-            </div>
-            <ResourceBars stamina={stamina} heat={heat} w={size * 1.05}/>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

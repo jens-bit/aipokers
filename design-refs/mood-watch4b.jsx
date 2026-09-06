@@ -5,6 +5,18 @@ const B5F = [['K', 'c'], ['9', 'c'], ['4', 'c'], ['2', 'c'], ['5', 'h']];
 
 const W4Shell = ({ children }) => <PhoneShell>{children}</PhoneShell>;
 
+// the seat's act timer: a hairline ring draining round the body, no digits
+const SeatClock = ({ d = 80, left = 9, size = 44 }) => {
+  const r = size / 2 - 1, c = 2 * Math.PI * r, frac = Math.max(0, Math.min(1, left / d));
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', left: 0, top: 0, transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 6 }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={frac < 0.25 ? M_RED : M_TEAL} strokeWidth="1.5"
+        strokeDasharray={c} strokeDashoffset={c * (1 - frac)} strokeLinecap="round"/>
+    </svg>
+  );
+};
+
 // ═══ 1 · DEAL, mid-arrival ═══════════════════════════════════════════════
 const W4DealScreenM = () => (
   <W4Shell>
@@ -421,6 +433,7 @@ const D6W4ReadScreenM = () => (
 );
 
 Object.assign(window, {
+  SeatClock,
   B4F, B5F, HAPTIC4, D6_SEATS, W4_SHOWDOWN_SEATS, DeskSeat, DeskFelt4,
   W4DealScreenM, W4DealWarmScreenM, W4CalmScreenM, W4ReadSheetScreenM, W4ThinReadScreenM,
   W4HeatingScreenM, W4AllInScreenM, W4ShowdownScreenM, W4BetweenScreenM,

@@ -155,7 +155,7 @@ const WalkStrip = ({ kind }) => {
 const H_SHEET = { collapsed: SHEET_COLLAPSED, open: 356 };
 
 // one collapsed line per day, and every line inside it says who said it to whom
-const Nightly = ({ day, open }) => (
+const HomeNightly = ({ day, open }) => (
   <div style={{ borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: `1px solid ${M_BORDER}`, padding: open ? '8px 10px 9px' : '7px 10px', cursor: 'pointer' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
       <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>WHILE YOU WERE OUT</span>
@@ -213,7 +213,7 @@ const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
           <span style={{ marginLeft: 'auto', width: 26, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }}></span>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '10px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {nightly && <Nightly day={nightly} open={nightlyOpen}/>}
+          {nightly && <HomeNightly day={nightly} open={nightlyOpen}/>}
           {lines.map((l, i) => l.you ? <YouLine key={i} text={l.text}/> : <HomeThreadLine key={i} a={l.a} text={l.text} sys={l.sys}/>)}
         </div>
       </>
@@ -236,7 +236,7 @@ const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
   </div>
 );
 
-const READ_BOOK = {
+const HOME_READ_BOOK = {
   opp: 'Granite', accent: M_GOLD, hands: 142,
   lines: [
     { t: 'never folds a river raise',        when: 'tonight',   fresh: true },
@@ -245,7 +245,7 @@ const READ_BOOK = {
   ],
 };
 
-const ReadBookSheet = ({ b = READ_BOOK }) => (
+const ReadBookSheet = ({ b = HOME_READ_BOOK }) => (
   <div style={{ width: 390, background: 'rgba(16,22,21,0.94)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
@@ -270,13 +270,13 @@ const ReadBookSheet = ({ b = READ_BOOK }) => (
   </div>
 );
 
-const POCKETS = [
+const HOME_POCKETS = [
   { a: 'blf', have: 4180, won: 2740, rule: 'auto-refill · cap $5,000', state: 'out' },
   { a: 'agg', have: 1240, won: 0,    rule: 'allowance · $2,000',       state: 'home' },
   { a: 'val', have: 0,    won: 0,    rule: 'cut off',                   state: 'broke' },
 ];
 
-const MoneySheet = ({ cast = H_CAST }) => (
+const HomeMoneySheet = ({ cast = H_CAST }) => (
   <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 14px' }}>
     <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
       <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
@@ -286,7 +286,7 @@ const MoneySheet = ({ cast = H_CAST }) => (
       <Num size={19} weight={700} color={M_GOLD}>$54,000</Num>
       <span style={{ marginLeft: 'auto', fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: M_TEAL, border: `1px solid ${M_TEAL}55`, background: `${M_TEAL}12`, borderRadius: 10, padding: '4px 10px', cursor: 'pointer' }}>ADD CHIPS</span>
     </div>
-    {POCKETS.map(p => {
+    {HOME_POCKETS.map(p => {
       const a = cast[p.a], broke = p.state === 'broke';
       return (
         <div key={p.a} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', borderTop: `1px solid ${M_BORDER}` }}>
@@ -323,7 +323,7 @@ const MoneySheet = ({ cast = H_CAST }) => (
 // ── 2 · THE FRIDGE ────────────────────────────────────────────────────────
 // Items are furniture: they live in a fixture, are bought from the wallet, and an
 // agent fetches them himself. Nothing here touches an attribute.
-const STOCK = [
+const HOME_STOCK = [
   { k: 'BEER',  n: 4, cools: 'cools heat',        cost: '$12 each' },
   { k: 'SNACK', n: 2, cools: 'soothes a bad mood', cost: '$8 each' },
 ];
@@ -337,7 +337,7 @@ const FridgeSheet = ({ empty }) => (
       <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE FRIDGE</span>
       <span style={{ fontSize: 10.5, color: M_FAINT }}>bought from the safe</span>
     </div>
-    {STOCK.map(s => {
+    {HOME_STOCK.map(s => {
       const n = empty && s.k === 'BEER' ? 0 : s.n;
       return (
         <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: `1px solid ${M_BORDER}` }}>
@@ -366,14 +366,14 @@ const FridgeSheet = ({ empty }) => (
 // ── 5 · THE SPLIT, IN ONE FRAME ──────────────────────────────────────────
 // Two resources on top, because they change hour to hour; four skills below,
 // because they change over a month. Same sheet, two different clocks.
-const SKILLS = [
+const HOME_SKILLS = [
   { k: 'READS',      v: 61, band: [68, 84] },
   { k: 'FOCUS',      v: 54, band: [60, 90] },
   { k: 'DISCIPLINE', v: 50, band: [82, 96] },
   { k: 'DECEPTION',  v: 72, band: [76, 88] },
 ];
 
-const ProfileHeadM = ({ a = H_CAST.blf }) => (
+const HomeProfileHeadM = ({ a = H_CAST.blf }) => (
   <div style={{ width: 390, background: '#101817', fontFamily: INTER, borderRadius: 4, overflow: 'hidden' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 14px 12px' }}>
       <MoodAvatar mood={a.mood} accent={a.accent} size={44}/>
@@ -386,8 +386,8 @@ const ProfileHeadM = ({ a = H_CAST.blf }) => (
       </div>
     </div>
     <div style={{ padding: '0 14px 4px' }}>
-      <div style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED, paddingBottom: 4 }}>SKILLS</div>
-      {SKILLS.map(s => (
+      <div style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED, paddingBottom: 4 }}>HOME_SKILLS</div>
+      {HOME_SKILLS.map(s => (
         <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: `1px solid ${M_BORDER}` }}>
           <span style={{ width: 66, flexShrink: 0, fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM }}>{s.k}</span>
           <div style={{ position: 'relative', flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.07)' }}>
@@ -416,7 +416,7 @@ const NIGHT_DAY = {
 // ── 4 · FOUR CHAIRS ───────────────────────────────────────────────────────
 // The home has four seats at the kitchen table. A locked one shows its price in
 // chips he has WON — there is no purchase path, so the only currency is his record.
-const CHAIR_PRICES = [null, '10,000 won', '40,000 won', '150,000 won'];
+const HOME_CHAIR_PRICES = [null, '10,000 won', '40,000 won', '150,000 won'];   // shown ONLY in the table sheet
 
 // the chairs ARE the room's four seats: TABLE_SEATS[4], the same coordinates
 // HomeGame sits bodies on, with y as the feet. Inventing a ring put chairs where
@@ -424,12 +424,46 @@ const CHAIR_PRICES = [null, '10,000 won', '40,000 won', '150,000 won'];
 const TableChairs = ({ taken = 1 }) => {
   return TABLE_SEATS[4].map((s, i) => i < taken ? null : (
     <div key={i} style={{ position: 'absolute', left: s.x, top: s.y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, zIndex: 6 }}>
-      <div style={{ width: 26, height: 22, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.14)' }}></div>
-      <div style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.1em', color: M_MUTED, whiteSpace: 'nowrap' }}>{i + 1}{['ST', 'ND', 'RD', 'TH'][i]} SEAT</div>
-      <div style={{ fontFamily: MONO, fontSize: 7, color: M_GOLD, whiteSpace: 'nowrap' }}>{CHAIR_PRICES[i]}</div>
+      <div style={{ width: 28, height: 23, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.15)' }}></div>
     </div>
   ));
 };
+
+const TableSheet = ({ taken = 2 }) => (
+  <div style={{ width: 390, background: 'rgba(16,22,21,0.95)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderTop: '1px solid rgba(255,255,255,0.16)', borderRadius: '16px 16px 0 0', fontFamily: INTER, padding: '10px 0 16px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 9 }}>
+      <span style={{ width: 30, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.22)' }}></span>
+    </div>
+    {/* the miniature felt: the game that is running right now */}
+    <div style={{ margin: '0 14px', height: 96, borderRadius: 10, background: 'radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%)', border: `1px solid ${M_BORDER}`, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: '50%', top: 30, transform: 'translateX(-50%)', display: 'flex', gap: 3 }}>
+        {[['9', '♥', M_RED], ['J', '♠', '#0F1514'], ['4', '♣', '#0F1514']].map(([r, s, c]) => (
+          <span key={r + s} style={{ width: 17, height: 24, borderRadius: 2, background: '#E8E6E0', color: c, fontFamily: MONO, fontSize: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{r}<span style={{ fontSize: 8 }}>{s}</span></span>
+        ))}
+      </div>
+      {[[128, 66], [262, 66]].slice(0, taken).map(([x, y], i) => (
+        <div key={i} style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%,-50%)' }}>
+          <MoodAvatar mood={i ? 'confident' : 'frustrated'} accent={i ? M_TEAL : M_PURPLE} size={22}/>
+        </div>
+      ))}
+      <div style={{ position: 'absolute', right: 9, top: 8, fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>FOR NOTHING</div>
+      <div style={{ position: 'absolute', left: 9, bottom: 7, fontSize: 9.5, color: M_DIM }}>{taken} at the table · {4 - taken} chairs free</div>
+    </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px 0' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: PLAYFAIR, fontSize: 14.5, fontWeight: 600, color: M_TEXT }}>Create an agent</div>
+        <div style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.45, marginTop: 3 }}>
+          <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM }}>{taken + 1}{['ST', 'ND', 'RD', 'TH'][taken]} SEAT</span>
+          {' · '}<span style={{ fontFamily: MONO, fontSize: 10, color: M_GOLD }}>{HOME_CHAIR_PRICES[taken]}</span>
+        </div>
+      </div>
+      <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: M_GOLD, border: `1px solid ${M_GOLD}66`, background: `${M_GOLD}14`, borderRadius: 11, padding: '6px 13px', cursor: 'pointer' }}>DRAFT HIM</span>
+    </div>
+    <div style={{ padding: '10px 14px 0' }}>
+      <span style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.5 }}>Paid in <b style={{ color: M_DIM }}>chips he has won</b>, never bought — the room fills as his agents win and in no other way. Drafting opens the same conversation the first agent came from.</span>
+    </div>
+  </div>
+);
 
 // ═══ SCREENS ═══════════════════════════════════════════════════════════════
 
@@ -569,7 +603,7 @@ const FromFixture = ({ sheet, room }) => (
 );
 
 const SafeOpenM = () => (
-  <FromFixture sheet={<MoneySheet/>} room={
+  <FromFixture sheet={<HomeMoneySheet/>} room={
     <HomeFlat>
       <AwayWall frames={[{ a: H_CAST.blf, line: '10/20 · −$90' }]} hooks={2}/>
       <HomeGame players={[{ a: H_CAST.bal }, { a: H_CAST.val }]}/>
@@ -689,6 +723,94 @@ const ChairsM = ({ taken = 1 }) => (
   </PhoneShell>
 );
 
+const TableSheetM = () => (
+  <FromFixture sheet={<TableSheet taken={2}/>} room={
+    <HomeFlat>
+      <AwayWall hooks={2}/>
+      <TableChairs taken={2}/>
+      <HomeGame ring={[TABLE_SEATS[4][0], TABLE_SEATS[4][1]]}
+        players={[{ a: { ...H_CAST.agg, mood: 'frustrated' }, stamina: 60, heat: 58 }, { a: H_CAST.bal, stamina: 80, heat: 18 }]}/>
+    </HomeFlat>}/>
+);
+
+// born, then walked in: the same three-beat strip the casino return uses
+const BIRTH_WALK = [
+  { at: { x: 352, y: 262 }, note: 'Born. He comes in through the door, like anyone arriving.', says: "I'm here." },
+  { at: { x: 300, y: 300 }, note: 'Across the room. The others do not stop their hand for him.' },
+  { at: TABLE_SEATS[4][2], routine: 'game', dealt: true, note: 'He takes the empty chair. The seat you paid for now has someone in it.' },
+];
+
+const BirthWalkInStripM = () => (
+  <div style={{ display: 'flex', gap: 10, width: 1220 }}>
+    {BIRTH_WALK.map((s, i) => (
+      <div key={i} style={{ width: 390, flexShrink: 0 }}>
+        <div style={{ position: 'relative', height: 300, overflow: 'hidden', borderRadius: 4, border: `1px solid ${M_BORDER}` }}>
+          <div style={{ position: 'absolute', left: 0, top: -84 }}>
+            <HomeFlat>
+              <TableChairs taken={i === 2 ? 3 : 2}/>
+              <HomeGame ring={[TABLE_SEATS[4][0], TABLE_SEATS[4][1]]}
+                players={[{ a: H_CAST.bal, stamina: 80, heat: 18 }, { a: H_CAST.val, stamina: 54, heat: 26 }]}/>
+              <HomeOne a={{ ...H_CAST.blf, mood: 'confident' }} at={s.at} routine={s.routine} size={46}
+                stamina={92} heat={12} says={s.says} dealt={s.dealt} walking={i === 1}/>
+            </HomeFlat>
+          </div>
+        </div>
+        <div style={{ fontSize: 10.5, color: M_MUTED, lineHeight: 1.45, padding: '7px 2px 0' }}>{s.note}</div>
+      </div>
+    ))}
+  </div>
+);
+
+// the plan, drawn once: labels are allowed HERE, because a plan is a document
+const ROOM_PLAN = [
+  { k: 'safe',   t: 'THE SAFE',    n: 'against the left wall, under the frames · the money' },
+  { k: 'wall',   t: 'THE FRAMES',  n: 'the top wall · agents away at the casino, live' },
+  { k: 'fridge', t: 'THE FRIDGE',  n: 'the kitchen wall by the table · beer and snacks' },
+  { k: 'door',   t: 'THE DOOR',    n: 'cut into the right wall · in, out, and born' },
+  { k: 'table',  t: 'THE TABLE',   n: 'centre · the home game, four chairs, for nothing' },
+  { k: 'couch',  t: 'THE COUCH',   n: 'left · where worn and busted end up' },
+  { k: 'tape',   t: 'THE TV',      n: 'bottom · tape review, or the casino ticker' },
+];
+
+// beside each fixture, never on it: 12px clear of the outline on a chosen side
+const PLAN_PIP = {
+  safe:   { x: FLAT.safe.x + FLAT.safe.w + 12,   y: FLAT.safe.y + FLAT.safe.h / 2 },
+  wall:   { x: FLAT.wall.x + FLAT.wall.w - 10,   y: FLAT.wall.y + FLAT.wall.h + 12 },
+  fridge: { x: FLAT.fridge.x - 12,               y: FLAT.fridge.y + FLAT.fridge.h / 2 },
+  door:   { x: FLAT.door.x - 12,                 y: FLAT.door.y + FLAT.door.h / 2 },
+  table:  { x: FLAT.table.cx,                    y: FLAT.table.cy - FLAT.table.ry - 14 },
+  couch:  { x: FLAT.couch.x + FLAT.couch.w + 12, y: FLAT.couch.y + FLAT.couch.h / 2 },
+  tape:   { x: FLAT.tape.x + FLAT.tape.w / 2,    y: FLAT.tape.y - 12 },
+};
+
+const RoomPlanM = () => (
+  <div style={{ width: 390, fontFamily: INTER }}>
+    <div style={{ position: 'relative', height: 612, overflow: 'hidden', borderRadius: 4, border: `1px solid ${M_BORDER}` }}>
+      <HomeFlat>
+        <AwayWall hooks={4}/>
+        <TableChairs taken={0}/>
+        {ROOM_PLAN.map((p, i) => {
+          const f = PLAN_PIP[p.k];
+          return (
+            <div key={p.k} style={{ position: 'absolute', left: f.x, top: f.y, transform: 'translate(-50%,-50%)', zIndex: 60, width: 15, height: 15, borderRadius: '50%', background: 'rgba(6,10,10,0.9)', border: `1px solid ${M_TEAL}99`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, color: M_TEAL }}>{i + 1}</span>
+            </div>
+          );
+        })}
+      </HomeFlat>
+    </div>
+    <div style={{ padding: '10px 2px 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {ROOM_PLAN.map(p => (
+        <div key={p.k} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+          <span style={{ flexShrink: 0, fontFamily: MONO, fontSize: 8, fontWeight: 700, color: M_TEAL, width: 11 }}>{ROOM_PLAN.indexOf(p) + 1}</span>
+          <span style={{ width: 74, flexShrink: 0, fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.12em', color: M_DIM }}>{p.t}</span>
+          <span style={{ flex: 1, fontSize: 10.5, color: M_MUTED, lineHeight: 1.4 }}>{p.n}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const WalkOutStripM = () => <WalkStrip kind="out"/>;
 const WalkHomeStripM = () => <WalkStrip kind="home"/>;
 const WalkGameStripM = () => <WalkStrip kind="game"/>;
@@ -696,8 +818,8 @@ const WalkSulkStripM = () => <WalkStrip kind="sulk"/>;
 
 Object.assign(window, {
   H_WANTS, WANT_CHIPS, WantBubble, TOASTS, HomeToast, WALKS, WalkStrip, H_SHEET,
-  NIGHT_DAY, Nightly, CHAIR_PRICES, TableChairs, HomeThreadLine, YouLine, HomeThread,
-  POCKETS, MoneySheet, STOCK, FridgeSheet, SKILLS, ProfileHeadM, READ_BOOK, ReadBookSheet, BODY_SCALES, BodyBarsRefM, HomeWantM, HomeSleepM, HomeThreadOpenM, HomeTapeM,
-  FromFixture, SafeOpenM, FridgeOpenM, FRIDGE_WALK, FridgeWalkStripM, BeerSeatM, FridgeEmptyM, NightlyCollapsedM, ChairsM,
+  NIGHT_DAY, HomeNightly, HOME_CHAIR_PRICES, TableChairs, HomeThreadLine, YouLine, HomeThread,
+  HOME_POCKETS, HomeMoneySheet, HOME_STOCK, FridgeSheet, HOME_SKILLS, HomeProfileHeadM, HOME_READ_BOOK, ReadBookSheet, BODY_SCALES, BodyBarsRefM, HomeWantM, HomeSleepM, HomeThreadOpenM, HomeTapeM,
+  TableSheetM, BIRTH_WALK, BirthWalkInStripM, ROOM_PLAN, RoomPlanM, FromFixture, SafeOpenM, FridgeOpenM, FRIDGE_WALK, FridgeWalkStripM, BeerSeatM, FridgeEmptyM, NightlyCollapsedM, ChairsM,
   WalkOutStripM, WalkHomeStripM, WalkGameStripM, WalkSulkStripM,
 });
