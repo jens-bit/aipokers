@@ -52,7 +52,7 @@ import {
   ASK_SNOOZE_MS, ASK_REASK_MS, ASK_WEEK_MS,
   askFor, buildAsk, replaces, askSatisfied, isAnswered, isActiveWant,
 } from '../agent/wants.js';
-import { roomForBigBlind, roomPhrase } from './rooms.js';
+import { roomForBigBlind, roomPhrase, ROOMS } from './rooms.js';
 import {
   // FRIDGE-1 — the fixture the items come out of, and what one does to him.
   ensureFridge, takeOne as takeFromFridge, countOf as fridgeCountOf,
@@ -82,7 +82,7 @@ import {
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
-  ensureEarned, recordEarned,
+  ensureEarned, recordEarned, STAKES,
 } from './wallet.js';
 import { slotsProjection, slotBlocker, SLOT_CAP } from './slots.js';
 import {
@@ -281,6 +281,74 @@ export function reconcileActiveSessions() {
     }
   }
   return retired;
+}
+
+// ── SERVER-4 · which room he was sent to ─────────────────────────────────────
+//
+// Before this, the room an agent walked into was a CONSEQUENCE of his pocket:
+// deploy took the highest rung he could afford and that was that. CASINO-1
+// draws three rooms and lets the owner pick one, so the choice has to be
+// expressible — you send a man upstairs, you do not merely fund him until
+// upstairs happens.
+//
+// The rule is the same one that already governs joining a table already in
+// play (canAffordTable): HIS POCKET MUST COVER THE BUY-IN. It is refused
+// rather than silently downgraded, because a client that asked for the back
+// room and got the floor has been lied to, and the owner would have funded him
+// if he had been told. 409 with the number he is short against, so the client
+// can say what it costs instead of just no.
+//
+// An absent `rung` keeps the old behaviour exactly: the highest rung he can
+// afford, chosen for him.
+
+/** The requested rung as a STAKES row, or null when none was asked for. */
+function rungRequested(body) {
+  const raw = body?.rung;
+  if (raw === undefined || raw === null || raw === '') return null;
+  const rung = Number(raw);
+  if (!Number.isInteger(rung)) return { bad: true };
+  return STAKES.find((s) => s.rung === rung) ?? { bad: true };
+}
+
+/**
+ * The stakes this deploy is for. Returns { stakes } or { status, body } — the
+ * refusal shape the routes hand straight back.
+ *
+ *   no rung asked for  the highest rung the pocket covers (the old behaviour),
+ *                      or the broke answer the caller already handles
+ *   a rung asked for   that rung, if the pocket covers it; 409 cantAfford
+ *                      otherwise. Never a quiet downgrade.
+ */
+function stakesForRequest(body, pocketBalance) {
+  const asked = rungRequested(body);
+  if (!asked) return { stakes: stakesFor(pocketBalance) };
+  if (asked.bad) {
+    return {
+      status: 400,
+      body: { error: 'badRung', rungs: STAKES.map((s) => ({ rung: s.rung, label: s.label, buyIn: s.buyIn })) },
+    };
+  }
+  if (Number(pocketBalance) < asked.buyIn) {
+    return {
+      status: 409,
+      body: {
+        error: 'cantAfford',
+        buyIn: asked.buyIn,
+        rung: asked.rung,
+        label: asked.label,
+        pocket: Math.max(0, Math.floor(Number(pocketBalance) || 0)),
+      },
+    };
+  }
+  return { stakes: asked };
+}
+
+/** The room id a set of stakes belongs to, for `headingTo`. */
+function roomIdForStakes(stakes) {
+  if (!stakes) return null;
+  return ROOMS.find((r) => r.rung === stakes.rung)?.id
+    ?? roomForBigBlind(stakes.bigBlind)?.id
+    ?? null;
 }
 
 // ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
@@ -3526,7 +3594,11 @@ export function installAgentProfileRoutes(app) {
         });
       }
 
-      stakes = stakesFor(pocket.balance);
+      // SERVER-4: the room the owner asked for, or the highest one his pocket
+      // reaches when he asked for none. Refused, never downgraded.
+      const chosen = stakesForRequest(req.body, pocket.balance);
+      if (chosen.status) return res.status(chosen.status).json(chosen.body);
+      stakes = chosen.stakes;
       candidate = liveTables.findJoinableTable?.({
         profile: agent.profile ?? null,
         agentId: agent.id,
@@ -3611,6 +3683,11 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
+    // SERVER-4: the room he is walking into. Only ever a FALLBACK for the
+    // location the live table derives (home.js locationFor) — it answers the
+    // one window where nothing else can, between "he has been sent" and "the
+    // felt exists", which is where a queued agent lives permanently.
+    agent.headingTo = roomIdForStakes(stakes);
     // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
     // when the session ends. The old agent ledger keeps its entry too while
     // agent.bankroll is still mirrored.
@@ -3634,11 +3711,30 @@ export function installAgentProfileRoutes(app) {
       sessionStarted,
       joinedExisting,
       seat,
+      // SERVER-4: where he actually ended up. With `rung` this is what was
+      // asked for; without it, it is what his pocket chose for him — and
+      // either way the client no longer has to infer a room from blinds.
+      room: agent.headingTo,
+      stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
     });
   });
 
   // POST /api/agents/:agentId/queue — PvP matchmaking
   // Pairs two agents on the same table without manual ID sharing.
+  //
+  // SERVER-4: takes `{ rung }` like /deploy, and for the same reason — the
+  // owner picks a room, the server does not pick one for him. Two differences
+  // from deploy, both because a queued agent has no felt yet:
+  //
+  //   * THE STAKES TRAVEL WITH THE SLOT, not with a table, because the table
+  //     does not exist until somebody watches it. The second man into the slot
+  //     inherits the first man's stakes rather than his own request: they are
+  //     sitting down together, and one table cannot be at two rungs. He is
+  //     still gated on affording it, so the pairing can be refused rather than
+  //     seating somebody who cannot cover the felt he was matched onto.
+  //   * `room` comes back in the response and is remembered on the agent as
+  //     `headingTo`, which is what lets his card say where he is walking to
+  //     during the window where there is nothing to derive it from.
   app.post('/api/agents/:agentId/queue', (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
@@ -3654,24 +3750,42 @@ export function installAgentProfileRoutes(app) {
       matchmakingSlot = null;
     }
 
+    const pocket = ensurePocket(agent);
+    pocket.agentId = agent.id;
+
     let tableId;
     let matched;
+    let stakes;
 
     let opponentName = null;
 
     if (matchmakingSlot) {
-      // Match found — join the waiting table.
+      // Match found — join the waiting table, at ITS stakes.
+      stakes = matchmakingSlot.stakes ?? null;
+      if (stakes && pocket.balance < stakes.buyIn) {
+        return res.status(409).json({
+          error: 'cantAfford',
+          buyIn: stakes.buyIn,
+          rung: stakes.rung,
+          label: stakes.label,
+          pocket: Math.max(0, Math.floor(Number(pocket.balance) || 0)),
+          matched: true,
+        });
+      }
       tableId = matchmakingSlot.tableId;
       opponentName = matchmakingSlot.agentName;
       matchmakingSlot = null;
       matched = true;
       console.log(`[agents] matched ${agent.name} vs ${opponentName} on table ${tableId} (PvP)`);
     } else {
+      const chosen = stakesForRequest(req.body, pocket.balance);
+      if (chosen.status) return res.status(chosen.status).json(chosen.body);
+      stakes = chosen.stakes;
       // No one waiting — create a table and queue it.
       tableId = 'table-' + randomUUID().slice(0, 8);
-      matchmakingSlot = { tableId, agentName: agent.name, expiresAt: Date.now() + 5 * 60_000 };
+      matchmakingSlot = { tableId, agentName: agent.name, stakes, expiresAt: Date.now() + 5 * 60_000 };
       matched = false;
-      console.log(`[agents] ${agent.name} queued on table ${tableId}, waiting for opponent`);
+      console.log(`[agents] ${agent.name} queued on table ${tableId}${stakes ? ` at ${stakes.label}` : ''}, waiting for opponent`);
     }
 
     activeTables.add(tableId);
@@ -3679,8 +3793,12 @@ export function installAgentProfileRoutes(app) {
     agent.status = 'playing';
     agent.unseenRecap = false;
     agent.sessionFlagged = [];
+    agent.headingTo = roomIdForStakes(stakes);
     ensureMemory(agent);
     saveStore(userId);
+    // A man who has just left for the casino is not at home any more, and the
+    // living room has to stop drawing him there before he gets to a felt.
+    emitAgentChange(userId);
 
     res.json({
       tableId,
@@ -3690,6 +3808,13 @@ export function installAgentProfileRoutes(app) {
       agentName: agent.name,
       strategy: agent.strategy,
       memoryContext: getAgentMemoryContext(agent),
+      room: agent.headingTo,
+      // The blinds the client must WATCH this table with. Without them the
+      // socket would stand the table up at the default 10/20 and the rung
+      // would have been a suggestion.
+      stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
+      smallBlind: stakes?.smallBlind ?? null,
+      bigBlind: stakes?.bigBlind ?? null,
     });
   });
 
