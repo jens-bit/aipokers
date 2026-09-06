@@ -61,23 +61,21 @@ svg{display:block;flex-shrink:0}
 /* AUTH-1: existing players reach the web app through the login gate */
 .cta-login{font-family:'Oswald',sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:rgba(205,179,128,0.78);border-bottom:1px solid rgba(205,179,128,0.26);padding:0 0 2px 4px;margin-top:14px;display:inline-block}
 
-/* ── hero scene: the card-back fan + ghost, 1440 base ── */
-.hero-scene-d{position:relative;width:470px;height:350px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center}
+/* ── hero scene: ghost + his own two held cards, 1440 base ── */
+.hero-scene-d{position:relative;width:470px;height:405px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center}
 .hs-spot{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:400px;height:120px;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(205,179,128,0.16) 0%,rgba(205,179,128,0.05) 40%,transparent 70%);pointer-events:none}
-/* the fan: card BACKS in the product's teal palette, never white faces — a landing
-   page must not show a hand it has no right to show. Sits BEHIND him (z-index 1) so
-   his own hands read in front of the card bottoms. */
-.hs-fan{--card-w:50px;--card-h:72px;--card-ml:-26px;--fan-bottom:52px;position:absolute;left:50%;bottom:var(--fan-bottom);z-index:1;transform:translateX(-50%);display:flex;align-items:flex-end;animation:fanSway 9s ease-in-out infinite}
-.hs-fanc{width:var(--card-w);height:var(--card-h);flex-shrink:0;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%}
-.hs-fanc + .hs-fanc{margin-left:var(--card-ml)}
-.hs-fanc:nth-child(1){transform:rotate(-34deg) translateY(20.4px)}
-.hs-fanc:nth-child(2){transform:rotate(-18deg) translateY(10.8px)}
-.hs-fanc:nth-child(3){transform:rotate(-6deg) translateY(3.6px)}
-.hs-fanc:nth-child(4){transform:rotate(6deg) translateY(3.6px)}
-.hs-fanc:nth-child(5){transform:rotate(18deg) translateY(10.8px)}
-.hs-fanc:nth-child(6){transform:rotate(34deg) translateY(20.4px)}
-.hs-ghost-wrap{--gh:280px;position:relative;z-index:2;animation:bob 5.5s ease-in-out infinite;padding-bottom:62px}
+.hs-ghost-wrap{--gh:280px;--card-w:157px;--card-h:212px;--fan-top:162px;--fan-w:251px;--fist-w:76px;--fist-h:55px;--fist-inset:19px;--fist-top:182px;position:relative;z-index:2;animation:bob 5.5s ease-in-out infinite;padding-bottom:125px}
 .hs-ghost-wrap svg{width:var(--gh);height:var(--gh);display:block;overflow:visible}
+/* his own two cards, held at chest height, IN FRONT of him — never behind, never a
+   hand of six. Two backs in the product's teal palette, fanned, with his own fists
+   closed on the bottom corners in front of the cards. */
+.hs-fan{position:absolute;left:50%;top:var(--fan-top);width:var(--fan-w);height:var(--card-h);margin-left:calc(var(--fan-w) / -2);z-index:1;pointer-events:none}
+.hs-fanc{position:absolute;top:0;width:var(--card-w);height:var(--card-h);border-radius:6px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 14px 30px rgba(0,0,0,0.55);transform-origin:50% 100%}
+.hs-fanc-l{left:0;transform:rotate(-9deg)}
+.hs-fanc-r{right:0;transform:rotate(9deg)}
+.hs-fist{position:absolute;top:var(--fist-top);width:var(--fist-w);height:var(--fist-h);border-radius:46%;background:#BDBDBD;border:1.5px solid #16191B}
+.hs-fist-l{left:var(--fist-inset);transform:rotate(-9deg)}
+.hs-fist-r{right:var(--fist-inset);transform:rotate(9deg)}
 /* the sheen: one pass of light across the hood, from the LAND-3 hero fix */
 .hs-sheen{position:absolute;inset:0;background:linear-gradient(115deg,transparent 38%,rgba(244,235,221,0.18) 50%,transparent 62%);pointer-events:none;animation:shimmer 6s ease-in-out infinite}
 .hero-scene-m{display:none}
@@ -164,11 +162,10 @@ svg{display:block;flex-shrink:0}
   .hero-headline{font-size:68px}
   .hero-body{font-size:17px;max-width:400px}
 
-  /* hero scene 1280: 389×290, ghost 232, card 41×60 */
-  .hero-scene-d{width:389px;height:290px}
+  /* hero scene 1280: 389×331, ghost 232, card 130×176 */
+  .hero-scene-d{width:389px;height:331px}
   .hs-spot{width:330px;height:99px}
-  .hs-fan{--card-w:41px;--card-h:60px;--card-ml:-22px;--fan-bottom:43px}
-  .hs-ghost-wrap{--gh:232px;padding-bottom:51px}
+  .hs-ghost-wrap{--gh:232px;--card-w:130px;--card-h:176px;--fan-top:135px;--fan-w:208px;--fist-w:63px;--fist-h:45px;--fist-inset:16px;--fist-top:151px;padding-bottom:99px}
 
   .sec{padding:44px 56px}
   .sec-title{font-size:36px}
@@ -196,11 +193,10 @@ svg{display:block;flex-shrink:0}
   .cta-icon{width:18px;height:18px}
   .cta-label{font-size:14px}
 
-  /* hero scene 768: 271×202, ghost 162, card 29×42 */
-  .hero-scene-d{width:271px;height:202px}
+  /* hero scene 768: 271×231, ghost 162, card 91×123 */
+  .hero-scene-d{width:271px;height:231px}
   .hs-spot{width:230px;height:69px;bottom:16px}
-  .hs-fan{--card-w:29px;--card-h:42px;--card-ml:-15px;--fan-bottom:30px}
-  .hs-ghost-wrap{--gh:162px;padding-bottom:36px}
+  .hs-ghost-wrap{--gh:162px;--card-w:91px;--card-h:123px;--fan-top:94px;--fan-w:146px;--fist-w:44px;--fist-h:32px;--fist-inset:11px;--fist-top:105px;padding-bottom:69px}
 
   .sec{padding:40px 40px}
   .sec-title{font-size:32px}
@@ -285,17 +281,9 @@ svg{display:block;flex-shrink:0}
       </div>
       <!-- mobile scene: shown at ≤430px, after CTA -->
       <div class="hero-scene-m">
-        <div style="position:relative;width:342px;height:250px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center">
+        <div style="position:relative;width:342px;height:256px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center">
           <div style="position:absolute;left:50%;bottom:18px;transform:translateX(-50%);width:290px;height:88px;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(205,179,128,0.16) 0%,rgba(205,179,128,0.05) 40%,transparent 70%);pointer-events:none"></div>
-          <div style="position:absolute;left:50%;bottom:36px;z-index:1;transform:translateX(-50%);display:flex;align-items:flex-end;animation:fanSway 9s ease-in-out infinite">
-            <span style="width:34px;height:48px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(-34deg) translateY(20.4px)"></span>
-            <span style="width:34px;height:48px;margin-left:-18px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(-18deg) translateY(10.8px)"></span>
-            <span style="width:34px;height:48px;margin-left:-18px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(-6deg) translateY(3.6px)"></span>
-            <span style="width:34px;height:48px;margin-left:-18px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(6deg) translateY(3.6px)"></span>
-            <span style="width:34px;height:48px;margin-left:-18px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(18deg) translateY(10.8px)"></span>
-            <span style="width:34px;height:48px;margin-left:-18px;border-radius:4px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 8px 22px rgba(0,0,0,0.5);transform-origin:50% 100%;transform:rotate(34deg) translateY(20.4px)"></span>
-          </div>
-          <div style="position:relative;z-index:2;animation:bob 5.5s ease-in-out infinite;padding-bottom:46px">
+          <div style="position:relative;z-index:2;animation:bob 5.5s ease-in-out infinite;padding-bottom:75px">
             <svg width="180" height="180" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
               <defs>
                 <radialGradient id="glo_hero_m" cx="50%" cy="54%" r="52%"><stop offset="0" stop-color="#00D4AA" stop-opacity="0.32"/><stop offset="1" stop-color="#00D4AA" stop-opacity="0"/></radialGradient>
@@ -308,26 +296,23 @@ svg{display:block;flex-shrink:0}
               <ellipse cx="46.5" cy="41" rx="3" ry="2.4" fill="#00D4AA"/>
               <path d="M30 34.5 L37 34.5" stroke="#00D4AA" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
               <path d="M50 34.5 L43 34.5" stroke="#00D4AA" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
-              <g transform="rotate(-8 13 89)"><rect x="6" y="83.5" width="14" height="11" rx="5.5" fill="#BDBDBD" stroke="#16191B" stroke-width="1.4"/></g>
-              <g transform="rotate(8 67 89)"><rect x="60" y="83.5" width="14" height="11" rx="5.5" fill="#BDBDBD" stroke="#16191B" stroke-width="1.4"/></g>
             </svg>
+            <!-- his own two cards, held at chest height, in front of him, hands on the edges -->
+            <div style="position:absolute;left:50%;top:104px;width:162px;height:136px;margin-left:-81px;pointer-events:none">
+              <span style="position:absolute;top:0;left:0;width:101px;height:136px;border-radius:5px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 12px 26px rgba(0,0,0,0.55);transform-origin:50% 100%;transform:rotate(-9deg)"></span>
+              <span style="position:absolute;top:0;right:0;width:101px;height:136px;border-radius:5px;background:linear-gradient(150deg,#123B34 0%,#081714 100%);border:1px solid rgba(0,212,170,0.5);box-shadow:inset 0 0 0 1px rgba(0,212,170,0.22),0 12px 26px rgba(0,0,0,0.55);transform-origin:50% 100%;transform:rotate(9deg)"></span>
+              <span style="position:absolute;top:116px;left:12px;width:49px;height:35px;border-radius:46%;background:#BDBDBD;border:1.5px solid #16191B;transform:rotate(-9deg)"></span>
+              <span style="position:absolute;top:116px;right:12px;width:49px;height:35px;border-radius:46%;background:#BDBDBD;border:1.5px solid #16191B;transform:rotate(9deg)"></span>
+            </div>
             <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 38%,rgba(244,235,221,0.18) 50%,transparent 62%);pointer-events:none;animation:shimmer 6s ease-in-out infinite"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- desktop / tablet scene: card BACKS, teal, held in front of him, face fully visible -->
+    <!-- desktop / tablet scene: his own two cards, teal, held in front of him, face and shoulders visible -->
     <div class="hero-scene-d">
       <div class="hs-spot"></div>
-      <div class="hs-fan">
-        <span class="hs-fanc"></span>
-        <span class="hs-fanc"></span>
-        <span class="hs-fanc"></span>
-        <span class="hs-fanc"></span>
-        <span class="hs-fanc"></span>
-        <span class="hs-fanc"></span>
-      </div>
       <div class="hs-ghost-wrap">
         <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
           <defs>
@@ -341,10 +326,15 @@ svg{display:block;flex-shrink:0}
           <ellipse cx="46.5" cy="41" rx="3" ry="2.4" fill="#00D4AA"/>
           <path d="M30 34.5 L37 34.5" stroke="#00D4AA" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
           <path d="M50 34.5 L43 34.5" stroke="#00D4AA" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
-          <!-- his hands, on the card edges, chest height, below the face -->
-          <g transform="rotate(-8 13 89)"><rect x="6" y="83.5" width="14" height="11" rx="5.5" fill="#BDBDBD" stroke="#16191B" stroke-width="1.4"/></g>
-          <g transform="rotate(8 67 89)"><rect x="60" y="83.5" width="14" height="11" rx="5.5" fill="#BDBDBD" stroke="#16191B" stroke-width="1.4"/></g>
         </svg>
+        <!-- his own two cards, held at chest height so the face and shoulders stay clear, and
+             his own fists closed on the bottom corners, in front of the cards -->
+        <div class="hs-fan">
+          <span class="hs-fanc hs-fanc-l"></span>
+          <span class="hs-fanc hs-fanc-r"></span>
+          <span class="hs-fist hs-fist-l"></span>
+          <span class="hs-fist hs-fist-r"></span>
+        </div>
         <div class="hs-sheen"></div>
       </div>
     </div>
