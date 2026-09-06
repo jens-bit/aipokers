@@ -21,6 +21,15 @@
 //
 // WATCH-5's pacing queue, fold toss and ceremony timing are untouched; only
 // their markup is replaced.
+//
+// WATCH-7, from the playtest:
+//   5. A HAND END IS QUIET. The WON/LOST block used to take the felt at the end
+//      of every hand, which made a SESSION moment fire forty times a session.
+//      The pot slides, his stack ticks, a result toast comes and goes over his
+//      strip, and nothing blocks the felt.
+//   6. THE CEREMONY BELONGS TO SESSION_END. That is the one moment big enough
+//      for it, and it offers the two things there are to do then — not "deal
+//      him in", because there is no next hand.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
@@ -42,9 +51,11 @@ import { fire as fireHaptic } from '../lib/haptics.js';
 import { beat, isMuted, toggleMuted } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
+import { ResultToast } from './system/ResultToast.jsx';
+import { handDelta as netForSeat, money } from '../lib/deltas.js';
 import {
   paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS,
-  SHOWDOWN_HOLD_MS, CEREMONY_MS,
+  RESULT_TOAST_MS, STACK_TICK_MS,
 } from '../lib/pace.js';
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
@@ -309,49 +320,66 @@ export function useMuck(game) {
   return mucking;
 }
 
-// ---- the hand-end ceremony -------------------------------------------------
-// W5-3 called the hand; WATCH-6 gives it the ref's own block (V5Ceremony).
+// ---- the session ceremony --------------------------------------------------
+// W5-3 gave this block to the end of every hand. WATCH-7's playtest killed that:
+// a WON/LOST that size, forty times a session, stops meaning anything by the
+// fifth hand and stands between the owner and the felt every time. A hand end is
+// a receipt now (ResultToast).
 //
-// "Granite took $1,250" tells the owner what happened to the pot; it does not
-// tell him what happened to his guy. So the ceremony leads with the DELTA and
-// where he now stands, and offers the two things there are to do: deal him in
-// now (the next hand is coming in three seconds anyway, so this only makes it
-// now), or talk to him about the hand.
+// The ceremony is a SESSION moment, and it runs exactly once — when the session
+// ends. That is the only point at which the two questions it asks are real ones,
+// and it is why "Deal him in" is gone from it: there is no next hand to make
+// happen sooner. What there is instead is where his money stands, and the two
+// ways out of the evening.
 //
-// WHEN it runs is still lib/pace.js's business — SHOWDOWN_HOLD_MS then
-// CEREMONY_MS — which WATCH-5 settled and this wave does not touch.
-export function HandCeremony({
-  won, agentName, amount, winnerName, delta, stack, mood, heat, accent,
-  onTalk, talkLabel, onDeal, nextInS,
+//   BUSTED    "Fund him again"  ·  "Back to the floor"
+//   OTHERWISE "Back to the floor"  ·  "Talk to him about tonight"
+//
+// It does not time out. A session ending is worth a tap.
+export function SessionCeremony({
+  won, busted, agentName, net, stack, hands, reason, mood, heat, accent,
+  onFund, onFloor, onTalk, talkLabel,
 }) {
   var hot = Number.isFinite(heat) && heat > 66;
-  var money = function (n) {
-    var sign = n < 0 ? '−' : '+';
-    return sign + '$' + Math.abs(n).toLocaleString();
-  };
-  var deltaText = Number.isFinite(delta)
-    ? money(delta)
-    : (won ? '+$' + (amount || 0).toLocaleString() : '−$' + (amount || 0).toLocaleString());
+  var netText = money(net);
 
   return (
     <div className="watch-ceremony" data-outcome={won ? 'won' : 'lost'}
-      data-heat={hot ? 'hot' : 'calm'} role="status">
+      data-heat={hot ? 'hot' : 'calm'} data-scope="session" role="status">
       <div className="watch-ceremony__block">
-        <div className="watch-ceremony__name">{(agentName || 'YOUR AGENT').toUpperCase()}</div>
-        <div className="watch-ceremony__head">{won ? 'WON' : 'LOST'}</div>
+        {/* The scope is said in the small line, so the big word can stay the
+            big word. WON here means the night, not the hand — the hand has not
+            been announced like this since WATCH-7. */}
+        <div className="watch-ceremony__name">
+          {(agentName || 'YOUR AGENT').toUpperCase() + ' · TONIGHT'}
+        </div>
+        <div className="watch-ceremony__head">
+          {busted ? 'BUSTED' : (won ? 'WON' : 'LOST')}
+        </div>
 
-        {/* THE DELTA AND WHERE HE STANDS. */}
+        {/* WHERE HE STANDS AT THE END OF IT: the night's net against the buy-in,
+            and what he is walking away with. */}
         <div className="watch-ceremony__delta">
-          <span className={'watch-ceremony__delta-amt' + (won ? ' is-won' : ' is-lost')}>{deltaText}</span>
-          <span className="watch-ceremony__dot">·</span>
+          {netText && (
+            <>
+              <span className={'watch-ceremony__delta-amt' + (won ? ' is-won' : ' is-lost')}>{netText}</span>
+              <span className="watch-ceremony__dot">·</span>
+            </>
+          )}
           <span className="watch-ceremony__stack-lbl">stack</span>
           <span className="watch-ceremony__stack">
             {'$' + (Number.isFinite(stack) ? stack.toLocaleString() : '—')}
           </span>
         </div>
-        {!won && winnerName && (
-          <div className="watch-ceremony__took">{winnerName.toUpperCase() + ' TOOK THE POT'}</div>
-        )}
+
+        <div className="watch-ceremony__took">
+          {[
+            Number.isFinite(hands) && hands > 0
+              ? (hands + ' HAND' + (hands === 1 ? '' : 'S'))
+              : null,
+            reason ? String(reason).toUpperCase() : null,
+          ].filter(Boolean).join(' · ')}
+        </div>
 
         <div className="watch-ceremony__ghost">
           <span className="watch-ceremony__aura" aria-hidden />
@@ -360,18 +388,31 @@ export function HandCeremony({
             event={won ? 'smug' : 'stunned'} hands="cover" won={won} ring={false} />
         </div>
 
+        {/* A busted agent has one thing he needs and it is not conversation. */}
         <div className="watch-ceremony__acts">
-          <button type="button" className="watch-btn watch-btn--primary" onClick={onDeal}>
-            Deal him in
-          </button>
-          {onTalk && (
-            <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__talk" onClick={onTalk}>
-              {talkLabel}
-            </button>
+          {busted ? (
+            <>
+              <button type="button" className="watch-btn watch-btn--primary watch-ceremony__fund"
+                onClick={onFund}>
+                Fund him again
+              </button>
+              <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__floor"
+                onClick={onFloor}>
+                Back to the floor
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="watch-btn watch-btn--primary watch-ceremony__floor"
+                onClick={onFloor}>
+                Back to the floor
+              </button>
+              <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__talk"
+                onClick={onTalk}>
+                {talkLabel}
+              </button>
+            </>
           )}
-          <div className="watch-ceremony__next">
-            {'NEXT HAND IN ' + (Number.isFinite(nextInS) ? nextInS : 3) + 's'}
-          </div>
         </div>
       </div>
     </div>
@@ -445,6 +486,10 @@ export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
   agentMood, agentHeat, agentAccent,
+  // WATCH-7: the hand-end receipt, drawn over his strip rather than over the
+  // felt, and the ticking stack number under it. Both are the watch screen's;
+  // the replay theatre passes neither and is unchanged.
+  toast = null, heroStackShown = null,
 }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
@@ -584,7 +629,10 @@ export function WatchFelt({
     '--wv-hero-band': HERO_BAND + 'px',
   } : undefined;
 
-  var heroStack = '$' + (heroData && heroData.stack != null ? heroData.stack.toLocaleString() : '--');
+  var heroStackRaw = Number.isFinite(heroStackShown)
+    ? heroStackShown
+    : (heroData && heroData.stack != null ? heroData.stack : null);
+  var heroStack = '$' + (heroStackRaw != null ? heroStackRaw.toLocaleString() : '--');
   var heroMuck  = !!mucking[heroSeat];
   var mine = bubbles.filter(function(b) { return b.mine; });
   var heroSays = mine.length ? mine[mine.length - 1].text : null;
@@ -738,6 +786,7 @@ export function WatchFelt({
           // TO ACT and his action chip are the live registers.
           note={live ? null : heroNote}
           cost={cost}
+          toast={toast}
           onTapFace={onTapHero}
         />
       )}
@@ -749,7 +798,8 @@ export function WatchFelt({
           with the hand still playing behind it. The felt does not resize. */}
       {overlay}
 
-      {/* W5-3: the hand is called. Last in the felt so it is over everything. */}
+      {/* WATCH-7: the SESSION is called. Last in the felt so it is over
+          everything — and it is the only thing on this screen that is. */}
       {ceremony}
     </div>
   );
@@ -852,6 +902,46 @@ function moodHeatOf(seat) {
   return (m && typeof m === 'object' && Number.isFinite(m.heat)) ? m.heat : null;
 }
 
+// ---- the stack tick --------------------------------------------------------
+// WATCH-7. `key` is the hand: when it changes and the hand ended with a delta,
+// the shown number runs from (target − delta) to target over STACK_TICK_MS and
+// stops. Any other change to the target — blinds posted, a snapshot correcting
+// the seat — is taken immediately, because only the hand end is worth watching.
+//
+// setInterval rather than rAF: the felt is already on a 500ms bubble tick, a
+// backgrounded tab must not queue seven hundred frames, and a test can advance
+// this clock.
+function useStackTick(target, delta, key) {
+  var [shown, setShown] = useState(target);
+  var running = useRef(false);
+
+  useEffect(function () {
+    if (!Number.isFinite(target) || !Number.isFinite(delta) || delta === 0) return undefined;
+    var from = target - delta;
+    var t0 = Date.now();
+    running.current = true;
+    setShown(from);
+    var id = setInterval(function () {
+      var p = Math.min(1, (Date.now() - t0) / STACK_TICK_MS);
+      // Ease out: it lands on the number rather than stopping at it.
+      var e = 1 - Math.pow(1 - p, 3);
+      setShown(Math.round(from + delta * e));
+      if (p >= 1) { clearInterval(id); running.current = false; }
+    }, 50);
+    return function () { clearInterval(id); running.current = false; };
+    // Keyed on the hand alone: re-running this on every stack change would
+    // restart the tick from the top each time a snapshot arrived mid-tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  useEffect(function () {
+    if (running.current) return;
+    setShown(target);
+  }, [target]);
+
+  return Number.isFinite(shown) ? shown : target;
+}
+
 // ---- WatchScreen (export) --------------------------------------------------
 
 export function WatchScreen({
@@ -860,6 +950,12 @@ export function WatchScreen({
   onOpenThread,
   paceFrame,
   paceLag,
+  // WATCH-7 · the session-finished signal, and the two ways out of the evening
+  // the ceremony offers. `sessionEnd` is null for the whole session and an
+  // object exactly once: { reason?, hands?, finalStack?, busted? }.
+  sessionEnd = null,
+  onFund,
+  onBackToFloor,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -1020,35 +1116,58 @@ export function WatchScreen({
   var between = !handActive(game);
   var pace = paceOf(game);
 
-  // ── W5-3 · the hand-end ceremony ────────────────────────────────────────
-  // The showdown is held for SHOWDOWN_HOLD_MS so the reveal can be read, then
-  // the hand is called for CEREMONY_MS. Latched per hand.
-  var [ceremonyHand, setCeremonyHand] = useState(null);
-  var ceremonySeenRef = useRef(null);
+  // ── WATCH-7 · a hand ends quietly ───────────────────────────────────────
+  // The pot slides to the winner and his stack ticks — both of those are the
+  // felt's own doing — and over his strip, for a second and a half, the one line
+  // that says what the hand did to HIM. Latched per hand, so however many
+  // terminal snapshots the queue serves, a hand is called once.
+  //
+  // No hold before it. The showdown reveal, the pot trail and this are the same
+  // moment; W5-3 delayed its block by SHOWDOWN_HOLD_MS because the block covered
+  // the cards being revealed, and a toast over his strip covers nothing.
+  var [toastHand, setToastHand] = useState(null);
+  var toastSeenRef = useRef(null);
   var settledNow = handSettled(game);
   var settledHand = game ? game.handNumber : null;
   useEffect(function () {
-    if (!settledNow) { setCeremonyHand(null); return undefined; }
-    if (ceremonySeenRef.current === settledHand) return undefined;
-    ceremonySeenRef.current = settledHand;
-    var open  = setTimeout(function () { setCeremonyHand(settledHand); }, SHOWDOWN_HOLD_MS);
-    var close = setTimeout(function () { setCeremonyHand(null); }, SHOWDOWN_HOLD_MS + CEREMONY_MS);
-    return function () { clearTimeout(open); clearTimeout(close); };
+    if (!settledNow) { setToastHand(null); return undefined; }
+    if (toastSeenRef.current === settledHand) return undefined;
+    toastSeenRef.current = settledHand;
+    setToastHand(settledHand);
+    var close = setTimeout(function () { setToastHand(null); }, RESULT_TOAST_MS);
+    return function () { clearTimeout(close); };
   }, [settledNow, settledHand]);
 
-  // WATCH-6: what the hand did to HIM. The wire carries the pot and who took it,
-  // never a per-hand net for a seat, so the delta is the one thing the screen has
-  // to work out for itself: his stack when the hand was dealt against his stack
-  // now. Without a baseline (joining mid-hand) the ceremony falls back to the pot.
+  // What the hand did to HIM. SERVER-3 puts the real number on the result as
+  // `result.deltas`; until it lands — and whenever a payload arrives without it —
+  // the screen derives it the way WATCH-6 did: his stack when the hand was dealt
+  // against his stack now. lib/deltas.js owns which of the two is used, so this
+  // screen never has to know.
   var heroStackNow = heroSeatRow && Number.isFinite(heroSeatRow.stack) ? heroSeatRow.stack : null;
   var stackAtDealRef = useRef({ hand: null, stack: null });
   if (!settledNow && currentHand != null && stackAtDealRef.current.hand !== currentHand) {
     stackAtDealRef.current = { hand: currentHand, stack: heroStackNow };
   }
-  var handDelta = (stackAtDealRef.current.hand === currentHand
-    && Number.isFinite(stackAtDealRef.current.stack) && Number.isFinite(heroStackNow))
-    ? heroStackNow - stackAtDealRef.current.stack
-    : null;
+  var handNet = netForSeat(game && game.result, heroSeatIdx, {
+    stackNow: heroStackNow,
+    stackAtDeal: stackAtDealRef.current.hand === currentHand
+      ? stackAtDealRef.current.stack
+      : null,
+  });
+
+  // THE STACK TICKS. Not because a counting number is pretty, but because the
+  // stack is the only place on the felt where a lost hand leaves a mark, and a
+  // number that jumps between renders is a number nobody sees change. It runs
+  // from what he had when the hand was dealt to what he has now — which is the
+  // delta again, so the server's number moves this too.
+  var heroStackTicked = useStackTick(
+    heroStackNow,
+    settledNow ? handNet : null,
+    // The key is the HAND ENDING, not the hand: the settled snapshot carries
+    // the same hand number as the hand that was just being played, so keying
+    // on the number alone would never fire.
+    settledNow ? 'done:' + settledHand : 'live:' + settledHand,
+  );
 
   // ── W5-4 · "why the hand went wrong", pinned ────────────────────────────
   // Pinned under his strip: it survives the next deal and only stands down when
@@ -1257,31 +1376,51 @@ export function WatchScreen({
     if (onLeave)  onLeave();
   }
 
-  // W5-3/W5-5: the block that calls the hand, and the two taps it offers.
   var agentName = (config && config.displayName) ? config.displayName : null;
+
+  // WATCH-7 · THE RECEIPT. One line over his strip, teal or red, gone in 1.5s.
+  // A delta of exactly zero is not a result — he was not in the hand — and a
+  // "+$0" toast would be the screen inventing an event.
+  var toastNode = null;
+  if (toastHand != null && Number.isFinite(handNet) && handNet !== 0) {
+    toastNode = <ResultToast delta={money(handNet)} won={handNet > 0} />;
+  }
+
+  // WATCH-7 · THE CEREMONY, and the only thing that still earns the whole felt.
+  // `sessionEnd` is the session-finished signal — the TABLE_CLOSED the client
+  // already receives today, and SESSION_END when SERVER-3 lands it. Either way
+  // it arrives here as { reason, hands, finalStack, busted }, all optional.
   var ceremonyNode = null;
-  if (ceremonyHand != null && game && game.result) {
-    var res = game.result;
-    var heroIdx = Number.isInteger(mySeat) ? mySeat : 0;
-    var champion = (res.winners && res.winners.length) ? res.winners[0] : null;
-    var heroTook = !!(res.winners || []).some(function (w) { return w.seat === heroIdx; });
-    var championName = (champion && game.seats && game.seats[champion.seat])
-      ? (game.seats[champion.seat].displayName || ('Seat ' + (champion.seat + 1)))
+  if (sessionEnd) {
+    var finalStack = Number.isFinite(sessionEnd.finalStack) ? sessionEnd.finalStack : heroStackNow;
+    // A bust is a fact about his chips, so the screen can see it for itself when
+    // the signal does not spell it out.
+    var busted = (sessionEnd.busted != null)
+      ? !!sessionEnd.busted
+      : (Number.isFinite(finalStack) && finalStack <= 0);
+    var buyIn = (config && Number.isFinite(config.buyIn)) ? config.buyIn : null;
+    var sessionNet = (Number.isFinite(finalStack) && Number.isFinite(buyIn))
+      ? finalStack - buyIn
       : null;
+    var handsPlayed = Number.isFinite(sessionEnd.hands)
+      ? sessionEnd.hands
+      : (game && Number.isFinite(game.handNumber) ? game.handNumber : null);
     ceremonyNode = (
-      <HandCeremony
-        won={heroTook}
+      <SessionCeremony
+        won={!busted && Number.isFinite(sessionNet) && sessionNet >= 0}
+        busted={busted}
         agentName={agentName}
-        amount={res.pot || 0}
-        delta={handDelta}
-        stack={heroStackNow}
-        winnerName={championName}
+        net={sessionNet}
+        stack={finalStack}
+        hands={handsPlayed}
+        reason={sessionEnd.reason}
         mood={heroMood}
         heat={heroHeat}
         accent={heroAccent}
-        talkLabel={'Talk to ' + (agentName || 'your agent') + ' about this hand'}
-        onTalk={function () { openChat({ handId: ceremonyHand }); }}
-        onDeal={function () { setCeremonyHand(null); }}
+        talkLabel={'Talk to ' + (agentName || 'your agent') + ' about tonight'}
+        onTalk={function () { openChat(); }}
+        onFund={function () { if (onFund) onFund(); else if (onLeave) onLeave(); }}
+        onFloor={function () { if (onBackToFloor) onBackToFloor(); else if (onLeave) onLeave(); }}
       />
     );
   }
@@ -1362,8 +1501,11 @@ export function WatchScreen({
         whispers={whispers}
         onTapHero={function() { openChat(); }}
         overlay={overlay}
-        // W5-3: no speech over the ceremony. For its three seconds the hand is
-        // the only thing being said; the line is in the record either way.
+        toast={toastNode}
+        heroStackShown={heroStackTicked}
+        // No speech over the ceremony: the session is the only thing being said
+        // then, and every line is in the record either way. A hand-end toast is
+        // not a ceremony and does not silence him.
         bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
 
       <WhisperComposer

@@ -8,7 +8,7 @@
 //
 // The composer is also the way into the thread: swipe up from it (or tap his
 // face) and the glass sheet comes over the lower felt.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Glass } from './Glass.jsx';
 
 // How long a sent whisper lives on the felt. The keyframes in watch.css run for
@@ -31,6 +31,25 @@ export function Whisper({ text }) {
 export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
   const [text, setText] = useState('');
   const gesture = useRef(null);
+  const openRef = useRef(onOpenThread);
+  openRef.current = onOpenThread;
+
+  // WATCH-7: the swipe did not work, on a phone or on a desk.
+  //
+  // v6 listened for React's onPointerMove on the composer alone. Two things
+  // broke it. On touch, the composer had no `touch-action` of its own, so the
+  // browser claimed a vertical drag as a page pan and sent `pointercancel`
+  // before it had travelled 28px — the gesture was cancelled by the platform,
+  // not missed by the code. And on a desk, a drag that left the composer (which
+  // 28px upwards very often does — the composer is 44px tall) stopped
+  // delivering moves to it at all, because a mouse has no implicit capture.
+  //
+  // So: the move and the release are tracked on the WINDOW for the life of the
+  // drag, both touch and mouse are handled explicitly rather than through the
+  // pointer abstraction that was being cancelled, and `touch-action: none` on
+  // the composer (watch6.css) stops the platform stealing the gesture in the
+  // first place.
+  const [dragging, setDragging] = useState(false);
 
   function submit(e) {
     if (e) e.preventDefault();
@@ -40,21 +59,58 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
     setText('');
   }
 
-  function onPointerDown(e) {
-    if (e.target && e.target.tagName === 'INPUT') { gesture.current = null; return; }
-    gesture.current = { y: e.clientY, fired: false };
+  // A drag that starts in the text field is the caret being placed, never a
+  // swipe. Everything else on the composer is fair game.
+  function begin(y, target) {
+    if (target && target.tagName === 'INPUT') { gesture.current = null; return; }
+    gesture.current = { y, fired: false };
+    setDragging(true);
   }
-  function onPointerMove(e) {
+
+  function move(y) {
     const g = gesture.current;
     if (!g || g.fired) return;
-    if (g.y - e.clientY > SWIPE_PX) { g.fired = true; if (onOpenThread) onOpenThread(); }
+    if (g.y - y > SWIPE_PX) {
+      g.fired = true;
+      if (openRef.current) openRef.current();
+    }
   }
-  function onPointerUp() { gesture.current = null; }
+
+  function end() {
+    gesture.current = null;
+    setDragging(false);
+  }
+
+  useEffect(() => {
+    if (!dragging) return undefined;
+    const onMouseMove = (e) => move(e.clientY);
+    const onTouchMove = (e) => { if (e.touches && e.touches[0]) move(e.touches[0].clientY); };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', end);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', end);
+    window.addEventListener('touchcancel', end);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', end);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('touchcancel', end);
+    };
+  }, [dragging]);
 
   return (
     <div className="watch-composer"
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      onMouseDown={(e) => begin(e.clientY, e.target)}
+      onTouchStart={(e) => {
+        if (e.touches && e.touches[0]) begin(e.touches[0].clientY, e.target);
+      }}
+      // The window listeners above own the drag once it starts; these keep the
+      // gesture alive for anything that only ever delivers moves to the element
+      // it started on.
+      onMouseMove={(e) => move(e.clientY)}
+      onTouchMove={(e) => { if (e.touches && e.touches[0]) move(e.touches[0].clientY); }}
+    >
       <form onSubmit={submit}>
         <Glass className="watch-composer__pill">
           <input
@@ -80,7 +136,19 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
           </button>
         </Glass>
       </form>
-      <div className="watch-composer__hint">SWIPE UP FOR THE THREAD</div>
+
+      {/* WATCH-7: the hint was a line of dead text telling you about a gesture.
+          It is a control now — a chevron above the words, and tapping either
+          opens the thread. A hint for a gesture that is hard to discover has to
+          be the thing it is hinting at. */}
+      <button type="button" className="watch-composer__hint" onClick={onOpenThread}>
+        <svg className="watch-composer__chevron" width="16" height="9" viewBox="0 0 16 9"
+          fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+          strokeLinejoin="round" aria-hidden>
+          <path d="M2 7l6-5 6 5" />
+        </svg>
+        <span>SWIPE UP FOR THE THREAD</span>
+      </button>
     </div>
   );
 }

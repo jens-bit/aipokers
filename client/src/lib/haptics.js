@@ -29,8 +29,11 @@ export const HAPTICS = {
   heating: { kind: 'impact', style: 'rigid', note: 'once per hand, never repeated' },
   allin: { kind: 'notification', style: 'warning', note: 'the loudest thing in the product' },
   runoutCard: { kind: 'impact', style: 'soft', note: 'during the hold only' },
-  wonPot: { kind: 'notification', style: 'success', note: 'no fanfare, no jingle' },
-  lostPot: { kind: 'impact', style: 'soft', note: 'losing is quiet on purpose' },
+  // WATCH-7: the hand end is a toast, not a ceremony, so both outcomes get the
+  // same LIGHT tap. A success notification was the one piece of fanfare left on
+  // this screen, and a hand ending forty times a session cannot be an event.
+  wonPot: { kind: 'impact', style: 'light', note: 'under the +$ toast — light, both outcomes alike' },
+  lostPot: { kind: 'impact', style: 'light', note: 'under the −$ toast — the same tap, never a scold' },
   readForms: { kind: 'selection', style: null, note: 'the panel animates instead' },
   // CLEAN-1: the three v4b rows, as their own entries. Folding them onto
   // cardDealt or runoutCard would have made the table lie about what the device

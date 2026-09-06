@@ -11,7 +11,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  DWELL_MS, LAG_LIMIT_MS, CATCHUP_RATE, SHOWDOWN_HOLD_MS, CEREMONY_MS,
+  DWELL_MS, LAG_LIMIT_MS, CATCHUP_RATE, SHOWDOWN_HOLD_MS, SETTLE_MS,
+  RESULT_TOAST_MS, STACK_TICK_MS,
   stepOf, dwellOf, createQueue, pushFrame, advance, nextWaitMs, behindMs,
 } from './pace.js';
 
@@ -117,8 +118,14 @@ describe('W5-1: the beat', () => {
   // The ceremony runs inside the showdown's dwell, not after it, so the next
   // deal lands as the block leaves rather than a beat behind it.
   it('spends the showdown’s four seconds on the hold and the ceremony', () => {
-    expect(SHOWDOWN_HOLD_MS + CEREMONY_MS).toBe(DWELL_MS.showdown);
-    expect(CEREMONY_MS).toBe(3000);
+    expect(SHOWDOWN_HOLD_MS + SETTLE_MS).toBe(DWELL_MS.showdown);
+    expect(SETTLE_MS).toBe(3000);
+
+    // WATCH-7: what happens inside the second half changed — the WON/LOST
+    // block became a receipt over his strip — but the beat did not. The
+    // toast has to be over well before the next deal lands.
+    expect(RESULT_TOAST_MS).toBeLessThan(SETTLE_MS);
+    expect(STACK_TICK_MS).toBeLessThan(RESULT_TOAST_MS);
   });
 
   it('waits for nothing it does not recognise', () => {

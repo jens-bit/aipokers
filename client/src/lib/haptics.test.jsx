@@ -45,8 +45,8 @@ describe('W3-3 haptics', () => {
       ['impact', 'rigid'],          // heating entered
       ['notification', 'warning'],  // all-in entered
       ['impact', 'soft'],           // runout card
-      ['notification', 'success'],  // won the pot
-      ['impact', 'soft'],           // lost the pot
+      ['impact', 'light'],          // won the pot  (WATCH-7)
+      ['impact', 'light'],          // lost the pot (WATCH-7)
       ['selection', null],          // read forms
       ['impact', 'light'],          // his cards warm
       ['impact', 'light'],          // a bubble appears
@@ -54,6 +54,20 @@ describe('W3-3 haptics', () => {
       ['impact', 'light'],          // prediction correct
       ['notification', 'success'],  // collect confirmed
     ]);
+  });
+
+  // WATCH-7. A hand used to end with the WON/LOST block taking the felt, and a
+  // success notification under it was in proportion to that. The block is gone
+  // from the hand end, so the tap is all there is — and a tap that is different
+  // for a win is the device telling the owner off for a loss, forty times a
+  // session. Same event, same weight, both light.
+  it('WATCH-7: a hand ends with the same light tap either way', () => {
+    expect(HAPTICS.wonPot.kind).toBe('impact');
+    expect(HAPTICS.wonPot.style).toBe('light');
+    expect(HAPTICS.lostPot.kind).toBe('impact');
+    expect(HAPTICS.lostPot.style).toBe('light');
+    // And nothing about a hand ending is allowed near the loudest row here.
+    expect(HAPTICS.wonPot.kind).not.toBe(HAPTICS.allin.kind);
   });
 
   // CLEAN-1 — HAPTIC4's three new rows. The rule they are here to defend is

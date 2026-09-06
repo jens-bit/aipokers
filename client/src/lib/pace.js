@@ -150,16 +150,32 @@ export const DWELL_MS = {
   check: 900,
   fold: 1500,
   street: 1800,     // a street's cards turning over
-  showdown: 4000,   // the reveal, the hold, and the ceremony over it
+  showdown: 4000,   // the reveal, the hold, and the quiet settle after it
   deal: 0,          // a new hand is not a beat to wait through
   none: 0,          // reads, moods, a pot recount — nothing anyone watches for
 };
 
-// The showdown's 4s is spent, not idle: the reveal is held, and then the hand's
-// ceremony runs over the felt. The two add up to the dwell exactly, so the next
-// deal lands the moment the ceremony leaves rather than a beat after it.
+// The showdown's 4s is spent, not idle: the reveal is held, and then the hand
+// SETTLES — the pot slides to the winner, his stack ticks to its new number, and
+// a result toast comes and goes over his strip. The two add up to the dwell
+// exactly, so the next deal lands the moment the felt is quiet again.
+//
+// WATCH-7 renamed the second half. It was CEREMONY_MS, because a WON/LOST block
+// used to take the felt at the end of every hand; the playtest called that what
+// it was — a session moment fired forty times a session — and the ceremony now
+// belongs to SESSION_END alone. Nothing about the timing changed, only what
+// happens inside it, and the name had to stop describing something that is no
+// longer there.
 export const SHOWDOWN_HOLD_MS = 1000;
-export const CEREMONY_MS = DWELL_MS.showdown - SHOWDOWN_HOLD_MS;   // 3000
+export const SETTLE_MS = DWELL_MS.showdown - SHOWDOWN_HOLD_MS;   // 3000
+
+// How long the result toast sits over his strip. Short on purpose: it is a
+// receipt, not an announcement, and the next deal must never wait for it.
+export const RESULT_TOAST_MS = 1500;
+
+// The stack tick under it — the hero's number counting from what he had when
+// the hand was dealt to what he has now, rather than jumping.
+export const STACK_TICK_MS = 700;
 
 // How far behind live the queue is allowed to fall before it stops savouring.
 // Twelve seconds is roughly two unwatchably fast hands: past that the spectator

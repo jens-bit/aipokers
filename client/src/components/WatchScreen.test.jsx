@@ -906,21 +906,29 @@ describe('W3-3 the beats', () => {
     expect(haptics).toEqual([['notification', 'warning']]);
   });
 
-  it('W3-3: winning the pot is a success, losing it is quiet', () => {
+  // W3-3 gave a win a success notification and a loss a soft tap with no sound,
+  // because the WON/LOST block was doing the announcing and the device was only
+  // underlining it. WATCH-7 took the block off the hand end: the tap and the
+  // sound ARE the announcement now, they happen forty times a session, and a
+  // device that celebrates one outcome and mutters the other is the product
+  // having an opinion about how his agent played. Same tap, same size, both
+  // outcomes — and both audible.
+  it('WATCH-7: a hand ends with one light tap, whoever took the pot', () => {
     const won = {
       ...midHandGame, street: 'complete',
       result: { pot: 400, winners: [{ seat: 0 }] },
     };
     renderWatch(won);
-    expect(haptics).toEqual([['notification', 'success']]);
+    expect(haptics).toEqual([['impact', 'light']]);
 
     haptics.length = 0;
     resetHaptics();
     const lost = { ...won, handNumber: 2, result: { pot: 400, winners: [{ seat: 1 }] } };
     renderWatch(lost);
-    // A soft tap, and — per lib/audio — no sound at all.
-    expect(haptics).toEqual([['impact', 'soft']]);
-    expect(play('lostPot')).toBeNull();
+    expect(haptics).toEqual([['impact', 'light']]);
+    // And it is heard: a chip ching for the win, a low womp for the loss.
+    expect(play('wonPot')).toMatchObject({ file: 'chip-ching' });
+    expect(play('lostPot')).toMatchObject({ file: 'low-womp' });
   });
 
   it('W3-3: an opponent acting never reaches the device', () => {
