@@ -173,15 +173,24 @@ export function natureRoutine(nature) {
  * Returns { where, tableId, room } — WITHOUT `since`, which only stampLocation
  * can supply, because it is the one part of this that is remembered.
  */
-export function locationFor({ presence = 'resting', tableId = null, room = null } = {}) {
+export function locationFor({ presence = 'resting', tableId = null, room = null, headingTo = null } = {}) {
   if (presence === 'playing' && tableId) {
     return { where: Where.TABLE, tableId: String(tableId), room: room ?? null };
   }
   // He has a table but it is not dealing him in: he is at the casino, between
-  // the door and a seat. His table may already be gone, in which case the room
-  // is unknown and says so rather than guessing at the floor.
+  // the door and a seat.
+  //
+  // SERVER-4: and the room he is between the door and a seat IN is now
+  // answerable. A queued agent has a table id and no table — the felt does not
+  // exist until an opponent turns up — so the derived room was null and the
+  // card had to say "at the casino" and nothing else. `headingTo` is the rung
+  // the deploy or the queue was FOR, remembered at that moment because it is
+  // the one thing about a walk that cannot be recomputed once it has started.
+  // It is strictly a fallback: a live table always wins, so this can never be
+  // the stale flag rule 1 exists to forbid — the only case it answers is the
+  // one where nothing else can.
   if (tableId) {
-    return { where: Where.CASINO, tableId: String(tableId), room: room ?? null };
+    return { where: Where.CASINO, tableId: String(tableId), room: room ?? headingTo ?? null };
   }
   return { where: Where.HOME, tableId: null, room: null };
 }

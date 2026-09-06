@@ -1631,7 +1631,17 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     presence,
     tableId: agent.activeTableId ?? null,
     room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
+    // SERVER-4: the room /deploy or /queue sent him to. Consulted only when the
+    // live table cannot answer, which is exactly the queued agent's case: he
+    // has a table id, the table has not been stood up, and until this the card
+    // could only say "at the casino, somewhere".
+    headingTo: agent.headingTo ?? null,
   }));
+  // He is home, so he is not on his way anywhere. Cleared here rather than by
+  // whatever brought him back, because there are four ways home (bust, worn,
+  // called in, the table closing under him) and a stale destination that
+  // survives any one of them would put him in a room he is not in.
+  if (location.where === Where.HOME && agent.headingTo) agent.headingTo = null;
   const routine = routineFor({
     nature: agent.nature,
     where: location.where,
