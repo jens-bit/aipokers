@@ -177,8 +177,49 @@ describe('CASINO-1 the deploy tray', () => {
       />,
     );
     expect(screen.getByText('Loose Cannon')).toBeInTheDocument();
-    expect(screen.getByText('pocket $2,500 · buy-in at $10/$20 is $2,000')).toBeInTheDocument();
+    expect(screen.getByText('pocket $2,500 · buy-in at 10/20 is $2,000')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deal him in' })).toBeInTheDocument();
+  });
+
+  // CASINO-2 job 6 · the wave-55 restore, as three facts in one strip.
+  it('is his face, his money and the deal — never a picker', () => {
+    const { container } = render(
+      <DeployTray
+        agent={withPocket(restingAgent, { balance: 2500 })}
+        room={floorRoom}
+        affordable
+        onDeal={() => {}}
+        onFund={() => {}}
+      />,
+    );
+    // He is already standing here, so it is HIM in the tray and not his name in
+    // a list. A bare "Deploy someone" button threw that away.
+    expect(container.querySelector('svg.mood-ghost')).not.toBeNull();
+    // And the pocket IS the wager, so it is in the same breath as the buy-in.
+    expect(screen.getByText(/^pocket .* · buy-in at .* is /)).toBeInTheDocument();
+  });
+
+  it('writes the stakes bare in that line — a dollar sign there is not money', () => {
+    render(
+      <DeployTray
+        agent={withPocket(restingAgent, { balance: 2500 })}
+        room={floorRoom}
+        affordable
+        onDeal={() => {}}
+      />,
+    );
+    // "buy-in at 10/20", not "at $10/$20": the line already carries two amounts
+    // that ARE money, and a third dollar sign between them stops the eye on a
+    // number that is an address rather than a price. The ref writes it this way
+    // in both mood-floor3 and mood-casino2.
+    const line = screen.getByText(/buy-in at/);
+    expect(line).toHaveTextContent('buy-in at 10/20 is $2,000');
+    expect(line.textContent).not.toContain('$10/$20');
+  });
+
+  it('and says what is missing rather than guessing, before a room is picked', () => {
+    render(<DeployTray agent={withPocket(restingAgent, { balance: 2500 })} room={null} onDeal={() => {}} />);
+    expect(screen.getByText('pocket $2,500 · pick a room')).toBeInTheDocument();
   });
 
   it('offers his chips instead when the pocket does not cover it', () => {

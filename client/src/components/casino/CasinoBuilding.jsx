@@ -562,6 +562,20 @@ export function RoomDoors({ rooms = [], mineByRoom = {}, hotRooms = new Set(), o
  * in a picker. The tray states his pocket and the buy-in in the same line,
  * which is the entire decision. No stake slider anywhere — the pocket already
  * is the wager.
+ *
+ * CASINO-2 job 6 · THE LINE, AS THE REF WRITES IT.
+ * "pocket $1,240 · buy-in at 10/20 is $1,000" — mood-floor3's DeployTray and
+ * mood-casino2's restored tray both write the blinds BARE here, and it is not
+ * an oversight in either. The line already carries two amounts that are money
+ * you are deciding about; a third "$10/$20" between them is a dollar sign that
+ * is not money, and the eye stops on it. The room name and the ladder are
+ * everywhere else on this screen with their dollars intact — this is the one
+ * sentence where the stakes are an ADDRESS rather than a price.
+ *
+ * Everything else about the tray is deliberately unchanged. It is the wave-55
+ * restore: he is already standing here, so his face is in it rather than a
+ * picker, and the pocket IS the wager, so the buy-in sits in the same breath.
+ * A bare "Deploy someone" button threw away both facts.
  */
 export function DeployTray({ agent, index = 0, room, affordable, busy = false, onDeal, onFund }) {
   const pocket = pocketOf(agent);
@@ -589,7 +603,7 @@ export function DeployTray({ agent, index = 0, room, affordable, busy = false, o
         <div style={{ fontSize: 11.5, color: M_TEXT, fontWeight: 500 }}>{agent.name}</div>
         <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
           {room
-            ? `pocket ${money(balance)} · buy-in at ${room.stakes.label} is ${money(buyIn)}`
+            ? `pocket ${money(balance)} · buy-in at ${doorStakes(room)} is ${money(buyIn)}`
             : `pocket ${money(balance)} · pick a room`}
         </div>
       </div>

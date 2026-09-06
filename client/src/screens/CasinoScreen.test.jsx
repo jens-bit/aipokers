@@ -310,7 +310,7 @@ describe('CASINO-1 deploy', () => {
     renderCasino({ deployAgent: fundedCannon });
 
     expect(await screen.findByText('placing Loose Cannon')).toBeInTheDocument();
-    expect(await screen.findByText('pocket $2,500 · buy-in at $10/$20 is $2,000'))
+    expect(await screen.findByText('pocket $2,500 · buy-in at 10/20 is $2,000'))
       .toBeInTheDocument();
     // He is stated, never chosen: no roster to pick from on this screen.
     expect(screen.queryByRole('combobox')).toBeNull();
@@ -336,7 +336,7 @@ describe('CASINO-1 deploy', () => {
     await screen.findByText('placing Loose Cannon');
     expect(door('upstairs')).not.toHaveAttribute('data-shut');
     // The tray opens on the rung he actually buys.
-    expect(screen.getByText('pocket $6,000 · buy-in at $25/$50 is $5,000')).toBeInTheDocument();
+    expect(screen.getByText('pocket $6,000 · buy-in at 25/50 is $5,000')).toBeInTheDocument();
   });
 
   // FIX-6 job 2 replaces the old rule here. It used to be "picking an open room
@@ -351,7 +351,7 @@ describe('CASINO-1 deploy', () => {
     const user = userEvent.setup();
     renderCasino({ deployAgent: richCannon, onDeployed });
 
-    await screen.findByText('pocket $6,000 · buy-in at $25/$50 is $5,000');
+    await screen.findByText('pocket $6,000 · buy-in at 25/50 is $5,000');
     await user.click(door('the floor'));
 
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
@@ -397,7 +397,7 @@ describe('CASINO-1 deploy', () => {
     const user = userEvent.setup();
     renderCasino({ deployAgent: richCannon, onDeployed });
 
-    await screen.findByText('pocket $6,000 · buy-in at $25/$50 is $5,000');
+    await screen.findByText('pocket $6,000 · buy-in at 25/50 is $5,000');
     await user.click(screen.getByRole('button', { name: 'Deal him in' }));
 
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
