@@ -1,0 +1,194 @@
+{
+  "timestamp": "2026-09-06T15:35:19.516Z",
+  "args": {
+    "pairs": 40,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "Nit,TAG",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000,
+    "reads": true,
+    "attributes": "mid",
+    "model": null,
+    "modelB": null,
+    "route": true
+  },
+  "attributes": {
+    "setting": "mid",
+    "seatAValue": 50,
+    "seatBValue": 50,
+    "impact": 1
+  },
+  "profiles": {
+    "Nit": {
+      "strategy": "You are a tight, patient player. Favor premium hands and strong holdings; skip marginal spots. Follow the RANGE line the server gives you rather than a fixed hand list — 'inside your range' means you can play, 'outside' means you can fold. Value bet made hands two streets; rarely bluff.",
+      "profile": {
+        "tightness": 88,
+        "aggression": 50,
+        "bluffFreq": 8,
+        "discipline": 85
+      }
+    },
+    "Loose Cannon": {
+      "strategy": "You are a loose-aggressive pressure player. Attack pots often, but do not attack blindly — follow the sizing and BLUFF DIE hints the server gives. When the BLUFF DIE says NO or the raise counter is 2+ this street, don't just fire another raise — call, pot-control, or jam based on the spot. Calling is a legitimate action when the price is right; the goal is variance, not autoraise.",
+      "profile": {
+        "tightness": 12,
+        "aggression": 85,
+        "bluffFreq": 55,
+        "discipline": 30
+      }
+    },
+    "TAG": {
+      "strategy": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+      "profile": {
+        "tightness": 70,
+        "aggression": 70,
+        "bluffFreq": 30,
+        "discipline": 80
+      }
+    },
+    "Calling Station": {
+      "strategy": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop.",
+      "profile": {
+        "tightness": 15,
+        "aggression": 5,
+        "bluffFreq": 3,
+        "discipline": 40
+      }
+    }
+  },
+  "matchups": [
+    {
+      "a": "Nit",
+      "b": "TAG",
+      "Nit": {
+        "hands": 80,
+        "netChips": -10,
+        "bb100": -0.63,
+        "ci95": 14.03,
+        "vpip": 28.1,
+        "pfr": 0,
+        "af": 0.62,
+        "foldRate": 31.5,
+        "fallbackRate": 48.4,
+        "decisions": 124,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 75,
+        "policyPct": 51.6
+      },
+      "TAG": {
+        "hands": 80,
+        "netChips": 10,
+        "bb100": 0.63,
+        "ci95": 14.03,
+        "vpip": 33.9,
+        "pfr": 3.6,
+        "af": 1,
+        "foldRate": 28,
+        "fallbackRate": 47.5,
+        "decisions": 118,
+        "model": null,
+        "inTok": 0,
+        "outTok": 0,
+        "usd": 0,
+        "usdPer100": null,
+        "unpriced": 0,
+        "callsPer100": 70,
+        "policyPct": 52.5
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 80,
+      "netChips": -10,
+      "bb100": -0.63,
+      "ci95": 14.03,
+      "vpip": 28.1,
+      "pfr": 0,
+      "af": 0.62,
+      "foldRate": 31.5,
+      "fallbackRate": 48.4,
+      "decisions": 124,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 75,
+      "policyPct": 51.6
+    },
+    "TAG": {
+      "hands": 80,
+      "netChips": 10,
+      "bb100": 0.63,
+      "ci95": 14.03,
+      "vpip": 33.9,
+      "pfr": 3.6,
+      "af": 1,
+      "foldRate": 28,
+      "fallbackRate": 47.5,
+      "decisions": 118,
+      "model": null,
+      "inTok": 0,
+      "outTok": 0,
+      "usd": 0,
+      "usdPer100": null,
+      "unpriced": 0,
+      "callsPer100": 70,
+      "policyPct": 52.5
+    }
+  },
+  "routes": {
+    "Nit": {
+      "total": 124,
+      "policy": 64,
+      "model": 60,
+      "byReason": {
+        "close": 36,
+        "clear": 64,
+        "options": 16,
+        "river": 8
+      }
+    },
+    "TAG": {
+      "total": 118,
+      "policy": 62,
+      "model": 56,
+      "byReason": {
+        "close": 31,
+        "clear": 62,
+        "options": 17,
+        "river": 8
+      }
+    }
+  },
+  "routeEnabled": true,
+  "elapsedSec": 5.9,
+  "apiKeyPresent": false,
+  "model": "claude-haiku-4-5",
+  "models": {
+    "a": "claude-haiku-4-5",
+    "b": "claude-haiku-4-5"
+  },
+  "providers": {
+    "a": "anthropic",
+    "b": "anthropic"
+  },
+  "prices": {
+    "a": {
+      "in": 1,
+      "out": 5
+    },
+    "b": {
+      "in": 1,
+      "out": 5
+    }
+  }
+}

@@ -42,6 +42,17 @@
 //      attached to a compiled fold cannot do that. This is the one gate that
 //      costs money on purpose.
 //
+// One word in the brief that had to be read carefully: "a read on the wire".
+// Taken as "he has a formed read", the gate fires on every decision from hand
+// ten onwards — heads-up there is always a read, so the router would have sent
+// three quarters of everything to the model and saved almost nothing
+// (measured: 34 of 59 decisions in a 40-pair arena run). ON THE WIRE means what
+// it says: a READ message has just gone out, because the picture of that
+// opponent CHANGED (see Table._maybeBroadcastReads, which broadcasts on the
+// fingerprint changing and not on the read existing). A read that has been true
+// for thirty hands is background; a read that just moved is news, and news is
+// what is worth paying to react to.
+//
 // Pure: no clock, no randomness, no I/O. Everything arrives on the game state
 // table.js already builds.
 //
@@ -68,13 +79,14 @@ export const Reason = Object.freeze({
   CLEAR: 'clear',          // big margin, one option, small pot, level head
   HOME: 'home',            // the kitchen table never calls a model, ever
   // → model
+  OFF: 'off',              // the router is switched off; everything is a call
   BLIND: 'blind',          // no equity estimate — nothing here can judge it
   RIVER: 'river',          // last street, last chance, nothing left to learn
   ALLIN: 'allin',          // a stack is in the middle
   BIG_POT: 'bigPot',       // past PACE_HEAT_BB the felt is warm and so is he
   HEAT: 'heat',            // he is on tilt; see rule 3
   NEMESIS: 'nemesis',      // the man he has history with is at the table
-  READ: 'read',            // he has a formed read to act on
+  READ: 'read',            // a read on him has just changed — act on it now
   TALK: 'talk',            // somebody said something to him
   CLOSE: 'close',          // margin under MARGIN_MIN — the hand is near the price
   OPTIONS: 'options',      // the policy cannot separate two actions
@@ -94,6 +106,23 @@ export const OPTIONS_MAX = 1;
 // few points before tilt are where he is starting to go, and that is already
 // worth watching.
 export const HEAT_MAX = Number(process.env.ROUTE_HEAT_MAX ?? 55);
+
+/**
+ * The kill switch.
+ *
+ * `DECISION_ROUTER=off` sends every decision to the model, which is exactly
+ * the pre-COST-1 behaviour. It exists because this is the largest change to
+ * how the product spends money that anyone has shipped, and a change that size
+ * needs a way back that is not a deploy: if the routed play reads wrong on the
+ * live floor at nine on a Friday, the fix is one env var and a restart rather
+ * than a revert under pressure.
+ *
+ * Read live rather than captured at import, so a test can flip it and the VPS
+ * can change it without anyone reasoning about module load order.
+ */
+export function routingEnabled() {
+  return String(process.env.DECISION_ROUTER ?? 'on').toLowerCase() !== 'off';
+}
 
 /**
  * Where this decision goes.
@@ -116,6 +145,12 @@ export function routeFor(gs, { home = false, nemesis = false } = {}) {
   // a reason to spend and there is no reason good enough here.
   if (home) return answer(Route.POLICY, Reason.HOME, margin, options);
 
+  // The switch is read AFTER the home check on purpose: the kitchen table
+  // spending nothing is not a routing optimisation, it is HOME-STATE-1's rule
+  // that a friendly game at home may never stand in for a night's work, and
+  // turning the router off must not turn that off with it.
+  if (!routingEnabled()) return answer(Route.MODEL, Reason.OFF, margin, options);
+
   const reason = modelReason(gs, { margin, options, nemesis });
   return reason
     ? answer(Route.MODEL, reason, margin, options)
@@ -132,7 +167,7 @@ function modelReason(gs, { margin, options, nemesis }) {
   if (potInBb(gs?.pot ?? 0, gs?.bb ?? 0) >= heatThresholdBb()) return Reason.BIG_POT;
   if (Number(gs?.mood?.heat) >= HEAT_MAX) return Reason.HEAT;
   if (nemesis) return Reason.NEMESIS;
-  if (Array.isArray(gs?.opponentReads) && gs.opponentReads.length > 0) return Reason.READ;
+  if (gs?.readOnWire) return Reason.READ;
   if (typeof gs?.tableTalk === 'string' && gs.tableTalk.trim()) return Reason.TALK;
   if (isPriced(gs) && margin < MARGIN_MIN) return Reason.CLOSE;
   if (options > OPTIONS_MAX) return Reason.OPTIONS;

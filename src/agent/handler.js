@@ -5,8 +5,9 @@
 // src/agent/providers, which picks a provider from the model id, so a table can
 // be run against any configured model and the arena can put two of them against
 // each other. AI_MODEL still names the default; `opts.model` overrides it per
-// call. The trash-talk path below is still a direct Anthropic call — it is
-// flavour text, not a benchmark, and nothing measures it.
+// call. COST-1 removed the one thing in here that still called Anthropic
+// directly — see the note where the trash-talk path used to be — so this file
+// now has exactly one way of reaching a model, which is the way MODEL-1 built.
 //
 // Game-engine contract (from game.js):
 //   act(seat, { type, amount? })
@@ -39,7 +40,6 @@
 // that second call (generateAiChatLine, below) and this is what replaces it in
 // the moment; handTalk.js writes the rest of it once per hand.
 
-import Anthropic from '@anthropic-ai/sdk';
 import { complete, isConfigured, providerIdFor } from './providers/index.js';
 import { costOf, formatUsd } from './providers/pricing.js';
 import { formatOpponentRead } from './reads.js';
@@ -344,130 +344,28 @@ function parseDecision(text, gs) {
 }
 
 // ── Chat trash-talk ──────────────────────────────────────────────────────────
-
-// Strip surrounding double or single quotes (the model often wraps the line).
-function stripWrappingQuotes(s) {
-  if (!s) return s;
-  const trimmed = s.trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    const last = trimmed[trimmed.length - 1];
-    if ((first === '"' && last === '"') || (first === '\'' && last === '\'')) {
-      return trimmed.slice(1, -1).trim();
-    }
-  }
-  return trimmed;
-}
-
-function buildSituationLine(trigger, pot, streetLabel, opponentName) {
-  switch (trigger) {
-    case 'aggressive_action':
-      return `You just fired a big bet/raise into a ${pot}-chip pot on the ${streetLabel}. ` +
-             `Reference the size of the move and apply pressure to ${opponentName}.`;
-    case 'won_hand':
-      return `You just dragged a ${pot}-chip pot away from ${opponentName}. Reference winning — twist the knife.`;
-    case 'big_pot':
-      return `The pot has ballooned to ${pot} chips on the ${streetLabel} between you and ${opponentName}. ` +
-             `Reference the stakes and crank up the pressure.`;
-    case 'human_chat':
-      return `${opponentName} just spoke at you. Respond to what they actually said.`;
-    default:
-      return `Something noteworthy happened on the ${streetLabel} (pot ${pot}) between you and ${opponentName}.`;
-  }
-}
-
-// Generate a short, contextual trash-talk / psychological line.
-// Returns null on missing API key or any error — caller must handle null.
 //
-// Options:
-//   trigger          — 'big_pot' | 'aggressive_action' | 'won_hand' | 'human_chat'
-//   agentName        — the AI's display name at the table
-//   opponentName     — the most relevant opponent's display name
-//   agentStyle       — the agent's full personality / strategy string
-//   potSize          — current pot in chips
-//   street           — current street string ('preflop' | 'flop' | 'turn' | 'river' | 'showdown')
-//   lastOpponentChat — optional last message from another seat; if present, the
-//                      agent should respond to it directly so AI vs AI tables
-//                      have actual back-and-forth.
-export async function generateAiChatLine({
-  trigger,
-  agentName,
-  opponentName,
-  agentStyle,
-  potSize,
-  street,
-  lastOpponentChat = null,
-  // METER-1: what this call cost, handed back to whoever knows whose it was.
-  // A callback rather than an import: trash talk is generated in src/agent and
-  // the ledger lives in src/server, and the arrow between those two only ever
-  // points one way. table.js is the caller, table.js knows the owner of the
-  // seat, so table.js does the filing.
-  onUsage = null,
-} = {}) {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+// COST-1 removed it. This was the per-remark model call: every trigger — a big
+// bet, a pot taken, somebody typing at the table — fired its own Anthropic
+// call, with its own full prompt, to produce one sentence about a hand it had
+// to be told about from scratch. A lively three-handed table could spend more
+// on SAYING things about a hand than on PLAYING it.
+//
+// The three ways a line gets said now are all somewhere else:
+//
+//   the `say` field on the decision call above  — free; the model is already
+//                                                 holding the whole spot
+//   src/agent/policyPlay.js instantLine         — free; a template, for the
+//                                                 fold and check that cannot
+//                                                 wait
+//   src/server/handTalk.js                      — one call per HAND, watched
+//                                                 tables only, writing a line
+//                                                 for every seat that spoke
+//
+// The deleted function is not worth keeping behind a flag: everything it did
+// is done better and cheaper by those three, and a dead export is a thing
+// somebody wires back up in six months without reading this paragraph.
 
-  const personality = (agentStyle && String(agentStyle).trim()) || DEFAULT_STRATEGY;
-  const myName = (agentName && String(agentName).trim()) || 'you';
-  const oppName = (opponentName && String(opponentName).trim()) || 'your opponent';
-  const pot = Number.isFinite(potSize) ? potSize : 0;
-  const streetLabel = (street ?? 'preflop').toString().toUpperCase();
-  const situation = buildSituationLine(trigger, pot, streetLabel, oppName);
-
-  const systemText =
-    `You are ${myName}, a poker player at a live table playing against ${oppName}. ` +
-    `Write ONE short, in-character line of trash-talk or psychological pressure (1 sentence, max 120 chars).\n\n` +
-    `Your personality / strategy:\n${personality}\n\n` +
-    `Tone rules — match your personality to one of these registers:\n` +
-    `- AGGRESSIVE personalities: taunt openly. Be cocky, mocking, in-your-face.\n` +
-    `- TIGHT / DISCIPLINED personalities: cold, clipped, dismissive — fewer words, no exclamation.\n` +
-    `- BALANCED / CALCULATED personalities: confident, surgical, knowing — the kind of line that gets in someone's head.\n\n` +
-    `Hard rules:\n` +
-    `- Reference the actual game event in the situation: the bet, the pot, or winning the hand.\n` +
-    `- Use ${oppName}'s name at least sometimes (not every line — varies).\n` +
-    `- ONE sentence MAX. No hashtags. No emojis unless they fit the personality.\n` +
-    `- BANNED generic phrases: "nice hand", "good game", "well played", "you got lucky", "gg", "wp". ` +
-    `If you catch yourself writing one, rewrite the line.\n` +
-    `- Output the line directly — no quotes, no preamble, no "Here's my line:".`;
-
-  let userText =
-    `SITUATION: ${situation}\n` +
-    `STREET: ${streetLabel}\n` +
-    `POT: ${pot}\n` +
-    `OPPONENT: ${oppName}\n` +
-    `YOU: ${myName}`;
-  if (lastOpponentChat) {
-    userText +=
-      `\n\n${oppName} just said: "${String(lastOpponentChat).slice(0, 200)}"\n` +
-      `Respond DIRECTLY to that message — engage with what they said, don't ignore it.`;
-  }
-  userText += `\n\nWrite your line:`;
-
-  try {
-    const client = new Anthropic({ timeout: 9000 });
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 80,
-      system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userText }],
-    });
-    if (onUsage) {
-      const usage = {
-        inputTokens: msg?.usage?.input_tokens,
-        outputTokens: msg?.usage?.output_tokens,
-        cachedInputTokens: msg?.usage?.cache_read_input_tokens,
-      };
-      // A meter that throws must not cost the table its line.
-      try { onUsage({ usage, model: MODEL, provider: 'anthropic' }); }
-      catch (err) { console.error('[agent] chat usage hook failed:', err.message); }
-    }
-    const raw = msg.content[0]?.text ?? '';
-    const line = stripWrappingQuotes(raw).slice(0, 280);
-    return line || null;
-  } catch (err) {
-    console.error('[agent] chat generation error:', err.message);
-    return null;
-  }
-}
 
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.

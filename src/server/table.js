@@ -59,7 +59,7 @@ import {
   handEvidence,
 } from '../agent/attributes.js';
 import { recordHand as recordHandForOpponentStats, getRead as getOpponentRead } from './opponentStats.js';
-import { readPanel } from '../agent/reads.js';
+import { readPanel, classifyOpponent } from '../agent/reads.js';
 import {
   applyEvent as applyMoodEvent,
   tickDecay as tickMoodDecay,
@@ -415,6 +415,13 @@ export class Table {
     // rather than global so a verify script can assert on one session, and so
     // the number in the log at the end of a session is that session's.
     this.routes = newRouteCounter();
+    // COST-1: the picture of the opposition as it stood at his LAST decision,
+    // per seat. A read that has been true for thirty hands is background; a
+    // read that just moved is news, and news is the thing worth paying to
+    // react to. Same fingerprint idea _maybeBroadcastReads uses to decide
+    // whether a READ message goes on the wire at all, asked per decision
+    // rather than per broadcast.
+    this._routeReadPrint = Array(maxSeats).fill(null);
     // COST-1: the hands worth mentioning, in the order they happened. The
     // input to the end-of-session write-up on an unwatched table — see
     // _writeNightRecap. One sentence per flagged hand, capped, because an
@@ -456,6 +463,7 @@ export class Table {
     ['seatEndReason',    () => null],   // SERVER-3
     ['seatBiggestPot',   () => 0],      // SERVER-3
     ['seatDrinking',     () => false],  // FRIDGE-1
+    ['_routeReadPrint',  () => null],    // COST-1
   ];
 
   _clearSeat(seat) {
@@ -3787,6 +3795,25 @@ export class Table {
       }
     }
 
+    // COST-1: has the picture of the opposition CHANGED since his last
+    // decision? This is the "read on the wire" gate — see router.js, which
+    // explains at length why the answer is not "does he have a read".
+    //
+    // The one impure line in this builder, and it is the same kind of impurity
+    // the ATTR-3 read-subject counter above already has: the state has to
+    // advance exactly once per decision, and this is the one place that runs
+    // exactly once per decision.
+    // The fingerprint is the SHAPE he is up against, not the sample behind it.
+    // Including handsObserved would change the print every single hand and the
+    // gate would be permanently open, which is the failure this whole reading
+    // exists to avoid. Same fields _maybeBroadcastReads fingerprints on.
+    const readPrint = opponentReads
+      .map((r) => `${r.playerId}:${classifyOpponent(r) ?? ''}`)
+      .join('|');
+    const readOnWire = this._routeReadPrint[aiSeat] !== null
+      && this._routeReadPrint[aiSeat] !== readPrint;
+    this._routeReadPrint[aiSeat] = readPrint;
+
     return {
       holeCards:  me.holeCards,
       community:  g.community,
@@ -3817,6 +3844,7 @@ export class Table {
       raiseCapped: !!(betAction?.capped || raiseAction?.capped),
       raiseCap: raiseCapPerStreet(),
       opponentReads,
+      readOnWire,
       mood,
       // COST-1: a stack already in the middle. The router reads it as a reason
       // to spend; nothing else does, so it is computed here rather than being

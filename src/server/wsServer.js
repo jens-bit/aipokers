@@ -10,6 +10,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as tapeIdle from './tapeIdle.js';
 
 const { getOrCreateTable } = registry;
 
@@ -50,6 +51,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // exactly the question a standing change answers.
   setAgentChangeListener((userId) => {
     try {
+      // COST-1: before the home game is reconciled, not after. An agent who
+      // has just put a tape on himself is no longer eligible for the kitchen
+      // table (homeGame.eligible excludes a man who is studying), and syncing
+      // first would seat him and then take him straight back out of a hand.
+      // Free by construction — the tape room contains no model call.
+      tapeIdle.sweep(userId, presentedRoster(userId, { owner: true }));
       homeGame.sync(userId);
       const roster = presentedRoster(userId, { owner: true });
       homeNight.noteHousehold(userId, roster);

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  routeFor, isAllIn, isPriced, Route, Reason, MARGIN_MIN, HEAT_MAX,
+  routeFor, isAllIn, isPriced, routingEnabled, Route, Reason, MARGIN_MIN, HEAT_MAX,
   newRouteCounter, countRoute, policyShare, formatRoutes,
 } from './router.js';
 
@@ -141,12 +141,22 @@ test('a tilted agent routes everything to the model — the folds included', () 
   assert.equal(routeFor(clearFold({ mood: { state: 'neutral', heat: HEAT_MAX - 1 } })).route, Route.POLICY);
 });
 
-test('a read on the wire goes to the model — it is there to be acted on', () => {
-  const r = routeFor(clearFold({
-    opponentReads: [{ playerId: 'p2', displayName: 'Granite', handsObserved: 40, vpip: 0.7 }],
-  }));
+test('a read that has just CHANGED goes to the model', () => {
+  const r = routeFor(clearFold({ readOnWire: true }));
   assert.equal(r.route, Route.MODEL);
   assert.equal(r.reason, Reason.READ);
+});
+
+test('a read that has merely EXISTED for thirty hands is background, not news', () => {
+  // The reading this gate turns on. Taken as "he has a formed read", it fires
+  // on every decision from hand ten onwards heads-up and the router saves
+  // nothing — see the note at the top of router.js.
+  const r = routeFor(clearFold({
+    readOnWire: false,
+    opponentReads: [{ playerId: 'p2', displayName: 'Granite', handsObserved: 40, vpip: 0.7 }],
+  }));
+  assert.equal(r.route, Route.POLICY);
+  assert.equal(r.reason, Reason.CLEAR);
 });
 
 test('a needle queued for him goes to the model — a template cannot answer it', () => {
@@ -177,7 +187,7 @@ test('the kitchen table never calls a model, whatever the spot is', () => {
     pot: 4000,                            // as big as a pot gets
     anyAllIn: true,
     mood: { state: 'tilted', heat: 95 },
-    opponentReads: [{ playerId: 'p2', displayName: 'Granite', handsObserved: 90 }],
+    readOnWire: true,
     tableTalk: 'You are not calling this.',
   });
   const r = routeFor(worst, { home: true, nemesis: true });
@@ -190,6 +200,39 @@ test('the kitchen table never calls a model, whatever the spot is', () => {
 test('isAllIn does not fire on a call he can comfortably afford', () => {
   assert.equal(isAllIn({ toCall: 40, myStack: 2000 }), false);
   assert.equal(isAllIn({ toCall: 0, myStack: 0 }), false, 'a busted seat is not a decision');
+});
+
+// ── the kill switch ─────────────────────────────────────────────────────────
+
+test('DECISION_ROUTER=off sends everything to the model, exactly as before', () => {
+  const had = process.env.DECISION_ROUTER;
+  process.env.DECISION_ROUTER = 'off';
+  try {
+    const r = routeFor(clearFold());
+    assert.equal(r.route, Route.MODEL);
+    assert.equal(r.reason, Reason.OFF);
+    // ...but the kitchen table still spends nothing. Turning the router off
+    // must not turn HOME-STATE-1's rule off with it.
+    assert.equal(routeFor(clearFold(), { home: true }).route, Route.POLICY);
+  } finally {
+    if (had === undefined) delete process.env.DECISION_ROUTER;
+    else process.env.DECISION_ROUTER = had;
+  }
+});
+
+test('the switch is read live, not captured when the module loaded', () => {
+  const had = process.env.DECISION_ROUTER;
+  try {
+    delete process.env.DECISION_ROUTER;
+    assert.equal(routingEnabled(), true, 'on by default');
+    process.env.DECISION_ROUTER = 'off';
+    assert.equal(routingEnabled(), false);
+    process.env.DECISION_ROUTER = 'on';
+    assert.equal(routingEnabled(), true);
+  } finally {
+    if (had === undefined) delete process.env.DECISION_ROUTER;
+    else process.env.DECISION_ROUTER = had;
+  }
 });
 
 // ── counting ────────────────────────────────────────────────────────────────

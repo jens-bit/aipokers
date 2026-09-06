@@ -50,7 +50,7 @@ import { telegramAuthMiddleware, isOwner } from './auth.js';
 // playing, and one that is 95% `chat` is a floor that is being built.
 export const Kind = Object.freeze({
   DECISION: 'decision',   // handler.getAgentAction — the action at the felt
-  TALK: 'talk',           // handler.generateAiChatLine — trash talk
+  TALK: 'talk',           // handTalk / nightRecap — what was said at the table
   CHAT: 'chat',           // agentProfiles — the recruiter, the agent chat, the build
   MEMORY: 'memory',       // agentProfiles.runMemoryUpdate — the self-knowledge refresh
   HOME: 'home',           // homeNight — two agents talking in the flat
