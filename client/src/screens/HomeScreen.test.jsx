@@ -501,9 +501,19 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
     expect(onWatchTable).toHaveBeenCalledWith('home-u1');
   });
 
-  it('an empty table stays furniture rather than becoming a dead button', async () => {
-    await boot([mkAgent('a1', 'The Clock')], null, { onWatchTable: () => {} });
-    expect(screen.queryByTestId('home-table')).toBeNull();
+  it('an empty table is not a dead button either — it opens the chairs', async () => {
+    // BUGS-A wrote this as "an empty table stays furniture", because at the
+    // time an empty table led nowhere and a button that leads nowhere is the
+    // bug this job is about. BIRTH-5 then gave it somewhere to lead: the
+    // chairs, priced in the TableSheet. The rule is still "no tap that does
+    // nothing" — what changed is that the empty table now does something, so
+    // the assertion is that it leads to the chairs and NOT to a watch.
+    const onWatchTable = vi.fn();
+    await boot([mkAgent('a1', 'The Clock')], null, { onWatchTable });
+    const table = await screen.findByTestId('home-table');
+    expect(table).toHaveAttribute('aria-label', 'The chairs');
+    await userEvent.click(table);
+    expect(onWatchTable).not.toHaveBeenCalled();
   });
 
   it('an away frame goes to the table in the picture', async () => {
@@ -572,5 +582,149 @@ describe('HOME-1 · the safe and the fridge', () => {
     expect(safe.textContent).toBe('');
     await userEvent.click(safe);
     expect(opened).toBe(true);
+  });
+});
+
+// ── BUG-32 · the newborn comes in through the door ──────────────────────────
+
+describe('BUG-32 · a birth is an arrival', () => {
+  it('a newborn stands in the doorway and then walks to his chair', async () => {
+    const sitting = mkAgent('a1', 'The Clock');
+    const { sock } = await boot([sitting]);
+
+    const born = mkAgent('a2', 'Fresh Meat', { newborn: true, bornAt: Date.now() });
+    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, born], game: null });
+
+    // Beat one: he is at the door, which is a place of its own — not the
+    // 'door:away' an agent at the casino gets.
+    const doorway = await screen.findByRole('button', { name: /Fresh Meat/ });
+    expect(doorway).toHaveAttribute('data-spot', 'door:born');
+
+    // Beat two: he crosses the room, and the crossing is the walking class.
+    await waitFor(() => {
+      const el = screen.getByRole('button', { name: /Fresh Meat/ });
+      expect(el).not.toHaveAttribute('data-spot', 'door:born');
+      expect(el).toHaveAttribute('data-walking', 'true');
+    }, { timeout: 4000 });
+
+    // And it ends, like every other walk in this room.
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: /Fresh Meat/ })).toHaveAttribute('data-walking', 'false'),
+      { timeout: 4000 },
+    );
+  }, 15_000);
+
+  it('an agent who has been here a while is not walked in again on a reconnect', async () => {
+    const settled = mkAgent('a1', 'The Clock', { newborn: false, bornAt: Date.now() - 10 * 60_000 });
+    await boot([settled]);
+    // Not byRole(/The Clock/) any more: BUGS-A job 11 turned a thread line into
+    // a button captioned with who spoke, so his name now labels two controls.
+    // The body in the room is the one this rule is about.
+    const body = await screen.findByLabelText('The Clock — reading');
+    expect(body).not.toHaveAttribute('data-spot', 'door:born');
+    expect(body).toHaveAttribute('data-walking', 'false');
+  });
+
+  it('falls back to the birth time when the server sent no marker', async () => {
+    const sitting = mkAgent('a1', 'The Clock');
+    const { sock } = await boot([sitting]);
+
+    // No `newborn` field at all — an older server. The timestamp is enough.
+    const born = mkAgent('a2', 'Fresh Meat', { bornAt: Date.now() - 2_000 });
+    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, born], game: null });
+
+    expect(await screen.findByRole('button', { name: /Fresh Meat/ }))
+      .toHaveAttribute('data-spot', 'door:born');
+  });
+
+  it('an agent from before BIRTH-5 has no birth time and is placed where he stands', async () => {
+    const sitting = mkAgent('a1', 'The Clock');
+    const { sock } = await boot([sitting]);
+
+    const legacy = mkAgent('a2', 'The Old Man', { routine: { key: 'sleeps', label: 'asleep' } });
+    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, legacy], game: null });
+
+    expect(await screen.findByRole('button', { name: /The Old Man/ }))
+      .toHaveAttribute('data-spot', 'sleeps');
+  });
+});
+
+// ── BIRTH-5 · the table, on the phone ───────────────────────────────────────
+//
+// DESK-2 built the TableSheet and gave it to the rail; the phone's table was
+// still furniture, so an owner on a phone had no way to see what a chair costs.
+// Same sheet, phone chrome — these assert the ROUTE to it, not the sheet's own
+// contents (DeskHome.test.jsx already owns those).
+
+describe('BIRTH-5 · the table, on the phone', () => {
+  const SLOTS = { used: 2, cap: 4, next: { index: 3, price: 50_000, earned: 12_000, unlocked: false } };
+
+  it('tapping the table opens it, and it says who is at it and what the next chair costs', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
+    );
+
+    await userEvent.click(await screen.findByTestId('home-table'));
+    const sheet = await screen.findByTestId('home-table-sheet');
+    expect(within(sheet).getByTestId('home-table-seated')).toHaveTextContent('2 at the table · 2 chairs free');
+    expect(sheet).toHaveTextContent('3RD SEAT');
+    expect(sheet).toHaveTextContent('50,000 won');
+    // SLOTS-1 rule 1, said out loud on the one screen that names a price.
+    expect(sheet).toHaveTextContent(/chips he has won/i);
+  });
+
+  it('the kitchen table still shows no money, sheet or no sheet', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+    const sheet = await screen.findByTestId('home-table-sheet');
+    expect(sheet).toHaveTextContent('FOR NOTHING');
+    expect(sheet.textContent).not.toMatch(/\$/);
+  });
+
+  it('a locked chair offers no action at all — it states the distance', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    let created = 0;
+    await boot([mkAgent('a1', 'The Clock')], null, { onCreateAgent: () => { created += 1; } });
+    await userEvent.click(await screen.findByTestId('home-table'));
+    expect(await screen.findByTestId('home-table-locked')).toHaveTextContent('38,000 to go');
+    expect(screen.queryByTestId('home-table-draft')).not.toBeInTheDocument();
+    expect(created).toBe(0);
+  });
+
+  it('an unlocked chair drafts him, and the sheet gets out of the way', async () => {
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 26_000, unlocked: true } });
+    let created = 0;
+    await boot([mkAgent('a1', 'The Clock')], null, { onCreateAgent: () => { created += 1; } });
+    await userEvent.click(await screen.findByTestId('home-table'));
+    await userEvent.click(await screen.findByTestId('home-table-draft'));
+    expect(created).toBe(1);
+    await waitFor(() => expect(screen.queryByTestId('home-table-sheet')).not.toBeInTheDocument());
+  });
+
+  it("the shell can send the owner straight into it — BirthScreen's refusal does", async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot([mkAgent('a1', 'The Clock')], null, { openTable: true });
+    expect(await screen.findByTestId('home-table-sheet')).toBeInTheDocument();
+  });
+
+  it('closes on the scrim, like every other sheet over this room', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+    const sheet = await screen.findByTestId('home-table-sheet-mobile');
+    await userEvent.click(within(sheet).getAllByRole('button', { name: 'Close' })[0]);
+    await waitFor(() => expect(screen.queryByTestId('home-table-sheet')).not.toBeInTheDocument());
+  });
+
+  it('is still a table on a deployment whose server has no seats to describe', async () => {
+    fetchMock.route('/api/slots', () => ({ status: 404, body: {} }));
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+    const sheet = await screen.findByTestId('home-table-sheet');
+    // The felt and the count are still there — the room has a table either way.
+    expect(within(sheet).getByTestId('home-table-seated')).toBeInTheDocument();
   });
 });

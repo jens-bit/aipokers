@@ -55,6 +55,39 @@ export const ThreadKind = Object.freeze({
 
 const KINDS = new Set(Object.values(ThreadKind));
 
+// ── WATCH-9 · the push ──────────────────────────────────────────────────────
+//
+// SERVER-3 made the thread survive by storing it, and the sheet read the store
+// when it was opened. That is a snapshot: a sheet left open went quiet while
+// the table carried on talking, and the only way to see what had been said was
+// to close it and open it again.
+//
+// So every write announces itself. ONE injected sink, the same shape
+// floorChannel.js takes its providers in: this module still knows about no
+// socket, no table and no registry — wsServer wires the listener to whatever
+// can deliver, and with nothing wired the writes are exactly what they were.
+//
+// It is announced AFTER the row is written and with the row's own id, so a
+// client can merge the push with a fetch by id rather than by guessing whether
+// it already has the line.
+let lineListener = null;
+
+/** Wire the sink. Passing anything but a function unwires it. */
+export function setLineListener(fn) {
+  lineListener = typeof fn === 'function' ? fn : null;
+}
+
+// Best-effort, like every write in this file: a thread that can break a hand is
+// worse than no thread, and that goes double for a broadcast hanging off one.
+function announce(line) {
+  if (!lineListener) return;
+  try {
+    lineListener(line);
+  } catch (err) {
+    console.error('[thread] line listener failed:', err.message);
+  }
+}
+
 // HOME-STATE-1: where the line was said. `table` is every line that predates
 // the home and every line a felt produces; `home` is the nightly exchange
 // between two agents who spent the evening in — a conversation with no table
@@ -112,33 +145,47 @@ export const LINE_MAX = 280;
  *   source     one of ThreadSource — where it was said. Anything unrecognised
  *              falls back to 'table' rather than being stored, so a caller
  *              cannot invent a fifth provenance the client has to switch on.
+ *   cost       WATCH-9: this is the room saying an attribute cost him the
+ *              hand, which the sheet draws in gold. A property of the LINE and
+ *              not a fifth `kind`: it is still the room's voice, and adding a
+ *              kind for it would let a client miss it and print it as an
+ *              opponent. It was a client-side flag on a live row until now, so
+ *              the gold went grey the moment the thread was refetched.
  */
-export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE, from = null, to = null } = {}) {
+export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE, from = null, to = null, cost = false } = {}) {
   if (!sessionId || !agentId) return null;
   if (!KINDS.has(kind)) return null;
   if (typeof text !== 'string') return null;
   const trimmed = text.trim().slice(0, LINE_MAX);
   if (!trimmed) return null;
   const label = (typeof who === 'string' && who.trim()) ? who.trim().slice(0, 40) : defaultLabel(kind);
+  const row = {
+    sessionId,
+    agentId,
+    ownerId: ownerId ?? 'anon',
+    tableId,
+    ts: Number.isFinite(ts) ? ts : Date.now(),
+    kind,
+    who: label,
+    text: trimmed,
+    source: SOURCES.has(source) ? source : ThreadSource.TABLE,
+    from: participant(from),
+    to: participant(to),
+    cost: !!cost,
+  };
 
+  let id = null;
   try {
-    return appendThreadLine({
-      sessionId,
-      agentId,
-      ownerId: ownerId ?? 'anon',
-      tableId,
-      ts: Number.isFinite(ts) ? ts : Date.now(),
-      kind,
-      who: label,
-      text: trimmed,
-      source: SOURCES.has(source) ? source : ThreadSource.TABLE,
-      from: participant(from),
-      to: participant(to),
-    });
+    id = appendThreadLine(row);
   } catch (err) {
     console.error('[thread] append failed:', err.message);
     return null;
   }
+  // Only a line that is actually in the store is announced. A push for a row
+  // that failed to write would put a line on a screen that nobody could ever
+  // read back.
+  if (id != null) announce({ ...row, id, cost: row.cost || undefined });
+  return id;
 }
 
 /**

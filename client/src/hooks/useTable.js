@@ -53,6 +53,12 @@ export function useTable({ wsUrl }) {
   // during a spectator-only all-in hold, where the server turns the board a
   // card at a time and the felt has to follow it rather than run its own clock.
   const [paceFrame, setPaceFrame] = useState(null);
+  // WATCH-9: lines the server has pushed into this table's thread since the
+  // socket opened. Kept as STORED lines rather than as rendered rows, because
+  // that is exactly what GET /api/agents/:id/thread returns and it is what lets
+  // useTableThread merge the two by id without knowing which door a line came
+  // through. Capped like chatMessages: a sheet shows a conversation, not a log.
+  const [threadLines, setThreadLines] = useState([]);
 
   const wsRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -151,6 +157,20 @@ export function useTable({ wsUrl }) {
           },
         ]);
         break;
+
+      // WATCH-9: the push behind the thread sheet. Deduped by id here as well
+      // as in the merge — the socket can redeliver on a reconnect, and a sheet
+      // that prints the same sentence twice is a sheet nobody trusts.
+      case ServerMsg.THREAD_LINE: {
+        const line = msg.line;
+        if (!line || line.id == null) break;
+        setThreadLines((prev) => (
+          prev.some((l) => l.id === line.id)
+            ? prev
+            : [...prev.slice(-199), { ...line, sessionId: msg.sessionId ?? null }]
+        ));
+        break;
+      }
 
       case ServerMsg.TABLE_CLOSED:
         setHistory((h) => appendEntry(h, { kind: 'closed', reason: msg.reason }));
@@ -294,6 +314,11 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    // WATCH-9: a new table (or no table) is a new thread — carrying the last
+    // one's pushed lines into the next would be the sheet inventing a
+    // conversation, which is the rule useTableThread already keeps for the
+    // stored half.
+    setThreadLines([]);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -322,6 +347,11 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    // WATCH-9: a new table (or no table) is a new thread — carrying the last
+    // one's pushed lines into the next would be the sheet inventing a
+    // conversation, which is the rule useTableThread already keeps for the
+    // stored half.
+    setThreadLines([]);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -355,6 +385,11 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    // WATCH-9: a new table (or no table) is a new thread — carrying the last
+    // one's pushed lines into the next would be the sheet inventing a
+    // conversation, which is the rule useTableThread already keeps for the
+    // stored half.
+    setThreadLines([]);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
   }, []);
@@ -413,6 +448,7 @@ export function useTable({ wsUrl }) {
     sitOut,
     lastDecision,
     paceFrame,
+    threadLines,
   };
 }
 

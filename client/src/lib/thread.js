@@ -63,7 +63,7 @@ export function rowFromLine(line) {
   const who = kind === ThreadKind.OPPONENT
     ? String(line.who || 'THEM').toUpperCase()
     : kind.toUpperCase();
-  return {
+  const row = {
     id: 's' + line.id,
     kind,
     who,
@@ -72,6 +72,13 @@ export function rowFromLine(line) {
     t: Number.isFinite(line.ts) ? line.ts : null,
     stored: true,
   };
+  // WATCH-9: the room has one line in it that is not neutral — a low attribute
+  // cost him the hand — and the sheet draws that one in gold. It used to be a
+  // flag the felt put on its own live row and nothing more, so a refetched
+  // thread came back with the line in the room's ordinary grey. The server
+  // stores it now; this carries it through.
+  if (line.cost) row.cost = true;
+  return row;
 }
 
 /** A whole payload → rows, oldest first, skipping anything malformed. */

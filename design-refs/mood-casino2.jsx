@@ -104,8 +104,15 @@ const Floor2RestingScreenM = () => {
           <BarGhost x={228} y={L.bar.y - 90} mood="frustrated" accent={M_PURPLE} pip="worn" size={45} speed={7}/>
           {/* the corner: the one who cannot play, sitting apart from the bar */}
           <BarGhost x={L.corner.cx} y={L.corner.cy - 58} mood="sulking" accent={M_PINK} drink pip="broke" size={44} speed={7.4}/>
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 14, zIndex: 5, padding: '0 14px' }}>
-            <Btn kind="primary" h={46} full>Deploy someone</Btn>
+          {/* the tray, restored: he is already standing here, and the pocket IS the
+              wager — a bare "Deploy someone" button threw away both facts */}
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: `1px solid ${M_TEAL}3D`, background: 'rgba(3,8,8,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+            <MoodAvatar mood="neutral" accent={M_TEAL} size={34}/>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11.5, color: M_TEXT, fontWeight: 500 }}>Value Bot</div>
+              <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>pocket $1,240 · buy-in at 10/20 is $1,000</div>
+            </div>
+            <Btn h={32}>Deal him in</Btn>
           </div>
         </Floor2>
       </div>

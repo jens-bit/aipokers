@@ -41,7 +41,7 @@ const PLAYFAIR = '"Playfair Display",Georgia,serif';
  * @param onClose       back out of the sheet
  * @param onOpenProfile tap-through from a pocket row to his card
  */
-export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProfile }) {
+export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProfile, title = 'Money' }) {
   const [fundTarget, setFundTarget] = useState(null);
   const [busyAgentId, setBusyAgentId] = useState(null);
   // BUGS-A job 5: the safe answers the same gesture as the fridge, the read
@@ -119,7 +119,10 @@ export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProf
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT }}>Money</span>
+        {/* DESK-2: the safe is this surface reached from the furniture, so it
+            is allowed to be called what the room calls it. One money surface,
+            two doors into it. */}
+        <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT }}>{title}</span>
       </div>
 
       <WalletBlock wallet={wallet} playingCount={playingCount} agentCount={agents.length} />

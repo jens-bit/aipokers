@@ -47,6 +47,10 @@ describe('protocol', () => {
       HOME_STATE: 'home_state',
       WANT: 'want',
       SESSION_END: 'session_end',
+      // WATCH-9: the thread's own push. The sheet used to read the store when
+      // it was opened and never again; this is the server saying what it has
+      // just written, and the client switches on it in useTable.
+      THREAD_LINE: 'thread_line',
     });
   });
 

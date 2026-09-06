@@ -53,6 +53,9 @@ export default function App() {
     sitOut,
     lastDecision,
     paceFrame,
+    // WATCH-9: the thread lines the server has pushed on this socket, handed to
+    // whichever surface is showing the thread.
+    threadLines,
   } = table;
   // WATCH-5 (W5-1): the felt is played back, not mirrored. Every snapshot the
   // socket delivers goes through the pacing queue, which lets no two actions
@@ -155,16 +158,39 @@ export default function App() {
   // down to find somebody.
   const [rosterOpen, setRosterOpen] = useState(false);
 
+  // BIRTH-5 — the same trick for the table. An owner turned away from a locked
+  // seat is sent to HOME *to look at the table*, and the table sheet is where
+  // the ladder is written. Ordinary navigation clears it for the same reason.
+  //
+  // A COUNTER rather than a flag, which `youMoneyOpen` above can afford to be:
+  // the refusal that raises this is repeatable — say "lets go" again and you are
+  // turned away again — and a boolean that is already true is not a new intent,
+  // so the second ask would open nothing. Zero is "no intent"; every ask is a
+  // value the screens below have not seen before.
+  const [homeTableOpen, setHomeTableOpen] = useState(0);
+
   function navigateTo(tab) {
     setActiveTab(tab);
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
+    setHomeTableOpen(0);
   }
 
   function navigateToMoney() {
     setActiveTab('you');
     setAgentChatTarget(null);
     setYouMoneyOpen(true);
+  }
+
+  // BIRTH-5: out of the birth flow and into the room, with the table sheet
+  // already up. The draft on the server is untouched by the refusal, so this is
+  // a look at the price rather than an exit from the conversation.
+  function navigateToTable() {
+    setIsCreating(false);
+    setActiveTab('home');
+    setAgentChatTarget(null);
+    setYouMoneyOpen(false);
+    setHomeTableOpen((n) => n + 1);
   }
 
   // BUGS-A job 4 · WHERE BACK GOES.
@@ -433,6 +459,7 @@ export default function App() {
         // WATCH-8: the socket's own status, so the desk's rail refetches the
         // stored thread when the connection comes back.
         connection={status}
+        threadLines={threadLines}
         onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
@@ -485,8 +512,13 @@ export default function App() {
           <BirthScreen
             onBack={() => setIsCreating(false)}
             onBirth={() => setIsCreating(false)}
+            onSeeTable={navigateToTable}
           />
         ) : null}
+        // BIRTH-5: the same intent the phone's HomeScreen takes as `openTable`.
+        // The desk's table is a rail panel rather than a sheet, so the shell
+        // that owns the rail is the one that has to be told.
+        openHomeTable={homeTableOpen}
       />
     );
   }
@@ -503,6 +535,7 @@ export default function App() {
               setNewlyBornAgent(agent);
               navigateTo('home');
             }}
+            onSeeTable={navigateToTable}
           />
         </div>
       );
@@ -592,6 +625,7 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeScreen
               wsUrl={WS_URL}
+              openTable={homeTableOpen}
               onCreateAgent={() => setIsCreating(true)}
               onProfile={openAgentProfile}
               // CASINO-1's promise: the thread is reached from Home and from a
@@ -756,6 +790,7 @@ export default function App() {
         // connection comes back, because the record the table wrote while the
         // owner was disconnected is exactly the part he cannot have heard.
         connection={status}
+        threadLines={threadLines}
         onLeave={handleLeave}
         onSitOut={sitOut}
         // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,

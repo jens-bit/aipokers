@@ -1231,6 +1231,10 @@ export function WatchScreen({
   // when the connection comes back. The sheet the owner left is not the sheet
   // the table has been writing while he was gone.
   connection = null,
+  // WATCH-9 · the lines the server has PUSHED since this socket opened
+  // (THREAD_LINE). The fetch above is a snapshot taken when the sheet opens;
+  // this is what keeps an open sheet current without it polling.
+  threadLines = null,
   onOpenThread,
   paceFrame,
   paceLag,
@@ -1660,8 +1664,11 @@ export function WatchScreen({
 
   // Opening the sheet is the moment the record has to be current; a reconnect
   // is the other one, and the hook owns both.
+  // WATCH-9: and from there it is pushed, so a sheet that is already open shows
+  // the next line without being closed and opened again.
   var storedRows = useTableThread({
     agentId: agentId, sessionId: sessionId, connection: connection, want: threadOpen,
+    pushed: threadLines,
   });
 
   // ── the thread, in one ordered list ─────────────────────────────────────

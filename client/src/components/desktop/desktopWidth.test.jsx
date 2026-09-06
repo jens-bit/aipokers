@@ -103,16 +103,30 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
 
   const strip = () => document.querySelector('.dsk-strip');
 
-  it('shows no strip while the standup panel holds the full roster', async () => {
-    render(<DesktopHome onWatchAgent={() => {}} onDeployAgent={() => {}} onCreateAgent={() => {}} />);
+  // DESK-2: the desk opens on the ROOM now, so the standup — which is what
+  // holds the roster rows — is one click away rather than already up. The rule
+  // these four tests encode is unchanged; only the way to the panel is.
+  async function openStandup() {
+    await userEvent.click(screen.getByRole('button', { name: /Standup/ }));
     await waitFor(() => rosterRow(playingAgent.name));
+  }
+
+  function desk() {
+    return render(
+      <DesktopHome onWatchAgent={() => {}} onDeployAgent={() => {}} onCreateAgent={() => {}} />,
+    );
+  }
+
+  it('shows no strip while the standup panel holds the full roster', async () => {
+    desk();
+    await openStandup();
 
     expect(strip()).toBeNull();
   });
 
   it('collapses to the strip when a thread opens, keeping every agent', async () => {
-    render(<DesktopHome onWatchAgent={() => {}} onDeployAgent={() => {}} onCreateAgent={() => {}} />);
-    await waitFor(() => rosterRow(restingAgent.name));
+    desk();
+    await openStandup();
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => expect(strip()).not.toBeNull());
@@ -120,8 +134,8 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
   });
 
   it('marks the open agent in the strip', async () => {
-    render(<DesktopHome onWatchAgent={() => {}} onDeployAgent={() => {}} onCreateAgent={() => {}} />);
-    await waitFor(() => rosterRow(restingAgent.name));
+    desk();
+    await openStandup();
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => {
@@ -131,8 +145,8 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
   });
 
   it('switches threads from the strip, so the roster is still a way around', async () => {
-    render(<DesktopHome onWatchAgent={() => {}} onDeployAgent={() => {}} onCreateAgent={() => {}} />);
-    await waitFor(() => rosterRow(restingAgent.name));
+    desk();
+    await openStandup();
     await userEvent.click(rosterRow(restingAgent.name));
     await waitFor(() => expect(strip()).not.toBeNull());
 

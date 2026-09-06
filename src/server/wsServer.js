@@ -10,6 +10,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
+import * as thread from './thread.js';
 
 const { getOrCreateTable } = registry;
 
@@ -66,6 +67,17 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // WANTS-1: the same injection for the same reason — agentProfiles must not
   // import the floor, so the floor hands it a function instead.
   setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
+  // WATCH-9: every stored thread line, pushed to whoever is entitled to it.
+  // thread.js knows about no socket and no registry; this is the one place that
+  // knows both, so it is the one place the two are joined. A line with no table
+  // behind it — THREAD-2's nightly exchange in the flat — is stored and not
+  // pushed: the home thread has its own door and no felt is open on it.
+  thread.setLineListener((line) => {
+    if (!line?.tableId) return;
+    const table = registry.getTable(line.tableId);
+    if (!table) return;
+    table.deliverThreadLine(line);
+  });
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);

@@ -19,7 +19,17 @@
 
 import { FLAT, F_W, F_H } from './flat.js';
 
-export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, tvLabel = null, onTable, tableLabel = null }) {
+// `onTable` is optional and the table is furniture without it. Both branches
+// that gave it a tap did so for a different destination — BUGS-A job 7 watches
+// the game that is on it, BIRTH-5 opens the chairs when it is empty — so the
+// caller says where it leads and `tableLabel` says so out loud.
+export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, onTable, tvLabel = null, tableLabel = null }) {
+  const tableBox = {
+    left: FLAT.table.cx - FLAT.table.rx,
+    top: FLAT.table.cy - FLAT.table.ry,
+    width: FLAT.table.rx * 2,
+    height: FLAT.table.ry * 2,
+  };
   return (
     <div className="home-flat" style={{ width: F_W, height: F_H }} data-lit={lit ? 'true' : 'false'}>
       {/* floorboards, running away from the viewer */}
@@ -47,38 +57,21 @@ export function HomeFlat({ lit = true, children, onSafe, onFridge, onTv, tvLabel
         <span /><span />
       </div>
 
-      {/* the kitchen table, from above.
-          BUGS-A job 7: and when there is a game on it, it is a table you can
-          go and WATCH. The home game rides an ordinary tableId (HOME-STATE-1:
-          "WATCH it exactly as you watch any other table"), so the biggest
-          object in the room stopped being the one thing on it that did
-          nothing. With nobody at it, it is furniture again — aria-hidden,
+      {/* the kitchen table, from above. It leads somewhere on both shells now:
+          to the game when one is running on it, to the chairs when it is
+          empty. With no destination at all it is furniture again — aria-hidden,
           exactly as before. */}
       {onTable ? (
         <button
           type="button"
-          className="home-flat__table is-live"
-          style={{
-            left: FLAT.table.cx - FLAT.table.rx,
-            top: FLAT.table.cy - FLAT.table.ry,
-            width: FLAT.table.rx * 2,
-            height: FLAT.table.ry * 2,
-          }}
+          className="home-flat__table"
+          style={tableBox}
           onClick={onTable}
-          aria-label={tableLabel || 'Watch the home game'}
+          aria-label={tableLabel || 'The kitchen table — four chairs'}
           data-testid="home-table"
         />
       ) : (
-        <div
-          className="home-flat__table"
-          style={{
-            left: FLAT.table.cx - FLAT.table.rx,
-            top: FLAT.table.cy - FLAT.table.ry,
-            width: FLAT.table.rx * 2,
-            height: FLAT.table.ry * 2,
-          }}
-          aria-hidden
-        />
+        <div className="home-flat__table" style={tableBox} aria-hidden />
       )}
 
       {/* the door, right wall line */}

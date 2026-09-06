@@ -86,6 +86,50 @@ export function listFloorTables() {
   return [...tables.values()].filter((t) => !t.home);
 }
 
+// BUGS-B/6: who is actually ON THE FLOOR right now.
+//
+// The header pill says "N agents live", and the only honest source for that
+// number is the seats themselves — not how many sockets are open (a watcher is
+// not a player, and one owner with two devices is not two agents), and not how
+// many agents exist (a roster is not a floor).
+//
+// Deduped by agent id, because an agent holds exactly one seat and a seat that
+// is being reconciled must never count twice. A home game is somebody's living
+// room, so it is not the casino and is not counted — the same line
+// listFloorTables and countAutonomousTables already draw.
+export function seatedAgentIds() {
+  const ids = new Set();
+  for (const table of tables.values()) {
+    if (table.home || table.closed) continue;
+    for (let seat = 0; seat < table.maxSeats; seat++) {
+      // The seat, not the array slot: agentIds is cleared when a seat stands
+      // up, but `pending` is the field every other count in this codebase
+      // asks, so it is the one asked here too.
+      if (!table.pending?.[seat]) continue;
+      const agentId = table.agentIds?.[seat];
+      if (agentId) ids.add(String(agentId));
+    }
+  }
+  return ids;
+}
+
+// The figure itself. Always a number — never null, never undefined — because a
+// client that receives no number has nothing to print but a dash.
+export function seatedAgentCount() {
+  return seatedAgentIds().size;
+}
+
+// Casino tables with a hand actually in progress. Home games excluded for the
+// same reason.
+export function activeFloorTableCount() {
+  let n = 0;
+  for (const table of tables.values()) {
+    if (table.home || table.closed) continue;
+    if (table.game !== null) n++;
+  }
+  return n;
+}
+
 // HOME-STATE-1: the home game this agent is sitting in right now, or null.
 // Asked by presentAgent, which needs it to answer "what is he doing" — a man
 // with cards in his hands is not pacing. Walks the table map rather than

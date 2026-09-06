@@ -23,6 +23,9 @@ import {
 // from this file — broke, collected, want, milestone, proposal, quiet win —
 // now goes through the same ladder, budget and ledger as everything else.
 import { notifyEvent } from './notify.js';
+// METER-1: the chat and build routes are the LLM-spending endpoints, and this
+// is where their spend gets a name on it.
+import { recordAnthropicCall, Kind as MeterKind } from './meter.js';
 import {
   ATTR_KEYS,
   ensureAttributes,
@@ -335,6 +338,13 @@ function commitAgent(profile, existingAgentId, agentData) {
   // must not render a phantom jump for it.
   agent.attrLog = [];
   const bornAt = Date.now();
+  // BIRTH-5 / BUG-32: when he came into existence, kept as a field rather than
+  // read back off `agent.id` (which encodes Date.now() in base 36 and is an
+  // implementation detail of the id, not a promise about it) or off attrLog[0]
+  // (which is the attribute record and would tie a walk-in animation to the
+  // skill engine). The room uses it to walk a newborn in through the door
+  // instead of teleporting him into a chair.
+  agent.bornAt = bornAt;
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
   }
@@ -916,7 +926,8 @@ Update the agent's self-knowledge based on this evidence.`;
   try {
     // 500 tokens: the previous 200 truncated summaries mid-string and broke
     // JSON parsing, wiping usable memory.
-    const raw = await callClaude([{ role: 'user', content: userText }], systemText, 500);
+    const raw = await callClaude([{ role: 'user', content: userText }], systemText, 500,
+      { ownerId: userId, kind: MeterKind.MEMORY });
     if (raw) {
       const objText = extractJsonObject(raw);
       let parsed = null;
@@ -2414,11 +2425,11 @@ function inferFallback(text) {
 // timeout, or output that will not parse — the sliders still have to come from
 // what the owner actually said: a chaotic brief that quietly produces a
 // balanced agent is the same bug as a code fence, just harder to see.
-async function buildFromDraft(profile, brief) {
+async function buildFromDraft(profile, brief, ownerId = null) {
   const vague = slidersFromBrief(brief);
   let agent = null;
   try {
-    const raw = await callClaude(profile.chat, SYSTEM_GEN, 200);
+    const raw = await callClaude(profile.chat, SYSTEM_GEN, 200, { ownerId, kind: MeterKind.CHAT });
     if (raw) {
       try { agent = JSON.parse(raw.replace(/```json\n?|```\n?/g, '').trim()); } catch { /* fall through */ }
     }
@@ -2449,7 +2460,12 @@ async function buildFromDraft(profile, brief) {
   return { agent, line };
 }
 
-async function callClaude(messages, systemText, maxTokens) {
+// METER-1: `meter` is { ownerId, kind } — who is paying for this call and what
+// it was for. It is a required-in-practice argument rather than an optional
+// nicety: every one of these calls happens because a specific owner typed
+// something or deployed something, and a bill with no name on it is the one
+// number nobody can act on.
+async function callClaude(messages, systemText, maxTokens, meter = null) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
@@ -2463,6 +2479,14 @@ async function callClaude(messages, systemText, maxTokens) {
       system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
       messages,
     }, { signal: controller.signal });
+    if (meter) {
+      recordAnthropicCall({
+        ownerId: meter.ownerId ?? null,
+        kind: meter.kind ?? MeterKind.CHAT,
+        model: MODEL,
+        msg: res,
+      });
+    }
     return res.content[0]?.text ?? '';
   } finally {
     clearTimeout(timer);
@@ -2590,7 +2614,8 @@ export async function ownerChatTurn(existingAgent, userId, content) {
 
   const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
   try {
-    const reply = await callClaude([{ role: 'user', content }], systemText, 100);
+    const reply = await callClaude([{ role: 'user', content }], systemText, 100,
+      { ownerId: userId, kind: MeterKind.CHAT });
     const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
     existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
@@ -3851,7 +3876,7 @@ export function installAgentProfileRoutes(app) {
         saveStore(userId);
         return res.status(409).json(refusal);
       }
-      const built = await buildFromDraft(profile, briefSoFar);
+      const built = await buildFromDraft(profile, briefSoFar, userId);
       const agent = commitAgent(profile, null, built.agent);
       const line = built.line;
       profile.chat.push({ role: 'assistant', content: line });
@@ -3877,7 +3902,7 @@ export function installAgentProfileRoutes(app) {
     // recruiter said, or a plain question about play.
     let raw = null;
     try {
-      raw = await callClaude(profile.chat, SYSTEM_CONV, 150);
+      raw = await callClaude(profile.chat, SYSTEM_CONV, 150, { ownerId: userId, kind: MeterKind.CHAT });
     } catch (err) {
       console.error('[agentProfiles] chat error:', err.message);
     }
@@ -3929,7 +3954,7 @@ export function installAgentProfileRoutes(app) {
 
     try {
       let agent = null;
-      const raw = await callClaude(profile.chat, genSystem, 200);
+      const raw = await callClaude(profile.chat, genSystem, 200, { ownerId: userId, kind: MeterKind.CHAT });
       if (raw) {
         try { agent = JSON.parse(raw); } catch {}
       }

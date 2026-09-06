@@ -186,3 +186,73 @@ describe('W3-6 useTable handles PACE', () => {
     expect(result.current.game.community).toHaveLength(4);
   });
 });
+
+// ── WATCH-9 · THREAD_LINE ───────────────────────────────────────────────────
+//
+// SERVER-3 made the thread survive by storing it, and the sheet read the store
+// when it was opened and never again — so a sheet left open went quiet while
+// the table carried on talking. This is the push that fixes that, as the socket
+// hands it on: stored lines, ids and all, ready to be merged with a fetch.
+
+const LINE = (over = {}) => ({
+  type: ServerMsg.THREAD_LINE,
+  tableId: 'tbl-pace',
+  sessionId: 's_stay1',
+  agentId: 'agent_1',
+  line: { id: 11, ts: 1_700_000_000_000, kind: 'table', who: 'TABLE', text: 'Granite raised to 240' },
+  ...over,
+});
+
+describe('WATCH-9 useTable handles THREAD_LINE', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    sockets.length = 0;
+    vi.stubGlobal('WebSocket', ListenerSocket);
+  });
+
+  it('collects pushed lines as the stored objects they are', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit(LINE()); });
+
+    expect(result.current.threadLines).toHaveLength(1);
+    expect(result.current.threadLines[0]).toMatchObject({
+      id: 11, kind: 'table', who: 'TABLE', text: 'Granite raised to 240', sessionId: 's_stay1',
+    });
+  });
+
+  it('carries the gold register through — a cost line is one on the way in too', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => {
+      ws.emit(LINE({ line: { id: 12, ts: 1, kind: 'table', who: 'TABLE', text: 'he went off the line · DISCIPLINE', cost: true } }));
+    });
+    expect(result.current.threadLines[0].cost).toBe(true);
+  });
+
+  it('does not print the same line twice when the socket redelivers it', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit(LINE()); });
+    act(() => { ws.emit(LINE()); });
+    expect(result.current.threadLines).toHaveLength(1);
+  });
+
+  it('ignores a push with no line in it rather than storing a hole', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit(LINE({ line: null })); });
+    act(() => { ws.emit(LINE({ line: { kind: 'table', who: 'TABLE', text: 'no id' } })); });
+    expect(result.current.threadLines).toHaveLength(0);
+  });
+
+  it('a new table is a new thread — the last one\'s lines do not come with it', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit(LINE()); });
+    expect(result.current.threadLines).toHaveLength(1);
+
+    act(() => { result.current.watch({ tableId: 'tbl-other', agentStrategy: 'x' }); });
+    expect(result.current.threadLines).toHaveLength(0);
+  });
+});

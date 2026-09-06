@@ -30,6 +30,10 @@ import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
 } from './events.js';
+// METER-1: every model call this table makes is filed under the owner of the
+// seat that made it. Best-effort by construction — recordModelCall swallows
+// its own errors, because a meter that can break a hand is worse than none.
+import { recordModelCall, Kind as MeterKind } from './meter.js';
 import { estimateEquity } from '../engine/equity.js';
 import { compilePolicy, deviationPercent, inferProfileFromStyleRisk, normalizeProfile } from '../agent/policy.js';
 import {
@@ -1334,7 +1338,7 @@ export class Table {
   // a seat with no session (a House regular, a human) simply has nowhere to
   // write, which is the same thing as not writing.
 
-  _threadTo(seat, kind, who, text) {
+  _threadTo(seat, kind, who, text, { cost = false } = {}) {
     const sessionId = this.seatSessionIds[seat];
     if (!sessionId) return;
     appendThreadLine({
@@ -1345,6 +1349,7 @@ export class Table {
       kind,
       who,
       text,
+      cost,
     });
   }
 
@@ -2712,6 +2717,9 @@ export class Table {
         }
       }
 
+      // ATTR-3: where an attribute actually shaped this hand.
+      const attrCosts = attrCostsForHand({ decisions, won });
+
       const entry = buildFlaggedEntry({
         flagType,
         decisions,
@@ -2720,11 +2728,10 @@ export class Table {
         holeCards,
         won,
         opponentShowdownCards,
-        // ATTR-3: where an attribute actually shaped this hand. Only flagged
-        // hands carry it — the review sheet is the one surface entitled to say
-        // a low attribute cost money, and it says it about him, not about the
-        // number.
-        attrCosts: attrCostsForHand({ decisions, won }),
+        // Only flagged hands carry it — the review sheet is the one surface
+        // entitled to say a low attribute cost money, and it says it about him,
+        // not about the number.
+        attrCosts,
         // HOME-STATE-1: who he was actually playing against, by playerId, so
         // the tape room can file a read under the man rather than under a seat
         // index that will belong to somebody else within the hour.
@@ -2742,7 +2749,79 @@ export class Table {
       } catch (err) {
         console.error('[table] flagged hand store failed:', err.message);
       }
+
+      // WATCH-9: and it goes into HIS thread, once, as the room saying it.
+      //
+      // The felt has always drawn this line — WatchScreen composes it from the
+      // hand record and marks it gold — but it lived only in a React state
+      // array, so a reconnect or a look back an hour later got the sheet back
+      // WITHOUT the one line in it that is about him rather than about the
+      // cards. Stored, it survives both, and the `cost` flag is what keeps it
+      // gold on the way back.
+      //
+      // The first cost only. attrCostsForHand already caps itself at one entry
+      // per attribute, and a thread that reports three of them for one hand is
+      // a review sheet, which is a different surface with a different job.
+      this._threadAttrCost(seat, attrCosts[0]);
     }
+  }
+
+  // The room's gold line: a low attribute cost him this hand. Same text the
+  // felt composes for the live row (line · KEY), so the two are one line to the
+  // merge rather than the same sentence printed twice.
+  _threadAttrCost(seat, cost) {
+    if (!cost || cost.cost === false || !cost.line) return;
+    const text = [cost.line, cost.key].filter(Boolean).join(' · ');
+    this._threadTo(seat, ThreadKind.TABLE, 'TABLE', text, { cost: true });
+  }
+
+  // WATCH-9: a line was just stored for this table — push it to the sockets
+  // entitled to it, so a sheet that is already open shows it without a refetch.
+  //
+  // ROUTED BY SEAT, and that is the whole gate. A thread is per SESSION (rule 1
+  // in thread.js), and a session belongs to one seat: the room's line about a
+  // raise is not one row that everybody reads, it is one row PER SEAT, written
+  // into each man's own thread by _threadTable. So the line already names whose
+  // thread it is, and delivering it anywhere else would put another man's stay
+  // on this screen — sessionId-tagged and therefore discarded, but sent.
+  //
+  // Privacy falls out of that rather than being a second rule. `him` and `you`
+  // carry what the sanitized DECISION payload withholds (BUG-12/15, AGE-33),
+  // and the only sockets this reaches are the seat's own connection and the
+  // spectators watching that seat — which is exactly who readThread would serve
+  // it to.
+  //
+  // Called by wsServer through thread.js's line listener rather than by the
+  // writers here, so the whisper the REST layer stores is pushed on the same
+  // path the felt's own lines are.
+  deliverThreadLine(line) {
+    if (this.closed || !line || line.agentId == null) return;
+    const seat = this.agentIds.findIndex((id) => id != null && String(id) === String(line.agentId));
+    if (seat < 0) return;
+    // A line from a stay that has ended is not this table's business any more.
+    if (this.seatSessionIds[seat] !== line.sessionId) return;
+
+    const payload = JSON.stringify({
+      type: ServerMsg.THREAD_LINE,
+      tableId: this.tableId,
+      sessionId: line.sessionId,
+      agentId: line.agentId,
+      line: {
+        id: line.id,
+        ts: line.ts,
+        kind: line.kind,
+        who: line.who,
+        text: line.text,
+        ...(line.cost ? { cost: true } : {}),
+      },
+    });
+
+    for (const s of this.spectators) {
+      if (s.spectatorSeat !== seat) continue;
+      if (s.ws && s.ws.readyState === s.ws.OPEN) s.ws.send(payload);
+    }
+    const own = this.connections[seat];
+    if (own && own.readyState === own.OPEN) own.send(payload);
   }
 
   // Append a completed-hand record to data/hands-{userId}.json for every
@@ -3285,6 +3364,15 @@ export class Table {
       potSize: this.game?.pot ?? 0,
       street: this.game?.street ?? 'preflop',
       lastOpponentChat,
+      // METER-1: trash talk is a model call too, and a meter that counted only
+      // decisions would understate a talkative table.
+      onUsage: ({ usage, model, provider }) => recordModelCall({
+        ownerId: this.agentUserIds[aiSeat],
+        kind: MeterKind.TALK,
+        model,
+        provider,
+        usage,
+      }),
     })
       .then((line) => {
         if (!line) return;
@@ -3636,7 +3724,21 @@ export class Table {
 
     console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
     const memoryContext = this.agentMemory[aiSeat] ?? '';
-    let { action, reasoning } = await getAgentAction(gameState, strategy, memoryContext);
+    const decision = await getAgentAction(gameState, strategy, memoryContext);
+    let { action, reasoning } = decision;
+    // METER-1: the decision call, priced by MODEL-1b and filed here. A
+    // fallback (no key, an API error) carries no usage and is not a call, so
+    // it is not counted as one.
+    if (decision.usage) {
+      recordModelCall({
+        ownerId: this.agentUserIds[aiSeat],
+        kind: MeterKind.DECISION,
+        model: decision.model,
+        provider: decision.provider,
+        usage: decision.usage,
+        costUsd: decision.costUsd,
+      });
+    }
 
     // One final guard before mutating game state.
     if (!this.game || this.game.toAct !== aiSeat) return;
