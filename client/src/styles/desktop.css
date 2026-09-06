@@ -2121,3 +2121,24 @@
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
   border-color: rgba(255, 255, 255, 0.11);
 }
+
+/* CASINO-1 — which room the stage is showing. Board 31's frame keeps the top
+   bar and the rail and swaps only the stage, so this is one pair of tabs, on
+   one line, sized like the wallet button beside it. Without the explicit row
+   the two buttons wrapped and spilled out of the 56px bar. */
+.dsk-top__stage {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dsk-top__stage-tab {
+  white-space: nowrap;
+}
+
+.dsk-top__stage-tab.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+}

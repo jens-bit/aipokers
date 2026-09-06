@@ -34,8 +34,16 @@ describe('DEEPLINK-1 start params', () => {
     render(<App />);
 
     expect(await screen.findByPlaceholderText(`Message ${restingAgent.name}…`)).toBeInTheDocument();
+    // CASINO-1 took CHATS out of the bar — the nav is HOME · CASINO · YOU and
+    // the thread is reached from Home or a profile instead. 'chats' is still
+    // the tab VALUE, so the rule this test exists for is unchanged (the tap
+    // lands on the thread, not the roster and not the floor); it just cannot be
+    // read off a button that no longer exists. None of the three that remain is
+    // active while the thread is up, which says the same thing.
     const nav = document.querySelector('.tab-bar');
-    expect(within(nav).getByText('CHATS').closest('button')).toHaveClass('tab-bar__tab--active');
+    for (const label of ['HOME', 'CASINO', 'YOU']) {
+      expect(within(nav).getByText(label).closest('button')).not.toHaveClass('tab-bar__tab--active');
+    }
   });
 
   it('agent_<id>: opens the thread when the app is ALREADY open', async () => {

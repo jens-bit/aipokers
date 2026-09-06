@@ -39,6 +39,10 @@ describe('protocol', () => {
       ERROR: 'error',
       PONG: 'pong',
       EVENT: 'event',
+      // CASINO-1 mirrored the two frames ROOMS-1 already sends: the floor
+      // snapshot that rides a subscribe, and the rooms push after it.
+      FLOOR_STATE: 'floor_state',
+      FLOOR_ROOMS: 'floor_rooms',
     });
   });
 

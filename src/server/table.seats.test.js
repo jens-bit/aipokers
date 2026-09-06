@@ -354,4 +354,64 @@ header('Test 11: WALLET-6 - sitOutSeat between hands benches immediately');
   ok('between hands the bench is immediate, and an empty seat throws');
 }
 
+// ---------------------------------------------------------------------------
+header('Test 12: MATCH-1 - two agents of one owner never share a casino table');
+{
+  const table = newTable();
+  const first = table.joinAgentSession({ agentId: 'a1', userId: 'u1', displayName: 'BALANCE' });
+  assert.strictEqual(first, 0, 'the first one sits down');
+
+  const second = table.joinAgentSession({ agentId: 'a2', userId: 'u1', displayName: 'GRANITE' });
+  assert.strictEqual(second, null, 'his stablemate is refused the way a full table refuses');
+  assert.strictEqual(table.seatedCount(), 1, 'and no seat was taken doing it');
+
+  const stranger = table.joinAgentSession({ agentId: 'b1', userId: 'u2', displayName: 'MARLOW' });
+  assert.strictEqual(stranger, 1, "somebody else's agent is exactly who he is here to meet");
+
+  // A seat that stands up releases the claim. A third body keeps the table
+  // above MIN_TO_DEAL so the departure frees a seat rather than closing it.
+  table.joinAgentSession({ agentId: 'c1', userId: 'u3', displayName: 'MARBLE' });
+  table.sitOutSeat(0, { afterHand: true });
+  assert.ok(!table.agentIds.includes('a1'), 'his man is off the felt');
+  assert.strictEqual(table.joinAgentSession({ agentId: 'a2', userId: 'u1', displayName: 'GRANITE' }), 2,
+    'and the owner may sit down again');
+  ok('the casino refuses a second agent of the same owner at both doors');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 13: MATCH-1 - WATCH cannot assemble a table out of one owner either');
+{
+  // The WV2-1 shape: a table nobody deployed to, assembled seat by seat by
+  // watchers. The first WATCH seats his agent; the second is refused with an
+  // error rather than a seat, because silently attaching him to somebody
+  // else's chair would be a worse answer than one the client can show.
+  const table = newTable({ tableId: 'watch-assembled' });
+  const seated = table.addSpectator(fakeWs(), { agentId: 'a1', userId: 'u1', displayName: 'BALANCE' });
+  assert.strictEqual(seated, 0, 'the first watcher seats his agent');
+
+  assert.throws(
+    () => table.addSpectator(fakeWs(), { agentId: 'a2', userId: 'u1', displayName: 'GRANITE' }),
+    /already at this table/,
+    'the WATCH door is shut too',
+  );
+  assert.strictEqual(table.seatedCount(), 1, 'and it seated nobody on the way out');
+
+  const other = table.addSpectator(fakeWs(), { agentId: 'b1', userId: 'u2', displayName: 'MARLOW' });
+  assert.strictEqual(other, 1, 'two owners assembling one felt is still allowed');
+  table.closeTable('test over', { recap: 'test over' });
+  ok('WATCH refuses a second agent of the same owner');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 14: MATCH-1 - the home game is where they DO play each other');
+{
+  const table = new Table({ tableId: 'home-u1', smallBlind: 1, bigBlind: 2, maxSeats: 4, home: true });
+  assert.strictEqual(table.joinAgentSession({ agentId: 'a1', userId: 'u1', displayName: 'BALANCE' }), 0);
+  assert.strictEqual(table.joinAgentSession({ agentId: 'a2', userId: 'u1', displayName: 'GRANITE' }), 1,
+    'the kitchen table seats the whole household, which is the entire point of it');
+  assert.strictEqual(table.seatedCount(), 2);
+  table.closeTable('test over', { recap: 'test over' });
+  ok('the home game keeps the old behaviour');
+}
+
 console.log(`\n${passed} test(s) passed`);

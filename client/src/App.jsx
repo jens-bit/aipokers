@@ -25,6 +25,7 @@ import { ChatsScreen } from './screens/ChatsScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
 import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
+import { CasinoScreen } from './screens/CasinoScreen.jsx';
 import { ReplayTheatre } from './components/replay/ReplayTheatre.jsx';
 
 function resolveWsUrl() {
@@ -71,7 +72,12 @@ export default function App() {
   useEffect(() => initViewportTracking(), []);
 
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('casino');
+  // CASINO-1: the nav is HOME · CASINO · YOU. 'home' is today's floor (the
+  // room your agents live in — HOME-1 replaces what it renders later) and
+  // 'casino' is the building, board 27. 'chats' is still a tab VALUE and still
+  // renders its screen; it is just no longer a button in the bar, because the
+  // thread is reached from Home and from a profile.
+  const [activeTab, setActiveTab] = useState('home');
   const [playInitialStep, setPlayInitialStep] = useState('pick');
   const [playKey, setPlayKey] = useState(0);
   const [activeAgentId, setActiveAgentId] = useState(null);
@@ -103,11 +109,27 @@ export default function App() {
   // sites rather than a rule, and this makes it one: App.test.jsx proves the
   // return still holds when a deploy path does drop the open thread.
   const watchOriginRef = useRef(null);
+
+  // CASINO-1: who you walked into the casino to place, and where you were
+  // standing when you decided to. Home and the profile no longer POST a deploy
+  // themselves — they hand the agent to the building, which is where the room
+  // and the buy-in are chosen. The origin travels with him so CHAT-2 still
+  // holds: leaving the felt afterwards returns you to the thread you were in,
+  // not to the casino you passed through.
+  const [deployTarget, setDeployTarget] = useState(null);
   // Where "here" is at the instant a watch begins. The profile is an overlay
   // over whichever tab opened it, so this answers the floor for a profile
   // opened from the floor and the thread for one opened from a thread —
   // without either call site having to know which.
   const hereOrigin = () => ({ tab: activeTab, chatAgent: agentChatTarget });
+
+  function placeInCasino(agent) {
+    if (!agent) return;
+    setDeployTarget({ agent, origin: hereOrigin() });
+    setAgentProfileTarget(null);
+    setAgentChatTarget(null);
+    setActiveTab('casino');
+  }
 
   function setActiveAgent(id, agent = null) {
     activeAgentIdRef.current = id;
@@ -375,17 +397,26 @@ export default function App() {
             memoryContext,
           }, agent);
         }}
-        onDeployAgent={async (agent) => {
-          const res = await fetch(`/api/agents/${agent.id}/queue`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-telegram-init-data': getTelegramInitData(),
-            },
-            body: JSON.stringify({ userId: getUserId() }),
+        // CASINO-1: the desk deploys from the building too — the stage
+        // swaps to the casino with him in the tray.
+        onDeployAgent={placeInCasino}
+        wsUrl={WS_URL}
+        deployAgent={deployTarget?.agent ?? null}
+        onCancelDeploy={() => setDeployTarget(null)}
+        onSpectate={(tableId) => {
+          if (!tableId) return;
+          setDesktopWatchAgent(null);
+          setActiveAgent(null, null);
+          watch({
+            tableId,
+            userId: getUserId(),
+            displayName: getTelegramDisplayName() || 'Watcher',
+            wantOpponentAI: false,
           });
-          if (!res.ok) return;
-          watchPayload(await res.json(), agent);
+        }}
+        onDeployed={(payload, agent) => {
+          setDeployTarget(null);
+          watchPayload(payload, agent);
         }}
         onCreateAgent={() => setIsCreating(true)}
         // CLEAN-1 (DP-4): a draft is a thing that happens on the desk, not a
@@ -413,7 +444,7 @@ export default function App() {
             onBirth={(agent) => {
               setIsCreating(false);
               setNewlyBornAgent(agent);
-              navigateTo('casino');
+              navigateTo('home');
             }}
           />
         </div>
@@ -454,27 +485,10 @@ export default function App() {
               });
             }}
             // CHAT-2 item 3 — the control centre's own actions.
-            onDeploy={async (ag) => {
-              watchOriginRef.current = hereOrigin();
-              const res = await fetch(`/api/agents/${ag.id}/queue`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: getUserId() }),
-              });
-              if (!res.ok) return;
-              const payload = await res.json();
-              setAgentProfileTarget(null);
-              setActiveAgent(payload.agentId, ag);
-              watch({
-                tableId: payload.tableId,
-                agentId: payload.agentId,
-                userId: getUserId(),
-                agentStrategy: payload.strategy,
-                displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
-                wantOpponentAI: false,
-                memoryContext: payload.memoryContext ?? '',
-              });
-            }}
+            // CASINO-1: Deploy is a walk to the casino, not a socket. The
+            // profile knows WHO; only the building knows where and for how
+            // much.
+            onDeploy={placeInCasino}
             // Deploy's opposite. /finish is the route that ends a session, and
             // it is the same one the watch screen's exit already calls.
             onCallIn={(ag) => {
@@ -491,7 +505,7 @@ export default function App() {
       <div className="app">
         <Header status={status} hasConfig={false} />
         <div className="pre-game" style={{ position: 'relative' }}>
-          {activeTab === 'casino' && (
+          {activeTab === 'home' && (
             <CasinoFloor
               onCreateAgent={() => setIsCreating(true)}
               onChat={openAgentChat}
@@ -522,15 +536,37 @@ export default function App() {
                   memoryContext,
                 });
               }}
-              onDeploy={async (agent) => {
+              // CASINO-1: "Deal him in" on the floor no longer opens a
+              // socket. The casino is the only place a deploy happens,
+              // because the room and the buy-in are decided there, so this
+              // walks him over with the agent already chosen.
+              onDeploy={placeInCasino}
+            />
+          )}
+
+          {/* CASINO-1 · board 27. The building: rooms by stakes, the board by
+              the stairs, and the one tray you deploy from. */}
+          {activeTab === 'casino' && (
+            <CasinoScreen
+              wsUrl={WS_URL}
+              deployAgent={deployTarget?.agent ?? null}
+              onCancelDeploy={() => setDeployTarget(null)}
+              onSpectate={(tableId) => {
+                if (!tableId) return;
                 watchOriginRef.current = hereOrigin();
-                const res = await fetch(`/api/agents/${agent.id}/queue`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ userId: getUserId() }),
+                setActiveAgent(null, null);
+                watch({
+                  tableId,
+                  userId: getUserId(),
+                  displayName: getTelegramDisplayName() || 'Watcher',
+                  wantOpponentAI: false,
                 });
-                if (!res.ok) return;
-                const payload = await res.json();
+              }}
+              onDeployed={(payload, agent) => {
+                // The origin was captured where the decision was made, not
+                // here — CHAT-2 item 4 across the casino trip.
+                watchOriginRef.current = deployTarget?.origin ?? hereOrigin();
+                setDeployTarget(null);
                 setActiveAgent(payload.agentId, agent);
                 watch({
                   tableId: payload.tableId,
@@ -565,18 +601,18 @@ export default function App() {
         </div>
         <nav className="tab-bar">
           <button
+            className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+            onClick={() => navigateTo('home')}
+          >
+            <HomeIcon />
+            <span>HOME</span>
+          </button>
+          <button
             className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
             onClick={() => navigateTo('casino')}
           >
             <CasinoIcon />
             <span>CASINO</span>
-          </button>
-          <button
-            className={`tab-bar__tab${activeTab === 'chats' ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => navigateTo('chats')}
-          >
-            <ChatsIcon />
-            <span>CHATS</span>
           </button>
           <button
             className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
@@ -609,6 +645,10 @@ export default function App() {
         chatMessages={paced.chatMessages}
         sendChat={sendChat}
         displayNames={displayNames}
+        // WATCH-8: the socket's own status. The thread refetches when the
+        // connection comes back, because the record the table wrote while the
+        // owner was disconnected is exactly the part he cannot have heard.
+        connection={status}
         onLeave={handleLeave}
         onSitOut={sitOut}
         // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,
@@ -623,8 +663,11 @@ export default function App() {
         // ways out of the evening it offers. Funding him is the wallet, which
         // is where YOU already keeps the buy-in.
         sessionEnd={sessionEnd}
+        // YOU-2 owns the money: the sheet is where the buy-in lives now, not
+        // the YOU tab it used to sit behind. CASINO-1 owns the nav: 'home' is
+        // today's floor, so that is where "back to the floor" goes.
         onFund={() => { handleLeave(); navigateToMoney(); }}
-        onBackToFloor={() => { handleLeave(); navigateTo('casino'); }}
+        onBackToFloor={() => { handleLeave(); navigateTo('home'); }}
         config={config}
       />
     );
@@ -707,16 +750,16 @@ export default function App() {
       />
       <nav className="tab-bar">
         <button
+          className={`tab-bar__tab${activeTab === 'home' ? ' tab-bar__tab--active' : ''}`}
+          onClick={() => { handleLeave(); navigateTo('home'); }}
+        >
+          <HomeIcon /><span>HOME</span>
+        </button>
+        <button
           className={`tab-bar__tab${activeTab === 'casino' ? ' tab-bar__tab--active' : ''}`}
           onClick={() => { handleLeave(); navigateTo('casino'); }}
         >
           <CasinoIcon /><span>CASINO</span>
-        </button>
-        <button
-          className={`tab-bar__tab${activeTab === 'chats' ? ' tab-bar__tab--active' : ''}`}
-          onClick={() => { handleLeave(); navigateTo('chats'); }}
-        >
-          <ChatsIcon /><span>CHATS</span>
         </button>
         <button
           className={`tab-bar__tab${activeTab === 'you' ? ' tab-bar__tab--active' : ''}`}
@@ -950,19 +993,23 @@ function ProfilePlaceholder() {
   );
 }
 
+// CASINO-1: the three tabs are HOME · CASINO · YOU. The icons are NAV3's,
+// from design-refs/mood-home.jsx.
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <path d="M10 20v-5.5h4V20" />
+    </svg>
+  );
+}
+
 function CasinoIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden>
       <path d="M10 2C8 6.5 4 7.5 4 11a3 3 0 006 0 3 3 0 006 0C16 7.5 12 6.5 10 2z" />
       <rect x="8.5" y="14" width="3" height="4" rx="1" />
-    </svg>
-  );
-}
-
-function ChatsIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 12a2 2 0 01-2 2H7l-3 3V6a2 2 0 012-2h8a2 2 0 012 2z" />
     </svg>
   );
 }

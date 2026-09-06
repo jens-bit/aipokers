@@ -907,3 +907,83 @@
 @media (prefers-reduced-motion: reduce) {
   .ghost-hands--rest { animation: none; }
 }
+
+
+/* ── WATCH-8 job 2 · THE BODY ON THE FELT ─────────────────────────────────
+   Two bars, two pixels each, riding the bottom edge of whatever already names
+   the agent — his strip, or a seat's name pill. They cost the felt no height,
+   which is the only reason there is room for them at all.
+
+     STAMINA  green → grey   · from VOLUME   (fatigue)
+     HEAT     teal  → red    · from OUTCOMES (mood.heat)
+
+   "A confident agent can be worn; a tilted agent can be fresh." Two causes,
+   two lines, two colour ranges that never meet — an owner must never have to
+   work out which of the two a colour is for. */
+.body-bars {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 3px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.body-bars__track {
+  position: relative;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.body-bars__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 1px;
+  /* Heat moves while you are looking at it; a jump between renders is a number
+     nobody sees change. */
+  transition: width 400ms ease-out, background 400ms linear;
+}
+
+/* Seat scale: inside the pill, clear of its radius, and one pixel of gap
+   instead of two — a 18px pill has no room for more and the pair still reads
+   as two lines rather than one thick one. */
+.body-bars--seat {
+  left: 7px;
+  right: 7px;
+  bottom: 1px;
+  gap: 1px;
+}
+
+/* The pill has a 9px radius; the bars are inset past it, but a fill that runs
+   to 100% would still square off against the corner without this. */
+.seat-ghost__chip { overflow: hidden; }
+
+/* The strip is glass with 8px of padding; the bars sit inside it, under the
+   row, and the row gains the two pixels they need so nothing lands on them. */
+.watch-hero__strip.watch-felt__hero { padding-bottom: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .body-bars__fill { transition: none; }
+}
+
+/* ── FRIDGE-1's bottle ────────────────────────────────────────────────────
+   Beside his stack, because that is what it cost him. `seat.drinking` is not on
+   the wire yet, so this draws on a strict `=== true` and a felt that has never
+   heard of it renders exactly what it renders today. */
+.seat-ghost__bottle { margin-left: 1px; }
+
+.watch-felt__hero-bottle {
+  position: absolute;
+  left: 100%;
+  bottom: 22px;
+  margin-left: 6px;
+  display: block;
+  pointer-events: none;
+}

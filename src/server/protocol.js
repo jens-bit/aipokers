@@ -35,6 +35,12 @@ export const ServerMsg = Object.freeze({
   // resting { state: 'neutral', heat: 30 }. Mood is public: it is the one
   // thing about an opponent a person at a real table can see. A client that
   // ignores the field sees exactly what it saw before it existed.
+  // WATCH-8 (additive): every seat in `state.seats` also carries `fatigue` —
+  // 'fresh' | 'settled' | 'worn', or null for a seat with no agent behind it.
+  // It is the second of the felt's two body bars, and it is public for the same
+  // reason mood is: you can see across a real table that somebody has been
+  // sitting there all night. A client that ignores the field sees exactly what
+  // it saw before it existed.
   // SERVER-3 (additive): two things ride every STATE.
   //
   //   actionTimer — the acting seat's deadline, so the client can draw the

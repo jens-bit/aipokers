@@ -32,6 +32,13 @@ export const ServerMsg = Object.freeze({
   // { event: { id, ts, type, tableId, agentIds, headline, pot } }. Pushed to
   // every FLOOR_SUB subscriber regardless of who owns the agents in it.
   EVENT: 'event',
+  // ROOMS-1: the owner's floor, sent once on subscribe. It carries `rooms`
+  // alongside `agents`, which is how a fresh subscriber has a lobby before the
+  // first push arrives.
+  FLOOR_STATE: 'floor_state',
+  // ROOMS-1: the floor grouped by stakes tier, { type, rooms }. Not
+  // owner-filtered — it is counts and table ids — and pushed on change.
+  FLOOR_ROOMS: 'floor_rooms',
 });
 
 export const Streets = Object.freeze({
