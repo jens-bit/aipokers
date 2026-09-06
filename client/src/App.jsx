@@ -21,7 +21,7 @@ import { AnalysisPanel } from './components/AnalysisPanel.jsx';
 import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
-import { ChatsScreen } from './screens/ChatsScreen.jsx';
+import { AgentThread } from './screens/ChatsScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
@@ -160,9 +160,33 @@ export default function App() {
     setYouMoneyOpen(true);
   }
 
-  function openAgentChat(agent) {
+  // BUGS-A job 4 · WHERE BACK GOES.
+  //
+  // Back out of a thread used to land on the CHATS list, which by CASINO-1 is
+  // not a place anybody navigated FROM — the thread is reached from the room,
+  // from a profile, from a notification, from the watch screen. Backing out of
+  // it put the owner somewhere he had never been, and the way out of THAT was
+  // the tab bar. So the thread remembers the door it came in by.
+  //
+  // A ref, not state: nothing renders from it, and it is read inside handlers
+  // that must never see a stale copy.
+  const chatOriginRef = useRef(null);
+
+  function openAgentChat(agent, origin = null) {
+    chatOriginRef.current = origin ?? { tab: activeTab, profileAgent: null };
     setAgentChatTarget(agent);
     setActiveTab('chats');
+  }
+
+  /** Back out of a thread, to the door it was opened by. */
+  function closeAgentChat() {
+    const origin = chatOriginRef.current;
+    chatOriginRef.current = null;
+    setAgentChatTarget(null);
+    setActiveTab(origin?.tab && origin.tab !== 'chats' ? origin.tab : 'home');
+    // A thread opened FROM a profile goes back to that profile, which is the
+    // overlay the owner was reading when he tapped Chat.
+    if (origin?.profileAgent) setAgentProfileTarget(origin.profileAgent);
   }
 
   function openAgentProfile(agent) {
@@ -487,7 +511,11 @@ export default function App() {
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
-            onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
+            onOpenChat={(ag) => {
+              // BUGS-A job 4: the door he came in by is this profile.
+              setAgentProfileTarget(null);
+              openAgentChat(ag, { tab: activeTab, profileAgent: ag });
+            }}
             onWatch={async (ag) => {
               if (!ag?.activeTableId) return;
               // CHAT-2: captured before the overlay closes, so it still knows
@@ -617,13 +645,16 @@ export default function App() {
           )}
           {/* CHAT-2: the thread has no Deploy and no Watch any more — the face
               and the name open the profile, and the profile is where an owner
-              acts on him. hereOrigin() is what gets him back here after. */}
-          {activeTab === 'chats' && (
-            <ChatsScreen
-              selectedAgent={agentChatTarget}
-              onSelectAgent={openAgentChat}
-              onBack={() => setAgentChatTarget(null)}
-              onCreateAgent={() => setIsCreating(true)}
+              acts on him.
+              BUGS-A job 4: and it is THE THREAD that renders here, not the
+              CHATS screen. The list half of that screen is off the tab flow
+              entirely; the roster it used to be is the glass sheet under the
+              top-right avatar. Back goes to the door this thread was opened
+              by — the room, or the profile — never to a list. */}
+          {activeTab === 'chats' && agentChatTarget && (
+            <AgentThread
+              agent={agentChatTarget}
+              onBack={closeAgentChat}
               onOpenProfile={openAgentProfile}
             />
           )}

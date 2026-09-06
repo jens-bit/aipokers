@@ -649,7 +649,13 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 
 
 // ── AgentThread — the actual DM screen ───────────────────────────────────
-function AgentThread({ agent, onBack, onOpenProfile }) {
+// BUGS-A job 4: exported, because the app shell renders the THREAD directly
+// now. CHATS-as-a-list is off the tab flow entirely — a thread is a person you
+// open, and the roster that used to sit behind it is the glass sheet under the
+// top-right avatar (job 9). ChatsScreen below is still the composition of the
+// two and is still what the roster sheet's route resolves to; nothing on the
+// tab bar reaches its list half any more.
+export function AgentThread({ agent, onBack, onOpenProfile }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
