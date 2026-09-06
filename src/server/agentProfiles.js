@@ -37,6 +37,9 @@ import {
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
+// SERVER-5 job 1 — the states he can arrive in, and what they cost him for one
+// session. The module is pure; this file is where the record it reads lives.
+import { dipsFor, dipLine } from '../agent/dips.js';
 // MERGE-1 composition order, held everywhere the two features meet:
 // bio (who he is playing) → relationship (how you treat him) → mood (how he
 // is taking it). Bio is the oldest fact, the ledger colours it, mood is today.
@@ -990,6 +993,14 @@ export function getMemoryContext(agentId, userId) {
 // tally.
 export function openerForAgent(agent) {
   if (!agent) return null;
+  // SERVER-5 job 1: while a dipped session is RUNNING, the line he would open
+  // with is about tonight, not about last night. It has to come before the
+  // stored opener or it could never be seen: `sessionRecap.opener` is written
+  // at the END of a session, so during one it holds the previous session's
+  // line and would win every time. Cleared with the session, so it describes
+  // the night he is actually having and no other.
+  const dipped = dipLine(agent.sessionDips);
+  if (dipped) return dipped;
   const stored = agent.sessionRecap?.opener;
   if (typeof stored === 'string' && stored.trim()) return stored.trim();
   const handsPlayed = Number(agent.stats?.handsPlayed) || 0;
@@ -1020,6 +1031,10 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.status = 'idle';
   agent.activeTableId = null;
   agent.unseenRecap = true;
+  // SERVER-5 job 1: the dip described the session that just ended. It goes out
+  // with it, exactly as the drink flag is spent at the seat — a state he
+  // arrived in must not colour the night after it as well.
+  agent.sessionDips = null;
 
   // BIO-2b: roles are recomputed from the ledger this session just added to.
   // Unconditionally — it was nested inside the recap-text branch at first,
@@ -2237,6 +2252,11 @@ export function giveItemTo(agent, userId, item) {
   agent.mood = result.mood;
   recordOwnerEvent(agent, 'item_given', { item });
 
+  // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being
+  // fed is what answers a refusal — see hungerMs in dips.js, which treats a
+  // snack later than the no as the end of the matter.
+  if (item === 'snack') agent.lastSnackAt = Date.now();
+
   // FRIDGE-1 § the beer's second half: it is drunk now and it costs him his
   // next session. Stored as a flag and nothing else — the penalty itself is
   // applied at the seat and never written into his attributes, so a man who
@@ -2281,6 +2301,73 @@ export function takeDrinkForSession(agentId, userId) {
   agent.drinkPending = false;
   saveStore(userId ?? 'anon');
   return true;
+}
+
+// ── SERVER-5 job 1 · the session dips ───────────────────────────────────────
+//
+// The beer's second half, generalised to the three states the WORLD hands him:
+// worn, hungry, tilted. src/agent/dips.js owns the arithmetic and the closed
+// list of reasons; this half owns the record it reads and the one field it
+// writes, which is a DESCRIPTION of tonight and never an attribute.
+//
+// THE STORED ATTRIBUTE NEVER CHANGES. `agent.attrs` is not touched here, by
+// anything, ever — the points come off at the seat (table.js `_seatAttrs`,
+// beside the drink's) and are gone when he stands up.
+
+/**
+ * He asked for something to eat and you said no. Stamped so hunger can be
+ * measured from it — dips.js requires BOTH halves (a refusal, then a day), so
+ * a want nobody ever raised can never make him hungry.
+ *
+ * Only a want whose item is a snack counts. Saying no to a beer is a different
+ * conversation and costs him nothing but the ledger line it already writes.
+ */
+export function noteSnackRefused(agent, want, { now = Date.now() } = {}) {
+  if (!agent || want?.item !== 'snack') return false;
+  agent.snackRefusedAt = now;
+  return true;
+}
+
+/**
+ * The dips this session starts with. Called by the table when the seat is
+ * taken, exactly where `takeDrinkForSession` is called and for the same
+ * reason: a session's costs are settled at sit-down, once, and held.
+ *
+ * Stored on the record as `sessionDips` — not because the effect needs
+ * storing (it does not; the seat holds it) but because the OWNER needs to be
+ * able to see why tonight is going the way it is when he is not watching the
+ * felt. finishAgentSession clears it, so it describes at most one session.
+ *
+ * Returns the list, which is empty for the overwhelmingly common case of a man
+ * who is fine.
+ */
+export function takeSessionDips(agentId, userId, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents?.find((a) => a.id === agentId);
+  if (!agent) return [];
+  ensureMood(agent);
+  ensureAttributes(agent);
+  const dips = dipsFor({
+    // What he CARRIED IN: the stored stage recovered by the hours since he left,
+    // never the live seat's — the seat has played no hands yet.
+    fatigue: restedFatigue(agent.fatigue ?? 'fresh',
+      Number.isFinite(agent.restedAt) ? (now - agent.restedAt) / 3_600_000 : Infinity),
+    stamina: agent.attrs?.STAMINA ?? null,
+    heat: Number.isFinite(agent.mood?.heat) ? agent.mood.heat : heatForState(agent.mood?.state),
+    lastSnackAt: agent.lastSnackAt ?? null,
+    snackRefusedAt: agent.snackRefusedAt ?? null,
+    now,
+  });
+  agent.sessionDips = dips.length > 0 ? dips : null;
+  saveStore(userId ?? 'anon');
+  return dips;
+}
+
+/** The dips a running session is carrying, or an empty list. */
+export function sessionDipsOf(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents?.find((a) => a.id === agentId);
+  return Array.isArray(agent?.sessionDips) ? agent.sessionDips : [];
 }
 
 /**
@@ -3176,6 +3263,10 @@ export function installAgentProfileRoutes(app) {
       want.answeredAt = now;
       noteReAskCooldown(agent, kind, now);
       recordOwnerEvent(agent, 'want_refused', { kind });
+      // SERVER-5 job 1: no to FOOD starts the hunger clock. No to anything else
+      // costs him the ledger line and nothing more, which is RELATE-1d's rule
+      // and stays true.
+      noteSnackRefused(agent, want, { now });
       saveStore(userId);
       emitAgentChange(userId);
       emitWantChange(userId, agent.id, null);
@@ -3250,6 +3341,10 @@ export function installAgentProfileRoutes(app) {
     agent.want.answeredAt = Date.now();
     noteReAskCooldown(agent, agent.want.kind ?? 'beer');
     recordOwnerEvent(agent, 'want_ignored', { item: agent.want.item });
+    // SERVER-5 job 1: dismissing a snack is refusing a snack. RELATE-1d's own
+    // header calls no "a complete answer", and the hunger clock is the one
+    // consequence it has — see the note on noteSnackRefused.
+    noteSnackRefused(agent, agent.want);
     saveStore(userId);
     emitAgentChange(userId);
     res.json({ dismissed: true, want: agent.want });

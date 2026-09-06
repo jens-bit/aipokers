@@ -19,6 +19,7 @@ import {
   openerForAgent,
   getAgentPocket,
   takeDrinkForSession,
+  takeSessionDips,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -27,6 +28,8 @@ import {
 } from './pace.js';
 import { classifyCooler } from './cooler.js';
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
+// SERVER-5 job 1: the states he arrived in, applied where the drink's cost is.
+import { applyDips } from '../agent/dips.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
 } from './events.js';
@@ -180,6 +183,19 @@ function safeTakeDrink(agentId, userId, tableId) {
   }
 }
 
+// SERVER-5 job 1: the same guard around the same kind of read. A state he
+// arrived in is worth exactly nothing next to a seat that cannot be taken, so
+// a store that throws costs him the dip rather than the session.
+function safeTakeDips(agentId, userId, tableId) {
+  try {
+    const dips = takeSessionDips(agentId, userId);
+    return dips.length > 0 ? dips : null;
+  } catch (err) {
+    console.error(`[table:${tableId}] session dips read failed:`, err.message);
+    return null;
+  }
+}
+
 export class Table {
   constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs, home = false }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
@@ -232,6 +248,8 @@ export class Table {
     // points more often, and the flag rides the wire so the client can draw the
     // bottle. Set once when the seat is taken and gone when he stands up.
     this.seatDrinking = Array(maxSeats).fill(false);
+    // SERVER-5 job 1: [{ attr, delta, why }] per seat, decided at sit-down.
+    this.seatDips = Array(maxSeats).fill(null);
     // HC-1: House cast identity per seat — null for player/agent seats.
     this.seatAccentColors = Array(maxSeats).fill(null);
     this.seatTalkLines    = Array(maxSeats).fill(null);
@@ -410,6 +428,7 @@ export class Table {
     ['seatEndReason',    () => null],   // SERVER-3
     ['seatBiggestPot',   () => 0],      // SERVER-3
     ['seatDrinking',     () => false],  // FRIDGE-1
+    ['seatDips',         () => null],   // SERVER-5
   ];
 
   _clearSeat(seat) {
@@ -1088,6 +1107,14 @@ export class Table {
     this.seatDrinking[free] = agentId && !this.home
       ? !!safeTakeDrink(agentId, userId, this.tableId)
       : false;
+    // SERVER-5 job 1: and the states the world handed him. Same gate as the
+    // drink and for the same reason — the kitchen table is not a session, so
+    // nothing that costs a session is spent on one. Frozen here, held for the
+    // stay: cooling him down at hand forty does not repair a night that
+    // started tilted.
+    this.seatDips[free] = agentId && !this.home
+      ? safeTakeDips(agentId, userId, this.tableId)
+      : null;
     const seatedProfile = agentProfile ? normalizeProfile(agentProfile) : null;
     this.agentProfiles[free] = seatedProfile && this.seatDrinking[free]
       // A drink does not change who he is, so the stored profile is untouched;
@@ -1205,8 +1232,15 @@ export class Table {
     // FRIDGE-1: the drink's cost, applied where fatigue's is — on the way out,
     // never into the record. A man who has had one is less careful tonight and
     // exactly as careful as he was tomorrow.
-    if (!attrs || !this.seatDrinking[seat]) return attrs;
-    return { ...attrs, DISCIPLINE: Math.max(0, (attrs.DISCIPLINE ?? 0) - DRINK_DISCIPLINE_PENALTY) };
+    if (!attrs) return attrs;
+    const drunk = this.seatDrinking[seat]
+      ? { ...attrs, DISCIPLINE: Math.max(0, (attrs.DISCIPLINE ?? 0) - DRINK_DISCIPLINE_PENALTY) }
+      : attrs;
+    // SERVER-5 job 1: and tonight's dips, in the same place, for the same
+    // reason. They stack with the drink deliberately — one is what you gave
+    // him and the other is what he walked in with, and a man who is worn AND
+    // has had a beer is worse off than either on its own.
+    return applyDips(drunk, this.seatDips[seat]);
   }
 
   // ── SERVER-3 · the session ────────────────────────────────────────────────
@@ -1561,6 +1595,12 @@ export class Table {
         fatigue:     this._seatFatigue(i),
         // FRIDGE-1: the bottle beside him, for this session only.
         drinking:    !!this.seatDrinking[i],
+        // SERVER-5: what he walked in carrying — [{ attr, delta, why }], and
+        // an empty list for the man who is fine. Public like the posture and
+        // the fatigue pip: you can see across a felt that somebody is playing
+        // tired. The DELTAS are public; the attributes they came off are not,
+        // and none of them is on this message.
+        dips:        this.seatDips[i] ?? [],
         history: includeHole && i !== seat && this.pending[i]?.playerId
           ? getAgentBioRole(agentId, this.agentUserIds[seat], this.pending[i].playerId)
           : null,
@@ -3026,6 +3066,8 @@ export class Table {
       // FRIDGE-1: he had a beer before this one. Public, like the posture is —
       // a bottle on the felt is the sort of thing everybody at a table can see.
       drinking: !!this.seatDrinking[i],
+      // SERVER-5: and the states he arrived in — see the note on liveGameView.
+      dips: this.seatDips[i] ?? [],
     }));
     // PACE-1: the ladder rides every snapshot as well as its own message, so a
     // client that joins mid-hand is not calm until the next transition.
