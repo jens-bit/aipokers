@@ -52,6 +52,9 @@ export default function App() {
     sitOut,
     lastDecision,
     paceFrame,
+    // WATCH-9: the thread lines the server has pushed on this socket, handed to
+    // whichever surface is showing the thread.
+    threadLines,
   } = table;
   // WATCH-5 (W5-1): the felt is played back, not mirrored. Every snapshot the
   // socket delivers goes through the pacing queue, which lets no two actions
@@ -402,6 +405,7 @@ export default function App() {
         // WATCH-8: the socket's own status, so the desk's rail refetches the
         // stored thread when the connection comes back.
         connection={status}
+        threadLines={threadLines}
         onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
@@ -677,6 +681,7 @@ export default function App() {
         // connection comes back, because the record the table wrote while the
         // owner was disconnected is exactly the part he cannot have heard.
         connection={status}
+        threadLines={threadLines}
         onLeave={handleLeave}
         onSitOut={sitOut}
         // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,

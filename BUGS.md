@@ -1,10 +1,20 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-05 (0.10.0 sweep) — 4 open, 26 resolved
+Last updated: 2026-09-06 (WATCH-9) — 5 open, 26 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-33 — `ServerMsg.PACE` does not exist on the client, so the staged runout is dropped
+**Severity:** Medium (a beat PACE-1 built and shipped, dead on every client)
+**Where:** client/src/lib/protocol.js (ServerMsg), client/src/hooks/useTable.js:108
+**What:** The server sends `{ type: 'pace', … }` on every pace change and, during a spectator-only all-in hold, turns the runout one card at a time on it. The client's ServerMsg mirror has no `PACE` key at all, so `case ServerMsg.PACE:` in useTable is `case undefined:` and `msg.type` — always a string — never matches it. `setPaceFrame` is therefore never called from the socket, and the staged runout falls back to the felt's own FLIP_MS clock; every watcher turns the card whenever their own timer says so rather than when the server does, which is the exact thing PACE-1 exists to stop.
+**Found by:** WATCH-9, adding THREAD_LINE to the same mirror. `client/src/lib/protocol.test.jsx` pins ServerMsg exhaustively with `toEqual` and passes, because the missing key is missing from BOTH sides of the assertion.
+**Why the tests did not catch it:** `client/src/hooks/useTable.test.jsx` emits `{ type: ServerMsg.PACE, … }` — that is `{ type: undefined }`, which matches `case undefined:` and exercises the handler perfectly. The suite proves the handler works against a message the server never sends. Every PACE case in that file has to be re-pinned to the literal `'pace'` as part of the fix, or the same hole is dug again.
+**Fix:** Add `PACE: 'pace'` to the client's ServerMsg (and `READ: 'read'` beside it, which is missing for the same reason — see client/src/lib/reads.js, which names ServerMsg.READ in a comment and cannot reference it). Pin both in protocol.test.jsx. Change useTable.test.jsx to emit the literal wire strings first and watch the PACE tests go red, then add the key.
+
+---
 
 ### BUG-32 — The newborn does not walk into the room
 **Severity:** Low (a beat that is missing, not a screen that is wrong)

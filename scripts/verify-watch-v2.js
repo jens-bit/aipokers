@@ -572,6 +572,43 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
   check('a reconnect that names no session gets the same one',
         (await j('GET', `/api/agents/${agentId}/thread?userId=${heroUserId}`)).body.sessionId === sessionId);
 
+  // -- WATCH-9: the same lines, PUSHED, while the socket is open --
+  //
+  // The store was the whole answer until now: the sheet read it when it was
+  // opened and never again, so a sheet left open went quiet while the table
+  // carried on talking. These are the pushes that arrived on this socket while
+  // the hands above were being played.
+  const pushed = of(ServerMsg.THREAD_LINE);
+  check('WATCH-9: the watcher was pushed the lines as they were written',
+        pushed.length > 0, `${pushed.length} THREAD_LINE(s) in ${seen.length} message(s)`);
+  check('each names the table it happened at',
+        pushed.every((m) => m.tableId === tableId),
+        JSON.stringify(pushed.slice(0, 2).map((m) => ({ t: m.tableId, s: m.sessionId }))));
+  check('and carries a whole line, id included, so it merges with the fetch',
+        pushed.every((m) => m.line && Number.isFinite(m.line.id)
+          && typeof m.line.text === 'string' && typeof m.line.kind === 'string'
+          && Number.isFinite(m.line.ts)),
+        JSON.stringify(pushed[0]?.line));
+  check("the room's own lines came down it",
+        pushed.some((m) => m.line.kind === 'table'),
+        JSON.stringify([...new Set(pushed.map((m) => m.line.kind))]));
+  check("and so did HIS reasoning — the owner's spectator is entitled to it",
+        pushed.some((m) => m.line.kind === 'him'),
+        JSON.stringify([...new Set(pushed.map((m) => m.line.kind))]));
+  // Read the store again, now that the pushes have been collected: the fetch
+  // above happened several lines ago and the table has not stopped talking.
+  const nowStored = await j('GET', `/api/agents/${agentId}/thread?userId=${heroUserId}&session=${sessionId}`);
+  const storedIds = new Set((nowStored.body.lines ?? []).map((l) => l.id));
+  check('every pushed line is a line the store also has, under the same id',
+        pushed.every((m) => storedIds.has(m.line.id)),
+        JSON.stringify(pushed.map((m) => m.line.id).filter((id) => !storedIds.has(id))));
+  check("and nothing from another man's stay at the same table came down it",
+        pushed.every((m) => m.sessionId === sessionId),
+        JSON.stringify([...new Set(pushed.map((m) => m.sessionId))]));
+  check('nothing is pushed twice',
+        new Set(pushed.map((m) => m.line.id)).size === pushed.length,
+        `${pushed.length} push(es), ${new Set(pushed.map((m) => m.line.id)).size} distinct`);
+
   // -- SESSION_END: the owner calls him in --
   ws.send(JSON.stringify({ type: ClientMsg.SIT_OUT }));
   const ended = await waitFor('SESSION_END', async () => of(ServerMsg.SESSION_END)[0], (m) => !!m, 30_000);
