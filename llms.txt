@@ -35,6 +35,10 @@ POST /api/agents/:agentId/want      — answer the one thing he is asking for (y
 POST /api/agents/:agentId/place     — put him at a fixture in the flat (SERVER-5)
 POST /api/agents/chat               — conversational turn (creation flow or owner chat)
 POST /api/agents/build              — generate agent from creation chat
+POST /api/guest                     — play without an account: mint a guest owner (GUEST-1)
+GET  /api/guest/me                  — who the guest cookie is
+GET  /api/guest/link                — the bot deep link that claims this guest
+POST /api/guest/claim               — hand a guest owner to a Telegram account
 GET  /api/stats                     — live platform metrics (active tables, agents, hands today)
 GET  /api/events?since=<id>         — casino floor ticker: the last 200 notable moments
 GET  /api/rooms                     — the floor by stakes tier (10/20, 25/50, 50/100)
@@ -172,6 +176,70 @@ half:
             he has not watched yet
   worn      he is cooked, so he is not dealt in at home either — that is what
             the bar is for. Read LIVE, so an hour at the bar counts
+
+## Guests — playing without an account
+
+A third way to be somebody here, beside Mini App initData and the desktop
+Login Widget. A guest is an owner in every way that matters — the same ownerId
+runs through profiles, agents, wallets, threads and the meter — and he is told
+apart by one thing: his credential is an httpOnly cookie this server minted,
+not a signature Telegram made.
+
+OFF UNLESS GUEST_ENABLED=1. With it unset every route below is a 404, no cookie
+is read, and nothing else in the API changes.
+
+  POST /api/guest          mint an owner. Sets `ap_guest` (httpOnly, SameSite=Lax,
+                           30 days) and answers { ownerId, kind, limits }. The
+                           token is NOT in the body: it is the whole credential,
+                           and a token the page can read is a token an injected
+                           script can post somewhere.
+                           429 { error: 'guestCap' } past five from one address
+                           in a day.
+  GET  /api/guest/me       who this cookie is: { ownerId, sessionsToday, limits }.
+                           404 for a browser that is not a guest — not an error.
+  GET  /api/guest/link     the bot deep link for the claim, built server-side
+                           because the page cannot read the token:
+                           { url: 'https://t.me/<bot>?start=guest_<token>' }.
+                           `url` is null where TELEGRAM_BOT_USERNAME is unset.
+  POST /api/guest/claim    hand him to a Telegram owner. The cookie says which
+                           guest, x-telegram-init-data says which person (either
+                           signature scheme). Idempotent: a second claim on the
+                           same token is a 200 no-op, and somebody else's spent
+                           token is 409 alreadyClaimed. The cookie is cleared.
+
+Every other route takes a guest exactly as it takes anybody: `userId` is his
+ownerId and the cookie is the proof, so a guest asking about somebody else's id
+is refused the same way a Telegram owner is.
+
+FOUR LIMITS, all enforced server-side:
+
+  one agent          a flat one, not the earned slot ladder's four.
+  one session a day  one stay at a CASINO table. The kitchen table, the couch,
+                     the fridge and the TV are unbounded — none of them spends
+                     anything.
+  no talking         POST /api/home/say and the whisper (POST /api/agents/chat
+                     with existingAgentId) are 403.
+  policy only        every decision goes to the compiled policy — the decision
+                     router answers `policy/guest` — and his table talk comes
+                     from the templates. A guest owner never reaches a model
+                     except for the draft itself, which is the one thing he may
+                     spend on.
+
+Each refusal carries `claim: true` beside its `error`, so one screen can answer
+all of them:
+
+  guestCap         429  five guests from this address today (creation only)
+  guestAgentCap    409  one agent, and keeping him is what lifts it
+  guestSessionCap  409  his night is spent; tomorrow is a new one
+  claimToTalk      403  talking to him needs an account
+
+A guest untouched for 30 days is RETIRED, not deleted: the nightly pass runs the
+same archive POST /api/agents/:id/retire runs, so his pocket comes home and the
+record closes. A cookie that outlives it finds a flat with a retired man in it.
+
+The bot answers `/start guest_<token>` with the same claim, on the same poll
+loop that answers inline queries — only one process may call getUpdates per bot
+token.
 
 ## The body — dips and rust
 

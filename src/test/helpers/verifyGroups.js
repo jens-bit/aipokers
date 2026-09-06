@@ -33,6 +33,11 @@ export const EXCLUDED = new Map([
 // Required before every merge to main.
 export const E2E = new Set([
   'verify-multi-seat.js',
+  // GUEST-1: boots the stack, drafts a guest, plays his night out through the
+  // compiled policy and claims him. ~22s of real hands and real waiting, which
+  // is the E2E criterion exactly — and `npm test` has to stay fast enough that
+  // nobody is tempted to skip it.
+  'verify-guest.js',
   // PACE-1: the staged all-in beat is a real ~11s wall-clock hold (3-5s on the
   // line, 700ms a card, 2s on the finished board). Asserting it means waiting
   // it out, and that belongs in the slow group by definition.

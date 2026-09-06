@@ -587,6 +587,127 @@
         }
       }
     },
+    "/api/guest": {
+      "post": {
+        "summary": "Play without an account — mint a guest owner",
+        "operationId": "createGuest",
+        "description": "GUEST-1. Mints a guest owner and sets `ap_guest` — an httpOnly, SameSite=Lax cookie, thirty days — which is his whole credential from then on. Every other route in this API takes a guest exactly as it takes anybody: `userId` is his ownerId and the cookie is the proof, so a guest asking about somebody else's id is refused the same way a Telegram owner is.\n\nTHE TOKEN IS NOT IN THE RESPONSE. It is the entire identity, and a token the page can read is a token an injected script can post somewhere — which is the reason the cookie is httpOnly. The one thing that genuinely needs it in a URL is the bot deep link, and GET /api/guest/link builds that server-side.\n\n404 unless GUEST_ENABLED=1 on the deployment. 429 `guestCap` past five creations from one address in a day, counted in rows rather than in memory: a cap a restart clears is not a cap.",
+        "responses": {
+          "200": {
+            "description": "A new guest owner. The cookie is in Set-Cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ownerId": { "type": "string", "example": "g_7fQ2xLm9AbCd", "description": "The owner id every other route takes as userId. Not a secret — it is already in every query string." },
+                    "kind": { "type": "string", "example": "guest" },
+                    "limits": { "$ref": "#/components/schemas/GuestLimits" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "GUEST_ENABLED is not set on this deployment" },
+          "429": { "description": "guestCap — five guests from this address today" }
+        }
+      }
+    },
+    "/api/guest/me": {
+      "get": {
+        "summary": "Who the guest cookie is",
+        "operationId": "getGuest",
+        "description": "GUEST-1. The client's boot question. A 404 means this browser is not a guest, which is an answer rather than an error — a claimed or expired cookie gives the same 404, because a spent token resolves to nobody.",
+        "responses": {
+          "200": {
+            "description": "The guest behind the cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ownerId": { "type": "string", "example": "g_7fQ2xLm9AbCd" },
+                    "kind": { "type": "string", "example": "guest" },
+                    "sessionsToday": { "type": "integer", "example": 0, "description": "Casino sessions he has started today" },
+                    "limits": { "$ref": "#/components/schemas/GuestLimits" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "No guest behind this request" }
+        }
+      }
+    },
+    "/api/guest/link": {
+      "get": {
+        "summary": "The bot deep link that claims this guest",
+        "operationId": "getGuestLink",
+        "description": "GUEST-1. Built here rather than on the page, because the page cannot read the token and must not be handed a second copy of it.\n\n`?start=` and not `?startapp=`: start opens a chat with the bot and delivers the parameter as `/start <param>`, which is the update the claim handler reads. Telegram caps a start parameter at 64 characters of [A-Za-z0-9_-]; the token is 43 and the prefix makes 49.\n\n`url` is null where TELEGRAM_BOT_USERNAME is unset — an honest answer, so a client draws the button disabled rather than a link to nowhere.",
+        "responses": {
+          "200": {
+            "description": "The link, or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": { "type": "string", "nullable": true, "example": "https://t.me/AigenicPokerBot?start=guest_7fQ2xLm9" },
+                    "bot": { "type": "string", "nullable": true, "example": "AigenicPokerBot" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "No guest behind this request, or guests are off" }
+        }
+      }
+    },
+    "/api/guest/claim": {
+      "post": {
+        "summary": "Keep him — hand a guest owner to a Telegram account",
+        "operationId": "claimGuest",
+        "description": "GUEST-1. A guest owner and a Telegram owner are the same KIND of thing, so this is a rename rather than a conversion: every row saying `g_…` is made to say the Telegram id instead, in one transaction, and nothing is left behind. The agent, the wallet, the threads, the hand history and the meter all move.\n\nThe cookie says which guest; `x-telegram-init-data` says which person, verified under either signature scheme (Mini App initData or the Login Widget). The bot's `/start guest_<token>` reaches the same claim, which is why the token may also be sent in the body — the bot has no cookie.\n\nIDEMPOTENT. A second claim on the same token by the same person is a 200 no-op; somebody else's spent token is 409 `alreadyClaimed`. The cookie is cleared on the way out.\n\nTHE WALLET HAS TWO CASES WITH OPPOSITE RIGHT ANSWERS. A Telegram owner with no wallet row TAKES the guest's verbatim — summing would hand a first-time claimer two seeds. One who already has a wallet gets the guest's balance and lifetime earnings added to his own — discarding would throw away an evening he actually played.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": { "type": "string", "description": "The guest token, for a caller with no cookie (the bot). Otherwise the cookie is used." },
+                  "initData": { "type": "string", "description": "The Telegram credential, for a caller that cannot set the header." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "He is kept",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "claimed": { "type": "boolean", "example": true },
+                    "ownerId": { "type": "string", "example": "4429183", "description": "The Telegram id everything now belongs to" },
+                    "from": { "type": "string", "example": "g_7fQ2xLm9AbCd" },
+                    "agents": { "type": "integer", "example": 1, "description": "How many agents moved. Zero on an idempotent second claim." },
+                    "wallet": { "type": "string", "enum": ["moved", "merged", "none"], "description": "moved = the target had no wallet and took the guest's; merged = the two were added together" },
+                    "alreadyClaimed": { "type": "boolean", "description": "Present and true when this token had already been spent by the same person" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "noGuestToken, or noTelegramUser" },
+          "401": { "description": "The Telegram credential did not verify" },
+          "404": { "description": "noGuest — no such token, or guests are off" },
+          "409": { "description": "alreadyClaimed — this token belongs to somebody else now" }
+        }
+      }
+    },
     "/openapi.json": {
       "get": {
         "summary": "This OpenAPI 3.0 specification",
@@ -602,6 +723,16 @@
   },
   "components": {
     "schemas": {
+      "GuestLimits": {
+        "type": "object",
+        "description": "GUEST-1. What a guest may do, sent on creation and on /me so a client never hard-codes the numbers. Every one of them is decided in src/server/guest.js and enforced where the action is.",
+        "properties": {
+          "agents": { "type": "integer", "example": 1, "description": "How many agents he may have. A flat cap, not the earned slot ladder." },
+          "sessionsPerDay": { "type": "integer", "example": 1, "description": "Stays at a CASINO table per day. The kitchen table, the couch, the fridge and the TV are unbounded — none of them spends anything." },
+          "talk": { "type": "boolean", "example": false, "description": "Whether he may say anything to his agents. False for every guest: POST /api/home/say and the whisper are 403 claimToTalk." },
+          "forgottenAfterDays": { "type": "integer", "example": 30, "description": "How long an untouched guest survives before the nightly pass retires his agents. Thirty days of SILENCE, not of age — every request restamps him." }
+        }
+      },
       "CasinoEvent": {
         "type": "object",
         "description": "One line of the floor ticker.",

@@ -159,6 +159,29 @@ pm2 logs        # Ctrl+C to exit
 
 `data/agents.json` on the VPS is real users' agents and it is still in git, so a pull will happily overwrite it. Back up, checkout, pull, restore — every time, until the SQLite migration lands.
 
+## Env on the VPS
+
+Every variable lives in `.bashrc` on the VPS; `pm2 restart all --update-env` is what picks a change up. The canonical list with what each one does is in CLAUDE.md's hard rules — this section is only for the switches that are DELIBERATELY OFF and the order to turn them on in.
+
+### GUEST_ENABLED — play without an account (GUEST-1)
+
+**Default off. Jens flips it, not a tab.**
+
+```
+GUEST_ENABLED=1
+```
+
+Unset, the three guest routes 404, no cookie is read, `isGuestOwner` is false for everybody, and the whole app behaves exactly as it did before the tree landed — including the `/welcome` redirect for a visitor with no session on agenticpoker.app. That is the way back, and it needs no deploy: unset it and restart.
+
+Set, a stranger who opens the app is given an owner and a thirty-day httpOnly cookie, lands on the hero with the room under it, and drafts somebody. He gets one agent, one casino session a day, no talking, and every decision on the compiled policy — so a guest costs nothing but his draft.
+
+Two things to check before flipping it:
+
+1. **`TELEGRAM_BOT_USERNAME` must be set**, or the claim wall's CONTINUE IN TELEGRAM button has no link to offer and draws itself disabled. It is already needed for the web login widget, so on a working deployment it is there.
+2. **The bot must be able to receive `/start`.** Nothing to configure — `/start guest_<token>` rides the same `getUpdates` loop the share cards already use — but it is the same loop, so `SHARE_INLINE=0` turns the claim link off with it. Only one process may poll per bot token: if a second one is ever started, both break.
+
+Worth watching for a day after it goes on: `GET /api/admin/meter?key=$ADMIN_KEY`. A guest owner should appear in the decision routes as `policy/guest` and never in the model spend at all.
+
 ## End of session
 
 1. Every tab committed, nothing uncommitted anywhere.
