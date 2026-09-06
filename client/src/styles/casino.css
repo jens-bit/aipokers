@@ -37,13 +37,69 @@
   outline-offset: 2px;
 }
 
-/* On the desk the casino IS the stage (board 31's frame: top bar across, rail
-   on the right, only the stage swapped), so it fills it. The doorways stretch
-   with it — the crowd's trapezoid is proportional, so the perspective holds at
-   any width. */
+/* DESK-2 — on the desk the casino IS the body: board 31's frame is the shell's
+   top bar across the top, the building on the stage, and the ticker in the
+   rail. The doorways stretch with the stage — the crowd's trapezoid is a
+   proportion rather than a pixel count, so the perspective holds at any width.
+
+   The tray is deliberately untouched: it is the decision, it belongs under the
+   thing being decided, and it sits at the foot of the stage on both platforms. */
 .csn--desk {
   height: 100%;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  overflow: hidden;
 }
+
+.csn-desk__stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The stairs are a motif with a fixed number of steps, not a stretchable band:
+   six treads across 358px read as stairs, and the same six across 890px read as
+   six grey blocks. They keep the width they were drawn at. The DOORWAYS still
+   stretch — the crowd's trapezoid is a proportion, so the perspective holds. */
+.csn--desk .csn-rooms > div[aria-hidden] { max-width: 358px; }
+
+/* The rail borrows the shell's width (.dsk-panel, 520) and keeps the casino's
+   own ground, because the building is darker than the rest of the desk and a
+   rail in the shell's grey would read as a different room. */
+.csn-desk__rail {
+  min-height: 0;
+  overflow: hidden;
+  background: #0A0F0F;
+}
+
+/* By the stairs, as a column rather than a card: it is the rail now, so it has
+   no edges of its own and its lines scroll instead of being cut at five. */
+.csn-desk__rail .csn-board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.csn-desk__rail .csn-board > :first-child {
+  flex-shrink: 0;
+  height: 46px;
+  padding: 0 16px;
+}
+.csn-desk__rail .csn-board > :last-child {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 8px 16px 14px;
+}
+.csn-desk__rail .csn-board > :last-child::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .csn svg[style*="casino-bob"],

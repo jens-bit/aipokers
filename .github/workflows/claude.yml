@@ -54,8 +54,32 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # The tool list is wrapped in inner quotes because several patterns
-          # contain a space — unquoted, `Bash(npm install)` would be split into
-          # two arguments and neither would match anything.
-          claude_args: '--allowedTools "Bash(npm install),Bash(npm ci),Bash(npm run build),Bash(npm test),Bash(npm run test:*),Bash(npx playwright install chromium),Bash(npx playwright *),Bash(node scripts/*),Bash(git *)"'
+          # claude_args is right for this action: v1 has no `allowed_tools`
+          # input — it was replaced by `claude_args: --allowedTools` (the
+          # action's docs/configuration.md says so outright). The list is
+          # wrapped in inner quotes because the patterns contain spaces.
+          #
+          # The patterns are what were wrong. A Bash rule with NO wildcard
+          # matches one exact command, so `Bash(npm ci)` allowed `npm ci` and
+          # nothing else — not `npm ci --no-audit`, and not the `npm ci` in a
+          # compound. Three separate ways that blocked npm:
+          #
+          #   1. Exact match. `Bash(npm install)`, `Bash(npm ci)`,
+          #      `Bash(npm test)`, `Bash(npm run build)` each matched the bare
+          #      string only. Any flag at all and the rule missed.
+          #   2. `Bash(npm run test:*)` did NOT mean "the test:* scripts". A
+          #      trailing `:*` is just another way of writing a trailing ` *`,
+          #      so it required a SPACE after `test` — the one thing
+          #      `npm run test:all` does not have.
+          #   3. Compound commands are matched per subcommand: a rule must
+          #      cover EACH side of an `&&`. Nothing allowed `cd`, so
+          #      `npm ci && cd client && npm ci` could never be approved even
+          #      with npm fully allowed.
+          #
+          # A trailing ` *` also matches the bare command, so `Bash(npm *)`
+          # covers `npm` and every subcommand and flag. npx keeps its inner
+          # command named, because npx is not a stripped wrapper — it runs
+          # whatever follows it, so `Bash(npx *)` would be a rule that allows
+          # anything at all.
+          claude_args: '--allowedTools "Bash(npm *),Bash(npx playwright *),Bash(node *),Bash(cd *),Bash(git *)"'
 

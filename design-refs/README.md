@@ -23,10 +23,10 @@ captions carry decisions the later ones assume.
 | 25 | Mobile · Notifications | The notification kit and its budget laws |
 | 26 | Mobile · Watch v5 | Current watch screen |
 | 27 | Mobile · Casino | Current casino floor |
-| 29 | Mobile · Home | **Current.** The flat: the home game, the away wall, routines, the safe, the fridge, four chairs |
+| 29 | Mobile · Home | **Current.** The flat: the home game, the away wall, routines, the safe, the fridge, four chairs, sitting down yourself, and the wave-53 nav |
 | 30 | Desktop · Command Center | The desktop product |
 | 31 | Desktop · Parity | Desktop versions of everything mobile drew first, including home |
-| 40 | Marketing · Landing | "How it plays" in plain language |
+| 40 | Marketing · Landing | **Current.** The landing page: nine sections, every screenshot a live component from 26 · 27 · 29 |
 
 ## Laws that bind every board
 
@@ -41,6 +41,17 @@ captions carry decisions the later ones assume.
 - **The room shows, it doesn't label** (wave 52) — what an agent is doing is visible,
   so it is not written. His name sits in a pill above his head with his two resource
   bars inside it, and nothing sits under his feet.
+- **Bubble anatomy** (wave 52) — name pill above the head, bubble *beside* the head
+  with the tail from the side, cards and hands below. A bubble's width and side come
+  from the clearance it actually has, measured against what is on screen — inside the
+  table camera that is the visible slice of the room, not the room.
+- **No bottom bar** (wave 53) — HOME · CASINO · YOU are things in the world, not tabs
+  over it: YOU is the avatar top-right (roster sheet, money behind it), CASINO is the
+  door, HOME is where you already are. The composer is the only thing at the bottom.
+- **Identity is rolled at birth** (wave 53) — six hoods × six glows, fixed for life.
+  Mood moves the face, never the colour.
+- **The two bars run opposite ways** (wave 53) — stamina drains right-to-left, heat
+  fills left-to-right, so the empty end of both is the left end.
 - **The owner never plays the hand**, and never looks like he does. No guilt anywhere.
 
 ## Component files
@@ -49,15 +60,26 @@ Shared atoms first, then one file per wave. Every board loads the chain it needs
 a file is rarely owned by a single board.
 
 - `mood-atoms.jsx`, `mood-faces.jsx`, `mood-hands.jsx`, `cards.jsx`, `icons.jsx`,
-  `header.jsx`, `ios-frame.jsx` — the shared layer.
+  `header.jsx`, `ios-frame.jsx` — the shared layer. `mood-atoms.jsx` also owns
+  `HOODS`, `GLOWS` and `idFor()`, the birth identity roll.
 - `char-*.jsx` — the character system. **Locked**: the attribute primitives, the
   profile card and the birth card are not edited by later waves.
 - `mood-home.jsx` / `mood-home2.jsx` / `mood-home-desk.jsx` — the flat: coordinate
-  space (`FLAT`, `STAND`, `TABLE_SEATS`), bodies, fixtures, sheets, and the desktop
-  room.
+  space (`FLAT`, `STAND`, `TABLE_SEATS`), bodies, fixtures, sheets, the table camera
+  (`TableCam`) and the desktop room.
+- `mood-nav.jsx` — wave 53: the roster sheet behind the avatar, the ranked floor
+  board, the identity sheet, and the first five minutes on the no-bar nav.
+- `mood-landing2.jsx` — wave 54: the landing page. `mood-landing.jsx` is the previous
+  one and is still loaded by board 02 for its hero anatomy.
 - `mood-watch*.jsx`, `mood-wallet.jsx`, `mood-casino*.jsx`, `mood-birth*.jsx`,
   `mood-flow*.jsx`, `mood-ftu2.jsx`, `mood-notify.jsx` — one family per system.
 - `mood-desktop*.jsx`, `mood-desk-parity*.jsx` — the desktop shell and its screens.
+
+Moved to `archive/` in wave 54 because no numbered board loads them:
+`mood-relate.jsx` (superseded by `char-bio.jsx`), `mood-share.jsx` (the share card,
+not yet re-drawn against the current felt), `mood-heat.jsx` (its `heatStyle` was
+inlined into `mood-watch4c.jsx`), and `styles.css` (only the archived early
+prototypes link it, and they link it relatively).
 
 `archive/` holds superseded prototypes and their component files. Nothing in it is
 referenced by a numbered board.

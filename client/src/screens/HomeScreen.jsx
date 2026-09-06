@@ -165,6 +165,25 @@ export function useBirthWalk(agents, positions) {
   }, [positions, atDoor]);
 }
 
+// DESK-2 — how much bigger the room gets on the desk.
+//
+// The ref hard-codes 1.34 (HD_SCALE in mood-home-desk.jsx) because that is what
+// fits ITS stage. What it is CLAIMING is "the same room, bigger", so the number
+// is derived from the stage this room is actually given: the largest scale at
+// which the 390x470 space still fits, whichever axis runs out first. At
+// 1440x900 with the rail beside it that lands around 1.7.
+//
+// Capped at 1.9, because past about twice size the room stops reading as a room
+// seen from above and starts reading as a diagram of one. Floored at 1, because
+// the desk is the wide platform and a room smaller than the phone's is not a
+// thing this function should ever be able to produce.
+export const HOME_DESK_MAX = 1.9;
+
+export function fitScale(width, height) {
+  if (!(width > 0) || !(height > 0)) return 1;
+  return Math.max(1, Math.min(HOME_DESK_MAX, width / F_W, height / F_H));
+}
+
 /**
  * Which agents are walking right now.
  *
@@ -297,6 +316,15 @@ export function HomeScreen({
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
   const [railLocal, setRailLocal] = useState('thread');
+  // The stage's content box, watched so the room re-fits when the rail changes
+  // width or the window does. Absent ResizeObserver (jsdom) the room simply
+  // stays at 1, which is the phone's own scale and not a broken screen.
+  //
+  // A callback ref rather than useRef: the empty room returns before the stage
+  // exists, so a mount-time effect would look at nothing and never look again
+  // once the first agent moved in.
+  const [roomEl, setRoomEl] = useState(null);
+  const [deskScale, setDeskScale] = useState(1);
   const rail = panel ?? railLocal;
   const setRail = onPanel ?? setRailLocal;
   // BIRTH-5 — the phone's own answer to the same fixture: a sheet over the room
@@ -335,6 +363,16 @@ export function HomeScreen({
   // machinery below has a previous position to cross him from.
   const positions = useBirthWalk(agents, settled);
   const walking = useWalks(positions);
+
+  useEffect(() => {
+    if (!desktop || !roomEl || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const box = entry.contentRect;
+      setDeskScale(fitScale(box.width, box.height));
+    });
+    ro.observe(roomEl);
+    return () => ro.disconnect();
+  }, [desktop, roomEl]);
 
   const studying = home.find((a) => routineKeyOf(a) === 'tape') ?? null;
   const studyBook = useStudyBook(studying?.id ?? null);
@@ -467,7 +505,10 @@ export function HomeScreen({
   const roomBox = (
     <div
       className="home1__room"
-      style={desktop ? undefined : { aspectRatio: `${F_W} / ${F_H}` }}
+      ref={setRoomEl}
+      style={desktop
+        ? { '--home-desk-scale': deskScale }
+        : { aspectRatio: `${F_W} / ${F_H}` }}
       data-dim={dimmed ? 'true' : 'false'}
     >
       <div className="home1__scale" style={{ width: F_W, height: F_H }}>

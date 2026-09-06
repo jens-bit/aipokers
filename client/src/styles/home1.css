@@ -490,6 +490,16 @@ button.home-flat__table { cursor: pointer; -webkit-appearance: none; appearance:
 
 /* ── The home game ───────────────────────────────────────────────────────── */
 
+/* DESK-2: everything the home game puts ON the table is scenery — the board,
+ * the chips, the one label — and none of it is a control. Left as it was it
+ * covered the middle of the table, which is a fixture you can now open (the
+ * chairs, board 31 P17), so a tap on the felt hit a picture of three cards and
+ * did nothing. Playwright caught it at 1440; it was equally true on the phone
+ * the moment anything wanted the table. */
+.home-game__centre,
+.home-game__chips,
+.home-game__label { pointer-events: none; }
+
 .home-game__centre {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -841,17 +851,22 @@ button.home-flat__table { cursor: pointer; -webkit-appearance: none; appearance:
   min-width: 0;
   align-items: center;
   justify-content: center;
-  container-type: normal;
-  padding: 20px;
+  padding: 24px;
   transition: filter 0.18s ease;
 }
 
 /* The room becomes a lit card in a dark stage, the way the ref frames it —
  * HdRoom's own border, radius and drop shadow. */
 .home1--desk .home1__scale {
-  --home-desk-scale: 1.34;
+  /* The ref hard-codes 1.34 because that is what fits ITS stage. The claim is
+   * "the same room, BIGGER", so the number is derived rather than copied — see
+   * fitScale in HomeScreen.jsx, which measures the stage and writes this
+   * variable. It is not a container query: `100cqw / 390` is a LENGTH, and
+   * scale() takes a number, so the whole declaration was invalid and the room
+   * came out at 1. One transform either way, and every coordinate in flat.js
+   * still means what it says. */
   flex-shrink: 0;
-  transform: scale(var(--home-desk-scale));
+  transform: scale(var(--home-desk-scale, 1));
   transform-origin: center center;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -868,15 +883,9 @@ button.home-flat__table { cursor: pointer; -webkit-appearance: none; appearance:
  * the ref's own figure, and the room keeps playing behind it. */
 .home1--desk .home1__room[data-dim='true'] { filter: brightness(0.5); }
 
-/* A shorter desk (1280x800, and the 900-tall laptop once the top bar is off it)
- * cannot hold 470 x 1.34 plus the padding, so the scale comes down rather than
- * the room being cropped. One number, one place, every coordinate still valid. */
-@media (max-height: 760px) {
-  .home1--desk .home1__scale { --home-desk-scale: 1.12; }
-}
-@media (max-height: 640px) {
-  .home1--desk .home1__scale { --home-desk-scale: 1; }
-}
+/* A shorter or narrower desk needs no special case: the fit above already
+ * takes whichever axis runs out first, so 1280x800 and a dragged-narrow window
+ * get a smaller room rather than a cropped one. */
 
 /* The rail. Its width is the shell's (.dsk-panel, 520) rather than the ref's
  * 360 — see the header of DeskHome.jsx for why. The panels inside it bring
