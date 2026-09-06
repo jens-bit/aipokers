@@ -1,19 +1,10 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
+Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
 
 
 ---
 
 ## OPEN
-
-### BUG-38 — `verify-home-routes.js` points at a script that does not exist
-**Severity:** Low (a wrong hint costs the next person a minute, and it is one word)
-**Where:** `scripts/verify-home-routes.js:43`
-**What:** With no built client the script bails with ``client/dist not found — run `npm run build` first``. There is no `build` script at the root — `package.json` defines `build:client` (which is what `start` itself runs). Following the hint verbatim gets `Missing script: "build"`.
-**Found by:** the WATCH report; the names were the other way round there — the hint says `npm run build`, and `npm run build:client` is the one that exists.
-**Fix:** say `npm run build:client`. Worth a grep for the same sentence in the other verify scripts before closing it.
-
----
 
 ### BUG-37 — The felt formats a stack with `toLocaleString`, not the wallet's own formatter
 **Severity:** Low (two spellings of the same number, in the same screen)
@@ -38,6 +29,8 @@ Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
 **Where:** `scripts/verify-watch-v2.js`
 **What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
 **Found by:** the WATCH report.
+**Also measured by SERVER-5,** which had filed the same flake as a separate BUG-34 before this merge and is folded in here: 1 failure in 3 runs on `feature/server-5`, and **2 failures in 4 runs on `origin/main` (379f453) in a clean worktree** — so it predates any one branch. The assertion is that at least one THREAD_LINE pushed during the watched hands has `kind: 'him'`; a `him` line is only written when a DECISION carries non-empty `reasoning` (table.js `_broadcastDecision`), and with no key the decisions come from the compiled policy, so whether the window contains a spot that produces reasoning is down to the deck.
+**Not to be fixed by loosening the assertion.** The rule it encodes is right and WATCH-9 put it there deliberately: the owner's spectator is entitled to his reasoning, and a push channel that never carries it is broken. Testing law 5 applies — make the WINDOW deterministic instead, playing until a `him` line arrives or a bounded number of hands have gone by, and fail on the bound.
 **Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
 
 ---
@@ -115,6 +108,11 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-38 — `verify-home-routes.js` points at a script that does not exist — RESOLVED 2026-09-06 (CI)
+Fixed while chasing the CI red it sat next to. Three scripts said ``run `npm run build` first`` and there is no root `build` script; all three now say `build:client`. The CI failure itself was the other half of the same file: verify-home-routes.js EXITS 1 on a missing dist where verify-cache-headers and verify-deeplink-routes skip, so it was red on CI (which runs `npm test` before any client build) and green on any laptop with a dist lying around. It is now in NEEDS_CLIENT_DIST with the other two.
+
+---
 
 ### BUG-33 — The client's ServerMsg had no PACE or READ key, so neither frame was ever handled — RESOLVED 2026-09-06
 **Where:** `client/src/lib/protocol.js`, `client/src/hooks/useTable.js`

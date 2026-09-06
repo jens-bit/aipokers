@@ -94,7 +94,7 @@ const DeskTopBar = ({ standupLine, net = '+$340', flagged = '4 flagged' }) => (
         ) : (
           <>
             <Num size={12.5} weight={700} color={M_TEAL}>{net}</Num>
-            <span style={{ color: M_FAINT, fontFamily: MONO, fontSize: 10 }}>·</span>
+            <span style={{ color: M_MUTED, fontFamily: MONO, fontSize: 10 }}>·</span>
             <span style={{ fontSize: 12, color: M_GOLD }}>{flagged}</span>
           </>
         )}

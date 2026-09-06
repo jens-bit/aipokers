@@ -42,6 +42,9 @@ import {
   applySessionGrowth,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
+// SERVER-5 job 1 — the states he can arrive in, and what they cost him for one
+// session. The module is pure; this file is where the record it reads lives.
+import { dipsFor, dipLine } from '../agent/dips.js';
 // MERGE-1 composition order, held everywhere the two features meet:
 // bio (who he is playing) → relationship (how you treat him) → mood (how he
 // is taking it). Bio is the oldest fact, the ledger colours it, mood is today.
@@ -63,6 +66,8 @@ import {
   ensureFridge, takeOne as takeFromFridge, countOf as fridgeCountOf,
   stock as stockFridge, fridgeProjection, priceOf, heatEffectOf, outOfStockLine,
   isItem as isFridgeItem, ITEM_IDS as FRIDGE_ITEM_IDS,
+  // SERVER-5 job 5: the food ask only fires when there is something in.
+  hasStock as fridgeHasStock,
 } from './fridge.js';
 import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
@@ -167,6 +172,36 @@ function saveStore(userId) {
   if (!profile) return;
   const n = saveProfile(userId, profile);
   console.log(`[agents] saved profile for ${userId} — ${n} agent(s)`);
+}
+
+// ── SERVER-5 job 2 · the nightly pass's three accessors ─────────────────────
+//
+// Rust is the first thing in the product that walks the whole building rather
+// than one owner's roster, so it needs a door onto it. Three narrow functions
+// rather than exporting `db()`: the store is this module's, and a caller
+// holding the raw object could write a record without ever saving it.
+
+/** Every owner the store knows about. */
+export function allOwnerIds() {
+  return Object.keys(db());
+}
+
+/** One owner's agent RECORDS — the live objects, archived ones included. */
+export function agentsOf(userId) {
+  const profile = db()[String(userId)];
+  return Array.isArray(profile?.agents) ? profile.agents : [];
+}
+
+/**
+ * Persist whatever a caller changed on those records.
+ *
+ * Deliberately SILENT — no emitAgentChange. The nightly pass runs from inside
+ * the agent-change listener, so announcing from here would re-enter it, and
+ * the push that listener is already about to make carries the new numbers
+ * anyway. A job that runs inside a notification must not raise one.
+ */
+export function saveOwner(userId) {
+  saveStore(String(userId));
 }
 
 function getOrCreate(userId) {
@@ -471,6 +506,10 @@ function commitAgent(profile, existingAgentId, agentData) {
   agent.attrs = born.attrs;
   agent.potential = born.potential;
   agent.nature = born.nature;
+  // SERVER-5 job 2: the six he was born with, kept as their own record for the
+  // same reason `potentialBirth` below is. Rust may never take him under these,
+  // so the floor has to survive the attrLog's 200-entry ring.
+  agent.attrsBorn = { ...born.attrs };
   // ATTR-3a: his first sentence, spoken once at the reveal. A template in his
   // own voice, chosen by nature — no model call on the birth path.
   agent.firstWords = firstWordsFor(born.nature.name);
@@ -1174,6 +1213,14 @@ export function getMemoryContext(agentId, userId) {
 // tally.
 export function openerForAgent(agent) {
   if (!agent) return null;
+  // SERVER-5 job 1: while a dipped session is RUNNING, the line he would open
+  // with is about tonight, not about last night. It has to come before the
+  // stored opener or it could never be seen: `sessionRecap.opener` is written
+  // at the END of a session, so during one it holds the previous session's
+  // line and would win every time. Cleared with the session, so it describes
+  // the night he is actually having and no other.
+  const dipped = dipLine(agent.sessionDips);
+  if (dipped) return dipped;
   const stored = agent.sessionRecap?.opener;
   if (typeof stored === 'string' && stored.trim()) return withTapeClause(agent, stored.trim());
   const handsPlayed = Number(agent.stats?.handsPlayed) || 0;
@@ -1223,6 +1270,10 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   agent.status = 'idle';
   agent.activeTableId = null;
   agent.unseenRecap = true;
+  // SERVER-5 job 1: the dip described the session that just ended. It goes out
+  // with it, exactly as the drink flag is spent at the seat — a state he
+  // arrived in must not colour the night after it as well.
+  agent.sessionDips = null;
 
   // BIO-2b: roles are recomputed from the ledger this session just added to.
   // Unconditionally — it was nested inside the recap-text branch at first,
@@ -1385,6 +1436,42 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   const thirdWin = typeof sessionPnl === 'number'
     ? recordSessionOutcome(agent, sessionPnl > 0)
     : false;
+
+  // ── SERVER-5 job 5 · "I could eat, after that." ───────────────────────────
+  //
+  // THE ONE PLACE THE FOOD ASK CAN BE RAISED, and the reason it is here rather
+  // than in the ladder's own state is that a session ending is a MOMENT and
+  // everything else computeWant runs on is a READING. Every other caller —
+  // presentAgent, refreshWantsFor, the want route — is somebody looking at
+  // him, and a want that can be produced by being looked at is a want that
+  // arrives because the owner opened the app. This one is produced by the
+  // night he just had, once, and is unreachable from anywhere else because
+  // nowhere else has a `sessionHands` to pass (see the branch in askFor).
+  //
+  // It closes the loop job 1 left open. dips.js measures hunger from
+  // `snackRefusedAt`, and noteSnackRefused only stamps a want whose item is a
+  // snack — until now nothing in the WANTS-1 ladder had one, so the hunger dip
+  // was arithmetic with no way to be reached. The chain is: a long night, food
+  // in the fridge, he asks, you say no, and a day later he sits down playing
+  // hungry and it costs him DISCIPLINE and FOCUS. Every link is an answer
+  // somebody gave.
+  //
+  // An archived man is not asked what he wants for dinner.
+  if (!agent.archived) {
+    try {
+      computeWant(agent, {
+        atTable: false,
+        sessionHands: sessionHands || 0,
+        // Not "does the owner have money" — is there food IN. Stocking the
+        // fridge is the act that makes the question askable, exactly as
+        // FRIDGE-1 has it for the beer.
+        snackInFridge: fridgeHasStock(walletFor(userId ?? 'anon'), 'snack'),
+      });
+    } catch (err) {
+      console.error('[wants] session-end compute failed:', err.message);
+    }
+  }
+
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
 
@@ -2374,7 +2461,15 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
  * moment. "Put me in" is a standing state, and a standing state that pushes is
  * a nag with a badge on it.
  */
-export function computeWant(agent, { fatigue = null, atTable = null, broke = null, walletBalance = null, now = Date.now() } = {}) {
+export function computeWant(agent, {
+  fatigue = null, atTable = null, broke = null, walletBalance = null, now = Date.now(),
+  // SERVER-5 job 5 — the two the FOOD ask needs, and the two that no route
+  // passes. `sessionHands` is the length of the session that just ended; only
+  // finishAgentSession has one, which is what confines the ask to that moment.
+  // Defaulting to null here rather than 0 matters: 0 is a session that ended
+  // with no hands in it, null is "no session ended".
+  sessionHands = null, snackInFridge = false,
+} = {}) {
   if (!agent) return null;
   ensureMood(agent);
   ensureStats(agent);
@@ -2396,7 +2491,14 @@ export function computeWant(agent, { fatigue = null, atTable = null, broke = nul
 
   // Rule 4 — the world answered it. Never a clock; every branch of
   // `askSatisfied` names the thing he asked for.
-  if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat })) {
+  // SERVER-5 job 5: "somebody fed him since he asked". Rule 4's world-answers
+  // half for the food ask — read off the stamp giveItemTo writes, so a snack
+  // handed over through POST /give or the flat's fridge fixture closes the ask
+  // without the owner ever pressing yes on it.
+  const fed = Number.isFinite(agent.lastSnackAt)
+    && Number.isFinite(current?.at) && agent.lastSnackAt >= current.at;
+
+  if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat, fed })) {
     current.answered = 'fulfilled';
     current.answeredAt = now;
   }
@@ -2414,6 +2516,8 @@ export function computeWant(agent, { fatigue = null, atTable = null, broke = nul
     sessionNet: typeof lastSession?.net === 'number' ? lastSession.net : null,
     weekBiggestPot: weekBiggestPot(agent, { now }),
     nemesis: sighting,
+    sessionHands,
+    snackInFridge,
   });
 
   if (candidate && !onReAskCooldown(agent, candidate.kind, now) && replaces(candidate, agent.want)) {
@@ -2652,6 +2756,11 @@ export function giveItemTo(agent, userId, item) {
   agent.mood = result.mood;
   recordOwnerEvent(agent, 'item_given', { item });
 
+  // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being
+  // fed is what answers a refusal — see hungerMs in dips.js, which treats a
+  // snack later than the no as the end of the matter.
+  if (item === 'snack') agent.lastSnackAt = Date.now();
+
   // FRIDGE-1 § the beer's second half: it is drunk now and it costs him his
   // next session. Stored as a flag and nothing else — the penalty itself is
   // applied at the seat and never written into his attributes, so a man who
@@ -2698,6 +2807,73 @@ export function takeDrinkForSession(agentId, userId) {
   return true;
 }
 
+// ── SERVER-5 job 1 · the session dips ───────────────────────────────────────
+//
+// The beer's second half, generalised to the three states the WORLD hands him:
+// worn, hungry, tilted. src/agent/dips.js owns the arithmetic and the closed
+// list of reasons; this half owns the record it reads and the one field it
+// writes, which is a DESCRIPTION of tonight and never an attribute.
+//
+// THE STORED ATTRIBUTE NEVER CHANGES. `agent.attrs` is not touched here, by
+// anything, ever — the points come off at the seat (table.js `_seatAttrs`,
+// beside the drink's) and are gone when he stands up.
+
+/**
+ * He asked for something to eat and you said no. Stamped so hunger can be
+ * measured from it — dips.js requires BOTH halves (a refusal, then a day), so
+ * a want nobody ever raised can never make him hungry.
+ *
+ * Only a want whose item is a snack counts. Saying no to a beer is a different
+ * conversation and costs him nothing but the ledger line it already writes.
+ */
+export function noteSnackRefused(agent, want, { now = Date.now() } = {}) {
+  if (!agent || want?.item !== 'snack') return false;
+  agent.snackRefusedAt = now;
+  return true;
+}
+
+/**
+ * The dips this session starts with. Called by the table when the seat is
+ * taken, exactly where `takeDrinkForSession` is called and for the same
+ * reason: a session's costs are settled at sit-down, once, and held.
+ *
+ * Stored on the record as `sessionDips` — not because the effect needs
+ * storing (it does not; the seat holds it) but because the OWNER needs to be
+ * able to see why tonight is going the way it is when he is not watching the
+ * felt. finishAgentSession clears it, so it describes at most one session.
+ *
+ * Returns the list, which is empty for the overwhelmingly common case of a man
+ * who is fine.
+ */
+export function takeSessionDips(agentId, userId, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents?.find((a) => a.id === agentId);
+  if (!agent) return [];
+  ensureMood(agent);
+  ensureAttributes(agent);
+  const dips = dipsFor({
+    // What he CARRIED IN: the stored stage recovered by the hours since he left,
+    // never the live seat's — the seat has played no hands yet.
+    fatigue: restedFatigue(agent.fatigue ?? 'fresh',
+      Number.isFinite(agent.restedAt) ? (now - agent.restedAt) / 3_600_000 : Infinity),
+    stamina: agent.attrs?.STAMINA ?? null,
+    heat: Number.isFinite(agent.mood?.heat) ? agent.mood.heat : heatForState(agent.mood?.state),
+    lastSnackAt: agent.lastSnackAt ?? null,
+    snackRefusedAt: agent.snackRefusedAt ?? null,
+    now,
+  });
+  agent.sessionDips = dips.length > 0 ? dips : null;
+  saveStore(userId ?? 'anon');
+  return dips;
+}
+
+/** The dips a running session is carrying, or an empty list. */
+export function sessionDipsOf(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents?.find((a) => a.id === agentId);
+  return Array.isArray(agent?.sessionDips) ? agent.sessionDips : [];
+}
+
 /**
  * "Sit one out." He comes off the felt and stays off until STAMINA has him
  * back at `fresh` — which is time at the bar, on attributes.js's own recovery
@@ -2717,6 +2893,47 @@ function benchForRest(agent, userId) {
     at: Date.now(),
   };
   return { benched: true, pending: stillSeated, restingUntil: 'fresh' };
+}
+
+/**
+ * SERVER-5 job 3 — "sit one out", as an owner ACT rather than an answer to a
+ * want. The couch. Same function POST /want's yes runs, so the two doors into
+ * the bench cannot drift; this one saves and announces, because a placement is
+ * the whole of the request rather than one step inside one.
+ */
+export function restAgent(agent, userId) {
+  if (!agent) return null;
+  const out = benchForRest(agent, userId);
+  saveStore(userId ?? 'anon');
+  emitAgentChange(userId);
+  return out;
+}
+
+/**
+ * SERVER-5 job 3 — where he is, live: is he in a seat, and is a hand running
+ * in it right now. The placement routes ask because carrying a man out of a
+ * hand he has money in is the one thing a fixture may never do.
+ */
+export function seatStatusOf(agent) {
+  const tableId = agent?.activeTableId ?? null;
+  const table = tableId ? (liveTables?.getTable?.(tableId) ?? null) : null;
+  return {
+    tableId: table ? tableId : null,
+    atTable: !!table,
+    inHand: !!table?.handInProgress?.(),
+  };
+}
+
+/**
+ * SERVER-5 job 3 — the newest hand he has flagged, or null. What the TV plays
+ * when nobody says which tape to put on.
+ */
+export function latestFlaggedHand(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  const flagged = Array.isArray(agent?.sessionFlagged) ? agent.sessionFlagged : [];
+  const hand = flagged.at(-1) ?? null;
+  return hand ? { agentName: agent.name ?? 'Your agent', hand } : null;
 }
 
 /** Is he sitting out on his own request, and not yet recovered? */
@@ -3133,6 +3350,41 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     console.error('[agentProfiles] agent-chat error:', err.message);
     return { chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] };
   }
+}
+
+/**
+ * SERVER-5 job 3 — handing him something out of the fridge, as a function.
+ *
+ * Lifted out of POST /give so the FRIDGE in the flat is the same act rather
+ * than a second one. The save is the half that has to live in here: giveItemTo
+ * persists the WALLET (the shelf) and not the AGENT (his mood), because it was
+ * only ever called from a route that saved afterwards — and a fixture calling
+ * it directly cooled him down in memory and lost it on the next read.
+ *
+ * Returns { status, body }, in giveItemTo's own vocabulary: 400 for "He's
+ * fine. Save it.", 409 with `needs: 'stock'` for an empty shelf.
+ */
+export function giveItemFrom(agent, userId, item) {
+  if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+
+  // WANTS-1: the fridge, the effects and the ledger line all live in
+  // giveItemTo so POST /want can answer a beer with exactly this behaviour
+  // rather than a second implementation of it. FRIDGE-1: an empty shelf
+  // answers 409 with `needs: 'stock'` — the button that opens the fridge.
+  const given = giveItemTo(agent, userId, item);
+  if (!given.ok) return { status: given.status, body: given.body };
+
+  // The answer becomes a ledger line either way; this is the "given" half.
+  if (agent.want && !isAnswered(agent.want)) {
+    agent.want.answered = 'given';
+    agent.want.answeredAt = Date.now();
+    noteReAskCooldown(agent, agent.want.kind ?? 'beer');
+  }
+
+  saveStore(userId);
+  emitAgentChange(userId);
+  emitWantChange(userId, agent.id, null);
+  return { status: 200, body: given.body };
 }
 
 /**
@@ -3896,26 +4148,8 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    const item = String(req.body?.item || agent.want?.item || 'snack');
-
-    // WANTS-1: the fridge, the effects and the ledger line all live in
-    // giveItemTo so POST /want can answer a beer with exactly this behaviour
-    // rather than a second implementation of it. FRIDGE-1: an empty shelf
-    // answers 409 with `needs: 'stock'` — the button that opens the fridge.
-    const given = giveItemTo(agent, userId, item);
-    if (!given.ok) return res.status(given.status).json(given.body);
-
-    // The answer becomes a ledger line either way; this is the "given" half.
-    if (agent.want && !isAnswered(agent.want)) {
-      agent.want.answered = 'given';
-      agent.want.answeredAt = Date.now();
-      noteReAskCooldown(agent, agent.want.kind ?? 'beer');
-    }
-
-    saveStore(userId);
-    emitAgentChange(userId);
-    emitWantChange(userId, agent.id, null);
-    res.json(given.body);
+    const out = giveItemFrom(agent, userId, String(req.body?.item || agent.want?.item || 'snack'));
+    res.status(out.status).json(out.body);
   });
 
 
@@ -3971,6 +4205,10 @@ export function installAgentProfileRoutes(app) {
       want.answeredAt = now;
       noteReAskCooldown(agent, kind, now);
       recordOwnerEvent(agent, 'want_refused', { kind });
+      // SERVER-5 job 1: no to FOOD starts the hunger clock. No to anything else
+      // costs him the ledger line and nothing more, which is RELATE-1d's rule
+      // and stays true.
+      noteSnackRefused(agent, want, { now });
       saveStore(userId);
       emitAgentChange(userId);
       emitWantChange(userId, agent.id, null);
@@ -3983,7 +4221,11 @@ export function installAgentProfileRoutes(app) {
     // want is marked answered, so a refusal leaves the want exactly where it
     // was rather than silently eating it.
     let performed = null;
-    if (kind === 'beer') {
+    // SERVER-5 job 5: food answers exactly like the beer, because it IS the
+    // beer's shape — an item out of the fridge, one effect, one button. The
+    // only difference is which shelf it comes off, and `want.item` carries
+    // that, so this branch needed a kind added to it and nothing else.
+    if (kind === 'beer' || kind === 'food') {
       const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
       // FRIDGE-1 rule 3: an empty fridge is not a punishment and not an error.
       // Yes to a want he cannot be given opens the FRIDGE — the same shape as
@@ -4045,6 +4287,10 @@ export function installAgentProfileRoutes(app) {
     agent.want.answeredAt = Date.now();
     noteReAskCooldown(agent, agent.want.kind ?? 'beer');
     recordOwnerEvent(agent, 'want_ignored', { item: agent.want.item });
+    // SERVER-5 job 1: dismissing a snack is refusing a snack. RELATE-1d's own
+    // header calls no "a complete answer", and the hunger clock is the one
+    // consequence it has — see the note on noteSnackRefused.
+    noteSnackRefused(agent, agent.want);
     saveStore(userId);
     emitAgentChange(userId);
     res.json({ dismissed: true, want: agent.want });
@@ -4589,6 +4835,17 @@ export function installAgentProfileRoutes(app) {
       // PACE-1d: the dials the draft has produced so far, all four of them or
       // none — a strip with two of four filled in is a strip that looks broken.
       profile: draft.profile,
+      // DRAFT-2: what he is called, the turn the owner says it — not at birth.
+      // The draft asks the name question exactly once (BUGS-B/4) and the pill
+      // over the room is where the answer lands, so the answer has to be on
+      // the wire before there is an agent to carry it.
+      //
+      // It is coined HERE, by the same call buildFromDraft makes, rather than
+      // read off `chat` by the client: coinName is what turns "call him the
+      // grinder" into "The Grinder", and a second implementation of that on
+      // the client is how the pill and the seat plate start disagreeing about
+      // what a man is called. Null until he is asked and answers.
+      draftName: coinName(nameAnswerFrom(profile.chat), { fallback: null }),
       // Enough to build him. The screen shows the primary action on this, so a
       // chip pick moves the draft forward on the very first turn instead of
       // dead-ending on a reply that reads like a closing line.

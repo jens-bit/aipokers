@@ -161,9 +161,13 @@ describe('FIX-2b: the birth composer docks the same way', () => {
 
   it('the draft feed is the pane that grows', async () => {
     const composer = await renderBirth();
-    // The composer rides inside a non-growing wrapper; the feed is that
-    // wrapper's previous sibling.
-    const feed = composer.parentElement.previousElementSibling;
+    // DRAFT-2 moved the draft onto the glass sheet, which has a third row
+    // between the feed and the composer (the chips, then the dials), so the
+    // feed is no longer the composer wrapper's previous sibling. It is still
+    // the pane that grows, which is the rule this test exists for and which is
+    // asserted below exactly as it always was — only the lookup changed.
+    const sheet = composer.closest('.draft-sheet');
+    const feed = sheet.querySelector('.draft-sheet__body');
 
     expect(grows(feed)).toBe(true);
     expect(parseFloat(css(feed).minHeight)).toBe(0);

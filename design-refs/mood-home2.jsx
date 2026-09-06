@@ -48,7 +48,7 @@ const HomeToast = ({ a, text, want, queued = 0 }) => (
       <div style={{ flexShrink: 0, marginTop: 1 }}><MoodAvatar mood={a.mood} accent={a.accent} size={20}/></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11.5, color: M_TEXT, lineHeight: 1.35 }}>
-          <b style={{ color: a.accent, fontWeight: 600 }}>{a.name.split(' ')[0]}</b> {text}
+          <b style={{ color: a.accent, fontWeight: 600 }}>{pillName(a.name, a.nick)}</b> {text}
         </div>
         {want && (
           <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
@@ -160,7 +160,7 @@ const HomeNightly = ({ day, open }) => (
           <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
             <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
               <span style={{ color: l.fromAccent }}>{l.from}</span>
-              <span style={{ color: M_FAINT }}> → </span>
+              <span style={{ color: M_MUTED }}> → </span>
               <span style={{ color: l.toAccent }}>{l.to}</span>
             </span>
             <span style={{ flex: 1, fontSize: 11, color: M_DIM, lineHeight: 1.4 }}>{l.text}</span>
@@ -180,7 +180,7 @@ const HomeThreadLine = ({ a, text, sys }) => sys ? (
     <div style={{ flexShrink: 0, marginTop: 1 }}><MoodAvatar mood={a.mood} accent={a.accent} size={20}/></div>
     <div style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 9, color: a.accent, fontWeight: 600 }}>{a.name.split(' ')[0]}</span>
+        <span style={{ fontSize: 9, color: a.accent, fontWeight: 600 }}>{pillName(a.name, a.nick)}</span>
       </div>
       <div style={{ fontSize: 11.5, color: M_DIM, lineHeight: 1.45, marginTop: 1 }}>{text}</div>
     </div>
@@ -210,11 +210,11 @@ const HomeThread = ({ open, latest, lines, nightly, nightlyOpen }) => (
     ) : (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 13px' }}>
         {latest.sys
-          ? <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_FAINT, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</span>
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</span>
           : <>
               <MoodAvatar mood={latest.a.mood} accent={latest.a.accent} size={20}/>
               <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <b style={{ color: latest.a.accent, fontWeight: 600 }}>{latest.a.name.split(' ')[0]}</b> {latest.text}
+                <b style={{ color: latest.a.accent, fontWeight: 600 }}>{pillName(latest.a.name, latest.a.nick)}</b> {latest.text}
               </div>
             </>}
       </div>
@@ -287,7 +287,7 @@ const HomeMoneySheet = ({ cast = H_CAST }) => (
           <MoodAvatar mood={broke ? 'sulking' : a.mood} accent={a.accent} size={26}/>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{ fontSize: 11.5, color: M_TEXT }}>{a.name.split(' ')[0]}</span>
+              <span style={{ fontSize: 11.5, color: M_TEXT }}>{pillName(a.name, a.nick)}</span>
               <Num size={11} weight={700} color={broke ? M_MUTED : M_TEXT}>{broke ? '$0' : `$${p.have.toLocaleString()}`}</Num>
             </div>
             <div style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.12em', color: broke ? M_RED : M_MUTED, marginTop: 2 }}>{p.rule.toUpperCase()}</div>
@@ -329,7 +329,7 @@ const FridgeSheet = ({ empty }) => (
     </div>
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 14px 8px' }}>
       <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE FRIDGE</span>
-      <span style={{ fontSize: 10.5, color: M_FAINT }}>bought from the safe</span>
+      <span style={{ fontSize: 10.5, color: M_MUTED }}>bought from the safe</span>
     </div>
     {HOME_STOCK.map(s => {
       const n = empty && s.k === 'BEER' ? 0 : s.n;
