@@ -113,12 +113,25 @@ export function RoomThread({
   const [draft, setDraft] = useState('');
   const [nightOpen, setNightOpen] = useState(false);
 
-  const submit = (e) => {
-    e.preventDefault();
+  const send = () => {
     const text = draft.trim();
     if (!text || sending) return;
     setDraft('');
     onSay?.(text);
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    send();
+  };
+
+  // Enter says it; Shift+Enter is the newline. An IME still owns the key while
+  // a word is being composed, so a bare Enter there is a commit, not a send.
+  const keyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (e.nativeEvent?.isComposing) return;
+    e.preventDefault();
+    send();
   };
 
   return (
@@ -152,10 +165,17 @@ export function RoomThread({
       </div>
 
       <form className="room-thread__composer" onSubmit={submit}>
-        <input
+        {/* FIX-6 job 1 — a TEXTAREA, not a one-line input.
+            Enter sends and Shift+Enter is a newline, which is the rule every
+            other composer in the app follows; an <input> can obey half of it
+            (the form submits on Enter) and cannot obey the other half at all,
+            because there is nowhere for the newline to go. */}
+        <textarea
           className="room-thread__input"
+          rows={1}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={keyDown}
           placeholder="Say something to the room…"
           aria-label="Say something to the room"
           data-testid="room-thread-input"

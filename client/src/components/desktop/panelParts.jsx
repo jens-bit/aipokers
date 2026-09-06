@@ -72,11 +72,24 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
     el.style.height = `${Math.min(el.scrollHeight, 108)}px`;
   }, [value]);
 
+  // FIX-6 job 1 · ENTER SENDS, SHIFT+ENTER IS A NEWLINE.
+  //
+  // The desk had it the other way round: ⌘↵ sent and a bare Enter dropped a
+  // newline into a two-row box nobody writes paragraphs in. Every composer on
+  // the phone (AgentChat, BirthScreen, ChatsScreen) has always sent on Enter,
+  // so this is the desk catching up with the rest of the app rather than a new
+  // rule — and ⌘↵ still sends, because a habit that costs nothing to keep is
+  // not worth taking away.
   function keyDown(e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      onSend?.(value);
-    }
+    if (e.key !== 'Enter') return;
+    // Shift+Enter is the newline, and it is the only thing that is.
+    if (e.shiftKey) return;
+    // An IME still owns the key while a word is being composed; sending here
+    // would post half of it.
+    if (e.nativeEvent?.isComposing) return;
+    e.preventDefault();
+    if (busy || !value.trim()) return;
+    onSend?.(value);
   }
 
   return (
@@ -117,7 +130,7 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
           onKeyDown={keyDown}
         />
         <div className="dsk-composer__actions">
-          <span className="dsk-composer__kbd">⌘↵</span>
+          <span className="dsk-composer__kbd">↵</span>
           <button
             type="button"
             className="dsk-composer__send"
@@ -134,7 +147,7 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
         <span>Synced with Telegram</span>
         <span className="dsk-dot" style={{ width: 5, height: 5 }} aria-hidden />
         <div className="dsk-composer__foot-spacer" />
-        <span>⌘K commands · ⌘↵ send</span>
+        <span>⌘K commands · ↵ send · ⇧↵ newline</span>
       </div>
     </div>
   );

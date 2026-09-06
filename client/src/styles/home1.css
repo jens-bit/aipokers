@@ -1081,16 +1081,25 @@ button.home-flat__table:active { filter: brightness(1.12); }
   padding: 12px 14px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
+/* FIX-6 job 1 — a textarea now, so Shift+Enter has somewhere to put the
+ * newline. It still reads as the one-line pill it was: 36px at rest, growing a
+ * line at a time to a ceiling and scrolling after that, and never draggable —
+ * a resize grip in the corner of a chat composer is furniture nobody wants. */
 .room-thread__input {
   flex: 1;
   min-width: 0;
-  height: 36px;
-  padding: 0 14px;
+  min-height: 36px;
+  max-height: 108px;
+  padding: 8px 14px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.24);
   color: #EDEDED;
+  font-family: inherit;
   font-size: 12.5px;
+  line-height: 18px;
+  resize: none;
+  overflow-y: auto;
 }
 .room-thread__input::placeholder { color: #4a4a4a; }
 .room-thread__send {
@@ -1125,16 +1134,6 @@ button.home-flat__table:active { filter: brightness(1.12); }
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%);
-}
-.table-sheet__felt-label {
-  position: absolute;
-  top: 9px;
-  right: 11px;
-  font-family: Oswald, Inter, sans-serif;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: #6B6B6B;
 }
 .table-sheet__felt-line {
   position: absolute;

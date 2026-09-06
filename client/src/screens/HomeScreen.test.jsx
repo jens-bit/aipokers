@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event';
 
 import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
+import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
 
 const WS = 'ws://localhost:8765';
 
@@ -155,15 +156,26 @@ describe('HOME-1 · the room', () => {
     expect(screen.queryByRole('button', { name: /Big Slick —/ })).not.toBeInTheDocument();
   });
 
-  it('the home table never shows money — that is the whole point of it', async () => {
+  // FIX-6 job 4 replaces the rule this test used to encode. The felt carried
+  // the words FOR NOTHING, on the theory that saying there are no stakes is the
+  // opposite of naming one. Design 52's rule is flatter and it is the one that
+  // stands: NO MONEY WORDS on the home table. A running table says nothing.
+  it('the home table never shows money, and never talks about it either', async () => {
     await boot(
       [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
       { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
     );
-    const label = await screen.findByTestId('home-game-label');
-    expect(label).toHaveTextContent('FOR NOTHING');
-    // No pot, no stack, no P&L anywhere on the felt.
-    expect(label.closest('.home-flat')).not.toHaveTextContent(/\$/);
+    await screen.findByTestId('home-board');
+    const flat = document.querySelector('.home-flat');
+    // No pot, no stack, no P&L, and no label saying there is none of it.
+    expect(flat).not.toHaveTextContent(/\$/);
+    expect(flat).not.toHaveTextContent(/FOR NOTHING/);
+    expect(screen.queryByTestId('home-game-label')).toBeNull();
+  });
+
+  it('an empty table still says it is empty — that is a fact about the room', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-game-label')).toHaveTextContent('NOBODY AT THE TABLE');
   });
 
   it('no status label is printed under anybody', async () => {
@@ -680,8 +692,11 @@ describe('BIRTH-5 · the table, on the phone', () => {
     await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')]);
     await userEvent.click(await screen.findByTestId('home-table'));
     const sheet = await screen.findByTestId('home-table-sheet');
-    expect(sheet).toHaveTextContent('FOR NOTHING');
+    // FIX-6 job 4: and no money words on the felt either. What is left on it is
+    // who is at the table and how many chairs are free.
+    expect(sheet.textContent).not.toMatch(/FOR NOTHING/);
     expect(sheet.textContent).not.toMatch(/\$/);
+    expect(within(sheet).getByTestId('home-table-seated')).toHaveTextContent('at the table');
   });
 
   it('a locked chair offers no action at all — it states the distance', async () => {
@@ -726,5 +741,87 @@ describe('BIRTH-5 · the table, on the phone', () => {
     const sheet = await screen.findByTestId('home-table-sheet');
     // The felt and the count are still there — the room has a table either way.
     expect(within(sheet).getByTestId('home-table-seated')).toBeInTheDocument();
+  });
+});
+
+// ── FIX-6 job 3 ─────────────────────────────────────────────────────────────
+
+describe('FIX-6 · the room queues what it has to say', () => {
+  const wanting = (id, name) => mkAgent(id, name, {
+    want: { kind: 'play', text: `Put ${name} in something bigger.`, needs: 'deploy', dangerous: false },
+  });
+
+  it('one man wears one bubble, however many things he has to say', async () => {
+    // A want AND an unread session: two boxes over one head, before this.
+    await boot([mkAgent('a1', 'The Clock', {
+      want: { kind: 'beer', text: 'Can I have a beer.', needs: null, dangerous: false },
+      unseenRecap: true,
+      sessionRecap: { text: 'Took it off him on the river.' },
+    })]);
+
+    const him = await waitFor(() => {
+      const el = document.querySelector('.home-one[data-agent="a1"]');
+      expect(el).not.toBeNull();
+      return el;
+    });
+    expect(him.querySelectorAll('.home-bubble')).toHaveLength(1);
+    // The want is the thing waiting on an answer, so the want is what he wears.
+    expect(within(him).getByTestId('home-news-a1')).toHaveTextContent('Can I have a beer.');
+  });
+
+  it('at most two bubbles in the room, whoever else is talking', async () => {
+    await boot([
+      wanting('a1', 'Balance'),
+      wanting('a2', 'Granite'),
+      wanting('a3', 'Big Slick'),
+      wanting('a4', 'The Clock'),
+    ]);
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('.home-one').length).toBe(4);
+    });
+    expect(document.querySelectorAll('.home-bubble').length).toBeLessThanOrEqual(2);
+  });
+
+  it('a man still waiting his turn still reads as having news', async () => {
+    await boot([wanting('a1', 'Balance'), wanting('a2', 'Granite'), wanting('a3', 'Big Slick')]);
+
+    await waitFor(() => expect(document.querySelectorAll('.home-one').length).toBe(3));
+    // Whoever the queue held back, his pill is still gold — queueing a line is
+    // not the same as swallowing it.
+    expect(document.querySelectorAll('.home-pill--news').length).toBe(3);
+  });
+
+  it('no bubble is drawn over another bubble, or over a name pill', async () => {
+    await boot([
+      wanting('a1', 'Balance'),
+      wanting('a2', 'Granite'),
+      wanting('a3', 'Big Slick'),
+      wanting('a4', 'The Clock'),
+    ]);
+
+    await waitFor(() => expect(document.querySelectorAll('.home-one').length).toBe(4));
+
+    // jsdom has no layout, so the boxes are recomputed from the same model the
+    // room places them with — the room's own coordinates, off the DOM.
+    const bodies = [...document.querySelectorAll('.home-one')].map((el) => ({
+      id: el.dataset.agent,
+      x: parseFloat(el.style.left),
+      y: parseFloat(el.style.top),
+      size: el.dataset.spot?.startsWith('table:') ? 50 : 46,
+      name: el.getAttribute('aria-label').split(' — ')[0],
+    }));
+    const boxes = [...document.querySelectorAll('.home-bubble')].map((el) => {
+      const body = bodies.find((b) => b.id === el.closest('.home-one').dataset.agent);
+      return bubbleRect(body, el.dataset.side);
+    });
+    const pills = bodies.map(pillRect);
+
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        expect(overlaps(boxes[i], boxes[j])).toBe(false);
+      }
+      for (const pill of pills) expect(overlaps(boxes[i], pill)).toBe(false);
+    }
   });
 });

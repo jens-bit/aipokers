@@ -67,6 +67,30 @@
    stretch — the crowd's trapezoid is a proportion, so the perspective holds. */
 .csn--desk .csn-rooms > div[aria-hidden] { max-width: 358px; }
 
+/* FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE.
+ *
+ * The phone stacks the doorways because it has one column, and a doorway you
+ * scroll past is still a doorway. At 1440 the whole building fits across, so
+ * stacking it is the phone's layout with air poured down both sides — and the
+ * ROOM is the unit this place is organised by, which is an argument for seeing
+ * all of them at once rather than one and a half.
+ *
+ * Equal columns and equal heights (DESK_DOOR_H, in CasinoScreen.jsx): a row
+ * whose cards differ in height reads as a broken grid, where a column whose
+ * doorways differ in height reads as a building. The hot room still says so
+ * with its badge, its shimmering felt and its gold rim. */
+.csn--desk .csn-rooms__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+/* More than three rungs would wrap rather than squeeze: the ladder is three
+   today and this is what it does if it ever is not. */
+@media (max-width: 1279px) {
+  .csn--desk .csn-rooms__row { gap: 10px; }
+}
+
 /* The rail borrows the shell's width (.dsk-panel, 520) and keeps the casino's
    own ground, because the building is darker than the rest of the desk and a
    rail in the shell's grey would read as a different room. */
@@ -74,6 +98,34 @@
   min-height: 0;
   overflow: hidden;
   background: #0A0F0F;
+  /* FIX-6 job 5: the fund sheet is `position: absolute; inset: 0` and it opens
+     in here now, so this is the box it fills. */
+  position: relative;
+}
+
+/* A sheet in the rail (FIX-6 job 5). It is a panel in a column: no glass, no
+   rounded lip, no bottom-sheet animation, and it scrolls inside the rail rather
+   than growing it. The phone's sheet is untouched. */
+.csn-desk__rail .home-sheet--rail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.csn-desk__rail .home-sheet--rail .home-sheet__panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 16px 16px;
+  scrollbar-width: none;
+}
+.csn-desk__rail .home-sheet--rail .home-sheet__panel::-webkit-scrollbar { display: none; }
+/* The list already scrolls the rail; a second scroller inside it at 46vh is a
+   scrollbar inside a scrollbar. */
+.csn-desk__rail .home-sheet--rail .home-sheet__panel ul {
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* By the stairs, as a column rather than a card: it is the rail now, so it has
