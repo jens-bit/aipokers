@@ -14,6 +14,7 @@ import {
   DWELL_MS, LAG_LIMIT_MS, CATCHUP_RATE, SHOWDOWN_HOLD_MS, SETTLE_MS,
   RESULT_TOAST_MS, STACK_TICK_MS,
   stepOf, dwellOf, createQueue, pushFrame, advance, nextWaitMs, behindMs,
+  timerLeft, timerOf,
 } from './pace.js';
 
 // A snapshot in the shape the wire delivers, trimmed to the fields the queue
@@ -245,5 +246,32 @@ describe('W5-1: the queue', () => {
 
   it('has nothing to wait for when nothing is queued', () => {
     expect(nextWaitMs(createQueue(frame(snap()), 0), 0)).toBe(null);
+  });
+});
+
+// ── SERVER-3 · the action clock ──────────────────────────────────────────────
+// The ring draws the clock THE SERVER IS KEEPING. A client that starts its own
+// on arrival is off by the network and wrong again on a reconnect mid-think.
+describe('the action clock', () => {
+  it('counts down the server\'s own deadline', () => {
+    const now = 1_000_000;
+    expect(timerLeft({ deadlineTs: now + 9000, totalMs: 12000 }, now)).toBe(9);
+    expect(timerLeft({ deadlineTs: now + 8400, totalMs: 12000 }, now)).toBe(9);
+    expect(timerOf({ deadlineTs: now + 9000, totalMs: 12000 })).toBe(12);
+  });
+
+  it('floors at zero rather than running negative', () => {
+    const now = 1_000_000;
+    expect(timerLeft({ deadlineTs: now - 4000, totalMs: 12000 }, now)).toBe(0);
+  });
+
+  // Null when nobody is to act, and null for a human seat: there is no
+  // server-side timer for humans yet, and a ring nothing will enforce is worse
+  // than no ring at all.
+  it('draws no ring when the server is keeping no clock', () => {
+    expect(timerLeft(null, 1)).toBeNull();
+    expect(timerOf(null)).toBeNull();
+    expect(timerLeft({}, 1)).toBeNull();
+    expect(timerOf({ deadlineTs: 5 })).toBeNull();
   });
 });

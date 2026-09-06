@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
-import { BetPill } from './system/SeatChip.jsx';
+import { ChipStack, BetSpot, PotChip, potBand, stackBand } from './system/Chips.jsx';
 import { PlayingCard, CardBack } from './system/PlayingCard.jsx';
 import { moodOf, causeOf, stateOf } from './floor/agentView.js';
 import { Streets } from '../lib/protocol.js';
@@ -43,6 +43,7 @@ import { SeatGhost } from './system/SeatGhost.jsx';
 import { ReadSheet } from './system/ReadSheet.jsx';
 import { Bubble } from './system/Bubble.jsx';
 import { MoodGhost } from './system/MoodGhost.jsx';
+import { GhostHandLayer } from './system/GhostHands.jsx';
 import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
 import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
@@ -55,11 +56,12 @@ import { ResultToast } from './system/ResultToast.jsx';
 import { handDelta as netForSeat, money } from '../lib/deltas.js';
 import {
   paceOf, paceMeta, heroEquityOf, landedCount, stagedCount, FLIP_MS,
-  RESULT_TOAST_MS, STACK_TICK_MS,
+  RESULT_TOAST_MS, STACK_TICK_MS, timerLeft, timerOf,
 } from '../lib/pace.js';
 import { dealBeat, isWarm, isNewDeal, DEAL_TOTAL_MS, CARD_GAP_MS, BACKS_DELAY_MS } from '../lib/deal.js';
 import { pickOpponent } from '../lib/reads.js';
 import { attrCostOf } from '../lib/attributes.js';
+import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -255,10 +257,6 @@ function alignFor(slot) {
   return (slot === 'tr' || slot === 'mr') ? 'right' : 'left';
 }
 
-function compactFor(slot, opponentCount) {
-  return slot === 'ml' || slot === 'mr' || opponentCount >= 5;
-}
-
 // ---- W5-2 · the muck -------------------------------------------------------
 // "folds don't feel like anything." They didn't: a seat's backs were rendered
 // on `!folded`, so the instant the server said folded the cards ceased to have
@@ -270,10 +268,14 @@ function compactFor(slot, opponentCount) {
 // they have landed. His own toss keeps the 350ms hero arc.
 
 export var MUCK_MS = 350;
+// HANDS-1 / 52i: "A seat folding is not the hero folding." 250ms rather than
+// 350, a flatter arc, and it ends at the muck — one fixed spot beside the pot,
+// so a table of six folds resolves to one pile instead of six directions.
+export var OPP_MUCK_MS = 250;
 
 var NO_MUCK = {};
 
-export function useMuck(game) {
+export function useMuck(game, heroSeat) {
   var handNo = game ? game.handNumber : null;
   var seats  = (game && game.seats) ? game.seats : [];
   var foldKey = seats.map(function (s) { return (s && s.folded) ? '1' : '0'; }).join('');
@@ -299,16 +301,23 @@ export function useMuck(game) {
       fresh.forEach(function (i) { next[i] = true; });
       return next;
     });
-    var t = setTimeout(function () {
-      setMucking(function (m) {
-        var next = Object.assign({}, m);
-        fresh.forEach(function (i) { delete next[i]; });
-        return next;
-      });
-    }, MUCK_MS);
-    timersRef.current.push(t);
+    // His throw and a seat's are two different gestures with two different
+    // clocks, so they are cleared on two different timers rather than on the
+    // longer of the pair.
+    [[MUCK_MS, true], [OPP_MUCK_MS, false]].forEach(function (pair) {
+      var group = fresh.filter(function (i) { return (i === heroSeat) === pair[1]; });
+      if (!group.length) return;
+      var t = setTimeout(function () {
+        setMucking(function (m) {
+          var next = Object.assign({}, m);
+          group.forEach(function (i) { delete next[i]; });
+          return next;
+        });
+      }, pair[0]);
+      timersRef.current.push(t);
+    });
     return undefined;
-  }, [handNo, foldKey]);
+  }, [handNo, foldKey, heroSeat]);
 
   useEffect(function () {
     return function () {
@@ -318,6 +327,121 @@ export function useMuck(game) {
   }, []);
 
   return mucking;
+}
+
+// ---- HANDS-1 · the sweep ---------------------------------------------------
+// 52j, street end: "every spot moves at once, so the table resolves in one
+// gesture." The engine clears contribThisStreet the instant a street advances,
+// so the felt would simply lose four piles between frames. This holds the
+// street that just closed for the length of the sweep and hands it back, and
+// the pot's own chip gains a band as it lands.
+export var SWEEP_MS = 320;
+
+// "peek — one holds, one turns up at the near corner." A moment, not a state:
+// he looks at what he was dealt and is holding again half a second later.
+export var PEEK_HOLD_MS = 700;
+
+export function useSweep(game) {
+  var handNo = game ? game.handNumber : null;
+  var street = game ? game.street : null;
+  var seats  = (game && game.seats) ? game.seats : [];
+  var betsKey = seats.map(function (x) { return (x && x.contribThisStreet) || 0; }).join(',');
+
+  var [sweep, setSweep] = useState(null);
+  var prevRef  = useRef({ hand: null, street: null, bets: '' });
+  var timerRef = useRef(null);
+
+  useEffect(function () {
+    var prev = prevRef.current;
+    prevRef.current = { hand: handNo, street: street, bets: betsKey };
+
+    if (prev.hand !== handNo) { setSweep(null); return undefined; }
+    if (prev.street === street) return undefined;
+
+    var out = prev.bets.split(',')
+      .map(function (n, i) { return Number(n) > 0 ? i : -1; })
+      .filter(function (i) { return i >= 0; });
+    if (!out.length) return undefined;
+
+    setSweep({ street: prev.street, seats: out });
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function () { setSweep(null); }, SWEEP_MS);
+    return undefined;
+  }, [handNo, street, betsKey]);
+
+  useEffect(function () {
+    return function () { clearTimeout(timerRef.current); };
+  }, []);
+
+  return sweep;
+}
+
+// ---- SERVER-3 · a face is a MOMENT -----------------------------------------
+// The decision triggers — dealtStrong, raisedAgainst, allIn — are things he is
+// reacting to, and a reaction that stays up for the rest of the street stops
+// being a reaction and becomes his resting face, which is the one job the mood
+// system already has. So the trigger is held for FACE_HOLD_MS and then let go.
+// The hand-end triggers are not held: they last exactly as long as the result
+// they belong to is on the felt.
+function useFaceDecision(lastDecision) {
+  var [held, setHeld] = useState(lastDecision);
+
+  useEffect(function () {
+    setHeld(lastDecision);
+    if (!lastDecision || !lastDecision.event) return undefined;
+    var t = setTimeout(function () { setHeld(null); }, FACE_HOLD_MS);
+    return function () { clearTimeout(t); };
+  }, [lastDecision]);
+
+  return held;
+}
+
+// ---- SERVER-3 · the clock the server is keeping ----------------------------
+// state.actionTimer is { seat, deadlineTs, totalMs }. The ring counts that down
+// rather than starting one of its own on arrival — which was off by the network
+// and wrong again on a reconnect mid-think. No timer on the snapshot, no ring.
+export function useActionTimer(game) {
+  var at = game ? game.actionTimer : null;
+  var deadline = at && Number.isFinite(at.deadlineTs) ? at.deadlineTs : null;
+  var [, setTick] = useState(0);
+
+  useEffect(function () {
+    if (deadline == null) return undefined;
+    var id = setInterval(function () { setTick(function (n) { return n + 1; }); }, 250);
+    return function () { clearInterval(id); };
+  }, [deadline]);
+
+  if (!at) return null;
+  var left = timerLeft(at, Date.now());
+  var of   = timerOf(at);
+  if (left == null || of == null) return null;
+  return { seat: at.seat, left: left, of: of };
+}
+
+// ---- HANDS-1 · one fixed spot ----------------------------------------------
+// The muck is ONE spot beside the pot and the pot is ONE pill, both centred on a
+// felt whose width is not knowable from inside a seat (it is the viewport under
+// 760 and capped above it). So the delta from each chair to the spot is
+// measured, not guessed, and written inline — where it beats the per-slot
+// fallbacks the stylesheet carries for the moment before layout.
+function useFlyTo(rootRef, targets, deps) {
+  useEffect(function () {
+    var root = rootRef.current;
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    var flyers = root.querySelectorAll('[data-fly]');
+    for (var i = 0; i < flyers.length; i++) {
+      var el = flyers[i];
+      var to = targets[el.getAttribute('data-fly')];
+      if (!to || !to.current) continue;
+      var a = el.getBoundingClientRect();
+      var b = to.current.getBoundingClientRect();
+      // jsdom measures nothing; the stylesheet's fallback stands.
+      if (!a.width && !b.width) continue;
+      var name = el.getAttribute('data-fly-var') || '--fly';
+      el.style.setProperty(name + '-dx', Math.round((b.left + b.width / 2) - (a.left + a.width / 2)) + 'px');
+      el.style.setProperty(name + '-dy', Math.round((b.top + b.height / 2) - (a.top + a.height / 2)) + 'px');
+    }
+  }, deps);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // ---- the session ceremony --------------------------------------------------
@@ -381,11 +505,18 @@ export function SessionCeremony({
           ].filter(Boolean).join(' · ')}
         </div>
 
+        {/* 52g / 52h — "the grammar of the pair reads at a glance: hands go UP
+            AND OUT on a win, IN OVER THE FACE on a loss." The pose lives HERE
+            and nowhere else: a hand end is quiet (WATCH-7), and both fists over
+            his head forty times a session is the exact mistake that law fixed.
+            The ceremony is the one moment big enough for it. */}
         <div className="watch-ceremony__ghost">
           <span className="watch-ceremony__aura" aria-hidden />
           <MoodGhost mood={mood || (won ? 'confident' : 'frustrated')}
             accent={accent || '#00D4AA'} size={76} heat={Number.isFinite(heat) ? heat : 45}
-            event={won ? 'smug' : 'stunned'} hands="cover" won={won} ring={false} />
+            event={won ? 'smug' : 'stunned'} ring={false} />
+          <GhostHandLayer className="watch-ceremony__hands"
+            pose={won ? 'raise' : 'cover'} size={76} />
         </div>
 
         {/* A busted agent has one thing he needs and it is not conversation. */}
@@ -523,16 +654,21 @@ export function WatchFelt({
   var handNo = game ? game.handNumber : null;
   var dealRef = useRef({ hand: null, t0: 0 });
   var [dealT, setDealT] = useState(DEAL_TOTAL_MS);
+  // "peek — one holds, one turns up at the near corner: dealt, and once when
+  // heat rises." It is a MOMENT: he looks, and then he is holding again.
+  var [peeking, setPeeking] = useState(false);
 
   useEffect(function() {
     if (!live || !isNewDeal(handNo, dealRef.current.hand)) return undefined;
     dealRef.current = { hand: handNo, t0: Date.now() };
     setDealT(0);
 
+    setPeeking(false);
     var timers = [
       setTimeout(function() { setDealT(CARD_GAP_MS); fireHaptic('cardDealt'); }, CARD_GAP_MS),
-      setTimeout(function() { setDealT(CARD_GAP_MS * 2); }, CARD_GAP_MS * 2),
+      setTimeout(function() { setDealT(CARD_GAP_MS * 2); setPeeking(true); }, CARD_GAP_MS * 2),
       setTimeout(function() { setDealT(DEAL_TOTAL_MS); }, BACKS_DELAY_MS),
+      setTimeout(function() { setPeeking(false); }, DEAL_TOTAL_MS + PEEK_HOLD_MS),
     ];
     // Torn down mid-deal, the beat gives the hand back. Without this the ref
     // outlived the timers it was guarding: React's development double-invoke
@@ -541,11 +677,22 @@ export function WatchFelt({
     // zero, for the whole hand. Playwright, 390x844: no hole cards on the felt.
     return function() {
       timers.forEach(clearTimeout);
+      setPeeking(false);
       dealRef.current = { hand: null, t0: 0 };
     };
   }, [handNo, live]);
 
-  var mucking = useMuck(game);
+  var mucking = useMuck(game, heroSeat);
+  var sweep   = useSweep(game);
+  var clock   = useActionTimer(game);
+  var faceDecision = useFaceDecision(lastDecision);
+
+  // 52i: one fixed spot beside the pot, and one pile on it. The pairs that have
+  // landed stay on the felt for the rest of the hand — a fold that dissolves
+  // reads as a bug, so nothing here fades.
+  var feltRef = useRef(null);
+  var muckRef = useRef(null);
+  var potRef  = useRef(null);
 
   var beatNow = live ? dealBeat(dealT) : { landed: 2, backs: true };
   var heroLanded = between ? 2 : beatNow.landed;
@@ -573,23 +720,38 @@ export function WatchFelt({
     ? formatAction(lastDecision.action)
     : toActLabel);
 
+  // Every pile is a BAND, and a band is a ratio: what this seat has against what
+  // the average seat has. That is what makes a short stack look short at $2/$4
+  // and at $200/$400 without the felt ever being told the blinds.
+  var allSeats = (game && game.seats) ? game.seats : [];
+  var chipsAtTable = allSeats.reduce(function (t, x) { return t + ((x && x.stack) || 0); }, 0);
+  var avgStack = allSeats.length ? chipsAtTable / allSeats.length : 0;
+
   var opponentSeats = [];
   for (var step = 1; step < seatCount; step++) {
     var si = (heroSeat + step) % seatCount;
     var s = game && game.seats ? game.seats[si] : null;
     if (!s) continue;
+    var contrib = (s.contribThisStreet || 0);
     opponentSeats.push({
       seat: si,
       accent: s.accentColor || '#00D4AA',
       mood: moodStateOf(s),
       heat: moodHeatOf(s),
+      // SERVER-3: the face he is pulling, from the trigger the server sent —
+      // one name, one expression, whichever message carried it.
+      event: faceOf(si, faceDecision, result),
       name: s.displayName || ('Seat ' + (si + 1)),
       stack: s.stack ? s.stack.toLocaleString() : '0',
+      band: stackBand(s.stack || 0, avgStack),
       pos: posLabel(si, game),
       acting: game.toAct === si,
       folded: !!s.folded,
       dealer: game.dealerSeat === si,
-      bet: (live && s.contribThisStreet > 0) ? s.contribThisStreet.toLocaleString() : null,
+      action: (lastDecision && lastDecision.seat === si) ? lastDecision.action : null,
+      bet: (live && contrib > 0) ? contrib : 0,
+      betBand: betBand(contrib, pot),
+      sweeping: !!(sweep && sweep.seats.indexOf(si) >= 0),
       reveal: (settled && revealed[si] && revealed[si].length)
         ? revealed[si].map(pc).filter(Boolean)
         : null,
@@ -597,6 +759,12 @@ export function WatchFelt({
     });
   }
   var slots = slotsFor(opponentSeats.length);
+
+  // The pile on the muck: one pair per opponent who has thrown one away and had
+  // it land. Capped at three — after that it is a pile, not a count.
+  var muckedPairs = live
+    ? opponentSeats.filter(function (o) { return o.folded && !mucking[o.seat]; }).length
+    : 0;
 
   var heroWon    = !!(winner && winner.seat === heroSeat);
   var heroShowed = !!(result && revealed[heroSeat]);
@@ -637,16 +805,26 @@ export function WatchFelt({
   var mine = bubbles.filter(function(b) { return b.mine; });
   var heroSays = mine.length ? mine[mine.length - 1].text : null;
 
+  // His chips, as objects on the felt. The pile is his stack, the spot is what
+  // he has pushed out this street, and the sweep takes the spot to the pot.
+  var heroContrib = (heroData && heroData.contribThisStreet) || 0;
+  var heroBetOut  = live && heroContrib > 0;
+  var heroSweeping = !!(sweep && sweep.seats.indexOf(heroSeat) >= 0);
+  var heroFace = faceOf(heroSeat, faceDecision, result);
+
+  useFlyTo(feltRef, { muck: muckRef, pot: potRef },
+    [mucking, sweep, slots.length, live, settled]);
+
   return (
-    <div className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
+    <div ref={feltRef}
+      className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
         + (metaLine ? ' watch-felt--metaline' : '')}
       style={feltStyle} data-pace={pace}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
-        var slot    = slots[i];
-        var compact = compactFor(slot, opponentSeats.length);
+        var slot = slots[i];
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}
             data-align={alignFor(slot)}>
@@ -656,21 +834,37 @@ export function WatchFelt({
               accent={o.accent}
               mood={o.mood}
               heat={Number.isFinite(o.heat) ? o.heat : 45}
+              event={o.event}
               folded={o.folded}
               acting={o.acting}
               selected={selectedSeat === o.seat}
               mucking={!!mucking[o.seat]}
               dealt={beatNow.backs}
+              dealer={o.dealer}
+              action={o.action}
               reveal={!!o.reveal}
               show={o.reveal}
               side={slot === 'ml' || slot === 'mr'}
               order={i}
-              size={compact ? 30 : 34}
+              timer={clock && clock.seat === o.seat ? clock.left : null}
+              timerOf={clock && clock.seat === o.seat ? clock.of : 12}
               onSelect={function() { if (onSelectSeat) onSelectSeat(o.seat); }}
             />
-            {o.bet && (
-              <div className="watch-felt__seat-row">
-                <BetPill amount={o.bet} />
+            {/* His bank stands beside his name chip, on the felt side: top
+                corners bank BELOW the pill, the rails bank BESIDE the body,
+                inside. Never under the name — that was the pile-up 52m ends. */}
+            {!geom && (
+              <div className={'watch-felt__seat-pile' + (o.folded ? ' is-folded' : '')} aria-hidden>
+                <ChipStack band={o.band} w={13} />
+              </div>
+            )}
+            {/* And the bet spot in front of his pair. At street end it sweeps
+                into the pot with every other spot — one gesture, not five. */}
+            {!geom && (o.bet > 0 || o.sweeping) && (
+              <div className={'watch-felt__seat-bet' + (o.sweeping ? ' is-sweeping' : '')}
+                data-fly={o.sweeping ? 'pot' : null} data-fly-var="--sweep">
+                <BetSpot band={o.betBand} w={12}
+                  amt={o.bet > 0 ? o.bet.toLocaleString() : null} />
               </div>
             )}
           </div>
@@ -694,12 +888,30 @@ export function WatchFelt({
 
       {!settled && (
         <div className="watch-felt__pot">
-          <div className="watch-felt__pot-pill">
+          <div className="watch-felt__pot-pill" ref={potRef}>
             <span className="watch-felt__pot-label">POT</span>
+            {/* "The pot pill grows one step per band", so a table that has been
+                betting big looks different from one that has been limping
+                before you read a figure. */}
+            {!between && <PotChip band={potBand(pot, game ? game.bigBlind : null)} w={13} />}
             <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
               {between ? '—' : ('$' + pot.toLocaleString())}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* THE MUCK: one fixed spot beside the pot. A table of six folds makes one
+          pile instead of six directions, and it is face down at every frame. */}
+      {!geom && (
+        <div className="watch-felt__muck" ref={muckRef} aria-hidden>
+          {Array.from({ length: Math.min(3, muckedPairs) }).map(function (_, i) {
+            return (
+              <span key={i} className="watch-felt__muck-pair">
+                <CardBack w={13} h={18} /><CardBack w={13} h={18} />
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -752,17 +964,38 @@ export function WatchFelt({
           />
         </>
       ) : (
+        <>
+        {/* HIS CHIPS LIVE ON THE FELT, to his left, and the bet spot in front of
+            his cards. STACK left the strip with them: the chips ARE the stack,
+            so stating it there as well made the number the truth and the pile a
+            decoration. The figure belongs under the pile it describes. */}
+        <div className="watch-felt__hero-stack">
+          <ChipStack band={stackBand(heroStackRaw || 0, avgStack)} w={26}
+            label="STACK" amt={heroStack} />
+        </div>
+        {(heroBetOut || heroSweeping) && (
+          <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
+            <span data-fly={heroSweeping ? 'pot' : null} data-fly-var="--sweep">
+              <BetSpot band={betBand(heroContrib, pot)} w={22}
+                amt={heroContrib > 0 ? heroContrib.toLocaleString() : null} />
+            </span>
+          </div>
+        )}
         <WatchHero
           says={heroSays}
           mood={agentMood || 'neutral'}
           accent={agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : 45}
+          event={heroFace}
+          timer={clock && clock.seat === heroSeat ? clock.left : null}
+          timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
           pose={heroPose({
             between: between,
-            action: lastDecision ? lastDecision.action : null,
+            action: lastDecision && lastDecision.seat === heroSeat ? lastDecision.action : null,
             pace: pace,
             heat: agentHeat,
             mucking: heroMuck,
+            peeking: peeking,
           })}
           bet={betBand(lastDecision && lastDecision.action ? lastDecision.action.amount : null, pot)}
           hole={heroHole}
@@ -790,6 +1023,7 @@ export function WatchFelt({
           toast={toast}
           onTapFace={onTapHero}
         />
+        </>
       )}
 
       {/* A sent whisper: pale, small, rising from the bottom edge, gone in 4s. */}

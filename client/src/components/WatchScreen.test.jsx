@@ -106,8 +106,10 @@ describe('WatchScreen mid-hand', () => {
     expect(seats).toHaveLength(2);
     expect(screen.getByText('Doyle_v3')).toBeInTheDocument();
     expect(screen.getByText('Granite')).toBeInTheDocument();
-    // Both opponents are still on 980 after posting their blinds.
-    expect(screen.getAllByText('980')).toHaveLength(2);
+    // Both opponents are still on 980 after posting their blinds. HANDS-1 puts
+    // the ref's own pill back — "Name · $stack", one line — so the seat carries
+    // the currency mark again; the rule is unchanged, the format is the ref's.
+    expect(screen.getAllByText('$980')).toHaveLength(2);
   });
 
   // The fish-tank law: the owner watches their own agent play, so the hero's
