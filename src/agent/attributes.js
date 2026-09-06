@@ -186,7 +186,65 @@ export function ensureAttributes(agent) {
     agent.attrProgress[k] = isNum(v) ? Math.max(0, Math.min(1, Number(v))) : 0;
   }
 
+  // SERVER-5 job 2: the six he was BORN with — rust's floor, and the same kind
+  // of day-one record `potentialBirth` already keeps for the bands. It has to
+  // be its own field rather than a read of the attrLog, because the log is a
+  // 200-entry ring: a long career pushes the birth entries out of it, and a
+  // floor that can be forgotten is a floor that eventually stops holding.
+  //
+  // Backfilled from the log while it is still there, and from his CURRENT
+  // values when it is not. That fallback is the conservative one on purpose —
+  // an unknown birth means nothing can be shown to have been earned, so rust
+  // can take nothing back.
+  if (!agent.attrsBorn || typeof agent.attrsBorn !== 'object') agent.attrsBorn = {};
+  for (const k of ATTR_KEYS) {
+    if (isNum(agent.attrsBorn[k])) {
+      agent.attrsBorn[k] = clampAttr(agent.attrsBorn[k]);
+      continue;
+    }
+    agent.attrsBorn[k] = clampAttr(bornFromLog(agent.attrLog, k) ?? agent.attrs[k]);
+  }
+
   return agent;
+}
+
+/**
+ * SERVER-5 job 2 — say that a session EXERCISED these skills.
+ *
+ * The stamp rust's fortnight is measured from. It lives here rather than in
+ * rust.js because it is attribute bookkeeping and applySessionGrowth has to be
+ * able to write it without importing rust back — rust.js re-exports it so the
+ * rule still reads out of one file.
+ *
+ * Taking a point of rust deliberately does NOT set this (that moves
+ * `attrRustedAt`), so a man who is left alone keeps drifting a point a week
+ * instead of resetting his own grace period every time one lands.
+ */
+export function noteExercised(agent, keys, { now = Date.now() } = {}) {
+  if (!agent || !keys?.length) return null;
+  if (!agent.attrUsedAt || typeof agent.attrUsedAt !== 'object') agent.attrUsedAt = {};
+  for (const key of keys) {
+    if (!ATTR_KEYS.includes(key)) continue;
+    agent.attrUsedAt[key] = now;
+    // He used it, so this is where the next fortnight starts. Leaving the old
+    // rust stamp would take another point off him a week later for a skill he
+    // exercised yesterday.
+    if (agent.attrRustedAt) delete agent.attrRustedAt[key];
+  }
+  return agent.attrUsedAt;
+}
+
+// The day-one value for one key, out of the attrLog: the birth anchor if it is
+// still in the ring, otherwise the `from` of the oldest entry that mentions the
+// key — which is where it stood before the first thing that moved it.
+function bornFromLog(log, key) {
+  if (!Array.isArray(log)) return null;
+  for (const entry of log) {
+    if (entry?.key !== key) continue;
+    if (entry.cause === 'birth' && isNum(entry.to)) return Number(entry.to);
+    if (isNum(entry.from)) return Number(entry.from);
+  }
+  return null;
 }
 
 // Every attribute change is an EVENT WITH A CAUSE, never a silent number
@@ -619,10 +677,17 @@ export function applySessionGrowth(agent, {
   // total for each key; only a total that crosses 1 becomes a point, and the
   // remainder carries into the next session rather than being thrown away.
   const ticks = [];
+  // SERVER-5 job 2: which skills this session actually EXERCISED — the stamp
+  // rust's fortnight is measured from. Evidence, not growth: a session that
+  // read four opponents exercised READS whether or not it earned the point,
+  // and rusting a skill he used all evening because the point had not landed
+  // yet would be the meter this design refuses to be.
+  const exercised = [];
   for (const key of ATTR_KEYS) {
     const from = clampAttr(agent.attrs[key]);
     const band = agent.potential[key];
     const gained = growthProgress(key, evidence, from, band);
+    if (Number(evidence?.[EVIDENCE_FIELD[key]] ?? 0) > 0) exercised.push(key);
     if (gained > 0) agent.attrProgress[key] = (agent.attrProgress[key] ?? 0) + gained;
     if (agent.attrProgress[key] < 1 - PROGRESS_EPSILON) continue;
 
@@ -668,7 +733,10 @@ export function applySessionGrowth(agent, {
   // Transient: the gold caret rides for one session and then retires.
   agent.narrowed = narrowed.length > 0 ? narrowed : null;
 
-  return { ticks, narrowed, stage: reached };
+  // SERVER-5 job 2: and the fortnight starts again for everything he used.
+  noteExercised(agent, exercised, { now });
+
+  return { ticks, narrowed, stage: reached, exercised };
 }
 
 // ── STAMINA / fatigue ────────────────────────────────────────────────────────

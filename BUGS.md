@@ -29,6 +29,8 @@ Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
 **Where:** `scripts/verify-watch-v2.js`
 **What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
 **Found by:** the WATCH report.
+**Also measured by SERVER-5,** which had filed the same flake as a separate BUG-34 before this merge and is folded in here: 1 failure in 3 runs on `feature/server-5`, and **2 failures in 4 runs on `origin/main` (379f453) in a clean worktree** — so it predates any one branch. The assertion is that at least one THREAD_LINE pushed during the watched hands has `kind: 'him'`; a `him` line is only written when a DECISION carries non-empty `reasoning` (table.js `_broadcastDecision`), and with no key the decisions come from the compiled policy, so whether the window contains a spot that produces reasoning is down to the deck.
+**Not to be fixed by loosening the assertion.** The rule it encodes is right and WATCH-9 put it there deliberately: the owner's spectator is entitled to his reasoning, and a push channel that never carries it is broken. Testing law 5 applies — make the WINDOW deterministic instead, playing until a `him` line arrives or a bounded number of hands have gone by, and fail on the bound.
 **Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
 
 ---
