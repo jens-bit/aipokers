@@ -58,7 +58,11 @@ import {
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
 import { emitSessionEnd } from './sessions.js';
-import { readThread, latestSessionFor } from './thread.js';
+import {
+  readThread, latestSessionFor, appendLine as appendThreadLine,
+  ThreadKind, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM,
+} from './thread.js';
+import { homeSessionId } from './homeNight.js';
 import {
   POCKET_FLOAT, ENTRY_BUYIN, MODES,
   emptyWallet, emptyPocket, ensurePocket,
@@ -2452,6 +2456,91 @@ function rosterFor(req, profile) {
   return all ? (profile.agents ?? []) : activeAgents(profile);
 }
 
+/**
+ * THREAD-2: one turn of owner chat with one agent, in his voice.
+ *
+ * Lifted verbatim out of POST /api/agents/chat so the HOME thread can use it:
+ * an owner talking to the room is the same conversation with the same mood
+ * bookkeeping, the same ledger lines and the same "what do you think of me?"
+ * shortcut — just held with everybody who is in rather than with one of them.
+ * Two callers, one behaviour; the alternative was a second way of talking to
+ * an agent that would have drifted from the first.
+ *
+ * Returns the response body the chat route answers with.
+ */
+export async function ownerChatTurn(existingAgent, userId, content) {
+  ensureMood(existingAgent);
+  // Pep talk: if the agent is in a negative mood and the cooldown allows,
+  // any incoming owner message soothes it one step. The chat reply is
+  // then generated with the pep-talk context so the agent acknowledges
+  // it in character.
+  // MOOD-2b: the message itself decides. A needle heats him, a question
+  // about a hand cools him, and small talk does neither — the thread stops
+  // being a soothe button that fires on any keystroke.
+  const said = applyOwnerMessageToMood(existingAgent.id, userId, content);
+  const pepResult = said.moved && said.kind === 'care'
+    ? { soothed: true, mood: said.mood, reason: 'ok' }
+    : { soothed: false, mood: existingAgent.mood, reason: said.reason };
+
+  // RELATE-1a: the message he just received goes in the owner ledger. Only
+  // a needle or a real question writes a line — small talk is not a fact
+  // about the owner, and silence writes nothing because there is no
+  // message to write from.
+  if (said.kind === 'needle') {
+    recordOwnerEvent(existingAgent, 'needle', {
+      text: content,
+      losing: (existingAgent.recentHands?.[0]?.won === false) || (existingAgent.mood?.heat ?? 0) > 40,
+    });
+  } else if (said.kind === 'care') {
+    recordOwnerEvent(existingAgent, pepResult.soothed ? 'pep_talk' : 'care', {
+      aboutHand: /hand|why|what (did|were) you/i.test(content),
+      holeCards: existingAgent.recentHands?.[0]?.holeCards ?? [],
+    });
+  }
+
+  if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
+  const recentChat = existingAgent.chatHistory.slice(-6);
+
+  // RELATE-1b: "what do you think of me?" is answered from the ledger, by
+  // template, with no model call. It is the one question where a generated
+  // answer would be worse than a written one — he is describing a real
+  // record and the record is right there. It also costs nothing.
+  if (isAskingAboutOwner(content)) {
+    const msg = whatDoYouThinkOfMe(existingAgent);
+    existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+    if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+    saveStore(userId);
+    return {
+      chat: [{ role: 'assistant', content: msg }],
+      fromOwnerMemory: true,
+      mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+              heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+              moved: said.moved, kind: said.kind },
+    };
+  }
+
+  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
+  try {
+    const reply = await callClaude([{ role: 'user', content }], systemText, 100);
+    const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
+    existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+    if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+    saveStore(userId);
+    return {
+      chat: [{ role: 'assistant', content: msg }],
+      pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+      // MOOD-2b: what his mood did with what you said. `kind` is needle |
+      // care | neutral; heat is where he ended up.
+      mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+              heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+              moved: said.moved, kind: said.kind },
+    };
+  } catch (err) {
+    console.error('[agentProfiles] agent-chat error:', err.message);
+    return { chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] };
+  }
+}
+
 export function installAgentProfileRoutes(app) {
   // Tighter rate limit for LLM-spending endpoints (chat + build).
   const chatLimiter = rateLimiter({
@@ -2472,6 +2561,114 @@ export function installAgentProfileRoutes(app) {
         .map((a) => presentAgent(a, { owner, walletBalance: walletFor(userId).balance })),
       chat: profile.chat,
     });
+  });
+
+  // ── THREAD-2 · the home thread ───────────────────────────────────────────
+  //
+  // GET  /api/home/thread?userId=...     today's thread in the flat
+  // POST /api/home/say { userId, text }  say something to the room
+  //
+  // The home thread is the OWNER's, one per day, and it is where the nightly
+  // exchange is already filed (homeNight's synthetic session id). Two things
+  // go in it: what they said to each other while you were out, and what you
+  // said to the house when you came in.
+  //
+  // EVERY LINE CARRIES `from` AND `to` — an agent id, 'owner', or 'all' (the
+  // room) — which is the whole point of the tree: without the pair the client
+  // has a wall of quotes and no idea who is talking to whom.
+  //
+  // `say` FANS OUT. The owner is talking to the room, so everybody in it
+  // answers, each in his own voice, through the same turn the one-to-one chat
+  // uses (ownerChatTurn). That is one model call per agent AT HOME, which is
+  // why this route is behind the chat rate limiter like every other
+  // model-spending endpoint, and why an empty house costs nothing at all.
+
+  const homeThreadIdFor = (userId) => homeSessionId(userId);
+
+  app.get('/api/home/thread', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your home' });
+    const sessionId = homeThreadIdFor(userId);
+    const lines = readThread(sessionId, { owner: true });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ sessionId, lines, count: lines.length });
+  });
+
+  app.post('/api/home/say', chatLimiter, telegramAuthMiddleware, async (req, res) => {
+    const userId = String(req.body?.userId || req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your home' });
+    const text = String(req.body?.text ?? req.body?.content ?? '').trim();
+    if (!text) return res.status(400).json({ error: 'text required' });
+
+    const profile = getOrCreate(userId);
+    const sessionId = homeThreadIdFor(userId);
+
+    // Who is actually in. `presentAgent` derives the location the same way the
+    // HOME screen does, so "at home" means exactly what the screen shows —
+    // there is no second reading of it here to drift from the first.
+    const walletBalance = walletFor(userId).balance;
+    const atHome = activeAgents(profile)
+      .map((agent) => ({ agent, view: presentAgent(agent, { owner: true, walletBalance }) }))
+      .filter(({ view }) => view.location?.where === Where.HOME);
+
+    // The owner's line goes in ONCE, addressed to the room. Storing it per
+    // listener would be the same sentence three times in one thread.
+    appendThreadLine({
+      sessionId,
+      // The thread row needs an agent to be filed under and this line is
+      // filed under nobody in particular; the first man in the room is the
+      // one it hangs off. `from`/`to` are what a reader should go by.
+      agentId: atHome[0]?.agent.id ?? 'owner',
+      ownerId: userId,
+      kind: ThreadKind.YOU,
+      who: 'YOU',
+      text,
+      source: ThreadSource.HOME,
+      from: THREAD_OWNER,
+      to: THREAD_ROOM,
+    });
+
+    // Nobody in. Not an error: the line is in the thread and they will not
+    // answer it, exactly as if you had said it to an empty flat.
+    if (atHome.length === 0) {
+      return res.json({ sessionId, said: text, home: 0, replies: [] });
+    }
+
+    const replies = [];
+    for (const { agent } of atHome) {
+      let body = null;
+      try {
+        body = await ownerChatTurn(agent, userId, text);
+      } catch (err) {
+        console.error('[home] reply failed:', err.message);
+        continue;
+      }
+      const reply = body?.chat?.[0]?.content;
+      if (!reply) continue;
+      appendThreadLine({
+        sessionId,
+        agentId: agent.id,
+        ownerId: userId,
+        kind: ThreadKind.HIM,
+        who: agent.name || 'HIM',
+        text: reply,
+        source: ThreadSource.HOME,
+        // Attributed both ways: he said it, and he said it back to you.
+        from: agent.id,
+        to: THREAD_OWNER,
+      });
+      replies.push({
+        agentId: agent.id,
+        name: agent.name ?? null,
+        text: reply,
+        mood: body.mood ?? null,
+        fromOwnerMemory: !!body.fromOwnerMemory,
+      });
+    }
+
+    saveStore(userId);
+    emitAgentChange(userId);
+    res.json({ sessionId, said: text, home: atHome.length, replies });
   });
 
   // GET /api/agents?userId=... — agents array with the floor-UI fields
@@ -3476,76 +3673,8 @@ export function installAgentProfileRoutes(app) {
       : null;
 
     if (existingAgent) {
-      ensureMood(existingAgent);
-      // Pep talk: if the agent is in a negative mood and the cooldown allows,
-      // any incoming owner message soothes it one step. The chat reply is
-      // then generated with the pep-talk context so the agent acknowledges
-      // it in character.
-      // MOOD-2b: the message itself decides. A needle heats him, a question
-      // about a hand cools him, and small talk does neither — the thread stops
-      // being a soothe button that fires on any keystroke.
-      const said = applyOwnerMessageToMood(existingAgent.id, userId, content);
-      const pepResult = said.moved && said.kind === 'care'
-        ? { soothed: true, mood: said.mood, reason: 'ok' }
-        : { soothed: false, mood: existingAgent.mood, reason: said.reason };
-
-      // RELATE-1a: the message he just received goes in the owner ledger. Only
-      // a needle or a real question writes a line — small talk is not a fact
-      // about the owner, and silence writes nothing because there is no
-      // message to write from.
-      if (said.kind === 'needle') {
-        recordOwnerEvent(existingAgent, 'needle', {
-          text: content,
-          losing: (existingAgent.recentHands?.[0]?.won === false) || (existingAgent.mood?.heat ?? 0) > 40,
-        });
-      } else if (said.kind === 'care') {
-        recordOwnerEvent(existingAgent, pepResult.soothed ? 'pep_talk' : 'care', {
-          aboutHand: /hand|why|what (did|were) you/i.test(content),
-          holeCards: existingAgent.recentHands?.[0]?.holeCards ?? [],
-        });
-      }
-
-      if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
-      const recentChat = existingAgent.chatHistory.slice(-6);
-
-      // RELATE-1b: "what do you think of me?" is answered from the ledger, by
-      // template, with no model call. It is the one question where a generated
-      // answer would be worse than a written one — he is describing a real
-      // record and the record is right there. It also costs nothing.
-      if (isAskingAboutOwner(content)) {
-        const msg = whatDoYouThinkOfMe(existingAgent);
-        existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
-        if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
-        saveStore(userId);
-        return res.json({
-          chat: [{ role: 'assistant', content: msg }],
-          fromOwnerMemory: true,
-          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
-                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
-                  moved: said.moved, kind: said.kind },
-        });
-      }
-
-      const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
-      try {
-        const reply = await callClaude([{ role: 'user', content }], systemText, 100);
-        const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
-        existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
-        if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
-        saveStore(userId);
-        return res.json({
-          chat: [{ role: 'assistant', content: msg }],
-          pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
-          // MOOD-2b: what his mood did with what you said. `kind` is needle |
-          // care | neutral; heat is where he ended up.
-          mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
-                  heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
-                  moved: said.moved, kind: said.kind },
-        });
-      } catch (err) {
-        console.error('[agentProfiles] agent-chat error:', err.message);
-        return res.json({ chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] });
-      }
+      const body = await ownerChatTurn(existingAgent, userId, content);
+      return res.json(body);
     }
 
     // ── Creation-flow chat ───────────────────────────────────────────────────

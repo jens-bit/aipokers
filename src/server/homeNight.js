@@ -29,14 +29,20 @@
 // their time because it was 9pm in Helsinki is not "nightly", it is a lottery.
 // Once a day, at the first moment it is earned, is the honest reading.
 //
-// The lines are stored as THREAD lines with source 'home' (see thread.js), so
-// they read back through the route the felt's thread already uses. Kind is
-// `him` for both speakers, which makes the exchange owner-private — it is a
-// conversation in his house, and it is filed under whichever agent said each
-// line, so each of them owns his own words.
+// The lines are stored in the HOME thread (see thread.js), so they read back
+// through the route the felt's thread already uses. THREAD-2 made it ONE entry
+// — kind `overheard`, with the lines inside it — rather than a run of loose
+// `him` lines: it is one conversation that happened once, a client that
+// receives it as three separate lines cannot tell it from three agents
+// happening to talk, and a restart inside the same day used to be able to
+// append a second copy of it. Every line inside carries `from` and `to`, so
+// the client can draw "BALANCE -> GRANITE" instead of two anonymous quotes.
+//
+// The entry is owner-private, like every `him` line is: two of his agents
+// talking in his flat is the most private thing in the product.
 
 import Anthropic from '@anthropic-ai/sdk';
-import { appendLine, ThreadKind, ThreadSource } from './thread.js';
+import { appendOverheard } from './thread.js';
 import { Where } from './home.js';
 import { capWords, isSolverSpeak } from '../agent/voice.js';
 
@@ -171,18 +177,16 @@ export async function maybeRunNightly(ownerId, agents, { now = Date.now(), call 
   if (lines.length < MIN_LINES) return null;
 
   const sessionId = homeSessionId(owner, household.day);
-  for (const line of lines) {
-    appendLine({
-      sessionId,
-      agentId: line.agentId,
-      ownerId: owner,
-      tableId: null,
-      kind: ThreadKind.HIM,
+  appendOverheard({
+    sessionId,
+    ownerId: owner,
+    lines: lines.map((line) => ({
+      from: line.agentId,
+      to: line.to,
       who: line.name,
       text: line.text,
-      source: ThreadSource.HOME,
-    });
-  }
+    })),
+  });
   console.log(`[home-night] ${owner}: ${a.name} and ${b.name} talked (${lines.length} lines, ${Math.round(pair.ms / 60_000)} min in)`);
   return { lines, pair, sessionId };
 }
@@ -270,7 +274,17 @@ export function parseExchange(raw, speakers) {
     const text = capWords(candidate);
     if (!text) continue;
     const speaker = speakers[out.length % speakers.length];
-    out.push({ agentId: String(speaker.id), name: speaker.name, text });
+    // THREAD-2: they are talking TO each other, and the thread says so. In a
+    // two-hander the listener is simply the other one; a single-speaker
+    // exchange (which parseExchange cannot produce, but a future one might)
+    // would be talking to the room.
+    const listener = speakers.find((s) => s !== speaker) ?? null;
+    out.push({
+      agentId: String(speaker.id),
+      name: speaker.name,
+      to: listener ? String(listener.id) : null,
+      text,
+    });
   }
   return out;
 }

@@ -158,24 +158,56 @@ test('HOME-STATE-1: no key, no call, no exchange', async () => {
 
 // ── What comes out ──────────────────────────────────────────────────────────
 
-test('HOME-STATE-1: the exchange is stored as thread lines with source home', async () => {
-  const call = async () => 'Long day.\nThey are all long.\nGo to bed.';
+// THREAD-2 changed what this test asserts, deliberately. It used to pin the
+// exchange as THREE loose `him` lines; it is now ONE `overheard` entry with the
+// lines inside it, because it is one conversation that happened once — a client
+// that receives three separate lines cannot tell it from three agents happening
+// to talk, and a restart inside the same day could append a second copy.
+test('THREAD-2: the exchange is ONE overheard entry, with from and to on every line', async () => {
+  const call = async () => ['Long day.', 'They are all long.', 'Go to bed.'].join('\n');
   const agents = [at('a', 'The Clock'), at('b', 'River Rat')];
   const now = spendEvening('o9', agents, TOGETHER_MIN_MS + MAX_CREDIT_MS);
   const run = await maybeRunNightly('o9', agents, { now, call });
 
   assert.equal(run.sessionId, homeSessionId('o9', dayKey(now)));
-  const lines = thread.readThread(run.sessionId, { owner: true });
-  assert.equal(lines.length, 3);
-  for (const line of lines) {
-    assert.equal(line.source, ThreadSource.HOME);
-    assert.equal(line.tableId, null, 'there was no table under this');
-  }
-  assert.deepEqual(lines.map((l) => l.who), ['The Clock', 'River Rat', 'The Clock'],
+  const entries = thread.readThread(run.sessionId, { owner: true });
+  assert.equal(entries.length, 1, 'one entry, not one per line');
+
+  const [entry] = entries;
+  assert.equal(entry.kind, thread.ThreadKind.OVERHEARD);
+  assert.equal(entry.source, ThreadSource.HOME);
+  assert.equal(entry.tableId, null, 'there was no table under this');
+  assert.equal(entry.lines.length, 3);
+  assert.deepEqual(entry.lines.map((l) => l.who), ['The Clock', 'River Rat', 'The Clock'],
     'they take turns, starting with the first');
+  // The pair the client draws: "THE CLOCK -> RIVER RAT".
+  assert.deepEqual(entry.lines.map((l) => l.from), ['a', 'b', 'a']);
+  assert.deepEqual(entry.lines.map((l) => l.to), ['b', 'a', 'b']);
+  assert.equal(entry.text, 'Long day.',
+    'the entry itself reads as the first line, so an old client still shows words');
 
   // It is a conversation in his house: private, like his reasoning.
   assert.equal(thread.readThread(run.sessionId, { owner: false }).length, 0);
+});
+
+test('THREAD-2: a second exchange on the same day replaces the first, never adds to it', async () => {
+  const call = async () => ['Long day.', 'They are all long.'].join('\n');
+  const agents = [at('a', 'The Clock'), at('b', 'River Rat')];
+  const now = spendEvening('o9b', agents, TOGETHER_MIN_MS + MAX_CREDIT_MS);
+  const run = await maybeRunNightly('o9b', agents, { now, call });
+  assert.ok(run);
+
+  // The nightly job will not run twice in a day, but a process that restarted
+  // has forgotten that it did — so the STORAGE has to hold the rule too.
+  thread.appendOverheard({
+    sessionId: run.sessionId,
+    ownerId: 'o9b',
+    lines: [{ from: 'a', to: 'b', who: 'The Clock', text: 'Again, then.' }],
+  });
+  const entries = thread.readThread(run.sessionId, { owner: true });
+  assert.equal(entries.length, 1, 'still one');
+  assert.equal(entries[0].lines.length, 1, 'and it is the newer one');
+  assert.equal(entries[0].text, 'Again, then.');
 });
 
 test('HOME-STATE-1: solver speak is dropped, never dressed up', () => {
