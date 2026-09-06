@@ -53,6 +53,13 @@ export function useTable({ wsUrl }) {
   // during a spectator-only all-in hold, where the server turns the board a
   // card at a time and the felt has to follow it rather than run its own clock.
   const [paceFrame, setPaceFrame] = useState(null);
+  // BUG-33: the newest READ push — the agent's read on his opponents, one entry
+  // each. The same array rides every STATE snapshot for the owner's spectator,
+  // so this is never the only source; what arrives only here is the MOMENT the
+  // picture changed, which is the event the read panel animates on. Kept across
+  // hands, unlike paceFrame: a read is accumulated knowledge, not a per-hand
+  // frame, and it is only dropped when this hook lets go of the table.
+  const [reads, setReads] = useState(null);
 
   const wsRef = useRef(null);
   const playerIdRef = useRef(null);
@@ -108,6 +115,23 @@ export function useTable({ wsUrl }) {
         };
         setPaceFrame(frame);
         setGame((g) => (g ? { ...g, pace: frame.pace, paceFrame: frame } : g));
+        break;
+      }
+
+      // BUG-33. Additive and self-contained in exactly the way PACE is: the
+      // STATE snapshot carries the same array, so a client that ignores this
+      // message is never wrong, only late — it updates on the next snapshot
+      // instead of on the beat the read actually formed.
+      //
+      // Merged onto `game` as well as exposed, because WatchScreen reads
+      // `game.reads` and pickOpponent() is built on it; a push that only landed
+      // in a hook return value would leave the felt showing the stale panel
+      // until the next STATE overwrote it anyway.
+      case ServerMsg.READ: {
+        const next = Array.isArray(msg.reads) ? msg.reads : null;
+        if (!next) break;
+        setReads(next);
+        setGame((g) => (g ? { ...g, reads: next } : g));
         break;
       }
 
@@ -294,6 +318,7 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    setReads(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -322,6 +347,7 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    setReads(null);
     lastStreetRef.current = null;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
@@ -355,6 +381,7 @@ export function useTable({ wsUrl }) {
     setChatMessages([]);
     setLastDecision(null);
     setPaceFrame(null);
+    setReads(null);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
   }, []);
@@ -413,6 +440,7 @@ export function useTable({ wsUrl }) {
     sitOut,
     lastDecision,
     paceFrame,
+    reads,
   };
 }
 

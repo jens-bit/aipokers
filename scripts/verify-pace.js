@@ -191,6 +191,16 @@ console.log('\n— watched: the staged beat —');
   const cards = paces.filter((e) => e.msg.card);
   check('the runout arrives card by card', cards.length > 0, `${cards.length} cards`);
 
+  // BUG-33: the wire string itself, which is the thing nothing on either side
+  // had ever asserted. client/src/lib/protocol.js had no PACE key, so
+  // `ServerMsg.PACE` was undefined, useTable's `case ServerMsg.PACE:` was a
+  // case on undefined, and every frame above fell straight through it — the
+  // server has staged this runout since PACE-1 and no felt had ever drawn it.
+  // The client mirrors these literals; this is where they are proved.
+  check('the staged runout is typed `pace` on the wire',
+    cards.length > 0 && cards.every((e) => e.msg.type === 'pace'),
+    JSON.stringify([...new Set(paces.map((e) => e.msg.type))]));
+
   if (allIn && cards.length > 0) {
     const gap = cards[0].at - allIn.at;
     check(`the all-in is held ${ALLIN_HOLD_MIN_MS}–${ALLIN_HOLD_MAX_MS}ms before the runout (${gap}ms)`,
@@ -294,10 +304,23 @@ console.log('\n— the owner’s spectator sees his agent’s eyes —');
       panel.handsObserved === 0 ? (panel.formed === false && panel.line === null) : true);
   }
 
+  // BUG-33: the READ push, and its wire string. The array rides the snapshot
+  // above, but the PUSH is the beat the panel animates on — and the client had
+  // no READ key either, so a `case ServerMsg.READ:` could never have matched.
+  const pushes = spec.of(ServerMsg.READ);
+  check('the read arrives as its own push, not only on a snapshot',
+    pushes.length > 0, `${pushes.length} pushes`);
+  check('it is typed `read` on the wire',
+    pushes.length > 0 && pushes.every((e) => e.msg.type === 'read'),
+    JSON.stringify([...new Set(pushes.map((e) => e.msg.type))]));
+  check('the push carries the seat it is for and the same rows the snapshot has',
+    pushes.length > 0 && pushes.every((e) => Number.isInteger(e.msg.seat) && Array.isArray(e.msg.reads)));
+
   // Nobody else gets either payload.
   const seated = a.of(ServerMsg.STATE).at(-1)?.msg.state;
   check('a seated player is told nothing about anyone’s equity', seated?.heroEquity === undefined);
   check('a seated player gets no read panel', seated?.reads === undefined);
+  check('and no READ push', a.of(ServerMsg.READ).length === 0);
 
   a.close(); spec.close();
   await sleep(150);

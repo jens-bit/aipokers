@@ -20,6 +20,23 @@ import { telegram } from '../test/harness.js';
 
 const WS_URL = 'ws://localhost:8765';
 
+// BUG-33: every frame this file emits carries the LITERAL string the server
+// puts on the wire, never WIRE.<KEY>.
+//
+// Both sides of this suite used the constant. ServerMsg had no PACE key at
+// all, so `WIRE.PACE` was `undefined`, the emit sent `{ type: undefined }`
+// and useTable's `case WIRE.PACE:` — also undefined — matched it. Six
+// green tests against a message the real server has never once been able to
+// deliver. A suite that emits the client's own constant tests the client
+// against itself; these are the strings src/server/protocol.js sends.
+const WIRE = Object.freeze({
+  WATCHING:   'watching',
+  STATE:      'state',
+  HAND_START: 'hand_start',
+  PACE:       'pace',
+  READ:       'read',
+});
+
 // The shared harness socket speaks the onopen/onmessage style; useTable uses
 // addEventListener. Rather than change the harness — every other suite is built
 // on it — this file brings a socket that speaks the style useTable expects.
@@ -86,6 +103,23 @@ const STATE = {
   heroEquity: 0.64,
 };
 
+// One READ push, in the shape src/server/table.js _maybeBroadcastReads sends:
+// one entry per opponent, rows already built, labelled and ordered.
+const READS = [{
+  playerId: 'p_house',
+  displayName: 'House',
+  seat: 1,
+  handsObserved: 41,
+  gate: 30,
+  formed: true,
+  shape: 'station',
+  line: 'He calls too much and folds to nothing.',
+  rows: [
+    { k: 'vpip', label: 'VPIP', value: 62, confidence: 0.8, formed: true },
+    { k: 'pfr', label: 'PFR', value: 11, confidence: 0.8, formed: true },
+  ],
+}];
+
 // The runout, exactly as _broadcastPace stages it.
 const RUNOUT = [
   { pace: 'allin', potBb: 184.7, board: ['Kc', '9c', '4c', '2c', '5h'], card: '5h' },
@@ -95,8 +129,8 @@ function connectWatching(result) {
   act(() => { result.current.watch({ tableId: 'tbl-pace', agentStrategy: 'x' }); });
   const ws = lastSocket();
   act(() => { ws.open(); });
-  act(() => { ws.emit({ type: ServerMsg.WATCHING, tableId: 'tbl-pace', spectatorSeat: 0 }); });
-  act(() => { ws.emit({ type: ServerMsg.STATE, state: STATE, legalActions: [] }); });
+  act(() => { ws.emit({ type: WIRE.WATCHING, tableId: 'tbl-pace', spectatorSeat: 0 }); });
+  act(() => { ws.emit({ type: WIRE.STATE, state: STATE, legalActions: [] }); });
   return ws;
 }
 
@@ -111,10 +145,10 @@ describe('W3-6 useTable handles PACE', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     const ws = connectWatching(result);
 
-    act(() => { ws.emit({ type: ServerMsg.PACE, tableId: 'tbl-pace', pace: 'heating', potBb: 62 }); });
+    act(() => { ws.emit({ type: WIRE.PACE, tableId: 'tbl-pace', pace: 'heating', potBb: 62 }); });
     expect(result.current.paceFrame).toMatchObject({ pace: 'heating', potBb: 62, board: null, card: null });
 
-    act(() => { ws.emit({ type: ServerMsg.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
+    act(() => { ws.emit({ type: WIRE.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
     expect(result.current.paceFrame).toMatchObject({
       pace: 'allin', board: ['Kc', '9c', '4c', '2c', '5h'], card: '5h',
     });
@@ -124,7 +158,7 @@ describe('W3-6 useTable handles PACE', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     const ws = connectWatching(result);
 
-    act(() => { ws.emit({ type: ServerMsg.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
+    act(() => { ws.emit({ type: WIRE.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
     expect(result.current.game.paceFrame).toMatchObject({ card: '5h' });
     expect(result.current.game.pace).toBe('allin');
     // Everything else about the snapshot is untouched.
@@ -145,7 +179,7 @@ describe('W3-6 useTable handles PACE', () => {
     for (const board of boards) {
       act(() => {
         ws.emit({
-          type: ServerMsg.PACE, tableId: 'tbl-pace', pace: 'allin', potBb: 184.7,
+          type: WIRE.PACE, tableId: 'tbl-pace', pace: 'allin', potBb: 184.7,
           board, card: board[board.length - 1],
         });
       });
@@ -158,10 +192,10 @@ describe('W3-6 useTable handles PACE', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     const ws = connectWatching(result);
 
-    act(() => { ws.emit({ type: ServerMsg.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
+    act(() => { ws.emit({ type: WIRE.PACE, tableId: 'tbl-pace', ...RUNOUT[0] }); });
     expect(result.current.paceFrame).not.toBeNull();
 
-    act(() => { ws.emit({ type: ServerMsg.HAND_START, handNumber: 8 }); });
+    act(() => { ws.emit({ type: WIRE.HAND_START, handNumber: 8 }); });
     expect(result.current.paceFrame).toBeNull();
     expect(result.current.game.paceFrame).toBeNull();
   });
@@ -172,9 +206,74 @@ describe('W3-6 useTable handles PACE', () => {
     const ws = lastSocket();
     act(() => { ws.open(); });
 
-    act(() => { ws.emit({ type: ServerMsg.PACE, tableId: 'tbl-pace', pace: 'calm', potBb: 3 }); });
+    act(() => { ws.emit({ type: WIRE.PACE, tableId: 'tbl-pace', pace: 'calm', potBb: 3 }); });
     expect(result.current.game).toBeNull();
     expect(result.current.paceFrame).toMatchObject({ pace: 'calm' });
+  });
+
+  // ── BUG-33 · the constant and the wire ────────────────────────────────────
+
+  it('BUG-33: every key this suite emits exists, and equals the wire string', () => {
+    // The guard that would have caught the whole bug. ServerMsg.PACE was
+    // undefined, so `case ServerMsg.PACE:` was a case on undefined and the
+    // server's staged runout had nowhere to land.
+    for (const [key, wire] of Object.entries(WIRE)) {
+      expect(ServerMsg[key], `ServerMsg.${key} is missing`).toBe(wire);
+    }
+  });
+
+  // ── BUG-33 · READ ─────────────────────────────────────────────────────────
+  //
+  // The second frame that had no key. The same array rides every STATE
+  // snapshot, so the felt was never blank — it was always one snapshot late,
+  // and the read panel never animated on the beat the read actually formed.
+
+  it('BUG-33: a READ push reaches the felt', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    expect(result.current.reads).toBeNull();
+
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0, reads: READS }); });
+
+    expect(result.current.reads).toEqual(READS);
+    // WatchScreen's pickOpponent() reads game.reads, so a push that only
+    // landed in the hook's return value would leave the panel stale.
+    expect(result.current.game.reads).toEqual(READS);
+    // And nothing else about the snapshot moved.
+    expect(result.current.game.community).toEqual(['Kc', '9c', '4c', '2c']);
+  });
+
+  it('BUG-33: a read is knowledge, not a frame — a new deal keeps it', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0, reads: READS }); });
+    act(() => { ws.emit({ type: WIRE.HAND_START, handNumber: 8 }); });
+
+    expect(result.current.paceFrame).toBeNull('the staged runout belonged to the last hand');
+    expect(result.current.reads).toEqual(READS);
+  });
+
+  it('BUG-33: a READ before any state does not invent a game', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    act(() => { result.current.watch({ tableId: 'tbl-pace', agentStrategy: 'x' }); });
+    const ws = lastSocket();
+    act(() => { ws.open(); });
+
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0, reads: READS }); });
+    expect(result.current.game).toBeNull();
+    expect(result.current.reads).toEqual(READS);
+  });
+
+  it('BUG-33: a READ carrying nothing usable is ignored rather than blanking the panel', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0, reads: READS }); });
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0 }); });
+    act(() => { ws.emit({ type: WIRE.READ, tableId: 'tbl-pace', seat: 0, reads: null }); });
+
+    expect(result.current.reads).toEqual(READS, 'what he knew is not unlearned by a malformed frame');
   });
 
   it('W3-6: a client that never sees PACE is where it was before the message existed', () => {

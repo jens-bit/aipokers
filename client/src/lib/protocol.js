@@ -52,6 +52,23 @@ export const ServerMsg = Object.freeze({
   // channel. { sessionId, agentId, tableId, reason, hands, net, biggestPot,
   // duration, endedAt } — the money line HOME-1 walks him back in with.
   SESSION_END: 'session_end',
+  // BUG-33 / PACE-1: the pacing ladder, server-authoritative.
+  // { tableId, pace, potBb, board?, card? }. `pace` and `potBb` also ride every
+  // STATE snapshot; what arrives ONLY here is the staged runout during a
+  // spectator-only all-in hold, where the server turns the board a card at a
+  // time so every watcher sees the same card at the same moment.
+  //
+  // This key was missing for as long as this file has existed, which made
+  // `ServerMsg.PACE` undefined and useTable's `case ServerMsg.PACE:` a case on
+  // undefined — a branch nothing could ever reach. The server has been staging
+  // that runout since PACE-1 and no client had ever handled it.
+  PACE: 'pace',
+  // BUG-33 / PACE-1: the agent's read on his opponents, for the owner's
+  // spectator only. { tableId, seat, reads: [...] } — the same array that rides
+  // a STATE snapshot, pushed on its own the moment the picture CHANGES, which
+  // is the event the read panel animates on. Missing for the same reason and
+  // with the same effect.
+  READ: 'read',
 });
 
 export const Streets = Object.freeze({
