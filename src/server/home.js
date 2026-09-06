@@ -237,12 +237,22 @@ export function isHome(location) {
  *
  * Only the fields the HOME screen draws: this rides the same socket as
  * FLOOR_STATE and there is no reason to send a strategy prompt twice.
+ *
+ * SERVER-4 added one more thing to it: `thread` — { unreadSince }, the
+ * room's own unread marker (see below). The HOME screen was having to ask
+ * a second route for something it draws on the first paint.
  */
-export function homeStateMessage(userId, agents, game = null) {
+export function homeStateMessage(userId, agents, game = null, { thread = null } = {}) {
   return {
     userId: String(userId ?? 'anon'),
     agents: (agents ?? []).map(homeAgentProjection),
     game: game ?? null,
+    // SERVER-4: the room thread's unread marker, exactly parallel to an
+    // agent's `unseenRecap` and deliberately NOT a boolean — `unreadSince` is
+    // the ts of the oldest line he has not looked at, which is what lets the
+    // client say "3 lines since 21:40" rather than only that there is a dot.
+    // null means nothing is waiting.
+    thread: { unreadSince: thread?.unreadSince ?? null },
   };
 }
 

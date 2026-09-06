@@ -3,14 +3,15 @@ import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
 import {
   getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener,
-  reconcileActiveSessions, presentedRoster, setTypingListener,
+  reconcileActiveSessions, presentedRoster, noteHomeThreadLine,
+  setHomeChangeListener, setTypingListener,
 } from './agentProfiles.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
-import { setThreadListener } from './thread.js';
+import { setThreadListener, ThreadKind, ThreadSource } from './thread.js';
 
 const { getOrCreateTable } = registry;
 
@@ -67,8 +68,27 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // WANTS-1: the same injection for the same reason — agentProfiles must not
   // import the floor, so the floor hands it a function instead.
   setWantListener((userId, agentId, want) => floor.broadcastWant(userId, agentId, want));
-  // SERVER-4: a written thread line goes straight out on the wire.
-  setThreadListener((userId, line) => floor.broadcastThreadLine(userId, line));
+  // SERVER-4: a written thread line does two things, in this order. It marks
+  // the flat's thread unread for the owner — but only when it is a line he has
+  // not just typed himself, because his own sentence coming back cannot be
+  // news to him — and then it goes out on the wire. Marking first means the
+  // HOME_STATE a client fetches after the push already agrees with it.
+  setThreadListener((userId, line) => {
+    try {
+      if (line?.source === ThreadSource.HOME && line.kind !== ThreadKind.YOU
+          && noteHomeThreadLine(userId, line.ts)) {
+        // The marker only moves on the FIRST unread line, so this pushes a
+        // fresh HOME_STATE at most once per unread run rather than per line.
+        floor.notifyHomeChanged(userId);
+      }
+    } catch (err) {
+      console.error('[home] unread mark failed:', err.message);
+    }
+    floor.broadcastThreadLine(userId, line);
+  });
+  // SERVER-4: the living room's own change trigger — the unread badge being
+  // cleared, and nothing else so far.
+  setHomeChangeListener((userId) => floor.notifyHomeChanged(userId));
   // SERVER-4: he is answering you. Straight through; there is nothing to
   // reconcile and nothing to store.
   setTypingListener((userId, agentId, sessionId) => floor.broadcastTyping(userId, agentId, sessionId));

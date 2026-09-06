@@ -83,6 +83,9 @@ test('agent store round-trips through save and load', () => {
   const profile = {
     userId: 'owner-1',
     chat: [{ role: 'assistant', content: 'hello' }],
+    // SERVER-4: the room thread's unread marker is part of the profile row now,
+    // so it is part of what "survives verbatim" means.
+    homeThreadUnreadSince: 1_700_000_000_000,
     agents: [
       { id: 'a1', name: 'Ace', status: 'idle', activeTableId: null, mood: { state: 'calm' }, ledger: [{ type: 'grant', amount: 10000 }] },
       { id: 'a2', name: 'Bee', status: 'playing', activeTableId: 't-9', recentHands: [{ won: true, timestamp: 123 }] },
@@ -93,6 +96,26 @@ test('agent store round-trips through save and load', () => {
   _closeForTests();                       // force a re-open, not a cached object
   const loaded = loadAgentStore();
   assert.deepEqual(loaded['owner-1'], profile, 'the record survives verbatim');
+});
+
+// SERVER-4: an owner who has never had anything unread, and one who has been
+// caught up. Both are "nothing waiting", and both must read back as null
+// rather than as the 0 the column stores — a client testing truthiness on a
+// timestamp must never see a second sentinel for the same state.
+test('SERVER-4: nothing unread round-trips as null, not as zero', () => {
+  freshCwd();
+  saveProfile('o', { userId: 'o', chat: [], agents: [] });
+  _closeForTests();
+  assert.equal(loadAgentStore().o.homeThreadUnreadSince, null);
+
+  saveProfile('o', { userId: 'o', chat: [], agents: [], homeThreadUnreadSince: 555_000_000_000 });
+  _closeForTests();
+  assert.equal(loadAgentStore().o.homeThreadUnreadSince, 555_000_000_000);
+
+  // Cleared by POST /api/home/thread/seen: back to null, not to the last value.
+  saveProfile('o', { userId: 'o', chat: [], agents: [], homeThreadUnreadSince: null });
+  _closeForTests();
+  assert.equal(loadAgentStore().o.homeThreadUnreadSince, null);
 });
 
 test('agent order is stable across a reload', () => {

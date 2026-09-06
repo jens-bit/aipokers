@@ -202,6 +202,64 @@ function emitAgentChange(userId) {
   catch (err) { console.error('[agents] change listener failed:', err.message); }
 }
 
+// SERVER-4: the LIVING ROOM changed without anybody's standing changing — the
+// room thread's unread marker moved, and that is all. Its own listener rather
+// than a reuse of the agent-change one because that path reconciles the home
+// game, observes the household and may fire the nightly exchange, none of
+// which a badge going on or off is any reason to do.
+let homeChangeListener = null;
+
+export function setHomeChangeListener(fn) {
+  homeChangeListener = typeof fn === 'function' ? fn : null;
+}
+
+function emitHomeChange(userId) {
+  if (!homeChangeListener) return;
+  try { homeChangeListener(String(userId ?? 'anon')); }
+  catch (err) { console.error('[home] change listener failed:', err.message); }
+}
+
+// ── SERVER-4 · the room thread's unread marker ───────────────────────────────
+//
+// Exactly parallel to an agent's `unseenRecap`, one level up: `unseenRecap` is
+// "he has something to tell you", this is "the FLAT has something to tell you".
+// It has to be its own marker rather than a fold over the agents' because the
+// two loudest things in the room thread belong to nobody in particular — the
+// nightly overheard exchange is between two of them, and a line his agents
+// wrote while he was out is not a recap of anything.
+//
+// It is a TIMESTAMP, not a boolean, and that is the whole point: the oldest
+// line he has not looked at. A dot tells him there is something; a `since`
+// lets the client say what he missed and when it started.
+//
+// The FIRST unread line wins and later ones do not move it. Three lines
+// arriving in a minute are one thing he has not read, and a marker that keeps
+// jumping forward would say "since a moment ago" about a conversation that
+// started twenty minutes back.
+
+/** His own line coming back is not news to him — see the caller in wsServer. */
+export function noteHomeThreadLine(userId, ts = Date.now()) {
+  const profile = getOrCreate(String(userId ?? 'anon'));
+  if (profile.homeThreadUnreadSince) return false;
+  profile.homeThreadUnreadSince = Number.isFinite(ts) ? Math.floor(ts) : Date.now();
+  saveStore(userId);
+  return true;
+}
+
+/** He has looked. Returns whether anything was actually cleared. */
+export function markHomeThreadSeen(userId) {
+  const profile = getOrCreate(String(userId ?? 'anon'));
+  if (!profile.homeThreadUnreadSince) return false;
+  profile.homeThreadUnreadSince = null;
+  saveStore(userId);
+  return true;
+}
+
+/** What HOME_STATE and GET /api/home/thread both report. null = nothing waiting. */
+export function homeThreadUnread(userId) {
+  return getOrCreate(String(userId ?? 'anon')).homeThreadUnreadSince || null;
+}
+
 // Retire every agent whose activeTableId points at a table that no longer
 // exists — the state a process restart always leaves behind. Returns the
 // number of agents retired.
@@ -1628,7 +1686,11 @@ export function floorSnapshot(userId, { owner = false } = {}) {
 // `game` is injected rather than looked up, so this module still knows nothing
 // about tables; floorChannel hands in whatever homeGame.js reports.
 export function homeSnapshot(userId, { owner = false, game = null } = {}) {
-  return homeStateMessage(userId, presentedRoster(userId, { owner }), game);
+  return homeStateMessage(userId, presentedRoster(userId, { owner }), game, {
+    // SERVER-4: the room's unread marker — something the HOME screen draws
+    // on its first paint and used to cost it a second request.
+    thread: { unreadSince: homeThreadUnread(userId) },
+  });
 }
 
 /**
@@ -2694,7 +2756,28 @@ export function installAgentProfileRoutes(app) {
     const sessionId = homeThreadIdFor(userId);
     const lines = readThread(sessionId, { owner: true });
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ sessionId, lines, count: lines.length });
+    // SERVER-4: reading the thread does NOT clear the marker. Fetching is not
+    // looking — the client pulls this to render a badge, on a screen the room
+    // may not even be open on — so the clear is its own deliberate act. Same
+    // reason POST /api/agents/:id/seen exists next to GET /api/agents/:id.
+    res.json({ sessionId, lines, count: lines.length, unreadSince: homeThreadUnread(userId) });
+  });
+
+  // POST /api/home/thread/seen — he has read the room.
+  //
+  // Owner-gated like everything else in the flat, and idempotent: pressing it
+  // twice, or on a thread with nothing waiting, is a 200 that cleared nothing.
+  // No model call, so nothing here to rate-limit beyond index.js's /api guard.
+  app.post('/api/home/thread/seen', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your home' });
+    const cleared = markHomeThreadSeen(userId);
+    // The badge lives on HOME_STATE, so the screen that has just cleared it
+    // has to be told — otherwise the dot survives until the next unrelated
+    // agent change. Only when something actually changed: a second press is
+    // not news.
+    if (cleared) emitHomeChange(userId);
+    res.json({ seen: true, cleared, unreadSince: null });
   });
 
   app.post('/api/home/say', chatLimiter, telegramAuthMiddleware, async (req, res) => {
