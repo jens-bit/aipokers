@@ -16,6 +16,7 @@ import { DeskReplayStage } from './DeskReplayStage.jsx';
 import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
 import { RosterStrip } from './RosterStrip.jsx';
+import { CasinoScreen } from '../../screens/CasinoScreen.jsx';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -23,6 +24,11 @@ const IDLE_KEY = '__standup__';
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
+  // CASINO-1: the casino is the same screen on the desk, in the stage, per
+  // board 31's frame — top bar across, rail on the right, only the stage
+  // swapped. An agent handed to `deployAgent` puts it there on its own,
+  // because being handed one IS the walk into the building.
+  wsUrl = null, deployAgent = null, onDeployed = null, onSpectate = null, onCancelDeploy = null,
   // DP-4: the draft, when one is under way. It runs on the stage as a sheet so
   // the shell around it — top bar, roster, open panel — stays mounted; App
   // returning it on its own would take the desk down for the duration.
@@ -47,6 +53,11 @@ export function DesktopHome({
   // D3ReplayScreenM's own split.
   const [replay, setReplay] = useState(null);
   const [wallet, setWallet] = useState(null);
+  // CASINO-1: 'floor' (today's room) or 'casino' (the building). Local to the
+  // desk because the desktop shell has no tab bar to hold it.
+  const [stage, setStage] = useState('floor');
+
+  useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +160,11 @@ export function DesktopHome({
       onStandup={firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined}
       onWallet={wallet ? () => { setSelectedId(null); setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
+      stage={stage}
+      onStage={(next) => {
+        if (next === 'floor' && deployAgent) onCancelDeploy?.();
+        setStage(next);
+      }}
     />
   );
 
@@ -231,16 +247,27 @@ export function DesktopHome({
             </div>
           )}
           {draft && <div className="dsk-sheet">{draft}</div>}
-          <CasinoFloor
-            desktopMode
-            selectedAgentId={selectedId}
-            onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
-            onChat={(agent) => setSelectedId(agent.id)}
-            onWatch={onWatchAgent}
-            onProfile={() => {}}
-            onDeploy={onDeployAgent}
-            onCreateAgent={onCreateAgent}
-          />
+          {stage === 'casino' ? (
+            <CasinoScreen
+              desktop
+              wsUrl={wsUrl}
+              deployAgent={deployAgent}
+              onDeployed={onDeployed}
+              onSpectate={onSpectate}
+              onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
+            />
+          ) : (
+            <CasinoFloor
+              desktopMode
+              selectedAgentId={selectedId}
+              onGhostSelect={(agent) => setSelectedId(agent ? agent.id : null)}
+              onChat={(agent) => setSelectedId(agent.id)}
+              onWatch={onWatchAgent}
+              onProfile={() => {}}
+              onDeploy={onDeployAgent}
+              onCreateAgent={onCreateAgent}
+            />
+          )}
         </div>
 
         {walletOpen ? (

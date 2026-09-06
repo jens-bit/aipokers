@@ -1,0 +1,53 @@
+/* CASINO-1 — the building.
+ *
+ * Only the two motions the ref owns that nothing else in the app already has:
+ * the crowd's bob (a 5px lift, slower and shallower than the floor ghosts'
+ * 6px, because a stranger at 12px must not draw the eye) and the hot felt's
+ * shimmer (a glow that swells rather than the floor's, which fades out).
+ * `pulse` for the live dot is already in tokens.css.
+ */
+
+@keyframes casino-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+@keyframes casino-shimmer {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.6; }
+}
+
+/* A doorway and a ticker line are buttons, and base.css uppercases and tracks
+   every button in the app — which turned "the floor" into "T H E  F L O O R"
+   and the shut room's price into a shout. Being tappable is not a reason to
+   change the type: reset the chrome and let each element's own style stand. */
+.csn-door,
+.csn-board__line {
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.csn-door:focus-visible,
+.csn-board__line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* On the desk the casino IS the stage (board 31's frame: top bar across, rail
+   on the right, only the stage swapped), so it fills it. The doorways stretch
+   with it — the crowd's trapezoid is proportional, so the perspective holds at
+   any width. */
+.csn--desk {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn svg[style*="casino-bob"],
+  .csn [data-felt="hot"] {
+    animation: none !important;
+  }
+}
