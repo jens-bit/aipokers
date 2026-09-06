@@ -1,10 +1,46 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (BIRTH-5) — 3 open, 27 resolved
+Last updated: 2026-09-06 (TEST-5) — 4 open, 27 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-34 — `test:all` dies intermittently on Windows
+**Severity:** Medium (a flaky suite teaches people to re-run instead of to look — the testing law's own words)
+**Where:** the test harness, not the product. `src/server/tapeRoom.test.js`, `scripts/verify-pace.js`, and something not yet found.
+**Reported:** roughly one full `npm run test:all` in five came back red on Windows, two ways: a spawned suite exiting **3221226505** (`STATUS_STACK_BUFFER_OVERRUN` — a native abort, not an assertion), or `scripts/verify-pace.js` failing `every snapshot of a live hand carries it — 1 without`. Reproduced on unmodified main.
+
+**Tooling:** `node scripts/stress-suites.js [rounds] [concurrency]` runs everything `npm test` spawns — every `src/**/*.test.js` and the fast `scripts/verify-*.js` group — through the same `runScript` helper, in a loop, recording every non-zero exit with the child's own output. One run in five is too slow a signal to debug against; this turns it into minutes.
+
+#### Found and fixed: `verify-pace.js` "1 without"
+Not a race in the server. `_heroEquityFor` returns null for a **folded** seat on purpose — a man who folded has no equity in the pot — and the check filtered snapshots only on `street !== 'waiting'`, which includes `complete`. So it asserted a rule the product has never held: the snapshot after the hero folds legitimately carries no number.
+
+Whether it fired was pure timing. With no model behind him the hero check/folds, and his 800ms think delay normally put that fold after the script's 700ms sample window; under the e2e group's `concurrency: 2` the sleep overran and the post-fold snapshot landed inside the sample. Nothing about the server differed between a green run and a red one. Reproduced deterministically with `THINK_MIN_MS=50 THINK_SPREAD_MS=50`, which puts the fold inside the window every time.
+
+Fixed by asserting what the rule actually is — *every snapshot of a hand he is still in* carries equity — plus the complementary half, that a seat which folded reports `null` rather than a stale number, so excluding those snapshots does not quietly stop asserting anything about them. (A second bug fell out: `heroSeat` had to come from `watching.msg.spectatorSeat`; `waitFor` resolves the log entry, not the message.)
+
+#### Found and fixed: `tapeRoom.test.js` — a 60ms window the suite's own round trip outruns
+Found by the stress harness: 1 failure in 590 spawned runs at concurrency 4, then reproduced at 1 in 64 running that suite alone 8-wide.
+
+`HOME_STUDY_MS` was set to **60ms** for the test, and sixty milliseconds is shorter than this suite's own HTTP round trip on a loaded machine. "A second request is refused rather than stacking another ninety seconds" only holds while the first study is still running; on a busy box the window closed between the two POSTs and the second request was **accepted**. The assertion lost a race it was never about.
+
+The damage was the cascade. That test aborts at the failed assertion, leaving a **live** study on the record, and the next two tests then came back `409 He is already watching one` — from assertions about a missing `handId` and about filing a second line, neither of which has anything to do with a study being in progress. Three red tests, one cause, and nothing in the output connecting them, because the route has three different 409s and the status alone does not say which.
+
+Fixed three ways: the window is 2s, which cannot lose to a localhost round trip; a `beforeEach` empties the tape room so no test can inherit another's live study; and every 409 assertion now prints the body, so a refusal can be told from another refusal. The second-line test no longer sleeps the window out at all — it ends the study through `finishStudy`, the documented early-finish path, because what it is about is the line and not the clock. 240 runs 8-wide green after (it failed at 64 before).
+
+#### NOT reproduced: the 3221226505 native abort
+Still open. It did not appear once in:
+- **1,768 spawned suite runs** through `scripts/stress-suites.js` — 588 at concurrency 4, 294 at concurrency 8, 590 + 296 covering the verify group too
+- **14** `npm test` runs, **12** `npm run test:e2e` runs, **12** `npm run test:client` runs
+
+What that rules out, or at least makes unlikely:
+- **Parallel access to one SQLite file.** There is none to have. `runScript` gives every spawned suite its own `mkdtemp` cwd, and `store.js` resolves `data/app.db` from `process.cwd()`, so no two suites can open the same database. The suites that `chdir` isolate themselves a second time on top of that.
+- **`legacy.test.js` `concurrency: 4` against native teardown.** 588 runs at 4 and 294 at 8 produced no native exit at all.
+- **Port collisions between parallel servers.** Every e2e script listens on port 0.
+- **A vitest worker dying** (`test:all` runs the client suite too): 12 clean runs, 105 files each.
+
+Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the child output it prints — the exit code plus the last 40 lines of the suite that died is the thing this entry is missing.
 
 ### BUG-20 — Dead 14px input rule waiting to be reused
 **Severity:** Low (latent — nothing renders it today)

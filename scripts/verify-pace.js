@@ -271,9 +271,35 @@ console.log('\n— the owner’s spectator sees his agent’s eyes —');
   check('hero equity is on the first snapshot of the hand — never a dash',
     typeof first?.heroEquity === 'number' && first.heroEquity > 0 && first.heroEquity < 1,
     JSON.stringify(first?.heroEquity));
-  check('every snapshot of a live hand carries it',
-    states.every((e) => typeof e.msg.state.heroEquity === 'number'),
-    `${states.filter((e) => typeof e.msg.state.heroEquity !== 'number').length} without`);
+  // BUG-34: "a live hand" means a hand he is still IN.
+  //
+  // _heroEquityFor returns null for a folded seat on purpose — a man who
+  // folded has no equity in the pot — so the snapshot after he folds carries
+  // no number, correctly. This check filtered only on `street !== 'waiting'`,
+  // which includes `complete`, so it asserted a rule the product has never
+  // held and has no business holding.
+  //
+  // Whether it fired was pure timing. With no model behind him the hero
+  // check/folds, and his 800ms think delay normally put that fold after this
+  // script's 700ms sample window; under the e2e group's concurrency the sleep
+  // overran, the post-fold snapshot landed inside the sample, and the run came
+  // back "1 without". Nothing about the server differed between the two.
+  // waitFor resolves the LOG ENTRY, not the message — `{ at, msg }`.
+  const heroSeat = watching?.msg?.spectatorSeat ?? null;
+  check('the snapshot names the seat the watcher is at', Number.isInteger(heroSeat),
+    JSON.stringify(heroSeat));
+  const inHand = states.filter((e) => !e.msg.state.seats?.[heroSeat]?.folded);
+  check('every snapshot of a hand he is still in carries it',
+    inHand.length > 0 && inHand.every((e) => typeof e.msg.state.heroEquity === 'number'),
+    `${inHand.filter((e) => typeof e.msg.state.heroEquity !== 'number').length} without, of ${inHand.length}`);
+  // And the other half of the rule, so excluding those snapshots above does not
+  // quietly stop asserting anything about them.
+  const folded = states.filter((e) => e.msg.state.seats?.[heroSeat]?.folded);
+  if (folded.length > 0) {
+    check('a seat that folded reports no equity rather than a stale one',
+      folded.every((e) => e.msg.state.heroEquity === null),
+      JSON.stringify(folded.map((e) => e.msg.state.heroEquity)));
+  }
   check('equity is a probability, not a percentage',
     states.every((e) => e.msg.state.heroEquity === null || (e.msg.state.heroEquity >= 0 && e.msg.state.heroEquity <= 1)));
 
