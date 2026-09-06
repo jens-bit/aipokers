@@ -494,3 +494,149 @@
 @media (prefers-reduced-motion: reduce) {
   .csn-your__track { scroll-behavior: auto; }
 }
+
+/* ── CASINO-2 job 5 · the room, from above ──────────────────────────────────
+ *
+ * A destination, not a sheet. It replaces the building rather than sitting
+ * over it, so it has no scrim, no lip and no glass — you are not looking at a
+ * panel about the room, you are in the room. */
+.csn-floor {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0A0F0F;
+}
+
+.csn-floor__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0C1111;
+}
+
+.csn-floor__back {
+  flex-shrink: 0;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #A1A1A1;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.csn-floor__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csn-floor__room {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.csn-floor__room::-webkit-scrollbar { display: none; }
+
+/* The felts on the floor. Two across at 390, which is the width at which a
+   six-max ring is still a ring rather than a smudge; the ROOM decides how many
+   there are and the grid does not pretend otherwise. */
+.csn-floor__felts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.csn-floor__felts > .csn-felt { height: 132px; }
+
+.csn-floor__list { list-style: none; margin: 0; padding: 0; }
+
+.csn-floor__quiet {
+  font-size: 11.5px;
+  color: #A1A1A1;
+  line-height: 1.5;
+  margin: 4px 0 10px;
+}
+
+.csn-floor__unnamed {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9.5px;
+  color: #6B6B6B;
+  margin: 4px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* The stairs out. Six treads at the width they were drawn at, never stretched:
+   six across 358px read as stairs and six across 890px read as six grey
+   blocks. */
+.csn-floor__stairs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 40px;
+  max-width: 358px;
+  padding: 0 2px;
+  margin-top: auto;
+}
+.csn-floor__stairs > span {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.csn-floor__stairs > b {
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: #6B6B6B;
+  margin: 0 0 3px 8px;
+  white-space: nowrap;
+}
+
+.csn-floor__board {
+  flex-shrink: 0;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* On the desk: full width, board as the right column. This is a deliberate
+   departure from FIX-6 job 5's "every sheet opens in the rail" — that rule is
+   about sheets, and a sheet is a panel ABOUT something you can still see. This
+   replaces the building, so there is nothing behind it for a rail to sit
+   beside, and it brings the board along so the ticker is not lost on the way
+   in. */
+.csn-floor--desk .csn-floor__body { flex-direction: row; }
+.csn-floor--desk .csn-floor__room { padding: 16px 20px; }
+.csn-floor--desk .csn-floor__felts {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.csn-floor--desk .csn-floor__felts > .csn-felt { height: 168px; }
+.csn-floor--desk .csn-floor__board {
+  width: 380px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 16px 18px;
+}
+.csn-floor--desk .csn-floor__board::-webkit-scrollbar { display: none; }

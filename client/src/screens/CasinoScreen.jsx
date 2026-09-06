@@ -37,9 +37,9 @@ import {
 } from '../components/casino/CasinoBuilding.jsx';
 import { FloorBoard } from '../components/casino/FloorBoard.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
-import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
+import { FloorView } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
-import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
+import { useCasinoRooms, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
@@ -488,15 +488,40 @@ export function CasinoScreen({
       </div>
   );
 
-  // BUGS-A: tapping a room opens its tables. Extracted the way DESK-2
-  // extracted the tray just below, so both shells render it and neither has to
-  // repeat it — it was written when this screen still had one return.
-  const roomSheet = openRoom && !trayAgent ? (
-    <RoomTablesSheet
+  // CASINO-2 job 5 — TAPPING A DOOR TAKES YOU IN.
+  //
+  // BUGS-A job 7 opened a sheet listing what the client could name in there,
+  // which was the honest answer while the wire carried no table list. Job 1
+  // gave it one, and once every table in a room can be named the room stops
+  // being a list and becomes a place: felts on a floor, tiny ghosts in the
+  // seats, and the board by the stairs on the way out.
+  //
+  // A DESTINATION, NOT A SHEET, on both platforms. It replaces the building
+  // rather than sitting over it — which is also why the desk does not put it
+  // in the rail (FIX-6 job 5's law is about sheets, and a sheet is a panel
+  // about something you can still see behind it). It takes the board with it
+  // so the ticker is not lost on the way in.
+  const floorView = openRoom && !trayAgent ? (
+    <FloorView
       room={openRoom}
-      variant={desktop ? 'rail' : 'sheet'}
+      desktop={desktop}
+      felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
       events={events}
+      board={(
+        <FloorBoard
+          felts={feltsIn(felts, openRoom.id)}
+          events={events}
+          mineIds={mineIds}
+          rooms={rooms}
+          playing={openRoom.seated}
+          liveLimit={desktop ? 6 : 2}
+          rows={desktop ? 12 : 2}
+          stakesFor={stakesForTable}
+          onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+          onReplay={onReplay ?? null}
+        />
+      )}
       onClose={() => setOpenRoomId(null)}
       onWatch={(tableId) => { setOpenRoomId(null); onSpectate?.(tableId); }}
     />
@@ -514,10 +539,25 @@ export function CasinoScreen({
     />
   ) : null;
 
+  // CASINO-2 job 5: a room you have walked into is the whole screen, on both
+  // platforms. There is no building behind it to keep visible — that is the
+  // difference between a destination and a sheet, and it is why this returns
+  // before either shell rather than being drawn over one.
+  if (floorView) {
+    return (
+      <div
+        className={`csn${desktop ? ' csn--desk-room' : ''}`}
+        style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: M_BG }}
+      >
+        {floorView}
+      </div>
+    );
+  }
+
   // DESK-2 — the building on the stage, the ticker in the rail. Board 31's
   // frame: the shell's top bar is already across the top, so this is the body.
   if (desktop) {
-    // FIX-6 job 5 — EVERY SHEET OPENS IN THE RAIL. A bottom sheet at 1440 is a
+    // FIX-6 job 5 — HIS CHIPS OPEN IN THE RAIL. A bottom sheet at 1440 is a
     // full-width strip across a two-column layout: it covers the doorway it is
     // about, it covers the ticker it is not about, and it makes the desk read
     // like a phone that got bigger. The rail is the desk's answer to a sheet
@@ -532,7 +572,7 @@ export function CasinoScreen({
           {tray}
         </div>
         <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
-          {fund ?? roomSheet ?? (
+          {fund ?? (
             <FloorBoard
               felts={felts}
               events={events}
@@ -559,7 +599,6 @@ export function CasinoScreen({
       {head}
       {roomsColumn}
       {tray}
-      {roomSheet}
     </div>
   );
 }

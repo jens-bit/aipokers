@@ -433,38 +433,74 @@ describe('CASINO-1 deploy', () => {
 
 // ── BUGS-A job 7 ────────────────────────────────────────────────────────────
 
-describe('BUGS-A job 7 · a doorway is a place you look into', () => {
+// BUGS-A job 7's claim was "a doorway is a place you LOOK INTO" and it opened
+// a sheet listing what the client could name in there. CASINO-2 job 5 makes it
+// a place you WALK INTO: the felts on its floor, drawn from job 1. Every claim
+// below is the same one on the new surface.
+describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('tapping a room with nobody in the tray lists what is running in it', async () => {
+  it('tapping a room with nobody in the tray takes you into it', async () => {
     const user = userEvent.setup();
-    routeFloor({ agents: [withPocket(playingAgent, 3_000)] });
+    routeFloor({
+      agents: [withPocket(playingAgent, 3_000)],
+      felts: [myFelt({ tableId: 'tbl-fixture', pot: 4_180 })],
+    });
     renderCasino();
 
     await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
 
-    const sheet = await screen.findByTestId('room-tables-sheet');
-    // The room's biggest pot, and the table the owner's own agent is at.
-    expect(within(sheet).getByText('#tbl-fixture')).toBeInTheDocument();
-    expect(within(sheet).getByText(/The Grinder is in here/)).toBeInTheDocument();
+    const view = await screen.findByTestId('floor-view');
+    expect(view.dataset.room).toBe('floor');
+    expect(within(view).getByText('the floor')).toBeInTheDocument();
+    // The room drawn as felts, not listed as rows.
+    expect(view.querySelectorAll('.csn-felt')).toHaveLength(1);
+    // The pot is on the felt itself. It is also on the board that came into the
+    // room with you, which is the point of bringing the board — so this is
+    // scoped to the felt rather than to the room.
+    expect(within(view.querySelector('.csn-felt')).getByText('$4,180')).toBeInTheDocument();
   });
 
-  it('Watch in that list spectates the felt', async () => {
+  it('and the building is gone while you are in it — a room is not a sheet', async () => {
+    const user = userEvent.setup();
+    routeFloor({ felts: [felt()] });
+    renderCasino();
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+    await screen.findByTestId('floor-view');
+    expect(screen.queryByTestId('your-tables')).toBeNull();
+    expect(document.querySelectorAll('.csn-room-door')).toHaveLength(0);
+  });
+
+  it('tapping a felt in there spectates it', async () => {
     const user = userEvent.setup();
     const onSpectate = vi.fn();
-    routeFloor();
+    routeFloor({ felts: [felt({ tableId: 'tbl-fixture' })] });
     renderCasino({ onSpectate });
 
     await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-    const sheet = await screen.findByTestId('room-tables-sheet');
-    await user.click(within(sheet).getByRole('button', { name: 'Watch' }));
+    const view = await screen.findByTestId('floor-view');
+    await user.click(within(view).getByRole('button', { name: /Watch table tbl-fixture/ }));
 
     expect(onSpectate).toHaveBeenCalledWith('tbl-fixture');
-    // ...and the sheet gets out of the way of the felt it just sent you to.
-    await waitFor(() => expect(screen.queryByTestId('room-tables-sheet')).toBeNull());
+    // ...and the room gets out of the way of the felt it just sent you to.
+    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
   });
 
-  it('with an agent in the tray a doorway seats him rather than listing the room', async () => {
+  it('and the way back out is the way you came in', async () => {
+    const user = userEvent.setup();
+    routeFloor({ felts: [felt()] });
+    renderCasino();
+
+    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
+    await screen.findByTestId('floor-view');
+    await user.click(screen.getByRole('button', { name: 'Back to the casino' }));
+
+    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
+    expect(await screen.findByText('THE FLOOR')).toBeInTheDocument();
+  });
+
+  it('with an agent in the tray a doorway seats him rather than taking you in', async () => {
     const user = userEvent.setup();
     routeFloor({ agents: [richCannon] });
     fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon' }, { method: 'POST' });
@@ -474,7 +510,7 @@ describe('BUGS-A job 7 · a doorway is a place you look into', () => {
     await screen.findByText('placing Loose Cannon');
     await user.click(screen.getByRole('button', { name: /^the floor,/ }));
 
-    expect(screen.queryByTestId('room-tables-sheet')).toBeNull();
+    expect(screen.queryByTestId('floor-view')).toBeNull();
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
   });
 });

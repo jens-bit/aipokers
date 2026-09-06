@@ -1,0 +1,309 @@
+// client/src/components/casino/FloorView.jsx — CASINO-2 job 5
+//
+// THE ROOM, FROM ABOVE.
+//
+// A doorway was scenery unless you had arrived carrying an agent to place. You
+// could see that the floor had 44 people in it and three tables going, and
+// there was nothing to tap. The room is the unit this building is organised
+// by — "where should I be looking right now" is the question it exists to
+// answer — so tapping one has to answer it.
+//
+// BUGS-A job 7 answered it as far as the wire then allowed: a LIST of the
+// tables the client could name, assembled out of the room's `hot` ids, your
+// own agents' tables and the ticker, saying out loud how many it could not
+// name. It guessed well and it was still a guess, and the file said so —
+// "when ROOMS-1 grows a table list, this component keeps its shape and
+// liveTablesIn is the only thing that changes".
+//
+// ROOMS-1 grew one (CASINO-2 job 1), so this is that change, and it turned out
+// to be bigger than the data layer. Once every table in a room can be named,
+// the room stops being a list and becomes a PLACE: felts laid out on a floor,
+// tiny ghosts in the seats of each, the pot in the middle of the ones with a
+// hand running, and the board by the stairs on the wall. You are standing in
+// the room rather than reading its index.
+//
+// THREE THINGS THIS OBEYS
+//
+//   1. SNAPSHOTS ONLY. Every felt here is a ROOM_TABLES entry. Nothing on this
+//      screen triggers a model call, opens a socket per table, or asks a table
+//      anything — the room is drawn from the push the lobby is already getting.
+//   2. THE FISH-TANK LAW HOLDS AT EVERY SCALE. Nobody's hole cards are on a
+//      felt in here, including your own man's: the payload does not carry them
+//      and TableFelt draws backs. His own two face up is a thing that happens
+//      at HIS table, not in a room you are walking through.
+//   3. THE LIST IS THE FALLBACK, NOT THE DESIGN. When no felts have arrived —
+//      the socket is down, or the first frame has not landed — the room falls
+//      back to liveTablesIn's honest list and still says how many tables it
+//      could not name. A busy room drawn as an empty one would be a worse lie
+//      than the guess ever was.
+//
+// ON THE DESK it is full width with the board as a right column, and that is a
+// deliberate departure from FIX-6 job 5's "every sheet opens in the rail". The
+// rail rule is about SHEETS — a bottom sheet at 1440 covers the doorway it is
+// about. This is not a sheet: it is a destination, it replaces the building
+// rather than sitting over it, and it brings the board with it so the ticker
+// is not lost on the way in.
+
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
+import { TableFelt } from './TableFelt.jsx';
+import { money } from '../../lib/wallet.js';
+import { pillName } from '../../lib/names.js';
+import { M_TEAL, M_GOLD } from '../floor/atoms.jsx';
+import { Btn, count } from './CasinoBuilding.jsx';
+
+const MONO = '"JetBrains Mono",ui-monospace,monospace';
+const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
+const PLAYFAIR = '"Playfair Display",Georgia,serif';
+const M_TEXT = '#EDEDED';
+const M_MUTED = '#6B6B6B';
+
+/** The table an agent is actually sitting at, however the payload says it. */
+export function tableIdOf(agent) {
+  const id = agent?.liveGame?.tableId ?? agent?.activeTableId ?? agent?.location?.tableId ?? null;
+  return id == null ? null : String(id);
+}
+
+/**
+ * Every table in this room the client can name, newest information first.
+ *
+ * Ordering is by how much it is asking for you: hot, then the biggest pot,
+ * then the ones with your own agents at them, then the rest.
+ *
+ * @returns {Array<{ tableId, hot, pot, mine, headline }>}
+ */
+export function liveTablesIn(room, { agents = [], events = [] } = {}) {
+  if (!room) return [];
+  const by = new Map();
+  const touch = (tableId) => {
+    const id = String(tableId);
+    if (!by.has(id)) by.set(id, { tableId: id, hot: false, pot: null, mine: [], headline: null });
+    return by.get(id);
+  };
+
+  for (const id of room.hot ?? []) touch(id).hot = true;
+  if (room.biggestPot?.tableId) {
+    const row = touch(room.biggestPot.tableId);
+    row.pot = Math.max(row.pot ?? 0, Math.round(room.biggestPot.pot) || 0);
+  }
+
+  // Yours in this room. `agents` is already the room's bucket (agentsByRoom),
+  // so no blinds arithmetic happens here.
+  for (const agent of agents) {
+    const id = tableIdOf(agent);
+    if (!id) continue;
+    const row = touch(id);
+    row.mine.push(agent);
+    const pot = Number(agent?.liveGame?.pot);
+    if (Number.isFinite(pot) && pot > 0) row.pot = Math.max(row.pot ?? 0, Math.round(pot));
+  }
+
+  // A headline only ever DECORATES a table already in the list. An event names
+  // a table this room has not claimed, and guessing it belongs here from the
+  // stakes chip alone would put another room's cooler in this doorway.
+  for (const e of events) {
+    if (!e?.tableId) continue;
+    const id = String(e.tableId);
+    if (!by.has(id)) continue;
+    const row = by.get(id);
+    if (!row.headline) row.headline = e.headline ?? null;
+  }
+
+  const rank = (r) => (r.hot ? 0 : r.pot != null ? 1 : r.mine.length ? 2 : 3);
+  return [...by.values()].sort((a, b) => rank(a) - rank(b) || a.tableId.localeCompare(b.tableId));
+}
+
+/** "3 of 8 tables in here have a name on them" — or nothing, when they all do. */
+export function unnamedCount(room, named) {
+  const total = Math.max(0, Number(room?.tables) || 0);
+  return Math.max(0, total - named);
+}
+
+
+// ── The fallback list ───────────────────────────────────────────────────────
+//
+// Drawn only when no felts have arrived. It is the BUGS-A job 7 row, unchanged,
+// because what it does is exactly what is needed as a fallback: name what can
+// be named and count what cannot, rather than let a busy room read as empty.
+
+function TableRow({ row, onWatch }) {
+  const mine = row.mine.map((a) => pillName(a.name)).join(', ');
+  return (
+    <li style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0',
+      borderTop: '1px solid rgba(255,255,255,0.055)',
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: M_TEXT }}>
+            {`#${row.tableId}`}
+          </span>
+          {row.hot && (
+            <span style={{
+              fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.16em',
+              color: M_GOLD, border: `1px solid ${M_GOLD}77`, background: `${M_GOLD}1A`,
+              borderRadius: 3, padding: '1px 5px',
+            }}>HOT</span>
+          )}
+          {row.pot != null && (
+            <span style={{ fontFamily: MONO, fontSize: 10, color: M_GOLD }}>
+              {`${money(row.pot)} in the middle`}
+            </span>
+          )}
+        </div>
+        <div style={{
+          fontSize: 10, color: mine ? M_TEAL : M_MUTED, marginTop: 2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {mine ? `${mine} ${row.mine.length > 1 ? 'are' : 'is'} in here` : (row.headline ?? 'a game is running')}
+        </div>
+      </div>
+      <Btn h={28} kind={row.mine.length ? 'primary' : 'outline'} onClick={() => onWatch?.(row.tableId)}>
+        {row.mine.length ? 'Watch him' : 'Watch'}
+      </Btn>
+    </li>
+  );
+}
+
+// ── The room ────────────────────────────────────────────────────────────────
+
+/**
+ * The felts in this room, with your own men's tables first.
+ *
+ * The server already ranked them by how loudly they are asking for anybody —
+ * hot, then the money in the middle — and that ordering stands underneath.
+ * This only lifts YOURS above it, because a room you walked into to check on
+ * your man is a room where his table is the one you came for, however quiet it
+ * happens to be.
+ */
+export function feltsForRoom(felts = [], agents = []) {
+  const mine = new Set(agents.map((a) => tableIdOf(a)).filter(Boolean));
+  return [...felts].sort(
+    (a, b) => (mine.has(b.tableId) ? 1 : 0) - (mine.has(a.tableId) ? 1 : 0),
+  );
+}
+
+/** The stairs. The one fixture that says the building has floors. */
+function Stairs() {
+  return (
+    <div aria-hidden className="csn-floor__stairs">
+      {[10, 16, 22, 28, 34, 40].map((h, i) => (
+        <span key={h} style={{
+          height: h,
+          background: `linear-gradient(180deg, rgba(205,179,128,${0.05 + i * 0.02}) 0%, rgba(255,255,255,0.02) 100%)`,
+        }} />
+      ))}
+      <b>BY THE STAIRS</b>
+    </div>
+  );
+}
+
+/**
+ * THE FLOOR — one room, seen from above.
+ *
+ * @param room     one entry of the ROOMS-1 payload
+ * @param felts    the ROOM_TABLES entries for THIS room (job 1)
+ * @param agents   YOUR agents in this room (agentsByRoom's bucket)
+ * @param events   the ticker, for the fallback list's headlines
+ * @param board    the board by the stairs, rendered by the caller so this file
+ *                 never has to know what a FloorBoard needs
+ * @param onWatch  (tableId) => spectate it
+ * @param onClose  back to the building
+ * @param desktop  full width, the board as a right column
+ */
+export function FloorView({
+  room, felts = [], agents = [], events = [], board = null,
+  onWatch, onClose, desktop = false,
+}) {
+  // The phone still drags to dismiss: the gesture is how you leave a room in
+  // this app and it predates this screen. The desk does not — there is nowhere
+  // to drag a full-width destination to, and it would only spring back.
+  const drag = useSheetDrag(onClose);
+  const ranked = feltsForRoom(felts, agents);
+  const rows = ranked.length === 0 ? liveTablesIn(room, { agents, events }) : [];
+  const unnamed = unnamedCount(room, ranked.length || rows.length);
+
+  const stairs = <Stairs />;
+
+  return (
+    <div
+      className={`csn-floor${desktop ? ' csn-floor--desk' : ''}`}
+      data-testid="floor-view"
+      data-room={room.id}
+      role="group"
+      aria-label={`${room.name} — the room`}
+      ref={desktop ? undefined : drag.ref}
+      style={desktop ? undefined : drag.style}
+      {...(desktop ? {} : drag.handlers)}
+    >
+      <div className="csn-floor__head">
+        <button type="button" className="csn-floor__back" onClick={onClose} aria-label="Back to the casino">
+          ← THE CASINO
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT,
+            lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{room.name}</div>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
+            {`${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
+          </div>
+        </div>
+      </div>
+
+      <div className="csn-floor__body">
+        <div className="csn-floor__room">
+          {ranked.length > 0 ? (
+            <div className="csn-floor__felts">
+              {ranked.map((felt) => {
+                const agent = agents.find((a) => tableIdOf(a) === felt.tableId) ?? null;
+                return (
+                  <TableFelt
+                    key={felt.tableId}
+                    felt={felt}
+                    agentId={agent?.id ?? null}
+                    accent={M_TEAL}
+                    scale={0.62}
+                    live={false}
+                    label={agent ? pillName(agent.name).toUpperCase() : null}
+                    onWatch={onWatch}
+                    ariaLabel={agent
+                      ? `Watch ${agent.name} at this table`
+                      : `Watch table ${felt.tableId}`}
+                  />
+                );
+              })}
+            </div>
+          ) : rows.length > 0 ? (
+            <ul className="csn-floor__list">
+              {rows.map((row) => <TableRow key={row.tableId} row={row} onWatch={onWatch} />)}
+            </ul>
+          ) : (
+            <p className="csn-floor__quiet">
+              {room.tables > 0
+                ? 'The floor has not named a table in here yet. Watch the board by the stairs — a felt that goes hot puts itself on this list.'
+                : 'Nothing is running in here right now.'}
+            </p>
+          )}
+
+          {unnamed > 0 && (
+            <p className="csn-floor__unnamed">
+              {`${unnamed} more table${unnamed === 1 ? '' : 's'} in here the floor has not named.`}
+            </p>
+          )}
+
+          {!desktop && stairs}
+        </div>
+
+        {/* The board by the stairs. On the phone it is under the room, where
+            the stairs are; on the desk it is the right column, which is the
+            same place — you pass it on the way out either way. */}
+        {board && (
+          <div className="csn-floor__board">
+            {desktop && stairs}
+            {board}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
