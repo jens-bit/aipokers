@@ -28,6 +28,7 @@ import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { GlassLabel } from '../system/Glass.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { pillName } from '../../lib/names.js';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 const WHO_BY_KIND = { him: 'HIM', you: 'YOU', table: 'TABLE' };
 
@@ -112,6 +113,10 @@ export function HomeThread({
 }) {
   const { rows, loading, reload } = useThread(agent?.id, { enabled: !!agent });
   const [draft, setDraft] = useState('');
+  // BUGS-A job 5: the sheet is pushed back down with a finger, not only by
+  // finding its grab bar. Disabled while it is closed so the band underneath
+  // keeps every one of its own taps.
+  const drag = useSheetDrag(() => onToggle?.(false), { enabled: open });
 
   useEffect(() => { setDraft(''); }, [agent?.id]);
   useEffect(() => { if (open) reload(); }, [open, reload]);
@@ -134,7 +139,14 @@ export function HomeThread({
       {toast}
 
       {open ? (
-        <div className="home-thread__sheet" role="dialog" aria-label={`${agent.name}'s thread`}>
+        <div
+          className={`home-thread__sheet${drag.dragging ? ' is-dragging' : ''}`}
+          role="dialog"
+          aria-label={`${agent.name}'s thread`}
+          ref={drag.ref}
+          style={drag.style}
+          {...drag.handlers}
+        >
           <button type="button" className="home-thread__grab" onClick={() => onToggle?.(false)} aria-label="Close the thread">
             <span />
           </button>

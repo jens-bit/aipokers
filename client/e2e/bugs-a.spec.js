@@ -167,6 +167,26 @@ async function open(page, opts = {}) {
   await page.waitForSelector('[data-testid="home-screen"]');
 }
 
+/**
+ * Wait until a sheet has finished sliding IN.
+ *
+ * Every sheet here animates up over 0.24s, and a boundingBox measured during
+ * that is stale by the time the mouse acts on it — the pointer lands on the
+ * scrim behind, the scrim closes the sheet, and the test reports the drag
+ * working (or not) when no drag ever happened. So: no interaction until the
+ * sheet is where it says it is.
+ */
+async function settled(page, selector) {
+  const el = page.locator(selector);
+  await expect(el).toBeVisible();
+  await page.waitForFunction((sel) => {
+    const node = document.querySelector(sel);
+    if (!node) return false;
+    const t = getComputedStyle(node).transform;
+    return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)';
+  }, selector);
+}
+
 /** A finger dragging down the middle of an element, in three real touch beats. */
 async function dragDown(page, selector, distance = 200) {
   const box = await page.locator(selector).boundingBox();
@@ -202,5 +222,55 @@ test.describe('BUGS-A job 2 · the empty-state race', () => {
     await expect(page.locator('.home-one')).toHaveCount(2);
     await expect(page.getByTestId('home-frame-a3')).toBeVisible();
     await page.screenshot({ path: 'e2e/__screenshots__/bugsa-2-household.png' });
+  });
+});
+
+// ── job 5 ───────────────────────────────────────────────────────────────────
+
+test.describe('BUGS-A job 5 · sheets are above the room, and a finger puts them away', () => {
+  test('the fridge sheet covers the room, bodies included', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('.home-one')).toHaveCount(2);
+    await page.getByTestId('home-fridge').click();
+    await settled(page, '.home-sheet__panel');
+
+    // The one that matters: what is actually painted where the sheet is. An
+    // occupant stacked by his own y used to win against the sheet's z-index,
+    // so a ghost stood on top of the stock list.
+    const panel = page.locator('.home-sheet__panel');
+    const box = await panel.boundingBox();
+    const onTop = await page.evaluate(
+      ([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        return el ? el.closest('.home-one') !== null : false;
+      },
+      [box.x + box.width / 2, box.y + 24],
+    );
+    expect(onTop).toBe(false);
+    await page.screenshot({ path: 'e2e/__screenshots__/bugsa-5-fridge-over-room.png' });
+  });
+
+  test('the fridge sheet is dragged down to dismiss', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('home-fridge').click();
+    await settled(page, '.home-sheet__panel');
+    await dragDown(page, '.home-sheet__panel', 220);
+    await expect(page.getByTestId('home-fridge-sheet')).toHaveCount(0);
+  });
+
+  test('a short pull springs back and the sheet stays', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('home-fridge').click();
+    await settled(page, '.home-sheet__panel');
+    await dragDown(page, '.home-sheet__panel', 30);
+    await expect(page.getByTestId('home-fridge-sheet')).toBeVisible();
+  });
+
+  test('the home thread sheet is dragged down to dismiss', async ({ page }) => {
+    await open(page);
+    await page.getByTestId('home-thread-line').click();
+    await settled(page, '.home-thread__sheet');
+    await dragDown(page, '.home-thread__sheet', 220);
+    await expect(page.locator('.home-thread__sheet')).toHaveCount(0);
   });
 });

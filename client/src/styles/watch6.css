@@ -991,3 +991,28 @@
   display: block;
   pointer-events: none;
 }
+
+
+/* ── BUGS-A job 5 · dragging a sheet down ────────────────────────────────────
+ *
+ * The travel is the hook's (useSheetDrag) and arrives as an inline transform.
+ * What lives here is the release: the sheet springs back under its own easing
+ * rather than snapping, and while a finger is on it there is no transition at
+ * all so it tracks the finger exactly.
+ *
+ * `touch-action: none` while dragging is the same fix WATCH-7 had to make for
+ * the whisper composer — without it the browser claims a vertical drag as a
+ * page pan and cancels the gesture before it has travelled far enough to
+ * mean anything. */
+.thread-sheet,
+.read-sheet {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.thread-sheet.is-dragging,
+.read-sheet.is-dragging {
+  transition: none;
+  touch-action: none;
+  /* A sheet in the owner's hand does not also animate itself in. */
+  animation: none;
+}

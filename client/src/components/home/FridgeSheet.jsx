@@ -23,6 +23,7 @@
 // this screen.
 
 import { useState } from 'react';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { pillName } from '../../lib/names.js';
 
@@ -50,6 +51,8 @@ export function FridgeSheet({ agents = [], onClose, onGiven }) {
   const [target, setTarget] = useState(() => agents[0]?.id ?? null);
   const [busy, setBusy] = useState(null);
   const [said, setSaid] = useState(null);
+  // BUGS-A job 5: pushed back down with a finger, anywhere on it.
+  const drag = useSheetDrag(onClose);
 
   const give = async (item) => {
     if (!target || busy) return;
@@ -65,7 +68,12 @@ export function FridgeSheet({ agents = [], onClose, onGiven }) {
   return (
     <div className="home-sheet" role="dialog" aria-label="The fridge" data-testid="home-fridge-sheet">
       <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
-      <div className="home-sheet__panel">
+      <div
+        className={`home-sheet__panel${drag.dragging ? ' is-dragging' : ''}`}
+        ref={drag.ref}
+        style={drag.style}
+        {...drag.handlers}
+      >
         <div className="home-sheet__head">
           <span className="home-sheet__title">The fridge</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
