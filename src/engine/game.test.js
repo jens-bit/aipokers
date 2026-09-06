@@ -341,4 +341,127 @@ header('Test 10: multiway split pot (board plays for three contestants)');
   ok('multiway split: three-way tie, pot divided evenly, chips conserved');
 }
 
+// ---------------------------------------------------------------------------
+// SERVER-3: result.deltas — per-seat NET chip movement for the hand.
+//
+// The contract is one sentence: deltas[seat] === endStack - startStack, for
+// every seat, on every shape of result the engine can produce. That is what
+// lets a client stop differencing stack snapshots across broadcasts it may
+// have missed. The corollary — the deltas sum to zero — is chip conservation
+// stated per seat, so it is asserted everywhere too.
+
+function assertDeltas(game, startStacks, label) {
+  const d = game.result.deltas;
+  assert.ok(d && typeof d === 'object', `${label}: result carries deltas`);
+  assert.strictEqual(Object.keys(d).length, game.seats.length, `${label}: one entry per seat`);
+  let sum = 0;
+  game.seats.forEach((s, i) => {
+    assert.strictEqual(
+      d[i], s.stack - startStacks[i],
+      `${label}: seat ${i} delta ${d[i]} should be ${s.stack - startStacks[i]}`,
+    );
+    sum += d[i];
+  });
+  assert.strictEqual(sum, 0, `${label}: deltas sum to zero`);
+}
+
+// Stacks as they were before the blinds went in — startHand() has already
+// moved them, so the chips still on the felt have to be added back.
+const stacksBeforeBlinds = (game) => game.seats.map((s) => s.stack + s.contribTotal);
+
+header('Test 11: result.deltas — uncontested pot (everyone folds)');
+{
+  const game = new Game({
+    tableId: 't11',
+    seats: [{ playerId: 'p0', stack: 1000 }, { playerId: 'p1', stack: 1000 }],
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  const start = stacksBeforeBlinds(game);
+  // HU: button (seat 0) is SB, acts first, raises; BB folds.
+  game.act(0, { type: Actions.RAISE, amount: 60 });
+  game.act(1, { type: Actions.FOLD });
+  assert.strictEqual(game.result.type, 'uncontested');
+  assertDeltas(game, start, 'uncontested');
+  // The winner is up exactly the loser's dead blind, not the whole pot: his own
+  // uncalled raise came back to him.
+  assert.strictEqual(game.result.deltas[0], 20, 'winner nets the BB he was paid');
+  assert.strictEqual(game.result.deltas[1], -20, 'folder is down his big blind');
+  ok('uncontested: deltas are net of own contribution and sum to zero');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 12: result.deltas — showdown, checked down heads-up');
+{
+  const game = new Game({
+    tableId: 't12',
+    seats: [{ playerId: 'p0', stack: 1000 }, { playerId: 'p1', stack: 1000 }],
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  const start = stacksBeforeBlinds(game);
+  playDownPassive(game);
+  assert.strictEqual(game.result.type, 'showdown');
+  assertDeltas(game, start, 'showdown');
+  ok('showdown: deltas match the stack movement seat by seat');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 13: result.deltas — side pots, three uneven all-ins');
+{
+  const game = new Game({
+    tableId: 't13',
+    seats: [
+      { playerId: 'short', stack: 100 },
+      { playerId: 'mid', stack: 300 },
+      { playerId: 'big', stack: 1000 },
+    ],
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  const start = stacksBeforeBlinds(game);
+  let safety = 30;
+  while (game.street !== Streets.COMPLETE && safety-- > 0) {
+    const seat = game.toAct;
+    if (seat === null || seat === undefined) break;
+    const legal = game.legalActions(seat);
+    const raise = legal.find((a) => a.type === Actions.RAISE);
+    if (raise) game.act(seat, { type: Actions.RAISE, amount: raise.max });
+    else if (legal.find((a) => a.type === Actions.CALL)) game.act(seat, { type: Actions.CALL });
+    else game.act(seat, { type: Actions.CHECK });
+  }
+  assert.strictEqual(game.street, Streets.COMPLETE);
+  assertDeltas(game, start, 'side pots');
+  // Nobody can lose more than they brought.
+  assert.ok(game.result.deltas[0] >= -100, 'short stack cannot lose more than 100');
+  assert.ok(game.result.deltas[1] >= -300, 'mid stack cannot lose more than 300');
+  ok('side pots: deltas bounded by each stack and still sum to zero');
+}
+
+// ---------------------------------------------------------------------------
+header('Test 14: result.deltas — a folded seat carries its dead money');
+{
+  const game = new Game({
+    tableId: 't14',
+    seats: Array.from({ length: 4 }, (_, i) => ({ playerId: `p${i}`, stack: 1000 })),
+    smallBlind: 10,
+    bigBlind: 20,
+  });
+  game.startHand();
+  const start = stacksBeforeBlinds(game);
+  game.act(3, { type: Actions.FOLD });   // UTG folds having put in nothing
+  game.act(0, { type: Actions.CALL });
+  game.act(1, { type: Actions.FOLD });   // SB folds his 10 into the pot
+  game.act(2, { type: Actions.CHECK });
+  playDownPassive(game);
+  assert.strictEqual(game.street, Streets.COMPLETE);
+  assertDeltas(game, start, 'dead money');
+  assert.strictEqual(game.result.deltas[3], 0, 'a seat that never invested is flat');
+  assert.strictEqual(game.result.deltas[1], -10, 'the folded small blind is down exactly his blind');
+  ok('dead money: folders report negative deltas, uninvolved seats report zero');
+}
+
 console.log(`\n${passed} test(s) passed`);

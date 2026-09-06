@@ -15,6 +15,10 @@
 //   4. WV2-5 — a pot won without a showdown reveals nothing at all.
 //   5. SEAT-1a — every seat on the wire carries a mood posture, on the STATE
 //      snapshot the felt renders from and on the liveGameView the floor polls.
+//   6. SERVER-3 — the five things the v5 watch screen cannot draw without: the
+//      session id on WATCHING and on every snapshot, the acting seat's
+//      deadline, per-seat deltas on every result, SESSION_END (before
+//      TABLE_CLOSED), and the table thread read back over REST.
 //
 // Runs with NO ANTHROPIC_API_KEY, and refuses to run with one (see the guard
 // below). The agent handler returns its safe check/fold fallback, so hands
@@ -363,6 +367,129 @@ console.log('\n[verify] 5) SEAT-1a — seat.mood on the wire');
         JSON.stringify(seats.map((s) => Object.keys(s.mood))));
 
   table.closeTable('verify done');
+}
+
+// ── 6) SERVER-3: what the v5 watch screen needs on the wire ──────────────────
+// A real deployed agent, a real WebSocket watching it, and the five things the
+// screen cannot draw without: the session it is on, the acting seat's deadline,
+// per-seat deltas on every result, the session-end message the ceremony fires
+// from, and the thread that survives the socket.
+console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and the thread');
+{
+  const agentId = await newAgent('server3 hero');
+  const agent = await getAgent(agentId);
+  check('an agent to watch', !!agent);
+
+  const deployed = await j('POST', `/api/agents/${agentId}/deploy`, { userId });
+  check('deployed', deployed.status === 200, JSON.stringify(deployed.body));
+  const tableId = deployed.body.tableId;
+  const table = registry.getTable(tableId);
+  check('the table is server-driven', !!table && table.autoPlay === true, describeTable(table));
+
+  const seen = [];
+  const ws = await new Promise((resolve, reject) => {
+    const sock = new WebSocket(`ws://127.0.0.1:${port}`);
+    sock.on('error', reject);
+    sock.on('message', (raw) => { try { seen.push(JSON.parse(raw.toString())); } catch { /* ignore */ } });
+    sock.on('open', () => {
+      sock.send(JSON.stringify({
+        type: ClientMsg.WATCH, tableId, agentId, userId, displayName: agent.name,
+      }));
+      resolve(sock);
+    });
+  });
+  const of = (type) => seen.filter((m) => m.type === type);
+
+  // -- the session, named on the first message back --
+  const watching = await waitFor('WATCHING', async () => of(ServerMsg.WATCHING)[0], (m) => !!m, 10_000);
+  check('WATCHING names the stay the watcher attached to',
+        typeof watching.value?.sessionId === 'string' && watching.value.sessionId.length > 0,
+        JSON.stringify(watching.value));
+  const sessionId = watching.value?.sessionId ?? null;
+  check('and it is the id the table holds for that seat',
+        sessionId === table?.sessionIdAtSeat(watching.value?.spectatorSeat),
+        `${sessionId} vs ${table?.sessionIdAtSeat(watching.value?.spectatorSeat)}`);
+
+  // -- two hands, so there is a result and a thread to read --
+  const played = await waitFor('hands', async () => of(ServerMsg.HAND_RESULT).length, (n) => n >= 2);
+  check('hands are dealt and finished while he watches', played.ok, `${played.value} result(s)`);
+
+  // -- deltas on every result --
+  const results = of(ServerMsg.HAND_RESULT).map((m) => m.result);
+  check('every HAND_RESULT carries per-seat deltas',
+        results.every((r) => r.deltas && Object.keys(r.deltas).length >= 2),
+        JSON.stringify(results.map((r) => r.deltas)));
+  check('and every one of them sums to zero — chips move, they are never made',
+        results.every((r) => Object.values(r.deltas).reduce((a, b) => a + b, 0) === 0),
+        JSON.stringify(results.map((r) => Object.values(r.deltas))));
+  check('the deltas are NET, not the pot: nobody is up the whole pot they built',
+        results.every((r) => Object.values(r.deltas).every((d) => d <= r.pot)),
+        JSON.stringify(results.map((r) => ({ pot: r.pot, deltas: r.deltas }))));
+
+  // -- the hero's ring --
+  const timed = of(ServerMsg.STATE).map((m) => m.state).filter((s) => s?.actionTimer);
+  check('the acting seat\'s deadline rides the state broadcast', timed.length > 0,
+        `${of(ServerMsg.STATE).length} state(s), none with a timer`);
+  check('it names a seat, a deadline and the full length of the clock',
+        timed.every((s) => Number.isInteger(s.actionTimer.seat)
+          && Number.isFinite(s.actionTimer.deadlineTs)
+          && s.actionTimer.totalMs > 0),
+        JSON.stringify(timed.slice(0, 2).map((s) => s.actionTimer)));
+  check('the deadline is the clock ahead of the frame, not behind it',
+        timed.every((s) => Object.keys(s.actionTimer).sort().join(',') === 'deadlineTs,seat,totalMs'),
+        JSON.stringify(timed[0]?.actionTimer));
+  check('and the session rides every snapshot too',
+        of(ServerMsg.STATE).every((m) => m.state.sessionId === sessionId),
+        JSON.stringify([...new Set(of(ServerMsg.STATE).map((m) => m.state.sessionId))]));
+
+  // -- per-seat face triggers --
+  const decisions = of(ServerMsg.DECISION);
+  check('every DECISION carries an event field, even when it is null',
+        decisions.length > 0 && decisions.every((d) => 'event' in d),
+        `${decisions.length} decision(s)`);
+  const FACE_EVENTS = ['dealtStrong', 'raisedAgainst', 'allIn', 'badBeat', 'wonBig', 'bluffCaught'];
+  check('and anything it does carry is in the face vocabulary',
+        decisions.every((d) => d.event === null || FACE_EVENTS.includes(d.event)),
+        JSON.stringify([...new Set(decisions.map((d) => d.event))]));
+  check('hand-end triggers ride the result, in the same vocabulary',
+        results.every((r) => r.events && typeof r.events === 'object'
+          && Object.values(r.events).every((e) => FACE_EVENTS.includes(e))),
+        JSON.stringify(results.map((r) => r.events)));
+
+  // -- the thread, over the REST seam a reconnect would use --
+  const thread = await j('GET', `/api/agents/${agentId}/thread?userId=${userId}&session=${sessionId}`);
+  check('the thread reads back for that session', thread.status === 200 && thread.body.sessionId === sessionId,
+        JSON.stringify(thread.body).slice(0, 200));
+  check('and it has the room in it', (thread.body.lines ?? []).some((l) => l.kind === 'table'),
+        JSON.stringify((thread.body.lines ?? []).slice(0, 4)));
+  check('every line carries a server timestamp to order it by',
+        (thread.body.lines ?? []).every((l) => Number.isFinite(l.ts)));
+  check('a reconnect that names no session gets the same one',
+        (await j('GET', `/api/agents/${agentId}/thread?userId=${userId}`)).body.sessionId === sessionId);
+
+  // -- SESSION_END: the owner calls him in --
+  ws.send(JSON.stringify({ type: ClientMsg.SIT_OUT }));
+  const ended = await waitFor('SESSION_END', async () => of(ServerMsg.SESSION_END)[0], (m) => !!m, 30_000);
+  check('stopping him ends the SESSION, as its own message', ended.ok, JSON.stringify(seen.slice(-3)));
+  const end = ended.value ?? {};
+  check('it is about him', end.agentId === agentId, `${end.agentId}`);
+  check('it names the stay', end.sessionId === sessionId, `${end.sessionId} vs ${sessionId}`);
+  check('the owner calling him in reads as calledIn', end.reason === 'calledIn', end.reason);
+  check('it carries the numbers the ceremony prints',
+        Number.isInteger(end.hands) && Number.isInteger(end.net)
+        && Number.isInteger(end.biggestPot) && end.duration > 0,
+        JSON.stringify(end));
+  check('the owner id is routing and stays on the server', !('userId' in end), JSON.stringify(Object.keys(end)));
+
+  const order = seen.map((m) => m.type);
+  check('the ceremony arrives BEFORE the screen is told to close',
+        order.indexOf(ServerMsg.SESSION_END) !== -1
+        && (order.indexOf(ServerMsg.TABLE_CLOSED) === -1
+            || order.indexOf(ServerMsg.SESSION_END) < order.indexOf(ServerMsg.TABLE_CLOSED)),
+        order.slice(-6).join(' → '));
+
+  ws.close();
+  await sleep(200);
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────

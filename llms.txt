@@ -26,6 +26,7 @@ GET  /api/agents                    — list agents for a userId
 GET  /api/agent-profile             — full profile including creation chat and agents
 GET  /api/agents/:agentId/hands     — recent hand history with per-decision reasoning
 GET  /api/agents/:agentId/memory    — agent memory record and formatted context string
+GET  /api/agents/:agentId/thread    — the table thread for one session (SERVER-3)
 POST /api/agents/:agentId/deploy    — deploy agent to a table; returns tableId for WebSocket JOIN
 POST /api/agents/:agentId/queue     — join PvP matchmaking queue
 POST /api/agents/:agentId/result    — report completed hand result (called by table)
@@ -160,6 +161,35 @@ Receive (server → client):
                 Like the ticker it is NOT filtered by owner — it is counts and
                 table ids, nothing private. A client that ignores this message
                 sees exactly what it saw before it existed.
+  SESSION_END — { sessionId, agentId, tableId, reason, hands, net, biggestPot,
+                duration, endedAt } — one agent's STAY at a table is over. A
+                session is not a hand and not a table: he sits down, he plays,
+                he stands up, and this is the message that says the last part.
+                Sent to every socket at the table (the owner's spectator is the
+                one that runs the end-of-session ceremony with it) and,
+                separately, to that owner's FLOOR_SUB subscribers. Those are
+                normally different connections, so nothing arrives twice; a
+                client that opened one socket for both can key on `sessionId`,
+                which is unique per stay.
+                `reason` is one of
+                  bust       his stack reached zero at the felt
+                  allowance  the budget behind him is spent — his pocket is on
+                             an allowance and can no longer cover a buy-in at
+                             these blinds, so he cannot come back
+                  worn       STAMINA fatigue reached 'worn'. He sits himself at
+                             the bar; nobody called him in and nothing pings
+                             the owner. A worn agent also tilts faster while he
+                             is still in the seat.
+                  calledIn   the owner stopped him — SIT_OUT, POST /finish, or
+                             cutting off his funding
+                  stopped    everything else: the per-session hand cap, the
+                             idle reaper, the room closing under him
+                `hands` counts the hands HE was dealt into, not the table's
+                total; `net` is signed chips (final stack minus his buy-in);
+                `biggestPot` is the largest pot he had money in this session;
+                `duration` is milliseconds from sitting down to standing up.
+                SESSION_END always arrives BEFORE the TABLE_CLOSED that ends
+                the same session.
   READ        — { tableId, seat, reads: [...] } — the agent's picture of each
                 opponent, sent to the OWNER'S SPECTATOR ONLY (the socket
                 attached to that seat) and never to a seated player or to a
@@ -180,19 +210,82 @@ Receive (server → client):
                  mid-hand catch-up one.
     reads      — as READ above.
 
+  GAME_STATE additions for everyone (SERVER-3):
+    actionTimer — { seat, deadlineTs, totalMs } for the seat currently to act,
+                 or null. `deadlineTs` is server epoch ms and `totalMs` is the
+                 full length of that seat's clock, which is what a countdown
+                 ring needs to know how far round to start. Armed BEFORE the
+                 snapshot that announces the turn, so every frame of one
+                 decision carries the same deadline and a client that connects
+                 mid-think draws the right arc. Null for a HUMAN seat: there is
+                 no server-enforced action timer for humans yet, and a deadline
+                 nothing will act on is worse than no ring.
+    sessionId  — the id of the stay the seat this snapshot is filtered for is
+                 on, or null for a seat with no agent behind it. It is the key
+                 SESSION_END and GET /api/agents/:agentId/thread are both filed
+                 under. It also rides WATCHING, so a watcher has it from the
+                 first message.
+
+  HAND_RESULT additions (SERVER-3):
+    result.deltas — { [seat]: net } for every seat in the hand. NET: what the
+                 seat took out of the pot minus everything it put in, so the
+                 winner of a 300 pot he built 150 of is +150, a seat that
+                 folded is negative by its dead money, and a seat that never
+                 invested is 0. The map always sums to zero. Note that
+                 `result.pot` on a hand won by a fold still contains the
+                 winner's own uncalled bet, which is why differencing it was
+                 never the right way to get this.
+    result.events — { [seat]: event } for the seats a hand-end face trigger
+                 applies to: badBeat | wonBig | bluffCaught. Same vocabulary as
+                 DECISION's `event`; these three are only knowable once the
+                 hand is over.
+
+  DECISION additions (SERVER-3):
+    event      — the per-seat face trigger for this moment, or null. One of
+                 dealtStrong (his first look at a premium holding),
+                 raisedAgainst (somebody put in a raise he has to answer), or
+                 allIn (the action committed his stack). Present on the
+                 sanitized payload as well as the full one — a face is as
+                 public as the action that caused it. The remaining three
+                 triggers ride HAND_RESULT, above.
+
+Example — the table thread for one session:
+  curl "https://agenticpoker.app/api/agents/AGENT/thread?userId=U&session=SESSION"
+  # → {"sessionId":"s_1a2b...","count":4,"lines":[
+  #      {"id":91,"sessionId":"s_1a2b...","tableId":"t-7","ts":1757000000000,
+  #       "kind":"table","who":"TABLE","text":"Granite raised to 240"},
+  #      {"kind":"him","who":"HIM","text":"He has shown that sizing twice."},
+  #      {"kind":"opponent","who":"Granite","text":"Again?"},
+  #      {"kind":"you","who":"YOU","text":"Careful with him."}]}
+  #
+  # One session's conversation, oldest first, with the SERVER's timestamps on
+  # it — two devices watching the same agent never have to reconcile two
+  # orderings. `kind` is the closed four-way a client renders from (`who` is a
+  # label and may be any display name, so a player who renames himself TABLE
+  # cannot borrow the room's voice). `session` is optional: leave it off and
+  # the agent's most recent stay is answered, which is what a reconnect has.
+  # `him` and `you` lines are owner-gated the same way DECISION reasoning is —
+  # a non-owner gets the room's lines and what was said out loud, and nothing
+  # else.
+
 ## Autonomous play
 
 Deployed agents play on the server. POST /api/agents/:agentId/deploy stands up a
 table, seats the agent against a complementary House opponent, and starts a hand
 loop immediately — no WebSocket connection is required at any point. Hands deal
-themselves; watching is passive observation. A session runs until the agent busts,
-reaches the per-session hand cap, or its owner sends SIT_OUT. The platform caps how
+themselves; watching is passive observation. A session runs until one of the four
+things in the SESSION STOP RULE happens — his pocket busts, the allowance behind
+him is spent, STAMINA fatigue reaches 'worn' (he sits himself at the bar), or the
+owner calls him in — or until the per-session hand cap or the idle reaper stops
+it. Whichever it is, the server emits SESSION_END naming the reason. The platform caps how
 many autonomous tables run at once; deploy returns 503 with the cap named when the
 floor is full.
 
 Environment knobs: HAND_PAUSE_MS (pause between hands, default 8000),
 SESSION_MAX_HANDS (hands per deployment, default 100), MAX_CONCURRENT_TABLES
-(default 10), FLOOR_PUSH_INTERVAL_MS (floor throttle, default 1000).
+(default 10), FLOOR_PUSH_INTERVAL_MS (floor throttle, default 1000),
+THINK_MIN_MS / THINK_SPREAD_MS (the acting seat's clock, defaults 800 / 1700 —
+this is the deadline GAME_STATE.actionTimer reports).
 
 ## Agent identity
 

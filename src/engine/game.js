@@ -442,11 +442,13 @@ export class Game {
   }
 
   _awardUncontested(winner) {
+    const seat = this.seats.indexOf(winner);
     winner.stack += this.pot;
     this.result = {
       type: 'uncontested',
       pot: this.pot,
-      winners: [{ seat: this.seats.indexOf(winner), playerId: winner.playerId, amount: this.pot }],
+      winners: [{ seat, playerId: winner.playerId, amount: this.pot }],
+      deltas: this._deltas(new Map([[seat, this.pot]])),
     };
     this.pot = 0;
     this.toAct = null;
@@ -553,11 +555,33 @@ export class Game {
       pot: totalPot,
       winners: [...payoutsBySeat.values()],
       showdown: allContestants.map((c) => ({ seat: c.seat, holeCards: c.holeCards })),
+      deltas: this._deltas(new Map([...payoutsBySeat.values()].map((p) => [p.seat, p.amount]))),
     };
     this.pot = 0;
     this.toAct = null;
     this.street = Streets.COMPLETE;
     this._rotateButton();
+  }
+
+  // SERVER-3: what the hand did to each seat, in chips.
+  //
+  // `deltas[seat]` is NET: what the seat took out of the pot minus everything
+  // it put in. The winner of a 300 pot he contributed 150 to is +150, not
+  // +300 — which is the number the ceremony and the session P&L both want,
+  // and the number a client used to have to reconstruct by differencing two
+  // stack snapshots across a broadcast it may have missed.
+  //
+  // Every seat in the hand has an entry, including the ones that folded
+  // (negative, their dead money) and the ones that never put a chip in (0).
+  // It is built from contribTotal, which is post-refund by the time a result
+  // exists, so it sums to exactly zero: a hand moves chips, it never makes
+  // them. game.test.js asserts that on every shape the engine can produce.
+  _deltas(wonBySeat) {
+    const deltas = {};
+    for (let i = 0; i < this.seats.length; i++) {
+      deltas[i] = (wonBySeat.get(i) ?? 0) - this.seats[i].contribTotal;
+    }
+    return deltas;
   }
 
   _rotateButton() {

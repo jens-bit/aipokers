@@ -154,12 +154,26 @@ export function ownerDriftCause(toneScore) {
  * How hard events land, both directions, from the same tilt-resistance trait
  * the ordinal machine used. A stoic takes less heat from a beat AND sheds it
  * faster; a volatile agent takes the full weight and holds it.
+ *
+ * SERVER-3 — `fatigue`: a WORN agent tilts faster. STAMINA's own model
+ * (attributes.js) only erodes FOCUS and DISCIPLINE and deliberately leaves
+ * COMPOSURE alone — fatigue is not a lower ceiling on the trait — but the
+ * thing a tired man at a table actually does is take a beat harder than the
+ * same man an hour earlier. That is a statement about how heat LANDS, not
+ * about who he is, so it belongs here and not in the attribute.
+ *
+ * Heating only. Cooling is untouched: a worn agent is quicker to boil, not
+ * slower to settle, and scaling both would just have made him a different
+ * person rather than a tired one.
  */
-export function heatScales(profile, { composure = null } = {}) {
+export const WORN_HEATING = 1.5;
+
+export function heatScales(profile, { composure = null, fatigue = null } = {}) {
   const r = tiltResistance(profile, { composure }) / 100;
+  const worn = fatigue === 'worn' ? WORN_HEATING : 1;
   return {
-    heating: 1 - 0.75 * r,      // 1.00 at resistance 0 → 0.25 at 100
-    cooling: 0.5 + 0.75 * r,    // 0.50 at resistance 0 → 1.25 at 100
+    heating: (1 - 0.75 * r) * worn,   // 1.00 at resistance 0 → 0.25 at 100
+    cooling: 0.5 + 0.75 * r,          // 0.50 at resistance 0 → 1.25 at 100
   };
 }
 
@@ -279,11 +293,13 @@ export function ensureMood(agent) {
 // and resistance scales HOW HARD — which is both what a person experiences and
 // the only version that gives heat anything to mean. The trait law is
 // unchanged and still tested: a stoic takes less from the same beat.
-export function applyEvent(currentMood, event, profile, { context = {}, composure = null } = {}) {
+export function applyEvent(currentMood, event, profile, { context = {}, composure = null, fatigue = null } = {}) {
   const weight = HEAT_EVENTS[event];
   if (weight === undefined) return currentMood;
 
-  const scales = heatScales(profile, { composure });
+  // SERVER-3: `fatigue` is the seat's effective STAMINA stage. Worn heats
+  // faster; see heatScales.
+  const scales = heatScales(profile, { composure, fatigue });
   const delta = weight >= 0 ? weight * scales.heating : weight * scales.cooling;
 
   const before = Number.isFinite(currentMood?.heat) ? currentMood.heat : heatForState(currentMood?.state);

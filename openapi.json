@@ -360,11 +360,30 @@
         }
       }
     },
+    "/api/agents/{agentId}/thread": {
+      "get": {
+        "summary": "The table thread for one session",
+        "operationId": "getThread",
+        "description": "SERVER-3. Everything that was said during one agent's STAY at a table, oldest first, with the server's own timestamps on it — the four kinds of line the watch screen's history sheet renders. Stored as it happens, so a reconnect (or a look back an hour later) gets the record back instead of whatever the socket happened to be awake for. `session` is optional: a client that has just reconnected knows which AGENT it was watching and not which stay, so leaving it off answers with the agent's most recent session. The same id rides the WATCHING message and every GAME_STATE snapshot as `sessionId`, and is what SESSION_END is keyed on. Ownership: `him` (his reasoning) and `you` (the owner's whispers) carry the private half the DECISION broadcast already withholds from everyone but the owner's spectator, so a caller who has not proved ownership gets the room's lines and what was said out loud and nothing else — the thread is filtered rather than refused, because a spectator at a real table can hear the table. Bounded: the most recent 500 lines of a session are kept.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "query", "required": false, "schema": { "type": "string", "default": "anon" } },
+          { "name": "session", "in": "query", "required": false, "description": "The stay to read. Omit for the agent's most recent one.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session's lines, oldest first. An unknown session is an empty thread, not an error.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ThreadResponse" } } }
+          },
+          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/agents/{agentId}/finish": {
       "post": {
         "summary": "Mark agent idle after a session ends",
         "operationId": "finishAgent",
-        "description": "Sets status to idle and clears activeTableId. Called when the WebSocket table session closes.",
+        "description": "Sets status to idle and clears activeTableId. Called when the WebSocket table session closes. SERVER-3: this also ends the SESSION — it emits SESSION_END over the WebSocket with reason `calledIn`, because this route exists precisely because the owner decided the session was over. The numbers on that message (hands, net, biggestPot, duration) are read off the live table when there still is one.",
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
@@ -647,7 +666,28 @@
           "content": { "type": "string" }
         }
       },
-      "ErrorResponse": {
+      "ThreadLine": {
+      "type": "object",
+      "description": "SERVER-3. One line of a session's table thread, as the watch screen's history sheet renders it.",
+      "properties": {
+        "id": { "type": "integer", "description": "Monotonic; also the order the sheet scrolls in." },
+        "sessionId": { "type": "string", "description": "The stay this line belongs to." },
+        "tableId": { "type": "string", "nullable": true },
+        "ts": { "type": "integer", "description": "Server epoch ms. Never the client's clock — two devices watching the same agent must not have to reconcile two orderings of one conversation." },
+        "kind": { "type": "string", "enum": ["table", "him", "you", "opponent"], "description": "The closed four-way a client renders from. `table` is the room, `him` is the agent in his own voice, `you` is the owner whispering at his seat, `opponent` is another seat talking. `him` and `you` are owner-gated." },
+        "who": { "type": "string", "description": "The label to print: TABLE / HIM / YOU, or an opponent's display name. Free text, which is why `kind` and not this is what a client switches on." },
+        "text": { "type": "string", "maxLength": 280 }
+      }
+    },
+    "ThreadResponse": {
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "nullable": true, "description": "The session actually answered. Null when the agent has no thread at all." },
+        "lines": { "type": "array", "items": { "$ref": "#/components/schemas/ThreadLine" } },
+        "count": { "type": "integer" }
+      }
+    },
+    "ErrorResponse": {
         "type": "object",
         "properties": {
           "error": { "type": "string" }

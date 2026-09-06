@@ -35,11 +35,47 @@ export const ServerMsg = Object.freeze({
   // resting { state: 'neutral', heat: 30 }. Mood is public: it is the one
   // thing about an opponent a person at a real table can see. A client that
   // ignores the field sees exactly what it saw before it existed.
+  // SERVER-3 (additive): two things ride every STATE.
+  //
+  //   actionTimer — the acting seat's deadline, so the client can draw the
+  //     hero's ring instead of guessing at one.
+  //     { seat, deadlineTs, totalMs } — deadlineTs is server epoch ms and
+  //     totalMs is the full length of that seat's clock, which is what a ring
+  //     needs to know how far round to start. null when nobody is to act, and
+  //     null for a HUMAN seat: there is no server-side action timer for
+  //     humans yet (Fredrik's seat-lifecycle queue), and inventing a deadline
+  //     the server will not enforce is worse than drawing no ring.
+  //   sessionId — the id of the stay the seat this snapshot is filtered for
+  //     is on, or null for a seat with no agent behind it. It is the key
+  //     GET /api/agents/:id/thread and SESSION_END are filed under.
   STATE: 'state',           // { type, state }   (filtered for this seat)
   HAND_START: 'hand_start', // { type, handNumber }
+  // SERVER-3 (additive): `result` now carries two more fields.
+  //
+  //   deltas — { [seat]: net } for every seat in the hand. NET: what the seat
+  //     took out of the pot minus everything it put in, so the winner of a
+  //     300 pot he built 150 of is +150. Folded seats are negative, seats that
+  //     never invested are 0, and the whole map sums to zero. The client used
+  //     to difference two stack snapshots to get this and got it wrong
+  //     whenever it missed a broadcast.
+  //   events — { [seat]: event } for the seats a hand-end face trigger applies
+  //     to: badBeat | wonBig | bluffCaught. Same vocabulary as DECISION's
+  //     `event` below; these three are the ones that are only knowable once
+  //     the hand is over, so they ride the result rather than a decision. A
+  //     seat with no trigger is absent.
   HAND_RESULT: 'hand_result', // { type, result }
   TABLE_CLOSED: 'table_closed', // { type, reason }
   CHAT: 'chat',             // { type, seat, displayName, text, isAI }
+  // SERVER-3 (additive): DECISION carries `event` — the per-seat face trigger,
+  // for the moment the client draws on the acting seat's ghost. One of
+  //   dealtStrong   he looked down at a premium holding (first decision only)
+  //   raisedAgainst somebody put in a raise he now has to answer
+  //   allIn         the action he just took committed his stack
+  // or null when none applies. The other three in the vocabulary —
+  // badBeat | wonBig | bluffCaught — are only knowable at the end of the hand
+  // and ride HAND_RESULT's `result.events` instead; see there. The field is
+  // on the sanitized payload as well as the full one: a face is as public as
+  // the action that caused it, which is the same line SEAT-1a's mood draws.
   DECISION: 'decision',     // { type, seat, action: { type, amount? }, reasoning }
   // MST-1 (additive): one seat left a table that is still running. Sent to
   // everyone still at the table; the departing seat's own sockets get
@@ -100,6 +136,32 @@ export const ServerMsg = Object.freeze({
   // client that ignores this message sees exactly what it saw before it
   // existed.
   FLOOR_ROOMS: 'floor_rooms', // { type, rooms }
+  // SERVER-3 (additive): one agent's stay at a table is over. Sent to every
+  // socket at the table (his owner's spectator is the one that runs the
+  // ceremony with it) and, separately, to that owner's floor subscribers — the
+  // two are different sockets in the client, so neither sees it twice; a
+  // client that opened one socket for both can key on `sessionId`, which is
+  // stable and unique per stay.
+  //
+  // THE CEREMONY IS A SESSION MOMENT, NOT A HAND MOMENT. It used to be
+  // inferred from TABLE_CLOSED plus a poll of the agent record, which fired it
+  // on tables closing for reasons that were not his session ending and left it
+  // without the numbers it wanted to print. This is the message that fires it.
+  //
+  // `reason` is one of
+  //   bust       his stack reached zero at the felt
+  //   allowance  the budget behind him is spent — he cannot buy in again
+  //   worn       STAMINA fatigue reached 'worn'; he sat himself at the bar
+  //   calledIn   the owner stopped him (SIT_OUT, POST /finish, a wallet cut)
+  //   stopped    everything else: the hand cap, the idle reaper, the room
+  //              closing under him
+  // `hands` counts the hands HE was dealt into, not the table's total; `net`
+  // is signed chips (final stack minus his buy-in); `biggestPot` is the
+  // largest pot he had money in this session; `duration` is milliseconds from
+  // sitting down to standing up. A client that ignores this message sees
+  // exactly what it saw before it existed.
+  SESSION_END: 'session_end', // { type, sessionId, agentId, tableId, reason,
+                              //   hands, net, biggestPot, duration, endedAt }
   ERROR: 'error',           // { type, message }
   PONG: 'pong',
 });
