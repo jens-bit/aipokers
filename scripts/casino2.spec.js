@@ -20,8 +20,9 @@
 //      wrap at 390 — a claim about a real font at a real width
 //   4  YOUR TABLE is a carousel with one page per man, and the page is exactly
 //      as wide as the track — the whole of a scroll-snap carousel is layout
-//   5  a door takes you INTO the room, full width on the desk with the board as
-//      a right column, and the building is gone behind it
+//   5  a door takes you INTO the room — wave 58's floor from above, scaled from
+//      its 390-unit plan to whatever width it is given, full width on the desk
+//      with the board as a right column, and the building gone behind it
 //
 // No ANTHROPIC_API_KEY here either (the workflow's server starts without one),
 // so every agent decision is the deterministic check/fold fallback: the hands
@@ -206,9 +207,26 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
         const view = page.getByTestId('floor-view');
         await expect(view).toBeVisible({ timeout: 20_000 });
-        // Drawn as felts, with the board by the stairs along for the walk.
-        await expect(view.locator('.csn-felt').first()).toBeVisible({ timeout: 20_000 });
-        await expect(view.getByText('BY THE STAIRS')).toBeVisible();
+
+        // Wave 58: it is a ROOM, drawn from above — felts as ellipses with
+        // bodies on their rims, the bar along the bottom wall, the board
+        // bolted beside the stairs — and the real board came along for the
+        // walk.
+        const floor = view.getByTestId('the-floor');
+        await expect(floor).toBeVisible({ timeout: 20_000 });
+        await expect(floor.locator('.csn-felt58').first()).toBeVisible({ timeout: 20_000 });
+        await expect(floor.getByText('THE BAR')).toBeVisible();
+        await expect(floor.getByText('THE BOARD')).toBeVisible();
+
+        // The plan is drawn in 390 units and SCALED to the room's width. On the
+        // desk that is a wide room and on the phone it is not, and either way
+        // the felts have to be inside it — a scale bug puts them off the edge,
+        // which is the sort of thing only a laid-out page can see.
+        const floorBox = await floor.boundingBox();
+        const feltBox = await floor.locator('.csn-felt58').first().boundingBox();
+        expect(feltBox.x).toBeGreaterThanOrEqual(floorBox.x - 1);
+        expect(feltBox.x + feltBox.width).toBeLessThanOrEqual(floorBox.x + floorBox.width + 1);
+        expect(feltBox.y + feltBox.height).toBeLessThanOrEqual(floorBox.y + floorBox.height + 1);
 
         // The building is gone: a room is a destination, not a sheet over one.
         await expect(page.locator('.csn-room-door')).toHaveCount(0);

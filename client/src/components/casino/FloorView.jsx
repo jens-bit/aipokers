@@ -43,9 +43,19 @@
 // about. This is not a sheet: it is a destination, it replaces the building
 // rather than sitting over it, and it brings the board with it so the ticker
 // is not lost on the way in.
+//
+// WAVE 58 REDREW THE ROOM ITSELF. The first pass at this laid the felts out as
+// a grid of cards; mood-floor58.jsx landed a week of thinking about exactly
+// this screen and its verdict on that shape is in its own header — "a floor you
+// have to read is a list". The room is TheFloor.jsx now: a plan seen from
+// above, felts as ellipses with tiny bodies on their rims, the bar along the
+// bottom wall, the board bolted beside the stairs. This file is the screen
+// around it — the way in, the way out, the fallback, and the real board.
+
+import { useEffect, useRef, useState } from 'react';
 
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
-import { TableFelt } from './TableFelt.jsx';
+import { TheFloor, FLOOR_CAP, FLOOR_W, FLOOR_H } from './TheFloor.jsx';
 import { money } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
 import { M_TEAL, M_GOLD } from '../floor/atoms.jsx';
@@ -182,20 +192,11 @@ export function feltsForRoom(felts = [], agents = []) {
   );
 }
 
-/** The stairs. The one fixture that says the building has floors. */
-function Stairs() {
-  return (
-    <div aria-hidden className="csn-floor__stairs">
-      {[10, 16, 22, 28, 34, 40].map((h, i) => (
-        <span key={h} style={{
-          height: h,
-          background: `linear-gradient(180deg, rgba(205,179,128,${0.05 + i * 0.02}) 0%, rgba(255,255,255,0.02) 100%)`,
-        }} />
-      ))}
-      <b>BY THE STAIRS</b>
-    </div>
-  );
-}
+// The stairs used to be drawn here, under the room and again above the desk's
+// board column. Wave 58 puts them INSIDE the room, with the board bolted beside
+// them — which is the whole point of drawing either: it says WHERE the board is
+// rather than just listing what is on it. Saying it twice on one screen made
+// the second one furniture about furniture.
 
 /**
  * THE FLOOR — one room, seen from above.
@@ -221,8 +222,51 @@ export function FloorView({
   const ranked = feltsForRoom(felts, agents);
   const rows = ranked.length === 0 ? liveTablesIn(room, { agents, events }) : [];
   const unnamed = unnamedCount(room, ranked.length || rows.length);
+  // The room holds six. A busier one says how many more rather than drawing
+  // them smaller until none of them is legible — the ref's law, and the
+  // difference between a room and a map of the building.
+  const beyond = Math.max(0, ranked.length - FLOOR_CAP);
 
-  const stairs = <Stairs />;
+  // Your men in this room, by the felt they are at — and the ones who are in
+  // here at no felt, who are the only bodies the bar has any right to.
+  const mineAt = {};
+  const standing = [];
+  for (const agent of agents) {
+    const id = tableIdOf(agent);
+    if (id && ranked.some((f) => f.tableId === id)) mineAt[id] = agent;
+    else standing.push(agent);
+  }
+
+  // The plan is drawn in 390 units and scaled, so the room needs a width. It
+  // is measured rather than assumed: the desk's room column is whatever the
+  // stage leaves it, and a hard-coded 390 in the middle of a 1,000px column is
+  // the phone's layout with air poured down one side.
+  //
+  // Measured off a wrapper with NO PADDING of its own. The first version
+  // measured the scrolling column, whose clientWidth includes its 14px gutters
+  // — so at 390 it reported 390, the plan scaled by 1.0 into a 362px box, and
+  // the stairs and the bar hung off the right edge of the phone.
+  const roomRef = useRef(null);
+  const [floorW, setFloorW] = useState(FLOOR_W);
+  useEffect(() => {
+    const el = roomRef.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const w = el.clientWidth;
+      // Capped, and not at the column's width. The plan is drawn at 390 and a
+      // 1,000px column would blow it up to 2.5x — the felts become lakes, the
+      // bodies stay specks on them, and the room reads as a magnified phone,
+      // which is exactly what FIX-6 fixed about the desk casino. 520 is about
+      // a third bigger than drawn: enough that the desk is using its width,
+      // not so much that the room stops being a room.
+      if (w > 0) setFloorW(Math.min(520, w));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div
@@ -253,25 +297,16 @@ export function FloorView({
       <div className="csn-floor__body">
         <div className="csn-floor__room">
           {ranked.length > 0 ? (
-            <div className="csn-floor__felts">
-              {ranked.map((felt) => {
-                const agent = agents.find((a) => tableIdOf(a) === felt.tableId) ?? null;
-                return (
-                  <TableFelt
-                    key={felt.tableId}
-                    felt={felt}
-                    agentId={agent?.id ?? null}
-                    accent={M_TEAL}
-                    scale={0.62}
-                    live={false}
-                    label={agent ? pillName(agent.name).toUpperCase() : null}
-                    onWatch={onWatch}
-                    ariaLabel={agent
-                      ? `Watch ${agent.name} at this table`
-                      : `Watch table ${felt.tableId}`}
-                  />
-                );
-              })}
+            <div className="csn-floor__plan" ref={roomRef}>
+              <TheFloor
+                felts={ranked}
+                mineAt={mineAt}
+                standing={standing}
+                boardLines={events.length}
+                onWatch={onWatch}
+                width={floorW}
+                height={floorW * (FLOOR_H / FLOOR_W)}
+              />
             </div>
           ) : rows.length > 0 ? (
             <ul className="csn-floor__list">
@@ -285,23 +320,25 @@ export function FloorView({
             </p>
           )}
 
+          {beyond > 0 && (
+            <p className="csn-floor__unnamed">
+              {`${beyond} more table${beyond === 1 ? '' : 's'} running in here than the room has space to draw.`}
+            </p>
+          )}
+
           {unnamed > 0 && (
             <p className="csn-floor__unnamed">
               {`${unnamed} more table${unnamed === 1 ? '' : 's'} in here the floor has not named.`}
             </p>
           )}
 
-          {!desktop && stairs}
         </div>
 
         {/* The board by the stairs. On the phone it is under the room, where
             the stairs are; on the desk it is the right column, which is the
             same place — you pass it on the way out either way. */}
         {board && (
-          <div className="csn-floor__board">
-            {desktop && stairs}
-            {board}
-          </div>
+          <div className="csn-floor__board">{board}</div>
         )}
       </div>
     </div>

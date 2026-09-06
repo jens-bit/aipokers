@@ -113,7 +113,36 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         onClose={() => {}}
       />,
     );
-    expect(container.querySelectorAll('.csn-felt')).toHaveLength(2);
+    expect(container.querySelectorAll('.csn-felt58')).toHaveLength(2);
+  });
+
+  it('and it is a ROOM, not a list of its tables', () => {
+    const { container } = render(
+      <FloorView room={room()} felts={[felt()]} onClose={() => {}} />,
+    );
+    // The furniture is the point: the bar is why "not playing" has somewhere to
+    // be, and the stairs are why the building has floors.
+    expect(screen.getByTestId('the-floor')).toBeInTheDocument();
+    expect(screen.getByText('THE BAR')).toBeInTheDocument();
+    expect(screen.getByText('THE BOARD')).toBeInTheDocument();
+    // Bodies on the rim, at floor scale.
+    expect(container.querySelectorAll('.csn-tiny').length).toBeGreaterThan(0);
+  });
+
+  it('the only text on a felt is its stake', () => {
+    render(<FloorView room={room()} felts={[felt({ blinds: '10/20' })]} onClose={() => {}} />);
+    const drawn = document.querySelector('.csn-felt58');
+    expect(drawn.textContent).toBe('10/20');
+  });
+
+  it('a busy room says how many more it holds rather than shrinking them', () => {
+    const many = Array.from({ length: 9 }).map((_, i) => felt({ tableId: `t${i}` }));
+    const { container } = render(
+      <FloorView room={room({ tables: 9 })} felts={many} onClose={() => {}} />,
+    );
+    expect(container.querySelectorAll('.csn-felt58')).toHaveLength(6);
+    expect(screen.getByText(/3 more tables running in here than the room has space to draw/))
+      .toBeInTheDocument();
   });
 
   it('names the room, the stakes and what is in it', () => {
@@ -131,7 +160,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         onClose={() => {}}
       />,
     );
-    const drawn = [...container.querySelectorAll('.csn-felt')].map((el) => el.dataset.table);
+    const drawn = [...container.querySelectorAll('.csn-felt58')].map((el) => el.dataset.table);
     expect(drawn[0]).toBe('his');
   });
 
@@ -170,9 +199,39 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         onClose={() => {}}
       />,
     );
-    // His two are backs here, not face up: that happens at HIS table, in the
-    // carousel, off his own liveGame. The felt payload carries nobody's cards.
-    expect(container.querySelector('[data-hole]').dataset.hole).toBe('down');
+    // Not a card is drawn in here — his or anybody's. A hand happens at a
+    // table; a room is where the tables are. Face-up cards belong to HIS felt,
+    // in the carousel, off his own liveGame.
+    expect(container.querySelector('[data-hole]')).toBeNull();
+    expect(container.querySelector('[data-board]')).toBeNull();
+  });
+
+  it('and yours is the one body you can find without looking', () => {
+    const { container } = render(
+      <FloorView
+        room={room()}
+        felts={[myFelt({ tableId: 'his' })]}
+        agents={[agent('agent_grinder', 'The Grinder', { activeTableId: 'his' })]}
+        onClose={() => {}}
+      />,
+    );
+    expect(container.querySelector('.csn-felt58[data-mine="true"]')).not.toBeNull();
+    expect(container.querySelectorAll('.csn-tiny[data-mine="true"]')).toHaveLength(1);
+  });
+
+  it('a man in the room at no felt is standing at the bar', () => {
+    render(
+      <FloorView
+        room={room()}
+        felts={[felt({ tableId: 'someone-elses' })]}
+        agents={[agent('a1', 'The Clock', { activeTableId: null })]}
+        onClose={() => {}}
+      />,
+    );
+    // The ref stands four anonymous bodies at the bar; there is no "who is at
+    // the bar" on the wire, so the only bodies there are the ones we know
+    // about — and an agent in this room at no felt is a man looking for a seat.
+    expect(document.querySelector('.csn-floor58__standing')).not.toBeNull();
   });
 
   it('the board by the stairs comes into the room with you', () => {
@@ -185,7 +244,8 @@ describe('CASINO-2 job 5 · the room, from above', () => {
       />,
     );
     expect(screen.getByTestId('the-board')).toBeInTheDocument();
-    expect(screen.getByText('BY THE STAIRS')).toBeInTheDocument();
+    // And the room says where that board hangs: on the wall by the stairs.
+    expect(screen.getByText('THE BOARD')).toBeInTheDocument();
   });
 
   it('leaves by the way it came in', async () => {

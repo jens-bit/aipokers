@@ -576,15 +576,163 @@
 }
 .csn-floor__room::-webkit-scrollbar { display: none; }
 
-/* The felts on the floor. Two across at 390, which is the width at which a
-   six-max ring is still a ring rather than a smudge; the ROOM decides how many
-   there are and the grid does not pretend otherwise. */
-.csn-floor__felts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
+/* ── wave 58 · the floor as a room ──────────────────────────────────────────
+ *
+ * The plan is drawn in the ref's own 390-unit space and scaled to whatever
+ * width it is given, so the walkways between the felts stay walkways on a
+ * phone and on a desk. Everything inside is positioned in those units. */
+.csn-floor58 {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 40%, #17201E 0%, #101715 62%, #0B100F 100%);
 }
-.csn-floor__felts > .csn-felt { height: 132px; }
+
+.csn-floor58__room {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+/* The carpet, running away from the door. */
+.csn-floor58__carpet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+/* A felt: an ellipse with bodies on its rim. Never a card. */
+.csn-felt58 {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.csn-felt58__heat {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  animation: casino-shimmer 2.4s ease-in-out infinite;
+}
+
+/* Yours. The rim is outside the cloth so it reads as a light over the table
+   rather than as a border on it. */
+.csn-felt58__ring {
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.csn-felt58__cloth {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.5);
+}
+
+.csn-felt58__pot {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.csn-felt58__seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+/* The one label a felt is allowed. */
+.csn-felt58__stake {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* The bar along the bottom wall. It exists so that "not playing" has somewhere
+   to be — which is the only reason to draw a bar in a room about tables. */
+.csn-floor58__bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  height: 54px;
+}
+
+.csn-floor58__counter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(180deg, #2A2118 0%, #1A140E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.csn-floor58__standing {
+  position: absolute;
+  left: 18px;
+  bottom: 24px;
+  display: flex;
+  gap: 16px;
+}
+
+.csn-floor58__barlabel {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+}
+
+/* The stairs, and the board bolted beside them. A picture of the board, not
+   the board: what it says is WHERE the board is. */
+.csn-floor58__stairs {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.csn-floor58__treads {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+}
+.csn-floor58__treads > span {
+  width: 5px;
+  border-radius: 2px 2px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.csn-floor58__plaque {
+  width: 58px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
+  padding: 4px 5px;
+  display: block;
+}
+.csn-floor58__rule {
+  display: block;
+  margin-top: 3px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .csn-tiny,
+  .csn-felt58__heat { animation: none !important; }
+}
 
 .csn-floor__list { list-style: none; margin: 0; padding: 0; }
 
@@ -602,40 +750,6 @@
   margin: 4px 0 0;
   padding-top: 9px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-/* The stairs out. Six treads at the width they were drawn at, never stretched:
-   six across 358px read as stairs and six across 890px read as six grey
-   blocks. */
-.csn-floor__stairs {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 40px;
-  max-width: 358px;
-  padding: 0 2px;
-}
-
-/* On the phone the stairs are the LAST thing in the room: you look at the
-   felts and then you find the way out, so they sit at the bottom however few
-   tables there are. In the desk's board column they are a header over the
-   board and must not push it anywhere — margin-top:auto there ate the whole
-   column and dropped the board to the floor. */
-.csn-floor__room > .csn-floor__stairs { margin-top: auto; }
-.csn-floor__stairs > span {
-  flex: 1;
-  border-radius: 3px 3px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-.csn-floor__stairs > b {
-  font-family: "Oswald", "Helvetica Neue", sans-serif;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: #6B6B6B;
-  margin: 0 0 3px 8px;
-  white-space: nowrap;
 }
 
 .csn-floor__board {
@@ -678,3 +792,16 @@
   height: 100%;
   min-height: 0;
 }
+
+/* The box the plan is measured against. It has no padding of its own on
+   purpose: the scrolling column above it has 14px gutters, and clientWidth
+   includes them — measuring there scaled the 390-unit plan by 1.0 into a 362px
+   box and hung the stairs and the bar off the right edge of the phone. */
+.csn-floor__plan {
+  width: 100%;
+  min-width: 0;
+}
+
+/* On the desk the plan is capped well under the column's width, so it is
+   centred in what is left rather than pinned to one edge of it. */
+.csn-floor--desk .csn-floor__plan { display: flex; justify-content: center; }

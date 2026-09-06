@@ -453,12 +453,13 @@ describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
     const view = await screen.findByTestId('floor-view');
     expect(view.dataset.room).toBe('floor');
     expect(within(view).getByText('the floor')).toBeInTheDocument();
-    // The room drawn as felts, not listed as rows.
-    expect(view.querySelectorAll('.csn-felt')).toHaveLength(1);
-    // The pot is on the felt itself. It is also on the board that came into the
-    // room with you, which is the point of bringing the board — so this is
-    // scoped to the felt rather than to the room.
-    expect(within(view.querySelector('.csn-felt')).getByText('$4,180')).toBeInTheDocument();
+    // The room drawn as a ROOM — felts on a floor with bodies on their rims,
+    // the bar along the wall — and not as a list of its tables.
+    expect(view.querySelectorAll('.csn-felt58')).toHaveLength(1);
+    expect(within(view).getByText('THE BAR')).toBeInTheDocument();
+    // The money is on the board that came into the room with you, which is the
+    // point of bringing the board: the felts themselves carry only their stake.
+    expect(within(view).getByText('$4,180')).toBeInTheDocument();
   });
 
   it('and the building is gone while you are in it — a room is not a sheet', async () => {
