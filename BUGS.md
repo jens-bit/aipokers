@@ -1,5 +1,5 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
+Last updated: 2026-09-06 (TEST) — 7 open, 30 resolved
 
 
 ---
@@ -21,17 +21,6 @@ Last updated: 2026-09-06 (CI) — 8 open, 29 resolved
 **What:** Fails inside a full `npm run test:all`, passes on its own and on a re-run. Seen once in this session's integration runs; the suite passed 14/14 immediately afterwards, and three consecutive `npm test` runs were clean.
 **Found by:** the WATCH report, and independently by the integrator during the COST-1 merge.
 **Fix:** unknown. `scripts/stress-suites.js` (BUG-34) is the tool — run this suite under it rather than guessing. Note BUG-34 ruled out the obvious shared-resource causes, so a timing assumption inside the test is the likelier answer.
-
----
-
-### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three
-**Severity:** Medium (the e2e gate is the one before a merge to main, so a one-in-three flake is a coin toss on every merge)
-**Where:** `scripts/verify-watch-v2.js`
-**What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
-**Found by:** the WATCH report.
-**Also measured by SERVER-5,** which had filed the same flake as a separate BUG-34 before this merge and is folded in here: 1 failure in 3 runs on `feature/server-5`, and **2 failures in 4 runs on `origin/main` (379f453) in a clean worktree** — so it predates any one branch. The assertion is that at least one THREAD_LINE pushed during the watched hands has `kind: 'him'`; a `him` line is only written when a DECISION carries non-empty `reasoning` (table.js `_broadcastDecision`), and with no key the decisions come from the compiled policy, so whether the window contains a spot that produces reasoning is down to the deck.
-**Not to be fixed by loosening the assertion.** The rule it encodes is right and WATCH-9 put it there deliberately: the owner's spectator is entitled to his reasoning, and a push channel that never carries it is broken. Testing law 5 applies — make the WINDOW deterministic instead, playing until a `him` line arrives or a bounded number of hands have gone by, and fail on the bound.
-**Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
 
 ---
 
@@ -108,6 +97,17 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three — RESOLVED 2026-09-06 (TEST)
+Not a race in the product: a race in the suite. The five WATCH-9 push checks read `of(ServerMsg.THREAD_LINE)` — a snapshot of the socket buffer taken at whatever instant execution reached that line. Under load the hero's session had played about five hands by then and the HIM line, which is written per DECISION rather than per hand, had not landed yet. The wire worked; the sample was early.
+
+Fixed by waiting rather than sampling, with the file's own `waitFor`, the way the WATCHING check at the top of the same section already did. A HIM line is the right thing to hold for because it is the last of the four kinds to appear — the room talks before he has decided anything — so once it is in, all five checks read a settled buffer. No assertion was weakened; the same five still run, on a buffer that is allowed to fill.
+
+No model needed: every decision carrying reasoning writes a HIM line (`table.js`, `_threadTo` on `ThreadKind.HIM`), and the no-key path returns "no API key configured — defaulting to a safe action" as its reasoning, so the deterministic fallback already exercises this wire. Nothing in the fallback had to change.
+
+**Proof:** 10 consecutive runs green with a full `npm run test:e2e` running concurrently, every one reaching ALL CHECKS PASSED. In a first attempt under two concurrent suites the assertion never failed either — the three reds there were the machine killing processes outright (truncated logs, no assertion output, and the two load generators died at discovery as well), which is BUG-34's territory, not this one.
+
+---
 
 ### BUG-38 — `verify-home-routes.js` points at a script that does not exist — RESOLVED 2026-09-06 (CI)
 Fixed while chasing the CI red it sat next to. Three scripts said ``run `npm run build` first`` and there is no root `build` script; all three now say `build:client`. The CI failure itself was the other half of the same file: verify-home-routes.js EXITS 1 on a missing dist where verify-cache-headers and verify-deeplink-routes skip, so it was red on CI (which runs `npm test` before any client build) and green on any laptop with a dist lying around. It is now in NEEDS_CLIENT_DIST with the other two.
