@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { GlassLabel } from '../system/Glass.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
 
 const WHO_BY_KIND = { him: 'HIM', you: 'YOU', table: 'TABLE' };
 
@@ -138,7 +139,7 @@ export function HomeThread({
             <span />
           </button>
           <div className="home-thread__head">
-            <GlassLabel>{String(agent.name || '').split(' ')[0]}</GlassLabel>
+            <GlassLabel>{pillName(agent.name)}</GlassLabel>
             <span className="home-thread__spacer" />
             <span className="home-thread__state">{loading ? 'LOADING' : 'AT HOME'}</span>
           </div>
@@ -159,7 +160,7 @@ export function HomeThread({
           data-testid="home-thread-line"
           aria-expanded={open}
         >
-          <span className="home-thread__who">{String(agent.name || '').split(' ')[0]}</span>
+          <span className="home-thread__who">{pillName(agent.name)}</span>
           <span className="home-thread__text">{line}</span>
         </button>
         <form className="home-thread__composer" onSubmit={submit}>

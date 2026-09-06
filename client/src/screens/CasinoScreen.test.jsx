@@ -117,11 +117,12 @@ describe('CASINO-1 the building', () => {
 
     await waitFor(() => {
       const floor = container.querySelector('.csn-door[data-room="floor"]');
-      expect(within(floor).getByText('The')).toBeInTheDocument();
+      // BUGS-A job 1: the doorway chip carries his whole name.
+      expect(within(floor).getByText('The Grinder')).toBeInTheDocument();
     });
     // He plays at 10/20, so upstairs has nobody of yours in it.
     const upstairs = container.querySelector('.csn-door[data-room="upstairs"]');
-    expect(within(upstairs).queryByText('The')).not.toBeInTheDocument();
+    expect(within(upstairs).queryByText('The Grinder')).not.toBeInTheDocument();
   });
 
   it('a floor that never answers says so instead of drawing an empty room', async () => {

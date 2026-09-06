@@ -24,6 +24,7 @@
 
 import { useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
 
 export const STOCK = [
   { id: 'beer',  label: 'A beer',   note: 'Takes the edge off. One step.' },
@@ -81,7 +82,7 @@ export function FridgeSheet({ agents = [], onClose, onGiven }) {
                 className={`home-sheet__whochip${target === a.id ? ' is-on' : ''}`}
                 onClick={() => setTarget(a.id)}
               >
-                {String(a.name || '').split(' ')[0]}
+                {pillName(a.name)}
               </button>
             ))}
           </div>

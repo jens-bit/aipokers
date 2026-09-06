@@ -102,8 +102,8 @@ describe('HOME-1 · the room', () => {
       }),
     ]);
 
-    expect(await screen.findByRole('button', { name: /The Clock/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /River Rat/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /The Clock — / })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /River Rat — / })).toBeInTheDocument();
 
     const frame = screen.getByTestId('home-frame-a3');
     expect(frame).toHaveTextContent('Big');
@@ -129,14 +129,14 @@ describe('HOME-1 · the room', () => {
     // Jens's correction: the routine is something you SEE. The ref printed
     // "PACING" under every body; labelling the animation is admitting it failed.
     await boot([mkAgent('a1', 'The Clock', { routine: { key: 'paces', label: 'pacing' } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     expect(body.textContent).not.toMatch(/PACING/);
     expect(body.textContent).not.toMatch(/pacing/);
   });
 
   it('the pill sits above the head and carries stamina and heat', async () => {
     await boot([mkAgent('a1', 'The Clock', { fatigue: 'worn', mood: { state: 'tilted', heat: 82 } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     const pill = body.querySelector('.home-pill');
     expect(pill).toBeTruthy();
     expect(pill).toHaveAttribute('data-fatigue', 'worn');
@@ -145,6 +145,12 @@ describe('HOME-1 · the room', () => {
     // column-flex renders as "over his head".
     const ghost = body.querySelector('.home-one__body');
     expect(pill.compareDocumentPosition(ghost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('BUGS-A job 1: the pill writes his whole name, not its first word', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    expect(body.querySelector('.home-pill__name').textContent).toBe('The Clock');
   });
 });
 
@@ -156,7 +162,7 @@ describe('HOME-1 · walks', () => {
     const two = mkAgent('a2', 'River Rat');
     const { sock } = await boot([one, two]);
 
-    const before = await screen.findByRole('button', { name: /The Clock/ });
+    const before = await screen.findByRole('button', { name: /The Clock — / });
     expect(before).toHaveAttribute('data-spot', 'sleeps');
     expect(before).toHaveAttribute('data-walking', 'false');
 
@@ -169,21 +175,21 @@ describe('HOME-1 · walks', () => {
     });
 
     await waitFor(() => {
-      const el = screen.getByRole('button', { name: /The Clock/ });
+      const el = screen.getByRole('button', { name: /The Clock — / });
       expect(el).toHaveAttribute('data-spot', 'table:0');
       expect(el).toHaveAttribute('data-walking', 'true');
     });
 
     // And it is a crossing, not a state: it ends.
     await waitFor(
-      () => expect(screen.getByRole('button', { name: /The Clock/ })).toHaveAttribute('data-walking', 'false'),
+      () => expect(screen.getByRole('button', { name: /The Clock — / })).toHaveAttribute('data-walking', 'false'),
       { timeout: 4000 },
     );
   }, 10_000);
 
   it('being in the room at mount is not a walk', async () => {
     await boot([mkAgent('a1', 'The Clock', { routine: { key: 'sleeps', label: 'asleep' } })]);
-    const body = await screen.findByRole('button', { name: /The Clock/ });
+    const body = await screen.findByRole('button', { name: /The Clock — / });
     expect(body).toHaveAttribute('data-walking', 'false');
   });
 
@@ -353,7 +359,7 @@ describe('HOME-1 · the thread', () => {
       null,
       { onOpenThread: (agent) => { opened = agent.id; } },
     );
-    await userEvent.click(await screen.findByRole('button', { name: /River Rat/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /River Rat — / }));
     expect(opened).toBe('a2');
   });
 
@@ -361,7 +367,7 @@ describe('HOME-1 · the thread', () => {
     // Standalone (no onOpenThread), the room keeps the conversation in itself
     // rather than dropping the tap on the floor.
     await boot([mkAgent('a1', 'The Clock')]);
-    await userEvent.click(await screen.findByRole('button', { name: /The Clock/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /The Clock — / }));
     expect(await screen.findByRole('dialog', { name: /The Clock/i })).toBeInTheDocument();
   });
 

@@ -22,6 +22,7 @@
 import { useEffect, useState } from 'react';
 import { FLAT } from './flat.js';
 import { money, signedMoney } from '../../lib/wallet.js';
+import { pillName } from '../../lib/names.js';
 
 const ROOM_LABEL = { floor: '10/20', upstairs: '25/50', backroom: '50/100' };
 
@@ -82,7 +83,7 @@ export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, no
         {hot ? <span className="home-frame__glow" /> : null}
       </span>
       <span className="home-frame__plate">
-        <span className="home-frame__name">{String(agent?.name ?? '').split(' ')[0]}</span>
+        <span className="home-frame__name">{pillName(agent?.name)}</span>
         <span className={`home-frame__line${line.includes('−') ? ' is-down' : ''}`}>
           {line || (walking ? 'walking in' : '')}
         </span>
