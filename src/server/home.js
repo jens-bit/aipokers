@@ -289,5 +289,13 @@ function homeAgentProjection(agent) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
+    // SERVER-4: when he was made. The flat draws a newborn differently for his
+    // first minute, and it used to work that out from `createdAt`, which the
+    // birth path never actually wrote — so every agent read as a minute old
+    // forever, or as nothing at all. `bornAt` is the honest name for it and
+    // `createdAt` is kept beside it, identical, so a client that already
+    // derives from `createdAt < 60s` keeps working unchanged.
+    bornAt: agent.bornAt ?? agent.createdAt ?? null,
+    createdAt: agent.createdAt ?? agent.bornAt ?? null,
   };
 }

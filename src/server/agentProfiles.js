@@ -464,6 +464,10 @@ function commitAgent(profile, existingAgentId, agentData) {
   // must not render a phantom jump for it.
   agent.attrLog = [];
   const bornAt = Date.now();
+  // SERVER-4: his birthday, on the record. The agents table has always had a
+  // column for it; until now nothing filled it in, so `createdAt` was the
+  // array ordinal and the HOME screen's newborn window could never open.
+  agent.createdAt = bornAt;
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
   }
@@ -530,6 +534,38 @@ function ensureMemory(agent) {
 // Lazily backfill bankroll for agents created before this feature. Existing
 // agents receive STARTING_GRANT + their recorded lifetime netWon so they are
 // not arbitrarily reset to 10 000 if they have played many sessions. Idempotent.
+// ── SERVER-4 · when he was made ─────────────────────────────────────────────
+//
+// The HOME screen draws a newborn differently for his first minute — he is
+// standing in the doorway with his bag, not yet part of the furniture — and it
+// works that out from `createdAt`. Which the birth path never actually wrote.
+// The agents TABLE has had a created_at column since SQLITE-1, filled from
+// `agent.createdAt` with the array ordinal as a fallback, so the field has been
+// half-real for a long time: written to the database, never onto the record.
+//
+// So it is written at birth now, and backfilled here for everybody older.
+// The backfill reads it OFF THE ID, which is `agent_<Date.now() in base 36>` —
+// an exact answer for every agent minted since that scheme, and the only
+// source that does not require the record to have remembered anything. An id
+// that predates it, or one that was hand-written, leaves the field null, which
+// is correct: an agent whose birthday is genuinely unknown must not be drawn
+// as a newborn, and `null` fails the "younger than a minute" test in every
+// client that asks it.
+const AGENT_ID_BIRTH = /^agent_([0-9a-z]+)$/;
+
+function ensureBorn(agent) {
+  if (Number.isFinite(agent.createdAt) && agent.createdAt > 0) return agent;
+  const stamp = AGENT_ID_BIRTH.exec(String(agent.id ?? ''))?.[1];
+  const ms = stamp ? parseInt(stamp, 36) : NaN;
+  // A plausible epoch, not merely a number: base-36 parses "abc" happily, and
+  // an agent born in 1970 would read as a newborn's opposite rather than as
+  // the unknown it is.
+  agent.createdAt = Number.isFinite(ms) && ms > 1_000_000_000_000 && ms <= Date.now()
+    ? ms
+    : null;
+  return agent;
+}
+
 // ── HOME-STATE-1 · the three fields the home adds to a record ───────────────
 //
 // Everything else about where he is and what he is doing is DERIVED on every
@@ -1555,6 +1591,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // floor already makes.
   ensureAttributes(agent);
   ensureBio(agent);
+  ensureBorn(agent);
   const liveGame = agent.activeTableId
     ? (liveTables?.getLiveGame?.(agent.activeTableId, { agentId: agent.id, includeHole: owner }) ?? null)
     : null;
@@ -1711,6 +1748,11 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     location,
     routine,
     study: agent.study ?? null,
+    // SERVER-4: when he was made. See ensureBorn — `createdAt` is the stored
+    // field (the agents table has had a column for it since SQLITE-1) and
+    // `bornAt` is the same number under the name the HOME screen asks for.
+    createdAt: agent.createdAt ?? null,
+    bornAt: agent.createdAt ?? null,
     homeTableId: homeTable?.tableId ?? null,
     fatigue,
     sessionHands,
