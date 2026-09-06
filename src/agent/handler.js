@@ -21,20 +21,30 @@
 //   RAISE → { type: 'raise', min: <total>, max: <total> }
 //
 // Public return shape:
-//   { action, reasoning, usage, model, provider, costUsd }
-// `reasoning` is what he SAYS — one line in his own voice, capped and
+//   { action, reasoning, say, usage, model, provider, costUsd }
+// `reasoning` is what he THINKS — one line in his own voice, capped and
 // solver-proofed by src/agent/voice.js (PACE-1c), not an explanation of his
 // process. MODEL-1b added the last four: every decision carries what it cost,
 // returned as well as logged so the arena can total a run without scraping
 // stdout. The fallback paths (no key, parse failure, API error) return only
 // { action, reasoning } — there was no call, so there is no usage to report.
+//
+// COST-1 added `say`, and it is optional in both directions: the model may
+// omit it, and it is usually null. It is the line he says OUT LOUD, at the
+// table, to the other players — as opposed to `reasoning`, which is his read
+// and is his owner's alone (AGE-33). It rides this call rather than getting
+// one of its own because the model is already holding the whole spot: a
+// second request to say something about a hand it has just been shown costs a
+// full prompt to learn what it already knew. Trash talk used to be exactly
+// that second call (generateAiChatLine, below) and this is what replaces it in
+// the moment; handTalk.js writes the rest of it once per hand.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { complete, isConfigured, providerIdFor } from './providers/index.js';
 import { costOf, formatUsd } from './providers/pricing.js';
 import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
-import { voiceLine, VOICE_MAX_WORDS } from './voice.js';
+import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js';
 import { moodBriefingHint } from './mood.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
@@ -54,20 +64,27 @@ function buildSystem(strategy, memoryContext = '') {
 You are playing No-Limit Texas Hold'em poker.
 Respond with ONLY a single-line JSON object — no prose outside the JSON, no markdown.
 
-JSON format (the "amount" key is required for bet/raise, omit otherwise):
-{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>"}
+JSON format (the "amount" key is required for bet/raise, omit otherwise;
+"say" is optional and usually absent):
+{"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>","say":"<optional line spoken aloud>"}
 
 For bet/raise, "amount" is the TOTAL chips you want committed this street
 (your existing contribution plus any additional you're putting in now).
 
-The "reasoning" field is what you SAY, out loud, at the table — it is printed
-under your face while your owner watches you play, and it is the only thing he
-hears from you during a hand.
+The "reasoning" field is what you THINK — it is printed under your face while
+your owner watches you play, and only he sees it.
 
 Say it the way a player at the table would, in your own character:
   "Ace-ten. Fine. Let's see who's home."
   "He's missed this flop twice already."
   "Nothing here. Away it goes."
+
+The "say" field is different: it is what you say OUT LOUD, to the other
+players, and everybody at the table hears it. LEAVE IT OUT unless this
+particular moment actually calls for saying something — a big move, a pot you
+have just taken, somebody who has been needling you. A player who comments on
+every hand is not a character, he is a chat log. Most of the time you say
+nothing, and that is correct.
 
 NEVER write poker theory. No bet sizes in blinds, no percentages, no "range",
 no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
@@ -229,7 +246,8 @@ particular, a high showdown percentage means he PAYS OFF your value bets — it
 is never a reason to fold more.
 
 Reminder: for bet/raise the "amount" field is total chips committed this street.
-Respond with the JSON object including both "action" and "reasoning".
+Respond with the JSON object including both "action" and "reasoning", and
+"say" only if this moment is actually worth speaking into.
 Decision:`;
 }
 
@@ -269,7 +287,25 @@ function validateAction(actionType, amount, gs) {
   }
 }
 
-// Parse the model's text output into { action, reasoning }.
+// COST-1: the optional spoken line. Same two guarantees the reasoning gets —
+// no solver talking, capped at twelve words — because it is read by the same
+// people in the same place. A line that fails either is DROPPED rather than
+// replaced with a template: silence is always a correct thing for a poker
+// player to do, and a canned line in the mouth of a model that had something
+// specific to say is worse than nothing.
+function parseSay(raw) {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.trim();
+  if (!cleaned) return null;
+  if (isSolverSpeak(cleaned)) {
+    console.log(`[agent] solver speak rejected in say: "${cleaned.slice(0, 60)}"`);
+    return null;
+  }
+  const line = capWords(cleaned);
+  return line || null;
+}
+
+// Parse the model's text output into { action, reasoning, say }.
 function parseDecision(text, gs) {
   const safeAction = gs.canCheck ? { type: 'check' } : { type: 'call' };
   try {
@@ -300,10 +336,10 @@ function parseDecision(text, gs) {
       console.log(`[agent] solver speak rejected: "${rawReasoning.slice(0, 60)}"`);
     }
 
-    return { action, reasoning: spoken.line };
+    return { action, reasoning: spoken.line, say: parseSay(parsed.say) };
   } catch (err) {
     console.warn('[agent] parse failed:', err.message, '| raw:', text.slice(0, 80));
-    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action' };
+    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action', say: null };
   }
 }
 
@@ -470,7 +506,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       transport: opts.transport ?? null,
     });
 
-    const { action, reasoning } = parseDecision(res.text, gameState);
+    const { action, reasoning, say } = parseDecision(res.text, gameState);
     // MODEL-1b: every decision carries its cost. The usage is returned as well
     // as logged so the arena can total it without scraping stdout.
     const { inputTokens: inp, outputTokens: out, cachedInputTokens: cached } = res.usage;
@@ -479,7 +515,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       `[agent] → ${JSON.stringify(action)}  ` +
       `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)})`,
     );
-    return { action, reasoning, usage: res.usage, model, provider: res.provider, costUsd: usd };
+    return { action, reasoning, say, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {
     console.error('[agent] API error:', err.message);
     return {

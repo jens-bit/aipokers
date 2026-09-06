@@ -192,12 +192,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             if (!msg.text || !String(msg.text).trim()) return;
             const text = String(msg.text).trim();
             table.sendChat(effectiveSeat, text, false);
-            // Maybe trigger AI seats to respond to the human chat.
-            for (let i = 0; i < table.aiSeats.length; i++) {
-              if (table.aiSeats[i] && table.pending[i]) {
-                table._maybeGenerateAiChat(i, 'human_chat', text);
-              }
-            }
+            // COST-1: this used to be one model call per AI seat, per typed
+            // message, to answer a sentence. The line is now queued on each
+            // agent instead, where the decision router reads it as a reason to
+            // spend — so he answers in his next decision, holding both the
+            // spot and what was said to him, on a call that was happening
+            // anyway. See Table._hearFromTable.
+            table._hearFromTable(text, effectiveSeat);
             return;
           }
 

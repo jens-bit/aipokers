@@ -184,6 +184,25 @@ function applySchema(d) {
       PRIMARY KEY (day, owner_id, kind, model)
     );
     CREATE INDEX IF NOT EXISTS model_calls_day ON model_calls (day);
+
+    -- COST-1: where the decisions WENT. One row per (day, owner, route,
+    -- reason), summed the same add-and-forget way model_calls is.
+    --
+    -- It is a second table rather than a 'policy' entry in the model column of the
+    -- first one, because a decision the router answered for nothing is not a
+    -- model call and must never be able to land in a bill. The two are read
+    -- side by side (ownerMeter) and that is where they belong together: the
+    -- dollars, and the reason there were not more of them.
+    CREATE TABLE IF NOT EXISTS decision_routes (
+      day        TEXT    NOT NULL,
+      owner_id   TEXT    NOT NULL,
+      route      TEXT    NOT NULL,
+      reason     TEXT    NOT NULL,
+      decisions  INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, owner_id, route, reason)
+    );
+    CREATE INDEX IF NOT EXISTS decision_routes_day ON decision_routes (day);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -921,6 +940,47 @@ export function readModelCalls({ sinceDay = null, ownerId = null } = {}) {
     cachedInputTokens: r.cached_input_tokens ?? 0,
     usd: r.usd ?? 0,
     unpriced: r.unpriced ?? 0,
+  }));
+}
+
+// ── The decision router (COST-1) ─────────────────────────────────────────────
+//
+// Same add-and-forget shape as the meter above, and for the same reason: this
+// is written from inside a hand, once per decision, and nothing about it may
+// hold a lock or read before it writes.
+
+export function addDecisionRoute({ day, ownerId, route, reason, decisions = 1 } = {}) {
+  conn().prepare(`
+    INSERT INTO decision_routes (day, owner_id, route, reason, decisions, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, owner_id, route, reason) DO UPDATE SET
+      decisions  = decisions + excluded.decisions,
+      updated_at = excluded.updated_at
+  `).run(
+    String(day), String(ownerId), String(route), String(reason),
+    Math.max(0, Math.floor(decisions)),
+    Date.now(),
+  );
+}
+
+/** The rolled-up route rows, oldest day first. Same bounds as readModelCalls. */
+export function readDecisionRoutes({ sinceDay = null, ownerId = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceDay) { where.push('day >= ?'); args.push(String(sinceDay)); }
+  if (ownerId !== null) { where.push('owner_id = ?'); args.push(String(ownerId)); }
+  const rows = conn().prepare(`
+    SELECT day, owner_id, route, reason, decisions
+    FROM decision_routes
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY day, owner_id, route, reason
+  `).all(...args);
+  return rows.map((r) => ({
+    day: r.day,
+    ownerId: r.owner_id,
+    route: r.route,
+    reason: r.reason,
+    decisions: r.decisions ?? 0,
   }));
 }
 
