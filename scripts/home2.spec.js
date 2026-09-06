@@ -406,3 +406,74 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     expect(posts.filter((u) => /\/place\?|\/give\?|\/study/.test(u))).toHaveLength(0);
   });
 });
+
+// ── HOME-2 job 6 · the table opens one sheet ────────────────────────────────
+
+test.describe('HOME-2 job 6 · one sheet, and no money on the table', () => {
+  test.beforeEach(async ({ page }) => { await asOwner(page); });
+
+  /**
+   * Tap the table, off its middle.
+   *
+   * A body seated at the home game and the community cards both sit over the
+   * centre of the felt, and they are drawn ABOVE it — so a click aimed at the
+   * exact middle is intercepted by whoever happens to be dealt in at that
+   * moment. Left of middle is still inside the ellipse and is never anybody's
+   * chair, which is what makes this a stable point rather than a lucky one.
+   */
+  async function tapTable(page) {
+    const table = page.getByTestId('home-table');
+    const box = await table.boundingBox();
+    await table.click({ position: { x: box.width * 0.22, y: box.height / 2 } });
+  }
+
+  test('tapping the table opens exactly one sheet, with its sections in it', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await tapTable(page);
+    const sheet = page.getByTestId('home-table-sheet');
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    // ONE. Three trees wanted this tap — watch the game, price the chair, sit
+    // down — and all three are sections of this surface rather than three
+    // destinations behind one piece of furniture.
+    await expect(page.getByTestId('home-table-sheet')).toHaveCount(1);
+
+    // The chair section is always there while there is a chair: named, priced,
+    // and either drafting or stating what it costs.
+    await expect(sheet.getByText('Create an agent')).toBeVisible();
+    const draftable = await sheet.getByTestId('home-table-draft').count();
+    const locked = await sheet.getByTestId('home-table-locked').count();
+    expect(draftable + locked).toBe(1);
+    await shot(page, 'job6-table-sheet');
+  });
+
+  // FIX-6 job 4, still true and now measured in a browser: the price lives on
+  // this sheet and NOWHERE ELSE. The room's own table says nothing about money.
+  test('the room prices nothing — the sheet is the only surface that does', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    const room = await page.locator('.home-flat').textContent();
+    expect(room).not.toMatch(/\$/);
+    expect(room).not.toMatch(/won\b/i);
+    expect(room).not.toMatch(/FOR NOTHING/i);
+
+    await tapTable(page);
+    await expect(page.getByTestId('home-table-sheet')).toBeVisible({ timeout: 20_000 });
+    // ...and the sheet says where a chair's price comes from, because it is the
+    // one place a price is written.
+    await expect(page.getByTestId('home-table-sheet')).toContainText(/chips he has won/i);
+  });
+
+  test('the sheet closes on the scrim, like every other sheet over this room', async ({ page }) => {
+    await seedOnce();
+    await openRoom(page);
+
+    await tapTable(page);
+    await expect(page.getByTestId('home-table-sheet')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.home-sheet__scrim').click();
+    await expect(page.getByTestId('home-table-sheet')).toHaveCount(0);
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+  });
+});

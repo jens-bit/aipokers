@@ -1330,6 +1330,20 @@ button.home-flat__table:active { filter: brightness(1.12); }
   font-size: 10.5px;
   color: #6B6B6B;
 }
+/* HOME-2 job 6 · BIRTH-5's line, where the refusal lands. Gold rather than
+   grey: it is the one sentence on this sheet that is an ANSWER to something the
+   owner tried, not a caption on something he is looking at. */
+.table-sheet__refusal {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(205, 179, 128, 0.09);
+  border: 1px solid rgba(205, 179, 128, 0.33);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #CDB380;
+}
+
 .table-sheet__full,
 .table-sheet__foot {
   margin: 14px 0 0;

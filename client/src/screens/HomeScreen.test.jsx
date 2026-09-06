@@ -17,6 +17,7 @@ import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
 import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
 import { LONG_PRESS_MS } from '../components/home/carry.js';
+import { lockedSeatLine } from '../lib/slots.js';
 import { FLAT, TV_SCREEN, F_W, F_H } from '../components/home/flat.js';
 
 const WS = 'ws://localhost:8765';
@@ -1104,6 +1105,50 @@ describe('BIRTH-5 · the table, on the phone', () => {
     expect(await screen.findByTestId('home-table-locked')).toHaveTextContent('38,000 to go');
     expect(screen.queryByTestId('home-table-draft')).not.toBeInTheDocument();
     expect(created).toBe(0);
+  });
+
+  // HOME-2 job 6 · AND IT SAYS IT IN BIRTH-5's WORDS.
+  //
+  // The two surfaces where an owner meets a locked seat are the birth screen's
+  // 409 slotLocked and this sheet — which that refusal SENDS HIM TO. One
+  // sentence, one function (lib/slots.js lockedSeatLine), so the price he is
+  // turned away with and the price he then comes and looks at cannot be two
+  // different numbers phrased two different ways.
+  it('HOME-2 job 6: a locked chair says BIRTH-5 own line', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+
+    const refusal = await screen.findByTestId('home-table-refusal');
+    expect(refusal).toHaveTextContent(lockedSeatLine(SLOTS.next));
+    expect(refusal).toHaveTextContent('3rd seat costs 50,000 won');
+    expect(refusal).toHaveTextContent('you have 12,000');
+  });
+
+  it('HOME-2 job 6: an unlocked chair has nothing to refuse', async () => {
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 26_000, unlocked: true } });
+    await boot([mkAgent('a1', 'The Clock')]);
+    await userEvent.click(await screen.findByTestId('home-table'));
+    await screen.findByTestId('home-table-draft');
+    expect(screen.queryByTestId('home-table-refusal')).toBeNull();
+  });
+
+  // ONE SHEET. Three trees wanted the table's tap — watch the game, price the
+  // chair, sit down — and all three are sections of this one surface.
+  it('HOME-2 job 6: the table opens ONE sheet, with every section in it', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
+      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
+      { onSitTable: () => {}, onWatchTable: () => {} },
+    );
+    await userEvent.click(await screen.findByTestId('home-table'));
+
+    expect(document.querySelectorAll('[data-testid="home-table-sheet"]')).toHaveLength(1);
+    const sheet = await screen.findByTestId('home-table-sheet');
+    expect(within(sheet).getByTestId('home-table-watch')).toBeInTheDocument();
+    expect(within(sheet).getByTestId('home-table-sit')).toBeInTheDocument();
+    expect(within(sheet).getByText('Create an agent')).toBeInTheDocument();
   });
 
   it('an unlocked chair drafts him, and the sheet gets out of the way', async () => {

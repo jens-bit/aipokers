@@ -22,8 +22,23 @@
 // wallet to a chair — the only currency is the record, which is why the foot
 // line says so and why a locked chair offers no action at all rather than an
 // action that fails.
+//
+// ── HOME-2 job 6 · ONE SHEET, AND ONE SENTENCE FOR A LOCKED CHAIR ──────────
+//
+// The table has one destination and this is it: the live game, the chair you
+// can take yourself, and the chair you have to earn — three labelled sections
+// with a button each and no hidden taps (board 31 P17).
+//
+// A locked chair now says BIRTH-5's OWN LINE. It used to say "40,000 to go",
+// which is a different sentence about the same fact — and the two surfaces
+// where an owner meets a locked seat are the birth screen's refusal and this
+// sheet, which the refusal SENDS HIM TO. Reading one number on the way out of
+// the conversation and a different phrasing of it when he arrives is how an
+// owner ends up unsure which one is the price. `lockedSeatLine` is where that
+// sentence lives (lib/slots.js), and both surfaces read it from there.
 
 import { useCallback, useEffect, useState } from 'react';
+import { lockedSeatLine } from '../../lib/slots.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH'];
@@ -159,7 +174,7 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
               DRAFT HIM
             </button>
           ) : (
-            // A locked chair states the distance and offers nothing. There is no
+            // A locked chair states the price and offers nothing. There is no
             // action because there is no path — see the header.
             <span className="table-sheet__locked" data-testid="home-table-locked">
               {chips(Math.max(0, next.price - next.earned))} to go
@@ -171,6 +186,15 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
           Every chair is taken. Retiring one is the only way to free another.
         </p>
       )}
+
+      {/* HOME-2 job 6 · BIRTH-5's line, where the refusal lands. Same sentence,
+          same function, so the price an owner is turned away with and the price
+          he then comes and looks at cannot be two different numbers. */}
+      {next && !next.unlocked ? (
+        <p className="table-sheet__refusal" data-testid="home-table-refusal">
+          {lockedSeatLine(next) ?? 'That seat is won at the casino, not bought.'}
+        </p>
+      ) : null}
 
       <p className="table-sheet__foot">
         Paid in <b>chips he has won</b>, never bought — the room fills as his
