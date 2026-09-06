@@ -18,6 +18,7 @@
 // when something moved.
 
 import { useState } from 'react';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 import { WalletBlock } from './WalletBlock.jsx';
 import { PocketList } from './PocketRow.jsx';
@@ -43,6 +44,10 @@ const PLAYFAIR = '"Playfair Display",Georgia,serif';
 export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProfile, title = 'Money' }) {
   const [fundTarget, setFundTarget] = useState(null);
   const [busyAgentId, setBusyAgentId] = useState(null);
+  // BUGS-A job 5: the safe answers the same gesture as the fridge, the read
+  // and the thread. It scrolls, so the drag only takes the gesture at the very
+  // top of the list — see rule 2 in useSheetDrag.
+  const drag = useSheetDrag(onClose);
 
   // WUI-1 — pockets only exist for agents the backend has given one. On a
   // deployment without the wallet this list is empty and nothing renders.
@@ -94,7 +99,12 @@ export function MoneySheet({ wallet, agents = [], onRefresh, onClose, onOpenProf
   }
 
   return (
-    <div className="wal dr-app money-sheet" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG }}>
+    <div
+      className={`wal dr-app money-sheet${drag.dragging ? ' is-dragging' : ''}`}
+      ref={drag.ref}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden auto', background: M_BG, ...drag.style }}
+      {...drag.handlers}
+    >
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
         padding: '8px 14px 10px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,

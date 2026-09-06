@@ -173,15 +173,24 @@ export function natureRoutine(nature) {
  * Returns { where, tableId, room } — WITHOUT `since`, which only stampLocation
  * can supply, because it is the one part of this that is remembered.
  */
-export function locationFor({ presence = 'resting', tableId = null, room = null } = {}) {
+export function locationFor({ presence = 'resting', tableId = null, room = null, headingTo = null } = {}) {
   if (presence === 'playing' && tableId) {
     return { where: Where.TABLE, tableId: String(tableId), room: room ?? null };
   }
   // He has a table but it is not dealing him in: he is at the casino, between
-  // the door and a seat. His table may already be gone, in which case the room
-  // is unknown and says so rather than guessing at the floor.
+  // the door and a seat.
+  //
+  // SERVER-4: and the room he is between the door and a seat IN is now
+  // answerable. A queued agent has a table id and no table — the felt does not
+  // exist until an opponent turns up — so the derived room was null and the
+  // card had to say "at the casino" and nothing else. `headingTo` is the rung
+  // the deploy or the queue was FOR, remembered at that moment because it is
+  // the one thing about a walk that cannot be recomputed once it has started.
+  // It is strictly a fallback: a live table always wins, so this can never be
+  // the stale flag rule 1 exists to forbid — the only case it answers is the
+  // one where nothing else can.
   if (tableId) {
-    return { where: Where.CASINO, tableId: String(tableId), room: room ?? null };
+    return { where: Where.CASINO, tableId: String(tableId), room: room ?? headingTo ?? null };
   }
   return { where: Where.HOME, tableId: null, room: null };
 }
@@ -229,6 +238,38 @@ export function isHome(location) {
   return location?.where === Where.HOME;
 }
 
+// ── Newborn ─────────────────────────────────────────────────────────────────
+
+/**
+ * BIRTH-5 / BUG-32 — how long after birth he still counts as having just
+ * arrived.
+ *
+ * A minute, and the number matters less than the fact that there IS one. The
+ * room walks a newborn in through the door instead of materialising him in a
+ * chair, and that has to be a thing that stops being true: without a window,
+ * every reconnect for the rest of his career would walk him in again, and an
+ * arrival that happens every time is not an arrival.
+ *
+ * The window is also why the marker is a boolean on the wire rather than a
+ * timestamp the client subtracts from its own clock. A phone whose clock is
+ * eleven minutes fast would otherwise never see a birth at all.
+ */
+export const NEWBORN_MS = 60_000;
+
+/**
+ * Was this agent born a moment ago?
+ *
+ * False for anyone with no `bornAt`, which is every agent made before BIRTH-5
+ * put the field on the record. That is the right answer for them: an agent who
+ * has been in the room for a month did not just walk in, and guessing his age
+ * out of his id would make the room replay a birth from March.
+ */
+export function isNewborn(agent, { now = Date.now() } = {}) {
+  const born = Number(agent?.bornAt);
+  if (!Number.isFinite(born)) return false;
+  return now - born >= 0 && now - born < NEWBORN_MS;
+}
+
 // ── The wire ────────────────────────────────────────────────────────────────
 
 /**
@@ -237,16 +278,53 @@ export function isHome(location) {
  *
  * Only the fields the HOME screen draws: this rides the same socket as
  * FLOOR_STATE and there is no reason to send a strategy prompt twice.
+ *
+ * SERVER-4 added two more things to it, both for the same reason — the HOME
+ * screen was having to ask a second route for something it draws on the first
+ * paint:
+ *
+ *   thread  { unreadSince } — the room's own unread marker (see below)
+ *   fridge  { beer, snack } — what is on the shelves, so the flat can draw a
+ *           full or an empty fridge without a second call
  */
-export function homeStateMessage(userId, agents, game = null) {
+export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null, now = Date.now() } = {}) {
   return {
     userId: String(userId ?? 'anon'),
-    agents: (agents ?? []).map(homeAgentProjection),
+    agents: (agents ?? []).map((agent) => homeAgentProjection(agent, { now })),
     game: game ?? null,
+    // SERVER-4: the room thread's unread marker, exactly parallel to an
+    // agent's `unseenRecap` and deliberately NOT a boolean — `unreadSince` is
+    // the ts of the oldest line he has not looked at, which is what lets the
+    // client say "3 lines since 21:40" rather than only that there is a dot.
+    // null means nothing is waiting.
+    thread: { unreadSince: thread?.unreadSince ?? null },
+    fridge: fridgeCounts(fridge),
   };
 }
 
-function homeAgentProjection(agent) {
+// The counts only. Prices and labels are GET /api/fridge's job — they never
+// change, so pushing them down a live socket on every home change would be
+// the same three constants over and over.
+function fridgeCounts(fridge) {
+  const n = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.floor(Number(v))) : 0);
+  return { beer: n(fridge?.beer), snack: n(fridge?.snack) };
+}
+
+// The one birthday, whichever name the record kept it under. Old records have
+// `createdAt` and nothing else; the birth path writes both. Resolved ONCE here
+// so `bornAt` and `newborn` can never disagree about the same agent — a card
+// that carries a birth time and says he is not new is a bug the client cannot
+// see the cause of.
+function bornAtOf(agent) {
+  for (const v of [agent?.bornAt, agent?.createdAt]) {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function homeAgentProjection(agent, { now = Date.now() } = {}) {
+  const bornAt = bornAtOf(agent);
   return {
     id: agent.id,
     name: agent.name,
@@ -257,5 +335,19 @@ function homeAgentProjection(agent) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
+    // SERVER-4 / BUG-32: when he was made, and whether that was a moment ago.
+    // The flat draws a newborn differently for his first minute — standing in
+    // the doorway with his bag, not yet part of the furniture — and it used to
+    // work that out from `createdAt`, which the birth path never actually
+    // wrote, so every agent read as a minute old forever or as nothing at all.
+    //
+    // `newborn` is computed HERE, on the server's clock, so a phone eleven
+    // minutes fast cannot miss the arrival; `bornAt` rides along beside it so a
+    // client that got a snapshot from an older server can still work it out for
+    // itself, and `createdAt` is the same number under the older name, so a
+    // client already deriving the window from `createdAt < 60s` keeps working.
+    bornAt,
+    createdAt: bornAt,
+    newborn: isNewborn({ bornAt }, { now }),
   };
 }

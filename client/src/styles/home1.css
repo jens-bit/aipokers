@@ -36,6 +36,20 @@
   justify-content: center;
   overflow: hidden;
   background: radial-gradient(ellipse at 52% 34%, #1C2523 0%, #141B1A 48%, #0F1514 100%);
+  /* BUGS-A job 5 · SHEETS ARE ALWAYS ABOVE THE ROOM.
+   *
+   * An occupant is stacked by his own y so that somebody standing nearer the
+   * viewer is drawn in front — `zIndex: Math.round(at.y)`, which runs up to
+   * 470, and 900 while he is walking. Those are numbers about the ROOM'S
+   * internal depth, but with no stacking context around the room they were
+   * competing with the whole page: the fridge sheet sits at z-index 60, so
+   * every body in the flat rendered on top of the sheet that had just opened.
+   *
+   * `isolation: isolate` makes the room one layer. Everything inside it keeps
+   * its depth order relative to everything else inside it, and the room as a
+   * whole sits below the sheets and the thread band, whatever a body's y
+   * happens to be. */
+  isolation: isolate;
 }
 
 /* ...and the boards keep running away from the viewer past the flat's edge. */
@@ -168,13 +182,31 @@
 .home-flat__couch span:first-child { top: 8px; }
 .home-flat__couch span:last-child { bottom: 8px; }
 
+/* DESK-2 made this a <button> where the table sheet is reachable and left it a
+   <div> where it is not, and BIRTH-5 made the phone one of the places it is
+   reachable — so the rule has to hold for both elements. */
 .home-flat__table {
   position: absolute;
+  padding: 0;
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%);
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  /* base.css floors every button at 44px and paints them like chrome; the
+   * table is furniture that happens to be tappable (BUGS-A job 7), so it keeps
+   * its own size and its own surface. */
+  padding: 0;
+  min-height: 0;
+  z-index: 0;
 }
+/* The table is a real <button> on both shells — BUGS-A gave a live one a tap
+ * (watch the game) and BIRTH-5 gave an empty one a tap (the chairs), so it is
+ * never inert any more. */
+button.home-flat__table { cursor: pointer; -webkit-appearance: none; appearance: none; }
+/* Nothing about a live table LOOKS different — the hand playing on it is the
+ * affordance, and a "tap me" ring around the kitchen table would be the room
+ * shouting. It only answers the finger. */
+button.home-flat__table:active { filter: brightness(1.12); }
 
 .home-flat__door {
   position: absolute;
@@ -485,13 +517,25 @@
 
 /* ── The home game ───────────────────────────────────────────────────────── */
 
+/* Everything the home game puts ON the table is scenery — the board, the chips,
+ * the one label — and none of it is a control. Left as it was it covered the
+ * middle of the table, which is now a fixture you can open, so a tap on the
+ * felt hit a picture of three cards and did nothing. BUGS-A job 7 found it on
+ * the phone and DESK-2 found it again at 1440 with Playwright's own words,
+ * "subtree intercepts pointer events" — one bug, reported twice, because the
+ * table became a control on both shells at once. */
+.home-game__centre,
+.home-game__chips,
+.home-game__label { pointer-events: none; }
+
 .home-game__centre {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 2;
+  pointer-events: none;
 }
 .home-game__board { display: flex; gap: 2.5px; }
-.home-game__chips { position: absolute; z-index: 2; }
+.home-game__chips { position: absolute; z-index: 2; pointer-events: none; }
 .home-game__chips i {
   position: absolute;
   width: 12px; height: 5px;
@@ -507,6 +551,7 @@
   /* Above the bodies: they are z-indexed by their y, and the far seat stands
    * exactly where the ref puts this label. */
   z-index: 400;
+  pointer-events: none;
   white-space: nowrap;
   font-family: var(--font-display, 'Oswald', sans-serif);
   font-size: 7.5px;
@@ -685,10 +730,18 @@
   position: absolute; inset: 0;
   background: rgba(0, 0, 0, 0.6);
   border: none; padding: 0;
+  /* base.css gives EVERY button `position: relative; z-index: 1`. The scrim is
+   * a button and the panel is a plain div, so the scrim was painting over the
+   * sheet's own contents: a tap on "A beer" landed on the scrim and closed the
+   * fridge instead of opening it. Stated here rather than inherited, because
+   * the panel below depends on knowing the number. */
+  z-index: 1;
 }
 .home-sheet__panel {
   position: absolute;
   left: 0; right: 0; bottom: 0;
+  /* ...and the panel is above its own scrim. */
+  z-index: 2;
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0px));
   border-radius: 18px 18px 0 0;
   background: rgba(14, 20, 19, 0.97);
@@ -816,6 +869,26 @@
   }
 }
 
+
+/* ── BUGS-A job 5 · dragging a sheet down ────────────────────────────────────
+ *
+ * The transform is the hook's (useSheetDrag), applied inline because it is a
+ * live value. What belongs here is what happens when the finger lets go: the
+ * sheet springs back under its own easing rather than snapping. While a finger
+ * is on it there is no transition at all, so it tracks the finger exactly. */
+.home-sheet__panel,
+.home-thread__sheet {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.home-sheet__panel.is-dragging,
+.home-thread__sheet.is-dragging {
+  transition: none;
+  /* The platform must not claim the drag as a page pan half way through it —
+   * the same reason WATCH-7 put touch-action on the whisper composer. */
+  touch-action: none;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
  * DESK-2 · HOME at 1440. Board 31 P15-P18, from design-refs/mood-home-desk.jsx.
  *
@@ -836,17 +909,22 @@
   min-width: 0;
   align-items: center;
   justify-content: center;
-  container-type: normal;
-  padding: 20px;
+  padding: 24px;
   transition: filter 0.18s ease;
 }
 
 /* The room becomes a lit card in a dark stage, the way the ref frames it —
  * HdRoom's own border, radius and drop shadow. */
 .home1--desk .home1__scale {
-  --home-desk-scale: 1.34;
+  /* The ref hard-codes 1.34 because that is what fits ITS stage. The claim is
+   * "the same room, BIGGER", so the number is derived rather than copied — see
+   * fitScale in HomeScreen.jsx, which measures the stage and writes this
+   * variable. It is not a container query: `100cqw / 390` is a LENGTH, and
+   * scale() takes a number, so the whole declaration was invalid and the room
+   * came out at 1. One transform either way, and every coordinate in flat.js
+   * still means what it says. */
   flex-shrink: 0;
-  transform: scale(var(--home-desk-scale));
+  transform: scale(var(--home-desk-scale, 1));
   transform-origin: center center;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -863,15 +941,9 @@
  * the ref's own figure, and the room keeps playing behind it. */
 .home1--desk .home1__room[data-dim='true'] { filter: brightness(0.5); }
 
-/* A shorter desk (1280x800, and the 900-tall laptop once the top bar is off it)
- * cannot hold 470 x 1.34 plus the padding, so the scale comes down rather than
- * the room being cropped. One number, one place, every coordinate still valid. */
-@media (max-height: 760px) {
-  .home1--desk .home1__scale { --home-desk-scale: 1.12; }
-}
-@media (max-height: 640px) {
-  .home1--desk .home1__scale { --home-desk-scale: 1; }
-}
+/* A shorter or narrower desk needs no special case: the fit above already
+ * takes whichever axis runs out first, so 1280x800 and a dragged-narrow window
+ * get a smaller room rather than a cropped one. */
 
 /* The rail. Its width is the shell's (.dsk-panel, 520) rather than the ref's
  * 360 — see the header of DeskHome.jsx for why. The panels inside it bring

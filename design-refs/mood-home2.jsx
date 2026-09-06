@@ -872,10 +872,15 @@ const OwnerHand = ({ cards = [['A', '\u2660', '#0F1514'], ['K', '\u2666', M_RED]
         </span>
       ))}
     </div>
-    <div>
+    <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>YOU WIN</div>
       <div style={{ marginTop: 1 }}><Num size={26} weight={700} color={M_TEAL}>{win}%</Num></div>
     </div>
+    {/* You are the player, so there is nobody to whisper to: the composer's slot
+        becomes the way into the thread instead of a way to speak into the felt. */}
+    <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 19, border: `1px solid ${M_BORDER}`, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+      <svg width="16" height="16" viewBox="0 0 20 20"><path d="M2 10L18 3L11 18L9.4 11.6L2 10Z" fill="none" stroke={M_DIM} strokeWidth="1.4" strokeLinejoin="round"/></svg>
+    </span>
   </div>
 );
 
@@ -890,6 +895,35 @@ const ActionRow = ({ raised, sub }) => (
       {[['FOLD', M_MUTED], ['CHECK', M_DIM], ['CALL', M_TEAL], ['BET', M_GOLD]].map(([v, c]) => (
         <span key={v} style={{ flex: 1, textAlign: 'center', fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: c, background: c === M_MUTED ? 'rgba(255,255,255,0.04)' : `${c}12`, border: `1px solid ${c === M_MUTED ? 'rgba(255,255,255,0.12)' : `${c}55`}`, borderRadius: 9, padding: '10px 0' }}>{v}</span>
       ))}
+    </div>
+  </div>
+);
+
+const BET_AMTS = [
+  { k: 'A THIRD', v: '160' }, { k: 'HALF', v: '240' }, { k: 'POT', v: '480' }, { k: 'ALL IN', v: '1,840', all: true },
+];
+
+// BET is the one verb that needs a number, so it is the one verb that opens a panel.
+// The amounts are named in poker's own words with the figure under each, because
+// "half" is the decision and "$240" is only its size.
+const BetPanel = () => (
+  <div style={{ flexShrink: 0, background: 'rgba(16,22,21,0.96)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${M_GOLD}55`, padding: '11px 13px 14px', animation: 'bubblein 0.28s ease-out both' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, paddingBottom: 9 }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>BET</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: M_MUTED }}>pot is 480 · you have 1,840</span>
+      <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', color: M_MUTED, cursor: 'pointer' }}>CANCEL</span>
+    </div>
+    <div style={{ display: 'flex', gap: 6 }}>
+      {BET_AMTS.map(b => (
+        <div key={b.k} style={{ flex: 1, textAlign: 'center', borderRadius: 9, border: `1px solid ${b.all ? M_GOLD : `${M_GOLD}44`}`, background: b.all ? `${M_GOLD}1E` : `${M_GOLD}0D`, padding: '8px 0 7px', cursor: 'pointer' }}>
+          <div style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em', color: b.all ? M_GOLD : M_DIM }}>{b.k}</div>
+          <div style={{ marginTop: 2 }}><Num size={12.5} weight={700} color={M_GOLD}>{b.v}</Num></div>
+        </div>
+      ))}
+    </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, height: 36, borderRadius: 9, border: `1px solid ${M_BORDER}`, background: 'rgba(255,255,255,0.03)', padding: '0 12px' }}>
+      <span style={{ flex: 1, fontFamily: MONO, fontSize: 12, color: M_MUTED }}>any amount</span>
+      <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', color: M_GOLD, border: `1px solid ${M_GOLD}66`, borderRadius: 8, padding: '5px 11px' }}>BET</span>
     </div>
   </div>
 );
@@ -970,6 +1004,18 @@ const OwnerPushedInM = () => (
   </PhoneShell>
 );
 
+// Y4 · BET opens a panel from the bottom; the felt above it does not move
+const OwnerBetM = () => (
+  <PhoneShell>
+    <HomeHead sub="river · you are betting"/>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: M_BG, display: 'flex', flexDirection: 'column' }}>
+      <TableCam>{ownerTable({ turn: true, secs: 16 })}</TableCam>
+      <div style={{ flexShrink: 0 }}><OwnerHand win={38}/></div>
+    </div>
+    <BetPanel/>
+  </PhoneShell>
+);
+
 const RoomPlanM = () => (
   <div style={{ width: 390, fontFamily: INTER }}>
     <div style={{ position: 'relative', height: 612, overflow: 'hidden', borderRadius: 4, border: `1px solid ${M_BORDER}` }}>
@@ -1004,6 +1050,7 @@ const WalkGameStripM = () => <WalkStrip kind="game"/>;
 const WalkSulkStripM = () => <WalkStrip kind="sulk"/>;
 
 Object.assign(window, {
+  BetPanel, OwnerBetM,
   H_WANTS, WANT_CHIPS, WantBubble, TOASTS, HomeToast, WALKS, WalkStrip, H_SHEET,
   NIGHT_DAY, HomeNightly, HOME_CHAIR_PRICES, TableChairs, HomeThreadLine, YouLine, HomeThread,
   SheetSection, HOME_POCKETS, HomeMoneySheet, HOME_STOCK, FridgeSheet, HOME_SKILLS, HomeProfileHeadM, HOME_READ_BOOK, ReadBookSheet, BODY_SCALES, BodyBarsRefM, HomeWantM, HomeSleepM, HomeThreadOpenM, HomeTapeM,

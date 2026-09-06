@@ -1,20 +1,11 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 — 4 open, 27 resolved
+Last updated: 2026-09-06 (PACE-WIRE) — 4 open, 28 resolved
 
 
 ---
 
 ## OPEN
 
-### BUG-32 — The newborn does not walk into the room
-**Severity:** Low (a beat that is missing, not a screen that is wrong)
-**Where:** client/src/screens/HomeScreen.jsx; the wiring that used to be `newbornId={newlyBornAgent?.id}` in client/src/App.jsx
-**What:** FLOOR-2 (FL-3) gave the casino floor a walk-in for an agent it had not seen before: he comes through the door and takes the room for a few seconds, which is the pay-off for having just built him. CASINO-1 left the floor standing in on the HOME tab and that beat kept working. HOME-1 replaced the floor with the flat, and the walk-in did not come with it — App no longer passes `newbornId` anywhere on mobile, so a freshly-built agent simply appears at his idle spot. The room already has the machinery: a door, a DOOR_SPOT, and a walk on every position change (`useWalks`). Nothing tells it who is new.
-The floor still does this on the desktop shell (DesktopHome renders CasinoFloor with `newbornId`), so the loss is mobile-only.
-**Found by:** HOME-1's merge. `it.todo('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx — the WIRE-1 rule is kept, not deleted.
-**Fix:** Pass the newborn id into HomeScreen and start him at DOOR_SPOT for one placement pass, so `useWalks` gives him the crossing it already gives everybody else. Then un-todo the test.
-
----
 
 ### BUG-20 — Dead 14px input rule waiting to be reused
 **Severity:** Low (latent — nothing renders it today)
@@ -64,6 +55,11 @@ The visible symptom was subtle rather than broken, which is why it survived: `pa
 
 **Fix:** the suites were re-pinned first and watched go red (6 failures). `useTable.test.jsx` now emits a local `WIRE` table of the literal strings `src/server/protocol.js` sends, never `ServerMsg.<KEY>`, and one test walks that table asserting `ServerMsg[key] === wire` — the guard that would have caught this. `protocol.test.jsx` gained both keys. `PACE: 'pace'` and `READ: 'read'` were added to the client mirror; the PACE handler came alive unchanged, and a READ handler was written to match it (merged onto `game.reads`, which is what `WatchScreen.pickOpponent` reads, and exposed as `reads`; kept across hands, unlike `paceFrame`, because a read is accumulated knowledge and not a per-hand frame; a malformed push is ignored rather than allowed to blank the panel).
 **Test:** 11 tests in `client/src/hooks/useTable.test.jsx` (6 re-pinned, 5 new) plus `protocol.test.jsx`. End to end, `scripts/verify-pace.js` now asserts the literals on the wire itself — "the staged runout is typed `pace` on the wire", "the read arrives as its own push, not only on a snapshot", "it is typed `read` on the wire" — so the mirror and the server cannot drift apart again without a red run.
+
+---
+
+### BUG-32 — The newborn does not walk into the room — RESOLVED 2026-09-06 (BIRTH-5)
+Fixed the other way round from the one the entry proposed, and deliberately. The suggestion was to pass the newborn id down from App the way FLOOR-2 did (`newbornId={newlyBornAgent?.id}`); what shipped is a marker on HOME_STATE — `newborn`, computed on the SERVER's clock inside a 60s window (src/server/home.js), with `bornAt` alongside it for a client on an older server. A prop from the shell only works in the session that saw the birth, from the surface that saw it; the marker survives a reload, works on the desk as well as the phone, and cannot go out of step with the roster the room is drawn from. `useBirthWalk` in HomeScreen pins him at DOOR_SPOT for one beat as `door:born` — a place of its own, never confused with the `door:away` of an agent out at the casino — and releases him, so the existing `useWalks` crosses him to his chair with no second animation and no special case. `it('BUG-32 WIRE-1: and tells the room which agent was just born')` in client/src/App.test.jsx is un-todo'd and asserts the RULE (the room is told) rather than the mechanism.
 
 ### BUG-21 — Replay stopped after the opening beat — RESOLVED 2026-09-05
 **Where:** `client/src/components/replay/ReplayTheatre.jsx`

@@ -9,6 +9,7 @@
 // when it is a cost), and an opponent quoted and italicised, because table talk
 // is background until it isn't.
 import { GlassLabel } from './Glass.jsx';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 export const THREAD_WHO = ['HIM', 'YOU', 'TABLE'];
 
@@ -39,8 +40,18 @@ export function ThreadRow({ row }) {
 }
 
 export function ThreadSheet({ rows = [], live = true, pending, onClose, head, foot }) {
+  // BUGS-A job 5: pushed back down with a finger, anywhere on the glass — not
+  // only by hitting the 34x3px grab bar.
+  const drag = useSheetDrag(onClose);
   return (
-    <div className="thread-sheet" role="dialog" aria-label="The table">
+    <div
+      className={`thread-sheet${drag.dragging ? ' is-dragging' : ''}`}
+      role="dialog"
+      aria-label="The table"
+      ref={drag.ref}
+      style={drag.style}
+      {...drag.handlers}
+    >
       <button type="button" className="thread-sheet__grab" onClick={onClose} aria-label="Close the thread">
         <span className="thread-sheet__grab-bar" />
       </button>

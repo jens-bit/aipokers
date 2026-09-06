@@ -15,6 +15,17 @@
 //   K3 · a felt goes hot          → the hot doorway grows and the row above the
 //                                   rest offers the one action it asks for.
 //
+// ON THE DESK (DESK-2, board 31's frame). The building is the stage and the
+// TICKER MOVES TO THE RAIL. It is the same three artboards, split down the seam
+// they already have: the doorways are what you look at and the board by the
+// stairs is what you keep half an eye on, and on the phone those have to be
+// stacked because there is one column. Given two, the board takes the second
+// one and stops competing with the rooms for the top of the screen — which also
+// lets it hold the run of the evening rather than the top five of it.
+//
+// THE TRAY IS UNCHANGED. It is the decision, it belongs under the thing being
+// decided, and it stays at the foot of the stage on both platforms.
+//
 // The parts are in components/casino/CasinoBuilding.jsx; this file is the wiring
 // — three live sources joined into one room list, and the two things an owner
 // can do here.
@@ -24,6 +35,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CasinoBoard, CasinoDoor, CasinoHead, DeployTray, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
+import { RoomTablesSheet } from '../components/casino/RoomTablesSheet.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForTable, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
@@ -113,6 +125,11 @@ export function CasinoScreen({
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  // BUGS-A job 7: which doorway the owner has walked up to and looked into.
+  // Only ever set when he is NOT placing an agent — with somebody in the tray
+  // a doorway is the choice of where to seat him, and that is the older and
+  // more important meaning of the tap.
+  const [openRoomId, setOpenRoomId] = useState(null);
 
   const { rooms } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
@@ -193,6 +210,12 @@ export function CasinoScreen({
     setSelectedRoomId(room.id);
   }
 
+  // BUGS-A job 7: with nobody in the tray, a doorway is a place you look INTO.
+  // It was scenery — the one tap on this screen that did nothing.
+  function lookIntoRoom(room) {
+    setOpenRoomId(room.id);
+  }
+
   async function handleFund(decision) {
     if (!fundTarget) return;
     try {
@@ -263,10 +286,12 @@ export function CasinoScreen({
         shutFor={trayAgent?.name ?? null}
         selected={!!trayAgent && room.id === selectedRoomId}
         h={doorHeight({ hot, shut, index })}
-        onSelect={trayAgent ? selectRoom : null}
+        onSelect={trayAgent ? selectRoom : lookIntoRoom}
       />
     );
   });
+
+  const openRoom = rooms.find((r) => r.id === openRoomId) ?? null;
 
   const board = (
     <CasinoBoard
@@ -279,12 +304,8 @@ export function CasinoScreen({
     />
   );
 
-  return (
-    <div
-      className={`csn${desktop ? ' csn--desk' : ''}`}
-      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
-    >
-      <CasinoHead
+  const head = (
+    <CasinoHead
         sub={sub}
         right={trayAgent ? (
           <button
@@ -307,9 +328,11 @@ export function CasinoScreen({
             </Num>
           </span>
         )}
-      />
+    />
+  );
 
-      <div style={{
+  const roomsColumn = (
+      <div className="csn-rooms" style={{
         flex: 1, minHeight: 0, overflow: 'hidden auto', display: 'flex', flexDirection: 'column',
         gap: 10, padding: '11px 14px',
       }}>
@@ -339,8 +362,10 @@ export function CasinoScreen({
           </div>
         )}
 
-        {/* K2 · the board, then the stairs that say the building has floors */}
-        {!trayAgent && board}
+        {/* K2 · the board, then the stairs that say the building has floors. On
+            the desk the board is in the rail and the stairs stay here, because
+            what they say is about the building and not about the evening. */}
+        {!trayAgent && !desktop && board}
         {!trayAgent && <Stairs />}
 
         {rooms.length === 0 ? (
@@ -350,21 +375,73 @@ export function CasinoScreen({
         ) : doors}
 
         {/* K1 · the board stays reachable while you are placing him, but the
-            decision is the tray, so it reads as two lines and not as five. */}
-        {trayAgent && board}
+            decision is the tray, so it reads as two lines and not as five. On
+            the desk it never left: the rail is not the stage, so it does not
+            have to stand down for the tray. */}
+        {trayAgent && !desktop && board}
       </div>
+  );
 
-      {trayAgent && (
-        <DeployTray
-          agent={trayAgent}
-          index={Math.max(0, agents.findIndex((a) => a.id === trayAgent.id))}
-          room={selectedRoom}
-          affordable={canAfford(pocket, selectedRoom)}
-          busy={busy}
-          onDeal={dealHimIn}
-          onFund={() => setFundTarget(trayAgent)}
-        />
-      )}
+  // BUGS-A: tapping a room opens its tables. Extracted the way DESK-2
+  // extracted the tray just below, so both shells render it and neither has to
+  // repeat it — it was written when this screen still had one return.
+  const roomSheet = openRoom && !trayAgent ? (
+    <RoomTablesSheet
+      room={openRoom}
+      agents={mineByRoom[openRoom.id] ?? []}
+      events={events}
+      onClose={() => setOpenRoomId(null)}
+      onWatch={(tableId) => { setOpenRoomId(null); onSpectate?.(tableId); }}
+    />
+  ) : null;
+
+  const tray = trayAgent ? (
+    <DeployTray
+      agent={trayAgent}
+      index={Math.max(0, agents.findIndex((a) => a.id === trayAgent.id))}
+      room={selectedRoom}
+      affordable={canAfford(pocket, selectedRoom)}
+      busy={busy}
+      onDeal={dealHimIn}
+      onFund={() => setFundTarget(trayAgent)}
+    />
+  ) : null;
+
+  // DESK-2 — the building on the stage, the ticker in the rail. Board 31's
+  // frame: the shell's top bar is already across the top, so this is the body.
+  if (desktop) {
+    return (
+      <div className="csn csn--desk" style={{ background: M_BG }}>
+        <div className="csn-desk__stage">
+          {head}
+          {roomsColumn}
+          {tray}
+          {roomSheet}
+        </div>
+        <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
+          <CasinoBoard
+            events={events}
+            mineIds={mineIds}
+            playing={seated}
+            full
+            max={30}
+            stakesFor={stakesForTable}
+            onSpectate={onSpectate ? (tableId) => onSpectate(tableId) : null}
+          />
+        </aside>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="csn"
+      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
+    >
+      {head}
+      {roomsColumn}
+      {tray}
+      {roomSheet}
     </div>
   );
 }

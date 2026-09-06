@@ -50,9 +50,12 @@ describe('the two bars', () => {
     expect(fill(bars({ heat: -20 }), 'heat').style.width).toBe('0%');
   });
 
-  // Green means tiredness and red means heat, at both ends and nowhere in
-  // between: an owner must never have to work out which cause a colour is for.
-  it('runs green to grey and teal to red, and the two never meet', () => {
+  // BUGS-A job 10 changed the spent end of stamina from grey to red, which put
+  // both bars in the same family — so the rule above them had to be kept
+  // explicitly: spent stamina is the dull blood red of a losing chip, boiling
+  // heat is the fiery red of an alarm, and an owner must never have to work out
+  // which cause a colour is for.
+  it('runs green to blood red and teal to fiery red, and the two never meet', () => {
     expect(staminaColor(1).toUpperCase()).toBe(STAMINA_FULL);
     expect(staminaColor(0).toUpperCase()).toBe(STAMINA_SPENT);
     expect(heatColor(0).toUpperCase()).toBe(HEAT_COLD);
@@ -91,6 +94,30 @@ describe('the two bars', () => {
     const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
     expect(c.querySelector('.felt-bars').className).toContain('felt-bars--seat');
     expect(c.querySelectorAll('.felt-bars__track')).toHaveLength(2);
+  });
+
+  // BUGS-A job 10. Two unlabelled two-pixel lines under a name are a puzzle;
+  // the first thing anybody asked of them was which was which.
+  it('says what each line is, on first render and with no tap', () => {
+    const c = bars({ fatigue: 'settled', heat: 40 });
+    expect(track(c, 'stamina').querySelector('.felt-bars__label').textContent).toBe('STAMINA');
+    expect(track(c, 'heat').querySelector('.felt-bars__label').textContent).toBe('HEAT');
+    // The label is UNDER its own rule, which is what ties one to the other.
+    const row = track(c, 'stamina');
+    const bar = row.querySelector('.felt-bars__track');
+    const label = row.querySelector('.felt-bars__label');
+    expect(bar.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('the seat pill carries none — 18px has no room for a word', () => {
+    const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
+    expect(c.querySelectorAll('.felt-bars__label')).toHaveLength(0);
+    expect(c.querySelector('.felt-bars').className).not.toContain('felt-bars--labelled');
+  });
+
+  it('a bar that is drawn alone still says which one it is', () => {
+    expect(bars({ heat: 40 }).querySelector('.felt-bars__label').textContent).toBe('HEAT');
+    expect(bars({ fatigue: 'worn' }).querySelector('.felt-bars__label').textContent).toBe('STAMINA');
   });
 });
 

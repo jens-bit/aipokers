@@ -301,6 +301,12 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fa">You tapped outside the felt, so you are looking at the whole room again — and <b>you can still act from here</b>. Three things say it is on you and none of them is a banner: <b>your name pill glows</b>, a soft gold ring lies on the felt, and the timer ring drains on your chair. The four verbs have <b>slid up into the collapsed thread's slot</b>. Timeout checks if it can and folds if it cannot; either way you are dealt in next hand.</div>
 </div>
 
+<div class="frame" style="left:5120px;top:7900px">
+  <div class="fh" style="margin-top:6px"><span class="fn">52·Y4</span><span class="ft">BET, opened</span><span class="fb gold">the one panel</span></div>
+  <div id="p7"></div>
+  <div class="fa"><b>Three of the four verbs are a tap; BET is the one that needs a number, so it is the one that opens a panel.</b> It rises from the bottom edge and the felt above it does not move &mdash; same geometry, same cards, same ring on your chair. The amounts are named in poker's own words with the figure under each, because <b>half</b> is the decision and <b>240</b> is only its size; the free field underneath is for the one owner in twenty who wants 137. CANCEL is a word, not an X.</div>
+</div>
+
 <div class="frame" style="left:4660px;top:7900px">
   <div class="fh" style="margin-top:6px"><span class="fn">52·Y3</span><span class="ft">Pushed back in</span><span class="fb gold">river · 38%</span></div>
   <div id="p6"></div>
@@ -308,6 +314,12 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 </div>
 
 <div class="frame" style="left:60px;top:9200px">
+  <div class="panel">
+    <div class="sub">wave 55 · consolidation</div>
+    <h1>Checked against<br/>the standing rules</h1>
+    <p>Four things disagreed with the board and were fixed in place. <b>BET is the one verb that needs a number</b>, so it is the one that opens a panel (52·Y4) — the felt above it does not move, and the amounts are named in poker's words with the figure under each. The owner's hand row carries a <b>paper-plane chat button</b> where the whisper composer sits when he is the one playing: you are in the hand, so there is nobody to whisper to. The casino's <b>bottom bar is gone</b> on board 27 as well — the door is the way in and out everywhere, not just at home. And the board by the stairs is now <b>ranked and labelled</b>: header ON THE FLOOR RIGHT NOW, the biggest pot as the headline with its amount, who and which room, each line saying what it is and each one tappable.</p>
+  </div>
+
   <div class="panel">
     <div class="sub">wave 53</div>
     <h1>The room shows,<br/>it doesn't label</h1>
@@ -413,7 +425,7 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['s1', SafeOpenM], ['s2', FridgeOpenM], ['s3', FridgeWalkStripM], ['s4', BeerSeatM], ['s5', FridgeEmptyM],
   ['s6', NightlyCollapsedM], ['s7', () => <ChairsM taken={1}/>], ['s8', () => <ChairsM taken={2}/>],
   ['p0', RoomPlanM], ['p1', TableSheetM], ['p2', BirthWalkInStripM],
-  ['p3', TwoTalkersM], ['p4', OwnerSitDownM], ['p5', OwnerPulledBackM], ['p6', OwnerPushedInM],
+  ['p3', TwoTalkersM], ['p4', OwnerSitDownM], ['p5', OwnerPulledBackM], ['p6', OwnerPushedInM], ['p7', OwnerBetM],
   ['n1', NavHomeM], ['n2', NavRosterM], ['n3', NavCasinoM], ['n4', IdentitySheetM], ['n5', FourApartM],
   ['n6', BarsRefM], ['n7', NavEmptyM], ['n8', NavRetiredM], ['n9', NavDraftM], ['n10', NavSendM],
 ].forEach(([id, Comp]) => {

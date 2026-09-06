@@ -32,6 +32,7 @@ import { moodOf, heatOf } from '../floor/agentView.js';
 import { Num } from '../wallet/atoms.jsx';
 import { money, pocketOf } from '../../lib/wallet.js';
 import { CasinoEventType } from '../../lib/events.js';
+import { pillName } from '../../lib/names.js';
 
 // ── Design tokens (verbatim from the refs) ─────────────────────────────────
 export const M_BG     = '#0A0F0F';
@@ -211,7 +212,7 @@ function Doorman({ agent, index, pnl }) {
         <span style={{
           fontSize: 8.5, color: M_DIM, whiteSpace: 'nowrap',
           overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>{agent.name.split(' ')[0]}</span>
+        }}>{pillName(agent.name)}</span>
         {pnl !== null && (
           <Num size={8.5} weight={700} color={pnl >= 0 ? M_TEAL : M_RED}>
             {money(pnl, { sign: true })}
@@ -412,8 +413,13 @@ export function boardLines(events = [], mineIds = new Set(), limit = 5) {
 
 export function CasinoBoard({
   events = [], mineIds = new Set(), playing = 0, full = false, stakesFor = () => null, onSpectate = null,
+  // DESK-2: how many lines the board holds. On the phone it is five at rest and
+  // two while you are placing somebody, because it is stacked above the
+  // doorways and has to leave room for them. In the desk's rail it has a column
+  // of its own, so it holds the run of the evening instead of the top of it.
+  max = null,
 }) {
-  const lines = boardLines(events, mineIds, full ? 5 : 2);
+  const lines = boardLines(events, mineIds, max ?? (full ? 5 : 2));
 
   return (
     <div

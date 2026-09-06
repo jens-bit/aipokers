@@ -13,12 +13,14 @@ const F3_MINE = [
 
 // the casino as EVENTS rather than as a map. 1,600 agents cannot be drawn; what they
 // do can be told, and one line of it is worth more than a hundred table tiles.
+// Ranked by money, and every line says WHAT it is — cooler, heater, bust — who, how
+// much and which room, so a stranger can read the board without knowing poker.
 const F3_TICKER = [
-  { k: 'pot',     lbl: 'BIGGEST POT',   line: '$14,200 — Ozymandias cracked aces',  at: '50/100', hot: true },
-  { k: 'cooler',  lbl: 'COOLER',        line: 'quads into a straight flush, table 8', at: '25/50' },
-  { k: 'heater',  lbl: 'HEATER',        line: 'Nightjar up $9k in 40 minutes',      at: '25/50' },
-  { k: 'bust',    lbl: 'BUSTED',        line: 'Fold_Equity out — third time today', at: '10/20' },
-  { k: 'nemesis', lbl: 'NEMESIS',       line: 'Granite just sat down at your table', at: '10/20', mine: true },
+  { k: 'pot',     lbl: 'BIGGEST POT',   amt: '$14,200', who: 'Ozymandias',  what: 'cracked aces',          at: '50/100', hot: true },
+  { k: 'heater',  lbl: 'HEATER',        amt: '$9,400',  who: 'Nightjar',    what: '6 in a row',            at: '25/50' },
+  { k: 'cooler',  lbl: 'COOLER',        amt: '$6,100',  who: 'Granite',     what: 'quads into a flush',    at: '25/50' },
+  { k: 'bust',    lbl: 'BUSTED',        amt: '$0',      who: 'Fold_Equity', what: 'out, third time today', at: '10/20' },
+  { k: 'nemesis', lbl: 'AT YOUR TABLE', amt: '',        who: 'Granite',     what: 'just sat down',         at: '10/20', mine: true },
 ];
 
 const F3_ROOMS = [
@@ -571,6 +573,7 @@ const CasinoDoor = ({ r, mine, hot, shut, need, h = 150 }) => (
     <div style={{ position: 'absolute', right: 11, top: 11, display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontFamily: MONO, fontSize: 8.5, color: M_MUTED }}>{r.agents.toLocaleString()} in</span>
       <BNoise level={r.noise}/>
+      {!shut && <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL, cursor: 'pointer' }}>GO IN →</span>}
     </div>
     {/* yours, standing in the doorway at character scale so he is findable */}
     {mine && mine.map((a, i) => (
@@ -590,25 +593,38 @@ const CasinoDoor = ({ r, mine, hot, shut, need, h = 150 }) => (
   </div>
 );
 
-// the board by the stairs — a physical thing on a wall, not a feed
-const CasinoBoard = ({ full }) => (
-  <div style={{ flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: 'linear-gradient(180deg, #171310 0%, #100D0B 100%)', border: `1px solid ${M_GOLD}2E` }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px', borderBottom: `1px solid ${M_GOLD}22` }}>
-      <LiveDot color={M_GOLD}/>
-      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: M_GOLD }}>BY THE STAIRS</span>
-      <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>1,604 playing</span>
-    </div>
-    <div style={{ padding: '6px 11px 9px' }}>
-      {(full ? F3_TICKER : F3_TICKER.slice(0, 2)).map(t => (
-        <div key={t.k} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0', borderTop: t.k === F3_TICKER[0].k ? 'none' : '1px solid rgba(255,255,255,0.045)' }}>
-          <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.13em', color: t.mine ? M_GOLD : t.hot ? M_RED : M_MUTED, width: 64, flexShrink: 0 }}>{t.lbl}</span>
-          <span style={{ fontSize: 10.5, color: M_DIM, lineHeight: 1.4, flex: 1 }}>{t.line}</span>
+// the board by the stairs — a physical thing on a wall, not a feed, and ranked by
+// money so the eye lands on the biggest pot of the night first. Every row is a place
+// you can go: tapping one opens that table.
+const CasinoBoard = ({ full }) => {
+  const [head, ...rest] = F3_TICKER;
+  const shown = full ? rest.slice(0, 2) : rest.slice(0, 1);
+  return (
+    <div style={{ flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: 'linear-gradient(180deg, #171310 0%, #100D0B 100%)', border: `1px solid ${M_GOLD}2E` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px', borderBottom: `1px solid ${M_GOLD}22` }}>
+        <LiveDot color={M_GOLD}/>
+        <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_GOLD }}>ON THE FLOOR RIGHT NOW</span>
+        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>by the stairs</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9, padding: '7px 11px 9px', cursor: 'pointer' }}>
+        <Amt size={26} color={M_GOLD}>{head.amt}</Amt>
+        <div style={{ flex: 1, minWidth: 0, paddingBottom: 3 }}>
+          <div style={{ fontSize: 11, color: M_TEXT, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{head.who} · {head.what}</div>
+          <div style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.13em', color: M_GOLD, marginTop: 2 }}>{head.lbl} · {head.at}</div>
+        </div>
+        <span style={{ flexShrink: 0, paddingBottom: 4, fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.12em', color: M_TEAL }}>WATCH →</span>
+      </div>
+      {shown.map(t => (
+        <div key={t.k} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 11px 6px', borderTop: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
+          <Num size={10.5} weight={700} color={t.mine ? M_GOLD : M_DIM}>{t.amt}</Num>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 10, color: M_DIM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.who} · {t.what}</span>
+          <span style={{ flexShrink: 0, fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.12em', color: t.mine ? M_GOLD : M_MUTED }}>{t.lbl}</span>
           <F3Stake s={t.at}/>
         </div>
       ))}
     </div>
-  </div>
-);
+  );
+};
 
 // the deploy tray: he came with you from Home, and the rooms he can afford are the
 // rooms that are open. No stake picker — the pocket already is the wager.
@@ -624,10 +640,10 @@ const DeployTray = ({ a, room = '10/20' }) => (
 );
 
 const CasinoHead = ({ sub, right }) => (
-  <div style={{ flexShrink: 0, height: 46, display: 'flex', alignItems: 'center', gap: 9, padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
-    <SpadeLogo/>
+  <div style={{ flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9, padding: '7px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
+    <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', color: M_DIM, cursor: 'pointer' }}>← HOME</span>
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>The casino</div>
+      <div style={{ fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, color: M_TEXT, lineHeight: 1.3, whiteSpace: 'nowrap' }}>The casino</div>
       <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>{sub}</div>
     </div>
     {right}
@@ -646,7 +662,6 @@ const CasinoDeployM = () => (
       <CasinoDoor r={F3_ROOMS[2]} shut need="5,000" h={104}/>
     </div>
     <DeployTray a={F3_MINE[3]}/>
-    <Nav3 active="casino"/>
   </PhoneShell>
 );
 
@@ -666,7 +681,6 @@ const CasinoBoardM = () => (
       <CasinoDoor r={F3_ROOMS[0]} mine={[F3_MINE[0], F3_MINE[2]]} h={140}/>
       <CasinoDoor r={F3_ROOMS[1]} mine={[F3_MINE[1]]} h={124}/>
     </div>
-    <Nav3 active="casino"/>
   </PhoneShell>
 );
 
@@ -686,7 +700,6 @@ const CasinoHotM = () => (
       <CasinoDoor r={F3_ROOMS[0]} mine={[F3_MINE[0], F3_MINE[2]]} h={128}/>
       <CasinoBoard/>
     </div>
-    <Nav3 active="casino"/>
   </PhoneShell>
 );
 

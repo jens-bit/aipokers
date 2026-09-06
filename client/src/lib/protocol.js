@@ -69,6 +69,19 @@ export const ServerMsg = Object.freeze({
   // is the event the read panel animates on. Missing for the same reason and
   // with the same effect.
   READ: 'read',
+  // WATCH-9: one line was just written into this table's thread. The sheet used
+  // to read the store when it was opened and never again, so a sheet left open
+  // went quiet while the table carried on talking. The payload's `line` is the
+  // same object the REST read serves, id included, so it merges with what was
+  // fetched instead of racing it.
+  //
+  // TABLE-SCOPED — { tableId, sessionId, agentId, line }, delivered to the
+  // sockets watching that seat. The server pushes the SAME written line a
+  // second way, to the owner's floor channel, under the name OWNER_LINE
+  // ('owner_line'); nothing here consumes that yet, and when something does it
+  // gets its own constant. One name per payload shape: a client that had to
+  // sniff which 'thread_line' it just received is a bug waiting to happen.
+  THREAD_LINE: 'thread_line',
 });
 
 export const Streets = Object.freeze({

@@ -156,6 +156,79 @@ describe('BirthScreen', () => {
     expect(send()).toBeEnabled();
   });
 
+  // BIRTH-5 / SLOTS-1. The OTHER 409, and it used to be answered with silence:
+  // the body carries no `chat`, so the reply picker found none and "lets go"
+  // simply did nothing, forever, with no line and no explanation.
+  it('BIRTH-5: a 409 slotLocked names the price and what he has against it', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 4_200, unlocked: false } });
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'slotLocked', price: 10_000, earned: 4_200 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} onSeeTable={() => {}} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    expect(await screen.findByText(/2nd seat costs 10,000 won · you have 4,200/i)).toBeInTheDocument();
+    // SLOTS-1 rule 1: it is won, never bought, and the refusal has to say so.
+    expect(screen.getByText(/win the rest at the casino/i)).toBeInTheDocument();
+  });
+
+  it('BIRTH-5: the refusal keeps the draft and offers the table', async () => {
+    const user = userEvent.setup();
+    const onBirth = vi.fn();
+    const onSeeTable = vi.fn();
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 4_200, unlocked: false } });
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'slotLocked', price: 10_000, earned: 4_200 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={onBirth} onSeeTable={onSeeTable} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    await user.click(await screen.findByTestId('birth-see-table'));
+    expect(onSeeTable).toHaveBeenCalled();
+    expect(onBirth).not.toHaveBeenCalled();
+    // The screen is usable again — the refusal is a message, not a dead end.
+    await user.type(composer(), 'lets go');
+    expect(send()).toBeEnabled();
+  });
+
+  it('BIRTH-5: still says which seat it is when /api/slots cannot be read', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/slots', () => ({ status: 404, body: {} }));
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'slotLocked', price: 50_000, earned: 12_000 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} onSeeTable={() => {}} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    expect(await screen.findByText(/Next seat costs 50,000 won · you have 12,000/i)).toBeInTheDocument();
+  });
+
+  it('BIRTH-5: a host with nowhere to send him draws no link', async () => {
+    const user = userEvent.setup();
+    fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 4_200, unlocked: false } });
+    fetchMock.route('/api/agents/chat', {
+      status: 409,
+      body: { error: 'slotLocked', price: 10_000, earned: 4_200 },
+    }, { method: 'POST' });
+
+    render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);
+    await user.type(composer(), 'lets go');
+    await user.click(send());
+
+    await screen.findByText(/2nd seat costs 10,000 won/i);
+    expect(screen.queryByTestId('birth-see-table')).not.toBeInTheDocument();
+  });
+
   // BUG-02 regression. Any text field below 16px makes iOS Safari zoom the
   // whole page on focus, which broke the layout of the creation chat.
   it('every input and textarea computes to at least 16px (BUG-02)', () => {

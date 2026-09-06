@@ -26,7 +26,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import App from './App.jsx';
 import { agentsResponse, playingAgent, restingAgent } from './test/fixtures/agents.js';
-import { fetchMock, telegram } from './test/harness.js';
+import { fetchMock, socketMock, telegram } from './test/harness.js';
 import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
 
@@ -128,6 +128,137 @@ describe('App shell', () => {
 
     telegram.setViewportHeight(731);
     expect(document.documentElement.style.getPropertyValue('--tg-h')).toBe('731px');
+  });
+});
+
+// ── BUGS-A job 9 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 9 · the roster behind the avatar', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/thread', { sessionId: 's1', lines: [], count: 0 });
+  });
+
+  it('the top-right avatar opens it, over whatever tab is showing', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    const sheet = await screen.findByTestId('roster-sheet');
+    expect(within(sheet).getByText('The Grinder')).toBeInTheDocument();
+    expect(within(sheet).getByText('Loose Cannon')).toBeInTheDocument();
+    // A sheet, not a screen: the room is still behind it.
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument();
+  });
+
+  it('a row opens his thread, and Back goes to the tab it came down over', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(screen.getByRole('button', { name: 'Your agents' }));
+    // Scoped to the sheet: the man's body in the room behind it answers to a
+    // very similar name, which is the point — one man, two places to find him.
+    const sheet = await screen.findByTestId('roster-sheet');
+    await user.click(within(sheet).getByRole('button', { name: /^Loose Cannon — / }));
+
+    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(screen.queryByTestId('roster-sheet')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await bootedOnHome()).toBeInTheDocument();
+  });
+});
+
+// ── BUGS-A job 4 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 4 · back out of a thread goes to the door you came in by', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/thread', { sessionId: 's1', lines: [], count: 0 });
+  });
+
+  it('a thread opened from the room goes back to the room', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(await bodyOf('The Grinder'));
+    expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await bootedOnHome()).toBeInTheDocument();
+  });
+
+  it('a thread opened from a profile goes back to that profile', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    // Somebody resting: his card's primary action is Chat rather than Watch.
+    await user.click(await bodyOf('Loose Cannon'));
+    await user.click(await screen.findByRole('button', { name: "Open Loose Cannon's profile" }));
+    // The profile's own Chat, which is the second way into the same thread.
+    await user.click(await screen.findByRole('button', { name: 'Chat' }));
+    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    // The card he was reading, not the room and not a list.
+    expect(await screen.findByRole('button', { name: 'More actions' })).toBeInTheDocument();
+  });
+
+  it('the CHATS list is not reachable from the tab flow at all', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await bootedOnHome();
+
+    await user.click(await bodyOf('The Grinder'));
+    await user.click(await screen.findByRole('button', { name: 'Back' }));
+    await bootedOnHome();
+
+    // The roster's own furniture — its header count and its draft card — is on
+    // no route a tab can reach.
+    expect(screen.queryByText('NOBODY TO TALK TO YET')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Draft your first agent/ })).toBeNull();
+  });
+});
+
+// ── BUGS-A job 3 ────────────────────────────────────────────────────────────
+
+describe('BUGS-A job 3 · retiring him lands on HOME', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/thread', { sessionId: 's1', lines: [], count: 0 });
+  });
+
+  it('retiring from a thread-opened profile ends in the room, not in the dead thread', async () => {
+    const user = userEvent.setup();
+    fetchMock.route(/\/api\/agents\/agent_cannon$/, { success: true }, { method: 'DELETE' });
+    render(<App />);
+    await bootedOnHome();
+
+    // Room -> his thread -> his profile, which is how an owner actually gets
+    // to Retire.
+    await user.click(await bodyOf('Loose Cannon'));
+    await user.click(await screen.findByRole('button', { name: "Open Loose Cannon's profile" }));
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('button', { name: 'Retire' }));
+    await user.click(screen.getByRole('button', { name: 'Retire him' }));
+
+    // The room, with the household he still has — not the thread of the man
+    // who has just gone.
+    expect(await bootedOnHome()).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Message Loose Cannon…')).toBeNull();
   });
 });
 
@@ -243,12 +374,44 @@ describe('WIRE-1 the app shell wiring', () => {
     expect(src).toMatch(/paceFrame=\{paced\.paceFrame\}/);
   });
 
-  // HOME-1 took the floor off the mobile HOME tab, and the newborn walk-in went
-  // with it: HomeScreen has a door and walks, but nothing tells it who was just
-  // born. The rule is still the rule — un-todo'd when the walk-in lands.
-  it.todo('BUG-32 WIRE-1: and tells the room which agent was just born', () => {
-    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'App.jsx'), 'utf8');
-    expect(src).toMatch(/newbornId=\{newlyBornAgent\?\.id \?\? null\}/);
+  // HOME-1 took the floor off the mobile HOME tab and the newborn walk-in went
+  // with it. BIRTH-5 landed it, so this is no longer a todo.
+  //
+  // WHAT IT ASSERTS CHANGED, AND THE RULE DID NOT. It used to pin the FLOOR-2
+  // mechanism — App holding `newlyBornAgent` and handing the id down as
+  // `newbornId` — and that mechanism is not the one that shipped: the SERVER
+  // marks a newborn on HOME_STATE (src/server/home.js), which is the only
+  // version of this that survives a reload, works on the desk as well as the
+  // phone, and cannot go out of step with the roster the room is drawn from.
+  // The rule was never "App passes a prop", it was "the room is told who was
+  // just born", so that is what is asserted now — through the app, not through
+  // its source.
+  it('BUG-32 WIRE-1: and tells the room which agent was just born', async () => {
+    const newborn = {
+      id: 'agent_newborn', name: 'Fresh Meat',
+      nature: { name: 'Rock' }, mood: { state: 'neutral', heat: 40 },
+      fatigue: 'fresh', routine: { key: 'reads', label: 'reading' },
+      location: { where: 'home', tableId: null, room: null, since: Date.now() },
+      newborn: true, bornAt: Date.now(),
+    };
+    // Served over REST as well as pushed: the room's REST backfill is the base
+    // the push is re-laid over (useHomeState rule 2), so a roster that has him
+    // on one and not the other is a race, not a test.
+    fetchMock.route('/api/agents', { agents: [newborn] });
+
+    render(<App />);
+    await bootedOnHome();
+    const sock = await waitFor(() => {
+      const s = socketMock.last();
+      expect(s).toBeTruthy();
+      return s;
+    });
+    sock.open();
+    sock.emit({ type: 'home_state', userId: '4242', agents: [newborn], game: null });
+
+    // Through the door, like anyone arriving — not materialised in a chair.
+    const him = await screen.findByRole('button', { name: /^Fresh Meat — / });
+    expect(him).toHaveAttribute('data-spot', 'door:born');
   });
 });
 

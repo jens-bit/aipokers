@@ -23,7 +23,9 @@
 // this screen.
 
 import { useState } from 'react';
+import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { pillName } from '../../lib/names.js';
 
 export const STOCK = [
   { id: 'beer',  label: 'A beer',   note: 'Takes the edge off. One step.' },
@@ -54,6 +56,8 @@ export function FridgeSheet({ agents = [], onClose, onGiven, variant = 'sheet' }
   const [target, setTarget] = useState(() => agents[0]?.id ?? null);
   const [busy, setBusy] = useState(null);
   const [said, setSaid] = useState(null);
+  // BUGS-A job 5: pushed back down with a finger, anywhere on it.
+  const drag = useSheetDrag(onClose);
 
   const give = async (item) => {
     if (!target || busy) return;
@@ -76,11 +80,23 @@ export function FridgeSheet({ agents = [], onClose, onGiven, variant = 'sheet' }
       {inRail ? null : (
         <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
       )}
-      <div className="home-sheet__panel">
-        <div className="home-sheet__head">
-          <span className="home-sheet__title">The fridge</span>
-          <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
-        </div>
+      {/* BUGS-A job 5's drag belongs to the SHEET. In the rail this is a panel
+          in a column — there is nowhere to drag it to, and a panel that slid
+          under the finger would just come back. */}
+      <div
+        className={`home-sheet__panel${!inRail && drag.dragging ? ' is-dragging' : ''}`}
+        ref={inRail ? undefined : drag.ref}
+        style={inRail ? undefined : drag.style}
+        {...(inRail ? {} : drag.handlers)}
+      >
+        {/* In the rail the panel's own head already names it and already has the
+            close; a second title and a second ✕ is the same door drawn twice. */}
+        {inRail ? null : (
+          <div className="home-sheet__head">
+            <span className="home-sheet__title">The fridge</span>
+            <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
+        )}
 
         {agents.length > 1 ? (
           <div className="home-sheet__who" role="radiogroup" aria-label="Who gets it">
@@ -93,7 +109,7 @@ export function FridgeSheet({ agents = [], onClose, onGiven, variant = 'sheet' }
                 className={`home-sheet__whochip${target === a.id ? ' is-on' : ''}`}
                 onClick={() => setTarget(a.id)}
               >
-                {String(a.name || '').split(' ')[0]}
+                {pillName(a.name)}
               </button>
             ))}
           </div>

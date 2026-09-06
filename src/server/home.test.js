@@ -19,7 +19,7 @@ import path from 'node:path';
 import {
   Where, Routine, ROUTINE_LABELS, ROUTINE_BY_NATURE, DEFAULT_ROUTINE,
   routineFor, natureRoutine, locationFor, stampLocation, timeAtLocation,
-  homeStateMessage,
+  homeStateMessage, isNewborn, NEWBORN_MS,
 } from './home.js';
 import { NATURES } from '../agent/attributes.js';
 import { ServerMsg } from './protocol.js';
@@ -161,7 +161,72 @@ test('HOME-STATE-1: the HOME_STATE body carries the card and nothing heavy', () 
   assert.equal('recentHands' in agent, false);
 });
 
+// ── SERVER-4 / BUG-32 · the newborn marker ──────────────────────────────────
+
+test('SERVER-4: the HOME_STATE card says when he was made', () => {
+  const bornAt = 1_700_000_000_000;
+  const [agent] = homeStateMessage('u1', [{ id: 'a1', name: 'New', createdAt: bornAt }]).agents;
+  // The flat draws a newborn differently for his first minute — standing in
+  // the doorway with his bag, not yet part of the furniture.
+  assert.equal(agent.bornAt, bornAt);
+  // `createdAt` rides beside it, identical, so a client that already derives
+  // the newborn window from `createdAt < 60s` keeps working unchanged.
+  assert.equal(agent.createdAt, bornAt);
+});
+
+test('SERVER-4: an agent whose birthday is unknown is not drawn as a newborn', () => {
+  const [agent] = homeStateMessage('u1', [{ id: 'old', name: 'Long Since' }]).agents;
+  // null, not 0 and not "now". A record with no birthday must fail the
+  // "younger than a minute" test rather than pass it — an agent his owner has
+  // watched for a year must never walk back in through the door.
+  assert.equal(agent.bornAt, null);
+  assert.equal(agent.createdAt, null);
+  assert.equal(agent.newborn, false);
+});
+
+test('BUG-32: an agent born a moment ago is marked newborn on HOME_STATE', () => {
+  const now = 1_000_000;
+  const msg = homeStateMessage('u1', [{ id: 'a1', name: 'Fresh', bornAt: now - 4_000 }], null, { now });
+  const [agent] = msg.agents;
+  assert.equal(agent.newborn, true);
+  assert.equal(agent.bornAt, now - 4_000, 'the timestamp rides along for a client on an older server');
+});
+
+test('BUG-32: he stops being a newborn after the window, so a reconnect does not walk him in again', () => {
+  const now = 1_000_000;
+  const born = now - NEWBORN_MS - 1;
+  const [agent] = homeStateMessage('u1', [{ id: 'a1', name: 'Settled', bornAt: born }], null, { now }).agents;
+  assert.equal(agent.newborn, false);
+  assert.equal(agent.bornAt, born, 'and the record of when he was born survives the window closing');
+});
+
+test('BUG-32: an agent from before BIRTH-5 has no birth time and is never a newborn', () => {
+  const [agent] = homeStateMessage('u1', [{ id: 'legacy', name: 'The Old Man' }], null).agents;
+  assert.equal(agent.newborn, false);
+  assert.equal(agent.bornAt, null, 'null, not NaN — this goes on a wire');
+});
+
+test('BUG-32: isNewborn refuses a birth in the future rather than counting backwards', () => {
+  const now = 1_000_000;
+  assert.equal(isNewborn({ bornAt: now + 5_000 }, { now }), false);
+  assert.equal(isNewborn({ bornAt: now }, { now }), true, 'the instant of birth is inside the window');
+});
+
+test('MERGE: one birthday under two names — a card can never carry a time and deny it', () => {
+  const now = 1_000_000;
+  // A record from before the birth path wrote `bornAt`: `createdAt` alone.
+  // It must still walk him in, and both names must answer with the same number.
+  const [agent] = homeStateMessage('u1', [{ id: 'a1', name: 'Fresh', createdAt: now - 4_000 }], null, { now }).agents;
+  assert.equal(agent.bornAt, now - 4_000);
+  assert.equal(agent.createdAt, now - 4_000);
+  assert.equal(agent.newborn, true, 'resolved once, so the flag and the timestamp agree');
+});
+
 // ── presentAgent, and the wire ──────────────────────────────────────────────
+
+// SERVER-4: two fixed birthdays, so nothing here depends on the wall clock.
+const BORN_STORED = 1_700_000_000_000;
+const BORN_FROM_ID = 1_690_000_000_000;
 
 const mkAgent = (id, name, extra = {}) => ({
   id, name, status: 'idle', activeTableId: null,
@@ -206,6 +271,16 @@ before(async () => {
   });
   store.saveProfile('own-other', {
     userId: 'own-other', chat: [], agents: [mkAgent('o', 'River Rat')],
+  });
+  // SERVER-4: three birthdays. One stored, one recoverable from the id scheme
+  // (`agent_<Date.now() in base 36>`), one genuinely unknown.
+  store.saveProfile('own-born', {
+    userId: 'own-born', chat: [],
+    agents: [
+      mkAgent('agent_stored', 'Stamped', { createdAt: BORN_STORED }),
+      mkAgent(`agent_${BORN_FROM_ID.toString(36)}`, 'Inferred'),
+      mkAgent('handwritten', 'Ancient'),
+    ],
   });
 });
 
@@ -312,4 +387,32 @@ test('HOME-STATE-1: FLOOR_SUB answers with a HOME_STATE, owner-scoped', async ()
     floor.reset();
     profiles.setLiveTableProvider(null);
   });
+});
+
+test('SERVER-4: presentAgent answers when he was made, or says it does not know', async () => {
+  const profiles = await import('./agentProfiles.js');
+  profiles.setLiveTableProvider(null);
+  // By id, not by position: the roster is ordered by created_at, which is the
+  // very field under test here.
+  const roster = profiles.presentedRoster('own-born', { owner: true });
+  const by = (id) => roster.find((a) => a.id === id);
+  const stored = by('agent_stored');
+  const inferred = by(`agent_${BORN_FROM_ID.toString(36)}`);
+  const ancient = by('handwritten');
+
+  // Written at birth from now on.
+  assert.equal(stored.createdAt, BORN_STORED);
+  assert.equal(stored.bornAt, BORN_STORED);
+
+  // Backfilled for everybody older, off the id — `agent_<epoch in base 36>` is
+  // an exact answer for every agent minted since that scheme, and the only
+  // source that does not need the record to have remembered anything.
+  assert.equal(inferred.createdAt, BORN_FROM_ID);
+  assert.equal(inferred.bornAt, BORN_FROM_ID);
+
+  // An id that predates the scheme, or was hand-written, leaves it null rather
+  // than guessing — and null is the safe direction, because it fails the
+  // "younger than a minute" test rather than passing it.
+  assert.equal(ancient.createdAt, null);
+  assert.equal(ancient.bornAt, null);
 });

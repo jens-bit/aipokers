@@ -4,6 +4,7 @@ import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
 import { resolveDeepLink } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
+import { RosterSheet } from './components/RosterSheet.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
 import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
 import { AgentsTab } from './components/AgentsTab.jsx';
@@ -21,7 +22,7 @@ import { AnalysisPanel } from './components/AnalysisPanel.jsx';
 import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
-import { ChatsScreen } from './screens/ChatsScreen.jsx';
+import { AgentThread } from './screens/ChatsScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
@@ -52,6 +53,9 @@ export default function App() {
     sitOut,
     lastDecision,
     paceFrame,
+    // WATCH-9: the thread lines the server has pushed on this socket, handed to
+    // whichever surface is showing the thread.
+    threadLines,
   } = table;
   // WATCH-5 (W5-1): the felt is played back, not mirrored. Every snapshot the
   // socket delivers goes through the pacing queue, which lets no two actions
@@ -148,10 +152,28 @@ export default function App() {
   // it, which is what keeps the sheet from reopening every time he comes back.
   const [youMoneyOpen, setYouMoneyOpen] = useState(false);
 
+  // BUGS-A job 9: the roster, behind the top-right avatar. A sheet over
+  // whatever tab is showing rather than a tab of its own — CASINO-1's nav is
+  // HOME · CASINO · YOU and this is not a fourth place, it is a list you pull
+  // down to find somebody.
+  const [rosterOpen, setRosterOpen] = useState(false);
+
+  // BIRTH-5 — the same trick for the table. An owner turned away from a locked
+  // seat is sent to HOME *to look at the table*, and the table sheet is where
+  // the ladder is written. Ordinary navigation clears it for the same reason.
+  //
+  // A COUNTER rather than a flag, which `youMoneyOpen` above can afford to be:
+  // the refusal that raises this is repeatable — say "lets go" again and you are
+  // turned away again — and a boolean that is already true is not a new intent,
+  // so the second ask would open nothing. Zero is "no intent"; every ask is a
+  // value the screens below have not seen before.
+  const [homeTableOpen, setHomeTableOpen] = useState(0);
+
   function navigateTo(tab) {
     setActiveTab(tab);
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
+    setHomeTableOpen(0);
   }
 
   function navigateToMoney() {
@@ -160,9 +182,44 @@ export default function App() {
     setYouMoneyOpen(true);
   }
 
-  function openAgentChat(agent) {
+  // BIRTH-5: out of the birth flow and into the room, with the table sheet
+  // already up. The draft on the server is untouched by the refusal, so this is
+  // a look at the price rather than an exit from the conversation.
+  function navigateToTable() {
+    setIsCreating(false);
+    setActiveTab('home');
+    setAgentChatTarget(null);
+    setYouMoneyOpen(false);
+    setHomeTableOpen((n) => n + 1);
+  }
+
+  // BUGS-A job 4 · WHERE BACK GOES.
+  //
+  // Back out of a thread used to land on the CHATS list, which by CASINO-1 is
+  // not a place anybody navigated FROM — the thread is reached from the room,
+  // from a profile, from a notification, from the watch screen. Backing out of
+  // it put the owner somewhere he had never been, and the way out of THAT was
+  // the tab bar. So the thread remembers the door it came in by.
+  //
+  // A ref, not state: nothing renders from it, and it is read inside handlers
+  // that must never see a stale copy.
+  const chatOriginRef = useRef(null);
+
+  function openAgentChat(agent, origin = null) {
+    chatOriginRef.current = origin ?? { tab: activeTab, profileAgent: null };
     setAgentChatTarget(agent);
     setActiveTab('chats');
+  }
+
+  /** Back out of a thread, to the door it was opened by. */
+  function closeAgentChat() {
+    const origin = chatOriginRef.current;
+    chatOriginRef.current = null;
+    setAgentChatTarget(null);
+    setActiveTab(origin?.tab && origin.tab !== 'chats' ? origin.tab : 'home');
+    // A thread opened FROM a profile goes back to that profile, which is the
+    // overlay the owner was reading when he tapped Chat.
+    if (origin?.profileAgent) setAgentProfileTarget(origin.profileAgent);
   }
 
   function openAgentProfile(agent) {
@@ -402,6 +459,7 @@ export default function App() {
         // WATCH-8: the socket's own status, so the desk's rail refetches the
         // stored thread when the connection comes back.
         connection={status}
+        threadLines={threadLines}
         onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
@@ -454,8 +512,13 @@ export default function App() {
           <BirthScreen
             onBack={() => setIsCreating(false)}
             onBirth={() => setIsCreating(false)}
+            onSeeTable={navigateToTable}
           />
         ) : null}
+        // BIRTH-5: the same intent the phone's HomeScreen takes as `openTable`.
+        // The desk's table is a rail panel rather than a sheet, so the shell
+        // that owns the rail is the one that has to be told.
+        openHomeTable={homeTableOpen}
       />
     );
   }
@@ -472,6 +535,7 @@ export default function App() {
               setNewlyBornAgent(agent);
               navigateTo('home');
             }}
+            onSeeTable={navigateToTable}
           />
         </div>
       );
@@ -487,7 +551,11 @@ export default function App() {
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
-            onOpenChat={(ag) => { setAgentProfileTarget(null); openAgentChat(ag); }}
+            onOpenChat={(ag) => {
+              // BUGS-A job 4: the door he came in by is this profile.
+              setAgentProfileTarget(null);
+              openAgentChat(ag, { tab: activeTab, profileAgent: ag });
+            }}
             onWatch={async (ag) => {
               if (!ag?.activeTableId) return;
               // CHAT-2: captured before the overlay closes, so it still knows
@@ -521,7 +589,14 @@ export default function App() {
               callAgentFinish(ag.id);
               setAgentProfileTarget(null);
             }}
-            onRetired={() => setAgentProfileTarget(null)}
+            // BUGS-A job 3: retiring him ENDS somewhere, and the somewhere is
+            // the room he lived in. Closing the overlay alone put the owner
+            // back on whatever tab was underneath — most often the thread of
+            // the man he had just retired, which is a conversation with
+            // nobody, and on an empty roster that read as being dropped into
+            // the draft flow. HOME is where the household is; go and look at
+            // the one he still has.
+            onRetired={() => { setAgentProfileTarget(null); navigateTo('home'); }}
           />
         </div>
       );
@@ -529,7 +604,19 @@ export default function App() {
 
     return (
       <div className="app">
-        <Header status={status} hasConfig={false} />
+        <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />
+        {rosterOpen && (
+          <RosterSheet
+            onClose={() => setRosterOpen(false)}
+            onCreateAgent={() => { setRosterOpen(false); setIsCreating(true); }}
+            onOpenThread={(agent) => {
+              // The row IS the way into his thread, and Back out of it goes to
+              // the tab the sheet came down over (job 4).
+              setRosterOpen(false);
+              openAgentChat(agent);
+            }}
+          />
+        )}
         <div className="pre-game" style={{ position: 'relative' }}>
           {/* HOME-1 · board 29 — the flat, seen from above. It takes the place
               CASINO-1 left the floor standing in: HOME is the household, CASINO
@@ -538,6 +625,7 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeScreen
               wsUrl={WS_URL}
+              openTable={homeTableOpen}
               onCreateAgent={() => setIsCreating(true)}
               onProfile={openAgentProfile}
               // CASINO-1's promise: the thread is reached from Home and from a
@@ -545,8 +633,30 @@ export default function App() {
               onOpenThread={openAgentChat}
               onOpenWallet={(agent) => (agent ? openAgentProfile(agent) : navigateTo('you'))}
               onSend={sendToAgent}
+              // BUGS-A job 7: an away frame is a picture of the table he is at,
+              // and tapping it goes there. HOME_STATE's compact projection does
+              // not always carry `activeTableId` — the frame itself is drawn
+              // from `liveGame`, and `location.tableId` is what says where he is
+              // standing — so the tap reads all three rather than one. A frame
+              // that could name a table and still did nothing is exactly the
+              // dead tap this job is about.
+              onWatchTable={(tableId) => {
+                if (!tableId) return;
+                watchOriginRef.current = hereOrigin();
+                setActiveAgent(null, null);
+                watch({
+                  tableId,
+                  userId: getUserId(),
+                  displayName: getTelegramDisplayName() || 'Watcher',
+                  wantOpponentAI: false,
+                });
+              }}
               onWatch={async (agent) => {
-                if (!agent?.activeTableId) return;
+                const tableId = agent?.activeTableId
+                  || agent?.liveGame?.tableId
+                  || agent?.location?.tableId
+                  || null;
+                if (!tableId) return;
                 watchOriginRef.current = hereOrigin();
                 let memoryContext = '';
                 try {
@@ -555,7 +665,7 @@ export default function App() {
                 } catch { /* watch with empty context */ }
                 setActiveAgent(agent.id, agent);
                 watch({
-                  tableId: agent.activeTableId,
+                  tableId,
                   agentId: agent.id,
                   userId: getUserId(),
                   agentStrategy: agent.strategy,
@@ -610,13 +720,16 @@ export default function App() {
           )}
           {/* CHAT-2: the thread has no Deploy and no Watch any more — the face
               and the name open the profile, and the profile is where an owner
-              acts on him. hereOrigin() is what gets him back here after. */}
-          {activeTab === 'chats' && (
-            <ChatsScreen
-              selectedAgent={agentChatTarget}
-              onSelectAgent={openAgentChat}
-              onBack={() => setAgentChatTarget(null)}
-              onCreateAgent={() => setIsCreating(true)}
+              acts on him.
+              BUGS-A job 4: and it is THE THREAD that renders here, not the
+              CHATS screen. The list half of that screen is off the tab flow
+              entirely; the roster it used to be is the glass sheet under the
+              top-right avatar. Back goes to the door this thread was opened
+              by — the room, or the profile — never to a list. */}
+          {activeTab === 'chats' && agentChatTarget && (
+            <AgentThread
+              agent={agentChatTarget}
+              onBack={closeAgentChat}
               onOpenProfile={openAgentProfile}
             />
           )}
@@ -677,6 +790,7 @@ export default function App() {
         // connection comes back, because the record the table wrote while the
         // owner was disconnected is exactly the part he cannot have heard.
         connection={status}
+        threadLines={threadLines}
         onLeave={handleLeave}
         onSitOut={sitOut}
         // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,

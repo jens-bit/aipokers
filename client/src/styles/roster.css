@@ -1,0 +1,202 @@
+/* client/src/styles/roster.css — BUGS-A job 9
+ *
+ * The roster, as a glass sheet under the top-right avatar.
+ *
+ * Same glass as the watch screen's thread sheet (styles/watch6.css) rather
+ * than a fourth panel material: translucent over whatever it came down on, a
+ * hairline light border, and the room still visible behind it. A sheet that is
+ * opaque has become a screen.
+ *
+ * Every number here is stated. base.css gives every button `min-height: 44px`
+ * and uppercase chrome type, and this is a list of people's names — so each
+ * control says what it is rather than inheriting what it is not.
+ */
+
+.roster {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.roster__scrim {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  /* base.css's button z-index is 1; the panel below states 2 so it can never
+   * end up under its own scrim (the fault job 5 found in the fridge). */
+  z-index: 1;
+}
+
+.roster__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 calc(10px + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px 18px 0 0;
+  background: rgba(13, 23, 21, 0.86);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  animation: roster-up 0.24s ease-out both;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.roster__panel.is-dragging {
+  transition: none;
+  touch-action: none;
+  animation: none;
+}
+
+@keyframes roster-up {
+  0%   { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.roster__grab {
+  display: block;
+  width: 34px;
+  height: 3px;
+  margin: 8px auto 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.roster__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 10px;
+  flex-shrink: 0;
+}
+.roster__title {
+  flex: 1;
+  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #EDEDED);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.roster__count {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--text-muted, #6B6B6B);
+}
+.roster__close {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted, #6B6B6B);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.roster__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.roster__row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 6px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.roster__row:active { background: rgba(255, 255, 255, 0.04); }
+
+.roster__face {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+/* His news, at the corner of his face: he has said something you have not
+ * read. Not a count — the number of things he has said is not the point. */
+.roster__dot {
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #00D4AA);
+  box-shadow: 0 0 6px rgba(0, 212, 170, 0.8);
+  border: 1.5px solid #0D1715;
+}
+
+.roster__id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.roster__name {
+  font-size: 13px;
+  color: var(--text-primary, #EDEDED);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roster__where {
+  font-size: 10px;
+  color: var(--text-muted, #6B6B6B);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roster__stack {
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #EDEDED);
+}
+
+.roster__empty {
+  margin: 0;
+  padding: 18px 16px;
+  font-size: 12px;
+  color: var(--text-muted, #6B6B6B);
+}
+.roster__ftu { padding-bottom: 8px; }
+.roster__make {
+  margin: 0 16px 12px;
+  padding: 9px 16px;
+  min-height: 0;
+  border-radius: 999px;
+  border: 1px solid var(--accent, #00D4AA);
+  background: transparent;
+  color: var(--accent, #00D4AA);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roster__panel { animation: none; transition: none; }
+}

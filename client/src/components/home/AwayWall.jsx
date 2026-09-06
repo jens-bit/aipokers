@@ -19,9 +19,12 @@
 // he is walking to a seat, `where` is 'casino' — draws the room dark and says
 // so, because a fake felt is worse than an honest empty one.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FLAT } from './flat.js';
+import { MiniFelt } from './MiniFelt.jsx';
+import { useOnScreen, useThrottled } from '../../hooks/useThrottledFrame.js';
 import { money, signedMoney } from '../../lib/wallet.js';
+import { pillName } from '../../lib/names.js';
 
 const ROOM_LABEL = { floor: '10/20', upstairs: '25/50', backroom: '50/100' };
 
@@ -47,42 +50,40 @@ export function plateLine(agent, { now = Date.now() } = {}) {
 }
 
 export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, now = Date.now() }) {
-  const live = agent?.liveGame ?? null;
-  const pot = Number(live?.pot) || 0;
-  const board = Array.isArray(live?.board) ? live.board : [];
   const line = plateLine(agent, { now });
-  const walking = !live;
+  const walking = !agent?.liveGame;
+
+  // BUGS-A job 8 · THE FRAME PLAYS, AND IT PAYS FOR ITSELF.
+  //
+  // The picture is fed straight off HOME_STATE, which pushes whenever anything
+  // in the household changes — so without this, four frames repaint several
+  // times a second in the corner of a screen whose subject is the room. One
+  // repaint a second is more than a 46px felt can show, and a frame that is
+  // scrolled out of the room, or a Mini App the owner has swiped away from,
+  // paints nothing at all until he comes back.
+  //
+  // The plate is deliberately NOT throttled: "41 min" and the session net are
+  // not motion, and holding them back would be a stale fact rather than a
+  // skipped frame.
+  const ref = useRef(null);
+  const awake = useOnScreen(ref);
+  const live = useThrottled(agent?.liveGame ?? null, 1000, { active: awake });
 
   return (
     <button
       type="button"
+      ref={ref}
       className={`home-frame${hot ? ' is-hot' : ''}${walking ? ' is-walking-in' : ''}`}
       style={{ width }}
       onClick={onClick}
       data-agent={agent?.id}
+      data-live={awake ? 'true' : 'paused'}
       data-testid={`home-frame-${agent?.id}`}
       aria-label={`${agent?.name ?? 'Agent'} at the casino${line ? ` — ${line}` : ''}. Watch him.`}
     >
-      <span className="home-frame__picture" aria-hidden>
-        <span className="home-frame__felt" style={{ width: width * 0.6, marginLeft: -(width * 0.3) }} />
-        {/* the rest of the table: bodies, unlit, so his own seat is the one you find */}
-        {[0.2, 0.36, 0.64, 0.8].map((lx, i) => (
-          <span key={lx} className="home-frame__body" style={{ left: `${lx * 100}%`, top: i % 2 ? 8 : 30 }} />
-        ))}
-        {/* his seat, lit and pulsing */}
-        <span
-          className="home-frame__seat"
-          style={{ background: accent, boxShadow: `0 0 7px ${accent}` }}
-        />
-        {/* the board he is playing, as far as it has run */}
-        <span className="home-frame__cards">
-          {board.slice(0, 5).map((c, i) => <span key={`${c}${i}`} className="home-frame__card" />)}
-        </span>
-        {pot > 0 ? <span className="home-frame__pot">{money(Math.round(pot))}</span> : null}
-        {hot ? <span className="home-frame__glow" /> : null}
-      </span>
+      <MiniFelt liveGame={live} accent={accent} width={width} hot={hot} money={money} />
       <span className="home-frame__plate">
-        <span className="home-frame__name">{String(agent?.name ?? '').split(' ')[0]}</span>
+        <span className="home-frame__name">{pillName(agent?.name)}</span>
         <span className={`home-frame__line${line.includes('−') ? ' is-down' : ''}`}>
           {line || (walking ? 'walking in' : '')}
         </span>

@@ -25,6 +25,7 @@ import { CardBack } from '../system/PlayingCard.jsx';
 import { bubbleSide } from './flat.js';
 import { presentRoutine } from './routines.js';
 import { FATIGUE, fatigueOf } from '../../lib/attributes.js';
+import { pillName } from '../../lib/names.js';
 
 // ── The bubble ──────────────────────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ export function NamePill({ name, accent, fatigue = 'fresh', heat = 45, news = fa
   const h = Math.max(0, Math.min(100, Number(heat) || 0));
   return (
     <span className={`home-pill${news ? ' home-pill--news' : ''}`} data-fatigue={fatigue} data-heat={HEAT_TONE(h)}>
-      <span className="home-pill__name" style={{ color: accent }}>{String(name || '').split(' ')[0]}</span>
+      <span className="home-pill__name" style={{ color: accent }}>{pillName(name)}</span>
       <span className="home-pill__lines" aria-hidden>
         <span className="home-pill__stamina" data-blocks={stage.blocks}>
           {[0, 1, 2].map((i) => <i key={i} className={i < stage.blocks ? 'is-on' : ''} />)}
