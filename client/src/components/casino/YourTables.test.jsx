@@ -56,8 +56,11 @@ describe('CASINO-2 job 4 · a page is a man', () => {
   it('a dot moves the carousel to its man', async () => {
     const user = userEvent.setup();
     render(<YourTables agents={[atFelt, restingAgent]} felts={[myFelt()]} />);
-    // jsdom has no layout, so scrollTo is a stub — what is asserted is that the
-    // control reports the page it moved to, which is what a dot is for.
+    // jsdom has no layout and no scrollTo at all — the component falls back to
+    // scrollLeft rather than throwing (CI #82; nothing here stubs it, because
+    // a carousel that needs a stub to survive is a carousel that breaks on any
+    // scroller without smooth behaviour). What is asserted is that the control
+    // reports the page it moved to, which is what a dot is for.
     await user.click(dots()[1]);
     expect(dots()[1]).toHaveAttribute('aria-selected', 'true');
     expect(dots()[0]).toHaveAttribute('aria-selected', 'false');
