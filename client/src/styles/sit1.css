@@ -1,0 +1,379 @@
+/* sit1.css — SIT-1. The owner in the chair.
+
+   Two things, and both of them live at the bottom of the watch screen: his own
+   hero column (no ghost) and the four verbs where the whisper row sits. Ported
+   from design-refs/mood-home2.jsx frames 52·Y1–Y4, on watch6.css's material.
+
+   Loaded after watch6.css so the handful of hero rules it supersedes lose
+   cleanly — the owner's column reuses .watch-hero's anchoring and overrides
+   only what a body would have occupied. */
+
+/* ── the owner's hero column ──────────────────────────────────────────────
+   Same slot as the ghost's, same flowed column: pill, cards, rope, strip.
+   Nothing here is absolutely positioned against the felt — the lesson v4b
+   paid eleven defects for. */
+.owner-hero {
+  align-items: center;
+}
+
+/* 52·Y1: a YOU pill where a name pill sits over a body, and it is the quiet
+   register for "the table is waiting on you" — never a banner. */
+.owner-hero__pill {
+  align-self: center;
+  padding: 2.5px 9px 3.5px;
+  border-radius: 8px;
+  background: rgba(8, 12, 12, 0.9);
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--sys-dim, #9A9A9A);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+}
+
+.owner-hero__pill.is-turn {
+  background: rgba(205, 179, 128, 0.12);
+  border-color: var(--sys-gold, #CDB380);
+  box-shadow: 0 0 12px rgba(205, 179, 128, 0.33);
+  color: var(--sys-gold, #CDB380);
+}
+
+/* His two cards, face up, bigger than the ghost's because these are the cards
+   he is playing and nothing is holding them for him. */
+.owner-hero__cards {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 5px 0 2px;
+}
+
+.owner-hero__card {
+  display: block;
+  opacity: 1;
+  transition: transform 0.26s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.26s ease;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
+}
+
+/* Not landed yet: still on its way in from the deal. */
+.owner-hero__card[data-landed='no'] {
+  opacity: 0;
+}
+
+.owner-hero__card.is-mucking {
+  opacity: 0;
+}
+
+/* No body bars on the owner's strip: stamina and heat are attributes of an
+   agent, and he has neither. */
+.owner-hero__strip {
+  padding-bottom: 9px;
+}
+
+/* ── the four verbs ───────────────────────────────────────────────────────
+   The composer's slot, carrying the hand. Same outer chrome as
+   .watch-composer so the felt above it is measured identically whether the
+   owner is watching or playing. */
+.sit-strip,
+.sit-bet {
+  flex-shrink: 0;
+  padding: 9px 12px 12px;
+  background: #101A18;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  touch-action: none;
+}
+
+.sit-strip__glass,
+.sit-bet__glass {
+  padding: 9px 10px 10px;
+  border-radius: 14px;
+}
+
+/* 52·Y2 — three things say it is on you and none of them is a banner. This is
+   the third: the verbs come up onto the raised glass with a gold edge. */
+.sit-strip[data-turn='yes'] .sit-strip__glass {
+  border-color: rgba(205, 179, 128, 0.35);
+}
+
+.sit-strip__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 8px;
+}
+
+.sit-strip__turn {
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--sys-gold, #CDB380);
+}
+
+.sit-strip__sub {
+  font-size: 10.5px;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.sit-strip__row {
+  display: flex;
+  gap: 6px;
+}
+
+.sit-verb {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 11px 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+}
+
+.sit-verb__name {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.sit-verb__note {
+  font-family: var(--sys-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--sys-dim, #9A9A9A);
+}
+
+/* The ref's four colours: fold muted, check dim, call teal, bet gold. */
+.sit-verb--check:not(:disabled) .sit-verb__name { color: var(--sys-dim, #9A9A9A); }
+
+.sit-verb--call:not(:disabled) {
+  border-color: rgba(0, 212, 170, 0.33);
+  background: rgba(0, 212, 170, 0.07);
+}
+.sit-verb--call:not(:disabled) .sit-verb__name,
+.sit-verb--call:not(:disabled) .sit-verb__note { color: var(--sys-teal, #00D4AA); }
+
+.sit-verb--bet:not(:disabled) {
+  border-color: rgba(205, 179, 128, 0.33);
+  background: rgba(205, 179, 128, 0.05);
+}
+.sit-verb--bet:not(:disabled) .sit-verb__name { color: var(--sys-gold, #CDB380); }
+
+/* A verb that is not on offer is present and unpressable — the ref draws all
+   four at 52·Y1, before the action is on him. */
+.sit-verb:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+/* ── the amount panel ─────────────────────────────────────────────────────
+   52·Y4: it rises from the bottom edge and the felt above it does not move,
+   which is why it takes the strip's slot rather than stacking over it. */
+.sit-bet {
+  animation: sit-rise 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes sit-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sit-bet__glass {
+  border-color: rgba(205, 179, 128, 0.35);
+}
+
+.sit-bet__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 9px;
+}
+
+.sit-bet__label {
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--sys-gold, #CDB380);
+}
+
+.sit-bet__meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--sys-muted, #6B6B6B);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* CANCEL is a word, not an X. */
+.sit-bet__cancel {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sys-muted, #6B6B6B);
+  cursor: pointer;
+}
+
+.sit-bet__sizes {
+  display: flex;
+  gap: 6px;
+}
+
+.sit-size {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 7px;
+  border-radius: 9px;
+  border: 1px solid rgba(205, 179, 128, 0.27);
+  background: rgba(205, 179, 128, 0.05);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sit-size.is-all {
+  border-color: var(--sys-gold, #CDB380);
+  background: rgba(205, 179, 128, 0.12);
+}
+
+.sit-size__key {
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sys-dim, #9A9A9A);
+}
+
+.sit-size.is-all .sit-size__key { color: var(--sys-gold, #CDB380); }
+
+.sit-size__amt {
+  font-family: var(--sys-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sys-gold, #CDB380);
+}
+
+.sit-bet__any {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  height: 40px;
+  border-radius: 9px;
+  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0 6px 0 12px;
+}
+
+.sit-bet__input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--sys-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  /* BUG-02 is a hard floor: iOS Safari zooms the whole Mini App when a field
+     under 16px takes focus, and the zoom does not come back. */
+  font-size: 16px;
+  color: var(--sys-text, #EDEDED);
+}
+
+.sit-bet__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+
+.sit-bet__go {
+  flex-shrink: 0;
+  border: 1px solid rgba(205, 179, 128, 0.4);
+  border-radius: 8px;
+  background: rgba(205, 179, 128, 0.08);
+  padding: 6px 13px;
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sys-gold, #CDB380);
+  cursor: pointer;
+}
+
+.sit-bet__go:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+/* ── the sit-down section in the table sheet ──────────────────────────────
+   Board 29's 52·T: the sheet that prices a chair also has the one that costs
+   nothing. Same section chrome as the chair beside it. */
+.table-sheet__live,
+.table-sheet__sit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
+}
+
+.table-sheet__sit-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.table-sheet__sit-title {
+  font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sys-text, #EDEDED);
+}
+
+.table-sheet__sit-sub {
+  font-size: 11.5px;
+  color: var(--sys-muted, #6B6B6B);
+}
+
+.table-sheet__watch {
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 212, 170, 0.45);
+  border-radius: 9px;
+  background: rgba(0, 212, 170, 0.09);
+  padding: 9px 14px;
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sys-teal, #00D4AA);
+  cursor: pointer;
+}
+
+.table-sheet__sit-go {
+  flex-shrink: 0;
+  border: 1px solid rgba(205, 179, 128, 0.45);
+  border-radius: 9px;
+  background: rgba(205, 179, 128, 0.09);
+  padding: 9px 14px;
+  font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sys-gold, #CDB380);
+  cursor: pointer;
+}

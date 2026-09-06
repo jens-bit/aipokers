@@ -297,3 +297,46 @@ test.describe('DESK-2 · the casino at 1440×900', () => {
     await shot(page, 'casino');
   });
 });
+
+// ── FIX-6 job 5 ─────────────────────────────────────────────────────────────
+//
+// THE ONE CHECK THIS SUITE MAKES THAT IS NOT A PICTURE, and it is here rather
+// than in vitest because it is about GEOMETRY: jsdom has no layout, so "the
+// sheet does not span the viewport" is a claim only a real browser can settle.
+// Where the sheet is mounted is asserted in CasinoScreen.desk.test.jsx, which
+// runs in CI; this asserts what that mounting is FOR.
+
+test.describe('FIX-6 · no sheet spans the desk', () => {
+  test('the rooms are three cards across, and every sheet opens in the rail', async ({ page }) => {
+    await desk(page);
+    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.waitForSelector('.csn-rooms__row');
+
+    // Three cards side by side: same top, same height, left to right.
+    const doors = await page.locator('.csn-door').all();
+    expect(doors).toHaveLength(ROOMS.length);
+    const boxes = [];
+    for (const door of doors) boxes.push(await door.boundingBox());
+    for (let i = 1; i < boxes.length; i++) {
+      expect(Math.abs(boxes[i].y - boxes[0].y)).toBeLessThan(2);
+      expect(Math.abs(boxes[i].height - boxes[0].height)).toBeLessThan(2);
+      expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width - 2);
+    }
+    await shot(page, 'casino-rooms');
+
+    // A doorway opens the room in the RAIL. Not a bottom sheet: it must not
+    // reach the left edge of the desk and must not be the width of it.
+    const rail = await page.locator('.csn-desk__rail').boundingBox();
+    await page.getByRole('button', { name: /^The floor,/ }).click();
+    const sheet = page.getByTestId('room-tables-sheet');
+    await expect(sheet).toBeVisible();
+
+    const box = await sheet.boundingBox();
+    expect(box.width).toBeLessThan(VIEWPORT.width * 0.6);
+    expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
+    // ...and the building it is about is still on screen beside it.
+    await expect(page.locator('.csn-door')).toHaveCount(ROOMS.length);
+    await page.waitForTimeout(300);
+    await shot(page, 'casino-room-sheet');
+  });
+});

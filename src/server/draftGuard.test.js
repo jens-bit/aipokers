@@ -17,8 +17,14 @@ import {
   slidersFromBrief,
   draftReply,
   draftProfile,
+  NAME_QUESTION,
+  asksForName,
+  hasAskedName,
+  nameAnswerFrom,
+  withNameQuestion,
 } from './draftGuard.js';
 import { installAgentProfileRoutes } from './agentProfiles.js';
+import { NAME_MAX } from './naming.js';
 import { natureForProfile } from '../agent/attributes.js';
 
 describe('sanitizeDraftReply', () => {
@@ -230,6 +236,59 @@ describe('draftProfile — PACE-1d forward motion', () => {
   });
 });
 
+// ── BUGS-B/4 · the one question the draft always asks ───────────────────────
+
+describe('BUGS-B/4 — the name question', () => {
+  it('is asked once there is a character to hang a name on', () => {
+    assert.equal(withNameQuestion('Chaos it is.', { ready: true }), `Chaos it is. ${NAME_QUESTION}`);
+  });
+
+  it('is not asked before there is one', () => {
+    assert.equal(withNameQuestion('Tell me how he should play.', { ready: false }),
+      'Tell me how he should play.');
+  });
+
+  it('is never asked twice', () => {
+    const chat = [{ role: 'assistant', content: NAME_QUESTION }];
+    assert.equal(withNameQuestion('Chaos it is.', { chat, ready: true }), 'Chaos it is.');
+    assert.equal(hasAskedName(chat), true);
+  });
+
+  it('leaves a recruiter who already asked in his own words alone', () => {
+    const line = 'Chaos it is — what should I call him?';
+    assert.equal(withNameQuestion(line, { ready: true }), line);
+    assert.equal(asksForName(line), true);
+  });
+
+  it('recognises the question however it was phrased', () => {
+    assert.equal(asksForName(NAME_QUESTION), true);
+    assert.equal(asksForName("what's his name?"), true);
+    assert.equal(asksForName('what do you want to call him?'), true);
+    assert.equal(asksForName('give him a name'), true);
+    assert.equal(asksForName('how often should he bluff?'), false);
+  });
+
+  it('reads the answer straight after the question, and nothing else', () => {
+    const chat = [
+      { role: 'user', content: 'make him a nit called nothing in particular' },
+      { role: 'assistant', content: 'Patient it is. ' + NAME_QUESTION },
+      { role: 'user', content: 'call him Granite' },
+    ];
+    assert.equal(nameAnswerFrom(chat), 'call him Granite');
+    // The brief is full of words and none of them are what he wants him called.
+    assert.equal(nameAnswerFrom([{ role: 'user', content: 'call him Granite' }]), null);
+    assert.equal(nameAnswerFrom([]), null);
+  });
+
+  it('a GO signal is not a name', () => {
+    const chat = [
+      { role: 'assistant', content: NAME_QUESTION },
+      { role: 'user', content: 'lets go' },
+    ];
+    assert.equal(nameAnswerFrom(chat), null, 'he did not answer — he said he was done');
+  });
+});
+
 // ── The transcript ──────────────────────────────────────────────────────────
 // No ANTHROPIC_API_KEY here, so callClaude returns null and every reply comes
 // from the guard's own fallbacks — which is exactly the path that has to be
@@ -267,7 +326,14 @@ describe('the transcript: "be sporadic and chaotic" then "lets go"', () => {
       assert.ok(!/```|~~~/.test(reply), 'no code fence');
       assert.ok(!/\bclass\s+\w+|\bdef\s+\w+\(/.test(reply), 'no code');
       assert.ok(reply.split(/\s+/).length <= DRAFT_MAX_WORDS, `at most ${DRAFT_MAX_WORDS} words`);
-      assert.ok(!/\?/.test(reply), 'the mapping is stated, not asked about again');
+      // BUGS-B/4: this line has always encoded one rule — the BRIEF is not
+      // asked about again — and it was written as "no question mark at all"
+      // because there was no other question the draft could ask. There is one
+      // now, and it is asked on purpose, so the rule is written as what it
+      // means and the name question is asserted rather than merely tolerated.
+      const aboutPlay = reply.replace(NAME_QUESTION, '').trim();
+      assert.ok(!/\?/.test(aboutPlay), 'the mapping is stated, not asked about again');
+      assert.ok(asksForName(reply), 'and the draft asks what he is called');
       assert.match(reply, /chaos|loose|aggress|bluff/i, 'it says what it understood');
       assert.equal(first.body.agentId, undefined, 'nothing is built on the first turn');
 
@@ -329,6 +395,58 @@ describe('the transcript: "be sporadic and chaotic" then "lets go"', () => {
       assert.ok(go.body.agentId);
       assert.ok(go.body.profile, 'and the dials it ended on');
       assert.ok(go.body.profile.aggression > 70, 'which are the ones the chip set');
+    } finally {
+      server.close();
+    }
+  });
+
+  // ── BUGS-B/4 · names at birth ──────────────────────────────────────────
+  //
+  // The draft asks what he is called and the answer becomes his name — on the
+  // record, in the response, and on the seat plate. Before this the owner was
+  // never asked, and every model-less build produced the same three archetype
+  // names.
+
+  it('BUGS-B/4: the draft asks what he is called, and the answer is his name', async () => {
+    const { server, post } = await boot();
+    const named = `${userId}-named`;
+    try {
+      await post('/api/agents/chat/reset', { userId: named });
+
+      const brief = await post('/api/agents/chat', { userId: named, content: 'something boring and patient' });
+      const asked = brief.body.chat.filter((m) => m.role === 'assistant').pop().content;
+      assert.ok(asksForName(asked), `the draft asks for a name: ${JSON.stringify(asked)}`);
+
+      // Whatever he types. Not a name, a sentence with one in it.
+      const answer = await post('/api/agents/chat', { userId: named, content: 'call him the sheriff' });
+      const next = answer.body.chat.filter((m) => m.role === 'assistant').pop().content;
+      assert.equal(asksForName(next), false, 'and never asks a second time');
+
+      const go = await post('/api/agents/chat', { userId: named, content: 'lets go' });
+      assert.equal(go.status, 200, JSON.stringify(go.body));
+      assert.equal(go.body.agentName, 'The Sheriff', 'his name is what the owner called him');
+      assert.equal(go.body.createdAgent.name, 'The Sheriff', 'and the record says so too');
+      assert.ok(go.body.createdAgent.name.length <= NAME_MAX);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('BUGS-B/4: an owner who never names him still gets a name, never "The"', async () => {
+    const { server, post } = await boot();
+    const unnamed = `${userId}-unnamed`;
+    try {
+      await post('/api/agents/chat/reset', { userId: unnamed });
+      await post('/api/agents/chat', { userId: unnamed, content: 'be sporadic and chaotic' });
+      // He answers the name question with nothing usable at all.
+      await post('/api/agents/chat', { userId: unnamed, content: 'the' });
+      const go = await post('/api/agents/chat', { userId: unnamed, content: 'lets go' });
+
+      const name = go.body.agentName;
+      assert.equal(typeof name, 'string');
+      assert.ok(name.trim().length > 0, 'never empty');
+      assert.notEqual(name.trim().toLowerCase(), 'the', 'never a bare article');
+      assert.ok(name.length <= NAME_MAX, `${name} fits a seat plate`);
     } finally {
       server.close();
     }

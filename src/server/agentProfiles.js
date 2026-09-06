@@ -96,7 +96,14 @@ import {
   draftProfile,
   isGoSignal,
   slidersFromBrief,
+  // BUGS-B/4: the one question the draft always asks, and how to read the
+  // answer back out of the transcript.
+  withNameQuestion,
+  nameAnswerFrom,
 } from './draftGuard.js';
+// BUGS-B/4: whatever the owner types becomes a name that fits on a seat plate
+// — never empty, never a bare article.
+import { coinName, ensureName, NAME_MAX } from './naming.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -373,11 +380,13 @@ OUTPUT RULES — these are absolute:
 
 A VAGUE BRIEF IS STILL A BRIEF. If they say something like 'be sporadic and chaotic', 'make him scary', 'something boring' — do NOT ask what they mean. Translate it into how he will play and say so in ONE line, so they can correct you if you read it wrong. For example: 'Chaos it is — he plays almost anything, bets and raises constantly, bluffs often, and treats the strategy as a suggestion.'
 
-Ask at most ONE follow-up question in the whole conversation, and only when you genuinely cannot tell whether he should be loose or selective. Never ask a second one.
+Ask at most ONE follow-up question about HOW HE PLAYS in the whole conversation, and only when you genuinely cannot tell whether he should be loose or selective. Never ask a second one.
+
+THE NAME IS THE EXCEPTION, and it is the one question you always ask. Once you know how he plays, ask what he is called — "One more — what's my name?" — and then stop asking things. Whatever they answer becomes his name: at most ${NAME_MAX} characters, in his voice, never a bare 'The' and never blank. If they answer with a description rather than a name, coin one from it and say it back.
 
 When they say they are ready — 'lets go', 'do it', 'build it' — the agent is built for them. Say one short line confirming who he is. Do not ask anything further.`;
 
-const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<name the agent something a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
+const SYSTEM_GEN = `Based on the conversation, output ONLY valid JSON — no markdown, no explanation, nothing else: {"name":"<IF THE OWNER ANSWERED THE NAME QUESTION, THAT ANSWER IS THE NAME — use it, tidied into at most ${NAME_MAX} characters, and coin one from it if he answered with a description rather than a name. Only when he named nobody, invent one a poker player would recognise — draw from poker culture, casino life, card game lore, or player archetypes. Examples: 'The Clock', 'River Rat', 'Stone Cold', 'The Grinder', 'Table Captain', 'Check-Raiser', 'The Nit', 'Big Slick', 'Broadway', 'Dead Money', 'Felt Burner', 'The Sheriff', 'Chip Leader', 'Slow Roll'. Two words max, ${NAME_MAX} characters max, never a bare 'The' and never blank. No geography, no weather, no science. Generate a different name each time.>","style":"<Aggressive|Balanced|Tight>","risk":"<High|Medium|Low>","strategy":"<2-3 sentence strategy in second person starting with 'You are...' — this becomes the agent's poker system prompt>","tightness":<0-100 integer; 0=plays every hand, 100=only premiums>,"aggression":<0-100 integer; 0=passive/never raises, 100=constant bets and raises>,"bluffFreq":<0-100 integer; the % of decisions this agent will bluff on the appropriate street>,"discipline":<0-100 integer; 0=impulsive/deviates constantly, 100=obeys the strategy religiously>}
 Calibration hints — pick numbers that MATCH the style and the strategy text you just wrote:
 - A tight nit ≈ tightness 85-95, aggression 40-60, bluffFreq 3-10, discipline 80-95.
 - A calling station ≈ tightness 10-20, aggression 5-15, bluffFreq 0-5, discipline 30-50.
@@ -411,6 +420,11 @@ function extractProfile(agentData) {
 function commitAgent(profile, existingAgentId, agentData) {
   let agent = { ...agentData };
   const numericProfile = extractProfile(agentData);
+  // BUGS-B/4: the last gate before a name is written down. buildFromDraft
+  // already coins one, but this is the other door into a record (the PATCH
+  // path, and anything that ever calls this directly), and a rule that only
+  // holds on one path is not a rule.
+  agent.name = coinName(agent.name);
   if (existingAgentId) {
     const existing = profile.agents.find((a) => a.id === existingAgentId);
     if (existing) {
@@ -1626,6 +1640,11 @@ function applyProposalPatch(agent, patch) {
 // gates heroHole in liveGame.
 export function presentAgent(agent, { owner = false, walletBalance = null, wallet = null } = {}) {
   if (!agent) return agent;
+  // BUGS-B/4: `name` is the only field every surface in the product shows, so
+  // it is repaired on the way out. Records predate coinName and one of them
+  // may carry '', 'The', or nothing at all; ensureName fixes it in place the
+  // first time anybody looks, rather than leaving it bad forever.
+  ensureName(agent);
   ensureMood(agent);
   ensureStats(agent);
   ensureProfile(agent);
@@ -1704,12 +1723,26 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // table is at home; it is what he is DOING that changes, which is why it
   // lands on the routine and not on `where`.
   const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
-  const tableBigBlind = agent.activeTableId
-    ? (liveTables?.getTable?.(agent.activeTableId)?.bigBlind ?? null)
+  // BUGS-B/3: the table he is at is the one that EXISTS, not the one his
+  // record still names. home.js's first law is that location is derived and
+  // never declared, and this was the one place still handing it the stored
+  // flag: an agent whose table died under him kept `activeTableId`, so
+  // locationFor read "he has a table" and answered CASINO — forever, or until
+  // the next boot reconciliation. He was then permanently out of the flat,
+  // which is why saying something to the room reached nobody.
+  //
+  // Without a registry (routes installed with no WebSocket server) the stored
+  // flag is all there is, and it stands — the same fallback `presence` above
+  // already makes.
+  const activeTableId = liveTables
+    ? (liveTables.hasTable?.(agent.activeTableId) ? agent.activeTableId : null)
+    : (agent.activeTableId ?? null);
+  const tableBigBlind = activeTableId
+    ? (liveTables?.getTable?.(activeTableId)?.bigBlind ?? null)
     : null;
   const location = stampLocation(agent, locationFor({
     presence,
-    tableId: agent.activeTableId ?? null,
+    tableId: activeTableId ?? null,
     room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
     // SERVER-4: the room /deploy or /queue sent him to. Consulted only when the
     // live table cannot answer, which is exactly the queued agent's case: he
@@ -2741,7 +2774,7 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } = {}) {
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -2778,16 +2811,61 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [] } 
   // hands back, and that difference is the whole feature.
   const ownerBlock = ownerMemoryContext(agent);
 
+  // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
+  // a WHISPER and has to be answered as one — what is on the board, what he is
+  // holding, whether it is on him. Without this block he answers a live table
+  // with career statistics, which is the difference between a companion and a
+  // dashboard.
+  const tableBlock = table ? tableWhisperBlock(table) : '';
+
   // Inject recent thread so the model can't repeat itself
   const recentLines = recentChat.length > 0
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${recentLines}
+  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
 You are already built and playing. Talk about specific hands, decision rationale, or strategy — never ask what kind of poker agent to create.`;
+}
+
+// BUGS-B/2: the felt, in the two or three lines he would actually have in his
+// head. Deliberately short — this rides on top of an already long system
+// prompt, and a wall of state makes the reply read like a report.
+export function tableWhisperBlock(ctx) {
+  if (!ctx) return '';
+  const cards = (list) => (Array.isArray(list) && list.length ? list.join(' ') : 'none yet');
+  const who = ctx.opponents?.length ? ctx.opponents.join(', ') : 'nobody yet';
+  if (!ctx.inHand) {
+    return `
+YOU ARE AT THE TABLE RIGHT NOW — ${ctx.blinds} blinds, ${ctx.handsThisSession} hands in, against ${who}. Between hands; the cards are being shuffled. Your owner just leaned in and said this to you. Answer him about the game you are in, not your career.`;
+  }
+  return `
+YOU ARE IN A HAND RIGHT NOW — ${ctx.blinds} blinds, hand ${ctx.handNumber}, ${ctx.street}. Board: ${cards(ctx.board)}. You hold ${cards(ctx.holeCards)}. Pot ${ctx.pot}, your stack ${ctx.stack ?? 'unknown'}. Against ${who}.${ctx.yourTurn ? ' IT IS ON YOU.' : ''} Your owner just leaned in and said this to you mid-hand. Answer him about THIS hand, in one or two short sentences, and do not narrate the whole street back to him.`;
+}
+
+// BUGS-B/2: the table he is sitting at this instant, or null. Asked of the
+// live registry rather than the stored flag, for the same reason presentAgent
+// asks it — a record that names a table proves nothing about a table existing.
+function whisperTableFor(agent) {
+  if (!agent?.activeTableId) return null;
+  const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
+  if (!table || table.closed) return null;
+  return table.seatOfAgent?.(agent.id) === null ? null : table;
+}
+
+// Best-effort by construction, like every thread write: a whisper that can
+// break the reply the owner is waiting for is worse than a whisper that goes
+// unrecorded.
+function deliverWhisper(table, agentId, text) {
+  if (!table || !text) return null;
+  try {
+    return table.whisperReply(agentId, text);
+  } catch (err) {
+    console.error('[whisper] reply delivery failed:', err.message);
+    return null;
+  }
 }
 
 function inferFallback(text) {
@@ -2809,6 +2887,10 @@ function inferFallback(text) {
 // balanced agent is the same bug as a code fence, just harder to see.
 async function buildFromDraft(profile, brief, ownerId = null) {
   const vague = slidersFromBrief(brief);
+  // BUGS-B/4: what the owner typed when he was asked what to call him. Read
+  // deterministically out of the transcript, so a build with no model behind
+  // it still uses HIS answer rather than a canned archetype name.
+  const chosen = coinName(nameAnswerFrom(profile.chat), { fallback: null });
   let agent = null;
   try {
     const raw = await callClaude(profile.chat, SYSTEM_GEN, 200, { ownerId, kind: MeterKind.CHAT });
@@ -2835,7 +2917,17 @@ async function buildFromDraft(profile, brief, ownerId = null) {
     Object.assign(agent, vague.profile);
   }
 
-  const name = agent.name || 'The Understudy';
+  // BUGS-B/4: the owner named him, so that is his name. It goes through
+  // coinName like everything else — tidied, cased, clamped to a seat plate —
+  // which is the whole of "turned into a name in his voice". Only when he
+  // named nobody does the model's invention stand, and only when there is no
+  // model does the archetype the brief implies.
+  //
+  // Every branch ends at coinName, so what reaches the record can never be
+  // blank and can never be a bare 'The'.
+  agent.name = chosen
+    ?? coinName(agent.name, { fallback: coinName(vague?.name ?? inferFallback(brief).name) });
+  const name = agent.name;
   const line = vague
     ? `${name} it is — ${vague.line.replace(/^[^—]*—\s*/, '')}`
     : `${name} is ready — ${String(agent.style || 'balanced').toLowerCase()}, ${String(agent.risk || 'medium').toLowerCase()} risk.`;
@@ -2945,6 +3037,24 @@ function rosterFor(req, profile) {
  */
 export async function ownerChatTurn(existingAgent, userId, content) {
   ensureMood(existingAgent);
+  // BUGS-B/2: if he is in a seat, this is a WHISPER. Same turn, same mood
+  // bookkeeping, same ledger — but he is answering with a board in front of
+  // him, what you said goes into his thread addressed to him, and what he says
+  // back comes out as a bubble over his head rather than dying in an HTTP
+  // response nothing on the felt ever hears. Away from a table `table` is null
+  // and every line below behaves exactly as it did.
+  const table = whisperTableFor(existingAgent);
+  const tableCtx = table ? table.whisperContext(existingAgent.id) : null;
+  if (table) {
+    try {
+      table.receiveWhisper(existingAgent.id, content);
+    } catch (err) {
+      console.error('[whisper] could not record what you said:', err.message);
+    }
+  }
+  const whisperView = tableCtx
+    ? { tableId: tableCtx.tableId, seat: tableCtx.seat, street: tableCtx.street, inHand: tableCtx.inHand }
+    : null;
   // Pep talk: if the agent is in a negative mood and the cooldown allows,
   // any incoming owner message soothes it one step. The chat reply is
   // then generated with the pep-talk context so the agent acknowledges
@@ -2985,16 +3095,20 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
+    // A template answer is still his answer: it reaches the felt the same way
+    // a generated one does.
+    const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
       fromOwnerMemory: true,
+      whisper: whisperView && seat !== null ? whisperView : null,
       mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
               heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
               moved: said.moved, kind: said.kind },
     };
   }
 
-  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat });
+  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
   try {
     const reply = await callClaude([{ role: 'user', content }], systemText, 100,
       { ownerId: userId, kind: MeterKind.CHAT });
@@ -3002,8 +3116,12 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
+    const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
+      // BUGS-B/2: where his answer landed, so a client can tell "he said it at
+      // the table" from "he said it in the thread". Null when he is not seated.
+      whisper: whisperView && seat !== null ? whisperView : null,
       pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
       // MOOD-2b: what his mood did with what you said. `kind` is needle |
       // care | neutral; heat is where he ended up.
@@ -3015,6 +3133,256 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     console.error('[agentProfiles] agent-chat error:', err.message);
     return { chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] };
   }
+}
+
+/**
+ * Put an agent in a seat.
+ *
+ * AGE-35 wrote this as a route body; BUGS-B/1 lifted it out unchanged, because
+ * the re-queue of an agent left alone at a dying table has to run the SAME
+ * pocket gate, the SAME matchmaking and the SAME cost bound the owner's own
+ * deploy does. A second, simpler path would have drifted from this one inside
+ * a week.
+ *
+ * Returns { status, body } — the route answers with exactly that, and the
+ * re-queue reads the status to decide whether to log a failure.
+ *
+ * `requeue` marks the call as the table's rather than the owner's. Without a
+ * live registry there is nothing to seat him at, and a requeue must not leave
+ * him pointing at a table that was never created — the owner's own deploy
+ * keeps its old behaviour there, which some tests rely on.
+ */
+export function deployAgent(userId, agentId, { requeue = false, body = null } = {}) {
+  if (requeue && !liveTables) {
+    return { status: 503, body: { error: 'no live tables to re-queue into' } };
+  }
+  const profile = getOrCreate(userId);
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+  // AGENTS-2: retired is retired. And an agent who has been called in does not
+  // get a second seat on the way out.
+  if (agent.archived) return { status: 410, body: { error: 'agentRetired' } };
+  if (agent.retiring) return { status: 409, body: { error: 'agentRetiring' } };
+
+  ensureMemory(agent);
+  ensureProfile(agent);
+  ensureBankroll(agent);
+
+  // WANTS-1: he asked to sit one out and you said yes. The bench has to mean
+  // something or the answer was theatre. It clears itself the moment STAMINA
+  // has him back at 'fresh' — nothing to remember to undo.
+  // Not while he is still in a seat: a bench that has not taken effect yet
+  // must not also swallow the "hand back the table he is already at" reply
+  // below, or a client polling deploy loses the session he is finishing.
+  const seatedNow = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
+  if (!seatedNow && isRestBenched(agent)) {
+    return { status: 409, body: {
+      error: 'agentResting',
+      message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes.`,
+      fatigue: fatigueNow(agent),
+      restingUntil: 'fresh',
+    } };
+  }
+
+  // Already at a live table — hand back the same one rather than stacking a
+  // second autonomous session on top of the first.
+  if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) {
+    return { status: 200, body: {
+      tableId: agent.activeTableId,
+      agentId: agent.id,
+      agentName: agent.name,
+      strategy: agent.strategy,
+      // BUGS-B/4: his name, not the word "agent". This response is what the
+      // client seats him under, and it was handing back a literal.
+      displayName: agent.name,
+      memoryContext: getAgentMemoryContext(agent),
+      alreadyPlaying: true,
+    } };
+  }
+
+  // MST-2: prefer JOINING an open AI-only table over standing up a private
+  // one. Filling a felt is both cheaper (one table's worth of model calls
+  // serves N agents) and better poker -- the matchmaker ranks candidates by
+  // how much action the resulting mix of archetypes should produce.
+  let tableId = null;
+  let seat = null;
+  let joinedExisting = false;
+  let sessionStarted = false;
+
+  // MATCH-1: chosen AFTER the pocket gate below, not before it, because the
+  // matchmaker now needs to know which ROOM this deploy is for — a man turned
+  // away from his own stablemate's table is offered another table in the same
+  // room, and the room is whatever his pocket buys into.
+  let candidate = null;
+
+  // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
+  // The pocket picks the stakes and decides whether he sits down at all.
+  // Only enforced when the server manages sessions (liveTables present).
+  const wallet = walletFor(userId);
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+  let deployBuyIn = 0;
+  let stakes = null;
+
+  if (liveTables) {
+    // Cut off is cut off — he finishes nothing and starts nothing. Not a
+    // punishment, and nothing he has learned is lost.
+    if (pocket.mode === 'cut') {
+      return { status: 402, body: {
+        error: 'He is cut off. Fund him to put him back in a seat.',
+        broke: true, cut: true,
+        pocket: pocketProjection(pocket),
+      } };
+    }
+
+    // Auto-refill happens here, before the gate: he comes to the wallet and
+    // collects when he is short. allowance and topup deliberately do not.
+    if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
+
+    if (isBroke(pocket.balance)) {
+      // Broke: he rests at the bar. One moment, one notification a day.
+      recordBrokeMoment(agent);
+      agent.status = 'idle';
+      agent.activeTableId = null;
+      mirrorBankroll(agent);
+      saveStore(userId);
+      saveWalletFor(userId);
+      emitAgentChange(userId);
+      notifyBrokeOnce(userId, agent);
+      return { status: 402, body: {
+        error: "His pocket is empty. He's at the bar — your call.",
+        broke: true,
+        pocket: pocketProjection(pocket),
+        required: ENTRY_BUYIN,
+        moment: agent.lastMoment,
+      } };
+    }
+
+    // SERVER-4: the room the owner asked for, or the highest one his pocket
+    // reaches when he asked for none. Refused, never quietly downgraded.
+    const chosen = stakesForRequest(body, pocket.balance);
+    if (chosen.status) return { status: chosen.status, body: chosen.body };
+    stakes = chosen.stakes;
+    candidate = liveTables.findJoinableTable?.({
+      profile: agent.profile ?? null,
+      agentId: agent.id,
+      // MATCH-1: this is the refusal, not a preference. Every table already
+      // seating one of this owner's agents is out of the running, and the
+      // deploy either finds another one in the same room or opens one.
+      userId,
+      room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
+    });
+    // A table stays at the lowest rung any seated agent could afford, so he
+    // may only join one whose buy-in his pocket already covers.
+    if (candidate?.table && !canAffordTable(pocket.balance, candidate.table.bigBlind)) {
+      console.log(`[wallet] ${agent.name} cannot cover table ${candidate.table.tableId} (${candidate.table.bigBlind} BB) — opening one at ${stakes.label}`);
+      candidate = null;
+    }
+    deployBuyIn = candidate?.table
+      ? buyInFor(candidate.table.bigBlind)
+      : stakes.buyIn;
+  }
+
+  if (candidate?.table) {
+    try {
+      seat = candidate.table.joinAgentSession({
+        agentId: agent.id,
+        userId,
+        displayName: agent.name || 'Agent',
+        strategy: agent.strategy || '',
+        memoryContext: getAgentMemoryContext(agent),
+        agentProfile: agent.profile ?? null,
+      });
+      if (seat !== null) {
+        tableId = candidate.table.tableId;
+        joinedExisting = true;
+        sessionStarted = true;
+        console.log(`[agents] ${agent.name} joins table ${tableId} at seat ${seat} (action score ${candidate.score}, ${candidate.table.seatedCount()}/${candidate.table.maxSeats} seated)`);
+      }
+    } catch (err) {
+      console.error('[agents] join failed, falling back to a fresh table:', err.message);
+    }
+  }
+
+  if (!joinedExisting) {
+    // AGE-35: the global cost bound. Each autonomous table burns model calls
+    // with or without a watcher, so refuse past the cap with a clear reason.
+    // Only CREATING a table counts against it -- joining one does not.
+    if (liveTables && liveTables.countAutonomousTables() >= liveTables.MAX_CONCURRENT_TABLES) {
+      return { status: 503, body: {
+        error: `The floor is full — ${liveTables.MAX_CONCURRENT_TABLES} tables are already running. Try again once one finishes.`,
+        maxConcurrentTables: liveTables.MAX_CONCURRENT_TABLES,
+      } };
+    }
+
+    tableId = 'table-' + randomUUID().slice(0, 8);
+
+    // AGE-35: build the table and start the session loop NOW. Before this the
+    // table only came into being when a client sent WATCH, which is why an
+    // agent could show as "playing" while its game was frozen (BUG-16/17).
+    if (liveTables) {
+      try {
+        // WALLET-1: pocket size sets the stakes. getOrCreateTable already
+        // takes blinds, so this needs no change in table.js.
+        const table = liveTables.getOrCreateTable(tableId, stakes
+          ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind }
+          : {});
+        seat = table.startAgentSession({
+          agentId: agent.id,
+          userId,
+          displayName: agent.name || 'Agent',
+          strategy: agent.strategy || '',
+          memoryContext: getAgentMemoryContext(agent),
+          agentProfile: agent.profile ?? null,
+        });
+        sessionStarted = seat !== null;
+      } catch (err) {
+        console.error('[agents] failed to start server-side session:', err.message);
+      }
+    }
+  }
+
+  activeTables.add(tableId);
+  agent.activeTableId = tableId;
+  agent.status = 'playing';
+  agent.unseenRecap = false;
+  agent.sessionFlagged = [];
+  // SERVER-4: the room he is walking into. Only ever a FALLBACK for the
+  // location the live table derives (home.js locationFor) — it answers the one
+  // window where nothing else can, between "he has been sent" and "the felt
+  // exists", which is where a queued agent lives permanently.
+  agent.headingTo = roomIdForStakes(stakes);
+  // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
+  // when the session ends. The old agent ledger keeps its entry too while
+  // agent.bankroll is still mirrored.
+  if (deployBuyIn > 0 && sessionStarted) {
+    debitBuyIn(pocket, deployBuyIn, tableId);
+    mirrorBankroll(agent);
+    appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: deployBuyIn, tableId });
+    saveWalletFor(userId);
+  }
+  saveStore(userId);
+  console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
+  emitAgentChange(userId);
+
+  return { status: 200, body: {
+    tableId,
+    agentId: agent.id,
+    agentName: agent.name,
+    strategy: agent.strategy,
+    // BUGS-B/4: his name, not the word "agent". This response is what the
+    // client seats him under, and it was handing back a literal.
+    displayName: agent.name,
+    memoryContext: getAgentMemoryContext(agent),
+    sessionStarted,
+    joinedExisting,
+    seat,
+    // SERVER-4: where he actually ended up. With `rung` this is what was asked
+    // for; without it, it is what his pocket chose for him — and either way the
+    // client no longer has to infer a room from blinds.
+    room: agent.headingTo,
+    stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
+  } };
 }
 
 export function installAgentProfileRoutes(app) {
@@ -3734,232 +4102,14 @@ export function installAgentProfileRoutes(app) {
   });
 
   // POST /api/agents/:agentId/deploy
+  // AGE-35 / BUGS-B/1: the route is a wrapper. Everything it did now lives in
+  // deployAgent() at module scope, because the deploy is no longer only a
+  // thing a client asks for — a table that emptied out under an agent puts him
+  // back in a seat through the same door, with the same pocket gate, the same
+  // matchmaking and the same cost bound. Two ways in, one behaviour.
   app.post('/api/agents/:agentId/deploy', (req, res) => {
-    const userId = String(req.body?.userId || 'anon');
-    const { agentId } = req.params;
-    const profile = getOrCreate(userId);
-    const agent = profile.agents.find((a) => a.id === agentId);
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    // AGENTS-2: retired is retired. And an agent who has been called in does not
-    // get a second seat on the way out.
-    if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
-    if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
-
-    ensureMemory(agent);
-    ensureProfile(agent);
-    ensureBankroll(agent);
-
-    // WANTS-1: he asked to sit one out and you said yes. The bench has to mean
-    // something or the answer was theatre. It clears itself the moment STAMINA
-    // has him back at 'fresh' — nothing to remember to undo.
-    // Not while he is still in a seat: a bench that has not taken effect yet
-    // must not also swallow the "hand back the table he is already at" reply
-    // below, or a client polling deploy loses the session he is finishing.
-    const seatedNow = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
-    if (!seatedNow && isRestBenched(agent)) {
-      return res.status(409).json({
-        error: 'agentResting',
-        message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes.`,
-        fatigue: fatigueNow(agent),
-        restingUntil: 'fresh',
-      });
-    }
-
-    // Already at a live table — hand back the same one rather than stacking a
-    // second autonomous session on top of the first.
-    if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) {
-      return res.json({
-        tableId: agent.activeTableId,
-        agentId: agent.id,
-        agentName: agent.name,
-        strategy: agent.strategy,
-        displayName: 'Agent',
-        memoryContext: getAgentMemoryContext(agent),
-        alreadyPlaying: true,
-      });
-    }
-
-    // MST-2: prefer JOINING an open AI-only table over standing up a private
-    // one. Filling a felt is both cheaper (one table's worth of model calls
-    // serves N agents) and better poker -- the matchmaker ranks candidates by
-    // how much action the resulting mix of archetypes should produce.
-    let tableId = null;
-    let seat = null;
-    let joinedExisting = false;
-    let sessionStarted = false;
-
-    // MATCH-1: chosen AFTER the pocket gate below, not before it, because the
-    // matchmaker now needs to know which ROOM this deploy is for — a man turned
-    // away from his own stablemate's table is offered another table in the same
-    // room, and the room is whatever his pocket buys into.
-    let candidate = null;
-
-    // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
-    // The pocket picks the stakes and decides whether he sits down at all.
-    // Only enforced when the server manages sessions (liveTables present).
-    const wallet = walletFor(userId);
-    const pocket = ensurePocket(agent);
-    pocket.agentId = agent.id;
-    let deployBuyIn = 0;
-    let stakes = null;
-
-    if (liveTables) {
-      // Cut off is cut off — he finishes nothing and starts nothing. Not a
-      // punishment, and nothing he has learned is lost.
-      if (pocket.mode === 'cut') {
-        return res.status(402).json({
-          error: 'He is cut off. Fund him to put him back in a seat.',
-          broke: true, cut: true,
-          pocket: pocketProjection(pocket),
-        });
-      }
-
-      // Auto-refill happens here, before the gate: he comes to the wallet and
-      // collects when he is short. allowance and topup deliberately do not.
-      if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
-
-      if (isBroke(pocket.balance)) {
-        // Broke: he rests at the bar. One moment, one notification a day.
-        recordBrokeMoment(agent);
-        agent.status = 'idle';
-        agent.activeTableId = null;
-        mirrorBankroll(agent);
-        saveStore(userId);
-        saveWalletFor(userId);
-        emitAgentChange(userId);
-        notifyBrokeOnce(userId, agent);
-        return res.status(402).json({
-          error: "His pocket is empty. He's at the bar — your call.",
-          broke: true,
-          pocket: pocketProjection(pocket),
-          required: ENTRY_BUYIN,
-          moment: agent.lastMoment,
-        });
-      }
-
-      // SERVER-4: the room the owner asked for, or the highest one his pocket
-      // reaches when he asked for none. Refused, never downgraded.
-      const chosen = stakesForRequest(req.body, pocket.balance);
-      if (chosen.status) return res.status(chosen.status).json(chosen.body);
-      stakes = chosen.stakes;
-      candidate = liveTables.findJoinableTable?.({
-        profile: agent.profile ?? null,
-        agentId: agent.id,
-        // MATCH-1: this is the refusal, not a preference. Every table already
-        // seating one of this owner's agents is out of the running, and the
-        // deploy either finds another one in the same room or opens one.
-        userId,
-        room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
-      });
-      // A table stays at the lowest rung any seated agent could afford, so he
-      // may only join one whose buy-in his pocket already covers.
-      if (candidate?.table && !canAffordTable(pocket.balance, candidate.table.bigBlind)) {
-        console.log(`[wallet] ${agent.name} cannot cover table ${candidate.table.tableId} (${candidate.table.bigBlind} BB) — opening one at ${stakes.label}`);
-        candidate = null;
-      }
-      deployBuyIn = candidate?.table
-        ? buyInFor(candidate.table.bigBlind)
-        : stakes.buyIn;
-    }
-
-    if (candidate?.table) {
-      try {
-        seat = candidate.table.joinAgentSession({
-          agentId: agent.id,
-          userId,
-          displayName: agent.name || 'Agent',
-          strategy: agent.strategy || '',
-          memoryContext: getAgentMemoryContext(agent),
-          agentProfile: agent.profile ?? null,
-        });
-        if (seat !== null) {
-          tableId = candidate.table.tableId;
-          joinedExisting = true;
-          sessionStarted = true;
-          console.log(`[agents] ${agent.name} joins table ${tableId} at seat ${seat} (action score ${candidate.score}, ${candidate.table.seatedCount()}/${candidate.table.maxSeats} seated)`);
-        }
-      } catch (err) {
-        console.error('[agents] join failed, falling back to a fresh table:', err.message);
-      }
-    }
-
-    if (!joinedExisting) {
-      // AGE-35: the global cost bound. Each autonomous table burns model calls
-      // with or without a watcher, so refuse past the cap with a clear reason.
-      // Only CREATING a table counts against it -- joining one does not.
-      if (liveTables && liveTables.countAutonomousTables() >= liveTables.MAX_CONCURRENT_TABLES) {
-        return res.status(503).json({
-          error: `The floor is full — ${liveTables.MAX_CONCURRENT_TABLES} tables are already running. Try again once one finishes.`,
-          maxConcurrentTables: liveTables.MAX_CONCURRENT_TABLES,
-        });
-      }
-
-      tableId = 'table-' + randomUUID().slice(0, 8);
-
-      // AGE-35: build the table and start the session loop NOW. Before this the
-      // table only came into being when a client sent WATCH, which is why an
-      // agent could show as "playing" while its game was frozen (BUG-16/17).
-      if (liveTables) {
-        try {
-          // WALLET-1: pocket size sets the stakes. getOrCreateTable already
-          // takes blinds, so this needs no change in table.js.
-          const table = liveTables.getOrCreateTable(tableId, stakes
-            ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind }
-            : {});
-          seat = table.startAgentSession({
-            agentId: agent.id,
-            userId,
-            displayName: agent.name || 'Agent',
-            strategy: agent.strategy || '',
-            memoryContext: getAgentMemoryContext(agent),
-            agentProfile: agent.profile ?? null,
-          });
-          sessionStarted = seat !== null;
-        } catch (err) {
-          console.error('[agents] failed to start server-side session:', err.message);
-        }
-      }
-    }
-
-    activeTables.add(tableId);
-    agent.activeTableId = tableId;
-    agent.status = 'playing';
-    agent.unseenRecap = false;
-    agent.sessionFlagged = [];
-    // SERVER-4: the room he is walking into. Only ever a FALLBACK for the
-    // location the live table derives (home.js locationFor) — it answers the
-    // one window where nothing else can, between "he has been sent" and "the
-    // felt exists", which is where a queued agent lives permanently.
-    agent.headingTo = roomIdForStakes(stakes);
-    // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
-    // when the session ends. The old agent ledger keeps its entry too while
-    // agent.bankroll is still mirrored.
-    if (deployBuyIn > 0 && sessionStarted) {
-      debitBuyIn(pocket, deployBuyIn, tableId);
-      mirrorBankroll(agent);
-      appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: deployBuyIn, tableId });
-      saveWalletFor(userId);
-    }
-    saveStore(userId);
-    console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
-    emitAgentChange(userId);
-
-    res.json({
-      tableId,
-      agentId: agent.id,
-      agentName: agent.name,
-      strategy: agent.strategy,
-      displayName: 'Agent',
-      memoryContext: getAgentMemoryContext(agent),
-      sessionStarted,
-      joinedExisting,
-      seat,
-      // SERVER-4: where he actually ended up. With `rung` this is what was
-      // asked for; without it, it is what his pocket chose for him — and
-      // either way the client no longer has to infer a room from blinds.
-      room: agent.headingTo,
-      stakes: stakes ? { rung: stakes.rung, smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind, buyIn: stakes.buyIn, label: stakes.label } : null,
-    });
+    const out = deployAgent(String(req.body?.userId || 'anon'), req.params.agentId, { body: req.body });
+    return res.status(out.status).json(out.body);
   });
 
   // POST /api/agents/:agentId/queue — PvP matchmaking
@@ -4424,9 +4574,15 @@ export function installAgentProfileRoutes(app) {
     if (guarded.guarded) {
       console.warn(`[agentProfiles] draft reply rejected (${guarded.guarded}) — sent ${guarded.source}`);
     }
-    profile.chat.push({ role: 'assistant', content: guarded.text });
-    saveStore(userId);
     const draft = draftState();
+    // BUGS-B/4: the draft always asks what he is called, exactly once, the
+    // moment there is enough of a character to hang a name on. Folded in here
+    // rather than left to the system prompt because a model that ignores an
+    // instruction has to be caught, not forwarded — the same reason the reply
+    // above is guarded rather than trusted.
+    const reply = withNameQuestion(guarded.text, { chat: profile.chat, ready: draft.ready });
+    profile.chat.push({ role: 'assistant', content: reply });
+    saveStore(userId);
     return res.json({
       chat: profile.chat,
       natureHint: draft.nature,

@@ -1,10 +1,46 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (TEST-5) — 5 open, 28 resolved
+Last updated: 2026-09-06 (integration) — 9 open, 28 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-38 — `verify-home-routes.js` points at a script that does not exist
+**Severity:** Low (a wrong hint costs the next person a minute, and it is one word)
+**Where:** `scripts/verify-home-routes.js:43`
+**What:** With no built client the script bails with ``client/dist not found — run `npm run build` first``. There is no `build` script at the root — `package.json` defines `build:client` (which is what `start` itself runs). Following the hint verbatim gets `Missing script: "build"`.
+**Found by:** the WATCH report; the names were the other way round there — the hint says `npm run build`, and `npm run build:client` is the one that exists.
+**Fix:** say `npm run build:client`. Worth a grep for the same sentence in the other verify scripts before closing it.
+
+---
+
+### BUG-37 — The felt formats a stack with `toLocaleString`, not the wallet's own formatter
+**Severity:** Low (two spellings of the same number, in the same screen)
+**Where:** `client/src/components/desktop/DeskTableStage.jsx:170` and `:236`, `client/src/components/desktop/GameTile.jsx:59` and `:81`, `client/src/components/floor/atoms.jsx:123`, `client/src/components/PlayerSeat.jsx:90`
+**What:** `client/src/lib/wallet.js` exports `money()` and every money surface goes through it — that is why a pocket and a ledger agree on how a number looks. The felt does not: it calls `(stack ?? 0).toLocaleString()` directly in six places, so a stack is spelled by the browser's locale while the wallet beside it is spelled by ours.
+**Found by:** the WATCH report, on the hero stack.
+**Fix:** route them through `money()`. Check first whether the felt wants the currency mark at all — if it deliberately does not, the answer is an option on `money()` rather than six call sites that opted out of it.
+
+---
+
+### BUG-36 — `table.seats.test.js` intermittently fails on "blinds moved some chips"
+**Severity:** Medium (BUG-34's family — a fast-suite failure that a re-run makes go away)
+**Where:** `src/server/table.seats.test.js`
+**What:** Fails inside a full `npm run test:all`, passes on its own and on a re-run. Seen once in this session's integration runs; the suite passed 14/14 immediately afterwards, and three consecutive `npm test` runs were clean.
+**Found by:** the WATCH report, and independently by the integrator during the COST-1 merge.
+**Fix:** unknown. `scripts/stress-suites.js` (BUG-34) is the tool — run this suite under it rather than guessing. Note BUG-34 ruled out the obvious shared-resource causes, so a timing assumption inside the test is the likelier answer.
+
+---
+
+### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three
+**Severity:** Medium (the e2e gate is the one before a merge to main, so a one-in-three flake is a coin toss on every merge)
+**Where:** `scripts/verify-watch-v2.js`
+**What:** A timing assertion on the reasoning line, red about one run in three. Reported by WATCH, and consistent with what the integrator saw: watch-v2 failed on the first pass and went green on a re-run repeatedly through this session, with the whole e2e suite taking 131s against a usual 42s on the runs it failed.
+**Found by:** the WATCH report.
+**Fix:** unknown, and it belongs with BUG-34 rather than beside it — same harness, same machine, same shape. Assert the rule rather than the moment, the way BUG-34's verify-pace fix did: it replaced "the sample window caught it" with "every snapshot of a hand he is still in carries it".
+
+---
 
 ### BUG-34 — `test:all` dies intermittently on Windows
 **Severity:** Medium (a flaky suite teaches people to re-run instead of to look — the testing law's own words)

@@ -46,6 +46,8 @@ import { Bubble } from './system/Bubble.jsx';
 import { MoodGhost } from './system/MoodGhost.jsx';
 import { GhostHandLayer } from './system/GhostHands.jsx';
 import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
+import { OwnerHero } from './system/OwnerHero.jsx';
+import { SitStrip } from './system/SitStrip.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
 import { handResult } from '../lib/handResult.js';
 import { money as potMoney } from '../lib/wallet.js';
@@ -622,6 +624,10 @@ export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
   agentMood, agentHeat, agentAccent, agentFatigue = null,
+  // SIT-1: the owner is the one in the hero seat. Everything above the hero is
+  // unchanged — same opponents, same board, same pot — and the bottom of the
+  // axis becomes his cards and a YOU pill instead of a ghost he does not have.
+  seated = false,
   // WATCH-7: the hand-end receipt, drawn over his strip rather than over the
   // felt, and the ticking stack number under it. Both are the watch screen's;
   // the replay theatre passes neither and is unchanged.
@@ -1025,6 +1031,40 @@ export function WatchFelt({
             </span>
           </div>
         )}
+        {seated ? (
+        // SIT-1 · NO GHOST OF HIS OWN. A ghost is a character with a mood, a
+        // face and a pair of hands; the owner has none of those and the product
+        // has never drawn him. He gets the pill, the cards and the strip.
+        <OwnerHero
+          hole={heroHole}
+          landed={heroLanded}
+          mucking={heroMuck}
+          between={between}
+          equity={heroEquity}
+          villain={villainName}
+          bigRope={pMeta.heat}
+          deadRope={!hasEquity}
+          turn={!!(game && live && game.toAct === heroSeat)}
+          street={street}
+          pos={posLabel(heroSeat, game)}
+          toCall={toCall}
+          // SIT-1 · HIS OWN ACTION, NOT THE TABLE'S LAST ONE. `actionLabel`
+          // takes whatever decision came last, which on the watch screen is the
+          // agent whose felt it is and is therefore his. Here the hero seat is
+          // the OWNER and the decisions on the wire are the agents' — so the
+          // ghost's label would have printed The Grinder's fold on the owner's
+          // own strip, over his own cards, while it was still his turn.
+          action={(lastDecision && lastDecision.seat === heroSeat && lastDecision.action)
+            ? formatAction(lastDecision.action)
+            : toActLabel}
+          tag={pace === 'allin' && !settled ? 'HOLDING' : null}
+          warm={warm}
+          note={live ? null : heroNote}
+          timer={clock && clock.seat === heroSeat ? clock.left : null}
+          timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
+          toast={toast}
+        />
+        ) : (
         <WatchHero
           says={heroSays}
           mood={agentMood || 'neutral'}
@@ -1068,6 +1108,7 @@ export function WatchFelt({
           toast={toast}
           onTapFace={onTapHero}
         />
+        )}
         </>
       )}
 
@@ -1244,6 +1285,27 @@ export function WatchScreen({
   sessionEnd = null,
   onFund,
   onBackToFloor,
+  // ── SIT-1 · the owner is playing this one himself ────────────────────────
+  //
+  // `seated` swaps two things and nothing else: the hero at the bottom of the
+  // felt (his cards, not a ghost) and the composer's slot (the four verbs, not
+  // a whisper). Everything between them — the opponents, the board, the pot,
+  // the glass — is the watch screen exactly as it is, which is the point: you
+  // are not looking at a second table, you are sitting at the one you watch.
+  //
+  // `legalActions` is the LIVE offer, not the paced one. Pacing exists so a
+  // spectator does not see an action before the line that was said about it; a
+  // player must never wait to see his own seat, which is the rule the legacy
+  // ActionBar has always kept.
+  seated = false,
+  legalActions = [],
+  onAct,
+  // The room's thread rather than one agent's stay. At the kitchen table there
+  // is no single agent whose felt this is — the whole household is at it — so
+  // the sheet is fed from outside (THREAD-2's /api/home/thread, read by the
+  // caller) instead of being assembled from a socket that pushes nothing here
+  // (table.js: "the home game pushes nothing").
+  threadRows: threadRowsProp = null,
 }) {
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -1429,6 +1491,14 @@ export function WatchScreen({
 
   var between = !handActive(game);
   var pace = paceOf(game);
+
+  // SIT-1: the server's own clock, for the strip's "12s · timeout checks for
+  // you". The felt reads the same hook for the ring on the chair; this is the
+  // same number in words. `left` is already seconds (lib/pace.js).
+  var sitClock = useActionTimer(game);
+  var clockSecs = (seated && sitClock && sitClock.seat === mySeat)
+    ? sitClock.left
+    : null;
 
   // ── WATCH-7 · a hand ends quietly ───────────────────────────────────────
   // The pot slides to the winner and his stack ticks — both of those are the
@@ -1703,7 +1773,7 @@ export function WatchScreen({
   // The record and what is being said now, as one ordered list: one row per id,
   // and where the store and the socket both have a line the STORED copy wins,
   // because it is the one carrying the server's clock.
-  var threadRows = mergeThread(storedRows, liveRows);
+  var threadRows = threadRowsProp || mergeThread(storedRows, liveRows);
 
   function handleSitOutConfirm() {
     setSitOutPending(false);
@@ -1842,17 +1912,31 @@ export function WatchScreen({
         // No speech over the ceremony: the session is the only thing being said
         // then, and every line is in the record either way. A hand-end toast is
         // not a ceremony and does not silence him.
+        seated={seated}
         bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
 
-      <WhisperComposer
-        onSend={sendToAgent}
-        onOpenThread={function() { openChat(); }}
-        agentName={agentName}
-        // BUGS-A job 11: while he is answering, and at a table where there is
-        // no agent of yours to answer. A composer that takes a line and drops
-        // it is worse than one that says it cannot take it.
-        disabled={agentLoading || !agentId}
-      />
+      {seated ? (
+        // SIT-1 · you are IN the hand, so there is nobody to whisper to. The
+        // composer's slot carries the four verbs instead — same slot, same
+        // height, so the felt above is measured identically either way.
+        <SitStrip
+          game={game}
+          mySeat={mySeat}
+          legalActions={legalActions}
+          onAct={onAct}
+          secs={clockSecs}
+        />
+      ) : (
+        <WhisperComposer
+          onSend={sendToAgent}
+          onOpenThread={function() { openChat(); }}
+          agentName={agentName}
+          // BUGS-A job 11: while he is answering, and at a table where there is
+          // no agent of yours to answer. A composer that takes a line and drops
+          // it is worse than one that says it cannot take it.
+          disabled={agentLoading || !agentId}
+        />
+      )}
 
       {sitOutPending && (
         <SitOutSheet

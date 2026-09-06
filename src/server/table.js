@@ -19,6 +19,10 @@ import {
   openerForAgent,
   getAgentPocket,
   takeDrinkForSession,
+  // BUGS-B/1: a table that emptied out under an agent puts him back in a seat
+  // through the SAME door his owner's deploy uses — same pocket gate, same
+  // matchmaking, same cost bound.
+  deployAgent,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -86,6 +90,7 @@ import {
   HOUSE_STRATEGY,
   HOUSE_PROFILE,
   pickComplementaryHouse,
+  pickHouseRegular,
 } from './matchmaking.js';
 import {
   pickTalkLine,
@@ -94,7 +99,7 @@ import {
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
 import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
-import { appendLine as appendThreadLine, ThreadKind } from './thread.js';
+import { appendLine as appendThreadLine, ThreadKind, OWNER as THREAD_OWNER } from './thread.js';
 import { canAffordTable } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
@@ -131,6 +136,29 @@ export const MAX_SEATS = Math.min(SEAT_LIMIT, Math.max(2, Number(process.env.MAX
 // Occupied, chipped seats needed before a hand can be dealt.
 export const MIN_TO_DEAL = 2;
 
+// ── BUGS-B/1: the lonely table ──────────────────────────────────────────────
+//
+// An agent sitting on his own at "SHUFFLING" is the worst thing the casino can
+// show. He is not resting and he is not playing; he is waiting for a game that
+// will never start, and the floor reports him as live the whole time.
+//
+// The house has six regulars for exactly this. A casino table that cannot deal
+// gets them until it has enough bodies for a real game, and a table that stays
+// alone even after that is not a table — it is closed and its agent is put back
+// in the queue, which is a better answer than leaving him there.
+//
+// Never at the HOME table. A home game is two of an owner's own agents in his
+// living room; seating a House regular in it would make it the casino, and it
+// is allowed to be short-handed or to stop entirely.
+
+// How long alone before the house sends somebody over.
+export const LONELY_FILL_MS = Number(process.env.LONELY_FILL_MS ?? 20_000);
+// How long alone before the table is not worth keeping open.
+export const LONELY_CLOSE_MS = Number(process.env.LONELY_CLOSE_MS ?? 300_000);
+// What the house fills TO. Three is a game; two is a duel that ends the moment
+// one of them busts, which is the state this whole mechanism exists to escape.
+export const LONELY_SEATS = Number(process.env.LONELY_SEATS ?? 3);
+
 // ── AGE-35: server-side session loop ────────────────────────────────────────
 // Pause between a completed hand and the next deal on an autonomous table.
 const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 8000);
@@ -164,6 +192,8 @@ const RECAP_BUST = 'someone ran out of chips — session over';
 const RECAP_SIT_OUT = 'sat out by owner';
 const RECAP_IDLE = 'the table went quiet, so I stepped away';
 const RECAP_STALL = 'something jammed at my table, so I stepped away';
+// BUGS-B/1: the table never filled up, so he was moved to one that had.
+const RECAP_LONELY = 'nobody else ever sat down, so I moved tables';
 
 // Watchdog for the autonomous loop. A hand that cannot advance — the engine
 // rejecting both the model's action AND the safe fallback, or _maybeRunAiTurn
@@ -398,6 +428,12 @@ export class Table {
       ? SESSION_STALL_MS
       : Math.max(SESSION_STALL_MS, this.handPauseMs * 3 + 60_000);
     this.closed = false;
+    // BUGS-B/1: when this table stopped having enough bodies to deal, or null
+    // when it has them. One timestamp rather than a countdown, so the fill at
+    // 20s and the close at 5 minutes are measured from the same moment and a
+    // failed fill does not restart the clock.
+    this._aloneSince = null;
+    this._lonelyTimer = null;
     // Advisory deadline for the seat currently to act (the AI's think delay).
     // Surfaced to the floor as liveGame.actionDeadline. A real server-side
     // action timer for HUMAN seats is still Fredrik's queue.
@@ -816,6 +852,9 @@ export class Table {
     this.agentStrategy = null;
     console.log(`[table:${this.tableId}] autonomous session started — ${displayName || 'Agent'} vs ${house.displayName} (${house.castMember?.archetype ?? 'House'}), max ${this.maxHands} hands`);
     this.startSessionLoop({ delayMs: 250 });
+    // BUGS-B/1: from the first second. A table that stands up with nobody
+    // opposite is the exact shape this watches for.
+    this._noteLoneliness();
     return heroSeat;
   }
   // MST-1/MST-2: seat an agent at a table that is ALREADY running. The seat is
@@ -856,6 +895,7 @@ export class Table {
     } else if (!this._nextHandTimer && (!this.game || this.game.street === Streets.COMPLETE || this.game.street === Streets.WAITING)) {
       this._scheduleNextHand(250);
     }
+    this._noteLoneliness();   // BUGS-B/1: somebody arrived — is it enough?
     this._notifyStateChange();
     return seat;
   }
@@ -892,7 +932,157 @@ export class Table {
     // own bounds (hand cap + bust) replace it.
     if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
     this._scheduleNextHand(delayMs);
+    this._noteLoneliness();   // BUGS-B/1
     return true;
+  }
+
+  // ── BUGS-B/1 · the lonely table ───────────────────────────────────────────
+
+  /** Seats that could actually be dealt into the next hand. */
+  liveSeatCount() {
+    return this._survivingSeats().length;
+  }
+
+  /**
+   * Look at whether this table can deal, and start or stop the clock.
+   *
+   * Called wherever the answer can change — a seat taken, a seat retired, a
+   * hand finished — and idempotent everywhere: it either notes that the table
+   * is fine and clears the clock, or notes when it stopped being fine and arms
+   * one timer. Never two.
+   */
+  _noteLoneliness() {
+    // A home game is allowed to be short-handed, and is allowed to stop. It is
+    // a living room, not a felt with a floor manager.
+    if (this.closed || this.home) return;
+    if (this.liveSeatCount() >= MIN_TO_DEAL) {
+      this._aloneSince = null;
+      if (this._lonelyTimer) { clearTimeout(this._lonelyTimer); this._lonelyTimer = null; }
+      return;
+    }
+    if (this._aloneSince === null) {
+      this._aloneSince = Date.now();
+      console.log(`[table:${this.tableId}] down to ${this.liveSeatCount()} live seat(s) — the house has ${Math.round(LONELY_FILL_MS / 1000)}s to send somebody over`);
+    }
+    if (this._lonelyTimer) return;
+    this._lonelyTimer = setTimeout(() => {
+      this._lonelyTimer = null;
+      try { this._answerLoneliness(); }
+      catch (err) { console.error(`[table:${this.tableId}] lonely check failed:`, err.message); }
+    }, LONELY_FILL_MS);
+    this._lonelyTimer.unref?.();
+  }
+
+  /** The clock ran out. Fill the table, or give up on it. */
+  _answerLoneliness() {
+    if (this.closed || this.home) return;
+    if (this.liveSeatCount() >= MIN_TO_DEAL) { this._aloneSince = null; return; }
+
+    // Busted and departed seats are still holding slots the house needs.
+    this._reconcileSeats();
+    if (this.closed) return;
+
+    const aloneFor = Date.now() - (this._aloneSince ?? Date.now());
+    if (aloneFor < LONELY_CLOSE_MS) {
+      const seated = this._seatHouseRegulars();
+      if (this.liveSeatCount() >= MIN_TO_DEAL) {
+        console.log(`[table:${this.tableId}] the house sat ${seated} regular(s) down — ${this.liveSeatCount()} live seats, dealing again`);
+        this._aloneSince = null;
+        this._notifyStateChange();
+        if (this.isAiOnly()) {
+          if (this.autoPlay) this._scheduleNextHand(250);
+          else this.startSessionLoop({ delayMs: 250 });
+        }
+        return;
+      }
+      // The fill could not manage it (the whole cast is already here, or every
+      // slot is taken by a seat that cannot be freed). Look again later — and
+      // deliberately WITHOUT resetting `_aloneSince`, so the five minutes are
+      // counted from when he was first left alone.
+      console.warn(`[table:${this.tableId}] still ${this.liveSeatCount()} live seat(s) after the house tried to fill it`);
+      this._noteLoneliness();
+      return;
+    }
+
+    console.warn(`[table:${this.tableId}] alone for ${Math.round(aloneFor / 1000)}s — closing, and putting its agent(s) back in the queue`);
+    this._closeAndRequeue();
+  }
+
+  /**
+   * Seat House regulars until the table has LONELY_SEATS live seats.
+   *
+   * Never two of the same regular: a cast seat's playerId is `house_<id>` and
+   * both the button and opponentStats are keyed on it, so a duplicate would
+   * break the table's own uniqueness invariant. Returns how many sat down.
+   */
+  _seatHouseRegulars() {
+    let seated = 0;
+    // Bounded by the seats there are: nothing here may spin.
+    for (let guard = 0; guard < this.maxSeats; guard++) {
+      if (this.closed || this.liveSeatCount() >= LONELY_SEATS || !this.hasFreeSeat()) break;
+      const opposing = this._survivingSeats()
+        .map((seat) => this.agentProfiles[seat])
+        .filter(Boolean);
+      const house = pickHouseRegular(opposing, this._seatedCastIds());
+      if (!house) break;   // the whole cast is already at this felt
+      try {
+        this.seatAI({
+          displayName:  house.displayName,
+          strategy:     house.strategy,
+          agentProfile: house.profile,
+          buyIn:        this.defaultBuyIn(),
+          stableId:     house.stableId,
+          accentColor:  house.accentColor,
+          talkLines:    house.talkLines,
+        });
+      } catch (err) {
+        console.error(`[table:${this.tableId}] could not seat ${house.displayName}:`, err.message);
+        break;
+      }
+      seated++;
+    }
+    return seated;
+  }
+
+  /** The cast ids sitting here right now, read off the seats. */
+  _seatedCastIds() {
+    const ids = [];
+    for (const occupant of this.pending) {
+      const playerId = occupant?.playerId;
+      if (typeof playerId === 'string' && playerId.startsWith('house_')) {
+        ids.push(playerId.slice('house_'.length));
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * Give up on this table and put whoever was stranded at it back in a seat.
+   *
+   * Who is here is read BEFORE the close, because closeTable frees every seat;
+   * the re-deploy happens AFTER it, because deployAgent refuses an agent who
+   * is still pointing at a live table and closeTable is what clears that.
+   */
+  _closeAndRequeue() {
+    const stranded = [];
+    for (const seat of this._survivingSeats()) {
+      if (this.agentIds[seat]) {
+        stranded.push({ agentId: this.agentIds[seat], userId: this.agentUserIds[seat] });
+      }
+    }
+    this.closeTable(RECAP_LONELY, { recap: RECAP_LONELY });
+    for (const who of stranded) {
+      try {
+        const out = deployAgent(who.userId, who.agentId, { requeue: true });
+        if (out.status === 200) {
+          console.log(`[table:${this.tableId}] ${who.agentId} re-queued at ${out.body.tableId}`);
+        } else {
+          console.warn(`[table:${this.tableId}] ${who.agentId} could not be re-queued (${out.status}): ${out.body?.error ?? ''}`);
+        }
+      } catch (err) {
+        console.error(`[table:${this.tableId}] re-queue failed:`, err.message);
+      }
+    }
   }
 
   // Re-arm the stall watchdog. Called on every sign of progress: a deal
@@ -934,6 +1124,7 @@ export class Table {
     if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
     if (this._nextHandTimer) { clearTimeout(this._nextHandTimer); this._nextHandTimer = null; }
     if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
+    if (this._lonelyTimer) { clearTimeout(this._lonelyTimer); this._lonelyTimer = null; }
   }
 
   // The single close path for every reason a table ends: sit-out, bust, hand
@@ -1429,7 +1620,7 @@ export class Table {
   // a seat with no session (a House regular, a human) simply has nowhere to
   // write, which is the same thing as not writing.
 
-  _threadTo(seat, kind, who, text, { cost = false } = {}) {
+  _threadTo(seat, kind, who, text, { from = null, to = null, cost = false } = {}) {
     const sessionId = this.seatSessionIds[seat];
     if (!sessionId) return;
     appendThreadLine({
@@ -1440,6 +1631,12 @@ export class Table {
       kind,
       who,
       text,
+      // BUGS-B/2: a whisper and its answer are ADDRESSED — owner to him, him
+      // back to the owner. Everything else at a felt is said to the room and
+      // carries neither, which is the rule thread.js already states.
+      from,
+      to,
+      // WATCH-9: and the room says when an attribute cost him the hand.
       cost,
     });
   }
@@ -1453,9 +1650,11 @@ export class Table {
   // One seat spoke. His own thread records HIM (or YOU, when the voice is the
   // owner whispering from the spectator socket at his seat); everyone else's
   // records the speaker under his own name.
-  _threadSpoken(seat, displayName, text, isAI) {
+  _threadSpoken(seat, displayName, text, isAI, { from = null, to = null } = {}) {
     for (let s = 0; s < this.maxSeats; s++) {
-      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text);
+      // BUGS-B/2: from/to belong to the SPEAKER's own line. The other seats
+      // overheard it; nobody said it to them.
+      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text, { from, to });
       else this._threadTo(s, ThreadKind.OPPONENT, displayName, text);
     }
   }
@@ -2035,6 +2234,18 @@ export class Table {
     const leaving = this.seatLeaving.some(Boolean);
     const survivors = this._survivingSeats();
     if (survivors.length < MIN_TO_DEAL) {
+      // BUGS-B/1: an AGENT still holding chips is not a session that should
+      // end. The table emptied out around him — the House busted, or the last
+      // other seat stood up — and closing on him reported RECAP_BUST for a man
+      // who had just won the pot. He is LONELY, which the house answers by
+      // sending regulars over, and only a table that stays alone is closed.
+      const strandedAgent = !this.home && survivors.some((seat) => this.agentIds[seat]);
+      if (strandedAgent) {
+        this._reconcileSeats();
+        this._notifyStateChange();
+        this._noteLoneliness();
+        return;
+      }
       const byChoice = leaving && survivors.length + 1 >= MIN_TO_DEAL;
       this.closeTable(byChoice ? RECAP_SIT_OUT : 'a player ran out of chips',
                       { recap: byChoice ? RECAP_SIT_OUT : RECAP_BUST });
@@ -2055,7 +2266,23 @@ export class Table {
     // Auto-deal when all FILLED seats are AI. On an autonomous table this is
     // the session loop; a legacy spectator-created AI table keeps its old
     // 2.5s tempo until startSessionLoop takes it over.
-    if (this.isAiOnly()) {
+    //
+    // SIT-1 · AND ALWAYS AT THE KITCHEN TABLE, whoever is sitting at it.
+    //
+    // The home game's tempo is the SERVER's — that is the whole shape of
+    // homeGame.js, which bounds it with a pause, a hand cap and a cooldown
+    // precisely because nobody is necessarily watching. `isAiOnly()` stops
+    // being true the moment the owner takes a chair, and the table then
+    // scheduled nothing, waited for a DEAL it would refuse anyway (a
+    // clientDriven maybeStartHand backs off while `autoPlay` is set), and was
+    // closed by its own stall watchdog a minute later. The owner sat down at
+    // his own kitchen table and the game stopped.
+    //
+    // The casino is untouched and must be: there a human seat IS the tempo,
+    // and dealing the next hand under a player who has not asked for one would
+    // take the table away from him. At home he asked for it by sitting down,
+    // the hand cap still bounds the evening, and every other seat is his own.
+    if (this.isAiOnly() || this.home) {
       this._scheduleNextHand(this._dealPauseMs() + holdMs);
     }
   }
@@ -3393,7 +3620,7 @@ export class Table {
   // Push a chat line into history and broadcast it to every WS at the table
   // (seated players + spectators). Empty / whitespace-only lines are dropped.
   // Lines are clamped to 280 characters.
-  sendChat(seat, text, isAI = false) {
+  sendChat(seat, text, isAI = false, { from = null, to = null } = {}) {
     if (typeof text !== 'string') return;
     const trimmed = text.trim().slice(0, 280);
     if (!trimmed) return;
@@ -3413,7 +3640,7 @@ export class Table {
     // (or YOU, when the voice is the owner whispering from the spectator
     // socket attached to his seat); everybody else's is filed under the name
     // the felt shows.
-    this._threadSpoken(seat, displayName, trimmed, entry.isAI);
+    this._threadSpoken(seat, displayName, trimmed, entry.isAI, { from, to });
     this._broadcast({
       type: ServerMsg.CHAT,
       seat,
@@ -3421,6 +3648,89 @@ export class Table {
       text: trimmed,
       isAI: entry.isAI,
     });
+  }
+
+  // ── BUGS-B/2 · the whisper ────────────────────────────────────────────────
+  //
+  // The owner leaning in while a hand is running. It is not table chat and it
+  // is not the CHATS thread: it is a private line to ONE seat, answered by the
+  // man in it, in his voice, knowing what is on the board right now.
+  //
+  // Three things the shape of this comes from:
+  //
+  //   1. IT IS ADDRESSED. Owner → him, and him → owner. Every other line at a
+  //      felt is said to the room and carries no from/to; these two carry
+  //      both, which is what lets the sheet draw "YOU → GRANITE".
+  //   2. WHAT YOU SAID IS YOURS. The whisper itself is written into HIS thread
+  //      only — no other seat heard it, and no other seat's sheet gets it. His
+  //      ANSWER is out loud, so it goes on the wire as an ordinary CHAT bubble
+  //      over his head, exactly as his trash talk does.
+  //   3. IT NEVER BREAKS A HAND. Everything here is best-effort and returns
+  //      null rather than throwing: a whisper that can wedge a table is worse
+  //      than a whisper that goes unanswered.
+
+  /** The seat this agent is sitting in, or null. */
+  seatOfAgent(agentId) {
+    if (!agentId) return null;
+    const seat = this.agentIds.findIndex((id) => id === agentId);
+    return seat === -1 || !this.pending[seat] ? null : seat;
+  }
+
+  /**
+   * What he needs to know to answer you: where this hand is, right now.
+   *
+   * His own cards are in it because they are his — this is only ever built for
+   * a caller that has already proved it owns the seat. Nobody else's are.
+   */
+  whisperContext(agentId) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null) return null;
+    const g = this.game;
+    const dealtIn = !!g && seat < g.seats.length;
+    const inHand = !!g && g.street !== Streets.WAITING && dealtIn;
+    return {
+      tableId: this.tableId,
+      seat,
+      displayName: this.pending[seat]?.displayName ?? null,
+      blinds: `${this.smallBlind}/${this.bigBlind}`,
+      handNumber: g ? g.handNumber : 0,
+      // Between hands is a real answer, and a better one than pretending a
+      // board exists: "we are shuffling" is something he can say.
+      street: inHand ? g.street : Streets.WAITING,
+      inHand,
+      board: inHand ? [...g.community] : [],
+      holeCards: inHand ? [...(g.seats[seat]?.holeCards ?? [])] : [],
+      pot: inHand ? g.pot : 0,
+      stack: dealtIn ? (g.seats[seat]?.stack ?? null) : this.seatStack(seat),
+      toAct: inHand ? g.toAct : null,
+      yourTurn: inHand && g.toAct === seat,
+      opponents: this.pending
+        .map((p, i) => (i === seat || !p ? null : (p.displayName ?? null)))
+        .filter(Boolean),
+      handsThisSession: this.handsThisSession,
+    };
+  }
+
+  /**
+   * The owner's line into the felt. Stored in HIS thread and nobody else's.
+   * Returns the seat it landed at, or null when he is not sitting here.
+   */
+  receiveWhisper(agentId, text) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null || typeof text !== 'string' || !text.trim()) return null;
+    this._threadTo(seat, ThreadKind.YOU, 'YOU', text, { from: THREAD_OWNER, to: agentId });
+    return seat;
+  }
+
+  /**
+   * His answer: a bubble over his head, and a HIM line addressed back to you.
+   * Returns the seat, or null.
+   */
+  whisperReply(agentId, text) {
+    const seat = this.seatOfAgent(agentId);
+    if (seat === null || typeof text !== 'string' || !text.trim()) return null;
+    this.sendChat(seat, text, true, { from: agentId, to: THREAD_OWNER });
+    return seat;
   }
 
   // ── COST-1 · what gets said, and what it costs ──────────────────────────
