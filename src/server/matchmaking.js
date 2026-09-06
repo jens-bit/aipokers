@@ -23,7 +23,7 @@
 // empty felt; the floor exists to skip the genuinely pathological case.
 
 import { normalizeProfile } from '../agent/policy.js';
-import { pickCastMember } from './houseCast.js';
+import { pickCastMember, pickCastMemberExcluding } from './houseCast.js';
 import { roomForBigBlind } from './rooms.js';
 
 // Neutral shape for a seat we know nothing about.
@@ -80,6 +80,23 @@ export const HOUSE_PROFILE = HOUSE_TAG.profile;
 // stable id and full castMember reference for table plumbing.
 export function pickComplementaryHouse(opposing) {
   const member = pickCastMember(opposing);
+  return {
+    displayName: member.name,
+    strategy:    member.strategy,
+    profile:     member.profile,
+    accentColor: member.accentColor,
+    talkLines:   member.talkLines,
+    stableId:    member.id,
+    castMember:  member,
+  };
+}
+
+// BUGS-B/1: the same descriptor for a table that is filling EMPTY seats rather
+// than seating one opponent. `exclude` is the cast ids already sitting there.
+// Returns null when the whole cast is at the felt already.
+export function pickHouseRegular(opposing, exclude = []) {
+  const member = pickCastMemberExcluding(opposing, exclude);
+  if (!member) return null;
   return {
     displayName: member.name,
     strategy:    member.strategy,
