@@ -35,6 +35,13 @@ process.env.PACE_HEAT_BB = '25';
 let server;
 let base;
 const userId = 'events-e2e-user';
+// SLOTS-1: agent slots are earned now — the second, third and fourth cost
+// 10k / 50k / 250k in winnings. This suite needs two agents for reasons that
+// have nothing to do with slots, so its owner is seeded as somebody whose
+// stable has already won them. The ladder itself is asserted in slots.test.js.
+import { saveWallet } from './store.js';
+saveWallet('events-e2e-user', { ownerId: 'events-e2e-user', balance: 0, earned: 250_000, ledger: [] });
+
 let tableSeq = 0;
 
 // The floor events themselves read nothing but table.agentIds, so most of this
