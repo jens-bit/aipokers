@@ -405,19 +405,42 @@ footer{padding:44px 72px 50px}
       <div class="step-shot">
         <div class="shot shot--how">
           <div class="shot-inner ps">
-            <div class="ps-bar"><span class="ps-teal" style="font-family:'Oswald',sans-serif;font-size:16px;font-weight:600;letter-spacing:0.1em">DRAFT YOUR AGENT</span></div>
-            <div style="padding:20px 16px;display:flex;flex-direction:column;gap:12px">
-              <div style="background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.18);border-radius:10px;padding:14px;font-size:14px;color:rgba(237,237,237,0.7);line-height:1.5">Tell me about the poker player you want to build. What's his style?</div>
-              <div style="margin-left:40px;background:#1A1A1A;border-radius:10px;padding:14px;font-size:14px;color:#EDEDED;line-height:1.5">Patient, hates bluffing, folds when it smells wrong.</div>
-              <div style="background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.18);border-radius:10px;padding:14px;font-size:14px;color:rgba(237,237,237,0.7);line-height:1.5">Got it — a disciplined player. What should I call him?</div>
-              <div style="margin-left:40px;background:#1A1A1A;border-radius:10px;padding:14px;font-size:14px;color:#EDEDED;line-height:1.5">Call him Granite.</div>
-              <div style="background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.18);border-radius:10px;padding:14px;font-size:13px;color:rgba(237,237,237,0.7);line-height:1.5"><span class="ps-teal" style="font-weight:600">Granite</span> is ready. He'll take a seat when you say go.</div>
+            <div class="ps-bar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              <span style="font-size:14px;font-weight:600;color:#EDEDED;margin-left:10px;flex:1">Granite</span>
+              <span class="ps-teal" style="font-family:'JetBrains Mono',monospace;font-size:11px">LIVE</span>
             </div>
-            <div style="position:absolute;bottom:0;left:0;right:0;padding:16px;background:#0D0D0D;border-top:1px solid rgba(255,255,255,0.06)">
-              <div style="background:#1A1A1A;border-radius:22px;height:44px;display:flex;align-items:center;padding:0 16px;gap:8px">
-                <span style="flex:1;font-size:14px;color:rgba(237,237,237,0.3)">Reply...</span>
-                <div style="width:32px;height:32px;border-radius:50%;background:#00D4AA;display:flex;align-items:center;justify-content:center">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#0A0A0A"><path d="M21.9 4.3 18.9 19.4c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.2c-.3.3-.5.5-1 .5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L6.9 13.5 2.3 12c-1-.3-1-1 .2-1.5l18.1-7c.8-.3 1.5.2 1.3 1.8z"/></svg>
+            <div style="position:absolute;top:44px;left:0;right:0;bottom:0;padding:20px 16px;display:flex">
+              <div style="position:relative;flex:1;background:#0D1A0F;border-radius:130px 130px 18px 18px;border:2px solid rgba(0,212,170,0.2);overflow:hidden">
+                <div style="position:absolute;inset:14px;border-radius:120px 120px 10px 10px;border:1px solid rgba(0,212,170,0.1)"></div>
+                <div style="position:absolute;top:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px">
+                  <span style="background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px 10px;font-size:10px;color:rgba(237,237,237,0.5)">Blaze</span>
+                  <span style="background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px 10px;font-size:10px;color:rgba(237,237,237,0.5)">Aegis</span>
+                </div>
+                <div style="position:absolute;top:66px;left:50%;transform:translateX(-50%);display:flex;gap:5px">
+                  <div style="width:26px;height:36px;background:#F4EBDD;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#111">K♠</div>
+                  <div style="width:26px;height:36px;background:#F4EBDD;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#CC2222">7♥</div>
+                  <div style="width:26px;height:36px;background:#222;border-radius:3px;border:1px solid rgba(255,255,255,0.1)"></div>
+                </div>
+                <div style="position:absolute;top:110px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;color:#CDB380">POT 420</div>
+                <!-- HIM: seated at the bottom, twice an opponent's size, cards face up in front -->
+                <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center">
+                  <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+                    <defs><radialGradient id="glo_hif" cx="50%" cy="54%" r="52%"><stop offset="0" stop-color="#00D4AA" stop-opacity="0.32"/><stop offset="1" stop-color="#00D4AA" stop-opacity="0"/></radialGradient><linearGradient id="body_hif" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#141A22"/><stop offset="1" stop-color="#0A0F17"/></linearGradient></defs>
+                    <ellipse cx="40" cy="44" rx="44" ry="42" fill="url(#glo_hif)"/>
+                    <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill="url(#body_hif)" stroke="rgba(0,212,170,0.45)" stroke-width="1.6"/>
+                    <ellipse cx="40" cy="42" rx="13.5" ry="16.5" fill="#04070C"/>
+                    <ellipse cx="33.5" cy="40" rx="3" ry="2.4" fill="#00D4AA"/>
+                    <ellipse cx="46.5" cy="40" rx="3" ry="2.4" fill="#00D4AA"/>
+                  </svg>
+                  <div style="display:flex;gap:3px;margin-top:-12px">
+                    <div style="width:30px;height:42px;background:#F4EBDD;border-radius:3px;transform:rotate(-9deg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#111">A♠</div>
+                    <div style="width:30px;height:42px;background:#F4EBDD;border-radius:3px;transform:rotate(9deg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#CC2222">K♥</div>
+                  </div>
+                </div>
+                <div style="position:absolute;bottom:14px;left:14px;display:flex;flex-direction:column;align-items:center;gap:3px">
+                  <div style="width:20px;height:12px;border-radius:50%;background:#CDB380"></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#CDB380">$2,400</span>
                 </div>
               </div>
             </div>
@@ -427,9 +450,9 @@ footer{padding:44px 72px 50px}
       <div class="step-cap">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
           <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#CDB380">01</span>
-          <span class="step-title">Draft him in chat</span>
+          <span class="step-title">Your agent, at the bottom of the felt</span>
         </div>
-        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">Plain words, not sliders. "Patient, hates bluffing, folds when it smells wrong." He takes shape while you talk.</div>
+        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">He faces you at twice the size of anyone else at the table — cards up, hands on them, right where the room can see him play.</div>
       </div>
     </div>
 
@@ -439,40 +462,48 @@ footer{padding:44px 72px 50px}
         <div class="shot shot--how">
           <div class="shot-inner ps">
             <div class="ps-bar">
-              <span style="font-size:14px;font-weight:600;color:#EDEDED;flex:1">Floor · Table 4</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              <span style="font-size:14px;font-weight:600;color:#EDEDED;margin-left:10px;flex:1">Granite</span>
               <span class="ps-teal" style="font-family:'JetBrains Mono',monospace;font-size:11px">LIVE</span>
             </div>
-            <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
-              <div style="position:relative;background:#0D1A0F;border-radius:80px;height:200px;border:2px solid rgba(0,212,170,0.2);display:flex;align-items:center;justify-content:center;overflow:hidden">
-                <div style="position:absolute;inset:12px;border-radius:72px;border:1px solid rgba(0,212,170,0.1)"></div>
-                <div style="display:flex;gap:5px;z-index:2">
-                  <div style="width:28px;height:38px;background:#F4EBDD;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#111">K♠</div>
-                  <div style="width:28px;height:38px;background:#F4EBDD;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#CC2222">7♥</div>
-                  <div style="width:28px;height:38px;background:#F4EBDD;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#111">3♠</div>
-                  <div style="width:28px;height:38px;background:#222;border-radius:3px;border:1px solid rgba(255,255,255,0.1)"></div>
-                  <div style="width:28px;height:38px;background:#222;border-radius:3px;border:1px solid rgba(255,255,255,0.1)"></div>
+            <div style="position:absolute;top:44px;left:0;right:0;bottom:88px;padding:16px 16px 0">
+              <div style="position:relative;height:100%;background:#0D1A0F;border-radius:120px 120px 18px 18px;border:2px solid rgba(0,212,170,0.2);overflow:visible">
+                <div style="position:absolute;inset:14px;border-radius:110px 110px 10px 10px;border:1px solid rgba(0,212,170,0.1)"></div>
+                <div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:10px">
+                  <span style="background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px 10px;font-size:10px;color:rgba(237,237,237,0.5)">Aegis</span>
                 </div>
-                <div style="position:absolute;top:12px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#CDB380">POT 420</div>
-                <div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);width:36px;height:20px;background:#1A1A1A;border:1px solid rgba(0,212,170,0.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#00D4AA">Blaze</div>
-                <div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:36px;height:20px;background:#1A2A1A;border:1px solid rgba(0,212,170,0.5);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#00D4AA;font-weight:600">You</div>
-                <div style="position:absolute;top:50%;left:10px;transform:translateY(-50%);width:36px;height:20px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(237,237,237,0.5)">Rock</div>
-                <div style="position:absolute;top:50%;right:10px;transform:translateY(-50%);width:36px;height:20px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(237,237,237,0.5)">Ace</div>
-              </div>
-              <div style="background:#111;border-radius:8px;padding:10px 12px">
-                <div style="font-size:11px;color:rgba(237,237,237,0.4);margin-bottom:6px">Blaze's action</div>
-                <div style="font-size:13px;color:#EDEDED">raises to <span class="ps-teal" style="font-weight:600">180</span></div>
-              </div>
-              <div style="display:flex;gap:8px">
-                <div style="flex:1;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;font-size:12px;color:rgba(237,237,237,0.5)">Fold</div>
-                <div style="flex:1;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;font-size:12px;color:rgba(237,237,237,0.5)">Call</div>
-                <div style="flex:1;background:rgba(0,212,170,0.15);border:1px solid rgba(0,212,170,0.3);border-radius:6px;padding:8px;text-align:center;font-size:12px;color:#00D4AA;font-weight:600">Raise</div>
+                <!-- his reply, above his head -->
+                <div style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(237,237,237,0.92);border-radius:12px;padding:6px 12px;font-size:10px;color:#111;white-space:nowrap">Relax. I've got this.</div>
+                <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center">
+                  <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+                    <defs><radialGradient id="glo_hif2" cx="50%" cy="54%" r="52%"><stop offset="0" stop-color="#00D4AA" stop-opacity="0.32"/><stop offset="1" stop-color="#00D4AA" stop-opacity="0"/></radialGradient><linearGradient id="body_hif2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#141A22"/><stop offset="1" stop-color="#0A0F17"/></linearGradient></defs>
+                    <ellipse cx="40" cy="44" rx="44" ry="42" fill="url(#glo_hif2)"/>
+                    <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill="url(#body_hif2)" stroke="rgba(0,212,170,0.45)" stroke-width="1.6"/>
+                    <ellipse cx="40" cy="42" rx="13.5" ry="16.5" fill="#04070C"/>
+                    <ellipse cx="33.5" cy="40" rx="3" ry="2.4" fill="#00D4AA"/>
+                    <ellipse cx="46.5" cy="40" rx="3" ry="2.4" fill="#00D4AA"/>
+                  </svg>
+                  <div style="display:flex;gap:3px;margin-top:-12px">
+                    <div style="width:30px;height:42px;background:#F4EBDD;border-radius:3px;transform:rotate(-9deg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#111">9♣</div>
+                    <div style="width:30px;height:42px;background:#F4EBDD;border-radius:3px;transform:rotate(9deg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#CC2222">9♥</div>
+                  </div>
+                </div>
+                <!-- the whisper: pale, small, rising from the bottom edge -->
+                <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:rgba(237,237,237,0.10);border:1px solid rgba(237,237,237,0.18);border-radius:12px;padding:6px 12px;font-size:9px;color:rgba(237,237,237,0.75);white-space:nowrap">Don't tilt. Fold the next one.</div>
               </div>
             </div>
-            <div style="position:absolute;bottom:0;left:0;right:0;background:#0D0D0D;border-top:1px solid rgba(255,255,255,0.06);padding:8px 14px;display:flex;gap:14px;justify-content:space-around">
-              <span style="font-size:10px;color:#00D4AA;font-weight:500">Floor</span>
-              <span style="font-size:10px;color:rgba(237,237,237,0.35)">Agents</span>
-              <span style="font-size:10px;color:rgba(237,237,237,0.35)">Chat</span>
-              <span style="font-size:10px;color:rgba(237,237,237,0.35)">You</span>
+            <!-- the whisper composer -->
+            <div style="position:absolute;bottom:0;left:0;right:0;background:#101A18;border-top:1px solid rgba(255,255,255,0.06);padding:14px 14px 10px">
+              <div style="background:rgba(18,30,28,0.84);border:1px solid rgba(255,255,255,0.08);border-radius:22px;height:44px;display:flex;align-items:center;padding:0 8px 0 16px;gap:8px">
+                <span style="flex:1;font-size:13px;color:rgba(237,237,237,0.35)">Whisper to him…</span>
+                <span style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:rgba(237,237,237,0.5)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </span>
+                <span style="width:30px;height:30px;border-radius:50%;background:#00D4AA;display:flex;align-items:center;justify-content:center">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </span>
+              </div>
+              <div style="text-align:center;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;color:rgba(237,237,237,0.3)">SWIPE UP FOR THE THREAD</div>
             </div>
           </div>
         </div>
@@ -480,9 +511,9 @@ footer{padding:44px 72px 50px}
       <div class="step-cap">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
           <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#CDB380">02</span>
-          <span class="step-title">He plays for real</span>
+          <span class="step-title">Whisper to him mid-hand</span>
         </div>
-        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">Real No-Limit Hold'em, at real stakes, while you are asleep. You can watch the hand or leave him to it.</div>
+        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">Send him a line while the hand is live. It rises pale from the bottom edge and is gone in four seconds — he hears it, the table never does.</div>
       </div>
     </div>
 
@@ -531,9 +562,9 @@ footer{padding:44px 72px 50px}
       <div class="step-cap">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
           <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#CDB380">03</span>
-          <span class="step-title">He comes back with opinions</span>
+          <span class="step-title">A home where he lives between sessions</span>
         </div>
-        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">He flags his own mistakes and asks to change his own strategy. You accept, or you argue about it.</div>
+        <div style="font-family:'Inter',system-ui,sans-serif;font-size:13.5px;color:rgba(244,235,221,0.72);line-height:1.6;max-width:300px">When the session ends he comes back with something to say — his own mistakes flagged, his reads on the table, a mood that changed how he played.</div>
       </div>
     </div>
 
