@@ -223,10 +223,16 @@ describe('HANDS-1: the hands are in front of the cards', () => {
 
 // ── 2 · one seat anatomy (52m) ─────────────────────────────────────────────
 describe('HANDS-1: one seat anatomy', () => {
+  // WATCH-10 job 1 · DENSITY. The numbers moved and the ANATOMY did not: an
+  // opponent draws at 80% of what 52m settled (body 40 → 32, and the gap with
+  // it, because SEAT_GRIP hangs the fists a fixed fraction of the body below
+  // it), and the pill does not scale at all, because 9.5px name text at 80% is
+  // not a smaller pill, it is an unreadable one. Two rows, one gap, in that
+  // order — which is what this test is actually about — is unchanged.
   it('is a body, a gap and one pill', () => {
-    expect(SEAT_BODY).toBe(40);
+    expect(SEAT_BODY).toBe(32);
     expect(SEAT_PILL).toBe(18);
-    expect(SEAT_H).toBe(SEAT_BODY + 10 + SEAT_PILL);
+    expect(SEAT_H).toBe(SEAT_BODY + 8 + SEAT_PILL);
 
     const { container } = renderWatch(midHandGame);
     const seat = container.querySelector('.watch-felt__seat .seat-ghost');
@@ -234,11 +240,30 @@ describe('HANDS-1: one seat anatomy', () => {
     expect(rows).toEqual(['seat-ghost__body', 'seat-ghost__row']);
   });
 
-  it('carries name and stack on one line, under his feet', () => {
+  // WATCH-10 job 1 · THE PILL IS A NAME PILL. It used to carry the name AND the
+  // stack, which is the arrangement mood-watch5.jsx had already abandoned for
+  // the hero — "the chips ARE the stack, so stating it here too made the number
+  // the truth and the chips a decoration". An opponent banks a pile on the same
+  // felt, so his figure went to his chips and the pill got the width back. The
+  // rule this test defends is unchanged: whatever the pill holds is ONE LINE
+  // under his feet, and his money is somewhere a reader can find it.
+  it('carries his name on one line under his feet, and his money on his chips', () => {
     const { container } = renderWatch(midHandGame);
-    const pill = container.querySelector('.watch-felt__seat .seat-ghost__chip');
+    const seat = container.querySelector('.watch-felt__seat');
+    const pill = seat.querySelector('.seat-ghost__chip');
     expect(pill.querySelector('.seat-ghost__name').textContent).toBe('Doyle_v3');
-    expect(pill.querySelector('.seat-ghost__stack').textContent).toBe('$980');
+    expect(pill.querySelector('.seat-ghost__stack')).toBeNull();
+    expect(seat.querySelector('.watch-felt__seat-pile .chip-stack__amt').textContent)
+      .toBe('$980');
+  });
+
+  // One stack, not a ten-chip column: five banded piles across the top of a
+  // 390px felt were the densest thing on the table.
+  it('banks one short stack, with the number beside it', () => {
+    const { container } = renderWatch(midHandGame);
+    const pile = container.querySelector('.watch-felt__seat .watch-felt__seat-pile');
+    expect(pile.querySelectorAll('.chip').length).toBeLessThanOrEqual(3);
+    expect(pile.querySelector('.chip-stack').className).toContain('is-seat');
   });
 
   // "The timer ring and the dealer button attach to the pill's LEFT EDGE rather

@@ -1,163 +1,88 @@
 # How We Work — Agentic Poker
 
-The operating protocol as it actually ran on 2026-09-05/06, with the queue/integrator rules added 2026-09-06. Read it at the start of every session.
+The operating protocol as it actually ran on 2026-09-06 (v3). It replaces the numbered-tab protocol of 2026-09-05. Read it at the start of every session.
 
 ## Who is Jens
 
-Founder, not a developer. He understands the product deeply and orchestrates the terminals; he does not read diffs. Give him exact copy-paste commands and state the prerequisite directory first. Never assume he knows what branch a tab is on.
+Founder, not a developer. He understands the product deeply and orchestrates the terminals; he does not read diffs. Give him exact copy-paste commands and state the tab first. Never assume he knows what branch a tab is on.
 
-He runs Windows/PowerShell. **Never use `>` to redirect into a source file** — PowerShell writes UTF-16 and the Vite build dies with `Unexpected "?"`. Use Python or a heredoc.
+He runs Windows/PowerShell. **Never use `>` to redirect into a source file** — PowerShell writes UTF-16 and the Vite build dies with `Unexpected "?"`. Use Python or a heredoc. `git config core.pager cat` is set in the main repo so nothing opens `less`; if a command ever shows `(press RETURN)`, press Enter then `q`.
 
-## The tab layout
+## The three roles
 
-One numbered terminal tab per role. The numbers are stable across a session; the branch inside a tab cycles.
+**Cowork (Claude in the desktop app)** is the planner and the ledger. It writes every paste, sequences the merges, imports Claude Design zips into `design-refs/`, writes design waves from playtest findings, keeps the master spec and this file, and thinks with Jens on product, economy and marketing. It never runs git through the folder link (index.lock); it writes files, the integrator commits them.
 
-| Tab | What it is |
-|-----|-----------|
-| **1** | **Integrator.** Main repo, `C:\Projects\ai-poker`. Merges the queue, runs the installs and the tests, fixes what is red, cleans up branches, `git worktree add`. A Claude tab since 2026-09-06 — see *The integrator tab* below. **It never pushes**: Jens pushes, because the push is the deploy. |
-| **2–6, 9–11** | Claude Code worktrees, one per tree. Current roster: `ai-poker-backend`, `-frontend`, `-platform`, `-watch`, `-events`, `-share`, `-notify`, `-tableview`, `-redesign`. |
-| **7** | Arena. `node scripts/arena.js` runs, results land in `data/arena/`. Nothing else. |
-| **8** | SSH to the VPS. Deploy and `pm2 logs`. Nothing else. |
+**Claude Code tabs** build. One tab per role, one worktree each. Tabs are renamed by role (renaming removes Claude Code's spinner title; `Ctrl+End` shows whether a tab is idle):
 
-Start a Claude tab with:
+| Tab | Folder | Role |
+|-----|--------|------|
+| **INTEGRATOR** | `C:\Projects\ai-poker` (main) | Merges the queue, gates, files bugs, commits design-refs. Never pushes. |
+| **BACKEND** | `ai-poker-backend` | Server trees. |
+| **WATCH** | `ai-poker-watch` | The felt and the casino client. |
+| **FRONTEND** | `ai-poker-bugsb` | The flat and the phone shell. |
+| **PLATFORM** | `ai-poker-platform` | Protocol, desktop, cross-cutting. |
+| **TABLEVIEW** | `ai-poker-tableview` | Draft, birth, tests, whatever is free. |
+| **PS** | PowerShell in `C:\Projects\ai-poker` | `git push` only. The push is the deploy. |
 
-```powershell
-cd C:\Projects\ai-poker-<domain>
-claude --dangerously-skip-permissions --model opus
-```
+Worktrees are named after the domain and survive the session. The integrator removes dead ones (`git worktree remove`) when their branches are on main; a folder Windows refuses to delete is deleted by hand after its tab is closed.
 
-`--model opus` (the alias, never a dated id) for everything. Reach for sonnet/haiku only for a batch of trivial single-file edits.
+**The Claude Code GitHub app** builds in the cloud. Mention `@claude` in an issue or a PR comment and it opens or updates a PR on its own branch. Its PRs are gated by the Tests check exactly like a tab's branch. Use it for self-contained work that needs no worktree (the landing page, one-file fixes) and for follow-ups on its own PRs. It runs in parallel with everything else and needs nobody watching.
 
-New worktree — from tab 1, never from inside another worktree:
+## Queues, not prompts
 
-```powershell
-git worktree prune
-git worktree add -b feature/my-tree ../ai-poker-<domain>
-git -C ../ai-poker-<domain> log --oneline -1   # must match main's HEAD
-```
+Every paste is a **queue**: numbered jobs, sequential, each self-contained, one commit per job, the tab reports **once** at the end. A tab that stops to ask has stalled until Jens comes back, so the queue says what to do when something goes wrong.
 
-Worktree directories are named after the DOMAIN, not the feature, and they survive the whole session. Don't create one per prompt — that is how a session ends with fifteen dead worktrees.
-
-## One queue per tab
-
-Jens pastes prompts. He does not type instructions of his own and he does not answer questions mid-run — a tab that stops to ask has stalled until he comes back to it. So each prompt is self-contained and ends with everything the tab needs.
-
-**Since 2026-09-06, a tab gets a QUEUE, not a prompt.** One paste carries every job that tab will do, numbered and in order, and the tab works them start to finish and **reports once, at the end**. It does not stop between jobs to ask what comes next, and it does not report after each one — a tab that reports three times is a tab Jens has to come back to three times, and coming back mid-run is the thing he cannot do.
+Every job starts with the branch guard:
 
 ```
-Job 1 — <TREE-ID>: <task, exact file paths>. Commit.
-Job 2 — <TREE-ID>: <task>. Commit.
-Job 3 — when 1 and 2 are green, <finishing step>, then stop and report.
+STEP 0: `git branch --show-current` must print <branch>; stop and report if not.
 ```
 
-Jobs in a queue run **sequentially** and each ends in its own commit, so a bad job can be reverted alone. If one job is blocked, the tab skips it, finishes the rest, and says so in the single report — it does not stall the whole queue on one blocked item. The queue is also where a tab is told what to do when something goes wrong (which branch to fix on, whether to retry), because there is nobody to ask.
-
-Each job inside the queue is shaped:
+or, for a new tree:
 
 ```
-STEP 0: run `git checkout -B <branch> main` in this worktree before anything else.
-
-<TREE-ID> — the task, with exact file paths.
-READ FIRST: <every file the tree touches>
-Do NOT touch: <files owned by other tabs>
-Tests: npm test && npm run test:client must pass.
-Commit, do NOT push, report.
+Branch <branch> from origin/main (git fetch origin && git checkout -B <branch> origin/main).
 ```
 
-**STEP 0 is always the branch line.** A worktree is reused across trees, so whichever branch it happens to be on is never an assumption worth making. `-B` (capital) creates or resets — plain `checkout main` fails inside a worktree because main is checked out in tab 1.
+Then: the refs to read (design-refs files and README laws for a port; the server module for a server job), exact scope ("client only", "server only", "touch nothing outside …"), the tests that must be green (`npm run test:all` — it runs server, client and e2e), and always: **do not push, no client/dist**.
 
-**`/clear` before every new prompt.** A tab that carries the previous tree's context into the next one starts editing files it no longer owns.
+When a queue's premise is wrong (a ref that isn't there, a server route that doesn't exist), the tab does the nearest honest thing and states the deviation in its report. Judgement calls it makes on its own are listed as such so Jens can overrule.
 
-Bigger trees get a megaprompt: one READ FIRST list, N sub-tasks, one commit each, so a bad sub-task can be reverted alone. Keep every sub-task inside the same file scope. If two trees would touch the same file, they are one tree in one tab — not two branches.
+`/clear` before every new paste. Paste into the tab whose folder holds the branch; the guard catches the rest.
 
-## What tabs never do
+## The integrator
 
-- **Never push.** Nobody in a tab pushes — not even the integrator. Jens pushes, after the merges are in and green.
-- **Never commit `client/dist`.** It is gitignored; a tab that force-adds it poisons every later merge.
-- **Never modify `design-refs/`.** It is read-only. Ports go one way: `design-refs/` → `client/src/`. Port, don't redesign, don't "improve while I'm in there."
-- **Never merge.** Tabs commit and report; tab 1 sequences.
+Given the merge order, it follows it. For each branch, in order: `git merge`, `npm install` at root and in `client/`, `npm run test:all`, and a BUGS entry for anything the branch's report flagged. It skips a branch that isn't reported yet and comes back to it.
 
-## The integrator tab
+**Conflicts and merge-caused reds are fixed in the owning branch's worktree, never in main.** Either the owning tab merges main itself (Job N: "merge main") or the integrator does it in that worktree; both land as `Merge branch 'main' into <branch> (MERGE-n)`, and the merge to main then fast-forwards. Resolutions keep both sides' intent; a test that encoded a rule the product no longer wants is rewritten to the new rule with the reasoning in the commit, never loosened (Testing law #5).
 
-Tab 1 is the integrator. It is given the merge order in its queue and follows it — it does not invent one. When a branch in the queue is not ready yet (`git log --oneline main..feature/x` is empty), it **skips it and comes back to it** rather than waiting on it.
+**Before every push report, it fetches and merges origin** — PRs merge on GitHub while it works, and a push that gets rejected is a push Jens has to come back for. Its report ends with the one line for Jens: `git push`.
 
-After every merge, in this order:
+When a deploy goes red on a known flake, Jens re-runs the failed job once from the Actions page; the flake still gets a fix on main the same night, because a flaky gate is what lets a real red through.
 
-```powershell
-git merge feature/x --no-edit
-npm install
-cd client; npm install; cd ..
-npm run test:all
-```
+Design imports: Cowork writes the changed files into `design-refs/` (md5-diffed against the previous zip; new files, changed files); the integrator commits them as `design: … (design N)` and folds the commit into the next push.
 
-Both `npm install`s, every time: a merged branch may have brought a new dependency into either `package.json`, and a stale `node_modules` becomes a test failure that has nothing to do with the code.
+## The push
 
-**On a conflict, or on a red test caused by the merge, the fix happens in the offending branch's own worktree — never in main.** The integrator aborts, goes to `C:\Projects\ai-poker-<name>`, merges main into that branch there, resolves keeping both sides whole, gets `npm run test:all` green, commits, comes back and merges again — which now fast-forwards. Resolving in main instead buries the resolution in a merge commit nobody reviews and leaves the branch itself still broken.
+Jens pushes from PS. `git push` on main triggers Tests → Browser smoke (Playwright at 390×844 and 1440×900) → Deploy. About four minutes. If "Bypassed rule violations" appears it is the branch ruleset noting his admin bypass, not an error. A rejected push means origin moved (a PR merged); the integrator's fetch-and-merge rule exists so this doesn't happen, but if it does: `git pull` then push.
 
-```powershell
-git merge --abort
-cd C:\Projects\ai-poker-<name>
-git merge main            # resolve here, keep BOTH sides whole
-npm run test:all
-git commit
-cd C:\Projects\ai-poker
-git merge feature/x --no-edit
-```
-
-A red test that is *not* a conflict gets its own `fix/` branch off main, with a test that fails before the fix and passes after (Testing law #3), merged like any other branch.
-
-**The integrator never pushes.** It merges, tests, fixes, and stops with the final line for Jens: `git push`. On this project the push is the deploy, so it is Jens's call, not a step in a queue.
-
-Merge order is **server before client, smallest diff first.** Server branches change the shape of the data the client renders; taking them first means the client branches merge against the truth instead of against a guess. Within each group, smallest first — small merges that land clean shrink the conflict surface for the big one.
-
-```powershell
-cd C:\Projects\ai-poker
-git diff main..feature/x --name-only    # look before you merge
-git merge feature/x --no-edit
-npm test && npm run test:client
-```
-
-Before any merge to main: `npm run test:e2e` (~40s). See the Testing law in CLAUDE.md — it is not negotiable, and loosening an assertion to reach green is the one thing never allowed.
-
-When a conflicting branch's owning tab is still live, that tab can do the resolution itself instead — same pattern, same worktree, with its file context still loaded:
-
-```
-git fetch && git merge main
-# resolve, tests green
-git commit -m "Merge branch 'main' into feature/x (MERGE-n)"
-```
-
-Then the integrator retries the merge and it fast-forwards. That is the MERGE-n pattern — MERGE-2 and MERGE-3 on 2026-09-05 both went this way. Either way the resolution lands on the feature branch, not in main.
-
-After each merge: `git branch -d feature/x` (safe delete) and `git worktree prune`. Fredrik's platform work lands as GitHub PRs instead; nobody force-pushes main.
-
-## Issues to PRs: the Claude Code GitHub app
-
-The Claude Code GitHub app is installed on the repo. **Mention `@claude` in a GitHub issue, or in a comment on one, and it opens a PR for it** — the work happens in the cloud, on its own branch, and arrives as an ordinary pull request.
-
-Those PRs are **gated by the Tests job** in `.github/workflows/deploy.yml`: `npm test`, `npm run test:client` and `npm run test:e2e` run on every PR, and a PR whose Tests job is red does not merge — whoever, or whatever, wrote it. The bot clears exactly the same bar a tab does, which is the point. It is a way to get small, well-specified work started without occupying a terminal, not a way around the Testing law.
-
-A good `@claude` issue reads like a tab prompt: one tree, exact file paths, the test that must pass. Vague issues come back as vague PRs.
+Prod is only current when the latest deploy run is green. Check the Actions page before blaming the code, and hard-refresh.
 
 ## Design waves
 
-A design wave starts from a playtest finding, never from a hunch and never from "the table looks a bit flat." Jens plays, writes down what actually broke or felt wrong, and that list is the brief. Claude Design produces the wave into `design-refs/`; a Claude tab ports it. One design source per wave.
+Claude Design produces boards; a wave starts from a playtest finding or a stated product rule, never from a hunch. Rules that Claude Design has already failed once are restated in full in the next wave (a short correction is how the same mistake ships three times). Every wave ends with a verification clause: render each changed frame at 390×844 and 1440×900 and write `verified: <what you saw>` or `not done: <why>` in the caption.
 
-## Deploy
+Cowork imports the zip, diffs it, and — for a big wave or after a long session — **renders the boards before saying what changed**. A source diff is not a picture. What it reports is what it saw.
 
-Tab 1 pushes; tab 8 deploys.
+The design is **frozen** once code is more than about two waves behind it; then only correction rounds on what the tabs are porting. Ports go one way, `design-refs/` → `client/src/`; port, don't redesign.
 
-```
-ssh root@46.62.169.246
-cd /opt/aipokers
-cp data/agents.json ~/agents.backup.json   # LIVE USER DATA — back it up first
-git checkout data/agents.json && git pull
-cp ~/agents.backup.json data/agents.json
-pm2 restart all --update-env
-pm2 logs        # Ctrl+C to exit
-```
+## Playtests
 
-`data/agents.json` on the VPS is real users' agents and it is still in git, so a pull will happily overwrite it. Back up, checkout, pull, restore — every time, until the SQLite migration lands.
+Jens plays prod on the phone and the desktop and writes down what broke or felt wrong, with screenshots. That list becomes one queue (`fix/bugs-x`) for one tab, one job per finding, each with the failure named in a test. Product calls that a finding implies are decided in the queue, not left to the tab.
+
+## Tests
+
+`npm run test:all` = server (node:test), client (Vitest), e2e (the verify scripts). The Testing law in CLAUDE.md governs: a new test fails on the old behaviour before it passes on the new; no assertion is loosened to reach green; a flaky test is fixed, not re-run. Known flakes are filed in BUGS.md with the measurement that shows they predate the branch. Running a verify script by hand writes into the worktree's `data/`; use the harness (scratch cwd) or clean up after.
 
 ## Env on the VPS
 
@@ -184,7 +109,7 @@ Worth watching for a day after it goes on: `GET /api/admin/meter?key=$ADMIN_KEY`
 
 ## End of session
 
-1. Every tab committed, nothing uncommitted anywhere.
-2. All trees merged in tab 1, tests green, pushed.
-3. `CHANGELOG.md` and `BUGS.md` updated.
-4. Tab 1: `git worktree prune`, delete merged branches.
+1. Every tab reported, every branch merged, integrator's last report says `git push`, Jens pushed, deploy green.
+2. `BUGS.md` current (the integrator files entries as reports come in; the header count is recounted from the file).
+3. `CHANGELOG.md` and the master spec bumped by Cowork; `HOW_WE_WORK.md` if the process changed.
+4. Dead worktrees removed; VPS env changes noted in the spec's Known debt until done.

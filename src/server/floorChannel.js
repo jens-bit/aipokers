@@ -13,6 +13,12 @@
 // the first FLOOR_STATE so a fresh subscriber has a lobby immediately, and it
 // is pushed on change after that.
 //
+// CASINO-2 added ROOM_TABLES beside it: the felts INSIDE those rooms, one
+// public no-cards snapshot per live table, plus the table->room map ROOMS-1
+// never sent. Same laws as FLOOR_ROOMS — unfiltered because there is nothing
+// on it a person in the doorway could not see, change-gated, throttled to one
+// per second for the whole floor, and sent once on subscribe.
+//
 // SERVER-4 added a fifth and a sixth: OWNER_LINE, one line written into a
 // thread of this owner's, and TYPING, the beat before one of his agents
 // produces a reply. Both are owner-scoped AND owner-PROVED — see
@@ -40,6 +46,7 @@ import { ServerMsg } from './protocol.js';
 import { floorSnapshot, homeSnapshot } from './agentProfiles.js';
 import { bus as eventBus, EventType, HOT_RECENT_MS } from './events.js';
 import { currentRooms } from './rooms.js';
+import { currentRoomTables, tableRoomMap } from './roomTables.js';
 import { bus as sessionBus, sessionEndMessage } from './sessions.js';
 
 // One push per table per second, per subscriber.
@@ -49,6 +56,12 @@ const PUSH_INTERVAL_MS = Number(process.env.FLOOR_PUSH_INTERVAL_MS ?? 1000);
 // payload is identical for every subscriber (it is counts, not anybody's
 // cards), so unlike FLOOR_GAME the throttle is global rather than per-sub.
 const ROOMS_PUSH_INTERVAL_MS = Number(process.env.FLOOR_ROOMS_INTERVAL_MS ?? 1000);
+
+// CASINO-2: and one ROOM_TABLES push per second, throttled the same way and
+// for the same reason. It is a bigger payload than FLOOR_ROOMS — a felt each
+// rather than a count each — so the change gate matters more here, not less:
+// between hands a floor can go a minute without moving a single field on it.
+const ROOM_TABLES_INTERVAL_MS = Number(process.env.FLOOR_TABLES_INTERVAL_MS ?? 1000);
 
 // ws -> { userId, owner, tables: Map<tableId, { lastPushAt, lastSignature, timer, pendingTable }> }
 const subs = new Map();
@@ -65,6 +78,11 @@ let roomsSignature = null;
 let roomsLastPushAt = 0;
 let roomsTimer = null;
 let hotExpiryTimer = null;
+
+// CASINO-2 push state, the same three fields for the same three reasons.
+let tablesSignature = null;
+let tablesLastPushAt = 0;
+let tablesTimer = null;
 
 export function configure({ liveTables: provider, homeGames: homes } = {}) {
   liveTables = provider ?? null;
@@ -98,6 +116,12 @@ export function subscribe(ws, { userId, owner = false } = {}) {
   subs.set(ws, entry);
   sendFloorState(ws, entry);
   sendHomeState(ws, entry);
+  // CASINO-2: the felts, once, so a lobby that has just opened is drawn from
+  // the real floor rather than from an empty array until something moves. It
+  // is its own frame rather than a field on FLOOR_STATE because it is public
+  // and FLOOR_STATE is one owner's roster — riding it would mean recomputing
+  // the whole floor once per subscriber for a payload identical to all of them.
+  send(ws, roomTablesMessage());
   // Prime the diorama with whatever is already in flight, so a client that
   // subscribes mid-hand does not wait for the next state change.
   for (const table of floorTables()) {
@@ -225,8 +249,61 @@ function scheduleHotExpiry() {
   hotExpiryTimer = setTimeout(() => {
     hotExpiryTimer = null;
     broadcastRooms();
+    broadcastRoomTables();
   }, HOT_RECENT_MS + 250);
   hotExpiryTimer.unref?.();
+}
+
+// ── CASINO-2: the felts inside those rooms ──────────────────────────────────
+
+function roomTablesPayload() {
+  try {
+    return currentRoomTables();
+  } catch (err) {
+    console.error('[floor] room tables snapshot failed:', err.message);
+    return [];
+  }
+}
+
+function roomTablesMessage(tables = roomTablesPayload()) {
+  return { type: ServerMsg.ROOM_TABLES, tables, rooms: tableRoomMap(tables) };
+}
+
+/**
+ * Push ROOM_TABLES to every subscriber, if it changed. Throttled to one per
+ * second with a trailing send — the same shape as broadcastRooms, and for the
+ * same two reasons: the payload is identical for every subscriber, so the
+ * throttle is global rather than per-sub, and the last state of a hand has to
+ * land or a felt freezes mid-river until the next thing happens anywhere on
+ * the floor.
+ */
+export function broadcastRoomTables({ force = false } = {}) {
+  if (subs.size === 0) return 0;
+  const tables = roomTablesPayload();
+  const signature = JSON.stringify(tables);
+  if (!force && signature === tablesSignature) return 0;
+
+  const now = Date.now();
+  const wait = tablesLastPushAt + ROOM_TABLES_INTERVAL_MS - now;
+  if (!force && wait > 0) {
+    if (!tablesTimer) {
+      tablesTimer = setTimeout(() => {
+        tablesTimer = null;
+        broadcastRoomTables();
+      }, wait);
+      tablesTimer.unref?.();
+    }
+    return 0;
+  }
+
+  tablesSignature = signature;
+  tablesLastPushAt = now;
+  const payload = roomTablesMessage(tables);
+  let sent = 0;
+  for (const ws of subs.keys()) {
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
 }
 
 // EVENT-1: the floor ticker. Unlike FLOOR_STATE and FLOOR_GAME this is NOT
@@ -252,6 +329,9 @@ function relayEvent(event) {
     // table state change anyway, which goes through notifyTable.
     if (event?.type === EventType.HOT) {
       broadcastRooms();
+      // CASINO-2: every felt carries the same flag, read from the same window,
+      // so the room and the miniature of the table inside it light up together.
+      broadcastRoomTables();
       scheduleHotExpiry();
     }
   } catch (err) {
@@ -400,6 +480,10 @@ export function notifyTable(table) {
   // the floor, and all of them come through here. Change-gated and throttled,
   // so a table nobody's room cares about costs one JSON.stringify.
   broadcastRooms();
+  // CASINO-2: and the felts, which move on strictly more than the rooms do —
+  // a card on the board or a seat folding changes a miniature without changing
+  // a single count. Same gate, same throttle.
+  broadcastRoomTables();
 }
 
 function tableBelongsTo(table, userId) {
@@ -480,10 +564,14 @@ export function reset() {
   sessionBus.off('session_end', relaySessionEnd);
   if (roomsTimer) clearTimeout(roomsTimer);
   if (hotExpiryTimer) clearTimeout(hotExpiryTimer);
+  if (tablesTimer) clearTimeout(tablesTimer);
   roomsTimer = null;
   hotExpiryTimer = null;
+  tablesTimer = null;
   roomsSignature = null;
   roomsLastPushAt = 0;
+  tablesSignature = null;
+  tablesLastPushAt = 0;
   liveTables = null;
   homeGames = null;
 }

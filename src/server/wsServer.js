@@ -9,6 +9,7 @@ import {
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
+import * as roomTables from './roomTables.js';
 import * as homeGame from './homeGame.js';
 import * as homeNight from './homeNight.js';
 import * as rustNight from './rustNight.js';
@@ -40,6 +41,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // ROOMS-1: the floor-by-stakes view reads the same registry, through the same
   // kind of injected provider, so neither it nor floorChannel imports table.js.
   rooms.configure({ liveTables: registry });
+  // CASINO-2: the felts inside those rooms read the same registry through the
+  // same kind of injected provider. It asks for listFloorTables — a home game
+  // is nobody's lobby — and never opens a table up itself: every felt on the
+  // wire is Table.feltView().
+  roomTables.configure({ liveTables: registry });
   // HOME-STATE-1: the home game reads the registry (to stand a table up) and
   // the roster (to know who is in). Both injected, so homeGame imports neither
   // table.js nor agentProfiles.js and the graph stays acyclic.

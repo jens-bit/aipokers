@@ -15,6 +15,7 @@ import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './serv
 import { attachTicker } from './server/ticker.js';
 import { installMeterRoutes } from './server/meter.js';
 import { installRoomRoutes } from './server/rooms.js';
+import { installRoomTableRoutes } from './server/roomTables.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 import { installPlaceRoutes } from './server/place.js';
 import { installGuestRoutes, guestsEnabled } from './server/guest.js';
@@ -94,6 +95,12 @@ const { wss, tables } = createServer({
 // createServer() because that is where the table registry is wired into
 // rooms.js. Public counts only, no model call, inside the /api rate limiter.
 installRoomRoutes(app);
+
+// CASINO-2: GET /api/rooms/:id/tables — the felts inside one room, each with
+// enough on it to draw a miniature of the real game. Registered here for the
+// same reason and with the same properties: public snapshot, no model call,
+// inside the /api rate limiter.
+installRoomTableRoutes(app);
 
 // HOME-STATE-1: POST/GET /api/agents/:id/study — the tape room and the read
 // book it fills. Owner-gated, no model call, inside the /api rate limiter

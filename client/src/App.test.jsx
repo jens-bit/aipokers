@@ -75,8 +75,9 @@ describe('App shell', () => {
 
     await user.click(tab('CASINO'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
-    // The building names its rooms; the flat has none.
-    expect(await screen.findByText('the back room')).toBeInTheDocument();
+    // The building names its rooms; the flat has none. CASINO-2 job 3: at rest
+    // the name is on the small door under the sign, in the house's sign case.
+    expect(await screen.findByText('BACK ROOM')).toBeInTheDocument();
 
     await user.click(tab('HOME'));
     expect(await bootedOnHome()).toBeInTheDocument();
@@ -330,8 +331,9 @@ describe('the profile card can reach the funding sheet', () => {
     const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
-    // The YOU screen owns the wallet and the funding sheet.
-    expect(await screen.findByText('Your wallet')).toBeInTheDocument();
+    // The YOU screen owns the money, and SAFE-2 made what opens there the
+    // safe: one number, and the three verbs under it.
+    expect(await screen.findByText('In the safe')).toBeInTheDocument();
     expect(tab('YOU')).toHaveClass('tab-bar__tab--active');
   });
 });

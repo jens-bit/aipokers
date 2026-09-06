@@ -106,17 +106,31 @@ function toAmount(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * The digits, grouped, and nothing else — no currency sign.
+ *
+ * WATCH-10 job 4: the felt has figures that are money but are not labelled with
+ * a dollar (a bet spot's chips are already the currency), and they were grouped
+ * with toLocaleString while the pile eight pixels away was grouped by money().
+ * Same separator or it is two numbers. This is money()'s own grouping, lifted
+ * out so there is still only one answer to "how does this app group digits".
+ */
+export function group(value) {
+  const n = toAmount(value);
+  if (n === null) return '—';
+  const abs = Math.abs(n);
+  const hasCents = Math.round(abs * 100) % 100 !== 0;
+  const [whole, cents] = abs.toFixed(hasCents ? 2 : 0).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${grouped}${cents ? `.${cents}` : ''}`;
+}
+
 export function money(value, { sign = false } = {}) {
   const n = toAmount(value);
   if (n === null) return '—';
 
   const negative = n < 0;
-  const abs = Math.abs(n);
-  const hasCents = Math.round(abs * 100) % 100 !== 0;
-  const fixed = abs.toFixed(hasCents ? 2 : 0);
-  const [whole, cents] = fixed.split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const body = `$${grouped}${cents ? `.${cents}` : ''}`;
+  const body = `$${group(n)}`;
 
   // U+2212 MINUS SIGN, not a hyphen — it aligns with the digits.
   if (negative) return `−${body}`;

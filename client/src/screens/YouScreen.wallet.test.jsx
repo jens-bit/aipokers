@@ -1,5 +1,19 @@
-// client/src/screens/YouScreen.wallet.test.jsx — WUI-1
-// The wallet block and the pocket rows on the You screen.
+// client/src/screens/YouScreen.wallet.test.jsx — WUI-1, SAFE-2
+// The money on the You screen: the safe, and the pockets behind its verbs.
+//
+// SAFE-2 moved the pockets ONE VERB DEEPER and did not change one thing about
+// them. What opens from the summary is board 29 F12's safe — one number, three
+// verbs — and the grid that used to be the whole of it is what sits behind
+// GIVE (who you can give to) and TAKE (who has something to bring home). So
+// every assertion below is the one it always was; the helper takes which verb
+// it is walking to, and the two that described the WALLET BLOCK now describe
+// the number and the verbs that replaced it.
+//
+// The one rule that is genuinely gone is "a row offers everything at once".
+// Three verbs that each led to the same four-action grid would be the grid with
+// three doors on it, so GIVE's rows give and TAKE's rows take. What a pocket
+// OFFERS is unchanged and still proved — it is just proved under the verb that
+// owns it.
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,40 +54,49 @@ function row(name) {
 // Every assertion in this file is the one it always was. What changed is that
 // the money has to be opened before it can be asserted on, which is why this
 // helper exists and why the tests below are async.
-async function openMoney(props = {}) {
+async function openMoney(props = {}, verb = 'GIVE') {
   const user = userEvent.setup();
   const out = render(<YouScreen {...props} />);
   await user.click(await screen.findByRole('button', { name: 'Money' }));
+  // `null` stops at the number itself; every other value is one of the safe's
+  // three verbs, which is where the pockets live now.
+  if (verb) await user.click(await screen.findByRole('button', { name: new RegExp(`^${verb}`) }));
   return out;
 }
 
-describe('WUI-1 — the wallet block', () => {
+describe('SAFE-2 — one number, three verbs', () => {
   beforeEach(() => { telegram.signIn(); });
 
+  // WUI-1's rule, and the only one of the block's that F12 kept: the surface
+  // leads with one number, and that number is the wallet balance.
   it('leads with one number: the wallet balance', async () => {
     withWallet();
-    const { container } = await openMoney();
+    const { container } = await openMoney({}, null);
 
-    await waitFor(() => expect(container.querySelector('.wal-block')).toBeTruthy());
-    expect(within(container.querySelector('.wal-block')).getByText('$2,340.50')).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('.safe__amount')).toBeTruthy());
+    expect(container.querySelector('.safe__amount').textContent).toBe('$2,340.50');
+    // And it is the only money figure on the front of it.
+    expect(container.querySelectorAll('.safe__amount')).toHaveLength(1);
   });
 
-  it('says where the rest of it currently is', async () => {
+  // WUI-1 asked this of a 2x3 block of tiles — in pockets, tonight, playing.
+  // F12 answers it in two halves instead: three verbs for what you can DO
+  // about the number, and tonight in three lines under them for where it went,
+  // each line carrying the sentence that caused it. The tiles were six figures
+  // with no causes between them, which is the thing the safe exists to stop.
+  it('says what you can do about it, and where it went tonight', async () => {
     withWallet();
-    const { container } = await openMoney();
-    const block = await waitFor(() => {
-      const el = container.querySelector('.wal-block');
-      expect(el).toBeTruthy();
-      return el;
-    });
+    const { container } = await openMoney({}, null);
 
-    expect(within(block).getByText('In pockets')).toBeInTheDocument();
-    expect(within(block).getByText('$1,150')).toBeInTheDocument();
-    expect(within(block).getByText('Tonight')).toBeInTheDocument();
-    expect(within(block).getByText('+$486')).toBeInTheDocument();
-    expect(within(block).getByText('Playing')).toBeInTheDocument();
-    // Two of the four fixtures are at a table.
-    expect(within(block).getByText('2 of 4')).toBeInTheDocument();
+    const verbs = [...container.querySelectorAll('.safe__verb')];
+    expect(verbs.map((v) => v.dataset.verb)).toEqual(['give', 'take', 'rules']);
+
+    const lines = [...container.querySelectorAll('.safe__line')];
+    expect(lines.map((l) => l.querySelector('.safe__line-label').textContent))
+      .toEqual(['Brought home', 'Spent at the fridge', 'Given out']);
+    for (const line of lines) {
+      expect(line.querySelector('.safe__line-note').textContent).not.toBe('');
+    }
   });
 
   // YOU-2 kept this rule and changed its shape. The screen carries exactly one
@@ -112,13 +135,16 @@ describe('WUI-1 — graceful absence', () => {
 
   it('draws no pocket rows for agents that have no pocket', async () => {
     withoutWallet();
-    const { container } = await openMoney();
-    await screen.findByText('Money');
+    // No wallet, no verbs — so there is no GIVE to walk to, and the number
+    // itself says it does not know.
+    const { container } = await openMoney({}, null);
+    await screen.findByText('In the safe');
+    expect(container.querySelector('.safe__amount').textContent).toBe('—');
     expect(container.querySelectorAll('.wal-row')).toHaveLength(0);
   });
 });
 
-describe('WUI-1 — pocket rows', () => {
+describe('WUI-1 — pocket rows, behind GIVE', () => {
   beforeEach(() => {
     telegram.signIn();
     withWallet();
@@ -188,34 +214,38 @@ describe('WUI-1 — pocket rows', () => {
     }
   });
 
-  it('offers Collect beside it only for the ones who are up', async () => {
-    await openMoney();
+  // SAFE-2: the same two answers, asked under TAKE, which is the verb they
+  // belong to. Value Bot is not on that page at all — he is called in and
+  // empty, so there is nothing of his to take — which is the same "no Collect"
+  // this always asserted, said one level up.
+  it('offers Collect only for the ones who are up', async () => {
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     for (const [name, collect] of [
       ['Balanced v2.1', true],    // up $340
       ['Aggressive v1.3', false], // down $90, however much he still holds
       ['Bluff Master', true],     // up $236
-      ['Value Bot', false],       // called in, and empty
     ]) {
       const q = within(row(name)).queryByRole('button', { name: 'Collect' });
       expect(Boolean(q), name).toBe(collect);
     }
+    expect(screen.queryByText('Value Bot')).toBeNull();
   });
 
   it('offers Call him in on the rows that are at a table', async () => {
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     for (const [name, callIn] of [
       ['Balanced v2.1', true],    // playing
       ['Aggressive v1.3', true],  // playing
       ['Bluff Master', false],    // resting — nothing to call him in from
-      ['Value Bot', false],       // already called in
     ]) {
       const q = within(row(name)).queryByRole('button', { name: 'Call him in' });
       expect(Boolean(q), name).toBe(callIn);
     }
+    expect(screen.queryByText('Value Bot')).toBeNull();
   });
 
   it('draws the broke row quieter, never redder — no guilt', async () => {
@@ -234,7 +264,7 @@ describe('WUI-1 — pocket rows', () => {
   });
 });
 
-describe('WUI-1 — the row actions', () => {
+describe('WUI-1 — the row actions, under the verb that owns them', () => {
   beforeEach(() => {
     telegram.signIn();
     withWallet();
@@ -243,7 +273,7 @@ describe('WUI-1 — the row actions', () => {
   it('Collect takes the winnings and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
@@ -262,7 +292,7 @@ describe('WUI-1 — the row actions', () => {
   it('a refused collect leaves the row exactly as it was', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', () => ({ status: 500, body: {} }), { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
@@ -278,7 +308,7 @@ describe('WUI-1 — the row actions', () => {
   it('Call him in POSTs the verb and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { collected: 6400 }, { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
@@ -293,7 +323,7 @@ describe('WUI-1 — the row actions', () => {
   it('a refused call-in leaves the row exactly as it was', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', () => ({ status: 500, body: {} }), { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
     await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
@@ -350,8 +380,11 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
     // WALLET-7: the verb, the amount, the size he is set at, and the toggle.
     expect(req.body).toMatchObject({ verb: 'give', amount: 5000, cap: 5000, refill: false });
 
-    // Back to the list, with the wallet re-read rather than guessed at.
-    await waitFor(() => expect(screen.getByText('Balanced v2.1')).toBeInTheDocument());
+    // SAFE-2: back to THE NUMBER rather than to the list, because the number
+    // is what the decision just changed and the safe is what he opened. The
+    // wallet is re-read rather than guessed at, which is the rule this ever
+    // cared about.
+    await waitFor(() => expect(screen.getByText('In the safe')).toBeInTheDocument());
     expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1);
   });
 
@@ -415,7 +448,7 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
     // The same pocket, at a table: one press ends the session and empties it.
     withAgents([{ ...toppedUpAgent, presence: 'playing', activeTableId: 'tbl-1' }]);
     fetchMock.route('/fund', { collected: 4000 }, { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Topped Up');
 
     await user.click(within(row('Topped Up')).getByRole('button', { name: 'Call him in' }));
@@ -424,13 +457,22 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
     expect(fetchMock.requestsMatching('/fund')[0].body).toMatchObject({ verb: 'callin' });
   });
 
-  it('draws all three actions when he is staked, up, and still playing', async () => {
+  // The same three offers, under the two verbs that own them. WALLET-5's point
+  // was that a funded, winning, seated pocket offers all three at once and none
+  // of them cancels another; SAFE-2 only changed which page each one is drawn
+  // on, so the walk between them is part of the assertion now.
+  it('offers all three when he is staked, up, and still playing', async () => {
+    const user = userEvent.setup();
     withAgents([upAndSeatedAgent]);
     await openMoney();
     await screen.findByText('Up And Seated');
+    expect(within(row('Up And Seated')).getByRole('button', { name: 'Give him chips' }))
+      .toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: /^TAKE/ }));
 
     const r = within(row('Up And Seated'));
-    expect(r.getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
     expect(r.getByRole('button', { name: 'Collect' })).toBeInTheDocument();
     expect(r.getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
   });
@@ -443,7 +485,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   });
 
   it('badges him CALLED IN and greys the stakes he is not going to play', async () => {
-    const { container } = await openMoney();
+    const { container } = await openMoney({}, 'TAKE');
     await screen.findByText('Loose Cannon');
 
     const r = row('Loose Cannon');
@@ -458,7 +500,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   });
 
   it("says what happens next, in the funding sheet's own words", async () => {
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Loose Cannon');
     expect(within(row('Loose Cannon')).getByText('finishes this hand then sits at the bar'))
       .toBeInTheDocument();
@@ -468,7 +510,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
     // The same pocket, at the bar. The promise was about the next few minutes
     // and would be a lie a day later.
     withAgents([{ ...cutPlayingAgent, presence: 'resting', activeTableId: null }]);
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Loose Cannon');
 
     const r = within(row('Loose Cannon'));
@@ -479,7 +521,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
   it('collects all of it — he is not sitting down again, so none of it is his to keep', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 4000 }, { method: 'POST' });
-    await openMoney();
+    await openMoney({}, 'TAKE');
     await screen.findByText('Loose Cannon');
 
     await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Collect' }));

@@ -1196,21 +1196,23 @@
   .watch-felt__hero-card { transition: none; }
 }
 
-/* ── HANDS-1 · ONE SEAT ANATOMY (52m) ───────────────────────────────────
- * mood-watch4.jsx SeatGhost at the geometry design 52m settled.
+/* ── HANDS-1 · ONE SEAT ANATOMY (52m), at WATCH-10's density ─────────────
+ * mood-watch4.jsx SeatGhost at the geometry design 52m settled, scaled to 80%
+ * by WATCH-10 job 1 — see the header of system/SeatGhost.jsx for why.
  *
- *   ROW 1   40px   the body. Cards against the lower third, fists gripping
+ *   ROW 1   32px   the body. Cards against the lower third, fists gripping
  *                  their bottom corners from below, THE FACE ALWAYS CLEAR.
- *   GAP     10px   the only vertical space in the seat.
- *   ROW 2   18px   one pill — name, stack, one line. The ring and the dealer
- *                  button attach to its LEFT EDGE, so nothing orbits the face.
- *   TOTAL   68px
+ *   GAP      8px   the only vertical space in the seat.
+ *   ROW 2   18px   one pill — HIS NAME, one line, and nothing else. The ring
+ *                  and the dealer button attach to its LEFT EDGE, so nothing
+ *                  orbits the face.
+ *   TOTAL   58px
  *
- * The ref calls the gap 6 and the stack 64. It cannot be both: SEAT_GRIP puts a
- * seat's fists 9.5px below the 40px body (they have to hang below the cards to
- * grip them from underneath), so a 6px gap lands two fists on the ends of the
- * name pill — exactly the pile-up 52m exists to end. The gap absorbs the
- * overhang instead; the body and the pill are the ref's own numbers.
+ * The ref calls the gap 6 and the stack 64. It cannot be both: SEAT_GRIP hangs
+ * a seat's fists ~24% of the body below it (they have to hang below the cards
+ * to grip them from underneath), so a 6px gap lands two fists on the ends of
+ * the name pill — exactly the pile-up 52m exists to end. The gap absorbs the
+ * overhang instead, which is why it scales with the body and the pill does not.
  *
  * FOLDED dims THE BODY, never the pill: whatever else goes quiet, you can
  * always read who is sitting there. */
@@ -1219,7 +1221,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0;
   min-height: 0;
   border: none;
@@ -1380,8 +1382,11 @@
   font-weight: 500;
   /* A seat is centred on its own x now, so a long name grows the pill in BOTH
      directions — off the felt at the corners, and onto the pot at the rails.
-     The name is the half that ellipsizes; the stack never does. */
-  max-width: 58px;
+     WATCH-10: the stack has left the pill, so the name has the width the two of
+     them used to share, and pillName() decides where a long one is cut. This
+     ceiling is only a backstop for a name of 14 wide characters; the ellipsis
+     under it should now essentially never fire. */
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1572,8 +1577,12 @@
   pointer-events: none;
 }
 
-/* An opponent's sits over their own ghost, in the band the seats leave above
-   them. The slot modifiers put it on the same anchor as the seat itself. */
+/* An opponent's sits in his slot's own band, and its tail points back at him.
+   The slots are named by slotsFor(): tl / tc / tr across the top, ml / mr on
+   the rails. They were spelled out longhand here and matched nothing the felt
+   rendered, so every opponent bubble fell back to the felt's top-left corner
+   and was clipped by it — whoever was speaking, wherever they sat. Playwright,
+   390x844, "Again?" half off the left edge. */
 .watch-felt__bubble {
   position: absolute;
   z-index: 6;
@@ -1581,19 +1590,58 @@
   pointer-events: none;
   max-width: 150px;
 }
-/* The slots are named by slotsFor(): tl / tc / tr across the top, ml / mr on
-   the rails. They were spelled out longhand here and matched nothing the felt
-   rendered, so every opponent bubble fell back to the felt's top-left corner
-   and was clipped by it — whoever was speaking, wherever they sat. Playwright,
-   390x844, "Again?" half off the left edge. */
-/* HANDS-1: a seat is a 68px stack now and banks a pile under it, so every band
-   moved down by the difference. The rails speak ABOVE themselves, as the ref
-   has them — there is nothing under a rail but the board. */
-.watch-felt__bubble--tc { left: 50%; transform: translateX(-50%); top: 84px; }
-.watch-felt__bubble--ml { left: 6px; top: max(8px, calc(var(--wv-pot, 209px) - 66px)); }
-.watch-felt__bubble--mr { right: 6px; top: max(8px, calc(var(--wv-pot, 209px) - 66px)); }
-.watch-felt__bubble--tl { left: 6px; top: 88px; }
-.watch-felt__bubble--tr { right: 6px; top: 88px; }
+
+/* WATCH-10 job 2 · THE SIDE IS PLACED, NOT PINNED.
+   Each slot carries the SEAT'S OWN x, so a bubble tracks its speaker at any
+   stage width instead of parking in a corner of the felt, and `is-left` /
+   `is-right` say which way it was given room to open — lib/feltBubbles.js
+   decides that, against the felt's edge, every name pill and every bubble
+   already placed. `--seat-x` is the same percentage `.watch-felt__seat--*`
+   uses; two copies of one number is one number that can drift, but a custom
+   property cannot be read out of another rule, and the seat's own rule is 1400
+   lines up. TAIL_IN (14px) is duplicated from feltBubbles.js for the same
+   reason and is asserted against it in feltBubbles.test.jsx. */
+.watch-felt__bubble--tl { --seat-x: 19%; }
+.watch-felt__bubble--tc { --seat-x: 50%; }
+.watch-felt__bubble--tr { --seat-x: 81%; }
+.watch-felt__bubble--ml { --seat-x: 12.5%; }
+.watch-felt__bubble--mr { --seat-x: 87.5%; }
+.watch-felt__bubble.is-right { left: calc(var(--seat-x, 50%) - 14px); }
+.watch-felt__bubble.is-left {
+  left: calc(var(--seat-x, 50%) + 14px);
+  transform: translateX(-100%);
+}
+
+/* THE TWO BANDS. The top row speaks BELOW itself — there is nothing above a
+   seat that starts 8px from the top of the felt — under the seat and under the
+   pile it banks; WATCH-10's shorter seat is why this is 94 and not 88. The
+   rails speak ABOVE themselves, as the ref has them: there is nothing under a
+   rail but the board. */
+.watch-felt__bubble--tl,
+.watch-felt__bubble--tc,
+.watch-felt__bubble--tr { top: 94px; }
+.watch-felt__bubble--ml,
+.watch-felt__bubble--mr { top: max(6px, calc(var(--wv-pot, 209px) - 66px)); }
+
+/* The tail comes off the NEAR EDGE, 14px in, which puts its point on the
+   seat's own centre whichever way the bubble opened. */
+.watch-felt__bubble.is-right .bubble__tail { left: 14px; }
+.watch-felt__bubble.is-left .bubble__tail {
+  left: auto;
+  right: 14px;
+  margin-left: 0;
+  margin-right: -6px;
+}
+/* And it points AT him: up out of the top row's band, down out of a rail's. */
+.watch-felt__bubble--tl .bubble__tail,
+.watch-felt__bubble--tc .bubble__tail,
+.watch-felt__bubble--tr .bubble__tail {
+  top: auto;
+  bottom: 100%;
+  border-top: none;
+  border-bottom: 7px solid rgba(18, 20, 22, 0.92);
+  filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.18));
+}
 
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation: none; }

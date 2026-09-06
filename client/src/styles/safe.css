@@ -1,0 +1,353 @@
+/* client/src/styles/safe.css — SAFE-2
+ *
+ * THE SAFE, ON THE THREAD'S GLASS. Board 29 F12 / F12b, drawn from
+ * design-refs/mood-floor58.jsx.
+ *
+ * ONE GLASS. Wave 56's law: "Every panel over the felt or the room is one glass
+ * — V5GLASS from board 26's ThreadSheet. Sheets take `raised`, strips and
+ * toasts take `panel`, the hairline is `edgeUp`." The variables come from
+ * draft2.css's :root, which is where DRAFT-2 named the same numbers watch6.css
+ * uses, so all three surfaces move together or not at all.
+ *
+ * TWO SIZES, ONE SHEET. Collapsed, the safe is the number, the verbs and
+ * tonight. Pulled up it is those and the ledger, and nothing about it has
+ * become a different screen — same glass, same head, same back button. The
+ * height is the only thing that changed, which is what a pull IS.
+ *
+ * IN THE RAIL there is a column for both, so `--rail` is flat: no scrim, no
+ * grabber, no rounded top, and the ledger is simply always in the scroll.
+ */
+
+/* ── the layer ───────────────────────────────────────────────────────────── */
+
+.safe {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.safe__scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(6, 10, 9, 0.5);
+  cursor: pointer;
+  animation: safe-fade 160ms ease-out;
+}
+
+@keyframes safe-fade { from { opacity: 0 } to { opacity: 1 } }
+
+/* ── the panel ───────────────────────────────────────────────────────────── */
+
+.safe__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 74%;
+  overflow: hidden auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px 16px 0 0;
+  border-top: 1px solid var(--glass-edge-up, rgba(255, 255, 255, 0.17));
+  background: var(--glass-raised, rgba(18, 30, 28, 0.84));
+  backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
+  -webkit-backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.5);
+  /* Over the scrim, and it has to be said out loud: base.css gives EVERY
+     button `position: relative; z-index: 1`, and the scrim is a button. Left
+     on `auto` the panel paints under its own backdrop and every control on it
+     is dead to a finger — which is exactly what the browser smoke caught. */
+  z-index: 2;
+  padding-bottom: 18px;
+  animation: safe-rise 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Pulled up: the second size. Not full height — the room stays visible above
+   it, because leaving the ledger is putting the sheet down, not navigating. */
+.safe.is-pulled .safe__panel { max-height: 92%; }
+
+.safe__panel.is-dragging { transition: none; }
+
+@keyframes safe-rise {
+  from { opacity: 0; transform: translateY(14px) }
+  to   { opacity: 1; transform: none }
+}
+
+.safe__grab {
+  display: flex;
+  justify-content: center;
+  padding: 9px 0 4px;
+  flex-shrink: 0;
+}
+
+.safe__grab span {
+  width: 30px;
+  height: 3.5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── the head ────────────────────────────────────────────────────────────── */
+
+.safe__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 2px 13px 6px;
+}
+
+.safe__back {
+  width: 30px;
+  height: 30px;
+  margin-left: -7px;
+  padding: 0;
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #EDEDED;
+  cursor: pointer;
+}
+
+.safe__title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #EDEDED;
+}
+
+.safe__sub {
+  font-size: 10.5px;
+  color: #6B6B6B;
+}
+
+/* ── the pages ───────────────────────────────────────────────────────────── */
+
+.safe__pages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* A verb is a page of this sheet, and it arrives from the right. Back returns
+   to the number, so the slide is what says which direction you are going. */
+.safe__page { animation: safe-page-in 200ms cubic-bezier(0.22, 1, 0.36, 1); }
+.safe[data-page='safe'] .safe__page { animation-name: safe-page-back; }
+
+@keyframes safe-page-in {
+  from { opacity: 0; transform: translateX(26px) }
+  to   { opacity: 1; transform: none }
+}
+
+@keyframes safe-page-back {
+  from { opacity: 0; transform: translateX(-18px) }
+  to   { opacity: 1; transform: none }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .safe__page,
+  .safe__panel,
+  .safe__scrim { animation: none }
+}
+
+/* ── one number ──────────────────────────────────────────────────────────── */
+
+.safe__number {
+  text-align: center;
+  padding: 2px 14px 0;
+}
+
+.safe__amount {
+  margin-top: 3px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #CDB380;
+  line-height: 1.05;
+}
+
+/* ── three verbs ─────────────────────────────────────────────────────────── */
+
+.safe__verbs {
+  display: flex;
+  gap: 7px;
+  padding: 13px 14px 0;
+}
+
+.safe__verb {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0 8px;
+  border-radius: 11px;
+  /* The edge and the wash are set inline from the verb's own colour, the way
+     the ref does it (`${v.c}4D` / `${v.c}0F`) — a hex with an alpha suffix
+     works in every webview this app is opened in, and color-mix does not. */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.safe__verb:active { transform: translateY(1px) }
+
+.safe__verb-label {
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--verb);
+}
+
+.safe__verb-note {
+  font-size: 9.5px;
+  color: #6B6B6B;
+}
+
+/* ── tonight, in three lines ─────────────────────────────────────────────── */
+
+.safe__tonight { padding: 15px 14px 0 }
+
+.safe__line {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.safe__tonight .safe__line:first-of-type { margin-top: 8px }
+
+.safe__line-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.safe__line-label {
+  display: block;
+  font-size: 11.5px;
+  color: #EDEDED;
+}
+
+/* The sentence that caused the figure. It is never optional. */
+.safe__line-note {
+  display: block;
+  margin-top: 1.5px;
+  font-size: 10px;
+  color: #6B6B6B;
+}
+
+/* ── the pull, and the ledger ────────────────────────────────────────────── */
+
+.safe__pull-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+
+.safe__pull {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #A1A1A1;
+}
+
+.safe__ledger { padding: 16px 0 0 }
+
+.wal-ledger--flush {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.wal-ledger--flush .wal-ledger__row {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ── the rules page ──────────────────────────────────────────────────────── */
+
+.safe__rules { padding: 4px 14px 0 }
+
+.safe-rule {
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.safe__rules .safe-rule:first-child { border-top: none }
+
+.safe-rule__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.safe-rule__name {
+  font-size: 13px;
+  color: #EDEDED;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.safe-rule__toggle { margin-top: 7px }
+
+/* ── nothing to say ──────────────────────────────────────────────────────── */
+
+.safe__absent {
+  margin: 0;
+  padding: 16px 16px 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #A1A1A1;
+  text-align: center;
+}
+
+/* ── the rail (DESK-2) ───────────────────────────────────────────────────── */
+
+.safe--rail {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-height: 0;
+  z-index: auto;
+}
+
+.safe--rail .safe__panel {
+  max-height: none;
+  /* One scroll, and it is the rail body's. A scrolling page inside a scrolling
+     page is two scrollbars arguing over one gesture. */
+  overflow: visible;
+  flex: 1;
+  border-radius: 0;
+  border-top: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
+  padding-bottom: 22px;
+}
+
+/* The head is not drawn at all on the rail's number page — see SafeSheet.jsx.
+   A panel head and a sheet head saying the same word is the same door twice. */

@@ -14,7 +14,7 @@
 //
 //   THE ROOM   RoomThread          THREAD-2's /api/home/thread, attributed
 //   HIS THREAD ThreadPanel         the desk's own agent thread, unchanged
-//   THE SAFE   MoneySheet          YOU-2's one money surface, second door
+//   THE SAFE   SafeSheet           SAFE-2's one money surface, second door
 //   THE FRIDGE FridgeSheet         HOME-1's, mounted inline instead of as glass
 //   THE TABLE  TableSheet          the chairs, priced from GET /api/slots
 //
@@ -30,7 +30,7 @@
 //      because a fixture panel is a decision and an unanswered ask on top of
 //      one is two questions at once.
 
-import { MoneySheet } from '../wallet/MoneySheet.jsx';
+import { SafeSheet } from '../wallet/SafeSheet.jsx';
 import { FridgeSheet } from '../home/FridgeSheet.jsx';
 import { RoomThread } from '../home/RoomThread.jsx';
 import { TableSheet, useSlots } from '../home/TableSheet.jsx';
@@ -110,10 +110,14 @@ export function DeskHome({
 
         if (open === 'safe') {
           return (
-            // MoneySheet brings its own head, so it is the panel head — one
-            // money surface, and the room's name for the door it came through.
-            <div className="dsk-panel dsk-panel--home dsk-panel--safe">
-              <MoneySheet
+            // SAFE-2: the rail panel names it, so the sheet's own head steps
+            // aside on the number and comes back inside a verb, where it is the
+            // only way back to the balance. F12's note about the desk is the
+            // rest of the difference: there is a column for both, so tonight
+            // and the ledger are one scroll rather than a pull.
+            <RailPanel title="The safe" onClose={backToRoom}>
+              <SafeSheet
+                variant="rail"
                 title="The safe"
                 wallet={wallet}
                 agents={agents}
@@ -121,7 +125,7 @@ export function DeskHome({
                 onClose={backToRoom}
                 onOpenProfile={onProfile}
               />
-            </div>
+            </RailPanel>
           );
         }
 

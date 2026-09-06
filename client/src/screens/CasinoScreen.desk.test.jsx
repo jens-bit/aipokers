@@ -56,16 +56,20 @@ beforeEach(() => {
 });
 
 describe('DESK-2 · the casino on the desk', () => {
+  // CASINO-2 job 3: at rest the rooms are the three small doors under the sign
+  // (the tall doorway is the deploy choice — see the tray tests below). The
+  // rule this asserts is unchanged and is the one that matters here: the rooms
+  // are on the stage, the board is in the rail, and there is exactly one board.
   it('is two columns: the building on the stage, the ticker in the rail', async () => {
     routeFloor();
     render(<CasinoScreen desktop />);
 
-    await waitFor(() => expect(document.querySelectorAll('.csn-door').length).toBe(rooms.length));
+    await waitFor(() => expect(document.querySelectorAll('.csn-room-door').length).toBe(rooms.length));
     expect(stage()).not.toBeNull();
     expect(rail()).not.toBeNull();
 
-    // Every doorway is on the stage; the board is not.
-    for (const door of document.querySelectorAll('.csn-door')) {
+    // Every door is on the stage; the board is not.
+    for (const door of document.querySelectorAll('.csn-room-door')) {
       expect(stage().contains(door)).toBe(true);
     }
     const boards = document.querySelectorAll('.csn-board');
@@ -134,9 +138,11 @@ describe('DESK-2 · the casino on the desk', () => {
 describe('FIX-6 · the building across the desk', () => {
   beforeEach(() => { telegram.signIn(); });
 
+  // Since CASINO-2 job 3 this is the DEPLOY view: the tall doorways arrive with
+  // the tray. What FIX-6 fixed is unchanged — three across, all one height.
   it('lays the rooms out as three cards side by side, not a column', async () => {
-    routeFloor();
-    render(<CasinoScreen desktop />);
+    routeFloor({ agents: [fundedCannon] });
+    render(<CasinoScreen desktop deployAgent={fundedCannon} />);
 
     const row = await waitFor(() => {
       const el = document.querySelector('.csn-rooms__row');
@@ -154,40 +160,50 @@ describe('FIX-6 · the building across the desk', () => {
   });
 
   it('the phone keeps its stack — nothing about this is a change to the phone', async () => {
-    routeFloor();
-    render(<CasinoScreen />);
+    routeFloor({ agents: [fundedCannon] });
+    render(<CasinoScreen deployAgent={fundedCannon} />);
 
     await waitFor(() => expect(document.querySelectorAll('.csn-door').length).toBe(rooms.length));
     expect(document.querySelector('.csn-rooms__row')).toBeNull();
   });
 
-  it('a doorway opens what is running IN THE RAIL, with no glass over the building', async () => {
+  // FIX-6's rule was "every SHEET opens in the rail", and it holds: his chips
+  // still do, below. CASINO-2 job 5 made a room something else — you walk into
+  // it, it replaces the building, and there is nothing left behind it for a
+  // rail to sit beside. So it is full width, and it brings the board with it as
+  // a right column rather than leaving the ticker behind on a screen you can no
+  // longer see.
+  it('a doorway takes the whole desk, because a room is not a sheet', async () => {
     routeFloor({ agents: [playingAgent] });
     const user = userEvent.setup();
     render(<CasinoScreen desktop />);
 
     await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
 
-    const sheet = await screen.findByTestId('room-tables-sheet');
-    expect(rail().contains(sheet)).toBe(true);
-    expect(stage().contains(sheet)).toBe(false);
-    // No scrim: nothing is covered, so there is nothing to dismiss by tapping
-    // past it. The ticker stands down while the sheet is up — one rail.
-    expect(sheet.querySelector('.home-sheet__scrim')).toBeNull();
-    expect(document.querySelector('.csn-board')).toBeNull();
+    const view = await screen.findByTestId('floor-view');
+    expect(view.classList.contains('csn-floor--desk')).toBe(true);
+    // No rail and no stage: the building is not behind it.
+    expect(rail()).toBeNull();
+    expect(stage()).toBeNull();
+    // No scrim either — nothing is covered, so there is nothing to dismiss by
+    // tapping past it.
+    expect(view.querySelector('.home-sheet__scrim')).toBeNull();
+    // The board came along, as the right column.
+    expect(view.querySelector('.csn-floor__board .csn-board')).not.toBeNull();
   });
 
-  it('closing it puts the ticker back', async () => {
+  it('leaving it puts the building back', async () => {
     routeFloor();
     const user = userEvent.setup();
     render(<CasinoScreen desktop />);
 
     await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-    await screen.findByTestId('room-tables-sheet');
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await screen.findByTestId('floor-view');
+    await user.click(screen.getByRole('button', { name: 'Back to the casino' }));
 
-    await waitFor(() => expect(document.querySelector('.csn-board')).not.toBeNull());
-    expect(screen.queryByTestId('room-tables-sheet')).toBeNull();
+    await waitFor(() => expect(rail()).not.toBeNull());
+    expect(document.querySelector('.csn-board')).not.toBeNull();
+    expect(screen.queryByTestId('floor-view')).toBeNull();
   });
 
   it('his chips open in the rail too, rather than taking the whole desk', async () => {

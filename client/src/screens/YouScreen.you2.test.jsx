@@ -1,9 +1,15 @@
-// client/src/screens/YouScreen.you2.test.jsx — YOU-2
+// client/src/screens/YouScreen.you2.test.jsx — YOU-2, SAFE-2
 //
 // What YOU is after the money moved out of it: a summary that opens the sheet,
 // the ledger, the notifications row, and — when the server has seats — the
-// slots row. The wallet block and the pocket rows are asserted in
-// YouScreen.wallet.test.jsx, through the tap, and in MoneySheet.test.jsx.
+// slots row. The pockets are asserted in YouScreen.wallet.test.jsx, through the
+// tap, and in SafeSheet.test.jsx.
+//
+// SAFE-2 changed what opens. It is the SAFE — one number and three verbs — so
+// the two assertions that looked for `.wal-block` look for that number instead;
+// the block itself is board 29 F12's own casualty. And the sheet is a LAYER
+// over this screen rather than a replacement for it, because what it draws is
+// no longer a scrolling grid that needs the whole phone.
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -41,7 +47,7 @@ describe('YOU-2 — the summary', () => {
     await user.click(await screen.findByRole('button', { name: 'Money' }));
 
     await waitFor(() => expect(container.querySelector('.money-sheet')).toBeTruthy());
-    expect(container.querySelector('.wal-block')).toBeTruthy();
+    expect(container.querySelector('.safe__amount').textContent).toBe('$2,340.50');
   });
 
   it('comes back to the screen it left', async () => {
@@ -55,7 +61,7 @@ describe('YOU-2 — the summary', () => {
     expect(container.querySelector('.money-sheet')).toBeNull();
   });
 
-  // No second wallet UI: the block and the rows exist in exactly one place.
+  // No second money UI: the number and the pockets exist in exactly one place.
   it('carries no wallet block and no pocket rows of its own', async () => {
     const { container } = render(<YouScreen />);
     await screen.findByText('Lifetime');
@@ -70,24 +76,31 @@ describe('YOU-2 — the ledger', () => {
   it('draws what the wallet has been recording all along', async () => {
     render(<YouScreen />);
     expect(await screen.findByText('Ledger')).toBeInTheDocument();
-    expect(screen.getByText(/^Gave chips/)).toBeInTheDocument();
+    expect(screen.getByText(/^Topped up/)).toBeInTheDocument();
     expect(screen.getByText('−$500')).toBeInTheDocument();
   });
 
   it('names the agent an entry was about', async () => {
     render(<YouScreen />);
     await screen.findByText('Ledger');
-    expect(screen.getByText('Gave chips · Aggressive v1.3')).toBeInTheDocument();
-    expect(screen.getByText('Collected · Balanced v2.1')).toBeInTheDocument();
+    expect(screen.getByText("Topped up Aggressive v1.3's pocket")).toBeInTheDocument();
+    expect(screen.getByText('Balanced v2.1 came home')).toBeInTheDocument();
   });
 
-  it('stays on the screen rather than moving into the sheet', async () => {
+  // YOU-2 proved the record did not MOVE into the sheet by watching it
+  // disappear when the sheet took the screen. SAFE-2 gave the safe a record of
+  // its own — F12b's pull-up — and made the sheet a layer, so the disappearing
+  // act is gone and the rule it stood for is the one still worth holding: this
+  // screen's ledger is this screen's, and the safe's waits to be pulled up.
+  it('stays on the screen the sheet is drawn over', async () => {
     const user = userEvent.setup();
     render(<YouScreen />);
     await screen.findByText('Ledger');
 
     await user.click(summary());
-    await waitFor(() => expect(screen.queryByText('Ledger')).toBeNull());
+    await screen.findByText('In the safe');
+    expect(screen.getByText('Ledger')).toBeInTheDocument();
+    expect(screen.queryByTestId('safe-ledger')).toBeNull();
   });
 
   it('is absent on a deployment with no wallet to record anything', async () => {
@@ -139,7 +152,7 @@ describe('YOU-2 — arriving with money to deal with', () => {
   it('opens on the sheet when the host sent him here for it', async () => {
     const { container } = render(<YouScreen openMoney />);
     await waitFor(() => expect(container.querySelector('.money-sheet')).toBeTruthy());
-    expect(container.querySelector('.wal-block')).toBeTruthy();
+    expect(container.querySelector('.safe__amount')).toBeTruthy();
   });
 
   it('lets him close it — the intent lands him there, it does not pin him there', async () => {

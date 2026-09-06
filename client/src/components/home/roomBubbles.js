@@ -42,6 +42,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BUBBLE_W, bubbleFits, bubbleSide } from './flat.js';
+import { overlaps, place, sideFor as placeSide } from '../../lib/bubblePlace.js';
 import { BUBBLE_DWELL_MS } from '../../lib/pace.js';
 import { pillName } from '../../lib/names.js';
 
@@ -85,9 +86,17 @@ export function bubbleRect(body, side) {
   return { left, right: left + BUBBLE_W, top: bottom - BUBBLE_H, bottom };
 }
 
-export function overlaps(a, b) {
-  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-}
+// WATCH-10 job 2 moved the algorithm to lib/bubblePlace.js so the FELT could
+// have it too — five seats at 390 wide is the same problem this file was
+// written for. What stays here is the geometry, which is measured off home1.css
+// and is true of nothing else.
+export { overlaps };
+
+/** The two sides, most wanted first. flat.js decides which is preferred. */
+const roomSides = (body) => (bubbleSide(body.x) === 'right' ? ['right', 'left'] : ['left', 'right']);
+
+/** The box, or null when the room edge would cut it — flat.js's rule. */
+const roomRect = (body, side) => (bubbleFits(body.x, side) ? bubbleRect(body, side) : null);
 
 /**
  * Which way this body's bubble may open, or null when neither way is clear.
@@ -97,15 +106,7 @@ export function overlaps(a, b) {
  * every name pill in the room, and every bubble already placed this pass.
  */
 export function sideFor(body, blockers = []) {
-  const preferred = bubbleSide(body.x);
-  const sides = preferred === 'right' ? ['right', 'left'] : ['left', 'right'];
-  for (const side of sides) {
-    if (!bubbleFits(body.x, side)) continue;
-    const box = bubbleRect(body, side);
-    if (blockers.some((b) => overlaps(box, b))) continue;
-    return side;
-  }
-  return null;
+  return placeSide(body, { sides: roomSides, rect: roomRect, blockers })?.side ?? null;
 }
 
 /**
@@ -120,18 +121,12 @@ export function sideFor(body, blockers = []) {
  * @param bodies    everyone in the room, for their pills
  */
 export function layout(speakers = [], bodies = []) {
-  const pills = bodies.map(pillRect);
-  const placed = [];
-  const taken = [];
-  for (const speaker of speakers) {
-    if (placed.length >= MAX_IN_ROOM) break;
-    if (!speaker) continue;
-    const side = sideFor(speaker, [...pills, ...taken]);
-    if (!side) continue;
-    taken.push(bubbleRect(speaker, side));
-    placed.push({ ...speaker, side });
-  }
-  return placed;
+  return place(speakers, {
+    max: MAX_IN_ROOM,
+    sides: roomSides,
+    rect: roomRect,
+    blockers: bodies.map(pillRect),
+  });
 }
 
 /**

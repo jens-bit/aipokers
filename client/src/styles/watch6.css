@@ -642,6 +642,43 @@
   color: var(--sys-muted, #6B6B6B);
 }
 
+/* WATCH-10 job 3 · THE LAST HAND, NAMED. Same three parts as the felt's result
+   pill (.watch-felt__won-*) and the same rule about which face carries which:
+   the name and the verb in small caps because they are a label, the amount in
+   the display face because it is the figure, and the hand itself in the body
+   face and sentence case because it is the only prose on the block. It wraps
+   rather than clipping — "aces full of kings" and a five-letter name do not
+   both fit on one 390px line, and a hand name cut in half is worse than two. */
+.watch-ceremony__hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  max-width: 280px;
+  text-align: center;
+}
+.watch-ceremony__hand-who {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sys-gold, #CDB380);
+  white-space: nowrap;
+}
+.watch-ceremony__hand-amt {
+  font-family: var(--sys-font-display, "Playfair Display", serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sys-gold, #CDB380);
+}
+.watch-ceremony__hand-with {
+  font-family: var(--sys-font-body, "Inter", sans-serif);
+  font-size: 10.5px;
+  color: var(--sys-dim, #A1A1A1);
+}
+
 .watch-ceremony__ghost { position: relative; margin-top: 2px; }
 /* Over him, not inside him — there is nothing to hold here, so the hands are
    free to say something, and they are flung wide of the money line above. */
@@ -830,11 +867,48 @@
 /* His bank goes quiet with him. The PILL is the only thing a fold leaves at
    full strength — you can always read who is sitting there. */
 .watch-felt__seat-pile.is-folded { opacity: 0.4; }
-.watch-felt__seat--tl .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: 4px; }
-.watch-felt__seat--tc .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: -18px; }
-.watch-felt__seat--tr .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: -18px; }
-.watch-felt__seat--ml .watch-felt__seat-pile { top: 6px;  margin-left: 26px; }
-.watch-felt__seat--mr .watch-felt__seat-pile { top: 6px;  margin-left: -39px; }
+
+/* WATCH-10 job 1. The pile is no longer a 13px column of chips: it is three
+   chips AND HIS NUMBER, so it is about 50px wide, and a margin that used to
+   nudge a thin object now decides whether a wide one runs off the felt or over
+   its neighbour. So the side it banks is stated instead of implied — the two
+   slots that bank right take a positive margin, the three that bank left are
+   pulled back by their own width. Same rule the ref writes as
+   `inside = s.x < POT_C.x ? 1 : -1`, only now it survives the object growing. */
+.watch-felt__seat--tl .watch-felt__seat-pile,
+.watch-felt__seat--ml .watch-felt__seat-pile { margin-left: var(--pile-gap, 4px); }
+.watch-felt__seat--tc .watch-felt__seat-pile,
+.watch-felt__seat--tr .watch-felt__seat-pile,
+.watch-felt__seat--mr .watch-felt__seat-pile {
+  transform: translateX(-100%);
+  margin-left: calc(-1 * var(--pile-gap, 4px));
+}
+/* The top corners bank BELOW the pill — there is nothing under row 2 to clear.
+   The rails bank BESIDE the body, inside, which needs the body's half-width
+   (16px) plus air. */
+.watch-felt__seat--tl .watch-felt__seat-pile,
+.watch-felt__seat--tc .watch-felt__seat-pile,
+.watch-felt__seat--tr .watch-felt__seat-pile { top: calc(100% + 5px); }
+.watch-felt__seat--ml .watch-felt__seat-pile,
+.watch-felt__seat--mr .watch-felt__seat-pile { top: 4px; --pile-gap: 20px; }
+
+/* ONE STACK, WITH THE NUMBER BESIDE IT — beside, not under: under is the
+   hero's arrangement, where the pile is 26px wide and the caption is the width
+   of the object it belongs to. An opponent's pile is 11px, so a number under it
+   is a number under nothing. */
+.chip-stack.is-seat {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 4px;
+}
+.chip-stack.is-seat .chip-stack__amt {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sys-dim, #C3C3C6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.watch-felt__seat-pile.is-folded .chip-stack__amt { color: var(--sys-muted, #9E9EA2); }
 
 /* The bet spot sits between the pile and the pot, so money always reads as
    travelling. It arrives from the pile and leaves for the pot with every other
