@@ -290,3 +290,117 @@ describe('CLEAN-1 the desk shell stays around the draft (DP-4)', () => {
     expect(document.querySelector('.dsk-top')).toBe(topBar);
   });
 });
+
+
+// ── CHAT-2 item 4 · leaving a table puts you back where you started ─────────
+//
+// The watch screen's back button ran handleLeave and nothing else, so where
+// the owner landed was whatever tab happened to be active — and every deploy
+// path cleared the open thread on its way to the socket. The result was that
+// watching one hand of an agent you were mid-conversation with cost you the
+// conversation. The origin is captured when the watch begins and spent when it
+// ends; an explicit destination (a tab, or "Chat") still wins over it.
+describe('CHAT-2 the watch screen returns to where you came from', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+    fetchMock.route('/hands', { recentHands: [] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    fetchMock.route('/memory', { memoryContext: '' });
+    fetchMock.route('/queue', {
+      tableId: 'tbl-new', agentId: 'agent_cannon', agentName: 'Loose Cannon',
+      strategy: 'Bets big, bluffs often.', memoryContext: '',
+    }, { method: 'POST' });
+  });
+
+  // thread -> profile -> Deploy -> watch -> back
+  async function deployFromThread(user) {
+    await user.click(tab('CHATS'));
+    await user.click(await screen.findByText('Loose Cannon'));
+    await screen.findByPlaceholderText('Message Loose Cannon…');
+
+    // CHAT-2: the thread has no Deploy; the face opens the control centre.
+    await user.click(screen.getByRole('button', { name: /Open Loose Cannon's profile/ }));
+    const row = await waitFor(() => {
+      const el = document.querySelector('.profile-actions');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    await user.click(within(row).getByRole('button', { name: 'Deploy' }));
+    return waitFor(() => {
+      const el = document.querySelector('.watch-screen');
+      expect(el).toBeTruthy();
+      return el;
+    });
+  }
+
+  it('CHAT-2: back from a watch started in a thread lands in that thread', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    await deployFromThread(user);
+    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+
+    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(screen.queryByText('Standup')).not.toBeInTheDocument();
+  });
+
+  it('CHAT-2: back from a watch started on the floor still lands on the floor', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    // The floor zoom is how an agent is deployed from the casino.
+    await user.click(await screen.findByRole('button', { name: /^Loose Cannon — / }));
+    const zoom = await waitFor(() => {
+      const el = document.querySelector('.floor-zoom');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    await user.click(within(zoom).getByRole('button', { name: 'Deal him in' }));
+    await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    expect(await screen.findByText('Standup')).toBeInTheDocument();
+  });
+
+  it('CHAT-2: a tab the owner actually taps still wins over the origin', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    await deployFromThread(user);
+    // The watch screen has no tab bar; leave first, then choose.
+    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await screen.findByPlaceholderText('Message Loose Cannon…');
+    await user.click(tab('CASINO'));
+
+    expect(await screen.findByText('Standup')).toBeInTheDocument();
+  });
+
+  // The origin is spent on use and re-armed by the next watch. A one-shot that
+  // never re-arms would send the second round trip to the floor.
+  it('CHAT-2: it holds for the second round trip too', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Standup');
+
+    await deployFromThread(user);
+    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await screen.findByPlaceholderText('Message Loose Cannon…');
+
+    // Straight back out and in again, from the thread we just landed in.
+    await user.click(screen.getByRole('button', { name: /Open Loose Cannon's profile/ }));
+    const row = await waitFor(() => {
+      const el = document.querySelector('.profile-actions');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    await user.click(within(row).getByRole('button', { name: 'Deploy' }));
+    await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+  });
+});

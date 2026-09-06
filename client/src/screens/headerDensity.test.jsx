@@ -1,4 +1,5 @@
-// client/src/screens/headerDensity.test.jsx — FIX-1d, retuned by FIX-2a
+// client/src/screens/headerDensity.test.jsx — FIX-1d, retuned by FIX-2a,
+// and superseded for the thread by CHAT-2
 //
 // Mobile playtest 2026-09-05: the "New agent" title row, the draft status strip
 // and the thread header ate the top of a 390x844 screen before any content.
@@ -29,6 +30,12 @@
 // jsdom does no layout, so this recomputes the box model from the declared
 // styles React applied — padding + the tallest child + border — which is the
 // same arithmetic as the table above and fails on the pre-fix tree.
+//
+// CHAT-2 (2026-09-06) changes the RULE for the thread, not the budget. The
+// band under the thread header existed to carry DEPLOY and the mood cause;
+// both moved to the profile, so there is no second row left to measure and the
+// two 40 + 56 cases are replaced by one that says the thread's whole chrome is
+// 56px. The draft screen still has both rows and still owes 40 + 56.
 
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -87,7 +94,12 @@ describe('FIX-2a header density', () => {
     expect(rowHeight(band)).toBe(REF_BAND_H);
   });
 
-  it('FIX-2a: the thread header matches the ww-ref row height', async () => {
+  // CHAT-2 supersedes FIX-2a for this one screen. The thread had a 40px
+  // GlobalHeader AND a 56px MoodBand, and the band existed to carry DEPLOY and
+  // the cause line — both of which CHAT-2 takes off the thread. What is left
+  // (face, name, stack, one pill) is one row, and the rule is now the band's
+  // 56px alone: 96 - 40. The two cases this replaces asserted the pair.
+  it('CHAT-2: the thread header is ONE row, at the ww-ref band height', async () => {
     const agent = {
       id: 'a1', name: 'Aggressive v1.3', status: 'resting',
       mood: { state: 'confident', cause: 'closed +$210' },
@@ -95,19 +107,41 @@ describe('FIX-2a header density', () => {
     render(<ChatsScreen selectedAgent={agent} onSelectAgent={() => {}} onBack={() => {}} onCreateAgent={() => {}} />);
     const header = rowOf(await screen.findByRole('button', { name: 'Back' }));
 
-    expect(rowHeight(header)).toBe(REF_HEADER_H);
-    expect(header.style.borderBottom).toBe('');
+    expect(rowHeight(header)).toBe(REF_BAND_H);
   });
 
-  it('FIX-2a: the thread mood band matches the ww-ref band height', async () => {
+  it('CHAT-2: every control in it is released from the --tap floor', async () => {
     const agent = {
       id: 'a1', name: 'Aggressive v1.3', status: 'resting',
       mood: { state: 'confident', cause: 'closed +$210' },
     };
     render(<ChatsScreen selectedAgent={agent} onSelectAgent={() => {}} onBack={() => {}} onCreateAgent={() => {}} />);
-    const band = rowOf(await screen.findByRole('button', { name: 'Deploy' }));
+    const header = rowOf(await screen.findByRole('button', { name: 'Back' }));
 
-    expect(rowHeight(band)).toBe(REF_BAND_H);
+    for (const el of header.querySelectorAll('button')) {
+      const who = el.getAttribute('aria-label') ?? el.textContent;
+      // An inline minHeight is the only thing that releases a button from
+      // base.css's --tap floor — the same rule childHeight() reads above.
+      expect(el.style.minHeight, `${who} declares no minHeight, so --tap floors it at 44px`).not.toBe('');
+      expect(parseFloat(el.style.minHeight) || 0).toBe(0);
+      expect(parseFloat(el.style.height)).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it('CHAT-2: there is no second band under it — 56px of chrome, not 96', async () => {
+    const agent = {
+      id: 'a1', name: 'Aggressive v1.3', status: 'resting',
+      mood: { state: 'confident', cause: 'closed +$210' },
+    };
+    const { container } = render(
+      <ChatsScreen selectedAgent={agent} onSelectAgent={() => {}} onBack={() => {}} onCreateAgent={() => {}} />,
+    );
+    const header = rowOf(await screen.findByRole('button', { name: 'Back' }));
+
+    // The header is the screen's first child and the feed is what follows it.
+    const app = container.querySelector('.dr-app');
+    expect(app.children[0]).toBe(header);
+    expect(rowHeight(header)).toBeLessThan(REF_HEADER_H + REF_BAND_H);
   });
 
   it('FIX-2a: the chrome above the draft feed is 96px, not 104px', async () => {

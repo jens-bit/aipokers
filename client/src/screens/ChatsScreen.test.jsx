@@ -98,16 +98,26 @@ describe('ChatsScreen', () => {
 
     const withLog = (attrLog) => ({ ...AGENT, attrLog });
 
-    it('FIX-1i: renders a real tick in his voice', async () => {
+    // CHAT-2 retuned this one: the tick is still rendered, but the quote it
+    // carries is behind a tap now. The rule the case exists for — a ledger
+    // entry never becomes a line, a real tick always does — is unchanged.
+    it('FIX-1i: renders a real tick, and his voice on tap', async () => {
+      const user = userEvent.setup();
       const { container } = renderThread(withLog([{
         ts: hoursAgo(2), key: 'READS', from: 61, to: 62,
         cause: "I'm starting to see through Granite.",
       }]));
 
-      expect(await screen.findByText(/I'm starting to see through Granite/)).toBeInTheDocument();
-      const lines = container.querySelectorAll('.growth-line');
-      expect(lines).toHaveLength(1);
+      const lines = await waitFor(() => {
+        const found = container.querySelectorAll('.growth-line');
+        expect(found).toHaveLength(1);
+        return found;
+      });
       expect(lines[0].querySelector('.growth-line__delta').textContent).toMatch(/READS\s*61\s*→\s*62/);
+
+      expect(screen.queryByText(/I'm starting to see through Granite/)).toBeNull();
+      await user.click(lines[0].querySelector('.growth-line__row'));
+      expect(screen.getByText(/I'm starting to see through Granite/)).toBeInTheDocument();
     });
 
     it('FIX-1i: renders nothing for a narrowed entry', async () => {
@@ -140,11 +150,85 @@ describe('ChatsScreen', () => {
         { ts: hoursAgo(3), key: 'FOCUS', from: 54, to: 54, cause: 'narrowed' },
       ]));
 
-      await screen.findByText(/Third showdown against the same opponent/);
+      await screen.findByText('READS +1');
       expect(container.querySelectorAll('.growth-line')).toHaveLength(1);
       expect(screen.queryByText('narrowed')).not.toBeInTheDocument();
-      // The badge's number and the lines agree: one point, one line.
-      expect(screen.getByText('READS +1')).toBeInTheDocument();
+    });
+  });
+
+  // ── CHAT-2 · the header stops being a control centre ─────────────────────
+  describe('CHAT-2 the thread header', () => {
+    const LIVE = {
+      ...AGENT,
+      status: 'playing',
+      presence: 'playing',
+      activeTableId: 'tbl-1',
+      unseenRecap: true,
+      liveGame: { tableId: 'tbl-1', heroStack: 2000, heroSeat: 0, seats: [], board: [] },
+    };
+
+    it('CHAT-2: carries his stack, in mono', async () => {
+      renderThread({ ...AGENT, pocket: { balance: 2000, mode: 'auto' } });
+      expect(await screen.findByText('$2,000')).toBeInTheDocument();
+    });
+
+    it('CHAT-2: prefers the stack he is sitting behind while he is at a table', async () => {
+      fetchMock.route('/api/agents/a1/hands', { recentHands: [] });
+      renderThread({ ...LIVE, pocket: { balance: 6400, mode: 'auto' } });
+      expect(await screen.findByText('$2,000')).toBeInTheDocument();
+      expect(screen.queryByText('$6,400')).toBeNull();
+    });
+
+    it('CHAT-2: shows no number at all when the record has none', async () => {
+      const { container } = renderThread();
+      await screen.findByText(OPENER);
+      expect(container.textContent).not.toMatch(/\$/);
+    });
+
+    it('CHAT-2: one mood pill, and no state tag beside it', async () => {
+      const { container } = renderThread({ ...AGENT, unseenRecap: true });
+      await screen.findByText(OPENER);
+
+      const header = container.querySelector('.dr-app').children[0];
+      expect(header.querySelectorAll('.floor-mood-chip')).toHaveLength(1);
+      // The RECAP tag is a StateTag; the recap itself is the first message.
+      expect(header.querySelector('.floor-state-tag')).toBeNull();
+      expect(screen.queryByText('RECAP')).toBeNull();
+    });
+
+    it('CHAT-2: no cause line — the recap is the first message, not the chrome', async () => {
+      renderThread({ ...AGENT, mood: { state: 'confident', cause: 'won a 1072-chip pot' } });
+      await screen.findByText(OPENER);
+      expect(screen.queryByText('won a 1072-chip pot')).toBeNull();
+    });
+
+    it('CHAT-2: DEPLOY is gone from the thread', async () => {
+      renderThread();
+      await screen.findByText(OPENER);
+      expect(screen.queryByRole('button', { name: /deploy/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^watch$/i })).toBeNull();
+    });
+
+    it('CHAT-2: the face opens the profile', async () => {
+      const user = userEvent.setup();
+      const onOpenProfile = vi.fn();
+      render(
+        <ChatsScreen selectedAgent={AGENT} onSelectAgent={noop} onBack={noop}
+          onCreateAgent={noop} onOpenProfile={onOpenProfile} />,
+      );
+      await user.click(await screen.findByRole('button', { name: /Open Aggressive v1.3's profile/ }));
+      expect(onOpenProfile).toHaveBeenCalledWith(AGENT);
+    });
+
+    it('CHAT-2: the name opens the profile', async () => {
+      const user = userEvent.setup();
+      const onOpenProfile = vi.fn();
+      render(
+        <ChatsScreen selectedAgent={AGENT} onSelectAgent={noop} onBack={noop}
+          onCreateAgent={noop} onOpenProfile={onOpenProfile} />,
+      );
+      await user.click(await screen.findByRole('button', { name: 'Aggressive v1.3' }));
+      expect(onOpenProfile).toHaveBeenCalledWith(AGENT);
     });
   });
 

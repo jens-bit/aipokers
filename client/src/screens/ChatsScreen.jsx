@@ -3,15 +3,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { MoodBand } from '../components/system/MoodBand.jsx';
 import { LiveBar } from '../components/system/LiveBar.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { GrowthLine, TrainingLine, GrewBadge } from '../components/system/CharacterAtoms.jsx';
 import { AttrExplain } from '../components/system/AttrExplain.jsx';
-import { accentFor, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
-import { moodOf, stateOf, causeOf, lastMomentOf } from '../components/floor/agentView.js';
+import { accentFor, MoodChip, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
+import { moodOf, stateOf, stackOf, lastMomentOf } from '../components/floor/agentView.js';
 import { recentEntries, gainsWithin, grewWithin, normalizeAttrs, ATTR_KEYS } from '../lib/attributes.js';
 import { openerFor } from '../components/desktop/useAgentThread.js';
+import { money } from '../lib/wallet.js';
 import { ReplayCard } from '../components/replay/ReplayCard.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 import { ReplayTheatre } from '../components/replay/ReplayTheatre.jsx';
@@ -567,15 +567,91 @@ function tickTime(tick) {
 }
 
 
+// ── CHAT-2 · the thread header ─────────────────────────────────────────────
+// One 56px row, and it identifies rather than commands. The thread was the
+// control centre by accident — DEPLOY sat in it, the state tag argued with the
+// mood pill, and the recap was printed twice: once as a truncated "won a
+// 1072-chip pot" in the chrome and once, properly, as his first message. All
+// of that moved: acting on him is the profile's job now, and the recap is the
+// message it always was.
+//
+// What is left is who you are talking to (face, name), what he is carrying
+// (stack, in mono) and how he is (one pill). Face and name are the same tap:
+// they open him.
+//
+// The row costs 56px where the header and the band together cost 96 — the
+// ww-ref S4 budget, minus a band this screen no longer needs.
+function ThreadHeader({ agent, accent, mood, onBack, onOpenProfile }) {
+  const stack = stackOf(agent);
+  const open = onOpenProfile ? () => onOpenProfile(agent) : undefined;
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '8px 14px 7px', borderBottom: `1px solid ${M_BORDER}`,
+      background: M_PANEL, flexShrink: 0,
+    }}>
+      {/* FIX-1d/FIX-2a still apply: base.css floors every button at --tap
+          (44px), so every control in this row declares minHeight: 0 or the
+          row silently grows past its budget. */}
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Back"
+        style={{ width: 30, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -10, flexShrink: 0 }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        onClick={open}
+        aria-label={`Open ${agent.name}'s profile`}
+        style={{
+          width: 40, height: 40, minHeight: 0, borderRadius: 12, flexShrink: 0, padding: 0,
+          background: '#0A0F17', border: `1px solid ${accent}55`,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
+          cursor: open ? 'pointer' : 'default',
+        }}
+      >
+        <MoodGhost mood={mood} accent={accent} size={38} ring={false} />
+      </button>
+
+      <button
+        type="button"
+        onClick={open}
+        style={{
+          flex: 1, minWidth: 0, height: 40, minHeight: 0, padding: 0,
+          display: 'flex', alignItems: 'center', background: 'none', border: 'none',
+          textAlign: 'left', cursor: open ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+          {agent.name}
+        </span>
+      </button>
+
+      {stack !== null && (
+        <span style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 700, color: M_TEXT, flexShrink: 0 }}>
+          {money(stack)}
+        </span>
+      )}
+      <MoodChip mood={mood} small />
+    </div>
+  );
+}
+
+
 // ── AgentThread — the actual DM screen ───────────────────────────────────
-function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
+function AgentThread({ agent, onBack, onOpenProfile }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
   const isLive   = agState === 'live';
 
   const [localMood, setLocalMood]   = useState(() => moodOf(agent));
-  const [localCause, setLocalCause] = useState(() => causeOf(agent));
   const [chat, setChat]             = useState([]);
   // WIRE-1: the hand he is showing off, opened from the poster in the recap.
   const [replayHand, setReplayHand]  = useState(null);
@@ -683,7 +759,6 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
       if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setLocalMood(data.pepTalk.newState);
-        setLocalCause('feeling better');
       }
     } catch {
       setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — please try again.')]);
@@ -721,11 +796,8 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
     }
   }
 
-  const actionLabel = isLive ? 'Watch' : 'Deploy';
-  function handleAction() {
-    if (isLive) { onWatch?.(agent); }
-    else { onDeploy?.(agent); }
-  }
+  // CHAT-2: no action lives here any more. Deploy, Call him in, Give him chips
+  // and Retire are all on the profile, which the face and the name open.
 
   // The theatre takes the whole screen while it plays — a replay inside a
   // scrolling thread would be a video in a sidebar. Back returns to the thread.
@@ -741,47 +813,13 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
 
-      {/* Back header */}
-      {/* FIX-2a: the ww-ref header budget — 40px, from 2px/9px padding around
-          a 29px control row and no bottom rule. (The ref's note reads "padding
-          2/8", which totals 39; its own table says 40. The table is the number
-          the port has to hit, so the extra pixel goes on the bottom pad.) The back control needs an explicit
-          minHeight because base.css floors every button at --tap (44px), which
-          is what was inflating this row and the band below it. */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 9,
-        padding: '2px 14px 9px',
-        background: M_PANEL, flexShrink: 0,
-      }}>
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back"
-          style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenProfile?.(agent)}
-          style={{ flex: 1, height: 29, minHeight: 0, display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: onOpenProfile ? 'pointer' : 'default', minWidth: 0 }}
-        >
-          <span style={{ fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-            {agent.name}
-          </span>
-        </button>
-      </div>
-
-      {/* MoodBand — uses local mood updated live by pepTalk */}
-      <MoodBand
+      {/* CHAT-2: one row. localMood keeps the pill live through a pep talk. */}
+      <ThreadHeader
+        agent={agent}
         accent={accent}
         mood={localMood}
-        cause={localCause || lastMomentOf(agent)}
-        state={agState}
-        action={actionLabel}
-        onAction={handleAction}
+        onBack={onBack}
+        onOpenProfile={onOpenProfile}
       />
 
       {/* LiveBar — faceDown when live (no game data available from this context) */}
@@ -928,7 +966,7 @@ function AgentThread({ agent, onBack, onDeploy, onWatch, onOpenProfile }) {
 
 
 // ── Main export ───────────────────────────────────────────────────────────
-export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgent, onDeploy, onWatch, onOpenProfile }) {
+export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgent, onOpenProfile }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -944,8 +982,6 @@ export function ChatsScreen({ selectedAgent, onSelectAgent, onBack, onCreateAgen
       <AgentThread
         agent={selectedAgent}
         onBack={onBack}
-        onDeploy={onDeploy}
-        onWatch={onWatch}
         onOpenProfile={onOpenProfile}
       />
     );
