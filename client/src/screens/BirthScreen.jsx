@@ -1,5 +1,4 @@
 // NAV-1d — birth/create flow ported from design-refs/mood-birth.jsx.
-// FormingGhost · DraftBand · DraftStrip · BirthScreen (chat-first draft)
 // MaterializingOccupant — exported for App.jsx to overlay on the CASINO floor.
 //
 // ATTR-2c — the nature reveal from design-refs/char-birth.jsx.
@@ -8,6 +7,28 @@
 // before he exists, and his first words are his nature. The recruiter may show
 // a nature FORMING but never commits: the client never picks one, it only
 // renders what the server assigned.
+//
+// ── DRAFT-2 · THE DRAFT IS ON GLASS NOW ──────────────────────────────────
+//
+// Board 29 frames F02/F03 (wave 56, design-refs/mood-sit.jsx `DraftSheetM`)
+// move the CREATE draft off a grey chat screen and onto the board-26 glass
+// sheet, risen over the empty room, with him forming in the band above it.
+// The frame's caption is the brief: "The room stays behind it, dimmed to almost
+// nothing, because he is not in it yet. The sheet covers the lower band only:
+// the top is where he forms, and watching him form while you talk about him is
+// the point."
+//
+// WHAT CHANGED IS THE SHELL, NOT THE CONVERSATION. Every wire behaviour below —
+// the go signal, PACE-1d's dials, AGENTS-2's cap refusal, BIRTH-5's locked
+// seat, the nature reveal and the birth card — is untouched, and the two 409s
+// still land as recruiter lines in the thread rather than as modals.
+//
+// REBUILD MODE KEEPS THE OLD CHROME, deliberately. Wave 56's frames are titled
+// "The draft opens" and "He has a name": they are about a man who does not
+// exist yet, over a room he is not in. Rebuilding an agent who is alive, has a
+// voice and is standing in that room is a different screen, and dressing it as
+// a birth would be a lie about what is happening. So `isEdit` renders what it
+// always did, and the glass is the create path's.
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
@@ -22,6 +43,11 @@ import { SheetFold } from '../components/system/SheetFold.jsx';
 import { NatureFormed } from '../components/system/NatureFormed.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
 import { fetchSlots, lockedSeatLine } from '../lib/slots.js';
+import { pillName } from '../lib/names.js';
+import { HomeFlat } from '../components/home/HomeFlat.jsx';
+import { DraftSheet } from '../components/draft/DraftSheet.jsx';
+import { FormingGhost as StageGhost, DRAFT_STAGES, draftStage } from '../components/system/FormingGhost.jsx';
+import '../styles/draft2.css';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -751,6 +777,191 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   // Voice law: the RECRUITER drafts; the agent speaks only once he exists.
   // Rebuild mode is an existing agent talking, so it keeps his own bubble.
   const Voice = isEdit ? AgentBubble : RecruiterBubble;
+
+  // The nature reveal and the birth card. Shared by both shells: he is born the
+  // same way whichever screen drafted him.
+  const bornOverlay = (
+    <>
+        {/* The nature reveal — two beats, then he is the owner's to deal in.
+            BirthNatureFloorScreenM: his line, the ghost, the name chip, the badge.
+            BirthCardScreenM: the room dims and the card he was born with rises. */}
+        {born && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 20, overflow: 'hidden' }}>
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: beat === 'card' ? 'rgba(8,8,10,0.62)' : 'rgba(8,8,10,0.32)',
+              transition: 'background 0.4s ease-out',
+            }} />
+            {beat !== 'card' && (
+              <div style={{
+                position: 'absolute', left: 0, right: 0, top: '22%',
+                display: 'flex', justifyContent: 'center',
+                transition: 'top 0.45s ease-out', pointerEvents: 'none',
+              }}>
+                <NatureReveal name={born.name} first={born.first} nature={born.character.nature} />
+              </div>
+            )}
+            {beat === 'card' && (
+              <BirthCardSheet
+                name={born.name}
+                nature={born.nature}
+                mood={born.mood}
+                heat={born.heat}
+                firstWords={born.first}
+                character={born.character}
+                first={firstAgent}
+                onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
+              />
+            )}
+          </div>
+        )}
+    </>
+  );
+
+
+  // ── The draft, on glass ────────────────────────────────────────────────
+  // Board 29 F02/F03. The room, him forming over it, and the sheet.
+  if (!isEdit) {
+    // Every turn so far as the sheet's two registers. The opening line is the
+    // recruiter's first question, so it is a row like any other rather than a
+    // header — the sheet is a conversation from its first frame.
+    const rows = [
+      { id: 'open', who: 'sys', text: openingLine },
+      ...chat.map((m) => ({ id: m._id, who: m.role === 'user' ? 'you' : 'sys', text: m.content })),
+    ];
+
+    // He forms on ANSWERS LANDED, not on a percentage: the ref's four stages are
+    // four questions answered, and `aiCount` is exactly that count.
+    const stage = draftStage(aiCount.current);
+    const named = !!agentName;
+    // ≤6 characters is not this client's rule to invent — names.js owns how a
+    // name is written on a small surface and gives its reasoning (BUGS-A job 1:
+    // a first word is only a name when the name is one word long). The pill
+    // therefore asks pillName for the caption's width rather than slicing.
+    const cap = named
+      ? `${pillName(agentName)}${natureHint ? ` · a ${natureHint}` : ''}`
+      : DRAFT_STAGES[stage - 1].cap;
+
+    // BIRTH-5's refusal, and the one action it has. It is the last recruiter
+    // line that carries it, so the price sits under the action rather than
+    // becoming a row of its own.
+    const locked = chat.length ? chat[chat.length - 1]?.seeTable : false;
+
+    return (
+      // The clip is declared inline as well as in draft2.css: the back
+      // chevron hangs 8px outside its box for optical alignment, and
+      // FIX-1a's audit — which can only read inline style — has to be able
+      // to SEE the ancestor that clips it. It is the same clip .dr-app
+      // always carried here.
+      <div className="dr-app draft2" data-testid="draft-screen" style={{ overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 9,
+          padding: '2px 14px 9px', background: M_PANEL, flexShrink: 0,
+        }}>
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back"
+            style={{ width: 36, height: 29, minHeight: 0, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, lineHeight: 1.1 }}>
+              The draft
+            </span>
+            <span style={{ display: 'block', fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
+              {named ? 'drafting · he has a name' : 'drafting · nobody in the room yet'}
+            </span>
+          </span>
+        </div>
+
+        <div className="draft2__stage">
+          {/* the room, dimmed to almost nothing: he is not in it yet */}
+          <div className="draft2__room">
+            <div className="draft2__room-scale">
+              <HomeFlat lit={false} doorTag="THE CASINO →" />
+            </div>
+          </div>
+          <div className="draft2__veil" />
+
+          {/* him, forming over the table */}
+          <div className="draft2__forming">
+            <StageGhost stage={stage} />
+            <span className="draft2__cap" data-named={named ? 'true' : 'false'} data-testid="draft-cap">
+              {cap}
+            </span>
+          </div>
+
+          <DraftSheet
+            rows={rows}
+            stage={stage}
+            pending={loading}
+            draft={draft}
+            onDraft={setDraft}
+            onSend={(text) => send(text)}
+            busy={loading}
+            inputRef={inputRef}
+            // The shipped copy, at every stage. The ref's frames change it
+            // per question ("answer him…", "his name…"), but the placeholder is
+            // also the only thing naming what this box is FOR, and two refusals
+            // (AGENTS-2's cap, BIRTH-5's locked seat) are tested by finding the
+            // composer still standing with the draft intact after them.
+            placeholder="Describe how it should play…"
+            above={!hasTalked ? (
+              /* Somewhere to start for an owner with no words ready. They send
+                 exactly as a typed line does, which is why they are buttons in
+                 the sheet and not a separate mode. */
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {suggestions.map((sug) => (
+                  <button
+                    key={sug}
+                    type="button"
+                    className="draft-sheet__chip"
+                    onClick={() => send(sug)}
+                  >{sug}</button>
+                ))}
+              </div>
+            ) : !isReady ? (
+              <>
+                <DraftStrip profile={draftProfile} />
+                <div style={{ marginTop: 9, maxWidth: '100%', overflow: 'hidden' }}>
+                  <NatureFormed name={natureHint} formed={ready} />
+                </div>
+              </>
+            ) : null}
+            action={showNextAction ? (
+              <NextAction
+                label="Deal him in"
+                sub={natureHint ? 'STRATEGY SET · NATURE FORMED' : 'STRATEGY SET'}
+                busy={loading}
+                onAct={() => send(GO_SIGNAL)}
+                onLink={() => {
+                  setTalking(true);
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+              />
+            ) : null}
+            foot={locked ? (
+              <button
+                type="button"
+                className="draft-sheet__price-act"
+                data-testid="birth-see-table"
+                onClick={() => onSeeTable?.()}
+              >
+                See the table
+              </button>
+            ) : null}
+          />
+        </div>
+
+        {bornOverlay}
+      </div>
+    );
+  }
+
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG, position: 'relative' }}>
