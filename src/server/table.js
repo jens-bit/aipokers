@@ -1904,6 +1904,70 @@ export class Table {
     };
   }
 
+  // ── CASINO-2: the felt, seen from the doorway ─────────────────────────────
+  //
+  // liveGameView is ONE AGENT'S view of his table and is owner-gated: it takes
+  // an agentId, it can carry hole cards, and it answers null for a table he is
+  // not sitting at. The lobby needs the other thing entirely — what a stranger
+  // walking past this felt can see — for every table in a room at once, and
+  // nobody's cards are on it.
+  //
+  // So this is that view, and the line it draws is the fish-tank law read from
+  // outside: THE ROOM, NEVER A HAND. Seats, stacks, faces, the community
+  // cards, the money in the middle, whose turn it is. No hole cards for
+  // anybody, no reasoning, no bio roles, no session ids — nothing AGE-33/37
+  // withholds and nothing an owner proved a claim to.
+  //
+  // It lives on the Table because the Table owns its seats: a projection of
+  // them assembled anywhere else would be a second reading of `pending`,
+  // `aiSeats` and the Game's seat array, and two readings of the same seats
+  // are two readings that will eventually disagree. roomTables.js groups and
+  // ranks what this returns; it never opens a table up itself.
+  //
+  // Unlike liveGameView this NEVER returns null for a live table. A room's
+  // felts include the ones between hands — an empty felt with four people
+  // sitting at it is a true thing about the room, and a lobby that drew only
+  // the tables mid-hand would flicker every time a hand ended.
+  feltView() {
+    if (this.closed) return null;
+    const g = this.game;
+    const inHand = !!g && g.street !== Streets.WAITING;
+    return {
+      tableId: this.tableId,
+      blinds: `${this.smallBlind}/${this.bigBlind}`,
+      smallBlind: this.smallBlind,
+      bigBlind: this.bigBlind,
+      street: g ? g.street : Streets.WAITING,
+      board: inHand ? [...g.community] : [],
+      pot: inHand ? Math.round(g.pot) : 0,
+      toAct: inHand ? g.toAct : null,
+      handNumber: g ? g.handNumber : 0,
+      hot: isHot(this.tableId),
+      seated: this.seatedCount(),
+      maxSeats: this.maxSeats,
+      // One entry per OCCUPIED seat, carrying its index — the client draws a
+      // ring from these and an empty chair is drawn by its absence. `agentId`
+      // is how an owner finds his own man at a felt he is only walking past;
+      // it is already public on every EVENT the ticker fans out unfiltered.
+      seats: this.pending.map((p, i) => {
+        if (!p) return null;
+        const dealtIn = !!g && i < g.seats.length;
+        return {
+          seat: i,
+          name: p.displayName ?? p.playerId ?? '',
+          agentId: this.agentIds[i] ?? null,
+          stack: dealtIn ? (g.seats[i]?.stack ?? 0) : (p.buyIn ?? 0),
+          accentColor: this.seatAccentColors[i] ?? null,
+          mood: this._seatMood(i),
+          fatigue: this._seatFatigue(i),
+          drinking: !!this.seatDrinking[i],
+          // Cards in his hands, drawn as backs. Never the cards themselves.
+          inHand: inHand && dealtIn && !g.seats[i]?.folded,
+        };
+      }).filter(Boolean),
+    };
+  }
+
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
   maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
