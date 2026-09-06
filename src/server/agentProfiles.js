@@ -66,6 +66,8 @@ import {
   ensureFridge, takeOne as takeFromFridge, countOf as fridgeCountOf,
   stock as stockFridge, fridgeProjection, priceOf, heatEffectOf, outOfStockLine,
   isItem as isFridgeItem, ITEM_IDS as FRIDGE_ITEM_IDS,
+  // SERVER-5 job 5: the food ask only fires when there is something in.
+  hasStock as fridgeHasStock,
 } from './fridge.js';
 import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
@@ -1434,6 +1436,42 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   const thirdWin = typeof sessionPnl === 'number'
     ? recordSessionOutcome(agent, sessionPnl > 0)
     : false;
+
+  // ── SERVER-5 job 5 · "I could eat, after that." ───────────────────────────
+  //
+  // THE ONE PLACE THE FOOD ASK CAN BE RAISED, and the reason it is here rather
+  // than in the ladder's own state is that a session ending is a MOMENT and
+  // everything else computeWant runs on is a READING. Every other caller —
+  // presentAgent, refreshWantsFor, the want route — is somebody looking at
+  // him, and a want that can be produced by being looked at is a want that
+  // arrives because the owner opened the app. This one is produced by the
+  // night he just had, once, and is unreachable from anywhere else because
+  // nowhere else has a `sessionHands` to pass (see the branch in askFor).
+  //
+  // It closes the loop job 1 left open. dips.js measures hunger from
+  // `snackRefusedAt`, and noteSnackRefused only stamps a want whose item is a
+  // snack — until now nothing in the WANTS-1 ladder had one, so the hunger dip
+  // was arithmetic with no way to be reached. The chain is: a long night, food
+  // in the fridge, he asks, you say no, and a day later he sits down playing
+  // hungry and it costs him DISCIPLINE and FOCUS. Every link is an answer
+  // somebody gave.
+  //
+  // An archived man is not asked what he wants for dinner.
+  if (!agent.archived) {
+    try {
+      computeWant(agent, {
+        atTable: false,
+        sessionHands: sessionHands || 0,
+        // Not "does the owner have money" — is there food IN. Stocking the
+        // fridge is the act that makes the question askable, exactly as
+        // FRIDGE-1 has it for the beer.
+        snackInFridge: fridgeHasStock(walletFor(userId ?? 'anon'), 'snack'),
+      });
+    } catch (err) {
+      console.error('[wants] session-end compute failed:', err.message);
+    }
+  }
+
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
 
@@ -2423,7 +2461,15 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
  * moment. "Put me in" is a standing state, and a standing state that pushes is
  * a nag with a badge on it.
  */
-export function computeWant(agent, { fatigue = null, atTable = null, broke = null, walletBalance = null, now = Date.now() } = {}) {
+export function computeWant(agent, {
+  fatigue = null, atTable = null, broke = null, walletBalance = null, now = Date.now(),
+  // SERVER-5 job 5 — the two the FOOD ask needs, and the two that no route
+  // passes. `sessionHands` is the length of the session that just ended; only
+  // finishAgentSession has one, which is what confines the ask to that moment.
+  // Defaulting to null here rather than 0 matters: 0 is a session that ended
+  // with no hands in it, null is "no session ended".
+  sessionHands = null, snackInFridge = false,
+} = {}) {
   if (!agent) return null;
   ensureMood(agent);
   ensureStats(agent);
@@ -2445,7 +2491,14 @@ export function computeWant(agent, { fatigue = null, atTable = null, broke = nul
 
   // Rule 4 — the world answered it. Never a clock; every branch of
   // `askSatisfied` names the thing he asked for.
-  if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat })) {
+  // SERVER-5 job 5: "somebody fed him since he asked". Rule 4's world-answers
+  // half for the food ask — read off the stamp giveItemTo writes, so a snack
+  // handed over through POST /give or the flat's fridge fixture closes the ask
+  // without the owner ever pressing yes on it.
+  const fed = Number.isFinite(agent.lastSnackAt)
+    && Number.isFinite(current?.at) && agent.lastSnackAt >= current.at;
+
+  if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat, fed })) {
     current.answered = 'fulfilled';
     current.answeredAt = now;
   }
@@ -2463,6 +2516,8 @@ export function computeWant(agent, { fatigue = null, atTable = null, broke = nul
     sessionNet: typeof lastSession?.net === 'number' ? lastSession.net : null,
     weekBiggestPot: weekBiggestPot(agent, { now }),
     nemesis: sighting,
+    sessionHands,
+    snackInFridge,
   });
 
   if (candidate && !onReAskCooldown(agent, candidate.kind, now) && replaces(candidate, agent.want)) {
@@ -4166,7 +4221,11 @@ export function installAgentProfileRoutes(app) {
     // want is marked answered, so a refusal leaves the want exactly where it
     // was rather than silently eating it.
     let performed = null;
-    if (kind === 'beer') {
+    // SERVER-5 job 5: food answers exactly like the beer, because it IS the
+    // beer's shape — an item out of the fridge, one effect, one button. The
+    // only difference is which shelf it comes off, and `want.item` carries
+    // that, so this branch needed a kind added to it and nothing else.
+    if (kind === 'beer' || kind === 'food') {
       const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
       // FRIDGE-1 rule 3: an empty fridge is not a punishment and not an error.
       // Yes to a want he cannot be given opens the FRIDGE — the same shape as

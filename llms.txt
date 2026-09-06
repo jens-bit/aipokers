@@ -83,7 +83,7 @@ when it changes. Answer it with:
   curl -X POST 'https://agenticpoker.app/api/agents/<id>/want?userId=<uid>' \
        -H 'Content-Type: application/json' -d '{"answer":"yes"}'
 
-The seven kinds, in priority order — a new want replaces the pending one only
+The eight kinds, in priority order — a new want replaces the pending one only
 if it OUTRANKS it, and everything below `rest` is an ask from the bar:
 
   rest     STAMINA fatigue reached 'worn'          "Sit one out. I'm cooked."
@@ -96,6 +96,16 @@ if it OUTRANKS it, and everything below `rest` is an ask from the bar:
            pot he had money in this week            this hand."
   nemesis  the player he is worst against has      "Marlow is in the back
            just been seated somewhere               room. Send me."
+  food     a session of 60+ hands has just ENDED,   "Something to eat wouldn't
+           it left him at heat 55-69, and there      hurt. Long night."
+           is a snack in the fridge
+
+`food` is the only kind that is raised at a MOMENT rather than read off his
+state, and the only one whose `no` has a consequence: it starts his hunger
+clock, and a day later he sits down playing hungry, which costs him DISCIPLINE
+and FOCUS for that session (see the `dips` field on an agent). It cannot be
+raised by an agent sitting at home, however long he sits — the session that
+just ended is the trigger, so there is nothing for idleness to produce.
 
 `answer` is one of:
 

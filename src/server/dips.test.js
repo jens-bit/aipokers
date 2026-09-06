@@ -22,10 +22,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { DIP_LINES, DIP_MAX, DIP_MIN } from '../agent/dips.js';
+import { ASK_LINES } from '../agent/wants.js';
 
 const HOUR = 60 * 60_000;
 const NOW = Date.now();
 const USER = 'u-dips';
+const BARE = 'u-dips-bare';    // same tests, an empty shelf
 
 const ORIGINAL_CWD = process.cwd();
 let dir;
@@ -55,6 +57,9 @@ function agent(id, over = {}) {
 }
 
 const TILTED = { state: 'tilted', heat: 100, losingRun: 5 };
+// SERVER-5 job 5: "frustrated or worse", and below the drink's rung — the
+// window the food ask lives in.
+const FRAYED = { state: 'frustrated', heat: 58, losingRun: 3 };
 
 before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-dips-'));
@@ -84,7 +89,32 @@ before(async () => {
       }),
       agent('seated',  { mood: TILTED }),
       agent('kitchen', { mood: TILTED }),
+      // SERVER-5 job 5: nothing on him at all. He earns his hunger inside the
+      // test, which is the point — the loop has to be reachable from a clean
+      // record or the dip is unreachable in the product too.
+      // Frayed by the night, not steaming — the food ask's band, and the band
+      // in which a snack is a thing he can actually be given.
+      agent('grinder',    { mood: FRAYED }),
+      agent('shortnight', { mood: FRAYED }),
     ],
+  });
+
+  // The empty-fridge case needs its OWN household: agentProfiles caches one
+  // wallet per owner, so the shelf cannot be emptied underneath the one above
+  // without reaching into that cache. A second owner says the same thing
+  // without a test knowing anything about how the first is held.
+  store.saveProfile(BARE, {
+    userId: BARE, chat: [], agents: [agent('barefridge', { mood: FRAYED })],
+  });
+  store.saveWallet(BARE, {
+    ownerId: BARE, balance: 10_000, fridge: { beer: 4, snack: 0 }, ledger: [],
+  });
+
+  // SERVER-5 job 5: the fridge is part of the seed, because the food ask does
+  // not fire against an empty one. Two snacks — one for the ask, one left so a
+  // second agent's ask is about HIS night rather than about the shelf.
+  store.saveWallet(USER, {
+    ownerId: USER, balance: 10_000, fridge: { beer: 0, snack: 2 }, ledger: [],
   });
 
   profiles = await import('./agentProfiles.js');
@@ -150,6 +180,76 @@ test('SERVER-5: only food starts the hunger clock', () => {
   assert.equal(rec.snackRefusedAt, undefined, 'no to a drink is not a hunger');
   assert.equal(profiles.noteSnackRefused(rec, { kind: 'beer', item: 'snack' }), true);
   assert.ok(Number.isFinite(rec.snackRefusedAt));
+});
+
+// ── SERVER-5 job 5 · the loop, closed ───────────────────────────────────────
+//
+// Job 1 shipped the hunger dip with nothing able to reach it: dips.js measures
+// hunger from `snackRefusedAt`, noteSnackRefused only stamps a want whose item
+// is a snack, and no ask in the WANTS-1 ladder had one. These are the tests
+// that the chain now runs end to end — a long night, food in, he asks, you say
+// no, a day passes, and it costs him at the seat.
+
+test('SERVER-5: a long night with food in raises the food ask, at session end', () => {
+  assert.equal(stored('grinder').want ?? null, null, 'nothing on him before the session');
+
+  profiles.finishAgentSession('grinder', USER, { recap: 'long one', sessionHands: 80 });
+
+  const want = stored('grinder').want;
+  assert.equal(want?.kind, 'food');
+  assert.equal(want.item, 'snack');
+  assert.equal(want.answered, null);
+  // One of his three, picked deterministically off his hand count — the same
+  // rule every other ask's line follows, so a reopened screen does not rewrite
+  // what he said.
+  assert.ok(ASK_LINES.food.includes(want.text), `not one of his lines: "${want.text}"`);
+});
+
+test('SERVER-5: no to that ask is what makes him hungry, and a day later it costs him', () => {
+  // The record by reference: `stored()` hands back a fresh parse of the file,
+  // and a stamp written to that is a stamp the server never sees.
+  const rec = profiles._agentRecordForTests('grinder', USER);
+  // The route's `no` branch is exactly this call — see POST /want. Asserting
+  // the raised want satisfies its gate is the link that was missing.
+  assert.equal(profiles.noteSnackRefused(rec, rec.want, { now: NOW }), true,
+    'the ask the ladder raised must be one the hunger clock recognises');
+
+  // Same evening: a no is not a hunger yet.
+  assert.deepEqual(profiles.takeSessionDips('grinder', USER, { now: NOW + HOUR }), []);
+
+  // A day and a half later he sits down hungry.
+  const dips = profiles.takeSessionDips('grinder', USER, { now: NOW + 36 * HOUR });
+  assert.deepEqual(dips.map((d) => d.why), ['hungry', 'hungry']);
+  assert.deepEqual(dips.map((d) => d.attr).sort(), ['DISCIPLINE', 'FOCUS']);
+  assert.ok(dips.every((d) => d.delta <= -DIP_MIN && d.delta >= -DIP_MAX));
+
+  assert.deepEqual(rec.attrs, {
+    READS: 50, FOCUS: 50, DISCIPLINE: 50, COMPOSURE: 50, DECEPTION: 50, STAMINA: 50,
+  }, 'the stored attribute never changes');
+});
+
+test('SERVER-5: a short session ends with nothing to say about dinner', () => {
+  profiles.finishAgentSession('shortnight', USER, { recap: 'quick one', sessionHands: 9 });
+  assert.equal(stored('shortnight').want ?? null, null);
+});
+
+test('SERVER-5: an empty fridge is silence — he is not made hungry by a shelf', () => {
+  profiles.finishAgentSession('barefridge', BARE, { recap: 'long one', sessionHands: 90 });
+  assert.equal(profiles._agentRecordForTests('barefridge', BARE)?.want ?? null, null,
+    'a no you had no way to avoid must not be able to start a hunger clock');
+});
+
+test('SERVER-5: sitting at home never raises it, however long he sits', () => {
+  // THE NO-NAGGING GUARD. presentAgent recomputes the want on every projection,
+  // so if the food ask were derivable from stored state it would arrive because
+  // the owner opened the app. It is not: only the session-end path has a
+  // sessionHands to hand over.
+  const rec = profiles._agentRecordForTests('shortnight', USER);
+  rec.restedAt = NOW - 30 * 24 * HOUR;           // a month on the sofa
+  rec.want = null;
+
+  profiles.computeWant(rec, { now: NOW, atTable: false });
+  assert.notEqual(rec.want?.kind, 'food', 'a want that arrives from idleness is a guilt mechanic');
 });
 
 // ── The line he opens with ──────────────────────────────────────────────────

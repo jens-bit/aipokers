@@ -108,8 +108,11 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
       // it comes out of the fridge, which the owner stocked earlier. So the
       // fridge is part of the seed: one beer in it, which is what the "yes on a
       // beer" test drinks, and nothing for the thirsty agent below to find.
+      // SERVER-5 job 5: and two snacks, for the food ask — one the `yes` eats,
+      // one left on the shelf so the `no` below is about the answer and not
+      // about an empty fridge.
       store.saveWallet('u1', {
-        ownerId: 'u1', balance: 10_000, fridge: { beer: 1, snack: 0 }, ledger: [],
+        ownerId: 'u1', balance: 10_000, fridge: { beer: 1, snack: 2 }, ledger: [],
       });
       store.saveProfile('u1', {
         userId: 'u1',
@@ -136,6 +139,19 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
           }),
           // 0 — the control. Nothing is wrong with him, so he asks for nothing.
           agent('quiet', 'Perfectly Fine'),
+          // 7 — SERVER-5 job 5. Nothing is wrong with either of them either;
+          //     what they have is a long night behind them, which is raised at
+          //     session end inside the tests rather than seeded, because the
+          //     moment IS the trigger.
+          //     Frustrated, not steaming: the food ask's band is [55, 70), which
+          //     is also the band in which giveItemTo will actually hand a man
+          //     something. Above it he would be asking for the beer instead.
+          agent('longnight', 'Ate After', {
+            mood: { state: 'frustrated', heat: 58, losingRun: 3 }, restedAt: now - 15 * MIN,
+          }),
+          agent('refused', 'Went Without', {
+            mood: { state: 'frustrated', heat: 58, losingRun: 3 }, restedAt: now - 15 * MIN,
+          }),
           // 6 — the man he cannot beat is in the back room.
           agent('grudge', 'Unfinished Business', {
             bio: {
@@ -444,6 +460,79 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
         rec.fatigue = 'settled';
         rec.restedAt = Date.now();
         assert.equal((await wantOf('grudge')).kind, 'rest', 'he is still asking the bigger thing');
+      });
+
+      // ── SERVER-5 job 5 · the food ask, over the route ────────────────────
+      //
+      // The ask that closes the hunger loop. Its `no` is the only answer in
+      // this whole file that has a consequence beyond the ledger line, which
+      // is exactly why it is worth pinning at the route rather than only in
+      // the ladder.
+
+      await t.test('a long night with food in raises the food ask, and only at session end', async () => {
+        const { finishAgentSession, _agentRecordForTests } = await import('./agentProfiles.js');
+
+        // Before: he has been at the bar for ages with a full fridge and says
+        // nothing about it. Whatever he asks for, it is never dinner.
+        const idle = await wantOf('longnight');
+        assert.notEqual(idle?.kind, 'food', 'idleness must not be able to produce it');
+
+        finishAgentSession('longnight', 'u1', { recap: 'long one', sessionHands: 80 });
+        const want = await wantOf('longnight');
+        assert.equal(want.kind, 'food');
+        assert.equal(want.text.length > 0, true);
+        assert.equal(_agentRecordForTests('longnight', 'u1').want.item, 'snack');
+      });
+
+      await t.test('yes on food takes the snack out of the fridge and never makes him hungry', async () => {
+        const store2 = await import('./store.js');
+        const { _agentRecordForTests } = await import('./agentProfiles.js');
+        const before = store2.loadWallet('u1').fridge.snack;
+
+        const res = await postJson(`${base}/api/agents/longnight/want?userId=u1`, { userId: 'u1', answer: 'yes' });
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.answered, 'yes');
+        assert.equal(body.kind, 'food');
+        assert.equal(body.given, 'snack', 'the item comes off the snack shelf, not the beer one');
+        assert.equal(body.spent, 0, 'the fridge was paid for when it was stocked');
+        assert.equal(body.needs, undefined, 'the server does the whole thing');
+        assert.equal(body.fridge.snack, before - 1);
+
+        const rec = _agentRecordForTests('longnight', 'u1');
+        assert.ok(Number.isFinite(rec.lastSnackAt), 'being fed is stamped');
+        assert.equal(rec.snackRefusedAt ?? null, null, 'and a yes starts no hunger clock');
+        assert.equal((await getJson(`${base}/api/agents/longnight?userId=u1`)).want, null);
+      });
+
+      await t.test('no on food is what starts the hunger clock — the one answer that costs him', async () => {
+        const { finishAgentSession, _agentRecordForTests } = await import('./agentProfiles.js');
+        finishAgentSession('refused', 'u1', { recap: 'long one', sessionHands: 80 });
+        assert.equal((await wantOf('refused')).kind, 'food');
+
+        const res = await postJson(`${base}/api/agents/refused/want?userId=u1`, { userId: 'u1', answer: 'no' });
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.answered, 'no');
+        assert.equal(body.want, null);
+
+        const rec = _agentRecordForTests('refused', 'u1');
+        assert.ok(Number.isFinite(rec.snackRefusedAt),
+          'this is the stamp dips.js measures hunger from — the loop job 1 left open');
+
+        // And it is still not a punishment: the answer is neutral in the
+        // ledger, exactly like every other no.
+        const view = await getJson(`${base}/api/agents/refused?userId=u1`);
+        assert.ok(ledgerTypes(view).includes('want_refused'));
+      });
+
+      await t.test('he does not ask again the moment he stands up — the re-ask guard holds', async () => {
+        const { finishAgentSession } = await import('./agentProfiles.js');
+        // Same man, another long night, straight after the no. ASK_REASK_MS is
+        // an hour, and a want that came back inside it would be nagging
+        // whatever the trigger table says.
+        finishAgentSession('refused', 'u1', { recap: 'another', sessionHands: 90 });
+        assert.notEqual((await wantOf('refused'))?.kind, 'food');
       });
 
       await t.test('answering something that is not pending is a 400, not a silent success', async () => {
