@@ -54,7 +54,10 @@ export function DraftRow({ row }) {
  * @param onDraft   composer changes
  * @param onSend    the composer's send
  * @param busy      a send is in flight, so neither control fires twice
- * @param above     what sits between the rows and the action — the dials, his temperament
+ * @param above     what sits between the rows and the action. The ref draws
+ *                  the rows straight onto the foot, so this is empty for all
+ *                  of a draft under way; the create screen uses it once, for
+ *                  the suggestion chips before the first answer has landed.
  * @param action    the primary action, once there is one. Given, it TAKES THE
  *                  COMPOSER'S PLACE, which is F-1's rule and also the ref's
  *                  ("answering it turns the composer into one gold button").

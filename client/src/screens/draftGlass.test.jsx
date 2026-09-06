@@ -10,9 +10,9 @@
 //   F03  "The last bubble asks his name, and answering it turns the composer
 //         into one gold button."
 //
-// The wire behaviour these sit on top of — the go signal, the two 409s, the
-// dials — is owned by BirthScreen.test.jsx, chain.test.jsx and draftFlow.test.jsx
-// and is deliberately not re-asserted here.
+// The wire behaviour these sit on top of — the go signal, the two 409s — is
+// owned by BirthScreen.test.jsx, chain.test.jsx and draftFlow.test.jsx and is
+// deliberately not re-asserted here.
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -127,6 +127,9 @@ describe('DRAFT-2: he forms while you answer', () => {
 });
 
 describe('DRAFT-2: the name, and the one gold button', () => {
+  // The wire is unchanged: `profile` still arrives, the sheet just does not
+  // draw it any more (see the retirement note in draftFlow.test.jsx). The
+  // temperament it produces lands on the pill, which is where the ref puts it.
   const READY = REPLY({
     ready: true,
     profile: { tightness: 88, aggression: 44, bluffFreq: 6, discipline: 90 },
@@ -150,6 +153,41 @@ describe('DRAFT-2: the name, and the one gold button', () => {
     // relight to the sheet, which is what makes it read as the primary action.
     const btn = document.querySelector('.draft-sheet .next-action__btn');
     expect(btn).toBeTruthy();
+  });
+
+  it('names him the turn he is named, not the turn he is born', async () => {
+    // BUGS-B/4: the draft asks "what's my name?" exactly once and the server
+    // coins whatever comes back (src/server/naming.js). DRAFT-2's pill is where
+    // that answer lands — F03's frame is titled "He has a name", and it is a
+    // frame with no agent in it yet. Before this the pill waited for `agentId`,
+    // so the owner typed the name and watched the ghost go on saying "his
+    // colour" until the whole birth had happened.
+    fetchMock.route('/api/agents/chat', {
+      ...READY,
+      draftName: 'Granite',
+    }, { method: 'POST' });
+
+    draft();
+    await answer('Granite');
+
+    await waitFor(() => expect(screen.getByTestId('draft-cap')).toHaveTextContent('Granite · a Rock'));
+    expect(screen.getByTestId('draft-cap').dataset.named).toBe('true');
+    // and he is still a draft: nobody has been born and the sheet is still open
+    expect(screen.getByRole('button', { name: /deal him in/i })).toBeInTheDocument();
+  });
+
+  it('keeps the name when a later turn carries none — he is not un-named', async () => {
+    fetchMock.route('/api/agents/chat', { ...READY, draftName: 'Granite' }, { method: 'POST' });
+    draft();
+    await answer('Granite');
+    await waitFor(() => expect(screen.getByTestId('draft-cap')).toHaveTextContent('Granite'));
+
+    fetchMock.route('/api/agents/chat', { ...READY, draftName: null }, { method: 'POST' });
+    await userEvent.click(screen.getByRole('button', { name: /keep describing him/i }));
+    await userEvent.type(screen.getByTestId('draft-input'), 'also patient{Enter}');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /deal him in/i })).toBeInTheDocument());
+    expect(screen.getByTestId('draft-cap')).toHaveTextContent('Granite');
   });
 
   it('writes his name on the pill the way names.js writes every name', async () => {

@@ -4589,6 +4589,17 @@ export function installAgentProfileRoutes(app) {
       // PACE-1d: the dials the draft has produced so far, all four of them or
       // none — a strip with two of four filled in is a strip that looks broken.
       profile: draft.profile,
+      // DRAFT-2: what he is called, the turn the owner says it — not at birth.
+      // The draft asks the name question exactly once (BUGS-B/4) and the pill
+      // over the room is where the answer lands, so the answer has to be on
+      // the wire before there is an agent to carry it.
+      //
+      // It is coined HERE, by the same call buildFromDraft makes, rather than
+      // read off `chat` by the client: coinName is what turns "call him the
+      // grinder" into "The Grinder", and a second implementation of that on
+      // the client is how the pill and the seat plate start disagreeing about
+      // what a man is called. Null until he is asked and answers.
+      draftName: coinName(nameAnswerFrom(profile.chat), { fallback: null }),
       // Enough to build him. The screen shows the primary action on this, so a
       // chip pick moves the draft forward on the very first turn instead of
       // dead-ending on a reply that reads like a closing line.

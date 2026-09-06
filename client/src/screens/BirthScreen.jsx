@@ -19,9 +19,23 @@
 // the point."
 //
 // WHAT CHANGED IS THE SHELL, NOT THE CONVERSATION. Every wire behaviour below —
-// the go signal, PACE-1d's dials, AGENTS-2's cap refusal, BIRTH-5's locked
-// seat, the nature reveal and the birth card — is untouched, and the two 409s
-// still land as recruiter lines in the thread rather than as modals.
+// the go signal, AGENTS-2's cap refusal, BIRTH-5's locked seat, the nature
+// reveal and the birth card — is untouched, and the two 409s still land as
+// recruiter lines in the thread rather than as modals.
+//
+// TWO THINGS THE SHEET DOES NOT DRAW, and one it now does.
+//
+// PACE-1d's four dials and the temperament chip they produced are gone from
+// this screen. They are still on the wire and the desktop rail panel still
+// reads them; what changed is that a readout of numbers has no place over a
+// conversation whose whole claim is that you make him by TALKING to him. The
+// ref's density is the rule — F02 and F03 put the rows straight onto the foot.
+//
+// And the pill under the ghost is wired to the name the moment it is given.
+// BUGS-B/4 makes the draft ask "what's my name?" exactly once and coins the
+// answer server-side; `draftName` carries it back on the very turn the owner
+// answers, so F03's frame title — "He has a name" — is true of a man who has
+// not been born yet, which is exactly what that frame draws.
 //
 // REBUILD MODE KEEPS THE OLD CHROME, deliberately. Wave 56's frames are titled
 // "The draft opens" and "He has a name": they are about a man who does not
@@ -37,10 +51,9 @@ import { moodOf, heatOf } from '../components/floor/agentView.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
-import { NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
+import { NatureChip } from '../components/system/CharacterAtoms.jsx';
 import { NextAction } from '../components/system/NextAction.jsx';
 import { SheetFold } from '../components/system/SheetFold.jsx';
-import { NatureFormed } from '../components/system/NatureFormed.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
 import { fetchSlots, lockedSeatLine } from '../lib/slots.js';
 import { pillName } from '../lib/names.js';
@@ -59,8 +72,6 @@ const M_DIM     = '#A1A1A1';
 const M_MUTED   = '#6B6B6B';
 const M_FAINT   = '#3A3A3F';
 const M_GOLD    = '#CDB380';
-const M_SURF    = '#2F2F37';
-const M_BORDER_2 = 'rgba(255,255,255,0.18)';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -111,122 +122,10 @@ function FormingGhost({ size = 40, phase = 0.5, accent = M_TEAL, drift = true })
 }
 
 
-// ── DraftBand ─────────────────────────────────────────────────────────────
-// MoodBand anatomy with a forming ghost + "NO MOOD YET"/"READY" chip.
-function DraftBand({ phase = 0, cause, onSkip, ready }) {
-  const border = phase >= 0.98 ? `1px solid ${M_TEAL}55` : `1px dashed ${M_DIM}55`;
-  const shadow = phase > 0.4 ? `0 0 14px ${M_TEAL}${phase > 0.8 ? '33' : '1A'}` : 'none';
-  return (
-    <div style={{
-      flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11,
-      padding: '9px 14px 8px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
-    }}>
-      {/* FIX-2a: ghost 42->38 and bottom pad 11->8 put the band at the ww-ref's
-          56px: 9 + 38 + 8 + the 1px rule. */}
-      <div style={{
-        width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-        background: '#0A0F17', border, boxShadow: shadow,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
-      }}>
-        <FormingGhost size={36} phase={phase} />
-      </div>
-
-      {/* Text area */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          {/* State chip */}
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, height: 16, padding: '0 6px',
-            borderRadius: 3, background: 'rgba(255,255,255,0.04)', border: `1px dashed ${M_DIM}55`,
-          }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_DIM }}>
-              {ready ? 'READY' : 'NO MOOD YET'}
-            </span>
-          </span>
-          {/* Drafting tag */}
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, height: 16, padding: '0 6px',
-            borderRadius: 3, background: 'rgba(255,255,255,0.04)', border: `1px solid ${M_BORDER}`,
-          }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED }}>
-              DRAFTING
-            </span>
-          </span>
-        </div>
-        <div style={{ fontSize: 11.5, color: M_DIM, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {cause || 'nothing decided yet'}
-        </div>
-      </div>
-
-      {/* F-4: the exit, and only the exit. This control's handler is onBack, so
-          it must never dress as the primary action or borrow its words — the
-          screen said "Deal me in" here while the card below said "Deal him in",
-          and the two did opposite things. One primary action per screen, and
-          this is not it. The refs agree: DraftBand carries action="Skip" even
-          on the ready screen. */}
-      <button
-        type="button"
-        onClick={onSkip}
-        style={{
-          height: 30, minHeight: 0, padding: '0 12px', borderRadius: 8, flexShrink: 0,
-          border: `1px solid rgba(255,255,255,0.14)`,
-          background: 'transparent',
-          color: M_TEXT,
-          fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600,
-          letterSpacing: '0.10em', cursor: 'pointer', textTransform: 'uppercase',
-        }}
-      >
-        Skip
-      </button>
-    </div>
-  );
-}
-
-
 // The phrase the server's isGoSignal() accepts as "I am done briefing" — it is
 // what turns the draft into an agent. "Deal him in" is the label; this is the
 // wire word behind it.
 const GO_SIGNAL = "Let's go";
-
-// ── DraftStrip ────────────────────────────────────────────────────────────
-// One-line profile, dashes when unknown.
-//
-// F-1: the slots are the four dials PACE-1d puts on the wire — draftProfile is
-// all four or none, so this row is never half-filled. The refs label them
-// STYLE / RISK / TIGHT / AGGR, which predates that contract; STYLE and RISK are
-// words on an agent record, not numbers, so the row names what it is showing.
-function DraftStrip({ profile }) {
-  const p = profile ?? {};
-  const fields = [
-    ['TIGHT', p.tightness], ['AGGR', p.aggression],
-    ['BLUFF', p.bluffFreq], ['DISC', p.discipline],
-  ];
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center',
-      background: M_PANEL_2, border: `1px dashed ${M_DIM}44`, borderRadius: 8,
-      padding: '7px 11px', gap: 0,
-      maxWidth: '100%', minWidth: 0, overflow: 'hidden',
-    }}>
-      {fields.map(([k, raw], i) => {
-        const v = Number.isFinite(raw) ? Math.round(raw) : null;
-        return (
-        <span key={k} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-          {i > 0 && <span style={{ width: 1, height: 16, background: M_BORDER, margin: '0 10px', display: 'inline-block', flexShrink: 0 }} />}
-          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
-            <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 500, letterSpacing: '0.14em', color: M_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{k}</span>
-            {v == null
-              ? <span style={{ fontFamily: MONO, fontSize: 12, color: M_FAINT }}>—</span>
-              : <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: M_TEXT }}>{v}</span>
-            }
-          </span>
-        </span>
-        );
-      })}
-    </div>
-  );
-}
-
 
 // ── DiffCard ─────────────────────────────────────────────────────────────
 // Proposal-diff pattern from mood-birth.jsx BirthEditScreenM.
@@ -340,38 +239,6 @@ function SysLine({ children }) {
 // Clock label for the recruiter's meta line and the birth card's timestamp.
 function hhmm(d = new Date()) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-
-// ── RecruiterBubble ───────────────────────────────────────────────────────
-// Port of RecruiterBubble from char-birth.jsx. System furniture: neutral border,
-// no mood, no pip — because there is nobody to have a mood yet. Replaces the
-// forming-ghost bubble in create mode, where the speaker is the recruiter.
-function RecruiterBubble({ time, children }) {
-  return (
-    <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
-      <div style={{
-        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-        background: M_SURF, border: `1px solid ${M_BORDER_2}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, color: M_MUTED }}>R</span>
-      </div>
-      <div style={{ maxWidth: 258 }}>
-        <div style={{
-          background: M_PANEL_2, border: `1px solid ${M_BORDER_2}`,
-          borderRadius: 12, borderBottomLeftRadius: 4, padding: '9px 12px',
-        }}>
-          <div style={{ fontSize: 13.5, color: M_TEXT, lineHeight: 1.5 }}>{children}</div>
-        </div>
-        {time && (
-          <div style={{ marginTop: 3, paddingLeft: 2 }}>
-            <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: M_MUTED }}>RECRUITER · {time}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 
@@ -570,12 +437,10 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   const [phase, setPhase]     = useState(isEdit ? 0.72 : 0);
   const [agentName, setAgentName] = useState(isEdit ? agent.name : null);
   const [pendingDiff, setPendingDiff] = useState(null);
-  // F-1 (PACE-1d): the draft's own state, straight off the wire. `profile` is
-  // all four dials or none, so the strip never shows a half-filled row; once we
-  // have them we keep them, because a chip is a decision and the strip must
-  // never fall back to dashes after one. `ready` is the server saying there is
-  // enough to build him.
-  const [draftProfile, setDraftProfile] = useState(null);
+  // `ready` is the server saying there is enough of a brief to build him: it is
+  // what puts the one gold button in the composer's place. The dials behind it
+  // (PACE-1d's four numbers) are no longer state, because the sheet no longer
+  // draws them — see the note on the sheet's `above` slot.
   const [ready, setReady] = useState(false);
   const [natureHint, setNatureHint] = useState(null);
   // The owner asked to keep talking, so the composer comes back with the brief
@@ -728,16 +593,17 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
       const reply = allAi[allAi.length - 1];
       const diff = data.diff || null;
       if (reply) {
-        const m = mkMsg('assistant', reply.content, diff);
-        // A nature the recruiter is only guessing at. Server-authored or absent —
-        // the chip renders a neutral "Temperament?" when nothing is hinted.
-        if (data.natureHint) m.natureHint = data.natureHint;
-        setChat((prev) => [...prev, m]);
+        setChat((prev) => [...prev, mkMsg('assistant', reply.content, diff)]);
       }
 
-      // F-1: three surfaces, one source. The dials, the temperament those dials
-      // produce, and whether he can be built now all come from this reply.
-      if (data.profile) setDraftProfile(data.profile);
+      // DRAFT-2: he is named the turn the owner names him, not at birth. The
+      // server coins it (agentProfiles' `draftName`, the same coinName call the
+      // build makes), so the pill over the room shows the name he will actually
+      // walk in with rather than a guess that changes underneath it.
+      //
+      // Kept once given: a later turn that carries no name has not un-named
+      // him. A name is a decision, and a decision does not un-happen.
+      if (data.draftName) setAgentName(data.draftName);
       if (data.natureHint) setNatureHint(data.natureHint);
       if (data.ready) { setReady(true); setTalking(false); }
 
@@ -758,25 +624,25 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   }
 
   const isReady  = phase >= 1.0;
-  // Only on a create draft, only once the server says he can be built, only
-  // while the owner has not asked to keep talking, and never once he exists.
-  const showNextAction = !isEdit && ready && !talking && !born;
+  // Only once the server says he can be built, only while the owner has not
+  // asked to keep talking, and never once he exists. Read by the create shell
+  // alone — a rebuild has no birth to press towards.
+  const showNextAction = ready && !talking && !born;
   const hasTalked = chat.length > 0;
 
   const suggestions = phase < 0.3
     ? ['Tight and patient', 'Aggressive bluffer', 'Solver-strict']
     : ['Heads-up only', 'Everywhere in position'];
 
+  // The create draft's opening line is the sheet's first row; the rebuild's is
+  // the first thing the agent says. The footnote that used to ride under it on
+  // the create side ("Plain words work…") went with the grey chat shell: a
+  // sheet row is a thing somebody said, and nothing in this conversation says a
+  // footnote. The suggestion chips are what tells an owner with no words ready
+  // where to start now.
   const openingLine = isEdit
     ? 'Tell me what to change.'
     : 'One open seat. Tell me how it should play — style, risk, how tight, how aggressive.';
-  const openingNote = isEdit
-    ? null
-    : 'Plain words work. "Patient, hates bluffing, folds when it smells wrong."';
-
-  // Voice law: the RECRUITER drafts; the agent speaks only once he exists.
-  // Rebuild mode is an existing agent talking, so it keeps his own bubble.
-  const Voice = isEdit ? AgentBubble : RecruiterBubble;
 
   // The nature reveal and the birth card. Shared by both shells: he is born the
   // same way whichever screen drafted him.
@@ -910,10 +776,24 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
             // (AGENTS-2's cap, BIRTH-5's locked seat) are tested by finding the
             // composer still standing with the draft intact after them.
             placeholder="Describe how it should play…"
+            /* NOTHING RIDES BETWEEN THE ROWS AND THE COMPOSER once the draft
+               is under way. Board 29's sheet is a conversation and a way to
+               answer it, and the ref's density is the rule: F02 and F03 draw
+               the rows straight onto the foot.
+
+               What used to sit here were PACE-1d's four dials and the
+               temperament chip they produced — a readout of numbers over a
+               screen whose whole claim is that you make him by TALKING to him.
+               They said the same thing the sheet already says (the recruiter
+               names the shape back to you in words) and said it in the one
+               register the draft does not use. The wire still carries
+               `profile` and `natureHint`; the temperament still lands, on the
+               pill under the ghost, where the ref puts it — "GRANITE · A ROCK".
+
+               The suggestion chips stay, and only before the first answer: an
+               owner with no words ready needs somewhere to start, and a chip
+               sends exactly as a typed line does. */
             above={!hasTalked ? (
-              /* Somewhere to start for an owner with no words ready. They send
-                 exactly as a typed line does, which is why they are buttons in
-                 the sheet and not a separate mode. */
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {suggestions.map((sug) => (
                   <button
@@ -924,13 +804,6 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
                   >{sug}</button>
                 ))}
               </div>
-            ) : !isReady ? (
-              <>
-                <DraftStrip profile={draftProfile} />
-                <div style={{ marginTop: 9, maxWidth: '100%', overflow: 'hidden' }}>
-                  <NatureFormed name={natureHint} formed={ready} />
-                </div>
-              </>
             ) : null}
             action={showNextAction ? (
               <NextAction
@@ -999,28 +872,20 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
           </svg>
         </button>
         <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT }}>
-          {isEdit ? (agent.name || 'Rebuild') : 'New agent'}
+          {agent.name || 'Rebuild'}
         </span>
       </div>
 
-      {/* Band — MoodBand in edit mode, DraftBand for new */}
-      {isEdit ? (
-        <MoodBand
-          accent={agent.accent || M_TEAL}
-          mood={agent.mood || 'neutral'}
-          state={agent.state || 'resting'}
-          cause={agent.cause || 'rebuilding strategy'}
-          action="Deploy"
-          onAction={onBack}
-        />
-      ) : (
-        <DraftBand
-          phase={phase}
-          cause={isReady ? (agentName ?? 'ready to deploy') : hasTalked ? 'taking shape…' : 'nothing decided yet'}
-          onSkip={onBack}
-          ready={isReady}
-        />
-      )}
+      {/* The band. He exists and has a mood, which is the whole difference
+          between this screen and the draft. */}
+      <MoodBand
+        accent={agent.accent || M_TEAL}
+        mood={agent.mood || 'neutral'}
+        state={agent.state || 'resting'}
+        cause={agent.cause || 'rebuilding strategy'}
+        action="Deploy"
+        onAction={onBack}
+      />
 
       {/* Feed */}
       {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY. A box that
@@ -1034,18 +899,11 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
           /* Entry state: ghost fills center, opening message pinned to bottom */
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
-              <FormingGhost size={132} phase={isEdit ? 0.72 : 0} />
+              <FormingGhost size={132} phase={0.72} />
             </div>
             <div style={{ flexShrink: 0, paddingBottom: 4 }}>
-              <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
-              <Voice time={openedAt.current}>
-                <>
-                  {openingLine}
-                  {openingNote && (
-                    <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
-                  )}
-                </>
-              </Voice>
+              <SysLine>Rebuilding</SysLine>
+              <AgentBubble time={openedAt.current}>{openingLine}</AgentBubble>
             </div>
           </div>
         ) : (
@@ -1058,17 +916,10 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
             )}
 
             <div style={{ position: 'relative', zIndex: 1, paddingTop: 10 }}>
-              <SysLine>{isEdit ? 'Rebuilding' : 'Drafting'}</SysLine>
+              <SysLine>Rebuilding</SysLine>
 
               {/* Opening prompt always shown */}
-              <Voice time={openedAt.current}>
-                <>
-                  {openingLine}
-                  {openingNote && (
-                    <div style={{ marginTop: 5, color: M_DIM, fontSize: 12.5 }}>{openingNote}</div>
-                  )}
-                </>
-              </Voice>
+              <AgentBubble time={openedAt.current}>{openingLine}</AgentBubble>
 
               {/* Conversation */}
               {chat.map((msg, i) => (
@@ -1076,7 +927,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
                   ? <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>
                   : (
                     <span key={msg._id}>
-                      <Voice time={msg.at}>{msg.content}</Voice>
+                      <AgentBubble time={msg.at}>{msg.content}</AgentBubble>
                       {/* DiffCard after agent message if a rebuild proposal is present */}
                       {msg.diff && (
                         <div style={{ padding: '0 14px', marginBottom: 9 }}>
@@ -1115,52 +966,23 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
                           </button>
                         </div>
                       )}
-                      {/* DraftStrip after each AI reply while still forming (create mode only) */}
-                      {!isEdit && !isReady && i === chat.length - 1 && !msg.diff && (
-                        <>
-                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', minWidth: 0 }}>
-                            <DraftStrip profile={draftProfile} />
-                          </div>
-                          {/* His temperament is not something you set, and nothing
-                              is fixed until he exists — so the chip is a dashed
-                              guess with no zero-sum pair. It prints a name only
-                              if the server hinted one. */}
-                          <div style={{ padding: '0 14px', marginBottom: 9, maxWidth: '100%', overflow: 'hidden' }}>
-                            <NatureFormed name={msg.natureHint ?? natureHint} formed={ready} />
-                          </div>
-                        </>
-                      )}
                     </span>
                   )
               ))}
 
               {loading && (
-                <Voice>
+                <AgentBubble>
                   <span className="dr-typing"><i /><i /><i /></span>
-                </Voice>
+                </AgentBubble>
               )}
             </div>
           </>
         )}
       </div>
 
-      {/* F-1: the composer gives up its place. With a usable brief there is
-          exactly one thing to press, and it names the next screen. Talking is
-          demoted to the link under it, never removed — one tap brings the
-          composer back with the brief intact. */}
-      {showNextAction ? (
-        <NextAction
-          label="Deal him in"
-          sub={natureHint ? 'STRATEGY SET · NATURE FORMED' : 'STRATEGY SET'}
-          busy={loading}
-          onAct={() => send(GO_SIGNAL)}
-          onLink={() => {
-            setTalking(true);
-            setTimeout(() => inputRef.current?.focus(), 0);
-          }}
-        />
-      ) : (
-      /* Composer */
+      {/* Composer. F-1's one gold button belongs to the DRAFT — a rebuild has
+          no birth to press towards, so there is nothing here to give the
+          composer's place to. */}
       <div style={{ flexShrink: 0 }}>
         {/* Suggestion chips */}
         {!hasTalked && (
@@ -1193,7 +1015,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={isEdit ? `Message ${agent?.name || 'agent'}…` : 'Describe how it should play…'}
+            placeholder={`Message ${agent?.name || 'agent'}…`}
             disabled={loading || isReady}
             style={{
               flex: 1, height: 38, padding: '0 12px', borderRadius: 10,
@@ -1220,41 +1042,8 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
           </button>
         </form>
       </div>
-      )}
 
-      {/* The nature reveal — two beats, then he is the owner's to deal in.
-          BirthNatureFloorScreenM: his line, the ghost, the name chip, the badge.
-          BirthCardScreenM: the room dims and the card he was born with rises. */}
-      {born && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 20, overflow: 'hidden' }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: beat === 'card' ? 'rgba(8,8,10,0.62)' : 'rgba(8,8,10,0.32)',
-            transition: 'background 0.4s ease-out',
-          }} />
-          {beat !== 'card' && (
-            <div style={{
-              position: 'absolute', left: 0, right: 0, top: '22%',
-              display: 'flex', justifyContent: 'center',
-              transition: 'top 0.45s ease-out', pointerEvents: 'none',
-            }}>
-              <NatureReveal name={born.name} first={born.first} nature={born.character.nature} />
-            </div>
-          )}
-          {beat === 'card' && (
-            <BirthCardSheet
-              name={born.name}
-              nature={born.nature}
-              mood={born.mood}
-              heat={born.heat}
-              firstWords={born.first}
-              character={born.character}
-              first={firstAgent}
-              onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
-            />
-          )}
-        </div>
-      )}
+      {bornOverlay}
     </div>
   );
 }
