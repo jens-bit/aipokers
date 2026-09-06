@@ -8,7 +8,7 @@ import { fatigueOf } from '../../lib/attributes.js';
 import { RoomLayer } from './RoomLayer.jsx';
 import { FloorZoom } from './FloorZoom.jsx';
 import { LAYOUTS, feltSeatPoint, feltSlotsFor, ghostAnchorY, layoutFor, projectRoom, roomStyle, zoomViewBox } from './layouts.js';
-import { moodOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
+import { moodOf, heatOf, stateOf, splitFloor, standupLine, newsPipFor, grewCount } from './agentView.js';
 import { NotYet } from '../ftu/NotYet.jsx';
 import { FlaggedHandsSheet } from './FlaggedHandsSheet.jsx';
 
@@ -30,7 +30,7 @@ const DOOR_X = 18;
 const WORN_SPEED = 1.7;
 
 function WornOccupant({
-  x, y, name, accent, mood, state, size = 56, speed = 5,
+  x, y, name, accent, mood, heat = 45, state, size = 56, speed = 5,
   stack = null, chipMaxW, dim, onClick, room,
 }) {
   const key = safeMood(mood);
@@ -52,7 +52,7 @@ function WornOccupant({
         className="floor-occupant__body"
         style={{ position: 'relative', transform: 'translateY(4px) scale(0.985)' }}
       >
-        <FloorGhost mood={mood} accent={accent} size={size} speed={slowed} />
+        <FloorGhost mood={mood} heat={heat} accent={accent} size={size} speed={slowed} />
         <span
           style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -427,6 +427,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   name={p.agent.name}
                   accent={accentFor(p.agent, p.accentIndex)}
                   mood={moodOf(p.agent)}
+                heat={heatOf(p.agent)}
                   size={p.size}
                   speed={p.speed}
                   drink={p.drink}
@@ -452,6 +453,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   name={p.agent.name}
                   accent={accentFor(p.agent, p.accentIndex)}
                   mood={moodOf(p.agent)}
+                  heat={heatOf(p.agent)}
                   state={p.state}
                   size={p.size}
                   speed={p.speed}
@@ -476,6 +478,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                 name={p.agent.name}
                 accent={accentFor(p.agent, p.accentIndex)}
                 mood={moodOf(p.agent)}
+                heat={heatOf(p.agent)}
                 state={p.state}
                 size={p.size}
                 speed={p.speed}
@@ -529,6 +532,7 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
               name={arriving.name}
               accent={accentFor(arriving, agents.indexOf(arriving))}
               mood={moodOf(arriving)}
+              heat={heatOf(arriving)}
               size={mini ? 44 : 50}
               room={room}
               onClick={() => setZoomedId(arriving.id)}

@@ -59,7 +59,7 @@ export function ShareCard({ model, size = BASE, ghostRef = null }) {
         display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
         <div ref={ghostRef} style={{ lineHeight: 0 }}>
-          <MoodGhost mood={model.mood} accent={model.moodColor} size={u(76)} ring={false} />
+          <MoodGhost mood={model.mood} heat={model.heat} accent={model.moodColor} size={u(76)} ring={false} />
         </div>
         <div style={{ marginTop: u(6), display: 'flex', alignItems: 'center', gap: u(7) }}>
           <span style={{ fontSize: u(13), color: DIM, fontWeight: 500 }}>{model.name}</span>

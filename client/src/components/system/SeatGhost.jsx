@@ -16,7 +16,7 @@ import { PlayingCard, CardBack } from './PlayingCard.jsx';
 import { SeatClock } from './SeatClock.jsx';
 
 export function SeatGhost({
-  name, stack, accent = '#00D4AA', mood = 'neutral', folded, acting, selected,
+  name, stack, accent = '#00D4AA', mood = 'neutral', heat = 45, folded, acting, selected,
   dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
   size = 34, side = false, order = 0, onSelect,
 }) {
@@ -50,7 +50,7 @@ export function SeatGhost({
 
         <span className="seat-ghost__ghost">
           {/* A tilted opponent bobs faster. It is the only tell the posture gives. */}
-          <FloorGhost mood={m} accent={accent} size={size} speed={m === 'tilted' ? 3.2 : 5.6} />
+          <FloorGhost mood={m} heat={heat} accent={accent} size={size} speed={m === 'tilted' ? 3.2 : 5.6} />
         </span>
 
         {/* How many hands he has taken off this agent — the nemesis count. */}

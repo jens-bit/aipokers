@@ -16,7 +16,7 @@
 import { useState } from 'react';
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { moodOf, presenceOf } from '../floor/agentView.js';
+import { moodOf, heatOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
 import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, stakesFor } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
@@ -88,7 +88,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end',
               justifyContent: 'center', overflow: 'hidden',
             };
-            const face = <MoodGhost mood={moodOf(agent)} accent={accent} size={42} ring={false} />;
+            const face = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={42} ring={false} />;
             return onOpenProfile ? (
               <button
                 type="button"

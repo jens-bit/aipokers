@@ -8,7 +8,7 @@ import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { GrowthLine, TrainingLine, GrewBadge } from '../components/system/CharacterAtoms.jsx';
 import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MoodChip, MOODS, M_TEAL, M_GOLD } from '../components/floor/atoms.jsx';
-import { moodOf, stateOf, stackOf, lastMomentOf } from '../components/floor/agentView.js';
+import { moodOf, heatOf, stateOf, stackOf, lastMomentOf } from '../components/floor/agentView.js';
 import { recentEntries, gainsWithin, grewWithin, normalizeAttrs, ATTR_KEYS } from '../lib/attributes.js';
 import { openerFor } from '../components/desktop/useAgentThread.js';
 import { money } from '../lib/wallet.js';
@@ -76,7 +76,7 @@ function LiveDot() {
   return <span style={{ width: 5, height: 5, borderRadius: '50%', background: M_TEAL, boxShadow: `0 0 6px ${M_TEAL}`, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal, grew, onClick }) {
+function AgentRow({ name, accent, mood, heat = 45, state, msg, pnl, time, unread, proposal, grew, onClick }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <button
@@ -94,7 +94,7 @@ function AgentRow({ name, accent, mood, state, msg, pnl, time, unread, proposal,
         background: '#0A0F17', border: `1px solid ${accent}44`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} accent={accent} size={36} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={36} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
@@ -185,11 +185,11 @@ function ProposalCard({ proposal, agentProfile, accent, accepting, onAccept, onD
   );
 }
 
-function AgentCardMsg({ mood, accent, children }) {
+function AgentCardMsg({ mood, accent, heat = 45, children }) {
   return (
     <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
       <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#0A0F17', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-        <MoodGhost mood={mood} accent={accent} size={27} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={27} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {children}
@@ -321,12 +321,14 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
           {live.map((agent) => {
             const accent = accentFor(agent);
             const mood   = moodOf(agent);
+            const heat   = heatOf(agent);
             return (
               <AgentRow
                 key={agent.id}
                 name={agent.name}
                 accent={accent}
                 mood={mood}
+                heat={heat}
                 state="live"
                 grew={grewToday(agent)}
                 msg={lastMomentOf(agent)}
@@ -359,6 +361,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
           {resting.map((agent) => {
             const accent = accentFor(agent);
             const mood   = moodOf(agent);
+            const heat   = heatOf(agent);
             const state  = stateOf(agent);
             return (
               <AgentRow
@@ -366,6 +369,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
                 name={agent.name}
                 accent={accent}
                 mood={mood}
+                heat={heat}
                 state={state}
                 grew={grewToday(agent)}
                 msg={lastMomentOf(agent)}
@@ -400,12 +404,12 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
 
 // ── Thread atoms (mood-screens-b.jsx port) ────────────────────────────────
 
-function AgentBubble({ mood, accent, training, children }) {
+function AgentBubble({ mood, accent, heat = 45, training, children }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <div style={{ display: 'flex', gap: 9, padding: `0 14px`, marginBottom: 9, alignItems: 'flex-end' }}>
       <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#0A0F17', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-        <MoodGhost mood={mood} accent={accent} size={27} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={27} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
@@ -581,7 +585,7 @@ function tickTime(tick) {
 //
 // The row costs 56px where the header and the band together cost 96 — the
 // ww-ref S4 budget, minus a band this screen no longer needs.
-function ThreadHeader({ agent, accent, mood, onBack, onOpenProfile }) {
+function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile }) {
   const stack = stackOf(agent);
   const open = onOpenProfile ? () => onOpenProfile(agent) : undefined;
 
@@ -616,7 +620,7 @@ function ThreadHeader({ agent, accent, mood, onBack, onOpenProfile }) {
           cursor: open ? 'pointer' : 'default',
         }}
       >
-        <MoodGhost mood={mood} accent={accent} size={38} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={accent} size={38} ring={false} />
       </button>
 
       <button
@@ -652,6 +656,9 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
   const isLive   = agState === 'live';
 
   const [localMood, setLocalMood]   = useState(() => moodOf(agent));
+  // BIRTH-4: the tier rides with the state. Same served object, same reader —
+  // so the face in the header changes when he is talked down, not just its colour.
+  const [localHeat, setLocalHeat]   = useState(() => heatOf(agent));
   const [chat, setChat]             = useState([]);
   // WIRE-1: the hand he is showing off, opened from the poster in the recap.
   const [replayHand, setReplayHand]  = useState(null);
@@ -757,6 +764,7 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
       const data = await res.json();
       const newAi = (data.chat || []).filter((m) => m.role === 'assistant').pop();
       if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+      if (Number.isFinite(data.mood?.heat)) setLocalHeat(data.mood.heat);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setLocalMood(data.pepTalk.newState);
       }
@@ -819,6 +827,7 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
         agent={agent}
         accent={accent}
         mood={localMood}
+        heat={localHeat}
         onBack={onBack}
         onOpenProfile={onOpenProfile}
       />
@@ -844,7 +853,7 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
         {chat.map((msg) => {
           if (msg.role === 'proposal') {
             return (
-              <AgentCardMsg key={msg._id} mood={localMood} accent={accent}>
+              <AgentCardMsg key={msg._id} mood={localMood} heat={localHeat} accent={accent}>
                 <ProposalCard
                   proposal={msg.proposal}
                   agentProfile={agent.profile}
@@ -907,7 +916,7 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
           }
           if (msg.role === 'assistant') {
             return (
-              <AgentBubble key={msg._id} mood={localMood} accent={accent} training={msg.training}>
+              <AgentBubble key={msg._id} mood={localMood} heat={localHeat} accent={accent} training={msg.training}>
                 {msg.content}
               </AgentBubble>
             );
@@ -915,7 +924,7 @@ function AgentThread({ agent, onBack, onOpenProfile }) {
           return <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>;
         })}
         {loading && (
-          <AgentBubble mood={localMood} accent={accent}>
+          <AgentBubble mood={localMood} heat={localHeat} accent={accent}>
             <span className="dr-typing"><i /><i /><i /></span>
           </AgentBubble>
         )}

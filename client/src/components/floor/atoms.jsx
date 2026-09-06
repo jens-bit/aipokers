@@ -5,6 +5,7 @@
 import { useId } from 'react';
 import { Card } from '../Card.jsx';
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
+import { ghostFace } from '../system/GhostFace.jsx';
 import { roomStyle } from './layouts.js';
 
 const IDENTITY_ROOM = { k: 1, ox: 0, oy: 0 };
@@ -47,8 +48,12 @@ export function safeMood(mood) {
   return MOODS[mood] ? mood : 'neutral';
 }
 
-// ── The floating ghost. Eye geometry identical to MoodGhost. ──────────────
-export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed = 5 }) {
+// ── The floating ghost. Face is the one ghostFace — same as MoodGhost. ──
+// BIRTH-4: this atom carried its own copy of the pre-tier eyes, so the whole
+// floor kept drawing the flat face months after the face system shipped. There
+// is one face function now; the body (scalloped wisp, bob, posture) is all this
+// component still owns.
+export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45 }) {
   const uid = useId().replace(/:/g, '');
   const key = safeMood(mood);
   const m = MOODS[key];
@@ -56,45 +61,6 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
   const eye = key === 'neutral' ? accent : m.color;
   const slump = key === 'sulking';
   const cy = slump ? 46 : 42;
-
-  const eyes = () => {
-    if (key === 'confident') return (
-      <g>
-        <ellipse cx="33.5" cy={cy - 2} rx="3" ry="2.4" fill={eye} />
-        <ellipse cx="46.5" cy={cy - 2} rx="3" ry="2.4" fill={eye} />
-        <path d={`M30 ${cy - 7} L37 ${cy - 8.5}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.75" />
-        <path d={`M50 ${cy - 7} L43 ${cy - 8.5}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round" opacity="0.75" />
-      </g>
-    );
-    if (key === 'frustrated') return (
-      <g>
-        <g transform={`rotate(-14 33.5 ${cy})`}><rect x="30.4" y={cy - 1.1} width="6.4" height="2.2" rx="1.1" fill={eye} /></g>
-        <g transform={`rotate(14 46.5 ${cy})`}><rect x="43.4" y={cy - 1.1} width="6.4" height="2.2" rx="1.1" fill={eye} /></g>
-      </g>
-    );
-    if (key === 'tilted') return (
-      <g>
-        <g transform={`rotate(-24 33.5 ${cy})`}><rect x="30.2" y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={eye} /></g>
-        <g transform={`rotate(24 46.5 ${cy})`}><rect x="43.2" y={cy - 1.2} width="6.8" height="2.4" rx="1.2" fill={eye} /></g>
-        <path d={`M29.5 ${cy - 6.5} L37.5 ${cy - 4}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round" />
-        <path d={`M50.5 ${cy - 6.5} L42.5 ${cy - 4}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round" />
-      </g>
-    );
-    if (key === 'sulking') return (
-      <g>
-        <ellipse cx="33.5" cy={cy + 2.5} rx="2.2" ry="1.3" fill={eye} />
-        <ellipse cx="46.5" cy={cy + 2.5} rx="2.2" ry="1.3" fill={eye} />
-        <path d={`M30.6 ${cy - 0.6} A3 3 0 0 1 36.4 ${cy - 0.6}`} stroke={eye} strokeWidth="1" fill="none" opacity="0.55" />
-        <path d={`M43.6 ${cy - 0.6} A3 3 0 0 1 49.4 ${cy - 0.6}`} stroke={eye} strokeWidth="1" fill="none" opacity="0.55" />
-      </g>
-    );
-    return (
-      <g>
-        <ellipse cx="34" cy={cy} rx="2.5" ry="1.7" fill={eye} />
-        <ellipse cx="46" cy={cy} rx="2.5" ry="1.7" fill={eye} />
-      </g>
-    );
-  };
 
   // No legs — the body tapers into a scalloped wisp.
   const body = slump
@@ -130,7 +96,7 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
         )}
         <path d={body} fill={`url(#fb${uid})`} stroke={`${accent}55`} strokeWidth="1.1" />
         <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
-        {eyes()}
+        {ghostFace({ mood: key, heat, size, eye, cy })}
       </svg>
     </div>
   );
@@ -240,7 +206,7 @@ function SeatedCardFan({ scale = 1 }) {
 // A ghost with its chip, drink and floor shadow — the unit placed in a zone.
 // `seated` flips to the near-rail posture: cards → ghost → shadow → chip.
 export function Occupant({
-  x, y, name, accent = M_TEAL, mood = 'neutral', state = 'resting',
+  x, y, name, accent = M_TEAL, mood = 'neutral', heat = 45, state = 'resting',
   size = 56, speed = 5, drink = false, dim = false, seated = false,
   stack = null, chipMaxW, onClick, room = IDENTITY_ROOM,
 }) {
@@ -267,7 +233,7 @@ export function Occupant({
         <>
           <SeatedCardFan scale={Math.min(1, size / 56)} />
           <span className="floor-occupant__body">
-            <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+            <FloorGhost mood={mood} heat={heat} accent={accent} size={size} speed={speed} />
           </span>
           {shadow}
           <GhostChip name={name} accent={accent} state={state} stack={stack} chipMaxW={chipMaxW} />
@@ -276,7 +242,7 @@ export function Occupant({
         <>
           <GhostChip name={name} accent={accent} state={state} stack={stack} chipMaxW={chipMaxW} />
           <span className="floor-occupant__body">
-            <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+            <FloorGhost mood={mood} heat={heat} accent={accent} size={size} speed={speed} />
             {drink && (
               <svg width="13" height="20" viewBox="0 0 13 20" className="floor-occupant__drink" aria-hidden>
                 <path d="M2 3 L11 3 L8.4 11 L4.6 11 Z" fill={`${M_GOLD}44`} stroke={`${M_GOLD}88`} strokeWidth="0.8" />
@@ -429,7 +395,7 @@ export function RestPip({ kind, count }) {
 // "posture is the identity" is a rule about what the eye reads, not a licence
 // to ship an unlabelled control.
 export function BarGhost({
-  x, y, name, accent = M_TEAL, mood = 'neutral', size = 46, speed = 6,
+  x, y, name, accent = M_TEAL, mood = 'neutral', heat = 45, size = 46, speed = 6,
   drink = false, dim = false, pip = null, pipCount = 0, selected = false,
   onClick, room = IDENTITY_ROOM,
 }) {
@@ -444,7 +410,7 @@ export function BarGhost({
     >
       {selected && <GhostChip name={name} accent={accent} state="resting" />}
       <span className="floor-occupant__body">
-        <FloorGhost mood={mood} accent={accent} size={size} speed={speed} />
+        <FloorGhost mood={mood} heat={heat} accent={accent} size={size} speed={speed} />
         {drink && (
           <svg width="13" height="20" viewBox="0 0 13 20" className="floor-occupant__drink" aria-hidden>
             <path d="M2 3 L11 3 L8.4 11 L4.6 11 Z" fill={`${M_GOLD}44`} stroke={`${M_GOLD}88`} strokeWidth="0.8" />
@@ -502,7 +468,7 @@ export function HouseGhost({
 // He wears his name for this one crossing: he has just been born and nobody
 // knows the posture yet, which is exactly the case rule 2 makes room for.
 export function WalkIn({
-  from, to, name, accent = M_TEAL, mood = 'neutral', size = 50,
+  from, to, name, accent = M_TEAL, mood = 'neutral', heat = 45, size = 50,
   onClick, room = IDENTITY_ROOM,
 }) {
   const { k } = room;
@@ -541,7 +507,7 @@ export function WalkIn({
             }}
             aria-hidden
           />
-          <FloorGhost mood={mood} accent={accent} size={size} speed={4.2} />
+          <FloorGhost mood={mood} heat={heat} accent={accent} size={size} speed={4.2} />
         </span>
       </button>
     </>

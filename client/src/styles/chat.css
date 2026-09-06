@@ -247,7 +247,11 @@
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
   box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 212, 170, 0.08);
-  padding: 0 14px 16px;
+  /* BIRTH-4: the top padding IS the ghost's slot. The well used to be pulled
+   * 34px above the sheet's edge, and .birth-card3 scrolls — so the sheet's own
+   * overflow box cut the top off his head. He sits inside the sheet now and the
+   * padding is what makes room for him. */
+  padding: 14px 14px 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   animation: birth-sheetup 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -255,13 +259,17 @@
 .birth-card3__well-row {
   display: flex;
   justify-content: center;
-  margin-top: -34px;
-  margin-bottom: 4px;
+  margin-top: 0;
+  margin-bottom: 6px;
 }
+/* 112 x 104 holds the 96px ghost with its glow: the glow ellipse runs 4.8px
+ * past each side and starts 2.4px above his crown, so nothing of the head is
+ * ever inside the well's edge. The body's flat bottom stays flush — that is
+ * the only thing the well clips, and it is the point of the well. */
 .birth-card3__well {
-  width: 68px;
-  height: 68px;
-  border-radius: 20px;
+  width: 112px;
+  height: 104px;
+  border-radius: 24px;
   background: #0a0f17;
   border: 1px solid rgba(0, 212, 170, 0.4);
   box-shadow: 0 0 26px rgba(0, 212, 170, 0.24);

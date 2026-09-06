@@ -7,7 +7,7 @@
 // second action while he is seated, and it is how the roll itself comes home.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { moodOf, presenceOf } from '../floor/agentView.js';
+import { moodOf, heatOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
 import { CALL_IN, GIVE, money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
@@ -41,7 +41,7 @@ export function PocketRow({ agent, index = 0, onFund, onCollect, onCallIn, onOpe
   // The face is the way into his profile — the same navigation the floor uses.
   // Without a host that owns that navigation it stays a plain, inert frame
   // rather than a button that does nothing.
-  const ghost = <MoodGhost mood={moodOf(agent)} accent={accent} size={36} ring={false} />;
+  const ghost = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={36} ring={false} />;
   const ghostStyle = { border: `1px solid ${accent}44` };
 
   return (

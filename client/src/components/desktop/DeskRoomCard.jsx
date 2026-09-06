@@ -13,7 +13,7 @@
 // answer to the same question — they cannot disagree.
 
 import { RestPip, accentFor } from '../floor/atoms.jsx';
-import { grewCount, moodOf, newsPipFor, splitFloor } from '../floor/agentView.js';
+import { grewCount, moodOf, heatOf, newsPipFor, splitFloor } from '../floor/agentView.js';
 import { PHood } from './panelParts.jsx';
 
 export function DeskRoomCard({ agents = [], arrivingId = null, onSelect }) {
@@ -55,7 +55,7 @@ export function DeskRoomCard({ agents = [], arrivingId = null, onSelect }) {
               onClick={() => onSelect?.(agent)}
               disabled={!onSelect}
             >
-              <PHood size={20} accent={accentFor(agent, i)} mood={moodOf(agent)} />
+              <PHood size={20} accent={accentFor(agent, i)} mood={moodOf(agent)} heat={heatOf(agent)} />
               <span className="dsk-room__name">{agent.name}</span>
               <RestPip kind={pip} count={grewCount(agent)} />
             </button>

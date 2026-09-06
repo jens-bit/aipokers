@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { moodOf } from '../floor/agentView.js';
+import { moodOf, heatOf } from '../floor/agentView.js';
 import { MiniCard } from './primitives.jsx';
 import { PHood } from './panelParts.jsx';
 
@@ -81,7 +81,7 @@ export function PFlaggedCard({ agents = [], onOpen }) {
             className="dsk-flagged__row"
             onClick={() => onOpen?.(agent, hand)}
           >
-            <PHood size={20} accent={accentFor(agent, accentIndex)} mood={moodOf(agent)} />
+            <PHood size={20} accent={accentFor(agent, accentIndex)} mood={moodOf(agent)} heat={heatOf(agent)} />
             <div className="dsk-flagged__cards">
               <MiniCard card={hand.holeCards?.[0]} size="mini" />
               <MiniCard card={hand.holeCards?.[1]} size="mini" />

@@ -160,9 +160,9 @@ function pickerlessNav() {
  * falls through to the chat picker. Every caller has it — pass it.
  *
  * @param {{ hand: object, agentId?: string, agentName?: string, mood?: string,
- *           label?: string, style?: object }} props
+ *           heat?: number, label?: string, style?: object }} props
  */
-export function ShareButton({ hand, agentId, agentName, mood, label = 'Share', style }) {
+export function ShareButton({ hand, agentId, agentName, mood, heat, label = 'Share', style }) {
   const [open, setOpen] = useState(false);
   if (!hand) return null;
 
@@ -176,7 +176,7 @@ export function ShareButton({ hand, agentId, agentName, mood, label = 'Share', s
       >{label}</button>
       {open && (
         <ShareSheet
-          model={buildShareModel(hand, { agentName, mood })}
+          model={buildShareModel(hand, { agentName, mood, heat })}
           agentId={agentId ?? hand?.agentId ?? null}
           onClose={() => setOpen(false)}
         />
