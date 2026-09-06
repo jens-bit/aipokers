@@ -130,6 +130,30 @@ function applySchema(d) {
       ledger     TEXT    NOT NULL DEFAULT '[]',
       updated_at INTEGER NOT NULL DEFAULT 0
     );
+
+    -- SERVER-3: the table thread. Every line the watch screen's history sheet
+    -- shows, per SESSION rather than per table: it is what HIS session sounded
+    -- like, so a reconnect (or a look back an hour later) gets the record back
+    -- instead of whatever the socket happened to be awake for.
+    --
+    -- "who" is the label the sheet prints -- TABLE / HIM / YOU / an opponent's
+    -- display name -- and "kind" is the four-way it renders from, so a
+    -- renamed opponent cannot turn into a fifth style. "ts" is the SERVER's
+    -- clock: a client that reconnects on a different device must not have to
+    -- reconcile two orderings of the same conversation.
+    CREATE TABLE IF NOT EXISTS session_thread (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT    NOT NULL,
+      agent_id   TEXT    NOT NULL,
+      owner_id   TEXT    NOT NULL,
+      table_id   TEXT,
+      ts         INTEGER NOT NULL,
+      kind       TEXT    NOT NULL,
+      who        TEXT    NOT NULL,
+      text       TEXT    NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS session_thread_session ON session_thread (session_id, id);
+    CREATE INDEX IF NOT EXISTS session_thread_agent   ON session_thread (agent_id, id DESC);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -630,6 +654,80 @@ function seedWallets(d) {
   if (seededAgents > 0) {
     console.log(`[store] seeded wallets — ${seededAgents} pocket(s) from existing bankrolls, ${swept} chip(s) swept to owner wallets`);
   }
+}
+
+// ── The table thread (SERVER-3) ──────────────────────────────────────────────
+//
+// Append-only per session, bounded per session. The cap is a session's worth
+// of conversation, not a day's: a 100-hand session that produced 2000 lines
+// has a client problem, not a storage problem, and a ring keeps the worst case
+// a fixed size the way the event ring and every ledger in this codebase do.
+export const THREAD_CAP_PER_SESSION = 500;
+
+/**
+ * Append one line and trim that session back to the cap, in one transaction.
+ * Returns the row id, which is monotonic per database and therefore also the
+ * order the sheet renders in.
+ */
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text }) {
+  const d = conn();
+  const sid = String(sessionId);
+  let id = null;
+  d.transaction(() => {
+    const info = d.prepare(`
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(sid, String(agentId), String(ownerId), tableId ?? null,
+           Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
+           String(kind), String(who), String(text));
+    id = info.lastInsertRowid;
+    d.prepare(`
+      DELETE FROM session_thread
+       WHERE session_id = ?
+         AND id NOT IN (SELECT id FROM session_thread WHERE session_id = ? ORDER BY id DESC LIMIT ?)
+    `).run(sid, sid, THREAD_CAP_PER_SESSION);
+  })();
+  return id;
+}
+
+/**
+ * One session's thread, oldest first — the order it was said in, which is the
+ * order the sheet scrolls.
+ */
+export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
+  return conn().prepare(`
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text
+      FROM session_thread
+     WHERE session_id = ?
+     ORDER BY id ASC
+     LIMIT ?
+  `).all(String(sessionId), limit).map(threadRow);
+}
+
+/**
+ * The most recent session id this agent has any thread for, or null. What
+ * `GET /api/agents/:id/thread` answers when no session is named — a client
+ * that has just reconnected knows the agent, not the session it was in.
+ */
+export function latestThreadSession(agentId) {
+  const row = conn().prepare(`
+    SELECT session_id FROM session_thread WHERE agent_id = ? ORDER BY id DESC LIMIT 1
+  `).get(String(agentId));
+  return row?.session_id ?? null;
+}
+
+function threadRow(r) {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    agentId: r.agent_id,
+    ownerId: r.owner_id,
+    tableId: r.table_id ?? null,
+    ts: r.ts,
+    kind: r.kind,
+    who: r.who,
+    text: r.text,
+  };
 }
 
 // ── Test / tooling hooks ─────────────────────────────────────────────────────

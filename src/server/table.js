@@ -17,6 +17,7 @@ import {
   getAgentBio,
   addFlaggedHand,
   openerForAgent,
+  getAgentPocket,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -73,8 +74,35 @@ import {
   isSusceptible,
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
+import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
+import { appendLine as appendThreadLine, ThreadKind } from './thread.js';
+import { canAffordTable } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
+
+// ── SERVER-3: the hero's clock ──────────────────────────────────────────────
+// The AI's think delay, which is also the only action deadline the server
+// actually enforces today. It is armed BEFORE the state that announces whose
+// turn it is, so the ring the client draws is the real one rather than a guess
+// started when the message happened to arrive.
+const THINK_MIN_MS = Number(process.env.THINK_MIN_MS ?? 800);
+const THINK_SPREAD_MS = Number(process.env.THINK_SPREAD_MS ?? 1700);
+
+// A pot worth a face. The same 20bb the mood machine already calls a big pot,
+// so "he won big" means one thing on the felt and in his head.
+const BIG_POT_BB = 20;
+
+// He was a long way in front and lost anyway. Deliberately above the 0.55 the
+// mood machine uses for lostAsEquityFavorite: that is a bad hand, this is the
+// face you pull when the river betrays you.
+const BAD_BEAT_EQUITY = 0.75;
+
+// The premium holdings that earn a dealtStrong face at first sight. Pairs from
+// tens up and the big broadway aces — the hands a person actually reacts to
+// looking down at, kept deliberately short so the face stays rare enough to
+// mean something.
+const STRONG_PAIRS = new Set(['T', 'J', 'Q', 'K', 'A']);
+const STRONG_UNPAIRED = new Set(['AK', 'AQ']);
 
 // -- MST-1: multi-seat tables ----------------------------------------------
 // Hard ceiling -- the engine accepts 2..6 seats.
@@ -277,6 +305,33 @@ export class Table {
     // Surfaced to the floor as liveGame.actionDeadline. A real server-side
     // action timer for HUMAN seats is still Fredrik's queue.
     this.actionDeadline = null;
+
+    // ── SERVER-3: the session, as a thing with a name ────────────────────
+    // A stay at this table by one agent. Minted when the seat is taken, so
+    // everything that happens while he is sitting there can be filed under it
+    // — the table thread, and the SESSION_END that fires the ceremony.
+    // A seat with no agent behind it (a House regular, a human) has none.
+    this.seatSessionIds = Array(maxSeats).fill(null);
+    // When he sat down, for SESSION_END's `duration`.
+    this.seatSeatedAt = Array(maxSeats).fill(0);
+    // Why he is leaving, when the answer is known BEFORE the seat is retired
+    // and cannot be read off the final stack: the owner called him in, or
+    // STAMINA sat him down. Null means "work it out at retirement time".
+    this.seatEndReason = Array(maxSeats).fill(null);
+    // The biggest pot this seat had money in this session. Per SEAT, not per
+    // table: the ceremony prints HIS session, and a monster pot he folded out
+    // of preflop is not part of it.
+    this.seatBiggestPot = Array(maxSeats).fill(0);
+    // SERVER-3: the acting seat's clock — { key, seat, deadlineTs, totalMs }.
+    // See _armActionTimer. `key` never leaves the server.
+    this.actionTimer = null;
+    // Bumped on every action the engine accepts, so the clock can tell "the
+    // same seat, still to act" from "the same seat, to act again on the next
+    // street" — which heads-up happens on every hand.
+    this._actionSeq = 0;
+    // The turn _maybeRunAiTurn has already claimed, so one turn is never
+    // driven twice. See the guard there.
+    this._aiTurnKey = null;
   }
 
   // -- MST-1: seat bookkeeping ----------------------------------------------
@@ -307,6 +362,10 @@ export class Table {
     ['_needledThisSession',    () => 0],      // TLK-1
     ['_talkLastHandBySeat',    () => -1],     // TLK-1
     ['_prefoldStreakBySeat',   () => 0],      // TLK-1
+    ['seatSessionIds',   () => null],   // SERVER-3
+    ['seatSeatedAt',     () => 0],      // SERVER-3
+    ['seatEndReason',    () => null],   // SERVER-3
+    ['seatBiggestPot',   () => 0],      // SERVER-3
   ];
 
   _clearSeat(seat) {
@@ -486,7 +545,14 @@ export class Table {
         const buyIn = occupant.buyIn ?? this.defaultBuyIn();
         const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
         const watched = this.spectators.some((s) => s.spectatorSeat === seat);
-        const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+        const sessionHands = this._seatSessionHands(seat);
+        // SERVER-3: built before finishAgentSession, so the same record can go
+        // on the sessions bus (the floor) and to this table's sockets (the
+        // ceremony) without either being reconstructed from the other.
+        const sessionEnd = this._sessionEndFor(seat, {
+          reason: this._endReasonFor(seat, { busted: finalStack <= 0 }),
+          finalStack, buyIn, sessionHands,
+        });
         const agent = finishAgentSession(agentId, this.agentUserIds[seat], {
           recap,
           sessionPnl: finalStack - buyIn,
@@ -495,7 +561,11 @@ export class Table {
           finalStack,
           buyInAmount: buyIn,
           tableId: this.tableId,
+          sessionEnd,
         });
+        // Before the TABLE_CLOSED below: that message is what a client tears
+        // the screen down on, and the ceremony has to have arrived first.
+        this._broadcastSessionEnd(sessionEnd);
         this._notifySessionEnd({
           seat, agentId, agent, buyIn, finalStack, watched, sessionHands,
           busted: recap === RECAP_BUST,
@@ -724,7 +794,6 @@ export class Table {
     this.closed = true;
     this.autoPlay = false;
     this._captureStacks();
-    this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason });
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
@@ -733,7 +802,12 @@ export class Table {
         const finalStack = this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? buyIn;
         const sessionPnl = finalStack - buyIn;
         const watched    = this.spectators.some((s) => s.spectatorSeat === seat);
-        const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+        const sessionHands = this._seatSessionHands(seat);
+        // SERVER-3: one record, two audiences — see _retireSeat.
+        const sessionEnd = this._sessionEndFor(seat, {
+          reason: this._endReasonFor(seat, { busted: finalStack <= 0 }),
+          finalStack, buyIn, sessionHands,
+        });
         const agent = finishAgentSession(agentId, this.agentUserIds[seat], {
           recap: recap ?? reason,
           sessionPnl,
@@ -747,7 +821,9 @@ export class Table {
           seatedPlayerIds: this.pending
             .map((p, i) => (i === seat ? null : p?.playerId ?? null))
             .filter(Boolean),
+          sessionEnd,
         });
+        this._broadcastSessionEnd(sessionEnd);
         this._notifySessionEnd({
           seat, agentId, agent, buyIn, finalStack, watched, sessionHands,
           busted: finalStack <= 0,
@@ -756,6 +832,11 @@ export class Table {
         console.error('[table] finishAgentSession failed:', err.message);
       }
     }
+    // SERVER-3: after the ceremony, not before it. TABLE_CLOSED is what a
+    // client tears the watch screen down on, and a SESSION_END that arrives
+    // behind it arrives to nobody. Same tick, same sockets, so the only thing
+    // that changed is the order two messages leave in.
+    this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason });
     this.game = null;
     this.actionDeadline = null;
     this._clearTimers();
@@ -799,6 +880,11 @@ export class Table {
     if (!Number.isInteger(seat) || seat < 0 || seat >= this.maxSeats || !this.pending[seat]) {
       throw new Error('not at this table');
     }
+
+    // SERVER-3: whichever way this ends, the OWNER decided it — a WS SIT_OUT
+    // from him or his spectator, or the wallet benching a seat he just cut
+    // off. Recorded now because a final stack cannot tell you afterwards.
+    this.seatEndReason[seat] = 'calledIn';
 
     const inHand = !!this.game &&
       this.game.street !== Streets.COMPLETE &&
@@ -937,6 +1023,12 @@ export class Table {
     this.attrEvidence[free] = newEvidence();
     this.attrReadSubjects[free] = new Set();
     this._nemesisNoted[free] = false;
+    // SERVER-3: a new stay begins. Only an agent gets one -- a House regular
+    // has no owner to run a ceremony for and no thread to keep.
+    this.seatSessionIds[free] = agentId ? newSessionId() : null;
+    this.seatSeatedAt[free] = Date.now();
+    this.seatEndReason[free] = null;
+    this.seatBiggestPot[free] = 0;
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
@@ -997,6 +1089,180 @@ export class Table {
     if (!rec?.attrs) return null;
     const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
     return effectiveAttrs(rec, { sessionHands });
+  }
+
+  // ── SERVER-3 · the session ────────────────────────────────────────────────
+  //
+  // Everything about one agent's STAY at this table: what it is called, what
+  // it is worth, and why it ended. A stay is not a table (the table outlives
+  // him) and not a hand (he plays many), and until this tree nothing on the
+  // wire had a name for it.
+
+  // The buy-in that seat sat down with.
+  _seatBuyIn(seat) {
+    return this.pending[seat]?.buyIn ?? this.defaultBuyIn();
+  }
+
+  // The chips that seat is standing up with. The banked ledger first — it is
+  // the one that survives a Game rebuild — then the live Game, then the
+  // buy-in, which means "nothing has happened yet".
+  _seatFinalStack(seat) {
+    return this.seatStacks[seat] ?? this.game?.seats?.[seat]?.stack ?? this._seatBuyIn(seat);
+  }
+
+  // Hands HE was dealt into. A seat that sat down at hand 80 of a 100-hand
+  // table played 20, not 100.
+  _seatSessionHands(seat) {
+    return Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+  }
+
+  _seatOfAgent(agentId) {
+    if (!agentId) return -1;
+    return this.agentIds.findIndex((id) => id === agentId);
+  }
+
+  // The id of the stay this agent is on here, or null.
+  sessionIdFor(agentId) {
+    const seat = this._seatOfAgent(agentId);
+    return seat === -1 ? null : (this.seatSessionIds[seat] ?? null);
+  }
+
+  // The same, addressed by seat — what a watcher gets, because a WATCH that
+  // named no agent still lands on a seat and that seat still has a stay.
+  sessionIdAtSeat(seat) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= this.maxSeats) return null;
+    return this.seatSessionIds[seat] ?? null;
+  }
+
+  // Everything SESSION_END needs about a stay that is still running. POST
+  // /finish uses it: that route ends a session from OUTSIDE the table, so
+  // without this it would have to invent the four numbers the ceremony prints.
+  sessionDetailFor(agentId) {
+    const seat = this._seatOfAgent(agentId);
+    if (seat === -1 || !this.pending[seat]) return null;
+    return {
+      sessionId: this.seatSessionIds[seat] ?? null,
+      tableId: this.tableId,
+      seat,
+      hands: this._seatSessionHands(seat),
+      net: this._seatFinalStack(seat) - this._seatBuyIn(seat),
+      biggestPot: this.seatBiggestPot[seat] ?? 0,
+      duration: this._seatDuration(seat),
+    };
+  }
+
+  _seatDuration(seat) {
+    const since = this.seatSeatedAt[seat];
+    return since ? Math.max(0, Date.now() - since) : 0;
+  }
+
+  // 'bust' and 'allowance' are the two ends of the same event — his stack
+  // reached zero — and what tells them apart is whether there is anything
+  // behind him. Only the allowance mode can genuinely run out: `auto` refills
+  // from the wallet at the next deploy, `topup` is a decision the owner has
+  // not been asked for yet, and `cut` is the owner's own doing and reads as
+  // calledIn. An allowance is a budget, and running out is the point of it.
+  _allowanceGone(seat) {
+    const agentId = this.agentIds[seat];
+    if (!agentId) return false;
+    try {
+      const pocket = getAgentPocket(agentId, this.agentUserIds[seat]);
+      if (!pocket || pocket.mode !== 'allowance') return false;
+      return !canAffordTable(pocket.balance, this.bigBlind);
+    } catch (err) {
+      console.error(`[table:${this.tableId}] pocket read failed:`, err.message);
+      return false;
+    }
+  }
+
+  // Why this seat's stay ended, in SESSION_END's vocabulary.
+  //
+  // The money wins. A seat that was on its way out and busted on the last hand
+  // busted — that is what happened to it, whatever was already scheduled. Only
+  // when the chips are still there does the reason recorded at the moment of
+  // the request apply, because that is the half a final stack cannot tell you.
+  _endReasonFor(seat, { busted } = {}) {
+    if (busted) return this._allowanceGone(seat) ? 'allowance' : 'bust';
+    return this.seatEndReason[seat] ?? 'stopped';
+  }
+
+  // Build the record ONE way, so the copy that goes on the sessions bus (for
+  // the floor) and the copy that goes to this table's sockets (for the
+  // ceremony) can never disagree.
+  _sessionEndFor(seat, { reason, finalStack, buyIn, sessionHands }) {
+    return sessionEndRecord({
+      sessionId: this.seatSessionIds[seat] ?? null,
+      agentId: this.agentIds[seat],
+      userId: this.agentUserIds[seat],
+      tableId: this.tableId,
+      reason,
+      hands: sessionHands,
+      net: finalStack - buyIn,
+      biggestPot: this.seatBiggestPot[seat] ?? 0,
+      duration: this._seatDuration(seat),
+    });
+  }
+
+  // To every socket at the table. His owner's spectator is the one that runs
+  // the ceremony with it; everyone else learns that a seat is standing up,
+  // which they were about to be told anyway by SEAT_LEFT or TABLE_CLOSED.
+  _broadcastSessionEnd(record) {
+    if (!record) return;
+    this._broadcast({ type: ServerMsg.SESSION_END, ...sessionEndMessage(record) });
+  }
+
+  // ── SERVER-3 · the table thread ───────────────────────────────────────────
+  //
+  // Every line the watch screen's history sheet shows is written here as it
+  // happens, into the thread of every AGENT at the table — each one keeps its
+  // own record of the session it is in, because a thread is his, not the
+  // room's. Best-effort throughout: thread.js swallows its own failures, and
+  // a seat with no session (a House regular, a human) simply has nowhere to
+  // write, which is the same thing as not writing.
+
+  _threadTo(seat, kind, who, text) {
+    const sessionId = this.seatSessionIds[seat];
+    if (!sessionId) return;
+    appendThreadLine({
+      sessionId,
+      agentId: this.agentIds[seat],
+      ownerId: this.agentUserIds[seat],
+      tableId: this.tableId,
+      kind,
+      who,
+      text,
+    });
+  }
+
+  // A fact about the felt, in the room's voice — it lands in every agent's
+  // thread, because it happened to all of them.
+  _threadTable(text) {
+    for (let seat = 0; seat < this.maxSeats; seat++) this._threadTo(seat, ThreadKind.TABLE, 'TABLE', text);
+  }
+
+  // One seat spoke. His own thread records HIM (or YOU, when the voice is the
+  // owner whispering from the spectator socket at his seat); everyone else's
+  // records the speaker under his own name.
+  _threadSpoken(seat, displayName, text, isAI) {
+    for (let s = 0; s < this.maxSeats; s++) {
+      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text);
+      else this._threadTo(s, ThreadKind.OPPONENT, displayName, text);
+    }
+  }
+
+  // An action worth a line. Checks and calls are not: a sheet that records
+  // every fold is a log, and the point of the thread is that it reads.
+  _threadAction(seat, action) {
+    if (!action) return;
+    const name = this._seatLabel(seat);
+    const amount = Number.isFinite(action.amount) ? Math.round(action.amount) : null;
+    const allIn = this.game?.seats?.[seat]?.allIn;
+    if (allIn && (action.type === 'bet' || action.type === 'raise' || action.type === 'call')) {
+      this._threadTable(`${name} is all in for ${amount ?? this._seatFinalStack(seat)}`);
+      return;
+    }
+    if (action.type === 'bet' && amount !== null) this._threadTable(`${name} bet ${amount}`);
+    else if (action.type === 'raise' && amount !== null) this._threadTable(`${name} raised to ${amount}`);
   }
 
   // RIDERS-1 (REPLAY-1's two exactness gaps): the pot as it stands once the
@@ -1096,7 +1362,7 @@ export class Table {
     if (!ws || ws.readyState !== ws.OPEN) return;
     if (!this.game) return;
     if (seat < 0 || seat >= this.game.seats.length) return;
-    const state = this._augmentState(this.game.getPublicState(seat));
+    const state = this._augmentState(this.game.getPublicState(seat), seat);
     state.heroEquity = this._heroEquityFor(seat);
     const reads = this._readsFor(seat);
     if (reads) state.reads = reads;
@@ -1132,6 +1398,9 @@ export class Table {
     return {
       tableId: this.tableId,
       heroSeat: seat,
+      // SERVER-3: the stay this agent is on here — the key his thread and his
+      // SESSION_END are both filed under.
+      sessionId: this.seatSessionIds[seat] ?? null,
       street: g ? g.street : Streets.WAITING,
       board: inHand ? [...g.community] : [],
       heroHole: includeHole && inHand ? [...(g.seats[seat]?.holeCards ?? [])] : null,
@@ -1322,6 +1591,7 @@ export class Table {
     this.pace = PACE.CALM;
     this._boardBeforeAct = [];
     this._heroEquity.clear();
+    this.actionTimer = null;      // SERVER-3: a new hand, a new clock
     this.game.startHand();
     this._broadcast({ type: ServerMsg.HAND_START, handNumber: this.game.handNumber });
     this._broadcastPace({ force: true });
@@ -1431,12 +1701,27 @@ export class Table {
   // Game may have advanced to). Feeds opponentStats in _handCompleted.
   _logAction(seat, street, action) {
     if (!action?.type) return;
+    // SERVER-3: every accepted action moves the clock on. Heads-up the same
+    // seat can be to act twice in a row across a street boundary, and this is
+    // what tells those two turns apart -- see _armActionTimer.
+    this._actionSeq++;
     this.currentHandActionLog.push({ seat, street, actionType: action.type });
+    this._threadAction(seat, action);
   }
 
   _handCompleted() {
     this.handsThisSession++;
     this.actionDeadline = null;
+    this.actionTimer = null;      // SERVER-3: nobody is on the clock any more
+    // SERVER-3: the two things that have to be true of `result` before it goes
+    // anywhere. `deltas` the engine already put there; `events` is the
+    // hand-end half of the face vocabulary, and the per-seat high-water pot
+    // feeds SESSION_END's biggestPot when he eventually stands up.
+    if (this.game?.result) {
+      this._noteSeatPots(this.game.result);
+      this.game.result.events = this._handEndEvents(this.game.result);
+      this._threadResult(this.game.result);
+    }
     // PACE-1: with a spectator attached and a stack committed, the pot does not
     // move yet — the runout is revealed a card at a time and the finished board
     // is held first. Unwatched, this returns 0 and the hand resolves exactly as
@@ -1505,6 +1790,36 @@ export class Table {
     }
   }
 
+  // SERVER-3: the biggest pot each seat had MONEY IN this session. Per seat,
+  // not per table: the ceremony prints his session, and a monster he folded
+  // out of preflop was never his. Contribution rather than the delta, because
+  // a seat that got its money back in a split still played the pot.
+  _noteSeatPots(result) {
+    const g = this.game;
+    if (!g || !result) return;
+    const pot = result.pot ?? 0;
+    if (pot <= 0) return;
+    for (let seat = 0; seat < g.seats.length && seat < this.maxSeats; seat++) {
+      if (!this.agentIds[seat]) continue;
+      if ((g.seats[seat]?.contribTotal ?? 0) <= 0) continue;
+      if (pot > (this.seatBiggestPot[seat] ?? 0)) this.seatBiggestPot[seat] = pot;
+    }
+  }
+
+  // One line for the sheet, in the room's voice: who took it and for how much.
+  _threadResult(result) {
+    if (!result) return;
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+    if (winners.length === 0) return;
+    const names = this._nameList(winners.map((w) => w.seat));
+    const pot = result.pot ?? 0;
+    this._threadTable(
+      result.type === 'showdown'
+        ? `${names} won ${pot} at showdown`
+        : `${names} took ${pot} uncontested`,
+    );
+  }
+
   // ATTR-3: fatigue is a within-session STATE that the record has to carry, so
   // the floor can slump his posture and the card can dip the two bars it
   // touches without asking the table. Written only when the stage actually
@@ -1526,7 +1841,104 @@ export class Table {
       } catch (err) {
         console.error('[table] fatigue note failed:', err.message);
       }
+
+      // SERVER-3 · the session stop rule. Worn is not a debuff he plays
+      // through: he stands up. The ref's line is that he sits at the bar
+      // HIMSELF — nobody calls him in, no notification fires, and fatigue
+      // fixes itself there. Marking the seat leaving here is enough; we are
+      // between hands inside _handCompleted, and the departure check a few
+      // lines below either frees the seat or closes the table exactly as it
+      // does for a sit-out.
+      if (eff.fatigue === 'worn' && !this.seatLeaving[seat]
+          && !this._pendingSitOut.has(seat) && !this._benchAfterHand.has(seat)) {
+        this.seatLeaving[seat] = true;
+        this.seatEndReason[seat] = 'worn';
+        console.log(`[table:${this.tableId}] seat ${seat} is worn after ${sessionHands} hand(s) — ending his session`);
+      }
     }
+  }
+
+  // ── SERVER-3 · the face triggers ──────────────────────────────────────────
+  //
+  // Six moments a ghost pulls a face for. Three of them are knowable at the
+  // moment of a decision and ride DECISION; the other three need the hand to
+  // be over and ride result.events. Same vocabulary either way — a client maps
+  // one name to one expression and never has to know which message brought it.
+  //
+  // One face at a time, so both of these return a single trigger and the order
+  // inside them IS the priority. A ghost that tried to look stunned and smug
+  // at once would look like neither.
+
+  // Was he looking at a premium holding? Deliberately narrow: pairs from tens
+  // and the two big broadway aces. A face that fires on a third of hands is
+  // wallpaper.
+  _isStrongHolding(holeCards) {
+    if (!Array.isArray(holeCards) || holeCards.length < 2) return false;
+    const a = String(holeCards[0] ?? '')[0];
+    const b = String(holeCards[1] ?? '')[0];
+    if (!a || !b) return false;
+    if (a === b) return STRONG_PAIRS.has(a);
+    const RANKS = '23456789TJQKA';
+    const hi = RANKS.indexOf(a) >= RANKS.indexOf(b) ? a : b;
+    const lo = hi === a ? b : a;
+    return STRONG_UNPAIRED.has(`${hi}${lo}`);
+  }
+
+  // What this seat is reacting to BEFORE it acts. Called with the game still
+  // in its pre-action state; the all-in case is decided after, in the caller,
+  // because whether an action commits a stack is a fact about the engine
+  // having applied it.
+  _decisionEventBefore(seat) {
+    const g = this.game;
+    const me = g?.seats?.[seat];
+    if (!me) return null;
+    // His first look at this hand. Preflop the blinds are already in, so
+    // "facing a raise" has to mean more than the big blind is out there.
+    const firstThisHand = !this.currentHandDecisions.some((d) => d.seat === seat);
+    if (firstThisHand && this._isStrongHolding(me.holeCards)) return 'dealtStrong';
+    const owed = g.currentBet - me.contribThisStreet;
+    const openBar = g.street === Streets.PREFLOP ? this.bigBlind : 0;
+    if (owed > 0 && g.currentBet > openBar) return 'raisedAgainst';
+    return null;
+  }
+
+  // The trigger that actually ships with a decision: whatever he was reacting
+  // to before he acted, unless the action committed his stack. Committing the
+  // stack outranks everything else he could be feeling, and it is only
+  // knowable once the engine has applied the action.
+  _decisionEventFor(seat, before) {
+    return this.game?.seats?.[seat]?.allIn ? 'allIn' : (before ?? null);
+  }
+
+  // What each seat is reacting to once the hand is over. Returns a sparse
+  // { [seat]: event } — a seat with nothing to react to is absent rather than
+  // carrying a null, so the map is the list of faces to draw.
+  _handEndEvents(result) {
+    const g = this.game;
+    if (!g || !result) return {};
+    const out = {};
+    const winners = Array.isArray(result.winners) ? result.winners : [];
+    const pot = result.pot ?? 0;
+    const bigPot = pot > this.bigBlind * BIG_POT_BB;
+
+    for (let seat = 0; seat < g.seats.length; seat++) {
+      const won = winners.some((w) => w.seat === seat);
+      const mine = this.currentHandDecisions.filter((d) => d.seat === seat);
+      if (won) {
+        if (bigPot) out[seat] = 'wonBig';
+        continue;
+      }
+      if (mine.length === 0) continue;
+      const maxEquity = mine.reduce((m, d) => (Number.isFinite(d.equity) && d.equity > m ? d.equity : m), 0);
+      // He got there with the best of it and lost anyway.
+      if (result.type === 'showdown' && maxEquity >= BAD_BEAT_EQUITY) { out[seat] = 'badBeat'; continue; }
+      // He fired without the goods and somebody looked him up.
+      const bluffed = mine.some((d) =>
+        (d.action?.type === 'bet' || d.action?.type === 'raise')
+        && Number.isFinite(d.equity) && d.equity < THRESHOLDS.BLUFF_MAX_EQUITY);
+      if (result.type === 'showdown' && bluffed) out[seat] = 'bluffCaught';
+    }
+    return out;
   }
 
   // Feed the just-completed hand to the opponent-stats ring buffer so
@@ -1574,7 +1986,11 @@ export class Table {
       if (!currentMood) continue;
       const profile = this.agentProfiles[seat] ?? { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
       // ATTR-1 hook — COMPOSURE: how hard the beat lands, and how fast he comes back.
-      const composure = this._seatAttrs(seat)?.COMPOSURE ?? null;
+      const eff = this._seatAttrs(seat);
+      const composure = eff?.COMPOSURE ?? null;
+      // SERVER-3: and STAMINA, through the same door. A worn agent takes a
+      // beat harder than the same agent an hour earlier — see heatScales.
+      const fatigue = eff?.fatigue ?? null;
 
       const won = winners.some((w) => w.seat === seat);
       const pot = result.pot ?? 0;
@@ -1636,7 +2052,7 @@ export class Table {
       let mood = { ...next };
       for (const ev of events) {
         const before = mood.state;
-        mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx, composure });
+        mood = applyMoodEvent(mood, ev.type, profile, { context: ev.ctx, composure, fatigue });
         // ATTR-3 evidence: COMPOSURE is trained by surviving beats WITHOUT
         // tilting. The event landed, the state held — that is the survival.
         if ((EVENT_DELTAS[ev.type] ?? 0) < 0 && mood.state === before) {
@@ -2240,12 +2656,15 @@ export class Table {
   }
 
   _broadcastState() {
+    // SERVER-3: arm the acting seat's clock BEFORE anything goes out, so every
+    // snapshot of this decision carries the same deadline.
+    this._armActionTimer();
     const nGameSeats = this.game?.seats.length ?? 0;
     for (let seat = 0; seat < this.connections.length; seat++) {
       const ws = this.connections[seat];
       if (!ws || ws.readyState !== ws.OPEN) continue;
       if (seat >= nGameSeats) continue; // shouldn't happen given the contiguity invariant
-      const state = this._augmentState(this.game.getPublicState(seat));
+      const state = this._augmentState(this.game.getPublicState(seat), seat);
       const legal = this.game.legalActions(seat);
       ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
     }
@@ -2256,7 +2675,7 @@ export class Table {
     for (const s of this.spectators) {
       if (!s.ws || s.ws.readyState !== s.ws.OPEN) continue;
       if (s.spectatorSeat >= nGameSeats) continue;
-      const state = this._augmentState(this.game.getPublicState(s.spectatorSeat));
+      const state = this._augmentState(this.game.getPublicState(s.spectatorSeat), s.spectatorSeat);
       state.heroEquity = this._heroEquityFor(s.spectatorSeat);
       const reads = this._readsFor(s.spectatorSeat);
       if (reads) state.reads = reads;
@@ -2271,6 +2690,50 @@ export class Table {
     );
   }
 
+  // ── SERVER-3 · the hero's ring ────────────────────────────────────────────
+  //
+  // The acting seat's deadline, armed the moment that seat becomes the one to
+  // act and BEFORE the state that announces it goes out. That ordering is the
+  // whole point: the think delay used to be rolled inside _maybeRunAiTurn,
+  // which _broadcastState fires AFTER it has already sent the snapshot, so the
+  // first frame of every decision carried no deadline at all and a client
+  // drawing a countdown had to start its own clock on arrival — off by the
+  // network, and wrong again on a reconnect mid-think.
+  //
+  // Only an AI seat gets a clock. There is no server-side action timer for a
+  // human seat yet (Fredrik's seat-lifecycle queue owns that), and a deadline
+  // nothing will enforce is worse than no ring: the client would draw it
+  // running out and then nothing would happen.
+  //
+  // Idempotent per (hand, action, seat). The key includes _actionSeq because
+  // heads-up the same seat legitimately acts twice in a row across a street
+  // boundary, and re-arming would have restarted his ring mid-think while
+  // leaving it stale would have handed him the previous street's clock.
+  _armActionTimer() {
+    const g = this.game;
+    const seat = g?.toAct;
+    const live = g && g.street !== Streets.COMPLETE && g.street !== Streets.WAITING;
+    if (!live || seat === null || seat === undefined || !this.aiSeats[seat]) {
+      this.actionTimer = null;
+      this.actionDeadline = null;
+      return null;
+    }
+    const key = `${g.handNumber}:${this._actionSeq}:${seat}`;
+    if (this.actionTimer?.key === key) return this.actionTimer;
+    const totalMs = Math.round(THINK_MIN_MS + Math.random() * THINK_SPREAD_MS);
+    this.actionTimer = { key, seat, deadlineTs: Date.now() + totalMs, totalMs };
+    // AGE-37's advisory field is the same clock; the floor's LiveBar reads it.
+    this.actionDeadline = this.actionTimer.deadlineTs;
+    return this.actionTimer;
+  }
+
+  // The wire shape — the internal key never leaves the server.
+  _actionTimerPayload() {
+    if (!this.actionTimer) return null;
+    const { seat, deadlineTs, totalMs } = this.actionTimer;
+    return { seat, deadlineTs, totalMs };
+  }
+
   _notifyStateChange() {
     if (!this.onStateChange) return;
     try { this.onStateChange(this); }
@@ -2278,7 +2741,9 @@ export class Table {
   }
 
   // Augment state with display names from Table metadata.
-  _augmentState(state) {
+  // `forSeat` is the seat this snapshot was filtered for — SERVER-3's
+  // sessionId is that seat's stay, not the table's.
+  _augmentState(state, forSeat = null) {
     state.seats = state.seats.map((s, i) => ({
       ...s,
       displayName: this.pending[i]?.displayName || s.playerId,
@@ -2291,6 +2756,14 @@ export class Table {
     // client that joins mid-hand is not calm until the next transition.
     state.pace = this.pace ?? PACE.CALM;
     state.potBb = potInBb(state.pot ?? this.game?.pot ?? 0, this.bigBlind);
+    // SERVER-3: the acting seat's deadline, so the client draws the ring the
+    // server is actually keeping rather than one it started on arrival. Null
+    // when nobody is to act and null for a human seat -- see _armActionTimer.
+    state.actionTimer = this._actionTimerPayload();
+    // SERVER-3: which stay this seat is on. The key SESSION_END and
+    // GET /api/agents/:id/thread are both filed under, so a client that
+    // reconnects mid-session can ask for the thread it was reading.
+    state.sessionId = Number.isInteger(forSeat) ? (this.seatSessionIds[forSeat] ?? null) : null;
     return state;
   }
 
@@ -2474,13 +2947,23 @@ export class Table {
   // watching (their spectatorSeat); other seats' decisions arrive
   // sanitized. Full record is still kept in currentHandDecisions for
   // replay/analysis by the seat's owner.
-  _broadcastDecision({ seat, action, reasoning, equity, potOdds }) {
+  _broadcastDecision({ seat, action, reasoning, equity, potOdds, event = null }) {
+    // SERVER-3: `event` is on BOTH payloads. A face is as public as the action
+    // that caused it -- the room can see a man look at his cards and stiffen --
+    // which is the same line SEAT-1a's mood draws. What stays owner-only is
+    // WHY, which is the reasoning, and that has not moved.
     const fullPayload = JSON.stringify({
-      type: ServerMsg.DECISION, seat, action, reasoning, equity, potOdds,
+      type: ServerMsg.DECISION, seat, action, reasoning, equity, potOdds, event,
     });
     const sanitizedPayload = JSON.stringify({
-      type: ServerMsg.DECISION, seat, action,
+      type: ServerMsg.DECISION, seat, action, event,
     });
+    // SERVER-3: his read, in his own voice, into his own thread. It is the
+    // same content the sanitized payload withholds, and readThread applies the
+    // same ownership rule on the way back out.
+    if (typeof reasoning === 'string' && reasoning.trim()) {
+      this._threadTo(seat, ThreadKind.HIM, 'HIM', reasoning);
+    }
     for (const ws of this.connections) {
       if (ws && ws.readyState === ws.OPEN) ws.send(sanitizedPayload);
     }
@@ -2511,6 +2994,11 @@ export class Table {
     if (this.chatHistory.length > 20) {
       this.chatHistory = this.chatHistory.slice(-20);
     }
+    // SERVER-3: into the thread as well as onto the wire. His own line is HIM
+    // (or YOU, when the voice is the owner whispering from the spectator
+    // socket attached to his seat); everybody else's is filed under the name
+    // the felt shows.
+    this._threadSpoken(seat, displayName, trimmed, entry.isAI);
     this._broadcast({
       type: ServerMsg.CHAT,
       seat,
@@ -2925,11 +3413,26 @@ export class Table {
     this.pendingNeedle[aiSeat] = null;  // TLK-1: consumed into gameState
     const strategy = this.agentStrategy || this.aiStrategy[aiSeat];
 
-    // Human-like thinking delay (0.8ÔÇô2.5 s).
-    const thinkMs = 800 + Math.random() * 1700;
-    // Advisory deadline for the floor's LiveBar countdown (AGE-37). Set before
-    // the await so a floor push during the think window carries it.
-    this.actionDeadline = Date.now() + Math.round(thinkMs);
+    // SERVER-3: the clock was armed by _broadcastState before the snapshot
+    // announcing this turn went out, so the delay we sleep here is the SAME
+    // one the client is drawing its ring from. Re-arming as a fallback covers
+    // the paths that reach here without a broadcast in front of them.
+    const timer = (this.actionTimer && this.actionTimer.seat === aiSeat)
+      ? this.actionTimer
+      : this._armActionTimer();
+
+    // ONE run per turn. _maybeRunAiTurn is fired from every _broadcastState,
+    // and a turn that gets broadcast twice used to be saved only by the two
+    // runs drawing different random delays and the loser losing the toAct
+    // re-check below. Now that the delay is the armed clock BOTH runs wake at
+    // the same millisecond, so the race has to be closed properly rather than
+    // left to the dice. The key changes when an action lands or a hand starts,
+    // which is exactly when a new turn begins.
+    const turnKey = timer?.key ?? `${g.handNumber}:${this._actionSeq}:${aiSeat}`;
+    if (this._aiTurnKey === turnKey) return;
+    this._aiTurnKey = turnKey;
+
+    const thinkMs = Math.max(0, (timer?.deadlineTs ?? Date.now()) - Date.now());
     await new Promise((r) => setTimeout(r, thinkMs));
 
     // Re-check: the human might have acted somehow, or hand ended.
@@ -2981,6 +3484,10 @@ export class Table {
 
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
+    // SERVER-3: what he is reacting to, read off the table as it stands BEFORE
+    // the action. Whether the action itself commits his stack is only knowable
+    // once the engine has applied it, which is why allIn is decided below.
+    const eventBefore = this._decisionEventBefore(aiSeat);
     // RIDERS-1: the index of the record we just pushed, so the pot and the
     // all-in flag can be stamped on it once the engine has applied the action.
     const decisionIdx = this.currentHandDecisions.length - 1;
@@ -2996,6 +3503,7 @@ export class Table {
         reasoning,
         equity: gameState.equity,
         potOdds: gameState.potOdds,
+        event: this._decisionEventFor(aiSeat, eventBefore),
       });
       this._resetAiInactivityTimer();
       this._broadcastState();

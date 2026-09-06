@@ -22,6 +22,7 @@ import {
   stateForHeat,
   heatForState,
   heatScales,
+  WORN_HEATING,
   clampHeat,
   restAtBar,
   classifyOwnerMessage,
@@ -333,6 +334,34 @@ console.log('\n— susceptibility: what the owner says, and only what he says �
   check(`mood.js has no absence-tracking identifier`, !banned.test(code));
   check(`mood.js never subtracts one clock reading from another`,
     !/Date\.now\(\)\s*-\s*/.test(src));
+}
+
+// ── SERVER-3: worn tilts faster ─────────────────────────────────────────────
+{
+  console.log('\nSERVER-3 — fatigue on the heat scales');
+  const level = initialMood();
+
+  const fresh = heatScales(VOLATILE, { composure: 50 });
+  const worn  = heatScales(VOLATILE, { composure: 50, fatigue: 'worn' });
+  check('worn heats faster than fresh', worn.heating > fresh.heating);
+  check('worn heats by exactly WORN_HEATING', worn.heating === fresh.heating * WORN_HEATING);
+  check('worn cools at the same rate — quicker to boil, not slower to settle',
+    worn.cooling === fresh.cooling);
+  check('settled is not worn', heatScales(VOLATILE, { fatigue: 'settled' }).heating === fresh.heating);
+  check('fresh is not worn', heatScales(VOLATILE, { fatigue: 'fresh' }).heating === fresh.heating);
+  check('no fatigue argument behaves exactly as before',
+    heatScales(VOLATILE, { composure: 50 }).heating === heatScales(VOLATILE, { composure: 50, fatigue: null }).heating);
+
+  const beatFresh = applyEvent(level, 'lostBigPot', VOLATILE, { composure: 50 });
+  const beatWorn  = applyEvent(level, 'lostBigPot', VOLATILE, { composure: 50, fatigue: 'worn' });
+  check('the same beat lands harder on a worn agent', beatWorn.heat > beatFresh.heat);
+
+  // Cooling is scaled by the SAME cooling factor, so a positive event must be
+  // untouched by fatigue — otherwise "tilts faster" would quietly have become
+  // "is a different player".
+  const winFresh = applyEvent(level, 'wonBigPot', VOLATILE, { composure: 50 });
+  const winWorn  = applyEvent(level, 'wonBigPot', VOLATILE, { composure: 50, fatigue: 'worn' });
+  check('a worn agent enjoys a win exactly as much', winWorn.heat === winFresh.heat);
 }
 
 console.log('\n— summary —');

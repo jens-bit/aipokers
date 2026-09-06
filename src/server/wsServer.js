@@ -106,7 +106,16 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
               agentProfile,
             });
             ws.tableId = msg.tableId;
-            send(ws, { type: ServerMsg.WATCHING, tableId: msg.tableId, spectatorSeat });
+            // SERVER-3 (additive): the id of the stay this watcher has just
+            // attached to, so a client can ask for that session's thread
+            // (GET /api/agents/:id/thread?session=) without waiting for a
+            // STATE to tell it. Null for a seat with no agent behind it.
+            send(ws, {
+              type: ServerMsg.WATCHING,
+              tableId: msg.tableId,
+              spectatorSeat,
+              sessionId: table.sessionIdAtSeat?.(spectatorSeat) ?? null,
+            });
             // AGE-36: hand the watcher the hand already in progress. Sent
             // after WATCHING so the client knows its spectatorSeat first.
             table.sendSnapshot(ws, spectatorSeat);

@@ -45,6 +45,8 @@ import { ITEMS, isItem, priceOf, wantTrigger, buildWant } from '../agent/wants.j
 import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import { loadAgentStore, saveProfile, loadWallet, saveWallet } from './store.js';
+import { emitSessionEnd } from './sessions.js';
+import { readThread, latestSessionFor } from './thread.js';
 import {
   POCKET_FLOAT, ENTRY_BUYIN, MODES,
   emptyWallet, emptyPocket, ensurePocket,
@@ -925,7 +927,7 @@ export function openerForAgent(agent) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [] } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [], sessionEnd = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -1097,6 +1099,27 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   // Quiet win: 3rd consecutive profitable session.
   if (thirdWin) notifyEvent('quiet_win', { ownerId, agentId, agentName });
 
+  // ── SERVER-3 · the session-end message ───────────────────────────────────
+  //
+  // This is the funnel every table-side ending already goes through — a bust,
+  // a sit-out, the hand cap, a wallet cut, STAMINA — so it is the one place
+  // that can promise the ceremony fires exactly once per stay. The caller
+  // hands in the record it built (table.js knows the reason and the numbers);
+  // a caller that does not gets a plain 'stopped' built from what IS known
+  // here, because a session that ended silently is the bug this replaces.
+  //
+  // The other emit site is POST /finish, which ends a session without coming
+  // through this function at all — the two-session-end-paths wart that
+  // predates this tree.
+  emitSessionEnd(sessionEnd ?? {
+    agentId,
+    userId,
+    tableId,
+    reason: 'stopped',
+    hands: sessionHands || 0,
+    net: typeof sessionPnl === 'number' ? sessionPnl : 0,
+  });
+
   return agent;
 }
 
@@ -1140,6 +1163,18 @@ export function getAgentProfile(agentId, userId) {
   if (!agent) return null;
   ensureProfile(agent);
   return agent.profile;
+}
+
+// SERVER-3: the agent's pocket, backfilled. table.js reads it for one
+// question only — when a seat busts, was there anything behind him? — which
+// is what separates a SESSION_END reason of 'bust' from one of 'allowance'.
+// Returned by reference on purpose: it is the same record ensurePocket
+// maintains, and no caller here mutates it.
+export function getAgentPocket(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  return ensurePocket(agent);
 }
 
 // Return the agent's mood record (backfilled). Never null when the agent
@@ -2423,6 +2458,38 @@ export function installAgentProfileRoutes(app) {
     res.json({ memory: agent.memory, memoryContext: getAgentMemoryContext(agent) });
   });
 
+  // GET /api/agents/:agentId/thread?userId=...&session=<id>
+  //
+  // SERVER-3: the table thread for one SESSION, oldest first — the four kinds
+  // of line the watch screen's history sheet renders (TABLE / HIM / YOU /
+  // opponent), with the server's own timestamps on them.
+  //
+  // `session` is optional. A client that has just reconnected knows which
+  // AGENT it was watching and not which stay, so leaving it off answers with
+  // his most recent one; that is what makes "a reconnect gets the record back"
+  // a single request instead of a negotiation.
+  //
+  // Ownership: `him` and `you` lines carry the same private half the DECISION
+  // broadcast withholds from everyone but the owner's spectator (BUG-12/15,
+  // AGE-33), so a non-owner gets the room's lines and what people said out
+  // loud and nothing else. The thread is not refused to him — a spectator at a
+  // real table can hear the table — it is filtered, in thread.js.
+  app.get('/api/agents/:agentId/thread', (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    const { agentId } = req.params;
+    const profile = getOrCreate(userId);
+    const agent = profile.agents.find((a) => a.id === agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const asked = req.query.session ? String(req.query.session) : null;
+    const sessionId = asked || latestSessionFor(agentId);
+    if (!sessionId) return res.json({ sessionId: null, lines: [], count: 0 });
+
+    const owner = isOwner(req, userId);
+    const lines = readThread(sessionId, { owner });
+    res.json({ sessionId, lines, count: lines.length });
+  });
+
   // POST /api/agents/:agentId/finish
   app.post('/api/agents/:agentId/finish', (req, res) => {
     const userId = String(req.body?.userId || 'anon');
@@ -2431,6 +2498,7 @@ export function installAgentProfileRoutes(app) {
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
+    const finishedTableId = agent.activeTableId ?? null;
     if (agent.activeTableId) activeTables.delete(agent.activeTableId);
     agent.status = 'idle';
     agent.activeTableId = null;
@@ -2471,6 +2539,32 @@ export function installAgentProfileRoutes(app) {
         proposalAt: agent.proposal.createdAt ?? null,
       });
     }
+    // SERVER-3: the other session-end path. An owner who stops watching
+    // finishes the session through here rather than through
+    // finishAgentSession — the two-paths wart this route's comments already
+    // name — so the ceremony has to be fired from here too, or half the
+    // sessions in the product would end without one.
+    //
+    // Reason is always 'calledIn': this route exists precisely because the
+    // OWNER decided the session was over. The numbers come from the live table
+    // when there still is one, and from the agent record when there is not.
+    // `finishedTableId`, not agent.activeTableId: this route cleared that field
+    // at the top, and the numbers the ceremony prints live at the table he was
+    // just at.
+    const liveTable = finishedTableId ? (liveTables?.getTable?.(finishedTableId) ?? null) : null;
+    const detail = liveTable?.sessionDetailFor?.(agentId) ?? null;
+    emitSessionEnd({
+      sessionId: detail?.sessionId ?? null,
+      agentId,
+      userId,
+      tableId: detail?.tableId ?? finishedTableId,
+      reason: 'calledIn',
+      hands: detail?.hands ?? (agent.sessionHands ?? 0),
+      net: detail?.net ?? 0,
+      biggestPot: detail?.biggestPot ?? 0,
+      duration: detail?.duration ?? 0,
+    });
+
     res.json(presentAgent(agent, { owner: isOwner(req, userId), walletBalance: walletFor(userId).balance }));
   });
 

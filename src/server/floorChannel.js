@@ -27,6 +27,7 @@ import { ServerMsg } from './protocol.js';
 import { floorSnapshot } from './agentProfiles.js';
 import { bus as eventBus, EventType, HOT_RECENT_MS } from './events.js';
 import { currentRooms } from './rooms.js';
+import { bus as sessionBus, sessionEndMessage } from './sessions.js';
 
 // One push per table per second, per subscriber.
 const PUSH_INTERVAL_MS = Number(process.env.FLOOR_PUSH_INTERVAL_MS ?? 1000);
@@ -56,6 +57,9 @@ export function configure({ liveTables: provider } = {}) {
   // idempotent because `relayEvent` is a stable module-level function.
   eventBus.off('event', relayEvent);
   eventBus.on('event', relayEvent);
+  // SERVER-3: and exactly one on the sessions bus, for the same reason.
+  sessionBus.off('session_end', relaySessionEnd);
+  sessionBus.on('session_end', relaySessionEnd);
 }
 
 export function subscriberCount() {
@@ -196,6 +200,40 @@ function relayEvent(event) {
   }
 }
 
+// ── SERVER-3 · session endings on the floor ─────────────────────────────────
+//
+// Unlike the ticker this IS owner-filtered: a session ending is a fact about
+// one man's night, and the numbers on it (his net, his biggest pot) are the
+// same numbers FLOOR_GAME would only send to a proven owner. So it goes to the
+// subscribers watching that owner's floor and to nobody else.
+//
+// The table broadcasts the same record to its own sockets. Those are different
+// connections in the client -- the felt opens one socket, the floor another --
+// so nothing is delivered twice; a client that chose to do both on one socket
+// can key on `sessionId`, which is unique per stay.
+export function broadcastSessionEnd(record) {
+  if (!record || subs.size === 0) return 0;
+  const wire = sessionEndMessage(record);
+  if (!wire) return 0;
+  const owner = record.userId == null ? null : String(record.userId);
+  const payload = { type: ServerMsg.SESSION_END, ...wire };
+  let sent = 0;
+  for (const [ws, entry] of subs) {
+    if (owner && entry.userId !== owner) continue;
+    if (!owner) continue;   // an ownerless ending has no floor to announce it on
+    if (send(ws, payload)) sent++;
+  }
+  return sent;
+}
+
+function relaySessionEnd(record) {
+  try {
+    broadcastSessionEnd(record);
+  } catch (err) {
+    console.error('[floor] session end relay failed:', err.message);
+  }
+}
+
 // An agent standing changed for this owner (deployed, retired, recap
 // written) — refresh every subscriber watching that owner's floor.
 export function notifyAgentsChanged(userId) {
@@ -296,6 +334,7 @@ function pushGame(ws, entry, table, { force = false } = {}) {
 export function reset() {
   for (const ws of [...subs.keys()]) unsubscribe(ws);
   eventBus.off('event', relayEvent);
+  sessionBus.off('session_end', relaySessionEnd);
   if (roomsTimer) clearTimeout(roomsTimer);
   if (hotExpiryTimer) clearTimeout(hotExpiryTimer);
   roomsTimer = null;
