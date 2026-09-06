@@ -53,7 +53,7 @@ export function safeMood(mood) {
 // floor kept drawing the flat face months after the face system shipped. There
 // is one face function now; the body (scalloped wisp, bob, posture) is all this
 // component still owns.
-export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45 }) {
+export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null }) {
   const uid = useId().replace(/:/g, '');
   const key = safeMood(mood);
   const m = MOODS[key];
@@ -96,7 +96,7 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
         )}
         <path d={body} fill={`url(#fb${uid})`} stroke={`${accent}55`} strokeWidth="1.1" />
         <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
-        {ghostFace({ mood: key, heat, size, eye, cy })}
+        {ghostFace({ mood: key, heat, size, event, eye, cy })}
       </svg>
     </div>
   );

@@ -12,7 +12,15 @@ import {
   readConfidence,
   READ_ROWS,
   AF_FULL_SCALE,
+  // HOME-STATE-1 · the tape room's half
+  studyLine,
+  appendReadBookLine,
+  readBookProjection,
+  READ_BOOK_CAP,
+  READ_BOOK_SUBJECTS,
+  _READ_VOICE,
 } from './reads.js';
+import { isSolverSpeak } from './voice.js';
 
 let failures = 0;
 function check(label, cond, detail) {
@@ -224,7 +232,68 @@ console.log('\n— the READ panel (PACE-1) —');
     readConfidence(15, 5) > readConfidence(15, 20));
 }
 
+// ── HOME-STATE-1 · the read book ────────────────────────────────────────────
+//
+// The tape room's half of this module: the line ninety seconds produces, and
+// the book it goes into. Same two rules as the briefing above — no number may
+// read as a reason to fold, and no line may read as a machine talking.
+
+console.log();
+console.log('8) the study line');
+const FLAG_TYPES = ['badBeat', 'cooler', 'bigBluff', 'heroCall', 'biggestPot', 'somethingElse'];
+
+check('the same hand always produces the same line',
+  [0, 1, 2, 3].every(() => studyLine({ flagType: 'badBeat', handNumber: 41 }) === studyLine({ flagType: 'badBeat', handNumber: 41 })));
+check('two hands of the same shape do not repeat each other word for word',
+  studyLine({ flagType: 'badBeat', handNumber: 41 }) !== studyLine({ flagType: 'badBeat', handNumber: 42 }));
+check('a hand shape with no lesson of its own still says something',
+  !!studyLine({ flagType: 'somethingElse', handNumber: 1 }));
+
+let voiceBad = null;
+for (const flagType of FLAG_TYPES) {
+  for (const handNumber of [0, 1, 2, 41]) {
+    const line = studyLine({ flagType, handNumber });
+    if (!line || isSolverSpeak(line) || /\d/.test(line)) voiceBad = `${flagType}/${handNumber}: "${line}"`;
+  }
+}
+check('no read-book line reads as a machine talking', voiceBad === null, voiceBad);
+
+check('an unknown opponent falls back to the shape he is, in his own voice',
+  studyLine({ flagType: 'somethingElse', handNumber: 1 }, { read: STATION }) === _READ_VOICE.station);
+
+console.log();
+console.log('9) the read book');
+let book = {};
+for (let i = 0; i < READ_BOOK_CAP + 5; i++) {
+  book = appendReadBookLine(book, { playerId: 'p1', displayName: 'Granite', text: `line ${i}`, handNumber: i, at: 1_000 + i });
+}
+check('the book is bounded per opponent', book.p1.lines.length === READ_BOOK_CAP, String(book.p1.lines.length));
+check('and keeps the newest', book.p1.lines.at(-1).text === `line ${READ_BOOK_CAP + 4}`);
+check('oldest out first', book.p1.lines[0].text === 'line 5', book.p1.lines[0].text);
+
+let renamed = appendReadBookLine({}, { playerId: 'p1', displayName: 'Granite', text: 'one', at: 1 });
+renamed = appendReadBookLine(renamed, { playerId: 'p1', displayName: 'Granite v2', text: 'two', at: 2 });
+check('a rename is not a new person', Object.keys(renamed).length === 1 && renamed.p1.lines.length === 2);
+check('and the newest name he was seen under wins', renamed.p1.displayName === 'Granite v2');
+
+check('an empty line is not filed', Object.keys(appendReadBookLine({}, { playerId: 'p1', text: '   ' })).length === 0);
+check('a nameless subject is not filed', Object.keys(appendReadBookLine({}, { playerId: null, text: 'something' })).length === 0);
+
+let many = {};
+for (let i = 0; i < READ_BOOK_SUBJECTS + 3; i++) {
+  many = appendReadBookLine(many, { playerId: `p${i}`, displayName: `P${i}`, text: 'x', at: 1_000 + i });
+}
+check('the book is bounded in opponents too',
+  Object.keys(many).length === READ_BOOK_SUBJECTS, String(Object.keys(many).length));
+check('and the least recently written subject is the one dropped', many.p0 === undefined);
+
+let two = appendReadBookLine({}, { playerId: 'p1', displayName: 'A', text: 'one', at: 1 });
+two = appendReadBookLine(two, { playerId: 'p2', displayName: 'B', text: 'two', at: 5 });
+check('the projection is newest-subject-first',
+  readBookProjection(two).map((s) => s.playerId).join(',') === 'p2,p1');
+
 console.log('\n— summary —');
+
 if (failures === 0) {
   console.log('all reads checks passed');
   process.exitCode = 0;

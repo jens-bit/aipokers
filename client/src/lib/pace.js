@@ -355,3 +355,23 @@ export function nextWaitMs(q, now) {
   if (!q.pending.length) return null;
   return Math.max(0, effectiveDwell(q, now) - (now - q.shownAt));
 }
+
+// ── SERVER-3 · the action clock ──────────────────────────────────────────────
+// The server keeps the acting seat's deadline and puts it on every STATE:
+// { seat, deadlineTs, totalMs }, deadlineTs in server epoch ms. Before this the
+// client started its own clock on arrival — off by the network, and wrong again
+// on a reconnect mid-think. Drawing a ring the server is not keeping is worse
+// than drawing none, so a snapshot without a timer draws none.
+
+/** How many whole seconds are left on a seat's clock, floored at 0. */
+export function timerLeft(actionTimer, now) {
+  if (!actionTimer || !Number.isFinite(actionTimer.deadlineTs)) return null;
+  const t = Number.isFinite(now) ? now : Date.now();
+  return Math.max(0, Math.ceil((actionTimer.deadlineTs - t) / 1000));
+}
+
+/** How far round the ring starts — the full length of that seat's clock. */
+export function timerOf(actionTimer) {
+  if (!actionTimer || !Number.isFinite(actionTimer.totalMs)) return null;
+  return Math.max(1, Math.ceil(actionTimer.totalMs / 1000));
+}

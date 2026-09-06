@@ -184,27 +184,49 @@
   100% { opacity: 0; }
 }
 
-/* ── "why the hand went wrong", pinned under his strip until the next flop ── */
+/* ── 52f / 52k · the cost, as a toast then a dot ──────────────────────────
+   NOTHING ON THIS SCREEN MAY INSERT A ROW. The cost was a pinned panel under
+   his strip, which pushed the felt up and made the cost screen a different
+   screen from the calm one. It rides OVER the strip — same glass, amber left
+   border, absolutely positioned so it costs no height — for four seconds, and
+   then collapses to a 6px amber dot at the strip's right edge. Tapping the dot
+   brings the toast back. The felt geometry is identical in all three states. */
 .watch-hero__cost {
-  width: 100%;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 7px 11px;
-  border-radius: 10px;
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.33);
+  padding: 0 11px;
+  border-radius: 13px;
+  background: rgba(18, 30, 28, 0.84);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-left: 3px solid var(--sys-gold, #CDB380);
+  animation: bubble-in 200ms ease-out both;
 }
 
 .watch-hero__cost-line {
   flex: 1;
+  min-width: 0;
   font-size: 11.5px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--sys-gold, #CDB380);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .watch-hero__cost-key {
+  flex-shrink: 0;
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 8.5px;
   font-weight: 600;
@@ -215,6 +237,21 @@
   border-radius: 3px;
   padding: 2px 5px;
   white-space: nowrap;
+}
+
+/* Collapsed: 6px, INSIDE the strip, at its right edge — so again no height
+   changes. It holds until the next flop. */
+.watch-hero__cost-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--sys-gold, #CDB380);
+  box-shadow: 0 0 7px var(--sys-gold, #CDB380);
+  cursor: pointer;
 }
 
 /* ── the whisper: pale, small, rising from the bottom edge, gone in 4s ───── */
@@ -606,6 +643,15 @@
 }
 
 .watch-ceremony__ghost { position: relative; margin-top: 2px; }
+/* Over him, not inside him — there is nothing to hold here, so the hands are
+   free to say something, and they are flung wide of the money line above. */
+.watch-ceremony__hands {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
 
 .watch-ceremony__aura {
   position: absolute;
@@ -681,4 +727,183 @@
   min-height: 0;
   padding: 0 9px;
   border-radius: 8px;
+}
+
+
+/* ── HANDS-1 · 52j · CHIPS, AS OBJECTS ON A FELT ──────────────────────────
+   "Chips were part of his body before this — drawn inside the push pose, so
+   they moved when he did. Now they are things on a felt." Real denominations:
+   white 1 · red 5 · blue 10 · green 25 · black 100, seen almost edge-on and
+   stacked upward, so the HEIGHT of a pile is how much money is there. */
+.chip {
+  position: absolute;
+  left: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(0, 0, 0, 0.55);
+}
+
+.chip-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.chip-stack__pile,
+.bet-spot__pile,
+.pot-chip {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* The figure belongs UNDER the chips it describes, not in a panel elsewhere —
+   which is why STACK is not in his strip any more. */
+.chip-stack__label {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--sys-muted, #9E9EA2);
+}
+.chip-stack__amt {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--sys-text, #EDEDED);
+}
+
+/* Where a bet lands: in front of the cards, on the felt, not in a panel. */
+.bet-spot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bet-spot__amt {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--sys-gold, #CDB380);
+}
+
+/* His pile stands to his LEFT, at his feet, on the felt — the ref's own
+   proportions of the 648px felt (left 16, bottom 150) rather than a pixel
+   offset that would drift on a taller phone. */
+.watch-felt__hero-stack {
+  position: absolute;
+  left: 14px;
+  bottom: 23.1%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* And the bet spot in front of his cards — above his head, between him and the
+   board, so it never lands on the face the whole screen is built around. */
+.watch-felt__hero-bet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 39.8%;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Every seat banks its own chips beside its name chip, ON THE FELT SIDE: the
+   top corners bank BELOW the pill (nothing to clear once you are past row 2),
+   the rails bank BESIDE the body, inside. Never under the name.
+   Both are offsets from the SEAT'S OWN CENTRE, which is what the ref's centred
+   anchoring buys — an edge-anchored wrapper puts its 50% wherever the name
+   happens to end, and that guess is what put one seat's chips on another's
+   pill. */
+.watch-felt__seat-pile {
+  position: absolute;
+  left: 50%;
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+/* His bank goes quiet with him. The PILL is the only thing a fold leaves at
+   full strength — you can always read who is sitting there. */
+.watch-felt__seat-pile.is-folded { opacity: 0.4; }
+.watch-felt__seat--tl .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: 4px; }
+.watch-felt__seat--tc .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: -18px; }
+.watch-felt__seat--tr .watch-felt__seat-pile { top: calc(100% + 5px); margin-left: -18px; }
+.watch-felt__seat--ml .watch-felt__seat-pile { top: 6px;  margin-left: 26px; }
+.watch-felt__seat--mr .watch-felt__seat-pile { top: 6px;  margin-left: -39px; }
+
+/* The bet spot sits between the pile and the pot, so money always reads as
+   travelling. It arrives from the pile and leaves for the pot with every other
+   spot at street end — one sweep, not five animations. */
+.watch-felt__seat-bet {
+  position: absolute;
+  left: 50%;
+  z-index: 3;
+  pointer-events: none;
+  animation: bet-out 240ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.watch-felt__seat--tl .watch-felt__seat-bet { top: calc(100% + 30px); margin-left: 8px; }
+.watch-felt__seat--tc .watch-felt__seat-bet { top: calc(100% + 30px); margin-left: -24px; }
+.watch-felt__seat--tr .watch-felt__seat-bet { top: calc(100% + 30px); margin-left: -56px; }
+/* A rail's spot goes a quarter of the way to the pot rather than half: the
+   midpoint of pile and pot lands ON the pot pill at 390 wide. */
+.watch-felt__seat--ml .watch-felt__seat-bet { top: 34px; margin-left: 32px; }
+.watch-felt__seat--mr .watch-felt__seat-bet { top: 34px; margin-left: -74px; }
+
+@keyframes bet-out {
+  from { opacity: 0; transform: translate(0, -10px) scale(0.85); }
+  to   { opacity: 1; transform: none; }
+}
+/* THE SWEEP. Every spot travels together — one gesture, so the table resolves
+   at once — and the pot's chip gains a band as they land. --sweep-dx/dy is
+   measured by the felt; the fallback simply drops them toward the middle. */
+.watch-felt__seat-bet.is-sweeping,
+.watch-felt__hero-bet.is-sweeping {
+  --sweep-dx: 0px;
+  --sweep-dy: 0px;
+}
+.watch-felt__seat-bet.is-sweeping [data-fly],
+.watch-felt__hero-bet.is-sweeping [data-fly] {
+  display: inline-block;
+  animation: chip-sweep 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes chip-sweep {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to   { transform: translate(var(--sweep-dx), var(--sweep-dy)) scale(0.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-felt__seat-bet { animation: none; }
+  .watch-felt__seat-bet.is-sweeping [data-fly],
+  .watch-felt__hero-bet.is-sweeping [data-fly] {
+    animation: chip-sweep-fade 320ms linear both;
+  }
+  @keyframes chip-sweep-fade { from { opacity: 1; } to { opacity: 0; } }
+}
+
+/* ── the hand layer, over the cards ──────────────────────────────────────
+   "He is holding them, not standing behind them — so the hand layer sits above
+   the card pair rather than inside the ghost." */
+.watch-hero__hands {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 7;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Rest is the only pose with a motion of its own: a 2s idle drift. */
+.ghost-hands--rest { animation: hand-drift 2s ease-in-out infinite; }
+@keyframes hand-drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost-hands--rest { animation: none; }
 }

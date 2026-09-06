@@ -648,4 +648,41 @@ export function installNotifyRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     res.json({ agentId: agent.id, muted: !!agent.notifyMuted });
   });
+
+  // GET /api/notifications/budget — DEEPLINK-1
+  //
+  // The cap is part of the design, not a setting, so the YOU screen shows what
+  // is left of it rather than offering a dial. Read off the same ledger and
+  // through the same owner-local day boundary decide() uses, because a row and
+  // a notifier that disagree about what "today" is are worse than no row.
+  app.get('/api/notifications/budget', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your budget' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(notifyBudget(userId));
+  });
+}
+
+// What the owner has already been sent today, out of what he may be sent.
+// Works with the notifier detached — the mute route is installed on a
+// deployment that is not sending, and so is this: nothing has been spent, and
+// saying so is the truth rather than a failure. `enabled` is what tells the
+// two apart.
+export function notifyBudget(ownerId, at = active ? active.now() : Date.now()) {
+  const owner = String(ownerId);
+  const store = active?.store ?? defaultStore;
+  const off   = active ? active.tzOffsetFor(owner) : DEFAULT_TZ_OFFSET_MIN;
+
+  const dayStart = startOfLocalDay(at, off);
+  const used = store.listNotificationsSince(owner, dayStart).filter((r) => r.ts >= dayStart).length;
+  const held = store.listNotificationHolds(owner).length;
+
+  return {
+    used,
+    max: BUDGET.maxPerDay,
+    held,
+    // When the counter goes back to zero, in owner-local terms.
+    resetsAt: dayStart + DAY_MS,
+    enabled: active !== null,
+  };
 }

@@ -282,3 +282,155 @@ export function readPanel(read, { reads = null, deception = null, minHands = 10 
 
 // Exposed for tests.
 export const _EXPLOITS = EXPLOITS;
+
+// ── HOME-STATE-1 · the read book ────────────────────────────────────────────
+//
+// The tape room is the other half of this module. A briefing is what he knows
+// about an opponent RIGHT NOW, computed from opponentStats and thrown away;
+// the read book is what he WROTE DOWN, one line at a time, and kept.
+//
+// Why it lives here rather than next to the flagged hands it is built from:
+// every rule about how a read may be phrased is in this file — no stat may
+// imply "fold more", every recognised shape gets an explicit exploit — and a
+// line that goes into a book the agent reads back before a session has to obey
+// those rules too. Splitting them would give the product two vocabularies for
+// the same thing, and one of them would drift.
+//
+// Three properties, and the tests pin all three:
+//
+//   1. DETERMINISTIC. The same hand studied twice writes the same line. There
+//      is no model call in the tape room — a ninety-second study that cost a
+//      token every time would be a slot machine, and the point of studying is
+//      that the answer was already in the hand.
+//   2. ONE LINE, HIS VOICE. Not a report. The book is read at a glance before
+//      he sits down, and twelve words is what a glance holds.
+//   3. NO NUMBERS OUT. A read-book line never quotes a percentage, because
+//      voice.js would reject it as solver-speak the moment it reached a
+//      bubble, and the book feeds the same surfaces.
+
+// Lines kept per opponent. A book is a memory, not a log: ten is more than
+// anyone reads before a session and small enough that the newest is never
+// buried. Oldest out first.
+export const READ_BOOK_CAP = 10;
+
+// Opponents kept in a book at all. Same reasoning one level up — an agent who
+// has sat with forty players does not have forty opinions worth keeping, and
+// an unbounded map on a record that is serialised on every save is how a JSON
+// store gets slow.
+export const READ_BOOK_SUBJECTS = 20;
+
+// What he took away, by the shape of the hand he just sat through. The
+// flagType is the classifier flaggedHands.js already ran, so the tape room
+// invents no second taxonomy of what makes a hand worth watching twice.
+//
+// Every line obeys rule 1 of this module: none of them concludes "fold more".
+const STUDY_LINES = Object.freeze({
+  badBeat: [
+    'I was in front the whole way. He got there. It happens.',
+    'Nothing wrong with that hand. He caught the one card.',
+  ],
+  cooler: [
+    'Both of us had a hand. That one was going in blind.',
+    'No way out of that pot. Not a mistake, just a hand.',
+  ],
+  bigBluff: [
+    'He gave that pot up cheap. He will do it again.',
+    'That fold came fast. I can take pots off him.',
+  ],
+  heroCall: [
+    'I called him light and I was right. He fires with nothing.',
+    'He bluffs more than he thinks. Pay him off less carefully.',
+  ],
+  biggestPot: [
+    'Biggest pot of the night, and he paid me. Keep charging him.',
+    'He came along for all of it. Value, not tricks, against this one.',
+  ],
+});
+
+// When the hand is of a shape with no lesson of its own, the classifier that
+// already knows the OPPONENT speaks instead — READ_VOICE, the same sentence
+// the watch panel prints, which keeps one opinion in two places.
+const STUDY_FALLBACK = 'Nothing in that one I did not already know about him.';
+
+/**
+ * The line ninety seconds in the tape room produces.
+ *
+ * Deterministic in the hand: `handNumber` picks which of the two phrasings for
+ * a shape he uses, so studying two different hands of the same type does not
+ * write the same sentence twice, and studying the SAME hand twice does.
+ *
+ * @param {object}  hand      a flagged-hand entry (flagType, handNumber, won)
+ * @param {object}  opts.read the current opponentStats read, if any — used
+ *                            only for the fallback voice line
+ * @returns {string} one line, never empty
+ */
+export function studyLine(hand, { read = null, reads = null } = {}) {
+  const variants = STUDY_LINES[hand?.flagType];
+  if (variants?.length) {
+    const n = Number(hand?.handNumber);
+    const idx = Number.isFinite(n) ? Math.abs(Math.trunc(n)) % variants.length : 0;
+    return variants[idx];
+  }
+  // No lesson in the shape of the hand — fall back to what he makes of the man.
+  const shape = read ? classifyOpponent(read) : null;
+  if (shape && exploitsAllowed(reads)) return READ_VOICE[shape] ?? STUDY_FALLBACK;
+  return STUDY_FALLBACK;
+}
+
+/**
+ * Append one line to a read book, returning a NEW book. Pure: the caller
+ * stores what comes back, which is what keeps this module free of persistence.
+ *
+ * A book is keyed by playerId — the id the opponent stats and the grudge
+ * ledger are both keyed by — so the three of them describe the same person.
+ *
+ * @param {object} book   the existing book, or null/undefined
+ * @param {object} entry  { playerId, displayName, text, handNumber, tableId, at }
+ */
+export function appendReadBookLine(book, { playerId, displayName = null, text, handNumber = null, tableId = null, at = Date.now() } = {}) {
+  const id = playerId == null ? '' : String(playerId);
+  const line = typeof text === 'string' ? text.trim().slice(0, 160) : '';
+  if (!id || !line) return book ?? {};
+
+  const next = { ...(book ?? {}) };
+  const prev = next[id] ?? { playerId: id, displayName: displayName ?? id, lines: [] };
+  const lines = [
+    ...(Array.isArray(prev.lines) ? prev.lines : []),
+    { text: line, handNumber, tableId: tableId ?? null, at },
+  ].slice(-READ_BOOK_CAP);
+
+  next[id] = {
+    playerId: id,
+    // A rename is not a new person: the newest name he was seen under wins,
+    // and the book he is filed under does not move.
+    displayName: displayName ?? prev.displayName ?? id,
+    lines,
+    updatedAt: at,
+  };
+
+  // Trim the least recently written subject when the book outgrows its cap.
+  const ids = Object.keys(next);
+  if (ids.length > READ_BOOK_SUBJECTS) {
+    ids
+      .sort((a, b) => (next[a].updatedAt ?? 0) - (next[b].updatedAt ?? 0))
+      .slice(0, ids.length - READ_BOOK_SUBJECTS)
+      .forEach((stale) => { delete next[stale]; });
+  }
+  return next;
+}
+
+/**
+ * The book as the tape room serves it: one entry per opponent, most recently
+ * written first, newest line last inside each. An array rather than the stored
+ * map, because the order is the answer to "who have I got something on".
+ */
+export function readBookProjection(book) {
+  return Object.values(book ?? {})
+    .map((subject) => ({
+      playerId: subject.playerId,
+      displayName: subject.displayName ?? subject.playerId,
+      updatedAt: subject.updatedAt ?? null,
+      lines: (Array.isArray(subject.lines) ? subject.lines : []).map((l) => ({ ...l })),
+    }))
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+}

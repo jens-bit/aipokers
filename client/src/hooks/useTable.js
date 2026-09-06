@@ -128,6 +128,10 @@ export function useTable({ wsUrl }) {
           seat: msg.seat,
           equity: msg.equity,
           potOdds: msg.potOdds,
+          // SERVER-3: the face trigger that rides the decision — dealtStrong,
+          // raisedAgainst or allIn. It is on the sanitized payload too: a face
+          // is as public as the action that caused it. lib/faces.js maps it.
+          event: msg.event ?? null,
         });
         break;
 

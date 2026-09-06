@@ -31,6 +31,7 @@ POST /api/agents/:agentId/deploy    — deploy agent to a table; returns tableId
 POST /api/agents/:agentId/queue     — join PvP matchmaking queue
 POST /api/agents/:agentId/result    — report completed hand result (called by table)
 POST /api/agents/:agentId/finish    — mark agent idle after session ends
+POST /api/agents/:agentId/want      — answer the one thing he is asking for (yes | later | no)
 POST /api/agents/chat               — conversational turn (creation flow or owner chat)
 POST /api/agents/build              — generate agent from creation chat
 GET  /api/stats                     — live platform metrics (active tables, agents, hands today)
@@ -66,6 +67,57 @@ Example — where the action is, by room:
   # owner-scoped, same as the ticker. A table running at blinds no rung uses
   # is in no room and counted in none.
 
+## Wants — the one thing he is asking you for
+
+Every agent has at most ONE active want, or none. It is generated from his own
+state — fatigue, mood heat, how long he has been sat at the bar, whether his
+pocket is empty, what his last session came to, whether the man he cannot beat
+has just taken a seat — and written in his voice from a template. There is no
+model call anywhere in the path.
+
+It rides `want` on GET /api/agents, GET /api/agents/:agentId and the WebSocket
+FLOOR_STATE, and a WANT message is pushed to that owner's floor subscribers
+when it changes. Answer it with:
+
+  curl -X POST 'https://agenticpoker.app/api/agents/<id>/want?userId=<uid>' \
+       -H 'Content-Type: application/json' -d '{"answer":"yes"}'
+
+The seven kinds, in priority order — a new want replaces the pending one only
+if it OUTRANKS it, and everything below `rest` is an ask from the bar:
+
+  rest     STAMINA fatigue reached 'worn'          "Sit one out. I'm cooked."
+  deploy   fresh and idle at home for over 20 min  "Put me in."
+  beer     mood heat >= 70 at home                 "Get me a beer."
+  back_in  heat >= 70 and he left a table under    "Let me back in there, I'm
+           10 minutes ago. ALWAYS dangerous:true    fine."
+  fund     his pocket cannot cover a buy-in        "Front me?"
+  brag     last session's net >= 3x the biggest    "You have to hear about
+           pot he had money in this week            this hand."
+  nemesis  the player he is worst against has      "Marlow is in the back
+           just been seated somewhere               room. Send me."
+
+`answer` is one of:
+
+  yes    the server does what it can and names what it cannot. rest benches him
+         until STAMINA is back to 'fresh' (POST /deploy answers 409
+         agentResting until then, and the bench clears itself — there is
+         nothing to press). beer spends 200 chips from the WALLET on the one
+         item. Otherwise the reply carries `needs`: 'deploy' (open the casino
+         with him selected, in `room` when it is set), 'fund' (open the wallet
+         — this route moves no money by itself) or 'thread' (open the thread
+         and let him tell you about it).
+  later  thirty minutes of quiet, then the SAME want comes back, still
+         unanswered. This is the only timer a want has.
+  no     it is gone, and that kind stays quiet for an hour.
+
+A want does not expire, does not sour and does not decay because nobody came
+back. It also disappears when the WORLD gives him what he asked for: deploy him
+from the casino rather than pressing yes and the "put me in" goes quietly.
+
+All three answers write one line into the agent's private read on his owner, as
+a paraphrase and never as the words anyone used. `later` and `no` are recorded
+neutrally — declining is a decision, not a slight.
+
 ## WebSocket protocol summary
 
 Send (client → server):
@@ -95,7 +147,7 @@ Receive (server → client):
   YOUR_TURN   — it is your turn to act; includes legal actions and time limit
   HAND_RESULT — showdown result, winners, payouts
   CHAT        — chat message from another player or the AI dealer
-  FLOOR_STATE — { userId, agents: [{ id, name, presence, mood, lastMoment,
+  FLOOR_STATE — { userId, agents: [{ id, name, presence, mood, lastMoment, want,
                 sessionRecap, unseenRecap, proposal, activeTableId, liveGame }],
                 rooms: [...] }
                 Sent on FLOOR_SUB and whenever an agent's standing changes
@@ -161,6 +213,42 @@ Receive (server → client):
                 Like the ticker it is NOT filtered by owner — it is counts and
                 table ids, nothing private. A client that ignores this message
                 sees exactly what it saw before it existed.
+  HOME_STATE  — { userId, agents: [...], game } — the owner's living room.
+                Owner-filtered like FLOOR_STATE: it rides the first subscribe
+                and is pushed whenever an agent's standing, location or routine
+                changes, or the home game is stood up or broken up.
+                Each agent is
+                  { id, name, nature, mood,
+                    location: { where, tableId, room, since },
+                    routine: { key, label } | null,
+                    fatigue, unseenRecap, study }
+                `where` is home | casino | table. `room` is the stakes-tier
+                room id (floor | upstairs | backroom) while he is out, null at
+                home. `since` is server epoch ms — when he arrived where he is,
+                and it does not move while the answer does not change, so a
+                client can print "home, 40 minutes" without a clock of its own.
+                `routine` is what he is doing AT HOME and is null anywhere else;
+                `key` is one of plays | tape | sulks | sleeps | waits | paces |
+                reads | shuffles | counts.
+                `game` is the home game or null:
+                  { tableId, state, seats: [{ seat, agentId, name, house }],
+                    handsPlayed }
+                `state` is running | paused. `tableId` is an ordinary table id
+                — WATCH it exactly as you watch any other table. It is at no
+                stakes, on no rung of the ladder and in no room, so it never
+                appears in FLOOR_ROOMS and never carries a FLOOR_GAME.
+                A client that ignores this message sees exactly what it saw
+                before it existed.
+  WANT        — { userId, agentId, want } — what one agent is asking his owner
+                for has changed. Owner-filtered, unlike the ticker: a want is
+                between a man and his backer, and it names rooms, money and a
+                state of mind. `want` is null when he has stopped asking
+                (answered, snoozed, or the world gave him what he wanted), and
+                otherwise { kind, text, needs, dangerous, item, room, mood, at }
+                — see the "Wants" section above for the seven kinds and how to
+                answer one. `text` is his line and is safe to render as-is.
+                The same object rides GET /api/agents and FLOOR_STATE, so a
+                client that ignores this message is never wrong, only late.
   SESSION_END — { sessionId, agentId, tableId, reason, hands, net, biggestPot,
                 duration, endedAt } — one agent's STAY at a table is over. A
                 session is not a hand and not a table: he sits down, he plays,

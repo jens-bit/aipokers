@@ -154,44 +154,34 @@
   pointer-events: none;
 }
 
-/* WV2-4: the seat ring, ported from mood-watch2.jsx (PART 2 · MULTIWAY). One
-   to five opponents; the ref's Seat wrapper is a column -- chip on top, then
-   the row that carries this seat's cards and its street bet toward the felt's
-   centre. slotsFor() in WatchScreen.jsx decides which slots are in play. */
+/* ── HANDS-1 · the seat ring, at the ref's own anchors ────────────────────
+ * design-refs/mood-watch4.jsx SEAT_RINGS: every seat is CENTRED ON ITS OWN X
+ * rather than pinned to a felt edge — 74 / 195 / 316 across the top and 48 /
+ * 344 on the rails, on the ref's 390 felt, carried here as percentages so a
+ * wider stage keeps the ref's composition.
+ *
+ * Centring is not cosmetic: the seat's satellites (the chip pile, the bet spot)
+ * are offsets FROM THE BODY, and a wrapper anchored to an edge puts its 50%
+ * wherever the name happens to end. That is the guess 52m is about.
+ *
+ * The rails ride above the pot: a 68px stack hung off the board's offset used
+ * to end on the pot pill. */
 .watch-felt__seat {
   position: absolute;
   top: 12px;
   z-index: 2;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
-  align-items: flex-start;
-}
-
-.watch-felt__seat-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.watch-felt__seat--tl { left: 12px; }
-.watch-felt__seat--tr { right: 12px; align-items: flex-end; }
-.watch-felt__seat--tc {
-  left: 50%;
-  top: 10px;
   transform: translateX(-50%);
-  align-items: center;
 }
 
-/* The rails sit level with the ref's y=112 on its 344px felt, whose board is
-   at 172 -- so they track 60px above the board and follow it as the sheet is
-   dragged. The floor keeps them clear of the top-corner chips. */
-.watch-felt__seat--ml { left: 10px;  top: max(48px, calc(var(--wv-board, 172px) - 60px)); }
-.watch-felt__seat--mr {
-  right: 10px;
-  top: max(48px, calc(var(--wv-board, 172px) - 60px));
-  align-items: flex-end;
-}
+.watch-felt__seat--tl { left: 19%; }
+.watch-felt__seat--tc { left: 50%; top: 8px; }
+.watch-felt__seat--tr { left: 81%; }
+.watch-felt__seat--ml { left: 12.5%; top: max(48px, calc(var(--wv-pot, 209px) - 26px)); }
+.watch-felt__seat--mr { left: 87.5%; top: max(48px, calc(var(--wv-pot, 209px) - 26px)); }
 
 /* The outer row only positions and centres; the pill is the inner element.
    Before WV2-5 both rules landed on the same node, so the "pill" stretched
@@ -1190,15 +1180,30 @@
   .watch-felt__hero-card { transition: none; }
 }
 
-/* ── W4-2 · seats as characters ─────────────────────────────────────────
- * mood-watch4.jsx SeatGhost / SeatClock. A seat is a 60px stack: ghost 41,
- * gap 2, name chip 17. The felt's bubble bands are measured off it. */
+/* ── HANDS-1 · ONE SEAT ANATOMY (52m) ───────────────────────────────────
+ * mood-watch4.jsx SeatGhost at the geometry design 52m settled.
+ *
+ *   ROW 1   40px   the body. Cards against the lower third, fists gripping
+ *                  their bottom corners from below, THE FACE ALWAYS CLEAR.
+ *   GAP     10px   the only vertical space in the seat.
+ *   ROW 2   18px   one pill — name, stack, one line. The ring and the dealer
+ *                  button attach to its LEFT EDGE, so nothing orbits the face.
+ *   TOTAL   68px
+ *
+ * The ref calls the gap 6 and the stack 64. It cannot be both: SEAT_GRIP puts a
+ * seat's fists 9.5px below the 40px body (they have to hang below the cards to
+ * grip them from underneath), so a 6px gap lands two fists on the ends of the
+ * name pill — exactly the pile-up 52m exists to end. The gap absorbs the
+ * overhang instead; the body and the pill are the ref's own numbers.
+ *
+ * FOLDED dims THE BODY, never the pill: whatever else goes quiet, you can
+ * always read who is sitting there. */
 
 .seat-ghost {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 10px;
   padding: 0;
   min-height: 0;
   border: none;
@@ -1207,40 +1212,59 @@
   text-transform: none;
   letter-spacing: normal;
 }
-.seat-ghost.is-folded { opacity: 0.34; filter: saturate(0.4); }
 .seat-ghost.is-acting { z-index: 5; }
 
-.seat-ghost__body { position: relative; display: block; }
-.seat-clock {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  overflow: visible;
-  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.7));
+.seat-ghost__body {
+  position: relative;
+  display: block;
+  transition: opacity 160ms linear;
 }
+.seat-ghost.is-folded .seat-ghost__body { opacity: 0.34; filter: saturate(0.4); }
+
 .seat-ghost__ring {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(100% + 20px);
-  height: calc(100% + 20px);
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 1px dashed var(--sys-teal, #00D4AA);
   box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
   pointer-events: none;
 }
+
+/* Against the LOWER THIRD of him and IN FRONT of him — he is holding them.
+   Before this they sat behind the ghost at z-index -1, which is why a fist
+   could not be seen to be gripping anything. */
 .seat-ghost__backs {
   position: absolute;
   left: 50%;
-  top: 6px;
-  transform: translateX(-50%) rotate(-6deg);
-  z-index: -1;
+  /* AGAINST THE LOWER THIRD, and clear of the face by measurement rather than
+     by eye: a sulking ghost's eyes sit 4 units lower than every other mood's,
+     so the ref's 60% clipped them, and only on that one posture. The pair is
+     square, as the ref draws it — the -6° fan this used to carry bought a
+     tilted look and two more pixels of overlap on the eyes it cost them. */
+  top: 72%;
+  transform: translateX(-50%);
+  z-index: 4;
   display: flex;
-  gap: 1px;
+  gap: 3px;
 }
 .seat-ghost__ghost { display: block; }
+
+/* THE HANDS ARE IN FRONT OF THE CARDS. Over the pair, under nothing, and never
+   catching a tap — the seat itself is the button. */
+.seat-ghost__hands {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  overflow: visible;
+  pointer-events: none;
+}
+.seat-ghost.is-folded .seat-ghost__hands { opacity: 0.34; }
+
 .seat-ghost__history {
   position: absolute;
   top: -2px;
@@ -1259,39 +1283,98 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
+  z-index: 6;
+}
+
+/* ROW 2. The two satellites attach to the pill's left edge rather than orbiting
+   the body — that is the entire fix for "hands over faces, chips under names". */
+.seat-ghost__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  max-width: 100%;
+}
+
+/* THE PILL'S LEFT EDGE — out of flow, so the pair costs the seat no width.
+   On a RAIL the left edge is the felt's edge and there is nothing there, so the
+   satellites attach on the inside instead. Same rule, read from the felt: they
+   hang off the pill, on the side the table is. */
+.seat-ghost__sat {
+  position: absolute;
+  right: 100%;
+  top: 0;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+}
+.watch-felt__seat--ml .seat-ghost__sat,
+.watch-felt__seat--mr .seat-ghost__sat {
+  right: auto;
+  left: 100%;
+  flex-direction: row-reverse;
+  padding-right: 0;
+  padding-left: 4px;
+}
+.seat-clock {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+  overflow: visible;
+  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.7));
+}
+.seat-ghost__dealer {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #EDEDED;
+  color: #0E1112;
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .seat-ghost__chip {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 6px;
+  height: 18px;
+  padding: 0 7px;
   border-radius: 9px;
-  background: rgba(14, 17, 18, 0.8);
+  background: rgba(14, 17, 18, 0.88);
   border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
   white-space: nowrap;
   max-width: 100%;
+  box-sizing: border-box;
 }
 .seat-ghost.is-acting .seat-ghost__chip { border-color: rgba(237, 237, 237, 0.4); }
 .seat-ghost__name {
   font-size: 9.5px;
   color: var(--sys-dim, #C3C3C6);
   font-weight: 500;
+  /* A seat is centred on its own x now, so a long name grows the pill in BOTH
+     directions — off the felt at the corners, and onto the pot at the rails.
+     The name is the half that ellipsizes; the stack never does. */
+  max-width: 58px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .seat-ghost.is-acting .seat-ghost__name { color: var(--sys-text, #EDEDED); }
+.seat-ghost__sep { font-size: 8px; color: var(--sys-muted, #9E9EA2); }
 .seat-ghost__stack {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 8.5px;
-  color: var(--sys-muted, #9E9EA2);
-}
-.seat-ghost__timer {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 700;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-dim, #C3C3C6);
 }
+.seat-ghost.is-folded .seat-ghost__stack { color: var(--sys-muted, #9E9EA2); }
 
 .seat-ghost__shelf {
   display: flex;
@@ -1482,11 +1565,14 @@
    rendered, so every opponent bubble fell back to the felt's top-left corner
    and was clipped by it — whoever was speaking, wherever they sat. Playwright,
    390x844, "Again?" half off the left edge. */
-.watch-felt__bubble--tc { left: 50%; transform: translateX(-50%); top: 4px; }
-.watch-felt__bubble--ml { left: 6px; top: 74px; }
-.watch-felt__bubble--mr { right: 6px; top: 74px; }
-.watch-felt__bubble--tl { left: 6px; top: 62px; }
-.watch-felt__bubble--tr { right: 6px; top: 62px; }
+/* HANDS-1: a seat is a 68px stack now and banks a pile under it, so every band
+   moved down by the difference. The rails speak ABOVE themselves, as the ref
+   has them — there is nothing under a rail but the board. */
+.watch-felt__bubble--tc { left: 50%; transform: translateX(-50%); top: 84px; }
+.watch-felt__bubble--ml { left: 6px; top: max(8px, calc(var(--wv-pot, 209px) - 66px)); }
+.watch-felt__bubble--mr { right: 6px; top: max(8px, calc(var(--wv-pot, 209px) - 66px)); }
+.watch-felt__bubble--tl { left: 6px; top: 88px; }
+.watch-felt__bubble--tr { right: 6px; top: 88px; }
 
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation: none; }
@@ -1518,15 +1604,21 @@
 .table-row--his .table-row__who { color: var(--sys-teal, #00D4AA); }
 .table-row--his .table-row__text { color: var(--sys-text, #EDEDED); }
 
-/* ── W5-2 · the muck ────────────────────────────────────────────────────
- * "Folds don't feel like anything." The cards are thrown at the muck — the
- * centre of the felt — over 350ms, with a slight arc and a turn, and they fade
- * as they land. Transform and opacity only: one composited layer per card, no
- * reflow, nothing that can move the seat ring while a hand is live.
+/* ── W5-2 / HANDS-1 · the muck ─────────────────────────────────────────
+ * "Folds don't feel like anything." The cards are thrown at THE MUCK — one
+ * fixed spot beside the pot, so a table of six folds resolves to one pile
+ * instead of six directions.
  *
- * The direction is per slot, because "toward the muck" is a different vector
- * from every chair. --muck-dx/dy is the throw; --muck-turn is the tumble, kept
- * inside the 15–25° the brief asks for. */
+ * A SEAT FOLDING IS NOT THE HERO FOLDING (52i): 250ms rather than 350, a
+ * flatter arc, and NOTHING FADES — a fold that dissolves reads as a bug, so the
+ * pair keeps full opacity all the way to the pile. His own throw keeps the
+ * hero's 350ms arc and goes the other way up the felt.
+ *
+ * --muck-dx/dy is the throw. The per-slot values below are the fallback; the
+ * felt measures the real delta from each chair to the one spot and writes it
+ * inline, because the spot is centred on a felt whose width is not knowable
+ * from inside a seat. --muck-turn is the tumble, kept inside the 15-25° the
+ * brief asks for. */
 
 /* --muck-base is whatever transform the card already wears, because a keyframe
  * replaces the whole transform property and both of these have one: the seat's
@@ -1535,14 +1627,23 @@
  * with a jump sideways. */
 .seat-ghost__backs.is-mucking,
 .watch-felt__hero-card.is-mucking {
-  --muck-base: translate(0, 0);
   --muck-dx: 0px;
   --muck-dy: 52px;
   --muck-turn: 22deg;
-  animation: watch-muck 350ms cubic-bezier(0.32, 0, 0.67, 0.35) both;
   pointer-events: none;
 }
-.seat-ghost__backs.is-mucking { --muck-base: translateX(-50%) rotate(-6deg); }
+
+.watch-felt__hero-card.is-mucking {
+  --muck-base: translate(0, 0);
+  animation: watch-muck 350ms cubic-bezier(0.32, 0, 0.67, 0.35) both;
+}
+
+/* The seat's pair: flatter, faster, and it LANDS rather than dissolving. */
+.seat-ghost__backs.is-mucking {
+  --muck-base: translateX(-50%);
+  animation: watch-muck-seat 250ms cubic-bezier(0.32, 0, 0.67, 0.35) both;
+  z-index: 7;
+}
 
 /* The arc: up and out of the seat first, then down into the middle. */
 @keyframes watch-muck {
@@ -1563,7 +1664,25 @@
   }
 }
 
-/* Where the muck is, from each chair. */
+/* Flatter (−4px of lift rather than −9), and no opacity anywhere in it. */
+@keyframes watch-muck-seat {
+  0% {
+    transform: var(--muck-base) translate(0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform:
+      var(--muck-base)
+      translate(calc(var(--muck-dx) * 0.5), calc(var(--muck-dy) * 0.46 - 4px))
+      rotate(calc(var(--muck-turn) * 0.55)) scale(0.9);
+  }
+  100% {
+    transform: var(--muck-base) translate(var(--muck-dx), var(--muck-dy))
+      rotate(var(--muck-turn)) scale(0.78);
+  }
+}
+
+/* Where the muck is, from each chair — the fallback the felt overwrites once it
+ * has measured the one spot. */
 .watch-felt__seat--tl .seat-ghost__backs.is-mucking { --muck-dx:  34px; --muck-dy: 48px; --muck-turn:  19deg; }
 .watch-felt__seat--tc .seat-ghost__backs.is-mucking { --muck-dx:   0px; --muck-dy: 54px; --muck-turn:  24deg; }
 .watch-felt__seat--tr .seat-ghost__backs.is-mucking { --muck-dx: -34px; --muck-dy: 48px; --muck-turn: -19deg; }
@@ -1574,19 +1693,54 @@
  * --muck-turn is set per card inline, so the two do not tumble in lockstep. */
 .watch-felt__hero-card.is-mucking { --muck-dx: 0px; --muck-dy: -58px; }
 
+/* THE MUCK: ONE FIXED SPOT. A table of six folds makes one pile, which is the
+ * whole reason the spot exists, and it is face down at every frame.
+ *
+ * The ref puts it beside the pot. At 390 that is where the left rail's name
+ * pill lives, so it sits just under the board instead — the same idea (one spot
+ * in the middle of the table, off to the dealer's side) at the only place on a
+ * phone that is actually empty. */
+.watch-felt__muck {
+  position: absolute;
+  top: calc(var(--wv-board, 128px) + 70px);
+  left: 50%;
+  margin-left: -140px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.watch-felt__muck-pair {
+  display: flex;
+  gap: 1.5px;
+  margin-left: -13px;
+  transform: rotate(-14deg) scale(0.78);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+.watch-felt__muck-pair:first-child { margin-left: 0; }
+.watch-felt__muck-pair:nth-child(2) { transform: rotate(9deg) scale(0.78); }
+.watch-felt__muck-pair:nth-child(3) { transform: rotate(-4deg) scale(0.78); }
+
 /* The seat dims only once the cards have landed, so a fold reads as one event
- * and not two. .is-folded is withheld for the length of the throw; this keeps
- * the ghost itself steady underneath it. */
-.seat-ghost.is-mucking { opacity: 1; }
+ * and not two. .is-folded is withheld for the length of the throw. */
+.seat-ghost.is-mucking .seat-ghost__body { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .seat-ghost__backs.is-mucking,
   .watch-felt__hero-card.is-mucking {
     animation: watch-muck-fade 350ms linear both;
+  }
+  /* A seat's pair does not fade even here — it just stops arcing. */
+  .seat-ghost__backs.is-mucking {
+    animation: watch-muck-seat-flat 250ms linear both;
   }
   @keyframes watch-muck-fade {
     from { opacity: 1; }
     to   { opacity: 0; }
+  }
+  @keyframes watch-muck-seat-flat {
+    from { transform: var(--muck-base) translate(0, 0); }
+    to   { transform: var(--muck-base) translate(var(--muck-dx), var(--muck-dy)); }
   }
 }
 

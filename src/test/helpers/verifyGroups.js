@@ -43,9 +43,13 @@ export const E2E = new Set([
 ]);
 
 // Needs a built client to serve. Skipped rather than excluded: when
-// client/dist exists the cache-header contract is worth asserting, and CI
-// runs `npm test` before any client build.
-const NEEDS_CLIENT_DIST = new Set(['verify-cache-headers.js']);
+// client/dist exists the contract is worth asserting, and CI runs `npm test`
+// before any client build.
+//
+// DEEPLINK-1 added the second one. What it asserts — that a GET route is not
+// answered with index.html — only exists when there IS an index.html to be
+// answered with, so it needs the same dist the cache headers do.
+const NEEDS_CLIENT_DIST = new Set(['verify-cache-headers.js', 'verify-deeplink-routes.js']);
 const hasClientDist = () => fs.existsSync(path.join(ROOT, 'client', 'dist', 'assets'));
 
 export function listVerifyScripts() {

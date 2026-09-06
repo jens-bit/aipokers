@@ -9,10 +9,11 @@ import { readHands } from './server/handHistory.js';
 import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } from './server/auth.js';
 import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
-import { attachNotify } from './server/notify.js';
+import { attachNotify, installNotifyRoutes } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
 import { installRoomRoutes } from './server/rooms.js';
+import { installTapeRoomRoutes } from './server/tapeRoom.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
@@ -49,6 +50,13 @@ installEventRoutes(app);
 // GET /share/<id>.png the prepared message points at. Registered here, above
 // the SPA fallback, so the image is not answered with index.html.
 installShareRoutes(app);
+// DEEPLINK-1: the notifier's two routes, up here rather than with
+// attachNotify() at the foot of this file. The mute is a POST and survived
+// down there because the SPA fallback only answers GET — but the budget board
+// the YOU screen reads is a GET, and a GET registered after the fallback is
+// answered with index.html. Registered once, above it, and attachNotify is
+// called without `app` so it does not register them a second time.
+installNotifyRoutes(app);
 
 // Build the HTTP server and attach WebSocket before registering the remaining
 // routes so that the tables Map is in scope for /api/stats.
@@ -62,6 +70,12 @@ const { wss, tables } = createServer({
 // createServer() because that is where the table registry is wired into
 // rooms.js. Public counts only, no model call, inside the /api rate limiter.
 installRoomRoutes(app);
+
+// HOME-STATE-1: POST/GET /api/agents/:id/study — the tape room and the read
+// book it fills. Owner-gated, no model call, inside the /api rate limiter
+// above. Registered here rather than with the other agent routes because the
+// home game it takes him out of is only wired once createServer() has run.
+installTapeRoomRoutes(app);
 
 // Load the OpenAPI spec once at startup so it can be served cheaply.
 const openApiPath = path.join(__dirname, '..', 'openapi.json');
@@ -180,11 +194,12 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // NOTIFY-1/2: the Telegram push notifier — the only one, since NOTIFY-2 folded
-// the legacy NOTIFY_ENABLED sender into it. Last line on purpose: it registers
-// POST /api/agents/:id/notify, and the SPA fallback above only answers GET, so
-// a POST still reaches it. Everything else it does is out-of-band, and it
-// sends nothing at all unless NOTIFY_ENABLED is set.
-attachNotify({ app });
+// the legacy NOTIFY_ENABLED sender into it. Everything it does from here is
+// out-of-band — the bus subscription, the restart flush, the timers — and it
+// sends nothing at all unless NOTIFY_ENABLED is set. Its HTTP routes are NOT
+// registered here: they went in above the SPA fallback (DEEPLINK-1), which is
+// where a GET has to be to reach anything.
+attachNotify();
 
 // SHARE-2: answer inline queries for the same cards. No-op without a bot
 // token, and SHARE_INLINE=0 turns it off on a deployment that would rather

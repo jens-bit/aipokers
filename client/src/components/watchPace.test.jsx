@@ -265,8 +265,11 @@ describe('WATCH-7: a hand ends quietly', () => {
     vi.useFakeTimers();
     try {
       const { container, rerender } = renderWatch(midHandGame);
+      // HANDS-1 moved the figure OUT of his strip and under the pile of chips it
+      // describes — the chips ARE the stack. The rule is unchanged and follows
+      // it there: the number has to be seen moving.
       const stackText = () => container
-        .querySelector('.watch-hero__stack-row .watch-felt__hero-num').textContent;
+        .querySelector('.watch-felt__hero-stack .chip-stack__amt').textContent;
       expect(stackText()).toBe('$940');
 
       act(() => { rerenderWatch(rerender, wonBig()); });

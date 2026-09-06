@@ -10,7 +10,7 @@
     "build:client": "cd client && npm install && npm run build",
     "test": "node --test src/test/legacy.test.js src/test/verifyScripts.test.js",
     "test:client": "cd client && npm test",
-    "test:all": "npm test && npm run test:client",
+    "test:all": "npm test && npm run test:client && npm run test:e2e",
     "test:e2e": "node --test src/test/e2e.test.js",
     "test:live": "node src/server/agentChat.test.js",
     "test:live:providers": "node scripts/test-live-providers.js",

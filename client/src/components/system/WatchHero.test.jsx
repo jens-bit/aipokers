@@ -8,8 +8,11 @@
 // The rules asserted here are the ones the ref states as laws:
 //   · twice an opponent seat, facing the viewer
 //   · his cards face up IN FRONT of him, never behind
-//   · a FLOWED COLUMN — bubble, him, rope, strip, cost — so nothing lands on
-//     anything else. That is the lesson v4b paid eleven defects for.
+//   · a FLOWED COLUMN — bubble, him, rope, strip — so nothing lands on anything
+//     else. That is the lesson v4b paid eleven defects for.
+//   · NOTHING ON THIS SCREEN MAY INSERT A ROW (52f). The cost was a pinned panel
+//     under his strip, which pushed the felt up and made the cost screen a
+//     different screen from the calm one. It rides OVER the strip now.
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -18,7 +21,9 @@ import { fileURLToPath } from 'node:url';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { WatchHero, heroPose, betBand, OPP_SEAT, HERO_GHOST } from './WatchHero.jsx';
+import {
+  WatchHero, heroPose, betBand, COST_TOAST_MS, OPP_GHOST, OPP_SEAT, HERO_GHOST,
+} from './WatchHero.jsx';
 
 const hole = [['A', 's'], ['K', 'h']];
 
@@ -31,9 +36,12 @@ describe('the column', () => {
     const { container } = draw({ says: 'He checked twice.', action: 'BET $240', cost: { key: 'FOCUS', line: 'He misjudged equity by 7%.' } });
     const order = [...container.querySelector('.watch-hero').children]
       .map((el) => el.className.split(' ')[0]);
+    // Four, with or without a cost: the cost rides over the strip rather than
+    // taking a row of its own, so the felt geometry is identical either way.
     expect(order).toEqual([
-      'watch-hero__says', 'watch-hero__body', 'watch-hero__tug', 'glass', 'watch-hero__cost',
+      'watch-hero__says', 'watch-hero__body', 'watch-hero__tug', 'glass',
     ]);
+    expect(container.querySelector('.watch-hero__strip .watch-hero__cost')).toBeTruthy();
   });
 
   // The band is reserved by the flow, not by a fixed height: with nothing said
@@ -54,9 +62,13 @@ describe('the column', () => {
 
 describe('him', () => {
   it('is twice an opponent seat', () => {
-    // A seat on the ring is a 60px stack: 34px ghost, 2px gap, 17px name chip.
+    // HANDS-1: 52m settles the seat at a 40px body, and the ratio is measured
+    // body to body — a hero measured against a seat's whole 68px stack (body +
+    // gap + pill) was comparing him to a column of chrome, not to a character.
     expect(HERO_GHOST).toBe(96);
-    expect(HERO_GHOST / OPP_SEAT).toBeGreaterThanOrEqual(1.6);
+    expect(OPP_GHOST).toBe(40);
+    expect(OPP_SEAT).toBe(68);
+    expect(HERO_GHOST / OPP_GHOST).toBeGreaterThanOrEqual(2);
     const { container } = draw();
     expect(container.querySelector('.mood-ghost').getAttribute('width'))
       .toBe(String(HERO_GHOST));

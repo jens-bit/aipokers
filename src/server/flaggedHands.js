@@ -109,7 +109,15 @@ export function classifyHand({ won, resultType, decisions, pot, sessionBiggestPo
 //                             attribute shaped this hand, in his voice. Built by
 //                             attrCostsForHand; passed in rather than computed
 //                             here so this module stays free of character logic.
-export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [], attrCosts = [] }) {
+//   opponents             — HOME-STATE-1 [{ seat, playerId, displayName }]: who
+//                             else was at the table for this hand. A seat index
+//                             is not a person — seats compact when players come
+//                             and go — and the tape room has to be able to file
+//                             what he learned under the man he learned it from,
+//                             which means the identity has to be stored with the
+//                             hand rather than looked up afterwards at a table
+//                             that may no longer exist.
+export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [], attrCosts = [], opponents = [] }) {
   const streets = (decisions ?? []).map((d) => ({
     street:    d.street    ?? 'preflop',
     board:     Array.isArray(d.community) ? [...d.community] : [],
@@ -139,6 +147,15 @@ export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCa
         }))
       : [],
     won:        !!won,
+    opponents:  Array.isArray(opponents)
+      ? opponents
+          .filter((o) => o && o.playerId != null)
+          .map(({ seat, playerId, displayName }) => ({
+            seat: Number.isInteger(seat) ? seat : null,
+            playerId: String(playerId),
+            displayName: displayName ?? String(playerId),
+          }))
+      : [],
     streets,
     attrCosts:  Array.isArray(attrCosts) ? attrCosts : [],
     flaggedAt:  Date.now(),
