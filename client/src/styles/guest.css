@@ -340,3 +340,11 @@
   .claim-wall,
   .claim-wall__sheet { animation: none; }
 }
+
+/* The room sits under the hero, full height, and is the app itself. */
+.guest-landing__room {
+  position: relative;
+  min-height: 100dvh;
+  min-height: var(--tg-h, 100dvh);
+  background: var(--bg-primary, #1A1A1E);
+}

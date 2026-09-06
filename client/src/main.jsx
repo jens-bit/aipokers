@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import LoginGate from './components/LoginGate.jsx';
+import { GuestLanding } from './components/guest/GuestLanding.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import './styles/index.css';
@@ -56,13 +57,14 @@ async function boot() {
 
     if (ownerId) return render(<App guestBoot="returning" />);
 
-    // Nobody yet — mint one and open into the flat with the recruiter already
-    // talking (G1). The five-a-day-per-address cap is what bounds a crawler
-    // or a bounced tab; see guest.js for why that cap is rows rather than a
-    // Map. A server that refuses falls through to the login door rather than
-    // rendering an app with no owner behind it.
+    // Nobody yet — mint one, and land him on the page that IS the game (job
+    // 6): one hero viewport, and the room itself directly under it with the
+    // recruiter already talking (G1). The five-a-day-per-address cap is what
+    // bounds a crawler or a bounced tab; see guest.js for why that cap is rows
+    // rather than a Map. A server that refuses falls through to the login door
+    // rather than rendering an app with no owner behind it.
     const made = await startGuest();
-    if (made) return render(<App guestBoot="new" />);
+    if (made) return render(<GuestLanding />);
   }
 
   // (4): the door that was always here.
