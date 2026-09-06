@@ -110,6 +110,18 @@ const userId = 'e2e-server-life-user';
 // the sections that fill the floor get an owner of their own rather than
 // quietly leaning on the absence of a roster limit.
 const floorUserId = 'e2e-server-life-floor';
+// SLOTS-1: the second, third and fourth agent slots are EARNED — 10,000 /
+// 50,000 / 250,000 in winnings (src/server/slots.js). This suite needs several
+// agents for reasons that have nothing to do with slots, so every owner in it
+// is seeded as somebody whose stable has already won them. Seeding has to
+// happen before the first request for that owner, because agentProfiles caches
+// a wallet the first time it is asked for one. The ladder itself is asserted in
+// src/server/slots.test.js.
+const { saveWallet } = await import('../src/server/store.js');
+const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+unlockSlots(userId);
+unlockSlots(floorUserId);
+
 const owners = [userId, floorUserId];
 const cleanupAgents = [];
 

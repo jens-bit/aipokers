@@ -75,7 +75,9 @@ import {
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
+  ensureEarned, recordEarned,
 } from './wallet.js';
+import { slotsProjection, slotBlocker, SLOT_CAP } from './slots.js';
 import {
   DRAFT_MAX_WORDS,
   draftReply,
@@ -500,7 +502,9 @@ function notifyBrokeOnce(userId, agent) {
 // the birth flow promises ("one open seat"), and it is a design constraint, not
 // a billing one: an owner with twelve agents has a fleet, and the game is about
 // knowing a handful of characters well enough to have opinions about them.
-export const AGENT_CAP = 4;
+// SLOTS-1: the four are now EARNED one at a time (slots.js), and the ceiling
+// is that ladder's length rather than a second 4 kept in step by hand.
+export const AGENT_CAP = SLOT_CAP;
 
 // An archived agent is a RECORD, not a roster entry: kept in full, hidden from
 // every surface that lists who you have. Nothing here deletes anything.
@@ -511,6 +515,23 @@ export function isArchived(agent) {
 // The roster, which is what the cap counts and what every list route serves.
 function activeAgents(profile) {
   return (profile?.agents ?? []).filter((a) => !isArchived(a));
+}
+
+// SLOTS-1: the two numbers every slot question is answered from — how many of
+// this owner's slots are in use, and what his agents have won for him. Both
+// doors into a new agent (POST /build and the draft's "lets go") ask this one
+// function rather than counting for themselves, which is what stops them
+// drifting apart the way the two session-end paths did.
+function slotStateFor(userId, profile) {
+  const wallet = walletFor(userId);
+  return { used: activeAgents(profile).length, earned: ensureEarned(wallet) };
+}
+
+// The refusal, or null. Returned by both creation doors, verbatim: `agentCap`
+// when the roster is full (retiring is the only way past it) and `slotLocked`
+// when the slot exists but has not been won yet.
+function slotRefusal(userId, profile) {
+  return slotBlocker(slotStateFor(userId, profile));
 }
 
 // The end of a career. He hands back everything he is holding — float included,
@@ -1056,6 +1077,19 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       amount: creditAmount,
       tableId: tableId ?? null,
     });
+    // SLOTS-1: a winning session is what buys the next agent slot. The counter
+    // is the OWNER's, not the agent's — his stable earns it between them — and
+    // only the positive half counts, so a losing night costs him nothing he had
+    // already unlocked (slots.js, rule 2).
+    //
+    // This is the casino's session-end path and the only writer, which is what
+    // keeps the home game out of it: nothing at the kitchen table calls in
+    // here, so nothing at the kitchen table unlocks anything.
+    if (sessionPnl > 0) {
+      const wallet = walletFor(userId ?? 'anon');
+      recordEarned(wallet, sessionPnl);
+      saveWalletFor(userId ?? 'anon');
+    }
   }
 
   // ── ATTR-3: growth ─────────────────────────────────────────────────────────
@@ -2631,6 +2665,21 @@ export function installAgentProfileRoutes(app) {
     });
   });
 
+  // GET /api/slots?userId=... — SLOTS-1
+  //
+  // How many agents he has, how many he may ever have, and what the next one
+  // costs him in EARNINGS. Owner-scoped like the wallet it reads from: a
+  // stranger has no business knowing how much somebody's stable has won.
+  //
+  // No model call, so nothing here to rate-limit beyond index.js's /api guard.
+  app.get('/api/slots', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your slots' });
+    const profile = getOrCreate(userId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(slotsProjection(slotStateFor(userId, profile)));
+  });
+
   // POST /api/agents/:agentId/fund?userId=...  { verb | mode, amount, cap, refill }
   //
   // WALLET-7: the client speaks two verbs and the store speaks the four modes
@@ -3664,9 +3713,14 @@ export function installAgentProfileRoutes(app) {
       // AGENTS-2: the cap is checked BEFORE the build, so a full roster costs no
       // model call — and the draft is left intact, ready to finish the moment
       // the owner makes room.
-      if (activeAgents(profile).length >= AGENT_CAP) {
+      // SLOTS-1: and the same check now also answers "the slot is not earned
+      // yet", for the same reason and in the same place. The draft survives
+      // either refusal untouched: a locked slot is a thing that opens by
+      // itself the next time one of his agents has a winning night.
+      const refusal = slotRefusal(userId, profile);
+      if (refusal) {
         saveStore(userId);
-        return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+        return res.status(409).json(refusal);
       }
       const built = await buildFromDraft(profile, briefSoFar);
       const agent = commitAgent(profile, null, built.agent);
@@ -3728,8 +3782,12 @@ export function installAgentProfileRoutes(app) {
     // AGENTS-2: same cap, same 409, on the other door into commitAgent. A
     // REBUILD of an agent who already exists is not a new agent and is never
     // capped — otherwise a full roster could not edit its own agents.
-    if (!existingAgentId && activeAgents(profile).length >= AGENT_CAP) {
-      return res.status(409).json({ error: 'agentCap', cap: AGENT_CAP });
+    // SLOTS-1: `agentCap` past four, `slotLocked` before the slot is earned.
+    // A REBUILD is neither — it takes no new slot, so it is never refused for
+    // one, exactly as AGENTS-2 wrote it.
+    if (!existingAgentId) {
+      const refusal = slotRefusal(userId, profile);
+      if (refusal) return res.status(409).json(refusal);
     }
 
     const existingAgentForCtx = existingAgentId

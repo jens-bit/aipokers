@@ -376,6 +376,9 @@ export default function App() {
       <DesktopHome
         game={game}
         lastDecision={lastDecision}
+        // WATCH-8: the socket's own status, so the desk's rail refetches the
+        // stored thread when the connection comes back.
+        connection={status}
         onSitOut={sitOut}
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}

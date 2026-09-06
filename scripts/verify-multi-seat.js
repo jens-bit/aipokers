@@ -100,6 +100,21 @@ const userId = 'e2e-multi-seat-user';
 const ownerOf = (n) => `${userId}-${n}`;
 const cleanup = [];   // { id, owner }
 
+// SLOTS-1: the second, third and fourth agent slots are EARNED — 10,000 /
+// 50,000 / 250,000 in winnings (src/server/slots.js). This was written when
+// the suite ran every agent off one owner, which made it the fourth agent's
+// problem. MATCH-1 then gave each agent its own backer, so no owner here asks
+// for a second slot and the ladder is not in the way at all today.
+//
+// The seeding stays, moved into newAgent so it applies to whichever owner is
+// being built for: it costs one write, and the day a section does build two
+// agents for one backer, this suite should fail on the seating it is about and
+// not on a slot limit. It has to run before the FIRST request for that owner —
+// agentProfiles caches a wallet the first time it is asked for one. The ladder
+// itself is asserted in src/server/slots.test.js.
+const { saveWallet } = await import('../src/server/store.js');
+const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+
 const listAgents = async (owner, { auth = true } = {}) =>
   (await j('GET', `/api/agents?userId=${owner}`, null, { owner: auth })).body?.agents ?? [];
 const getAgent = async (agentId, owner, opts) =>
@@ -121,6 +136,7 @@ const waitFor = async (label, read, predicate, budgetMs = 60_000, everyMs = 100)
 };
 
 const newAgent = async (label, owner) => {
+  unlockSlots(owner);   // SLOTS-1 — before the first request for this owner
   await j('POST', '/api/agents/chat/reset', { userId: owner });
   const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;

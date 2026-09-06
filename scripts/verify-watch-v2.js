@@ -96,6 +96,16 @@ const userId = 'e2e-watch-v2-user';
 // One shared owner was only ever one fewer thing to type; the sections do not
 // interact, so the hero gets his own. Nothing asserted here changes.
 const heroUserId = 'e2e-watch-v2-hero';
+// SLOTS-1: the second, third and fourth agent slots are EARNED — 10,000 /
+// 50,000 / 250,000 in winnings (src/server/slots.js). This suite needs several
+// agents for reasons that have nothing to do with slots, so every owner in it
+// is seeded as somebody whose stable has already won them. Seeding has to
+// happen before the first request for that owner, because agentProfiles caches
+// a wallet the first time it is asked for one. The ladder itself is asserted in
+// src/server/slots.test.js.
+const { saveWallet } = await import('../src/server/store.js');
+const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+
 
 // AGENTS-2 caps a roster at four. Sections 1 and 2 spend all four between
 // them, so section 6 — added later, by SERVER-3 — was building a fifth and
@@ -104,6 +114,12 @@ const heroUserId = 'e2e-watch-v2-hero';
 // have a roster of its own; the default is the file's, so sections 1-5 are
 // unchanged.
 const newAgent = async (label, owner = userId) => {
+  // SLOTS-1, before the first request for this owner. Named owners used to be
+  // unlocked one by one up top; MATCH-1 then added a section with an owner of
+  // its own (ownerA, two agents on purpose) and its second build came back
+  // slotLocked. Unlocking whoever is actually being built for is the version
+  // that does not need editing again the next time a section brings a backer.
+  unlockSlots(owner);
   await j('POST', '/api/agents/chat/reset', { userId: owner });
   const r = await j('POST', '/api/agents/build', { userId: owner });
   const id = r.body?.createdAgent?.id ?? null;
