@@ -229,6 +229,38 @@ export function isHome(location) {
   return location?.where === Where.HOME;
 }
 
+// ── Newborn ─────────────────────────────────────────────────────────────────
+
+/**
+ * BIRTH-5 / BUG-32 — how long after birth he still counts as having just
+ * arrived.
+ *
+ * A minute, and the number matters less than the fact that there IS one. The
+ * room walks a newborn in through the door instead of materialising him in a
+ * chair, and that has to be a thing that stops being true: without a window,
+ * every reconnect for the rest of his career would walk him in again, and an
+ * arrival that happens every time is not an arrival.
+ *
+ * The window is also why the marker is a boolean on the wire rather than a
+ * timestamp the client subtracts from its own clock. A phone whose clock is
+ * eleven minutes fast would otherwise never see a birth at all.
+ */
+export const NEWBORN_MS = 60_000;
+
+/**
+ * Was this agent born a moment ago?
+ *
+ * False for anyone with no `bornAt`, which is every agent made before BIRTH-5
+ * put the field on the record. That is the right answer for them: an agent who
+ * has been in the room for a month did not just walk in, and guessing his age
+ * out of his id would make the room replay a birth from March.
+ */
+export function isNewborn(agent, { now = Date.now() } = {}) {
+  const born = Number(agent?.bornAt);
+  if (!Number.isFinite(born)) return false;
+  return now - born >= 0 && now - born < NEWBORN_MS;
+}
+
 // ── The wire ────────────────────────────────────────────────────────────────
 
 /**
@@ -238,15 +270,15 @@ export function isHome(location) {
  * Only the fields the HOME screen draws: this rides the same socket as
  * FLOOR_STATE and there is no reason to send a strategy prompt twice.
  */
-export function homeStateMessage(userId, agents, game = null) {
+export function homeStateMessage(userId, agents, game = null, { now = Date.now() } = {}) {
   return {
     userId: String(userId ?? 'anon'),
-    agents: (agents ?? []).map(homeAgentProjection),
+    agents: (agents ?? []).map((agent) => homeAgentProjection(agent, { now })),
     game: game ?? null,
   };
 }
 
-function homeAgentProjection(agent) {
+function homeAgentProjection(agent, { now = Date.now() } = {}) {
   return {
     id: agent.id,
     name: agent.name,
@@ -257,5 +289,12 @@ function homeAgentProjection(agent) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
+    // BUG-32: he was born a moment ago, so the room walks him in through the
+    // door rather than drawing him already sitting down. Computed here, on the
+    // server's clock, so a phone with a wrong clock cannot miss the arrival —
+    // and `bornAt` rides along beside it so a client that got a snapshot from
+    // an older server can still work it out for itself.
+    bornAt: Number.isFinite(Number(agent.bornAt)) ? Number(agent.bornAt) : null,
+    newborn: isNewborn(agent, { now }),
   };
 }

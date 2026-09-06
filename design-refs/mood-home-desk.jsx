@@ -125,7 +125,78 @@ const HdFridgeScreenM = () => (
   </D7Shell>
 );
 
+// the stage under the camera: the room slice fills the stage, the rail stays put
+const HdCam = ({ children, zoom = true }) => {
+  const k = zoom ? CAM.k * HD_SCALE : HD_SCALE;
+  const W = F_W * HD_SCALE, H = 806;
+  const tx = zoom ? -(FLAT.table.cx * k - W / 2) : 0;
+  const ty = zoom ? -((FLAT.table.cy - 6) * k - H / 2) : 0;
+  return (
+    <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', background: '#0C1110', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: W, height: H, position: 'relative', overflow: 'hidden', borderRadius: 6, border: `1px solid ${M_BORDER}`, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, width: F_W, height: F_H, transform: `translate(${tx}px,${ty}px) scale(${k})`, transformOrigin: '0 0', transition: 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' }}>
+          <H_BOUND.Provider value={zoom ? { min: FLAT.table.cx - W / (2 * k), max: FLAT.table.cx + W / (2 * k), edge: H_EDGE / k } : null}>
+            <HomeFlat>{children}</HomeFlat>
+          </H_BOUND.Provider>
+        </div>
+        {/* your hand and your verbs sit on the stage, not in the rail */}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, transparent 0%, rgba(8,12,12,0.9) 46%)', padding: '34px 18px 16px', display: 'flex', alignItems: 'flex-end', gap: 18 }}>
+          <div style={{ transform: 'scale(1.1)', transformOrigin: 'left bottom' }}><OwnerHand win={zoom ? 62 : 38}/></div>
+          <div style={{ flex: 1, display: 'flex', gap: 8 }}>
+            {[['FOLD', M_MUTED], ['CHECK', M_DIM], ['CALL', M_TEAL], ['BET', M_GOLD]].map(([v, c]) => (
+              <span key={v} style={{ flex: 1, textAlign: 'center', fontFamily: OSWALD, fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', color: c, background: c === M_MUTED ? 'rgba(255,255,255,0.05)' : `${c}14`, border: `1px solid ${c === M_MUTED ? 'rgba(255,255,255,0.14)' : `${c}66`}`, borderRadius: 10, padding: '12px 0' }}>{v}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// P19 · you sat down: the one push-in, desktop
+const HdSitDownScreenM = () => (
+  <D7Shell net="+$1,290" flagged="2 flagged">
+    <HdCam>{ownerTable({ turn: false })}</HdCam>
+    <HdThread lines={[
+      { you: true, text: 'Deal me in.' },
+      { a: { ...H_CAST.bal, mood: 'confident' }, text: 'You never fold a river bet, boss.' },
+      { a: H_CAST.val, text: 'He is not wrong.' },
+    ]}/>
+  </D7Shell>
+);
+
+// P20 · pulled back to the room, still in the hand
+const HdPulledBackScreenM = () => (
+  <D7Shell net="+$1,290" flagged="2 flagged">
+    <HdRoom>
+      <AwayWall hooks={2}/>
+      {ownerTable({ turn: true, secs: 12 })}
+      <HomeOne a={{ ...H_CAST.blf, mood: 'sulking' }} at={STAND.couch} routine="sleep" size={42} stamina={20} heat={16}/>
+    </HdRoom>
+    <HdPanel title="YOUR TURN · 12S">
+      <div style={{ padding: '12px 14px' }}>
+        <div style={{ fontSize: 11.5, color: M_MUTED, lineHeight: 1.5, paddingBottom: 11 }}>You pulled back to the room and you can still act. Timeout checks if it can, folds if it cannot — either way you are dealt in next hand.</div>
+        <ActionRow raised sub="12s · timeout checks for you"/>
+      </div>
+    </HdPanel>
+  </D7Shell>
+);
+
+// P21 · the table sheet in the rail, three labelled sections
+const HdTableSheetScreenM = () => (
+  <D7Shell net="+$1,290" flagged="2 flagged">
+    <HdRoom dim>
+      <AwayWall hooks={2}/>
+      <TableChairs taken={2}/>
+      <HomeGame ring={OWNER_RING}
+        players={[{ a: { ...H_CAST.agg, mood: 'frustrated' }, stamina: 60, heat: 58 }, { a: H_CAST.bal, stamina: 80, heat: 18 }]}/>
+    </HdRoom>
+    <HdPanel title="THE TABLE"><TableSheet taken={2}/></HdPanel>
+  </D7Shell>
+);
+
 Object.assign(window, {
+  HdCam, HdSitDownScreenM, HdPulledBackScreenM, HdTableSheetScreenM,
   HD_SCALE, HD_RAIL, HdRoom, HdThread, HdPanel,
   HdHomeScreenM, HdSafeScreenM, HdTableScreenM, HdFridgeScreenM,
 });

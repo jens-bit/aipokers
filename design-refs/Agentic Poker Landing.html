@@ -12,9 +12,12 @@
 *{box-sizing:border-box}
 body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
 @keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
-@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @keyframes drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.55}}
+@keyframes shimmer{0%,100%{opacity:.15}50%{opacity:.5}}
+@keyframes dealin{0%{opacity:0;transform:translate(-40px,-90px) rotate(0deg) scale(.9)}100%{opacity:1}}
+@keyframes redeal{0%,92%{opacity:1}93%{opacity:0}100%{opacity:1}}
+@keyframes bubblein{0%{opacity:0;transform:translateY(4px)}100%{opacity:1;transform:translateY(0)}}
 .frame{position:absolute}
 .fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
 .fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#CDB380;letter-spacing:.1em}
@@ -24,6 +27,9 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 .fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
 .fa b{color:#C9C9CE;font-weight:600}
 .fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#CDB380}
+.grouphdr{font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px}
+.grouphdr.teal{color:#00D4AA}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
 .panel{width:420px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
 .panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
 .panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#CDB380;margin-bottom:16px}
@@ -42,9 +48,9 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <!-- BRIEF -->
 <div class="frame" style="left:60px;top:80px">
   <div class="panel">
-    <div class="sub">agenticpoker.app</div>
-    <h1>Sell the character,<br/>not the winnings</h1>
-    <p>A marketing surface, so it lives in <b>burgundy and gold</b> — the brand's territory, not the product's. The product's black-and-teal appears in exactly one place: <b>inside the device frames</b>, where it belongs.</p>
+    <div class="sub">agenticpoker.app · wave 54</div>
+    <h1>Sell the creature,<br/>not the winnings</h1>
+    <p>Rebuilt against the product as it is after wave 53. The page's job is to make a stranger want <b>a poker player they raise</b> — so the copy is about him, and every claim on the page is a thing that exists in the build.</p>
 
     <div class="lbl" style="color:#CDB380">Territory</div>
     <div>
@@ -55,46 +61,55 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       <span class="sw"><i style="background:#E8D5A8"></i>#E8D5A8 gold hi</span>
       <span class="sw"><i style="background:#F4EBDD"></i>#F4EBDD cream</span>
     </div>
-    <p style="margin-top:10px"><b>Rozha One for headlines</b> — a fat-face didone cut in one heavy weight, the voice of a vintage poker poster rather than a template. It has no italic, so emphasis is carried by gold, never a synthesized slant. Playfair stays inside the device frames, where the product speaks. Oswald for labels and the button, Inter for body, JetBrains Mono for the handle and the domain.</p>
+    <p style="margin-top:10px">Marketing lives in <b>burgundy and gold</b>. The product's black-and-teal appears in exactly one place: <b>inside the device frames</b>. <b>Rozha One</b> carries the headlines — a fat-face didone in one heavy weight, a vintage poker poster rather than a template. It has no italic, so emphasis is gold, never a synthesized slant. Playfair speaks only where the agents do.</p>
 
-    <div class="lbl" style="color:#CDB380">The screenshots are the build</div>
-    <p>Every device frame renders a <b>real shipped screen component</b> — <code>BirthDraftScreenM</code>, <code>FloorOneScreenM</code>, <code>ThreadRestingScreenM</code>, <code>FloorThreeScreenM</code>, <code>DeskFloorLiveScreenM</code> — scaled down inside the product's own iOS bezel. Nothing is redrawn. A marketing screenshot that drifts from the build is a lie with a long tail, and redrawing one guarantees the drift.</p>
+    <div class="lbl">Nine sections, in the order a stranger needs them</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Draft him.</b> Thirty seconds of chat, then a nature and six attributes.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>He lives at home.</b> The room, from above, with the table, couch, fridge, TV and door.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>He plays for real.</b> Him at the bottom of the felt, the rope, a whisper.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>The casino.</b> Rooms by stakes and the board ranked by money.</span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>Moods and wants.</b> Heat tiers and a want with its three answers.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>He remembers.</b> Nemesis, a read from the tape room, and the read he has on you.</span></div>
+    <div class="lawrow"><span class="k">7</span><span class="v"><b>Sit down yourself.</b> The kitchen table, and the camera that pushes in once.</span></div>
+    <div class="lawrow"><span class="k">8</span><span class="v"><b>The seats.</b> First free, the rest earned in chips he won.</span></div>
+    <div class="lawrow"><span class="k">9</span><span class="v"><b>Deal him in.</b> The CTA, the fictional agent quote, the play-money line.</span></div>
 
-    <div class="lbl">What is not here</div>
-    <div class="lawrow"><span class="k">1</span><span class="v"><b>No testimonials.</b> There are no users yet, so there are no quotes. A fabricated one would be the first thing a poker audience checks.</span></div>
-    <div class="lawrow"><span class="k">2</span><span class="v"><b>No counts.</b> No &ldquo;12,000 agents drafted&rdquo;, no live ticker of strangers. The floor screenshot shows <i>your</i> four agents, which is a claim about the product rather than its popularity.</span></div>
-    <div class="lawrow"><span class="k">3</span><span class="v"><b>No earnings language.</b> Not &ldquo;win&rdquo;, not &ldquo;profit&rdquo;, not &ldquo;cash out&rdquo;. The stakes language inside the screens is the game's own fiction; the footer says plainly that the chips hold no cash value and cannot be exchanged.</span></div>
+    <div class="lbl">The screenshots are the build</div>
+    <p>Every device frame renders a <b>current</b> screen component from boards 26, 27 and 29 — <code>NavDraftM</code>, <code>FourApartM</code>, <code>NavHomeM</code>, <code>V5CalmScreenM</code>, <code>NavCasinoM</code>, <code>Floor2LiveScreenM</code>, <code>HomeWantM</code>, <code>OwnerSitDownM</code>, <code>OwnerPulledBackM</code> — scaled inside the product's own bezel. Nothing is redrawn, and nothing older than wave 52 appears.</p>
 
-    <div class="lbl">The one headline decision</div>
-    <p><b>&ldquo;Deal him in.&rdquo;</b> Final. Three words of table language that are also the product instruction — you are being asked to put <i>him</i> in the game, which is exactly what the button does. The sub carries the whole mechanic (built in a 30-second chat, real hands, moods, memory, opinions), and the CTA reads <b>&ldquo;Draft him&rdquo;</b> with &ldquo;Free · plays in Telegram&rdquo; as microcopy. One clearly-fictional agent quote sits above the footer — named as an agent, never a customer — the only endorsement this product can honestly print.</p>
+    <div class="lbl">What is still not here</div>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>No testimonials.</b> There are no users yet. The one quote on the page is an agent's, labelled as an agent.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>No counts.</b> No &ldquo;12,000 agents drafted&rdquo;, no ticker of strangers.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>No earnings language.</b> Not win, not profit, not cash out. The footer says plainly that chips hold no cash value.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>No purchase path into the character.</b> The seats section says it out loud: chips buy a seat, and nothing buys an attribute.</span></div>
   </div>
 </div>
 
 <!-- ARTBOARDS -->
 <div class="frame" style="left:520px;top:80px">
-  <div class="grouphdr" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#CDB380;margin-bottom:7px">Viewport discipline</div>
-  <div class="groupsub" style="font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px">The page is now built against a breakpoint table — <b>1440 · 1280 · 768 · 390</b> — with one law on top: <b>the hero fits the first viewport</b>, at 1440×900 and at 1280×800 alike, with the next section's header just peeking above the fold. The headline loses size per breakpoint (88 → 68 → 52), never presence. Section paddings tightened (76px → 54/44px) so each scroll lands at a natural stop. The gold dashed line on these two frames <b>is</b> the fold.</div>
-  <div class="fh" style="margin-top:78px"><span class="fn">V1</span><span class="ft">Hero · 1440×900</span><span class="fb">fold drawn</span></div>
-  <div id="lhv1"></div>
-  <div class="fa"><b>Everything above the line, art included.</b> Masthead, headline at 88, sub, CTA with its microcopy, and the full ghost-at-felt scene sit inside the first viewport, and the HOW IT WORKS label peeks below the hero's border so the page visibly continues. The hero section takes an exact height (viewport − 62px peek) and centres its row inside it.</div>
+  <div class="grouphdr">54 · The fold</div>
+  <div class="groupsub">One law on top of the page: <b>the hero fits the first viewport</b> at 1280×800 and 1440×900 alike, with the next section's number peeking below. The headline loses size per breakpoint (88 → 72 → 46) and never presence. The gold dashed line <b>is</b> the fold.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">H1</span><span class="ft">Hero · 1280×800</span><span class="fb">fold drawn</span></div>
+  <div id="lh1280"></div>
+  <div class="fa">Masthead, headline, the one line that says what this is, the CTA with its microcopy, and the creature — all above the line. The ghost is the <b>current</b> face and hands system at 280px with the sheen kept from the last pass; he breathes on a 5.5s cycle, and <b>the fan deals in</b> — six cards arriving one at a time from off-frame, then re-dealing every nine seconds. That is the page's dealing beat: it lives in the hero art, never inside a product screenshot, because animating a screenshot into doing something the screen does not do is the same lie as redrawing one. The line under the headline names the whole product in one sentence: you draft him, he is born with a nature and six attributes, he lives in a room in your phone and plays real hands without you.</div>
 </div>
 
-<div class="frame" style="left:2080px;top:80px">
-  <div class="fh" style="margin-top:78px"><span class="fn">V2</span><span class="ft">Hero · 1280×800</span><span class="fb gold">the broken one, fixed</span></div>
-  <div id="lhv2"></div>
-  <div class="fa"><b>The laptop case that used to overflow.</b> Headline drops to 68, the scene to 430×310, the masthead pad to 22px — and the same law holds: full hero above the fold, next section peeking. Nothing is removed; everything is rescaled.</div>
+<div class="frame" style="left:1900px;top:80px">
+  <div class="fh" style="margin-top:6px"><span class="fn">H2</span><span class="ft">Hero · 1440×900</span><span class="fb gold">headline at 88</span></div>
+  <div id="lh1440"></div>
+  <div class="fa">The same composition with room to breathe: headline at 88, the creature at his full size, and the same peek below the fold. Nothing is added at the wider breakpoint — it is the same page with more air.</div>
 </div>
 
 <div class="frame" style="left:520px;top:1180px">
-  <div class="fh"><span class="fn">L1</span><span class="ft">Full page · 1280</span><span class="fb">laptop rhythm</span></div>
+  <div class="fh"><span class="fn">L1</span><span class="ft">Full page · 1280</span><span class="fb">nine sections</span></div>
   <div id="lp1280"></div>
-  <div class="fa"><b>The scroll rhythm at laptop width.</b> Hero (one viewport) → how-it-works (phones at 0.335, whole section ≈ one screen) → moods → floor (desktop shot at 0.62) → proof → quote → footer CTA. Dead vertical space between sections is gone: section padding is 44px and every block ends where the next begins. A 768 tablet breakpoint exists in code (<code>Landing768M</code>): two-column sections collapse, the floor switches to the phone shot.</div>
+  <div class="fa">The scroll: hero → draft → home → play → casino → moods and wants → memory → sit down → seats → CTA. Alternating wine and ink grounds mark the rhythm, so a stranger can feel the sections without a nav. Every section is a number, a label, a Rozha headline, one lede paragraph, and <b>real screens</b> — no feature grid anywhere, and no icon invented for a concept.</div>
 </div>
 
-<div class="frame" style="left:2080px;top:1180px">
-  <div class="fh"><span class="fn">L2</span><span class="ft">Full page · 390</span><span class="fb teal">unchanged</span></div>
-  <div id="lmob"></div>
-  <div class="fa"><b>Mobile keeps the current design</b> — caption-before-shot steps, row-layout mood cards, the phone floor shot — untouched by this pass apart from inheriting the tightened section padding.</div>
+<div class="frame" style="left:2340px;top:1180px">
+  <div class="fh"><span class="fn">L2</span><span class="ft">Full page · 390</span><span class="fb teal">mobile first</span></div>
+  <div id="lp390"></div>
+  <div class="fa">At 390 the two-column sections stack, the shots drop to 0.42 and 0.44, the headline goes to 46 and the section heads to 30. The CTA is left-aligned rather than centred, because on a phone a centred button under left-aligned copy reads as a different element.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -107,13 +122,26 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-atoms.jsx"></script>
 <script type="text/babel" src="mood-screens-a.jsx"></script>
 <script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
 <script type="text/babel" src="mood-casino.jsx"></script>
-<script type="text/babel" src="mood-birth.jsx"></script>
-<script type="text/babel" src="mood-desktop.jsx"></script>
-<script type="text/babel" src="mood-landing.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-floor3.jsx"></script>
+<script type="text/babel" src="mood-watch4.jsx"></script>
+<script type="text/babel" src="mood-watch4b.jsx"></script>
+<script type="text/babel" src="mood-watch4c.jsx"></script>
+<script type="text/babel" src="mood-watch5.jsx"></script>
+<script type="text/babel" src="mood-casino2.jsx"></script>
+<script type="text/babel" src="mood-home.jsx"></script>
+<script type="text/babel" src="mood-home2.jsx"></script>
+<script type="text/babel" src="mood-nav.jsx"></script>
+<script type="text/babel" src="mood-landing2.jsx"></script>
 
 <script type="text/babel">
-[['lhv1', LandingHero1440M], ['lhv2', LandingHero1280M], ['lp1280', Landing1280M], ['lmob', LandingMobileM]].forEach(function (p) {
+[['lh1280', () => <LandingHeroN w={1280} vh={800}/>],
+ ['lh1440', () => <LandingHeroN w={1440} vh={900}/>],
+ ['lp1280', Landing1280N],
+ ['lp390', Landing390N]].forEach(function (p) {
   var el = document.getElementById(p[0]);
   if (el) ReactDOM.createRoot(el).render(React.createElement(p[1]));
 });
@@ -131,7 +159,6 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       return (parseInt(f.style.left, 10) || 0) >= 500;
     });
     if (!fs.length) return false;
-    /* THE RULE — never abort, never stop watching; heights only grow. */
     var rows = fs.map(function (f) { return +f.dataset.row; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return a - b; });
@@ -160,9 +187,6 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       if (!relayout() && tries++ < MAX_TRIES) schedule(250);
     }, delay || 0);
   }
-  /* SELF-VERIFYING: a committed layout is only trusted while frame heights match the
-     heights it was computed from. A heartbeat re-measures for 40s — mounts, fonts and
-     images can all land after every scheduled pass has already run and stopped. */
   function stale() {
     var fs = frames().filter(function (f) { return (parseInt(f.style.left, 10) || 0) >= 500; });
     for (var i = 0; i < fs.length; i++) {
@@ -171,9 +195,6 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
       if (h - seen > 2) return true;
     }
     return false;
-  }
-  function remember() {
-    frames().forEach(function (f) { f.dataset.h = String(f.offsetHeight); });
   }
   function boot() {
     schedule(0);

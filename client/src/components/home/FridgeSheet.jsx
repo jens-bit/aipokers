@@ -77,10 +77,14 @@ export function FridgeSheet({ agents = [], onClose, onGiven, variant = 'sheet' }
         <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
       )}
       <div className="home-sheet__panel">
-        <div className="home-sheet__head">
-          <span className="home-sheet__title">The fridge</span>
-          <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
-        </div>
+        {/* In the rail the panel's own head already names it and already has the
+            close; a second title and a second ✕ is the same door drawn twice. */}
+        {inRail ? null : (
+          <div className="home-sheet__head">
+            <span className="home-sheet__title">The fridge</span>
+            <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
+        )}
 
         {agents.length > 1 ? (
           <div className="home-sheet__who" role="radiogroup" aria-label="Who gets it">

@@ -404,11 +404,35 @@ const ghostFace = ({ mood, heat = 45, size = 40, event, eye, cy }) => {
 // `size` decides how much of the face survives. Existing callers pass none of the
 // three and get the mid tier at full detail, which is the face this atom always
 // drew — minus the inner-raised confident brow.
-const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event, hands, bet, won, brow }) => {
+const HOODS = [
+  { id: 'ash',    name: 'ASH',    top: '#141A22', bot: '#0A0F17' },
+  { id: 'oxblood',name: 'OXBLOOD',top: '#2A1316', bot: '#170A0C' },
+  { id: 'moss',   name: 'MOSS',   top: '#16231C', bot: '#0B1410' },
+  { id: 'indigo', name: 'INDIGO', top: '#161A2E', bot: '#0B0E1C' },
+  { id: 'sand',   name: 'SAND',   top: '#262019', bot: '#15110C' },
+  { id: 'slate',  name: 'SLATE',  top: '#1B2026', bot: '#0E1216' },
+];
+const GLOWS = [
+  { id: 'teal',   name: 'TEAL',   c: '#3FB6A8' },
+  { id: 'gold',   name: 'GOLD',   c: '#C9A227' },
+  { id: 'ember',  name: 'EMBER',  c: '#D2632F' },
+  { id: 'violet', name: 'VIOLET', c: '#8B6BC4' },
+  { id: 'ice',    name: 'ICE',    c: '#7FA8C9' },
+  { id: 'lime',   name: 'LIME',   c: '#8FB03F' },
+];
+// one integer from a name is enough: the roll is stable, and the pair is the
+// creature's fingerprint for life
+const idFor = seed => {
+  let n = 0;
+  for (let i = 0; i < String(seed).length; i++) n = (n * 31 + String(seed).charCodeAt(i)) % 9973;
+  return { hood: HOODS[n % 6], glow: GLOWS[(n >> 3) % 6] };
+};
+
+const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, tone, heat = 45, event, hands, bet, won, brow, hood, glow: glowCol }) => {
   const uid = React.useId().replace(/:/g, '');
   const m = MOODS[mood];
-  const mc = tone || m.color;
-  const eye = tone ? tone : (mood === 'neutral' ? accent : m.color);
+  const mc = glowCol || tone || m.color;
+  const eye = glowCol || tone || (mood === 'neutral' ? accent : m.color);
   const slump = mood === 'sulking';
   const cy = slump ? 46 : 42;
   // the glow answers heat too, bounded so the low tier is never invisible
@@ -422,14 +446,14 @@ const MoodGhost = ({ mood = 'neutral', accent = M_TEAL, size = 40, ring = true, 
           <stop offset="1" stopColor={mc} stopOpacity="0"/>
         </radialGradient>
         <linearGradient id={`h${uid}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#141A22"/>
-          <stop offset="1" stopColor="#0A0F17"/>
+          <stop offset="0" stopColor={hood ? hood.top : '#141A22'}/>
+          <stop offset="1" stopColor={hood ? hood.bot : '#0A0F17'}/>
         </linearGradient>
       </defs>
       <ellipse cx="40" cy="44" rx="44" ry="42" fill={`url(#g${uid})`}/>
       {slump
         ? <path d="M40 20 C27 20 20 32 20 48 L17 80 L63 80 L60 48 C60 32 53 20 40 20 Z" fill={`url(#h${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4"/>
-        : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill={`url(#h${uid})`} stroke={ring ? `${accent}66` : 'transparent'} strokeWidth="1.4"/>}
+        : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z" fill={`url(#h${uid})`} stroke={ring ? `${glowCol || accent}66` : 'transparent'} strokeWidth="1.4"/>}
       <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C"/>
       {ghostFace({ mood, heat, size, event, eye, cy })}
       {brow && ghostBrow({ brow, eye, cy })}
@@ -774,6 +798,7 @@ const BackHeader = ({ children, right }) => (
 );
 
 Object.assign(window, {
+  HOODS, GLOWS, idFor,
   FACE_TIERS, faceTier, faceDetail, FACE_EVENTS, ghostFace,
   HAND_FILL, HAND_LINE, HAND_BOX, handW, handScale, handStroke, Fist, Hand,
   MiniBack, HERO_GRIP, SEAT_GRIP, HAND_POSES, OPP_POSES, ghostHands,

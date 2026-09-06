@@ -204,24 +204,34 @@ const edgePin = (x, half) => (
   : { left: '50%', transform: 'translateX(-50%)' }
 );
 
-const HomeBubble = ({ text, x, gold }) => {
-  const side = bubbleSide(x);
+const H_BUB_MAX = Math.round(F_W * 0.6);   // never more than 60% of the room
+// right by default; near the right wall it flips so the text opens inward
+const H_BOUND = React.createContext(null);   // visible room slice, when it is not the whole room
+const H_BUB_GAP = 22;          // body half-width the bubble starts beyond
+const H_PILL_HALF = 32;                     // the name pill overhangs the body
+const bubAnchor = size => Math.max(size - 2, H_PILL_HALF + size / 2);
+const bubRoom = (x, size = 46, bound) => {
+  const off = bubAnchor(size) - size / 2 + 1;   // where the bubble's border actually starts
+  const lo = bound ? bound.min : 0, hi = bound ? bound.max : F_W;
+  const edge = bound ? bound.edge || 4 : H_EDGE;
+  return { right: hi - edge - (x + off), left: (x - off) - (lo + edge) };
+};
+// a preference is honoured only if that side has room; otherwise the wall decides
+const sideFor = (x, pref, size, bound) => {
+  const r = bubRoom(x, size, bound);
+  const want = bound ? 70 : 110;            // zoomed, a narrower bubble is still legible
+  if (pref && r[pref] >= want) return pref;
+  return r.right >= r.left ? 'right' : 'left';
+};
+
+const HomeBubble = ({ text, gold, side = 'right', maxW = H_BUB_MAX }) => {
+  const fill = gold ? '#2A2415' : 'rgba(20,28,27,0.94)';
+  const edge = gold ? `${M_GOLD}66` : 'rgba(255,255,255,0.14)';
   return (
-    <div style={{ position: 'relative', width: 0, height: 40 }}>
-      <div style={{
-        position: 'absolute', bottom: 0, width: H_BUB_W,
-        ...(side === 'right'
-          ? (x + 9 + H_BUB_W > F_W - H_EDGE ? { right: x - F_W + H_EDGE } : { left: 9 })
-          : (x - 9 - H_BUB_W < H_EDGE ? { left: H_EDGE - x } : { right: 9 })),
-        padding: '5px 9px', borderRadius: 11,
-        borderBottomLeftRadius: side === 'right' ? 3 : 11,
-        borderBottomRightRadius: side === 'left' ? 3 : 11,
-        background: gold ? `${M_GOLD}1C` : 'rgba(20,28,27,0.94)',
-        border: `1px solid ${gold ? `${M_GOLD}66` : 'rgba(255,255,255,0.14)'}`,
-        animation: 'bubblein 0.3s ease-out both',
-      }}>
-        <div style={{ fontSize: 10, color: gold ? M_GOLD : M_DIM, lineHeight: 1.35 }}>{text}</div>
-      </div>
+    <div style={{ position: 'relative', width: 'max-content', maxWidth: Math.min(H_BUB_MAX, maxW), padding: '5px 9px', borderRadius: 11, background: fill, border: `1px solid ${edge}`, animation: 'bubblein 0.3s ease-out both' }}>
+      <div style={{ fontSize: 10, color: gold ? M_GOLD : M_DIM, lineHeight: 1.35, textWrap: 'pretty' }}>{text}</div>
+      {/* the tail takes the bubble's own fill, never its border colour */}
+      <span style={{ position: 'absolute', top: '50%', marginTop: -4, [side === 'right' ? 'left' : 'right']: -4, width: 7, height: 7, background: fill, borderLeft: `1px solid ${edge}`, borderBottom: `1px solid ${edge}`, transform: 'rotate(45deg)' }}></span>
     </div>
   );
 };
@@ -245,27 +255,31 @@ const RoutineProp = ({ kind, size }) => {
 
 // green draining to grey, teal warming to red. 2px, no labels at body scale: the
 // colour IS the label, and the profile header prints the words.
+const staminaCol = v => (v > 60 ? '#3FA96B' : v > 35 ? '#B8A83E' : v > 18 ? '#C77A32' : '#B4353A');
+const heatCol = v => (v < 30 ? '#8A6A3A' : v < 55 ? '#C9862E' : v < 80 ? '#D2632F' : '#C4372C');
 const ResourceBars = ({ stamina = 74, heat = 20, w = 54, h = 2.5, gap = 2.5, labels }) => {
-  const stCol = stamina > 55 ? '#3FA96B' : stamina > 28 ? '#8A9A55' : '#6A6A66';
-  const htCol = heat < 35 ? M_TEAL : heat < 65 ? M_GOLD : M_RED;
-  const row = (v, col, lbl) => (
+  const row = (v, col, lbl, drains) => (
     <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      {labels && <span style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED, width: 44 }}>{lbl}</span>}
-      <div style={{ position: 'relative', width: w, height: h, borderRadius: h, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-        <div style={{ width: `${Math.max(3, Math.min(100, v))}%`, height: '100%', background: col, borderRadius: h }}></div>
+      {labels && <span style={{ fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.12em', color: M_MUTED, width: 46 }}>{lbl}</span>}
+      <div style={{ position: 'relative', width: w, height: h, borderRadius: h, background: 'rgba(255,255,255,0.09)', overflow: 'hidden' }}>
+        {/* drains right-to-left: the empty end is always the LEFT end, so a short
+            bar is a spent agent whichever bar you are looking at */}
+        <div style={{ position: 'absolute', [drains ? 'right' : 'left']: 0, top: 0, width: `${Math.max(2, Math.min(100, v))}%`, height: '100%', background: col, borderRadius: h }}></div>
       </div>
-      {labels && <Num size={8} weight={700} color={M_DIM}>{Math.round(v)}</Num>}
+      {labels && <Num size={8.5} weight={700} color={col}>{Math.round(v)}</Num>}
     </div>
   );
-  return <div style={{ display: 'flex', flexDirection: 'column', gap }}>{row(stamina, stCol, 'STAMINA')}{row(heat, htCol, 'HEAT')}</div>;
+  return <div style={{ display: 'flex', flexDirection: 'column', gap }}>
+    {row(stamina, staminaCol(stamina), 'STAMINA', true)}
+    {row(heat, heatCol(heat), 'HEAT', false)}
+  </div>;
 };
 
-const HomeOne = ({ a, at, routine, state, size = 46, says, unread, dim, dealt, snack, name = true, walking, stamina = 74, heat = 20 }) => {
+const HomeOne = ({ a, at, routine, state, size = 46, says, unread, want, side, dim, dealt, snack, name = true, walking, stamina = 74, heat = 20 }) => {
+  const bound = React.useContext(H_BOUND);
   const r = routineFor(a, routine || state);
   return (
     <div style={{ position: 'absolute', left: at.x, top: at.y, transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', zIndex: Math.round(at.y), animation: r.anim || (walking ? 'walkout 2.6s ease-in-out infinite' : 'none'), '--travel': travelTo(at.x, size, walking ? 60 : 34) + 'px' }}>
-      {unread && <HomeBubble text={unread} x={at.x} gold/>}
-      {says && <HomeBubble text={says} x={at.x}/>}
       {name && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5, padding: '2.5px 7px 4px', borderRadius: 8, background: 'rgba(8,12,12,0.9)', border: `1px solid ${unread ? `${M_GOLD}66` : M_BORDER}`, whiteSpace: 'nowrap' }}>
           <span style={{ fontSize: 8.5, color: M_TEXT, lineHeight: 1.1 }}>{a.name.split(' ')[0]}</span>
@@ -273,10 +287,24 @@ const HomeOne = ({ a, at, routine, state, size = 46, says, unread, dim, dealt, s
         </div>
       )}
       <div style={{ position: 'relative', width: size, height: size, opacity: dim ? 0.55 : 1 }}>
+        {/* his hood and glow come from birth, not from mood */}
+        {(says || unread || want) && (() => {
+          const sd = sideFor(at.x, side, size, bound);
+          // a floor would beat the bound and clip; inside a camera the frame decides
+          const mw = bound ? bubRoom(at.x, size, bound)[sd] : Math.max(88, bubRoom(at.x, size)[sd]);
+          return (
+            <div style={{ position: 'absolute', top: size * 0.5, transform: 'translateY(-50%)', [sd === 'right' ? 'left' : 'right']: bubAnchor(size), display: 'flex', flexDirection: 'column', alignItems: sd === 'right' ? 'flex-start' : 'flex-end', gap: 4, zIndex: 9 }}>
+              {unread && <HomeBubble text={unread} gold side={sd} maxW={mw}/>}
+              {says && <HomeBubble text={says} side={sd} maxW={mw}/>}
+              {want && React.cloneElement(want, { side: sd, maxW: mw })}
+            </div>
+          );
+        })()}
         {/* facing the wall: the silhouette with no face, which is the whole point */}
         {r.back
-          ? <svg width={size} height={size} viewBox="0 0 80 80"><path d="M40 6 C57.6 6 70 18.4 70 36 L70 70 C70 78.4 62.4 76.8 57.6 81.6 C53.6 85.6 46.4 85.6 40 81.6 C33.6 85.6 26.4 85.6 22.4 81.6 C17.6 76.8 10 78.4 10 70 L10 36 C10 18.4 22.4 6 40 6 Z" fill="#161F1E" stroke={`${a.accent}33`} strokeWidth="1.5"/></svg>
-          : <MoodGhost mood={a.mood} accent={a.accent} size={size} event={r.face} ring={false}/>}
+          ? <svg width={size} height={size} viewBox="0 0 80 80"><path d="M40 6 C57.6 6 70 18.4 70 36 L70 70 C70 78.4 62.4 76.8 57.6 81.6 C53.6 85.6 46.4 85.6 40 81.6 C33.6 85.6 26.4 85.6 22.4 81.6 C17.6 76.8 10 78.4 10 70 L10 36 C10 18.4 22.4 6 40 6 Z" fill={idFor(a.id || a.name).hood.top} stroke={`${idFor(a.id || a.name).glow.c}44`} strokeWidth="1.5"/></svg>
+          : (() => { const id = a.hood ? { hood: a.hood, glow: a.glow } : idFor(a.id || a.name);
+              return <MoodGhost mood={a.mood} accent={id.glow.c} size={size} event={r.face} ring={false} hood={id.hood} glow={id.glow.c}/>; })()}
         {dealt && !r.back && (
           <div style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translateX(-50%)', display: 'flex', gap: 2, zIndex: 4 }}>
             {[0, 1].map(i => <CardBack key={i} w={size * 0.34} h={size * 0.46}/>)}
@@ -352,17 +380,26 @@ const HomeGame = ({ players, says, ring }) => {
       </div>
       {/* the one label the table needs, and it is the opposite of a money line */}
       <div style={{ position: 'absolute', left: FLAT.table.cx + 30, top: FLAT.table.cy - 28, zIndex: 3, whiteSpace: 'nowrap', padding: '2px 5px', borderRadius: 3, background: 'rgba(8,12,12,0.86)', border: '1px solid rgba(255,255,255,0.07)' }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 7, fontWeight: 600, letterSpacing: '0.13em', color: M_DIM }}>FOR NOTHING</span>
       </div>
-      {players.map((p, i) => (
-        <HomeOne key={p.a.id} a={p.a} at={seats[i]} size={i === 0 ? 50 : 44} dealt routine="game" stamina={p.stamina} heat={p.heat}
-          says={says && says.i === i ? says.text : undefined}/>
-      ))}
+      {players.map((p, i) => {
+        const said = (Array.isArray(says) ? says : says ? [says] : []).find(s => s.i === i);
+        return (
+          <HomeOne key={p.a.id} a={p.a} at={seats[i]} size={i === 0 ? 50 : 44} dealt routine="game" stamina={p.stamina} heat={p.heat}
+            says={said && said.text} side={said && (said.side || (seats[i].x < FLAT.table.cx ? 'left' : 'right'))}/>
+        );
+      })}
     </>
   );
 };
 
-const HomeHead = ({ sub, right }) => (
+const YouAvatar = ({ unread, count }) => (
+  <div style={{ position: 'relative', width: 30, height: 30, borderRadius: 15, background: 'rgba(255,255,255,0.05)', border: `1px solid ${unread ? `${M_GOLD}77` : M_BORDER_2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={unread ? M_GOLD : M_DIM} strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 21c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5"/></svg>
+    {count ? <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 7, background: M_GOLD, color: '#0A0A0A', fontFamily: MONO, fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{count}</span> : null}
+  </div>
+);
+
+const HomeHead = ({ sub, right, you, unread, count }) => (
   <div style={{ flexShrink: 0, height: 46, display: 'flex', alignItems: 'center', gap: 9, padding: '0 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111' }}>
     <SpadeLogo/>
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -370,6 +407,7 @@ const HomeHead = ({ sub, right }) => (
       <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>{sub}</div>
     </div>
     {right}
+    {you && <YouAvatar unread={unread} count={count}/>}
   </div>
 );
 
@@ -563,7 +601,7 @@ const HomeReturnM = () => (
 
 Object.assign(window, {
   NAV3, Nav3, H_CAST, H_ROUTINE, NATURE_ROUTINE, routineFor,
-  F_W, F_H, SHEET_COLLAPSED, FLAT, STAND, clearOf, travelTo, TABLE_SEATS, HomeFlat, H_BUB_W, H_EDGE, edgePin, bubbleSide, HomeBubble,
+  F_W, F_H, SHEET_COLLAPSED, FLAT, STAND, clearOf, travelTo, TABLE_SEATS, HomeFlat, H_BUB_W, H_BUB_MAX, staminaCol, heatCol, YouAvatar, H_BUB_GAP, H_PILL_HALF, bubAnchor, bubRoom, H_BOUND, H_EDGE, edgePin, bubbleSide, sideFor, HomeBubble,
   RoutineProp, ResourceBars, HomeOne, AwayFrame, AwayWall, HomeGame, HomeHead,
   H_VERBS, HomeVerbsStripM, DoorStrip, HomeExitStripM, HomeReturnStripM,
   HomeAloneM, HomeGameM, HomeAllAwayM, HomeRecapWaitM, HomeReturnM,

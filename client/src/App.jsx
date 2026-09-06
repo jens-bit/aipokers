@@ -151,16 +151,39 @@ export default function App() {
   // it, which is what keeps the sheet from reopening every time he comes back.
   const [youMoneyOpen, setYouMoneyOpen] = useState(false);
 
+  // BIRTH-5 — the same trick for the table. An owner turned away from a locked
+  // seat is sent to HOME *to look at the table*, and the table sheet is where
+  // the ladder is written. Ordinary navigation clears it for the same reason.
+  //
+  // A COUNTER rather than a flag, which `youMoneyOpen` above can afford to be:
+  // the refusal that raises this is repeatable — say "lets go" again and you are
+  // turned away again — and a boolean that is already true is not a new intent,
+  // so the second ask would open nothing. Zero is "no intent"; every ask is a
+  // value the screens below have not seen before.
+  const [homeTableOpen, setHomeTableOpen] = useState(0);
+
   function navigateTo(tab) {
     setActiveTab(tab);
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
+    setHomeTableOpen(0);
   }
 
   function navigateToMoney() {
     setActiveTab('you');
     setAgentChatTarget(null);
     setYouMoneyOpen(true);
+  }
+
+  // BIRTH-5: out of the birth flow and into the room, with the table sheet
+  // already up. The draft on the server is untouched by the refusal, so this is
+  // a look at the price rather than an exit from the conversation.
+  function navigateToTable() {
+    setIsCreating(false);
+    setActiveTab('home');
+    setAgentChatTarget(null);
+    setYouMoneyOpen(false);
+    setHomeTableOpen((n) => n + 1);
   }
 
   function openAgentChat(agent) {
@@ -458,8 +481,13 @@ export default function App() {
           <BirthScreen
             onBack={() => setIsCreating(false)}
             onBirth={() => setIsCreating(false)}
+            onSeeTable={navigateToTable}
           />
         ) : null}
+        // BIRTH-5: the same intent the phone's HomeScreen takes as `openTable`.
+        // The desk's table is a rail panel rather than a sheet, so the shell
+        // that owns the rail is the one that has to be told.
+        openHomeTable={homeTableOpen}
       />
     );
   }
@@ -476,6 +504,7 @@ export default function App() {
               setNewlyBornAgent(agent);
               navigateTo('home');
             }}
+            onSeeTable={navigateToTable}
           />
         </div>
       );
@@ -542,6 +571,7 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeScreen
               wsUrl={WS_URL}
+              openTable={homeTableOpen}
               onCreateAgent={() => setIsCreating(true)}
               onProfile={openAgentProfile}
               // CASINO-1's promise: the thread is reached from Home and from a
