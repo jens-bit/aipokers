@@ -2428,6 +2428,7 @@ export class Table {
           agentIds: this._agentIdsAt(inHand),
           headline: `${this._nameList(inHand)} played a ${Math.round(potBb)}bb pot`,
           pot,
+          handNumber: g.handNumber,
           detail: this._biggestPotDetail(result, pot),
         });
       }
@@ -2443,6 +2444,7 @@ export class Table {
           headline: `${this._nameList(coolerHand.winners)} coolered `
             + `${this._nameList(coolerHand.losers)} for ${Math.round(potBb)}bb`,
           pot,
+          handNumber: g.handNumber,
         });
       }
 
@@ -2461,6 +2463,7 @@ export class Table {
           agentIds: [agentId],
           headline: `${this._seatLabel(seat)} has won ${streak.wins} of the last ${streak.hands}`,
           pot,
+          handNumber: g.handNumber,
         });
       }
 
@@ -2475,6 +2478,7 @@ export class Table {
           agentIds: this._agentIdsAt([seat]),
           headline: `${this._seatLabel(seat)} is out of chips`,
           pot,
+          handNumber: g.handNumber,
           detail: this._bustDetail(seat),
         });
       }
@@ -2508,6 +2512,7 @@ export class Table {
         agentIds: this._agentIdsAt(live),
         headline: `${Math.round(potBb)}bb on the river, ${this._nameList(live)} still live`,
         pot: g.pot ?? 0,
+        handNumber: g.handNumber,
       });
     } catch (err) {
       console.error('[table] hot event failed:', err.message);

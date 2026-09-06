@@ -10,8 +10,9 @@
 //
 // Three rules the shape of this file comes from:
 //
-//   1. AN EVENT IS A HEADLINE, NOT A HAND. Names, a type, a pot size, a short
-//      line of plain words. No hole cards, no reasoning, no equity. The ticker
+//   1. AN EVENT IS A HEADLINE, NOT A HAND. Names, a type, a pot size, the hand
+//      number it happened on, a short line of plain words. No hole cards, no
+//      reasoning, no equity. The ticker
 //      is public — it goes to every floor subscriber, not just the owner of the
 //      agents in it — so nothing may travel on it that AGE-33/37 would have
 //      withheld at the table. If you ever want to say more, link to the table
@@ -124,10 +125,19 @@ const heaterWindows = new Map();
  *                            real, it just cannot be filtered by agent)
  * @param {string} headline  short, plain words, no cards
  * @param {number} pot       the pot in chips at the moment it fired
+ * @param {number} handNumber EVENTS-3: which hand it was, so a consumer can
+ *                            address the hand this headline is about. An
+ *                            address is not a hand: it carries no card, no
+ *                            reasoning and no owner, and it is the same
+ *                            counter the client already sees on the felt. The
+ *                            channel ticker uses it to ask SHARE-2 whether a
+ *                            card exists for exactly this hand rather than
+ *                            guessing from a timestamp. 0 when there is no
+ *                            hand in progress (a man sitting down).
  * @param {object[]} detail  NOTIFY-2: the private half of the same fact — see
  *                           the note above `bus`
  */
-export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline = '', pot = 0, detail = [] } = {}) {
+export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline = '', pot = 0, handNumber = 0, detail = [] } = {}) {
   if (!TYPES.has(type)) throw new Error(`unknown event type: ${type}`);
 
   const chips = Number(pot);
@@ -139,6 +149,7 @@ export function emitCasinoEvent({ type, tableId = null, agentIds = [], headline 
     agentIds: Object.freeze([...new Set((agentIds ?? []).filter(Boolean).map(String))]),
     headline: String(headline),
     pot: Number.isFinite(chips) ? Math.round(chips) : 0,
+    handNumber: Number.isFinite(Number(handNumber)) ? Math.max(0, Math.floor(Number(handNumber))) : 0,
   });
 
   ring.push(event);

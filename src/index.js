@@ -12,6 +12,7 @@ import { openStore } from './server/store.js';
 import { attachNotify, installNotifyRoutes } from './server/notify.js';
 import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
+import { attachTicker } from './server/ticker.js';
 import { installRoomRoutes } from './server/rooms.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 
@@ -205,3 +206,10 @@ attachNotify();
 // token, and SHARE_INLINE=0 turns it off on a deployment that would rather
 // drive the bot's updates some other way.
 startInlinePolling();
+
+// EVENTS-3: the public channel. Silent unless TICKER_ENABLED is set and
+// TICKER_CHANNEL_ID names a chat. `liveTables` is how a tableId becomes a room
+// name ("in the back room") — the same registry the floor and the lobby read,
+// handed over as the two-line provider the ticker asks for so nothing in it
+// imports table.js.
+attachTicker({ liveTables: { getTable: (id) => tables.get(id) ?? null } });

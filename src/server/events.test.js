@@ -27,15 +27,21 @@ test('EVENT-1: an event carries exactly the ticker fields, and nothing else', ()
     agentIds: ['a1', 'a2', 'a1', null, ''],
     headline: 'Rounder and Taker played a 90bb pot',
     pot: 1800.4,
+    handNumber: 12,
   });
 
+  // EVENTS-3 added handNumber. It is an ADDRESS, not a hand: the same counter
+  // the felt already shows, carrying no card, no reasoning and no owner. The
+  // channel ticker needs it to ask SHARE-2 whether a card exists for exactly
+  // this hand instead of matching on a timestamp and hoping.
   assert.deepEqual(Object.keys(ev).sort(),
-    ['agentIds', 'headline', 'id', 'pot', 'tableId', 'ts', 'type'],
-    'the shape is { id, ts, type, tableId, agentIds, headline, pot } — a headline, not a hand');
+    ['agentIds', 'handNumber', 'headline', 'id', 'pot', 'tableId', 'ts', 'type'],
+    'the shape is { id, ts, type, tableId, agentIds, headline, pot, handNumber } — a headline, not a hand');
   assert.equal(ev.id, 1, 'ids start at 1');
   assert.equal(ev.tableId, 'table-9');
   assert.deepEqual([...ev.agentIds], ['a1', 'a2'], 'agentIds are deduped and blanks dropped');
   assert.equal(ev.pot, 1800, 'the pot is rounded to whole chips');
+  assert.equal(ev.handNumber, 12, 'and it says which hand it was about');
   assert.ok(ev.ts > 0, 'it is stamped');
 });
 
