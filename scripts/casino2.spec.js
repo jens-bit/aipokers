@@ -263,9 +263,23 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
           const boardBox = await board.boundingBox();
           expect(boardBox.x, 'the board is to the right of the room')
             .toBeGreaterThan(roomBox.x + roomBox.width - 2);
+          // ...and the room takes the whole desk THE ROSTER LEAVES. This read
+          // `viewport.width * 0.9` when the desk was DESK-2's rail, which
+          // collapsed to a 68px strip and left the floor very nearly the whole
+          // window. DESK-3 (board 31, wave 58) makes the roster a PERMANENT
+          // 250px column on every desktop screen, so the honest number is
+          // 1440 - 250 = 1190 and the old fraction failed at exactly that.
+          // Measured against the column rather than restated as a smaller
+          // fraction: a hard-coded 0.82 would pass just as well if the roster
+          // silently doubled, which is the bug this assertion is for.
+          const rosterBox = await page.getByTestId('desk-roster').boundingBox();
           const viewBox = await view.boundingBox();
-          expect(viewBox.width, 'and the room takes the whole desk')
-            .toBeGreaterThan(viewport.width * 0.9);
+          expect(viewBox.width, 'and the room takes the whole desk the roster leaves')
+            .toBeGreaterThan((viewport.width - rosterBox.width) * 0.95);
+          // Beside it, not under or over it — three columns, nothing sliding
+          // across anything, which is the whole of the wave's law.
+          expect(viewBox.x, 'the room starts where the roster ends')
+            .toBeGreaterThanOrEqual(rosterBox.x + rosterBox.width - 1);
         } else {
           // On the phone the board is under the room, not beside it.
           const room = view.locator('.csn-floor__room');
