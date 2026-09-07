@@ -872,26 +872,39 @@ button.home-flat__table:active { filter: brightness(1.12); }
 
 /* ── The want toast ──────────────────────────────────────────────────────── */
 
-/* HOME-2 job 8 · a toast takes `panel`, with its own edge over the top of it.
-   The gold is what makes it a WANT — it is the one thing in the room waiting on
-   an answer — and it is a tint on the glass rather than the material itself. */
+/* BUGS-C job 6 · ported from design-refs/mood-home2.jsx's HomeToast: a
+   floating rounded card above the strip, not a full-width bar flush to it —
+   `position: absolute` off .home-thread (already `position: relative`),
+   margined off both edges the way the ref's own `left:10, right:10, bottom:7`
+   is. The gold border is still what makes it a WANT; red is job 8's dangerous
+   want, unchanged. */
 .home-want {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 100%;
+  margin-bottom: 7px;
+  z-index: 40;
+  border-radius: 12px;
+  padding: 8px 10px 9px;
   background:
     linear-gradient(rgba(205, 179, 128, 0.09), rgba(205, 179, 128, 0.09)),
     var(--v5-panel);
   backdrop-filter: var(--v5-blur);
   -webkit-backdrop-filter: var(--v5-blur);
-  border-top: 1px solid rgba(205, 179, 128, 0.42);
+  border: 1px solid rgba(205, 179, 128, 0.42);
+  animation: home-sheetup 0.3s ease-out both;
 }
 .home-want.is-dangerous {
-  border-top-color: rgba(255, 77, 79, 0.42);
+  border-color: rgba(255, 77, 79, 0.42);
   background:
     linear-gradient(rgba(255, 77, 79, 0.08), rgba(255, 77, 79, 0.08)),
     var(--v5-panel);
+}
+.home-want__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 .home-want__who {
   flex-shrink: 0;
@@ -902,20 +915,27 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-want__text {
   flex: 1; min-width: 0;
   font-size: 11.5px;
+  line-height: 1.35;
   color: var(--text-primary, #EDEDED);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.home-want__chips { display: flex; gap: 5px; flex-shrink: 0; }
+.home-want__chips { display: flex; gap: 5px; margin-top: 7px; }
 .home-want__chip {
+  flex-shrink: 0;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
   color: var(--text-secondary, #A1A1A1);
-  font-size: 10.5px;
   cursor: pointer;
 }
-.home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); color: var(--accent, #00D4AA); }
+.home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); background: rgba(0, 212, 170, 0.08); color: var(--accent, #00D4AA); }
+.home-want__chip--later { border-color: rgba(255, 255, 255, 0.22); color: var(--text-secondary, #A1A1A1); }
+.home-want__chip--no { border-color: rgba(255, 77, 79, 0.5); background: rgba(255, 77, 79, 0.08); color: #FF6B6D; }
 .home-want__chip:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Sheets (the fridge) ─────────────────────────────────────────────────── */

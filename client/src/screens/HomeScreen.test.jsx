@@ -399,6 +399,33 @@ describe('HOME-1 · the want', () => {
     sock.emit({ type: 'want', userId: 'u1', agentId: 'a1', want: null });
     await waitFor(() => expect(screen.queryByTestId('home-want')).toBeNull());
   });
+
+  // BUGS-C job 6 · the server stamps a want into lastMoment the instant he
+  // asks (agentProfiles.js, `kind: 'want'`) — the same sentence the toast and
+  // his bubble already carry. The strip picked that up too, which is the
+  // third copy the brief is about.
+  it('BUGS-C-6: one pending want shows one toast, not a third copy on the strip', async () => {
+    await boot([mkAgent('a1', 'The Clock', {
+      want: { kind: 'beer', text: "Can I have a beer. It's been rough.", needs: null, dangerous: false },
+      lastMoment: { text: "Can I have a beer. It's been rough.", kind: 'want', at: 1 },
+    })]);
+    expect(screen.getAllByTestId('home-want')).toHaveLength(1);
+    expect(screen.getAllByTestId('home-news-a1')).toHaveLength(1);
+    // The strip falls back to something else while it is still pending.
+    expect(screen.getByTestId('home-thread-line')).not.toHaveTextContent('Can I have a beer');
+    expect(screen.getByTestId('home-thread-line')).toHaveTextContent('Sit down.');
+  });
+
+  it('BUGS-C-6: it carries on the strip as history once it is answered', async () => {
+    // Same sentence, but the server has moved on — a want in the air is
+    // `kind: 'want'`; an answered one is an ordinary moment like any other.
+    await boot([mkAgent('a1', 'The Clock', {
+      want: null,
+      lastMoment: { text: "Can I have a beer. It's been rough.", kind: 'said', at: 1 },
+    })]);
+    expect(screen.queryByTestId('home-want')).toBeNull();
+    expect(screen.getByTestId('home-thread-line')).toHaveTextContent('Can I have a beer');
+  });
 });
 
 // ── The thread ──────────────────────────────────────────────────────────────
