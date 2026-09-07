@@ -117,13 +117,34 @@ function watchConsole(page) {
 
 const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 
-async function openCasino(page, uid) {
+/**
+ * Into the casino, from whichever way in this shell has.
+ *
+ * The two shells do NOT share a control any more, and that is the whole of
+ * CI #84. HOME-2 job 1 took the bottom bar off the phone — HOME, CASINO and
+ * YOU became things in the room — so on the phone the way in is the door
+ * (`home-door`, a real button with the sign over it). The desk kept its rail,
+ * so `HomeFlat` hands its door no destination there and draws it as furniture
+ * with no test id at all; the CASINO the desk means is the one in
+ * `DesktopTopBar`'s stage group. This clicked that button on both, which at
+ * 390 is a control that no longer exists: the 1440 case passed and the 390
+ * case sat on `locator.click` for the full two-minute timeout.
+ */
+async function openCasino(page, uid, desktop) {
   await page.addInitScript((id) => {
     try { window.localStorage.setItem('agentic_uid', id); } catch { /* private mode */ }
   }, uid);
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+  if (desktop) {
+    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+  } else {
+    // Named, not a bare click: if the door ever loses its test id this fails
+    // saying the door is missing rather than timing out on a mystery locator.
+    const door = page.getByTestId('home-door');
+    await expect(door, 'the phone reaches the casino through the door').toBeVisible({ timeout: 20_000 });
+    await door.click();
+  }
   await expect(page.locator('.csn').first()).toBeVisible({ timeout: 20_000 });
 }
 
@@ -143,7 +164,7 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
     test('the board, the carousel and the room all hold at this width', async ({ page }) => {
       await seedOnce();
       const noise = watchConsole(page);
-      await openCasino(page, UID);
+      await openCasino(page, UID, desktop);
 
       // ── job 3 · the sign and the doors ───────────────────────────────────
       await test.step('the sign, and three doors under it', async () => {

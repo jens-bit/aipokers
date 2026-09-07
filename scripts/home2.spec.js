@@ -24,6 +24,16 @@ const SHOTS = process.env.HOME2_SHOT_DIR ?? 'home2-shots';
 
 const UID = process.env.HOME2_USER ?? 'home2phone';
 
+// THE BOX IS PART OF THE SPEC, not part of whichever config picks the file up.
+// CI #84: the file was added to playwright.smoke.config.js's testMatch, which
+// is Desktop Chrome at 1440x900 with no touch — so the phone's ruler ran on the
+// desk. Past useIsDesktop's 1100px line the room is not even drawn (`.home-thread`
+// resolved to nothing), and without hasTouch a long press cannot lift anybody
+// (`.home-one.is-carried` stayed at 0). Fourteen tests went red for a reason
+// none of them was about. Declaring it here means the answer no longer depends
+// on who runs the file: the assertions below measure against a literal 844, and
+// this is the line that makes that literal true.
+
 fs.mkdirSync(SHOTS, { recursive: true });
 
 // ── Seeding ─────────────────────────────────────────────────────────────────
@@ -86,6 +96,8 @@ async function openRoom(page) {
 async function shot(page, name) {
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 }
+
+test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
 // ── HOME-2 job 1 · no bottom bar ────────────────────────────────────────────
 
@@ -526,19 +538,34 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
     await shot(page, 'job8-fridge');
   });
 
+  // CI #84 · RETARGETED, NOT LOOSENED. This asked for `home-safe-sheet` and
+  // `.home-sheet__panel` — the chrome HOME-2 job 8 wrapped MoneySheet in. SAFE-2
+  // landed in the same merge and replaced the money surface with `SafeSheet`,
+  // which brings its OWN scrim and its own panel: wrapping it in the room's
+  // chrome as well would draw two scrims and two panels over one sheet. So the
+  // structure this named is gone on purpose, and every rule it was asserting
+  // still holds and is still asserted here, measured rather than assumed:
+  // the safe opens a sheet over the room, that sheet is the shared safe surface
+  // (`safe-sheet` — the same component the desk's rail and YOU raise, which is
+  // what "not a second copy of it" was for), its panel is glass with a real
+  // blur, and the money surface inside it drops its own solid ground. Verified
+  // against the running client: rgba(18,30,28,0.84) + blur(18px) saturate(1.2)
+  // on the panel, alpha 0 inside, one scrim.
   test('the safe is the money, over the room, in the same glass', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
 
     await page.getByTestId('home-safe').click();
-    await expect(page.getByTestId('home-safe-sheet')).toBeVisible({ timeout: 20_000 });
-    // YOU-2's own surface, not a second copy of it.
-    await expect(page.getByText('Your wallet')).toBeVisible();
+    // SAFE-2's sheet, not a fork of it: one money surface, three doors.
+    await expect(page.getByTestId('safe-sheet')).toBeVisible({ timeout: 20_000 });
+    // Over the room, not instead of it — the room is still behind the sheet.
+    await expect(page.getByTestId('home-screen')).toBeVisible();
 
-    const m = await material(page.locator('.home-sheet__panel').first());
+    const m = await material(page.locator('.safe__panel').first());
     expect(alpha(m.background)).toBeLessThan(0.9);
     expect(m.blur).toContain('blur');
-    // The sheet's own header band drops its solid ground over the room.
+    // The money surface itself drops its solid ground over the room; a solid
+    // band inside a glass sheet is a flat grey panel with a blur around it.
     const inner = await material(page.locator('.money-sheet').first());
     expect(alpha(inner.background)).toBe(0);
     await shot(page, 'job8-safe');

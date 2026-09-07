@@ -25,10 +25,17 @@ export default defineConfig({
   // KINDS of thing: the smoke walks every surface and asks only "did it mount
   // and did it stay quiet", and casino2 measures one screen's layout at two
   // widths, which is the half of a design jsdom structurally cannot see.
-  // home2.spec.js was reported as wired into this job but was not: HOME-2's own
-  // branch still had testMatch: 'smoke.spec.js', so the file it added ran
-  // nowhere. A browser spec no job runs is a spec that rots.
-  testMatch: /(smoke|casino2|home2)\.spec\.js$/,
+  //
+  // home2.spec.js is NOT here, and adding it is what broke CI #84. It was put
+  // in on the premise that no job ran it; the workflow's own "HOME-2 phone
+  // layout" step runs it, under playwright.home2.config.js, which is the only
+  // box its assertions hold in — 390x844 with touch. This config is Desktop
+  // Chrome at 1440x900, where the room is not drawn at all and no long press
+  // can lift anybody, so fourteen of its tests went red for a reason none of
+  // them was about. The spec now declares that box itself, so a third config
+  // picking it up would not repeat this; the reason to leave it out here is
+  // the plainer one, that running the same twenty tests twice buys nothing.
+  testMatch: /(smoke|casino2)\.spec\.js$/,
 
   // A gate, so nothing dresses a flake up as a pass. If this suite is red twice
   // in a row for reasons that are not the product, the fix is to make the
