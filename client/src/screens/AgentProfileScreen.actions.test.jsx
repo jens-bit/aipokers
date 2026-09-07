@@ -116,6 +116,24 @@ describe('CHAT-2 — the profile action row', () => {
     await user.click(within(actionRow()).getByRole('button', { name: 'Give him chips' }));
     expect(onFund).toHaveBeenCalled();
   });
+
+  // BUGS-C job 8: "check every button on the profile actually fires" —
+  // Deploy, Give him chips and Call him in are covered above; Chat (the
+  // MoodBand's own action, resting) and the overflow menu are the rest.
+  it('BUGS-C-8: Chat opens his thread while he is resting', async () => {
+    const user = userEvent.setup();
+    const onOpenChat = vi.fn();
+    renderProfile(RESTING, { onOpenChat });
+    await user.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(onOpenChat).toHaveBeenCalledWith(RESTING);
+  });
+
+  it('BUGS-C-8: the overflow menu opens and offers Retire', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    await user.click(within(actionRow()).getByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('button', { name: 'Retire' })).toBeInTheDocument();
+  });
 });
 
 // Retiring is behind an overflow because it is not a neighbour of Deploy: a

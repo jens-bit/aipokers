@@ -404,17 +404,29 @@
   border: 1px solid var(--wal-border);
 }
 
+/* BUGS-C job 8: one wrapping line — amount, mode tag, note — with no vertical
+   rule to slice through it at 390 wide. */
 .wal-line__top {
   display: flex;
-  align-items: center;
-  gap: 11px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 8px;
 }
-
-.wal-line__rule { width: 1px; height: 26px; background: var(--wal-border); flex-shrink: 0; }
 
 .wal-line__note {
   flex: 1;
+  min-width: 0;
   font-size: 11.5px;
   color: var(--wal-muted);
   line-height: 1.4;
 }
+
+/* BUGS-C job 8: the pocket row's own action row, under the amount rather
+   than squeezed beside it — real, full-height buttons, evenly split. */
+.wal-line__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.wal-line__actions .wal-btn { flex: 1; }

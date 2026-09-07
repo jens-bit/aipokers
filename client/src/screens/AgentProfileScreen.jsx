@@ -253,7 +253,14 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 //
 // "Call him in" is Deploy's opposite and takes its slot rather than sitting
 // beside it; only one of the two is ever true.
-function ActionRow({ live, muted, onPrimary, onFund, onRetire, onToggleMute }) {
+//
+// BUGS-C job 8: "Give him chips" is drawn here ONLY when there is no pocket
+// row to carry it (`showFund`) — an agent with no wallet data at all still
+// needs a way to be funded. Whenever the pocket row exists it is the only
+// place the button lives; before this the two ran side by side, the same
+// button twice on one screen. The header always keeps Deploy/Call him in and
+// the overflow menu.
+function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute }) {
   const [menu, setMenu] = useState(false);
 
   return (
@@ -268,23 +275,25 @@ function ActionRow({ live, muted, onPrimary, onFund, onRetire, onToggleMute }) {
         type="button"
         onClick={onPrimary}
         style={{
-          flex: 1.4, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+          flex: showFund ? 1.4 : 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
           background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
           fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
           textTransform: 'uppercase', whiteSpace: 'nowrap',
         }}
       >{live ? 'Call him in' : 'Deploy'}</button>
 
-      <button
-        type="button"
-        onClick={onFund}
-        style={{
-          flex: 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
-          background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
-          fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          textTransform: 'uppercase', whiteSpace: 'nowrap',
-        }}
-      >Give him chips</button>
+      {showFund && (
+        <button
+          type="button"
+          onClick={onFund}
+          style={{
+            flex: 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+            background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
+            fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+            textTransform: 'uppercase', whiteSpace: 'nowrap',
+          }}
+        >Give him chips</button>
+      )}
 
       <button
         type="button"
@@ -562,6 +571,12 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const state   = stateOf(agent);
   const cause   = causeOf(agent);
   const isLive  = state === 'live';
+  // BUGS-C job 8: the header's own "Give him chips" is a fallback for when
+  // there is no pocket row to carry it (pocketOf returns null for an agent
+  // with no wallet data at all — "graceful absence: no pocket, no row",
+  // PocketLine.jsx) — not a second copy of a button the pocket row already
+  // has.
+  const hasPocket = !!pocketOf(agent);
 
   const sessionLog   = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
   const activityRows = buildActivityRows(agent);
@@ -615,6 +630,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
       <ActionRow
         live={isLive}
         muted={isMuted}
+        showFund={!hasPocket}
         onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))}
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
