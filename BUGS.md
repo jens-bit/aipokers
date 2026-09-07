@@ -1,10 +1,30 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-07 (integrator, DESK-3) — 9 open, 34 resolved
+Last updated: 2026-09-07 (integrator, VISIT-1 merge) — 11 open, 34 resolved
 
 
 ---
 
 ## OPEN
+
+### DESK-4 — Sitting down is not wired on desktop (debt, not a bug)
+**Severity:** Low (missing wiring in a screen that shipped deliberately incomplete)
+**Where:** the DESK-3 desktop three-column layout — `client/src/components/desktop/`
+**What:** DESK-3 built desktop as its own design rather than a stretched phone: three permanent columns, a 250px `DeskRoster`, the felt capped at 900, hover reveals. What it did not do is wire the sit-down — a user on a wide window can see the desk and the roster but cannot take a seat from it.
+**Not a regression.** Nothing on desktop could seat before DESK-3 either; the screen simply now looks finished enough that the gap reads as broken. Filed so it is a known hole with an owner rather than a surprise in the next playtest.
+**Fix:** wire the seat action from the desktop roster/stage to the same `/place` path the phone uses. Belongs to whoever picks up desktop next.
+
+---
+
+### VISIT-1 debt — three things the visit shipped without
+**Severity:** Low (all three are absences, none of them wrong behaviour)
+**Where:** `src/server/visit.js`, `client/src/lib/visit.js`, `scripts/verify-visit-referral.js`
+**What:**
+1. **No share-card art.** "Send to a friend" shares the `visit_<agentId>` deep link as **text only** — the inline result carries no rendered card. The machinery that would draw one is SHARE-2's (`PUBLIC_BASE_URL`, `GET /share/<id>.png`), so this is SHARE-2's debt to pay, not visit's to reinvent.
+2. **A visiting agent shows to his own household as "at the casino", not "visiting".** The tag is right in the host's room — he is announced, seated and labelled a guest there — but the sender's own roster falls back to the generic away state, so his owner cannot tell a friend's kitchen table from a casino seat.
+3. **`verify-visit-referral.js` is not idempotent from the repo root.** It calls `store.deleteOwner(HOST)` at startup but resets no guests, and the run mints two. By hand from the repo root the fourth run trips the fifth-guest limit and comes back `429` on `POST /api/guest`, then `slotLocked` on the build — the same trap `store.js:1288` already documents for agents. Harmless under `npm test` (`isolateCwd: true` gives it an empty database every time) and it is why the script's own "Run:" header is misleading. Measured: runs 1-3 green in a shared cwd, runs 4+ red, every time.
+**Fix:** (1) with SHARE-2. (2) give the sender's roster the visiting state the host's room already has. (3) clear the run's own guest rows at startup the way it clears the host.
+
+---
 
 ### BUG-43 — HOME-2's job 5 gesture tests race the room's own life
 **Severity:** Medium (a gate that goes red on a different test each run is BUG-34's lesson, not a new one)
@@ -49,9 +69,9 @@ Last updated: 2026-09-07 (integrator, DESK-3) — 9 open, 34 resolved
 
 ---
 
-### BUG-34 — `test:all` dies intermittently on Windows
+### BUG-34 — `test:all` dies intermittently on Windows (native abort: REPRODUCED 2026-09-07, still unfixed)
 **Severity:** Medium (a flaky suite teaches people to re-run instead of to look — the testing law's own words)
-**Where:** the test harness, not the product. `src/server/tapeRoom.test.js`, `scripts/verify-pace.js`, and something not yet found.
+**Where:** the test harness, not the product. `src/server/tapeRoom.test.js` and `scripts/verify-pace.js` (both fixed, below); the native abort is not in any one file — see the 2026-09-07 reproduction.
 **Reported:** roughly one full `npm run test:all` in five came back red on Windows, two ways: a spawned suite exiting **3221226505** (`STATUS_STACK_BUFFER_OVERRUN` — a native abort, not an assertion), or `scripts/verify-pace.js` failing `every snapshot of a live hand carries it — 1 without`. Reproduced on unmodified main.
 
 **Tooling:** `node scripts/stress-suites.js [rounds] [concurrency]` runs everything `npm test` spawns — every `src/**/*.test.js` and the fast `scripts/verify-*.js` group — through the same `runScript` helper, in a loop, recording every non-zero exit with the child's own output. One run in five is too slow a signal to debug against; this turns it into minutes.
@@ -72,18 +92,37 @@ The damage was the cascade. That test aborts at the failed assertion, leaving a 
 
 Fixed three ways: the window is 2s, which cannot lose to a localhost round trip; a `beforeEach` empties the tape room so no test can inherit another's live study; and every 409 assertion now prints the body, so a refusal can be told from another refusal. The second-line test no longer sleeps the window out at all — it ends the study through `finishStudy`, the documented early-finish path, because what it is about is the line and not the clock. 240 runs 8-wide green after (it failed at 64 before).
 
-#### NOT reproduced: the 3221226505 native abort
-Still open. It did not appear once in:
-- **1,768 spawned suite runs** through `scripts/stress-suites.js` — 588 at concurrency 4, 294 at concurrency 8, 590 + 296 covering the verify group too
-- **14** `npm test` runs, **12** `npm run test:e2e` runs, **12** `npm run test:client` runs
+#### REPRODUCED 2026-09-07 — and it finally said what it is
 
-What that rules out, or at least makes unlikely:
-- **Parallel access to one SQLite file.** There is none to have. `runScript` gives every spawned suite its own `mkdtemp` cwd, and `store.js` resolves `data/app.db` from `process.cwd()`, so no two suites can open the same database. The suites that `chdir` isolate themselves a second time on top of that.
-- **`legacy.test.js` `concurrency: 4` against native teardown.** 588 runs at 4 and 294 at 8 produced no native exit at all.
-- **Port collisions between parallel servers.** Every e2e script listens on port 0.
-- **A vitest worker dying** (`test:all` runs the client suite too): 12 clean runs, 105 files each.
+The integrator hit it while gating the `feature/visit-1` merge and caught the line this entry never had. The abort is not silent; `npm test` swallows everything but the exit code, and the child's own stderr carries:
 
-Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the child output it prints — the exit code plus the last 40 lines of the suite that died is the thing this entry is missing.
+```
+  ✔ GUEST-1: the claim does not exist when the door is shut (0.2506ms)
+  Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 76
+  3221226505 !== 0
+```
+
+That is **libuv's own assertion**, not V8's and not sqlite's: `uv_async_send` reaching an async handle that has already begun closing. `3221226505` = `0xC0000409` is just the fastfail libuv's `abort()` raises on Windows. So the thing to look for is a signal posted to the loop *after* teardown started, which is a much narrower target than "a native abort somewhere".
+
+**Every victim passes first.** The suite prints all of its `ok` lines, finishes its assertions, and dies on the way out. `assertPassed` (`src/test/helpers/runScript.js:109`) only ever sees the exit code, so a fully green suite is reported as a failure — the red says nothing true about the product.
+
+**Victims seen from `npm test` alone (5 files across 36 runs, never twice the same one in a row):** `src/server/guestClaim.test.js`, `src/server/rooms.test.js`, `src/server/table.cooler.test.js`, `scripts/verify-deeplink-routes.js`, `scripts/verify-visit-referral.js`. The one thing they share is that each boots an HTTP/WS server in-process. Not all of them call `process.exit`, so the exit call is not the trigger.
+
+**Rate, measured both sides of a merge** (Node v24.15.0, Windows 11):
+- main at 88a3342, before the merge: **2 aborts in 20** runs
+- the same tree with `feature/visit-1` merged: **3 aborts in 16**
+
+Both sides flake at roughly the same rate. This matters for the next person who meets it during a merge: it frames whatever landed last as the culprit, and it is not. A 6-run sample cannot tell 10% from 0% — the integrator's first reading of this said "merge-caused" on exactly that evidence and was wrong.
+
+**`stress-suites.js` catches it now.** `node scripts/stress-suites.js 40 8` — the exact command this entry asked the next person to run — produced **5 native aborts in 3,720 spawned runs** (0.13%), where the earlier 1,768 produced none. Victims there: `src/server/draftGuard.test.js`, `src/server/draftName.test.js`, `src/server/table.events.test.js`, and `scripts/verify-visit-referral.js` twice. Two ordinary exit-1 failures came with them (`verify-cost-router.js`, `verify-home-routes.js` — BUG-39's family, a boot budget lost under load). So the harness does reach it; at that rate the earlier clean 1,768 was luck, not evidence of absence.
+
+Across everything seen on 2026-09-07 that makes **nine distinct victim files**, and every one of them boots an HTTP/WS server in-process (`draftGuard`, `draftName` and `table.events` included — checked, all three stand up an express app). None of the `src/**` ones call `process.exit`. That pair of facts is the narrowest description of the trigger anyone has managed so far: a server handle, and a loop that is already closing.
+
+**Still does not reproduce in isolation:** 12 solo runs of `guestClaim.test.js`, 30 parallel runs of it across fresh scratch cwds, and 24 parallel runs of a minimal script that leaves a WAL sqlite handle open at exit — 0 aborts. It takes real contention, which is why it is a load race and not a bug in any one file.
+
+**Why CI is green.** CI is `ubuntu-latest` on Node 22 (`.github/workflows/deploy.yml:13,23`); this is a Windows + Node 24 abort. The gate CI runs is unaffected and only the laptop gate reds — which is why this has stayed open so long without blocking anything.
+
+**Fix:** still not made, and it belongs in the harness rather than in any suite — the two candidate shapes are (a) close the child's server handles and let the loop drain before the process is allowed to exit, or (b) have `assertPassed` recognise `0xC0000409` on an otherwise-green body as the harness fault it is and report it as such instead of as a failed suite. Platform work. Do not re-run to green.
 
 ### BUG-20 — Dead 14px input rule waiting to be reused
 **Severity:** Low (latent — nothing renders it today)
