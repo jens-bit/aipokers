@@ -1,5 +1,5 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-07 (integrator, CI #84) — 9 open, 33 resolved
+Last updated: 2026-09-07 (integrator, DESK-3) — 9 open, 34 resolved
 
 
 ---
@@ -122,6 +122,14 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-44 — The casino room measured itself against the window, not against the roster — RESOLVED 2026-09-07 (MERGE-20)
+**Where:** `scripts/casino2.spec.js:267` (as it was)
+**What:** A merge-caused red between two intact laws, found by the browser smoke on the DESK-3 merge and by nothing else — `npm run test:all` was green on both sides. CASINO-2 job 5 asserts that a room opened from a doorway takes the desk, and measured that as more than 90% of the window, which held while DESK-2's rail collapsed to a 68px strip. DESK-3 (board 31, wave 58) makes the roster a permanent 250px column on every desktop screen: `Expected: > 1296, Received: 1190` — 1440 − 250, to the pixel.
+**Fixed by** measuring the room against the roster instead of against a fraction (a smaller magic number would pass just as well if the column silently doubled), plus the other half of the wave's rule: the room starts where the roster ends. Fixed in `feature/desk-3`'s worktree, not on main, and main fast-forwarded onto it.
+**Worth keeping in mind:** neither branch could have caught this alone. It is the second time in two days the browser smoke has been the only thing that saw a merge (CI #84 was the first), which is the argument CI-2 was built on.
+
+---
 
 ### BUG-42 — The safe's ruler still named the chrome SAFE-2 replaced — RESOLVED 2026-09-07 (CI #84)
 **Where:** `scripts/home2.spec.js:541` (as it was), `client/src/screens/HomeScreen.jsx:884`
