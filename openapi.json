@@ -489,6 +489,71 @@
         }
       }
     },
+    "/api/agents/{agentId}/visit": {
+      "post": {
+        "summary": "Send him to a friend's flat",
+        "operationId": "requestVisit",
+        "description": "VISIT-1. Called by the HOST's own client — the agent's own owner never touches this route, which is what lets it check ownership on the door being knocked on rather than the man doing the knocking. He walks out his own door the moment this lands: `agent.visiting` on his own record excludes him from his own household's kitchen table (homeGame.eligible's `where === 'home'` gate) for as long as the visit is open, one way or another. Never a casino table. An optional `stake` proposes a wager, capped at 10% of whichever pocket turns out smaller and only escrowed at accept.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "The agent being sent — somebody else's, always." }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hostUserId"],
+                "properties": {
+                  "hostUserId": { "type": "string", "description": "The caller's own owner id — the flat he is knocking on." },
+                  "stake": { "type": "integer", "minimum": 0, "description": "Optional wager, in chips, from his own pocket." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "He is on his way. { visitId, agentId, agentName, hostUserId, respondBy }", "content": { "application/json": { "schema": { "type": "object", "properties": { "visitId": { "type": "string" }, "agentId": { "type": "string" }, "agentName": { "type": "string" }, "hostUserId": { "type": "string" }, "respondBy": { "type": "integer", "description": "Epoch ms — unanswered past this, he walks home." } } } } } },
+          "400": { "description": "hostUserId is his own owner", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Not the caller's own household to knock from, or his owner is a no-account guest (GUEST-1: a guest may host, never be sent)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "`reason`: inHand, notHome, alreadyVisiting (he is already out), or hostBusy (somebody is already at this door, unanswered)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "410": { "description": "He is retired", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/home/visitors/{visitId}/answer": {
+      "post": {
+        "summary": "The host answers the door",
+        "operationId": "answerVisit",
+        "description": "VISIT-1. Only the host may answer his own knock. Accepted, he is seated at the kitchen table through the same homeGame.sync the household's own roster runs through — one more body in the `visitorsFor` feed. Declined or left to time out, he walks home. `line` is the host's own resident answering in character; no model call, ever, the same law the rest of the kitchen table already keeps.",
+        "parameters": [
+          { "name": "visitId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hostUserId", "accept"],
+                "properties": {
+                  "hostUserId": { "type": "string" },
+                  "accept": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "{ visitId, accepted, line, game } — `game` is the HOME_STATE game shape, or null when declined.", "content": { "application/json": { "schema": { "type": "object", "properties": { "visitId": { "type": "string" }, "accepted": { "type": "boolean" }, "line": { "type": "string" } } } } } },
+          "400": { "description": "accept must be a boolean", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Not this door's own host", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "No such visit", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "Already answered — a knock only gets one reply", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/agents/chat": {
       "post": {
         "summary": "Conversational turn — agent creation flow or owner chat",

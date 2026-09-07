@@ -35,7 +35,7 @@ import { Where } from './home.js';
 import * as homeGameMod from './homeGame.js';
 import { notifyEvent } from './notify.js';
 import { notifyHomeChanged } from './floorChannel.js';
-import { isGuestOwner } from './guest.js';
+import { guestCannotVisit } from './guest.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 import { ensurePocket, debitBuyIn, creditCashOut } from './wallet.js';
 
@@ -138,7 +138,7 @@ export function requestVisit({ agentId, hostUserId, stake = 0 } = {}) {
 
   if (String(guestUserId) === String(hostUserId)) return refuse(400, 'self');
   if (agent.archived) return { status: 410, body: { error: 'agentRetired' } };
-  if (isGuestOwner(guestUserId)) return refuse(403, 'guestCannotVisit');
+  if (guestCannotVisit(guestUserId)) return refuse(403, 'guestCannotVisit');
   if (agent.visiting) return refuse(409, 'alreadyVisiting');
 
   const seat = seatStatusOf(agent);
