@@ -1422,8 +1422,11 @@
  * that holds text carries min-width:0, so the page never scrolls sideways. */
 
 @media (max-width: 1365px) {
-  /* ww-ref S5, 1280x800: rail 68, panel 460, stage takes the rest (752). */
+  /* 1280x800: roster 220, panel 460, stage takes the rest (600). The panel
+     gives up 60px at this width (520 → 460); the roster gives up 30 of its
+     own, so the stage still keeps most of what it had. */
   .dsk-panel { width: 460px; }
+  .dsk3-roster { width: 220px; }
   .dsk-roster { margin: 0 -14px; }
   .dtb__center { top: 150px; }
   .dtb__hero { bottom: 26px; }
@@ -1591,79 +1594,156 @@
 /* The draft panel's guess, dressed as a guess. */
 .dsk-draft__forming { display: flex; justify-content: center; margin-bottom: 10px; }
 
-/* ── Collapsed roster strip (FIX-2c) ─────────────────────────────────────
- * mood-desktop3.jsx RosterStrip — ThreadRosterRail's `collapsed` form. 68px,
- * so 68 + stage + 520 is exactly 1440 and 68 + stage + 460 is exactly 1280.
- * Name, state tag and last line drop out; the mood rim and the live dot stay,
- * because the who-is-playing glance is the reason desktop exists. */
+/* ── DESK-3 · the permanent roster column ─────────────────────────────────
+ * design-refs/mood-desk59.jsx DkRoster, wave 58 addendum: "who you have,
+ * where each one is" — a real 250px column, on every desktop screen, never a
+ * mode a panel toggles it into. Replaces FIX-2c's 68px collapsed RosterStrip
+ * (deleted with this wave), which existed only because the roster used to
+ * disappear when a panel took its place. Rows reuse .dsk-roster-row
+ * (PRosterRow) — the same row
+ * StandupPanel draws in the rail — so a man cannot look like two different
+ * people depending on which column he is standing in. */
 
-.dsk-strip {
-  width: 68px;
+.dsk3-roster {
+  width: 250px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-right: 1px solid var(--dsk-border);
   background: var(--dsk-panel);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 0;
 }
-.dsk-strip__head {
-  height: 46px;
+.dsk3-roster__head {
   flex-shrink: 0;
-  width: 100%;
-  border-bottom: 1px solid var(--dsk-border);
+  height: 46px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--dsk-border);
 }
-.dsk-strip__count {
+.dsk3-roster__count {
   font-family: var(--dsk-mono);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 9.5px;
   color: var(--dsk-muted);
 }
-.dsk-strip__rows {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 0;
-  width: 100%;
-  align-items: center;
+.dsk3-roster__rows {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
-  min-height: 0;
 }
-.dsk-strip__rows::-webkit-scrollbar { display: none; }
-.dsk-strip__row {
-  position: relative;
-  width: 52px;
-  height: 52px;
-  flex-shrink: 0;
+.dsk3-roster__rows::-webkit-scrollbar { display: none; }
+/* PRosterRow was drawn for a 520px panel with 14px gutters of its own
+   (.dsk-roster's `margin: 0 -14px` bleeds it back out to the panel's edge);
+   this column has no such gutter to bleed into. */
+.dsk3-roster__rows .dsk-roster-row { padding: 10px 14px; }
+.dsk3-roster__rows .dsk-roster-row__name {
+  font-family: Inter, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.dsk3-roster__rows .dsk-roster-row__line { font-style: normal; font-size: 11px; }
+
+.dsk3-roster__draft {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 14px;
   border: none;
-  border-left: 2px solid transparent;
-  border-radius: 9px;
+  border-bottom: 1px solid var(--dsk-border);
   background: transparent;
-  padding: 0;
+  color: var(--dsk-teal);
+  text-align: left;
+  cursor: pointer;
+}
+.dsk3-roster__draft:hover { background: rgba(0, 212, 170, 0.05); }
+.dsk3-roster__draft-plus {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px dashed rgba(0, 212, 170, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background 0.14s ease;
+  font-size: 16px;
+  line-height: 1;
 }
-.dsk-strip__row:hover { background: rgba(255, 255, 255, 0.04); }
-.dsk-strip__row.is-active {
-  background: rgba(0, 212, 170, 0.06);
-  border-left-color: var(--dsk-teal);
+.dsk3-roster__draft-title { display: block; font-size: 12px; color: var(--dsk-teal); }
+.dsk3-roster__draft-sub {
+  display: block;
+  font-family: var(--dsk-mono);
+  font-size: 10px;
+  color: var(--dsk-muted);
+  margin-top: 2px;
 }
-.dsk-strip__dot { position: absolute; top: 6px; right: 7px; }
-.dsk-strip__dot--recap {
-  top: 7px;
-  right: 8px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--dsk-gold);
+
+/* ── DESK-3, job 2 · hover does what a tap does on the phone ──────────────
+ * mood-desk59.jsx DkBody: "the pill shown only on hover — the room is quiet
+ * until the pointer asks it something." Scoped to `.home1--desk` (only ever
+ * set by DeskHome's HomeScreen) so the phone's room — where the pill is
+ * always on, by board 31's own law — never sees this rule. */
+
+.home1--desk .home-pill {
+  opacity: 0;
+  transition: opacity 0.12s ease;
 }
+.home1--desk .home-one:hover .home-pill,
+.home1--desk .home-one:focus-visible .home-pill {
+  opacity: 1;
+}
+
+/* A fixture shows one line on hover — its own aria-label, which already says
+   what tapping it does ("The safe — your wallet"). Click still opens the
+   panel; this only answers the question hovering asks before that. */
+.home1--desk .home-flat__safe,
+.home1--desk .home-flat__fridge,
+.home1--desk .home-flat__tv,
+.home1--desk .home-flat__door,
+.home1--desk .home-flat__table {
+  position: relative;
+}
+.home1--desk .home-flat__safe::after,
+.home1--desk .home-flat__fridge::after,
+.home1--desk .home-flat__tv::after,
+.home1--desk .home-flat__door::after,
+.home1--desk .home-flat__table::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%) translateY(-6px);
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(8, 12, 12, 0.94);
+  border: 1px solid var(--dsk-teal);
+  color: var(--dsk-text);
+  font-size: 10.5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 40;
+}
+.home1--desk .home-flat__safe:hover::after,
+.home1--desk .home-flat__fridge:hover::after,
+.home1--desk .home-flat__tv:hover::after,
+.home1--desk .home-flat__door:hover::after,
+.home1--desk .home-flat__table:hover::after {
+  opacity: 1;
+}
+
+/* ── DESK-3, job 4 · the felt caps at 900 ──────────────────────────────────
+ * mood-desk59b.jsx: past 900 the rope and the hero row drift apart. Centred
+ * in whatever the roster and the rail leave it, rather than full-bleed. */
+.dsk-stage--felt {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.dsk-stage--felt .dtb { max-width: 900px; }
 
 }
 

@@ -14,7 +14,7 @@ import { DeskWalletPanel } from './DeskWalletPanel.jsx';
 import { DeskReplayStage } from './DeskReplayStage.jsx';
 import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
-import { RosterStrip } from './RosterStrip.jsx';
+import { DeskRoster } from './DeskRoster.jsx';
 import { CasinoScreen } from '../../screens/CasinoScreen.jsx';
 
 const POLL_MS = 10_000;
@@ -226,20 +226,27 @@ export function DesktopHome({
     setDeskTableId(agent.id);
   }, [watchedId, onWatchAgent]);
 
+  // DESK-3: the roster is a permanent column now, on every stage — there is no
+  // "collapsed" or "hidden" form of it any more (that was FIX-2c's strip, and
+  // it existed only because the roster used to be a mode the panel toggled
+  // away). A row's own click keeps the strip's old meaning exactly — his
+  // thread, on the room — from whichever stage or table it is clicked from;
+  // watching him play is still the felt's own gesture (a tile, a body, a
+  // doorway), not the roster's.
+  const rosterSelect = useCallback((agent) => {
+    setWalletOpen(false);
+    setBornId(null);
+    setDeskTableId(null);
+    setReplay(null);
+    setStage('floor');
+    setHomeFocusId(agent.id);
+    setHomePanel('agent');
+  }, []);
+
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
-  // FIX-2c's rule, still: when a panel takes the roster's place, the collapsed
-  // strip gives the who-is-playing glance back at 68px.
-  //
-  // DESK-2 adds the room's own two exceptions. The ROOM is a roster — every
-  // agent is either a body in it or a frame on its wall — so the strip is not
-  // drawn while the rail is showing the room's thread; and the STANDUP holds
-  // the full roster itself, which is what the strip would be a collapse of.
-  const homeRailIsRoster = homeStage && (homePanel === 'thread' || homePanel === 'standup');
   // The rail can only hold the draft when there IS a rail: the room draws one
   // beside it, and an empty room does not draw a room at all.
   const railHostsDraft = !!draft && homeStage && agents.length > 0 && !walletOpen && !bornId;
-  const panelOpen = !!born || walletOpen
-    || (homeStage && !walletOpen && !born && !homeRailIsRoster);
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -254,6 +261,13 @@ export function DesktopHome({
       <div className="dsk-root">
         {topBar}
         <div className="dsk-body">
+          <DeskRoster
+            agents={agents}
+            activeId={replay.agent?.id ?? null}
+            watchedId={watchedId}
+            onSelect={rosterSelect}
+            onDraftAgent={onCreateAgent}
+          />
           <div className="dsk-stage">
             <DeskReplayStage
               hand={replay.hand}
@@ -275,6 +289,13 @@ export function DesktopHome({
       <div className="dsk-root">
         {topBar}
         <div className="dsk-body">
+          <DeskRoster
+            agents={agents}
+            activeId={deskAgent.id}
+            watchedId={watchedId}
+            onSelect={rosterSelect}
+            onDraftAgent={onCreateAgent}
+          />
           <DeskWatch
             agent={deskAgent}
             game={watchedId === deskAgent.id ? game : null}
@@ -295,23 +316,16 @@ export function DesktopHome({
     <div className="dsk-root">
       {topBar}
       <div className="dsk-body">
-        {/* FIX-2c: a panel is open, so StandupPanel (which holds the roster) is
-            gone. The ref's collapsed rail gives the who-is-playing glance back
-            at 68px, which is what keeps 68 + stage + 520 inside 1440. */}
-        {panelOpen && (
-          <RosterStrip
-            agents={agents}
-            activeId={homeStage && !walletOpen && !born ? homeFocusId : bornId}
-            onSelect={(agent) => {
-              setBornId(null);
-              setWalletOpen(false);
-              // On the HOME stage the thread the strip opens is the rail's, in
-              // the room — there is no second panel for it to land in.
-              setHomeFocusId(agent.id);
-              setHomePanel('agent');
-            }}
-          />
-        )}
+        {/* DESK-3: three columns, always — the roster is furniture, not a mode
+            a panel toggles it into. Same column on the room, the casino
+            doors, and the room a doorway opens. */}
+        <DeskRoster
+          agents={agents}
+          activeId={born ? born.id : homeFocusId}
+          watchedId={watchedId}
+          onSelect={rosterSelect}
+          onDraftAgent={onCreateAgent}
+        />
         <div className="dsk-stage">
           {flaggedAgent && (
             <div className="dsk-sheet">
@@ -429,13 +443,18 @@ function DeskWatch({ agent, game, lastDecision, connection, threadLines, draft, 
 
   return (
     <>
-      <DeskTableStage
-        game={game}
-        agentName={agent.name}
-        lastDecision={lastDecision}
-        onBack={onBack}
-        onSitOut={onSitOut}
-      />
+      {/* DESK-3, job 4: the felt caps at 900 — past that the rope and the hero
+          row drift apart — and centres in whatever the roster and the rail
+          leave it, rather than stretching full-bleed the way DESK-2 drew it. */}
+      <div className="dsk-stage dsk-stage--felt">
+        <DeskTableStage
+          game={game}
+          agentName={agent.name}
+          lastDecision={lastDecision}
+          onBack={onBack}
+          onSitOut={onSitOut}
+        />
+      </div>
       <WatchRail
         agent={agent}
         game={game}
