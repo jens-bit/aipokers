@@ -9,7 +9,7 @@ import {
   F_W, F_H, FLAT, TABLE_SEATS, tableSeats, homePositions,
   bubbleSide, bubbleFits, BUBBLE_W, ALL_SPOTS,
   COUCH_SPOT, TV_SPOT, DOOR_SPOT, WALL_SPOT,
-  FOOTPRINTS, TV_SCREEN, TV_CHAIR, bodyRect,
+  FOOTPRINTS, TV_SCREEN, TV_CHAIR, bodyRect, SIGN,
 } from './flat.js';
 
 const at = (where, extra = {}) => ({ where, tableId: null, room: null, since: 0, ...extra });
@@ -120,6 +120,30 @@ describe('HOME-2 job 4 · what is on the walls', () => {
     expect(TV_SPOT.x).toBeGreaterThanOrEqual(TV_CHAIR.x);
     expect(TV_SPOT.x).toBeLessThanOrEqual(TV_CHAIR.x + TV_CHAIR.w);
     expect(TV_SPOT.y).toBeGreaterThan(TV_SCREEN.y + TV_SCREEN.h);
+  });
+});
+
+// ── BUGS-C job 4 · the sign is one fixture with the door ────────────────────
+
+describe('BUGS-C job 4: the CASINO sign', () => {
+  it('BUGS-C-4: the sign rect does not intersect the door body rect', () => {
+    const door = { left: FLAT.door.x, right: FLAT.door.x + FLAT.door.w, top: FLAT.door.y, bottom: FLAT.door.y + FLAT.door.h };
+    const sign = { left: SIGN.x, right: SIGN.x + SIGN.w, top: SIGN.y, bottom: SIGN.y + SIGN.h };
+    const hit = sign.left < door.right && door.left < sign.right
+      && sign.top < door.bottom && door.top < sign.bottom;
+    expect(hit).toBe(false);
+  });
+
+  it('BUGS-C-4: no agent target point falls inside the sign rect', () => {
+    for (const spot of ALL_SPOTS) {
+      const inside = spot.x >= SIGN.x && spot.x <= SIGN.x + SIGN.w
+        && spot.y >= SIGN.y && spot.y <= SIGN.y + SIGN.h;
+      expect(inside, `${spot.x},${spot.y} is inside the sign`).toBe(false);
+    }
+  });
+
+  it('BUGS-C-4: the sign is flush with the room the way the door is', () => {
+    expect(SIGN.x + SIGN.w).toBe(F_W - 6);
   });
 });
 

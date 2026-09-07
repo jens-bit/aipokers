@@ -54,7 +54,7 @@ import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
-import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
+import { CasinoOnTv, TapeOnTv, onScreen } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
 import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
@@ -667,11 +667,14 @@ export function HomeScreen({
       // none is. Drawing a felt nobody is sitting at would be the one outright
       // lie on the screen.
       tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
-      // DRAFT-2: the wave-53 law makes the door the way to the casino ("CASINO
-      // is the door"), and the ref hangs the tag over it on every HOME frame
-      // (design-refs/mood-nav.jsx `navRoom`). It is a label, not a control — the
-      // door itself is still furniture, exactly as it was.
-      doorTag="THE CASINO →"
+      // BUGS-C job 4 · no more `doorTag` here. The marquee sign is always
+      // drawn (HOME-2 job 4) and DRAFT-2's "THE CASINO →" tag used to be
+      // passed alongside it, so the live room carried two casino signs
+      // stacked on the same spot above the door — "the casino is on top of
+      // itself". The marquee is the room's only signage now; `signLive` lights
+      // it with the same fact CasinoOnTv's set switches on: one of yours is
+      // actually in a hand out there.
+      signLive={!!onScreen(away)}
     >
       <AwayWall
         away={away}

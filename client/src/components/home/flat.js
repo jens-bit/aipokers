@@ -43,6 +43,16 @@ export const FLAT = {
 // little to the left, which is what a room with one armchair in front of one
 // television looks like from above.
 export const TV_SCREEN = { x: FLAT.tv.x + 16, y: FLAT.tv.y, w: 100, h: 58 };
+
+// BUGS-C job 4 · the marquee's own footprint, one fixture with the door. Right
+// edge flush with the room's, the way home1.css's .home-flat__sign renders it
+// (`right: 6px`) — the door's own anchor, for the same reason: rightward from
+// x356 of 390 is off the room. `SIGN_W`/`SIGN_H` are read a little larger than
+// the rendered box on purpose, per roomBubbles.js's rule that a modelled box
+// must never be smaller than the thing it stands for.
+export const SIGN_W = 88;
+export const SIGN_H = 20;
+export const SIGN = { x: F_W - 6 - SIGN_W, y: FLAT.door.y - 32, w: SIGN_W, h: SIGN_H };
 export const TV_CHAIR  = { x: FLAT.tv.x + 48, y: FLAT.tv.y + 78, w: 34, h: 14 };
 
 // Seats around the table, clockwise from the near side. Two agents sit opposite,
@@ -212,6 +222,9 @@ export const FOOTPRINTS = {
   door:   FLAT.door,
   couch:  FLAT.couch,
   tv:     TV_SCREEN,
+  // BUGS-C job 4: the sign is a no-walk zone too — nobody's target point may
+  // land under a lit marquee.
+  sign:   SIGN,
 };
 
 /** The box a body standing here occupies: his feet at y, `size` of him above. */

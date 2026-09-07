@@ -305,6 +305,17 @@ button.home-flat__table:active { filter: brightness(1.12); }
   text-shadow: 0 0 6px rgba(205, 179, 128, 0.9), 0 0 14px rgba(205, 179, 128, 0.45);
 }
 
+/* BUGS-C job 4 · lit when a table of yours is actually running — the same
+   fact CasinoOnTv's set switches on. A real marquee is warm at rest; this is
+   the difference between "there is a casino" and "there is a hand on right
+   now", so it runs hotter rather than switching on from nothing. */
+.home-flat__sign--live .home-flat__sign-glow {
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 107, 109, 0.32), transparent 70%);
+}
+.home-flat__sign--live .home-flat__sign-word {
+  text-shadow: 0 0 7px rgba(255, 155, 130, 0.95), 0 0 16px rgba(255, 107, 109, 0.55);
+}
+
 /* the safe, against the left wall under the frames */
 .home-flat__safe {
   position: absolute;

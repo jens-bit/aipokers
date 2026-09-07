@@ -661,6 +661,29 @@ describe('HOME-1 · the tape room', () => {
   });
 });
 
+// ── BUGS-C job 4 · one casino sign, not two ─────────────────────────────────
+
+describe('BUGS-C job 4: the CASINO sign', () => {
+  it('BUGS-C-4: the room never draws the old door tag alongside the marquee', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-door-sign')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-door-tag')).toBeNull();
+  });
+
+  it('BUGS-C-4: the sign lights when one of yours is actually in a hand out there', async () => {
+    await boot([mkAgent('a1', 'The Clock', {
+      location: loc('casino'),
+      liveGame: { tableId: 't1', pot: 400 },
+    })]);
+    expect(await screen.findByTestId('home-door-sign')).toHaveAttribute('data-live', 'true');
+  });
+
+  it('BUGS-C-4: it stays dark with nobody of yours in a live hand', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-door-sign')).toHaveAttribute('data-live', 'false');
+  });
+});
+
 // ── The fixtures that open sheets ───────────────────────────────────────────
 
 describe('HOME-1 · the safe and the fridge', () => {

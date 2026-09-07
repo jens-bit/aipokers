@@ -36,6 +36,8 @@ export function HomeFlat({
   // HOME-2 job 4 · what is on the television. A component rather than markup,
   // because what is on it is data (CasinoOnTv) and this file draws furniture.
   tvScreen = null,
+  // BUGS-C job 4 · is there a show on, right now, worth lighting the sign for?
+  signLive = false,
 }) {
   const tableBox = {
     left: FLAT.table.cx - FLAT.table.rx,
@@ -105,8 +107,26 @@ export function HomeFlat({
           Anchored by its RIGHT EDGE to the room's, which is the one anchor
           that cannot clip: the door starts at x356 of 390, so anything laid
           out rightward from the door leaves the screen (board 29, wave 56,
-          measured — the old tag ran 38px off frame in every home room). */}
-      <div className="home-flat__sign" style={{ top: FLAT.door.y - 32 }} data-testid="home-door-sign">
+          measured — the old tag ran 38px off frame in every home room).
+
+          BUGS-C job 4 · ONE fixture with the door, not two signs stacked on
+          each other. The `doorTag` label below used to be passed alongside
+          this on the live room, which is what "the casino is on top of
+          itself" was — the marquee and "THE CASINO →" occupying the same
+          spot. The marquee is now the only signage a live room ever draws;
+          `doorTag` stays for callers with no marquee to fall back on (the
+          draft's dimmed preview). It is also the one thing guaranteed never
+          to render over: nothing else in the room carries a z-index at or
+          above it (home1.css), and its footprint (flat.js `SIGN`) is a
+          no-walk zone and a bubble exclusion rect, same as the safe and the
+          TV. `signLive` lights it the way a real marquee is lit only when
+          there is a show — a table of yours actually running. */}
+      <div
+        className={`home-flat__sign${signLive ? ' home-flat__sign--live' : ''}`}
+        style={{ top: FLAT.door.y - 32 }}
+        data-testid="home-door-sign"
+        data-live={signLive ? 'true' : 'false'}
+      >
         <span className="home-flat__sign-glow" aria-hidden />
         <span className="home-flat__sign-word">CASINO</span>
       </div>
