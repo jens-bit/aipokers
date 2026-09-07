@@ -1,10 +1,20 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (WATCH-10) — 7 open, 30 resolved
+Last updated: 2026-09-07 (integrator) — 8 open, 30 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-39 — `verify-cache-headers.js` gives the server 4s to boot and loses the race
+**Severity:** Medium (BUG-34's family — a fast-suite red that a re-run makes go away)
+**Where:** `scripts/verify-cache-headers.js:70` — `waitForServer(retries = 20)` at 200ms a retry
+**What:** The script spawns the real server on port 18765 and polls it. Its budget is **20 x 200ms = 4s**; its two siblings that boot a server the same way, `verify-deeplink-routes.js:63` and `verify-home-routes.js:79`, allow 25 retries (5s). On a loaded box 4s is not enough for a cold Node boot, and the script fails with `Server failed to start: Server did not start in time` — the whole `npm test` then exits 1 on an assertion from `src/test/helpers/verifyGroups.js:90`.
+**Measurement:** three consecutive `npm test` runs on unmodified main (a288355, integrator session 2026-09-07): run 1 red on this script, runs 2 and 3 green with the same script passing in 996ms and 1042ms. It is the fast group's shortest boot budget and it runs alongside `verify-growth.js` (8.3s) and `verify-cost-router.js` (5.5s), which are what make the box loaded. Nothing in the branch touched it — the only commit in the tree is a `design-refs/` commit.
+**Found by:** the integrator, on the gate run after the design 56 commit.
+**Fix:** not yet made. The obvious one is to give it the siblings' 25 retries, or better, the same budget for all three in one place — but a boot that takes longer than 4s under load may itself be worth a look before the number is simply raised. Do not re-run to green; that is the habit the testing law exists to prevent.
+
+---
 
 ### BUG-37 — Money outside the watch felt is still spelled by `toLocaleString`
 **Severity:** Low (two spellings of the same number, in the same screen)
