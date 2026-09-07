@@ -123,6 +123,45 @@ function doorHeight({ hot, shut, index, desktop = false }) {
   return [152, 134, 120][index] ?? 120;
 }
 
+// ── BUGS-C job 12 · the floor first ─────────────────────────────────────────
+//
+// The casino used to open on the building — three doorways and the board by
+// the stairs — and a room's own floor (felts, tiny ghosts in the seats) was
+// somewhere you walked to. The playtest wanted the floor itself first, the
+// board reached by a toggle. Session-only (sessionStorage, not localStorage):
+// it is "which of the two you were just looking at", not a setting.
+const VIEW_KEY = 'agentic_casino_view';
+
+function readCasinoView() {
+  try {
+    const v = sessionStorage.getItem(VIEW_KEY);
+    return v === 'board' ? 'board' : 'floor';
+  } catch { return 'floor'; }
+}
+
+function writeCasinoView(view) {
+  try { sessionStorage.setItem(VIEW_KEY, view); } catch { /* session-only anyway */ }
+}
+
+/** "FLOOR | BOARD", a segmented control rather than two buttons — one choice. */
+function ViewToggle({ view, onChange }) {
+  return (
+    <div className="csn-view-toggle" role="group" aria-label="Floor or board" data-testid="casino-view-toggle">
+      {['floor', 'board'].map((v) => (
+        <button
+          key={v}
+          type="button"
+          className={`csn-view-toggle__btn${view === v ? ' is-active' : ''}`}
+          aria-pressed={view === v}
+          onClick={() => onChange(v)}
+        >
+          {v === 'floor' ? 'Floor' : 'Board'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── The screen ──────────────────────────────────────────────────────────────
 
 export function CasinoScreen({
@@ -149,6 +188,10 @@ export function CasinoScreen({
   // a doorway is the choice of where to seat him, and that is the older and
   // more important meaning of the tap.
   const [openRoomId, setOpenRoomId] = useState(null);
+  // BUGS-C job 12: floor or board — remembered for the session, not tapped
+  // fresh every time the owner leaves and comes back to the casino tab.
+  const [view, setView] = useState(readCasinoView);
+  const changeView = useCallback((v) => { setView(v); writeCasinoView(v); }, []);
 
   // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
   // the server's table -> room map. The doorways are still drawn from `rooms`;
@@ -256,6 +299,7 @@ export function CasinoScreen({
   // It was scenery — the one tap on this screen that did nothing.
   function lookIntoRoom(room) {
     setOpenRoomId(room.id);
+    changeView('floor');
   }
 
   async function handleFund(decision) {
@@ -341,7 +385,12 @@ export function CasinoScreen({
     );
   });
 
-  const openRoom = rooms.find((r) => r.id === openRoomId) ?? null;
+  // BUGS-C job 12: the room the floor shows when nobody has tapped a specific
+  // doorway yet — the one the small "a felt goes hot" card already points at,
+  // or the first room the building has, so "opens on the floor" never needs
+  // an empty room to fall back to.
+  const defaultFloorRoomId = focus?.room?.id ?? rooms[0]?.id ?? null;
+  const openRoom = rooms.find((r) => r.id === (openRoomId ?? defaultFloorRoomId)) ?? null;
 
   // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
   // (pots being built), TONIGHT off the ticker (hands that are over), and both
@@ -506,7 +555,12 @@ export function CasinoScreen({
   // in the rail (FIX-6 job 5's law is about sheets, and a sheet is a panel
   // about something you can still see behind it). It takes the board with it
   // so the ticker is not lost on the way in.
-  const floorView = openRoom && !trayAgent ? (
+  // BUGS-C job 12: floor first. `view` decides which of the two the casino
+  // opens on; a tapped doorway (lookIntoRoom) always wins into 'floor', and
+  // "← THE CASINO" is now the board side of the same toggle rather than a
+  // one-way exit — openRoomId is left alone so flipping back to Floor returns
+  // to the room he was just looking at, not the default one.
+  const floorView = view === 'floor' && openRoom && !trayAgent ? (
     <FloorView
       room={openRoom}
       desktop={desktop}
@@ -527,8 +581,9 @@ export function CasinoScreen({
           onReplay={onReplay ?? null}
         />
       )}
-      onClose={() => setOpenRoomId(null)}
-      onWatch={(tableId) => { setOpenRoomId(null); onSpectate?.(tableId); }}
+      toggle={<ViewToggle view={view} onChange={changeView} />}
+      onClose={() => changeView('board')}
+      onWatch={(tableId) => { setOpenRoomId(null); changeView('board'); onSpectate?.(tableId); }}
     />
   ) : null;
 
@@ -573,6 +628,7 @@ export function CasinoScreen({
       <div className="csn csn--desk" style={{ background: M_BG }}>
         <div className="csn-desk__stage">
           {head}
+          {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
           {roomsColumn}
           {tray}
         </div>
@@ -602,6 +658,7 @@ export function CasinoScreen({
       style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
       {head}
+      {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
       {roomsColumn}
       {tray}
     </div>

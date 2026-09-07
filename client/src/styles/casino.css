@@ -556,6 +556,35 @@
   cursor: pointer;
 }
 
+/* BUGS-C job 12 · Floor | Board, one choice rather than two buttons. */
+.csn-view-toggle {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.csn-view-toggle__btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #6B6B6B;
+  cursor: pointer;
+}
+
+.csn-view-toggle__btn.is-active {
+  background: rgba(0, 212, 170, 0.14);
+  color: #00D4AA;
+}
+
 .csn-floor__body {
   flex: 1;
   min-height: 0;

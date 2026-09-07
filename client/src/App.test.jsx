@@ -30,13 +30,20 @@ import { fileURLToPath } from 'node:url';
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import App from './App.jsx';
 import { agentsResponse, playingAgent, restingAgent } from './test/fixtures/agents.js';
 import { fetchMock, socketMock, telegram } from './test/harness.js';
 import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
+
+// BUGS-C job 12: one test below seeds the casino's session-remembered view so
+// it can assert on the building; cleared after every test so it cannot leak
+// into whichever one runs next.
+afterEach(() => {
+  try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
+});
 
 // HOME-1: the app boots into the room. This is what `Standup` used to be.
 const bootedOnHome = () => screen.findByTestId('home-screen');
@@ -83,6 +90,10 @@ describe('App shell', () => {
     const user = userEvent.setup();
     fetchMock.route('/api/rooms', roomsResponse);
     fetchMock.route('/api/events', { events: [], lastId: 0 });
+    // BUGS-C job 12: the casino opens on the floor now; this test is about the
+    // BUILDING naming its rooms, so it starts on the board view directly
+    // rather than switching there through the toggle.
+    try { sessionStorage.setItem('agentic_casino_view', 'board'); } catch { /* n/a */ }
     render(<App />);
     await bootedOnHome();
 
