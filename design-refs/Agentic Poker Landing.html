@@ -48,9 +48,9 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <!-- BRIEF -->
 <div class="frame" style="left:60px;top:80px">
   <div class="panel">
-    <div class="sub">agenticpoker.app · wave 54</div>
+    <div class="sub">agenticpoker.app · wave 61</div>
     <h1>Sell the creature,<br/>not the winnings</h1>
-    <p>Rebuilt against the product as it is after wave 53. The page's job is to make a stranger want <b>a poker player they raise</b> — so the copy is about him, and every claim on the page is a thing that exists in the build.</p>
+    <p>Rebuilt around <b>guest mode</b>: anyone can draft and play with no account, in any browser, so the shortest path to a draft is the draft itself. The page is one screen that says what this is, then the real game, then the explanation for whoever wants it. The copy is about <b>him</b>, and every claim on the page is a thing that exists in the build.</p>
 
     <div class="lbl" style="color:#CDB380">Territory</div>
     <div>
@@ -63,6 +63,16 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     </div>
     <p style="margin-top:10px">Marketing lives in <b>burgundy and gold</b>. The product's black-and-teal appears in exactly one place: <b>inside the device frames</b>. <b>Rozha One</b> carries the headlines — a fat-face didone in one heavy weight, a vintage poker poster rather than a template. It has no italic, so emphasis is gold, never a synthesized slant. Playfair speaks only where the agents do.</p>
 
+    <div class="lbl" style="color:#CDB380">Wave 61 · the landing is the game</div>
+    <p>Every version through wave 60 explained the product in nine sections and asked for the draft at the end. Guest mode changed what the shortest path is: anyone can draft and play with no account, so <b>the shortest path to a draft is the draft</b>. The page is now one screen that says what this is, then the real game, then the explanation for whoever wants it.</p>
+    <div class="lawrow"><span class="k">1</span><span class="v"><b>Hero is one viewport.</b> Verified: at 390 the hero block measures <b>674 of 700</b>, at 1280 <b>774 of 800</b> — the viewport minus a 26px sliver. Masthead and hero share that box; nothing else is in it.</span></div>
+    <div class="lawrow"><span class="k">2</span><span class="v"><b>The room's top edge is the fold.</b> Verified: the room starts at y674 (390) and y774 (1280) and is itself a full viewport tall. What shows under the fold is <b>the product</b>, not a heading about it — the old page put a section label in that gap.</span></div>
+    <div class="lawrow"><span class="k">3</span><span class="v"><b>Two teal backs in front, face visible.</b> Verified at all four renders: exactly <b>2</b> backs, each <b>55% of the hood's width</b>, both starting below the face recess. <b>Zero</b> white card faces anywhere on the page. The wave-60 correction measured against the hood rather than the svg viewport, which is what had made them 1.8&times; too big.</span></div>
+    <div class="lawrow"><span class="k">4</span><span class="v"><b>Recruiter sheet open on glass.</b> Verified: <code>THE DRAFT · 1 OF 5</code> renders on <code>V5GLASS</code> in all four, with the first question showing and the composer carrying a teal focus ring and a blinking caret. On phone it is glass over the room's lower half; on desktop it is the right column's content, because desktop has a column and does not need to cover anything. <b>No grey chat screen.</b></span></div>
+    <div class="lawrow"><span class="k">5</span><span class="v"><b>No nav bar.</b> Verified: <b>zero</b> Home/Casino/You bars on the page at any width. This product has none.</span></div>
+    <div class="lawrow"><span class="k">6</span><span class="v"><b>Door sign fully visible.</b> Verified <b>scoped to the room block</b> rather than the whole page: the guest room carries <b>1</b> <code>CASINO</code> marquee at 390 and 1 at 1280, neither clipped, plus <b>1 empty chair</b> sitting 13&ndash;16px below the table's rim. The first probe counted signs page-wide and so measured <i>clipping</i> rather than <i>presence in the room the wave is about</i> &mdash; the phone room had a doorway and no sign over it, because <code>DoorTap</code> and <code>TableChairs</code> are children each room screen mounts and <code>L2RoomPhone</code> rendered <code>HomeFlat</code> childless.</span></div>
+    <div class="lawrow"><span class="k">7</span><span class="v"><b>Sections start after the room.</b> Verified: section 01 follows the room block, and <b>its screenshot is gone</b> — the reader has just used that screen. Its copy is unchanged and 02&ndash;09 keep one big centred phone each. The CTA's sub-line now reads <b>&ldquo;Free · no account needed&rdquo;</b> rather than &ldquo;plays in Telegram&rdquo;: Telegram is one of two ways in, and not the first one.</span></div>
+
     <div class="lbl">Nine sections, in the order a stranger needs them</div>
     <div class="lawrow"><span class="k">1</span><span class="v"><b>Draft him.</b> Thirty seconds of chat, then a nature and six attributes.</span></div>
     <div class="lawrow"><span class="k">2</span><span class="v"><b>He lives at home.</b> The room, from above, with the table, couch, fridge, TV and door.</span></div>
@@ -74,8 +84,11 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
     <div class="lawrow"><span class="k">8</span><span class="v"><b>The seats.</b> First free, the rest earned in chips he won.</span></div>
     <div class="lawrow"><span class="k">9</span><span class="v"><b>Deal him in.</b> The CTA, the fictional agent quote, the play-money line.</span></div>
 
-    <div class="lbl">55 · One big image, not two small ones</div>
-    <p>Sections <b>01, 02, 03 and 07</b> carry a single screen, centred and as large as the column allows &mdash; 0.8 on desktop, 0.86 on mobile. A pair of half-size screenshots side by side reads as an afterthought; one big one reads as the product. The supporting lists move <b>under</b> the image as a two-column grid instead of standing beside it, and section 03 shows a <b>hand mid-action</b> &mdash; the ceremony, board out, pot moving &mdash; rather than a calm felt that photographs like a stats sheet. In the hero he holds <b>card backs</b>: the fan sits behind him so his own hands read in front of the card bottoms.</p>
+    <div class="lbl">The screen matches the medium</div>
+    <p>A desktop reader now sees the <b>desktop</b> product and a phone reader sees the phone. Every section screenshot follows the page's own width: at 1280 and 1440 the shots are <code>DkHomeRoomScreenM</code>, <code>DkWatchM</code>, <code>DkCasinoFloorScreenM</code>, <code>DkHoverScreenM</code> and <code>DkOwnerM</code> at <b>1152&times;720 (k 0.8)</b>; at 390 they are the phone screens at 0.86. Arguing for a desktop product with phone screenshots was the page contradicting itself — <code>L2Big</code> drew a 390 phone whatever the page width.</p>
+
+    <div class="lbl">One big image, not two small ones</div>
+    <p>Sections <b>02, 03, 04, 05 and 07</b> carry a single screen, centred and as large as the column allows &mdash; <b>0.95 at 1280 and up</b> (an 802px phone), 0.86 on mobile. A pair of half-size screenshots side by side reads as an afterthought; one big one reads as the product. Section 01 now carries <b>no</b> screenshot at all, because the room above it is the screen it used to show. The supporting lists sit <b>under</b> each image as a two-column grid rather than beside it.</p>
 
     <div class="lbl">The screenshots are the build</div>
     <p>Every device frame renders a <b>current</b> screen component from boards 26, 27 and 29 — <code>NavDraftM</code>, <code>FourApartM</code>, <code>NavHomeM</code>, <code>V5CalmScreenM</code>, <code>NavCasinoM</code>, <code>Floor2LiveScreenM</code>, <code>HomeWantM</code>, <code>OwnerSitDownM</code>, <code>OwnerPulledBackM</code> — scaled inside the product's own bezel. Nothing is redrawn, and nothing older than wave 52 appears.</p>
@@ -90,8 +103,8 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 
 <!-- ARTBOARDS -->
 <div class="frame" style="left:520px;top:80px">
-  <div class="grouphdr">54 · The fold</div>
-  <div class="groupsub">One law on top of the page: <b>the hero fits the first viewport</b> at 1280×800 and 1440×900 alike, with the next section's number peeking below. The headline loses size per breakpoint (88 → 72 → 46) and never presence. The gold dashed line <b>is</b> the fold.</div>
+  <div class="grouphdr">61 · The fold</div>
+  <div class="groupsub">One law on top of the page: <b>the hero is exactly one viewport</b> at 390, 1280 and 1440 alike — and what peeks below it is <b>the room</b>, not the next section's number. The hero takes the viewport minus a 26px sliver, so the fold falls on the room's top edge and the eye knows the scroll leads to the product. The headline loses size per breakpoint (88 → 72 → 46) and never presence. The gold dashed line <b>is</b> the fold.</div>
   <div class="fh" style="margin-top:6px"><span class="fn">H1</span><span class="ft">Hero · 1280×800</span><span class="fb">fold drawn</span></div>
   <div id="lh1280"></div>
   <div class="fa">Masthead, headline, the one line that says what this is, the CTA with its microcopy, and the creature — all above the line. The ghost is the <b>current</b> face and hands system at 280px with the sheen kept from the last pass; he breathes on a 5.5s cycle, and <b>the fan deals in</b> — six <b>card backs</b>, held from below with his own hands in front of them, arriving one at a time from off-frame, then re-dealing every nine seconds. That is the page's dealing beat: it lives in the hero art, never inside a product screenshot, because animating a screenshot into doing something the screen does not do is the same lie as redrawing one. The line under the headline names the whole product in one sentence: you draft him, he is born with a nature and six attributes, he lives in a room in your phone and plays real hands without you.</div>
@@ -106,13 +119,13 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <div class="frame" style="left:520px;top:1180px">
   <div class="fh"><span class="fn">L1</span><span class="ft">Full page · 1280</span><span class="fb">nine sections</span></div>
   <div id="lp1280"></div>
-  <div class="fa">The scroll: hero → draft → home → play → casino → moods and wants → memory → sit down → seats → CTA. Alternating wine and ink grounds mark the rhythm, so a stranger can feel the sections without a nav. Every section is a number, a label, a Rozha headline, one lede paragraph, and <b>real screens</b> — no feature grid anywhere, and no icon invented for a concept.</div>
+  <div class="fa">The scroll: hero &rarr; <b>the room</b> &rarr; the nine sections &rarr; CTA. The room is the second screen and carries no caption, heading or &ldquo;try it&rdquo; label, because it is not a picture of the product. On desktop it is the wave-58 three columns: roster reading <b>Nobody yet &middot; 0 of 4</b>, the empty flat in the centre with the silhouette on the table, the recruiter sheet as the right column. Alternating wine and ink grounds mark the rhythm below it, so a stranger can feel the sections without a nav. Every section is a number, a label, a Rozha headline, one lede paragraph, and <b>real screens</b> — no feature grid anywhere, and no icon invented for a concept.</div>
 </div>
 
 <div class="frame" style="left:2340px;top:1180px">
   <div class="fh"><span class="fn">L2</span><span class="ft">Full page · 390</span><span class="fb teal">mobile first</span></div>
   <div id="lp390"></div>
-  <div class="fa">At 390 the two-column sections stack, the shots drop to 0.42 and 0.44, the headline goes to 46 and the section heads to 30. The CTA is left-aligned rather than centred, because on a phone a centred button under left-aligned copy reads as a different element.</div>
+  <div class="fa">At 390 the two-column sections stack, <b>the phones render at 0.86</b> (0.95 from 1280 up), the headline goes to 46 and the section heads to 30. The CTA is left-aligned rather than centred, because on a phone a centred button under left-aligned copy reads as a different element.</div>
 </div>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -140,6 +153,9 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-nav.jsx"></script>
 <script type="text/babel" src="mood-sit.jsx"></script>
 <script type="text/babel" src="mood-guest.jsx"></script>
+<script type="text/babel" src="mood-floor58.jsx"></script>
+<script type="text/babel" src="mood-desk59.jsx"></script>
+<script type="text/babel" src="mood-desk59b.jsx"></script>
 <script type="text/babel" src="mood-landing2.jsx"></script>
 
 <script type="text/babel">

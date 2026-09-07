@@ -171,7 +171,7 @@ const DkFlat = ({ children, w, h = 900, hover, lit = true }) => {
         </div>
       </div>
       {hover && (
-        <div style={{ position: 'absolute', left: '50%', bottom: 18, transform: 'translateX(-50%)', padding: '7px 13px', borderRadius: 9, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, border: `1px solid ${V5GLASS.edgeUp}`, fontSize: 11.5, color: M_DIM, whiteSpace: 'nowrap' }}>
+        <div style={{ position: 'absolute', left: '50%', top: 14, transform: 'translateX(-50%)', padding: '7px 13px', borderRadius: 9, background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, border: `1px solid ${V5GLASS.edgeUp}`, fontSize: 11.5, color: M_DIM, whiteSpace: 'nowrap' }}>
           {hover}
         </div>
       )}
@@ -181,18 +181,59 @@ const DkFlat = ({ children, w, h = 900, hover, lit = true }) => {
 
 // the fixtures, at desktop coordinates. Hovering one shows a line; clicking opens it
 // in the right column, which is the whole substitution for a bottom sheet.
-const DkFixture = ({ x, y, w, h, label, hint, on }) => (
-  <div style={{ position: 'absolute', left: x, top: y, width: w, height: h, borderRadius: 4, cursor: 'pointer',
-    background: 'linear-gradient(160deg, #23211C 0%, #16150F 100%)',
-    border: `1px solid ${on ? M_GOLD : 'rgba(255,255,255,0.1)'}`,
-    boxShadow: on ? `0 0 0 3px ${M_GOLD}22, 0 8px 20px rgba(0,0,0,0.55)` : '0 6px 16px rgba(0,0,0,0.5)' }}>
-    <div style={{ position: 'absolute', inset: 5, borderRadius: 2, border: `1px solid ${M_GOLD}26` }}></div>
-    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 6, textAlign: 'center', fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: on ? M_GOLD : M_MUTED }}>{label}</div>
+const DkFixture = ({ x, y, w, h, label, hint, on, kind }) => {
+  // above the fixture unless the fixture is high in the room, where above is the wall
+  const hintBelow = y < 110;
+  return (
+  <div style={{ position: 'absolute', left: x, top: y, width: w, height: h, borderRadius: kind === 'tv' ? 3 : 4, cursor: 'pointer',
+    background: kind === 'fridge' ? 'linear-gradient(100deg, #232B29 0%, #19201F 62%, #1E2624 100%)'
+      : kind === 'tv' ? '#06090A'
+      : 'linear-gradient(160deg, #2A2721 0%, #1A1811 100%)',
+    border: `1px solid ${on ? M_GOLD : 'rgba(255,255,255,0.11)'}`,
+    boxShadow: on ? `0 0 0 3px ${M_GOLD}22, 0 10px 24px rgba(0,0,0,0.55)` : '0 8px 20px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+
+    {kind === 'safe' && <>
+      {/* a safe is a door with a dial and a handle on it */}
+      <div style={{ position: 'absolute', inset: 5, borderRadius: 2, border: `1px solid ${M_GOLD}33` }}></div>
+      <div style={{ position: 'absolute', left: '34%', top: '46%', width: 20, height: 20, marginTop: -10, marginLeft: -10, borderRadius: '50%', border: `2px solid ${M_GOLD}88`, boxShadow: `inset 0 0 0 3px rgba(0,0,0,0.4)` }}>
+        <span style={{ position: 'absolute', left: '50%', top: 2, width: 1.5, height: 7, marginLeft: -0.75, background: M_GOLD, opacity: 0.8 }}></span>
+      </div>
+      <div style={{ position: 'absolute', right: 9, top: '46%', width: 4, height: 22, marginTop: -11, borderRadius: 2, background: `${M_GOLD}99` }}></div>
+      <div style={{ position: 'absolute', right: 7, top: '46%', width: 8, height: 4, marginTop: -2, borderRadius: 2, background: `${M_GOLD}99` }}></div>
+    </>}
+
+    {kind === 'fridge' && <>
+      {/* two doors, two handles, and the seam between them */}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: '34%', height: 1, background: 'rgba(255,255,255,0.13)' }}></div>
+      <div style={{ position: 'absolute', right: 7, top: '10%', width: 3.5, height: '16%', borderRadius: 2, background: 'rgba(255,255,255,0.3)' }}></div>
+      <div style={{ position: 'absolute', right: 7, top: '42%', width: 3.5, height: '30%', borderRadius: 2, background: 'rgba(255,255,255,0.3)' }}></div>
+      {/* what is in it, seen through the gap at the bottom */}
+      <div style={{ position: 'absolute', left: 9, bottom: 20, display: 'flex', alignItems: 'flex-end', gap: 3 }}>
+        {[0, 1, 2].map(i => <span key={i} style={{ width: 5, height: 14, borderRadius: '1px 1px 2px 2px', background: 'rgba(122,168,138,0.6)' }}></span>)}
+        <span style={{ width: 9, height: 7, borderRadius: 1.5, background: 'rgba(205,179,128,0.45)', marginLeft: 2 }}></span>
+      </div>
+    </>}
+
+    {kind === 'tv' && <>
+      {/* a screen in a bezel, with the ticker running on it and a stand under it */}
+      <div style={{ position: 'absolute', left: 5, right: 5, top: 5, bottom: 13, borderRadius: 2, background: 'linear-gradient(180deg, #171310 0%, #0C0A08 100%)', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 7px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontFamily: OSWALD, fontSize: 6.5, fontWeight: 600, letterSpacing: '0.14em', color: `${M_GOLD}B3` }}>BIGGEST POT</span>
+          <span style={{ marginLeft: 'auto', width: 4, height: 4, borderRadius: '50%', background: M_TEAL, animation: 'pulse 2.2s ease-in-out infinite' }}></span>
+        </div>
+        <div style={{ fontFamily: ROZHA, fontSize: 15, color: M_GOLD, lineHeight: 1.05 }}>$14,200</div>
+        <div style={{ fontSize: 7.5, color: M_DIM, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Ozy &middot; cracked aces &middot; 50/100</div>
+      </div>
+      <div style={{ position: 'absolute', left: '50%', bottom: 3, width: 34, height: 3, marginLeft: -17, borderRadius: 2, background: 'rgba(255,255,255,0.14)' }}></div>
+    </>}
+
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: kind === 'tv' ? -13 : 6, textAlign: 'center', fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.14em', color: on ? M_GOLD : M_MUTED }}>{label}</div>
     {on && hint && (
-      <div style={{ position: 'absolute', left: '50%', top: -30, transform: 'translateX(-50%)', padding: '5px 10px', borderRadius: 8, background: 'rgba(8,12,12,0.95)', border: `1px solid ${M_GOLD}55`, fontSize: 10.5, color: M_TEXT, whiteSpace: 'nowrap' }}>{hint}</div>
+      <div style={{ position: 'absolute', left: '50%', [hintBelow ? 'top' : 'bottom']: hintBelow ? h + 8 : h + 8, transform: 'translateX(-50%)', padding: '5px 10px', borderRadius: 8, background: 'rgba(8,12,12,0.95)', border: `1px solid ${M_GOLD}55`, fontSize: 10.5, color: M_TEXT, whiteSpace: 'nowrap', zIndex: 6 }}>{hint}</div>
     )}
   </div>
-);
+  );
+};
 
 // a body at desktop scale, with the pill shown only on hover — the room is quiet
 // until the pointer asks it something
@@ -215,12 +256,15 @@ const DkBody = ({ x, y, id, name, mood = 'confident', size = 62, st = 80, ht = 2
 };
 
 // the kitchen table, centre of the wider floor
-const DkTable = ({ cx = 280, cy = 400, rx = 128, ry = 84, children }) => (
+const DkTable = ({ cx = 280, cy = 400, rx = 128, ry = 84, bare, children }) => (
   <>
     <div style={{ position: 'absolute', left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 36%, #35443E 0%, #242F2C 68%, #1B2422 100%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 14px 34px rgba(0,0,0,0.5)' }}></div>
-    <div style={{ position: 'absolute', left: cx, top: cy - 8, transform: 'translate(-50%,-50%)', display: 'flex', gap: 3 }}>
-      {[['9', 'h'], ['J', 's'], ['4', 'c']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={20} h={28}/>)}
-    </div>
+    {/* a table with nobody at it has nothing on it */}
+    {!bare && (
+      <div style={{ position: 'absolute', left: cx, top: cy - 8, transform: 'translate(-50%,-50%)', display: 'flex', gap: 3 }}>
+        {[['9', 'h'], ['J', 's'], ['4', 'c']].map((c, i) => <PlayingCard key={i} rank={c[0]} suit={c[1]} w={20} h={28}/>)}
+      </div>
+    )}
     {children}
   </>
 );
@@ -245,22 +289,23 @@ const dkRoom = ({ hover }) => (
         </div>
       ))}
     </div>
-    <DkFixture x={24} y={96} w={78} h={62} label="SAFE" hint="$54,000 in the safe" on={hover === 'safe'}/>
-    <DkFixture x={452} y={130} w={72} h={112} label="FRIDGE" hint="4 beers · 2 snacks" on={hover === 'fridge'}/>
-    <DkFixture x={210} y={604} w={140} h={78} label="THE TV" hint="the casino ticker" on={hover === 'tv'}/>
-    {/* the door, in the right wall */}
-    <div style={{ position: 'absolute', right: 0, top: 288, width: 34, height: 132, background: 'linear-gradient(90deg, #14120F 0%, #241F1A 100%)', borderTop: '2px solid rgba(255,255,255,0.13)', borderBottom: '2px solid rgba(255,255,255,0.13)', borderLeft: '2px solid rgba(255,255,255,0.13)' }}>
-      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 30%, ${M_GOLD}26 100%)` }}></div>
-    </div>
-    {/* the sign, on the wall above it */}
-    <div style={{ position: 'absolute', right: 6, top: 246, display: 'flex', background: 'linear-gradient(180deg, #241D12 0%, #17120B 100%)', border: `1px solid ${M_GOLD}6B`, boxShadow: `0 2px 12px rgba(0,0,0,0.6), inset 0 1px 0 ${M_GOLD}33` }}>
+    <DkFixture kind="safe" x={24} y={96} w={78} h={62} label="SAFE" hint="$54,000 in the safe" on={hover === 'safe'}/>
+    <DkFixture kind="fridge" x={452} y={130} w={72} h={112} label="FRIDGE" hint="4 beers · 2 snacks" on={hover === 'fridge'}/>
+    <DkFixture kind="tv" x={210} y={604} w={140} h={78} label="THE TV" hint="the casino ticker" on={hover === 'tv'}/>
+    {/* THE DOOR IS THE SIGN. A plate beside a doorway was two objects saying one
+        thing; the word runs down the door, the jambs carry bulbs, and the light
+        spills onto the boards in front of it. */}
+    <div style={{ position: 'absolute', right: -88, top: 272, width: 122, height: 164, background: `radial-gradient(ellipse at 100% 50%, ${M_GOLD}20 0%, transparent 68%)`, pointerEvents: 'none' }}></div>
+    <div style={{ position: 'absolute', right: 0, top: 288, width: 42, height: 132, cursor: 'pointer', background: 'linear-gradient(90deg, #1A1610 0%, #322818 100%)', borderTop: `2px solid ${M_GOLD}59`, borderBottom: `2px solid ${M_GOLD}59`, borderLeft: `2px solid ${M_GOLD}59`, boxShadow: `inset 0 0 26px ${M_GOLD}26` }}>
+      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 10%, ${M_GOLD}33 100%)` }}></div>
       {[0, 1].map(side => (
-        <div key={side} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around', padding: '4px 3px', order: side ? 2 : 0 }}>
-          {[0, 1, 2].map(i => <span key={i} style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 4px ${M_GOLD}`, animation: `shimmer 2.2s ease-in-out ${(i + side) * 0.35}s infinite` }}></span>)}
+        <div key={side} style={{ position: 'absolute', top: 7, bottom: 7, [side ? 'right' : 'left']: 3, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {[0, 1, 2, 3].map(i => <span key={i} style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 4px ${M_GOLD}`, animation: `shimmer 2.2s ease-in-out ${(i + side) * 0.3}s infinite` }}></span>)}
         </div>
       ))}
-      <div style={{ order: 1, padding: '5px 9px 6px' }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: M_GOLD, textShadow: `0 0 8px ${M_GOLD}88` }}>CASINO</span>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.26em', color: M_GOLD, textShadow: `0 0 9px ${M_GOLD}99`, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>CASINO</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="3" strokeLinecap="round" style={{ transform: 'rotate(90deg)' }}><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>
       </div>
     </div>
     {/* the couch, left */}
@@ -270,6 +315,45 @@ const dkRoom = ({ hover }) => (
     <DkBody x={366} y={378} id="blf" name="Bluff Master" mood="frustrated" size={60} st={70} ht={24} prop/>
     <DkBody x={470} y={276} id="val" name="Value Bot" mood="neutral" size={56} st={34} ht={12}/>
     <DkBody x={78} y={606} id="bal" name="Balanced v2.1" mood="sulking" size={56} st={18} ht={12}/>
+  </>
+);
+
+// the room before anyone lives in it: the same fixtures on the same walls, no cast,
+// no away frame with a live line in it, no cards on the table.
+const dkRoomEmpty = () => (
+  <>
+    <div style={{ position: 'absolute', left: 24, top: 16, display: 'flex', gap: 10 }}>
+      {[0, 1, 2, 3].map(i => (
+        <div key={i} style={{ width: 76, height: 62, borderRadius: 3, background: '#0C1110', border: '1px solid rgba(255,255,255,0.07)', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', inset: 6, border: '1px solid rgba(255,255,255,0.05)', borderRadius: 2 }}></div>
+        </div>
+      ))}
+    </div>
+    <DkFixture kind="safe" x={24} y={96} w={78} h={62} label="SAFE"/>
+    <DkFixture kind="fridge" x={452} y={130} w={72} h={112} label="FRIDGE"/>
+    <DkFixture kind="tv" x={210} y={604} w={140} h={78} label="THE TV"/>
+    {/* THE DOOR IS THE SIGN. A plate beside a doorway was two objects saying one
+        thing; the word runs down the door, the jambs carry bulbs, and the light
+        spills onto the boards in front of it. */}
+    <div style={{ position: 'absolute', right: -88, top: 272, width: 122, height: 164, background: `radial-gradient(ellipse at 100% 50%, ${M_GOLD}20 0%, transparent 68%)`, pointerEvents: 'none' }}></div>
+    <div style={{ position: 'absolute', right: 0, top: 288, width: 42, height: 132, cursor: 'pointer', background: 'linear-gradient(90deg, #1A1610 0%, #322818 100%)', borderTop: `2px solid ${M_GOLD}59`, borderBottom: `2px solid ${M_GOLD}59`, borderLeft: `2px solid ${M_GOLD}59`, boxShadow: `inset 0 0 26px ${M_GOLD}26` }}>
+      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 10%, ${M_GOLD}33 100%)` }}></div>
+      {[0, 1].map(side => (
+        <div key={side} style={{ position: 'absolute', top: 7, bottom: 7, [side ? 'right' : 'left']: 3, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {[0, 1, 2, 3].map(i => <span key={i} style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 4px ${M_GOLD}`, animation: `shimmer 2.2s ease-in-out ${(i + side) * 0.3}s infinite` }}></span>)}
+        </div>
+      ))}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <span style={{ fontFamily: OSWALD, fontSize: 10, fontWeight: 600, letterSpacing: '0.26em', color: M_GOLD, textShadow: `0 0 9px ${M_GOLD}99`, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>CASINO</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="3" strokeLinecap="round" style={{ transform: 'rotate(90deg)' }}><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+    <div style={{ position: 'absolute', left: 22, top: 470, width: 112, height: 148, borderRadius: 6, background: 'linear-gradient(160deg, #2A2430 0%, #1A1620 100%)', border: '1px solid rgba(255,255,255,0.07)' }}></div>
+    <DkTable bare/>
+    {/* one empty chair at the table, in the product's own empty-seat language:
+        a dashed slab, not a solid one — a solid chair reads as furniture, and this
+        is a seat waiting for a body. */}
+    <div style={{ position: 'absolute', left: 280, top: 500, transform: 'translateX(-50%)', width: 40, height: 33, borderRadius: 5, border: '1px dashed rgba(255,255,255,0.15)' }}></div>
   </>
 );
 
@@ -374,6 +458,6 @@ const DkSafeScreenM = ({ w = 1440, h = 900 }) => (
 
 Object.assign(window, {
   DW, DK_H, stageW, DkShell, DkBar, DK_ROSTER, DkRosterRow, DkRoster, DkRight, DK_TALK, DkTalk,
-  DkFlat, DkFixture, DkBody, DkTable, dkRoom,
+  DkFlat, DkFixture, DkBody, DkTable, dkRoom, dkRoomEmpty,
   DkHomeScreenM, DkHomeRoomScreenM, DkHoverScreenM, DkFixtureHoverScreenM, DkSafeScreenM,
 });

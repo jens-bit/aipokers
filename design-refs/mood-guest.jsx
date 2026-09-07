@@ -208,45 +208,48 @@ const GuestClaimDeskM = ({ w = 1440, h = 900 }) => (
 // from the current system, so it cannot drift from the product again.
 const ShareCard = ({ w = 1080, h = 1920, k = 0.28 }) => {
   const wide = w > h;
+  // the unit is the card's SHORT side, not its width
+  const u = Math.min(w, h);
   const i = idFor('gra');
   return (
     <div style={{ width: w * k, height: h * k, overflow: 'hidden', borderRadius: 6, boxShadow: '0 18px 44px rgba(0,0,0,0.5)' }}>
       <div style={{ width: w, height: h, transform: `scale(${k})`, transformOrigin: '0 0', position: 'relative', overflow: 'hidden', fontFamily: INTER, background: 'radial-gradient(ellipse at 50% 34%, #23312D 0%, #131D1B 58%, #0A0F0E 100%)' }}>
         {/* the felt's own rim, so the card is recognisably from the table */}
-        <div style={{ position: 'absolute', left: '-16%', right: '-16%', top: wide ? '4%' : '12%', height: wide ? '86%' : '52%', borderRadius: '50%', border: `${w * 0.003}px solid ${M_TEAL}1F` }}></div>
+        <div style={{ position: 'absolute', left: '-16%', right: '-16%', top: wide ? '4%' : '12%', height: wide ? '86%' : '52%', borderRadius: '50%', border: `${Math.max(1, u * 0.003)}px solid ${M_TEAL}1F` }}></div>
 
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: wide ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: w * (wide ? 0.05 : 0.03), padding: w * 0.06 }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: u * 0.155, display: 'flex', flexDirection: wide ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: u * (wide ? 0.05 : 0.03), padding: `${u * 0.06}px ${u * 0.06}px 0` }}>
           {/* him */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            <div style={{ position: 'absolute', left: '50%', top: '48%', width: w * (wide ? 0.4 : 0.72), height: w * (wide ? 0.4 : 0.72), transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${M_GOLD}26, transparent 68%)` }}></div>
-            <MoodGhost mood="confident" size={w * (wide ? 0.19 : 0.34)} ring={false} hood={i.hood} glow={i.glow.c} hands="raise"/>
+            <div style={{ position: 'absolute', left: '50%', top: '48%', width: u * (wide ? 0.4 : 0.72), height: u * (wide ? 0.4 : 0.72), transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${M_GOLD}26, transparent 68%)` }}></div>
+            <MoodGhost mood="confident" size={u * (wide ? 0.19 : 0.34)} ring={false} hood={i.hood} glow={i.glow.c} hands="raise"/>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: wide ? 'flex-start' : 'center', gap: w * 0.018, textAlign: wide ? 'left' : 'center', minWidth: 0 }}>
-            <div style={{ fontFamily: OSWALD, fontSize: w * 0.022, fontWeight: 600, letterSpacing: '0.24em', color: M_MUTED }}>GRANITE &middot; A ROCK</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: wide ? 'flex-start' : 'center', gap: u * 0.018, textAlign: wide ? 'left' : 'center', minWidth: 0 }}>
+            <div style={{ fontFamily: OSWALD, fontSize: u * 0.022, fontWeight: 600, letterSpacing: '0.24em', color: M_MUTED }}>GRANITE &middot; A ROCK</div>
             {/* the money, and the hand that made it — the two facts the card exists for */}
-            <div style={{ fontFamily: ROZHA, fontSize: w * (wide ? 0.1 : 0.14), color: M_TEAL, lineHeight: 1 }}>+$310</div>
-            <div style={{ fontSize: w * 0.026, color: M_DIM, lineHeight: 1.4, maxWidth: w * (wide ? 0.42 : 0.8) }}>
+            <div style={{ fontFamily: ROZHA, fontSize: u * (wide ? 0.1 : 0.14), color: M_TEAL, lineHeight: 1 }}>+$310</div>
+            <div style={{ fontSize: u * 0.026, color: M_DIM, lineHeight: 1.4, maxWidth: u * (wide ? 0.42 : 0.8) }}>
               took it with <b style={{ color: M_TEXT, fontWeight: 600 }}>a pair of nines</b> on the river
             </div>
             {/* the one thing he said */}
-            <div style={{ marginTop: w * 0.02, padding: `${w * 0.022}px ${w * 0.03}px`, borderRadius: w * 0.022, background: 'rgba(12,26,24,0.94)', border: `${Math.max(1, w * 0.0015)}px solid ${M_TEAL}55`, maxWidth: w * (wide ? 0.44 : 0.82) }}>
-              <span style={{ fontSize: w * 0.027, color: M_TEXT, lineHeight: 1.4, fontStyle: 'italic' }}>&ldquo;He never folds. So I stopped bluffing him.&rdquo;</span>
+            <div style={{ marginTop: u * 0.02, padding: `${u * 0.022}px ${u * 0.03}px`, borderRadius: u * 0.022, background: 'rgba(12,26,24,0.94)', border: `${Math.max(1, u * 0.0015)}px solid ${M_TEAL}55`, maxWidth: u * (wide ? 0.44 : 0.82) }}>
+              <span style={{ fontSize: u * 0.027, color: M_TEXT, lineHeight: 1.4, fontStyle: 'italic' }}>&ldquo;He never folds. So I stopped bluffing him.&rdquo;</span>
             </div>
           </div>
         </div>
 
-        {/* the card back, in the play teal — the product's own object, bottom corner */}
-        <div style={{ position: 'absolute', right: w * 0.055, bottom: w * 0.055, display: 'flex', alignItems: 'flex-end', gap: w * 0.02 }}>
+        {/* the card back and the URL, in a band of their own. Pinned to the corner
+            they sat under the quote at 1200×630, because nothing reserved the space. */}
+        <div style={{ position: 'absolute', left: u * 0.055, right: u * 0.055, bottom: u * 0.045, height: u * 0.095, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: u * 0.02 }}>
           <div style={{ display: 'flex' }}>
             {[-7, 7].map((r, n) => (
-              <div key={r} style={{ width: w * 0.062, height: w * 0.087, marginLeft: n ? -w * 0.03 : 0, borderRadius: w * 0.005, background: 'linear-gradient(150deg, #123C36 0%, #08211E 100%)', border: `${Math.max(1, w * 0.0013)}px solid ${M_TEAL}59`, transform: `rotate(${r}deg)`, position: 'relative' }}>
-                <div style={{ position: 'absolute', inset: '9%', borderRadius: 2, border: `${Math.max(1, w * 0.0009)}px solid ${M_TEAL}2E` }}></div>
-                <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontFamily: PLAYFAIR, fontSize: w * 0.02, color: `${M_TEAL}47` }}>&#9824;</div>
+              <div key={r} style={{ width: u * 0.062, height: u * 0.087, marginLeft: n ? -u * 0.03 : 0, borderRadius: u * 0.005, background: 'linear-gradient(150deg, #123C36 0%, #08211E 100%)', border: `${Math.max(1, u * 0.0013)}px solid ${M_TEAL}59`, transform: `rotate(${r}deg)`, position: 'relative' }}>
+                <div style={{ position: 'absolute', inset: '9%', borderRadius: 2, border: `${Math.max(1, u * 0.0009)}px solid ${M_TEAL}2E` }}></div>
+                <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontFamily: PLAYFAIR, fontSize: u * 0.02, color: `${M_TEAL}47` }}>&#9824;</div>
               </div>
             ))}
           </div>
-          <span style={{ fontFamily: OSWALD, fontSize: w * 0.019, fontWeight: 600, letterSpacing: '0.2em', color: M_MUTED, paddingBottom: w * 0.008 }}>AGENTICPOKER.APP</span>
+          <span style={{ fontFamily: OSWALD, fontSize: u * 0.019, fontWeight: 600, letterSpacing: '0.2em', color: M_MUTED, paddingBottom: u * 0.008 }}>AGENTICPOKER.APP</span>
         </div>
       </div>
     </div>

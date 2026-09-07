@@ -1,10 +1,34 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-06 (WATCH-10) — 7 open, 30 resolved
+Last updated: 2026-09-07 (integrator, CI #84) — 9 open, 33 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-43 — HOME-2's job 5 gesture tests race the room's own life
+**Severity:** Medium (a gate that goes red on a different test each run is BUG-34's lesson, not a new one)
+**Where:** `scripts/home2.spec.js:404` ("dropping him on the floor…") and `:359` ("drop on the couch changes his state")
+**What:** Both read a state BEFORE the drag and assert against it AFTER, and the room keeps living in between. The room's tempo in this job is `HOME_PAUSE_MS=600` — fifty times production's 30s — so the man walks under his own routine while the spec measures him.
+- `:404` captures `data-spot`, drags him onto open floor, and expects the same spot back. Seen: expected `door:born`, received `tape`, with `data-walking="true"` on the element — his routine walked him to the tape room, and the drop had nothing to do with it.
+- `:359` decides what should happen from `before.startsWith('table:')` and then expects the refusal bubble "In a hand". Sitting at the home table is NOT the same question as being in a hand: the product asks the server (`/place` → 409 `inHand`, `HomeScreen.jsx:494`), and `carry.js:134`'s own `midHand()` takes `gameRunning` as well as `seated`. Between hands — which at `HAND_PAUSE_MS=600` is most of the time — the move is allowed, no line comes back, and the bubble the spec waits for never exists.
+**Measurement (2026-09-07, local, the CI env exactly):** against a server whose room had the man at the table, `:359` failed 3 runs out of 3 while the other three job-5 tests passed; against a freshly seeded room, `:359` passed and `:404` failed. One suite, two tests, and which one is red depends only on what the room happened to be doing.
+**Found by:** the integrator, gating CI #84 — this step never ran in CI before (#82's smoke job predates it), so main has never seen it green.
+**Fix:** not made here, because the honest fix is a product question the integrator should not answer alone: `:404` needs the room quiesced for the length of a gesture (or the claim restated as "the DROP moved nobody", which the POST assertion beside it already proves), and `:359` needs to ask whether he is in a hand rather than inferring it from where he is sitting. Both belong to the tab that owns HOME-2 job 5. Do not re-run to green.
+**Marked, not deleted (Testing law #6):** `:404` is `test.fixme('BUG-43: …')` with its body untouched — it is the one that is red from the empty data dir CI starts with, so the gate goes green while saying out loud what it is not checking. Un-fixme it when the drag rule is decided.
+**`:359` is deliberately left live.** It passes from a fresh room and fails once the man is at the table, so it is the same bug with a different trigger rather than a second one; fixme-ing a test that currently passes would hide coverage the product still has. If a CI run goes red on "drop on the couch changes his state", this entry is the reason and the answer is the fix, not a second fixme.
+
+---
+
+### BUG-39 — `verify-cache-headers.js` gives the server 4s to boot and loses the race
+**Severity:** Medium (BUG-34's family — a fast-suite red that a re-run makes go away)
+**Where:** `scripts/verify-cache-headers.js:70` — `waitForServer(retries = 20)` at 200ms a retry
+**What:** The script spawns the real server on port 18765 and polls it. Its budget is **20 x 200ms = 4s**; its two siblings that boot a server the same way, `verify-deeplink-routes.js:63` and `verify-home-routes.js:79`, allow 25 retries (5s). On a loaded box 4s is not enough for a cold Node boot, and the script fails with `Server failed to start: Server did not start in time` — the whole `npm test` then exits 1 on an assertion from `src/test/helpers/verifyGroups.js:90`.
+**Measurement:** three consecutive `npm test` runs on unmodified main (a288355, integrator session 2026-09-07): run 1 red on this script, runs 2 and 3 green with the same script passing in 996ms and 1042ms. It is the fast group's shortest boot budget and it runs alongside `verify-growth.js` (8.3s) and `verify-cost-router.js` (5.5s), which are what make the box loaded. Nothing in the branch touched it — the only commit in the tree is a `design-refs/` commit.
+**Found by:** the integrator, on the gate run after the design 56 commit.
+**Fix:** not yet made. The obvious one is to give it the siblings' 25 retries, or better, the same budget for all three in one place — but a boot that takes longer than 4s under load may itself be worth a look before the number is simply raised. Do not re-run to green; that is the habit the testing law exists to prevent.
+
+---
 
 ### BUG-37 — Money outside the watch felt is still spelled by `toLocaleString`
 **Severity:** Low (two spellings of the same number, in the same screen)
@@ -98,6 +122,29 @@ Next time it happens, run `node scripts/stress-suites.js 40 8` and keep the chil
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-42 — The safe's ruler still named the chrome SAFE-2 replaced — RESOLVED 2026-09-07 (CI #84)
+**Where:** `scripts/home2.spec.js:541` (as it was), `client/src/screens/HomeScreen.jsx:884`
+**What:** HOME-2 job 8 (`4150e06`) wrapped the phone's money in the room's own chrome — `.home-sheet` + scrim + `.home-sheet__panel`, `data-testid="home-safe-sheet"`, `MoneySheet variant="sheet"` inside it. SAFE-2 (`869e48d`) landed in the same merge window and replaced the money surface itself with `SafeSheet`, which brings its OWN scrim and its own panel. The merge kept SAFE-2's component and dropped HOME-2's wrapper, so the test waited 20s for a test id that no longer exists.
+**Not a broken safe.** Measured against the running client before touching anything: the safe opens, one scrim, `.safe__panel` at `rgba(18,30,28,0.84)` with `blur(18px) saturate(1.2)` — the raised token's own numbers — and `.money-sheet` inside it at alpha 0. Every rule job 8 asserts still holds; only the class names under it changed. Restoring the wrapper would have drawn two scrims and two panels over one sheet.
+**Fixed by** retargeting the assertions to the shipped structure (`safe-sheet`, `.safe__panel`) with the reasoning in the spec, keeping all four claims: it opens over the room, it is the shared safe surface rather than a fork, its panel is glass with a real blur, and the money inside drops its own ground. Rewritten to the new structure, not loosened (Testing law #5).
+**Left behind, for whoever owns the glass:** `safe.css:57` reaches for `--glass-raised` (defined in `draft2.css:22`) while everything HOME-2 job 8 touched uses `--v5-raised` (`tokens.css:34`). Same value today, two names — which is the eighteenth glass that job was written to prevent.
+
+---
+
+### BUG-41 — `home2.spec.js` ran in the smoke config's desktop box — RESOLVED 2026-09-07 (CI #84)
+**Where:** `playwright.smoke.config.js:38`, `scripts/home2.spec.js`
+**What:** The file was added to the smoke config's `testMatch` on the premise that no job ran it. A job does: the workflow's own "HOME-2 phone layout" step, under `playwright.home2.config.js`, which is the only box its assertions hold in — 390×844 with `hasTouch`. The smoke config is Desktop Chrome at 1440×900 with no touch, so the phone's ruler ran on the desk: past `useIsDesktop`'s 1100px line the room is not drawn at all (`.home-thread` resolved to nothing, "door is drawn" failed) and without touch a long press cannot lift anybody (`.home-one.is-carried` stayed at 0). Fourteen tests went red for a reason none of them was about, and the run took 12m45s of timeouts.
+**Fixed twice over:** the spec now declares its own viewport and touch (`test.use`), so no config can ever put it in the wrong shell again — its assertions measure against a literal 844 — and the smoke config's `testMatch` is back to `(smoke|casino2)`, because running the same twenty tests in two jobs buys nothing.
+
+---
+
+### BUG-40 — `casino2.spec.js` clicked a CASINO button HOME-2 had removed — RESOLVED 2026-09-07 (CI #84)
+**Where:** `scripts/casino2.spec.js:120` (`openCasino`)
+**What:** The step that failed run #84. `openCasino` clicked `getByRole('button', { name: 'CASINO' })` on both shells. HOME-2 job 1 took the bottom bar off the phone — HOME, CASINO and YOU became things in the room — so on the phone the way in is the door (`home-door`), and `HomeFlat` draws that door as furniture with no test id on the desk, where the rail's `DesktopTopBar` still has the button. The 1440 case passed; the 390 case sat on `locator.click` for the full two-minute timeout. Deterministic, reproduced locally first try.
+**Fixed by** taking the way in that the shell actually has, and naming it: the door on the phone (asserted visible first, so a lost test id fails saying so rather than timing out on a mystery locator), the top-bar button on the desk.
+
+---
 
 ### BUG-35 — `verify-watch-v2.js` "HIS reasoning" fails roughly one run in three — RESOLVED 2026-09-06 (TEST)
 Not a race in the product: a race in the suite. The five WATCH-9 push checks read `of(ServerMsg.THREAD_LINE)` — a snapshot of the socket buffer taken at whatever instant execution reached that line. Under load the hero's session had played about five hands by then and the HIM line, which is written per DECISION rather than per hand, had not landed yet. The wire worked; the sample was early.

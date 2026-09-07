@@ -109,26 +109,26 @@ const TABLE_SEATS = {
 };
 
 // ── the door, and the sign over it ───────────────────────────────────────
-// A pill is what a body wears. A door to a casino wears a SIGN: a small lit marquee
-// bolted to the wall — square corners, all caps, a bulb down each side, a warm spill
-// on the boards beneath it. It hangs from the FRAME's right edge, never rightward
-// from the door's own left edge at x352, which is what pushed the old tag off screen.
+// A pill is what a body wears. A doorway to a casino wears its own name: the word
+// runs DOWN the door because 34px cannot hold it across, bulbs line the frame, and
+// the light spills onto the boards. One object rather than a plate beside a hole,
+// which also retires the anchoring problem that pushed the old tag off screen.
 const DoorTap = () => (
-  <div style={{ position: 'absolute', right: 0, top: FLAT.door.y - 34, zIndex: 260, cursor: 'pointer' }}>
-    {/* the spill: the sign is a light source, so the wall under it is lit */}
-    <div style={{ position: 'absolute', right: -4, top: 14, width: 76, height: 42, background: `radial-gradient(ellipse at 70% 0%, ${M_GOLD}26 0%, transparent 72%)`, pointerEvents: 'none' }}></div>
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch', background: 'linear-gradient(180deg, #241D12 0%, #17120B 100%)', border: `1px solid ${M_GOLD}6B`, boxShadow: `0 2px 10px rgba(0,0,0,0.6), inset 0 1px 0 ${M_GOLD}33` }}>
-      {[0, 1].map(side => (
-        <div key={side} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around', padding: '3px 2px', order: side ? 2 : 0 }}>
-          {[0, 1, 2].map(i => (
-            <span key={i} style={{ width: 2, height: 2, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 3px ${M_GOLD}`, animation: `shimmer 2.2s ease-in-out ${(i + side) * 0.35}s infinite` }}></span>
-          ))}
-        </div>
-      ))}
-      <div style={{ order: 1, padding: '4px 7px 5px', display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.2em', color: M_GOLD, whiteSpace: 'nowrap', textShadow: `0 0 7px ${M_GOLD}88` }}>CASINO</span>
-        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="3" strokeLinecap="round"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>
+  <div style={{ position: 'absolute', left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h, zIndex: 260, cursor: 'pointer' }}>
+    {/* the spill: an open door to a lit room lights the floor in front of it */}
+    <div style={{ position: 'absolute', right: FLAT.door.w - 4, top: -16, width: 88, height: FLAT.door.h + 32, background: `radial-gradient(ellipse at 100% 50%, ${M_GOLD}22 0%, transparent 70%)`, pointerEvents: 'none' }}></div>
+    {/* the frame's bulbs, down both jambs */}
+    {[0, 1].map(side => (
+      <div key={side} style={{ position: 'absolute', top: 6, bottom: 6, [side ? 'right' : 'left']: 2.5, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        {[0, 1, 2, 3].map(i => (
+          <span key={i} style={{ width: 2, height: 2, borderRadius: '50%', background: M_GOLD, boxShadow: `0 0 3px ${M_GOLD}`, animation: `shimmer 2.2s ease-in-out ${(i + side) * 0.3}s infinite` }}></span>
+        ))}
       </div>
+    ))}
+    {/* the word, down the door */}
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.28em', color: M_GOLD, textShadow: `0 0 8px ${M_GOLD}99`, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>CASINO</span>
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="3" strokeLinecap="round" style={{ transform: 'rotate(90deg)' }}><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>
     </div>
   </div>
 );
@@ -144,7 +144,7 @@ const findAway = nodes => {
   return null;
 };
 
-const HomeFlat = ({ children, lit = true, tape }) => {
+const HomeFlat = ({ children, lit = true, tape, balance = '$54,000' }) => {
   // true or 'study' = somebody is in the tape room. 'casino', anything else, or
   // nothing at all = the ticker, because nobody is studying.
   const studying = tape === true || tape === 'study';
@@ -168,8 +168,16 @@ const HomeFlat = ({ children, lit = true, tape }) => {
     {/* THE SAFE: the wallet as furniture. Tap for the money sheet. */}
     <div style={{ position: 'absolute', left: FLAT.safe.x, top: FLAT.safe.y, width: FLAT.safe.w, height: FLAT.safe.h, borderRadius: 4, background: 'linear-gradient(160deg, #23211C 0%, #16150F 100%)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 6px 14px rgba(0,0,0,0.5)', cursor: 'pointer', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 4, borderRadius: 2, border: `1px solid ${M_GOLD}2E` }}></div>
-      <div style={{ position: 'absolute', right: 7, top: '50%', marginTop: -5, width: 10, height: 10, borderRadius: '50%', border: `1.5px solid ${M_GOLD}88` }}></div>
-      <div style={{ position: 'absolute', left: 8, top: '50%', marginTop: -7, fontFamily: MONO, fontSize: 11, fontWeight: 700, color: M_GOLD, letterSpacing: '-0.01em' }}>$54,000</div>
+      {/* the dial, with a spoke so it reads as something you turn */}
+      <div style={{ position: 'absolute', right: 9, top: '50%', marginTop: -7, width: 14, height: 14, borderRadius: '50%', border: `1.5px solid ${M_GOLD}99`, boxShadow: 'inset 0 0 0 2px rgba(0,0,0,0.45)' }}>
+        <span style={{ position: 'absolute', left: '50%', top: 1.5, width: 1.5, height: 5, marginLeft: -0.75, background: M_GOLD, opacity: 0.85 }}></span>
+      </div>
+      {/* the lever, and the hinges on the closed side */}
+      <div style={{ position: 'absolute', right: 4, bottom: 9, width: 3, height: 13, borderRadius: 2, background: `${M_GOLD}88` }}></div>
+      {[0, 1].map(i => <span key={i} style={{ position: 'absolute', left: 1.5, top: 9 + i * 24, width: 2.5, height: 8, borderRadius: 1, background: 'rgba(255,255,255,0.14)' }}></span>)}
+      {/* no balance means an unfunded safe, not a zero: a guest's room has never
+          had money in it, and printing $0 would be a claim about his account */}
+      {balance && <div style={{ position: 'absolute', left: 8, top: '50%', marginTop: -7, fontFamily: MONO, fontSize: 11, fontWeight: 700, color: M_GOLD, letterSpacing: '-0.01em' }}>{balance}</div>}
     </div>
     {/* THE FRIDGE: beer and snacks live here, bought from the wallet. Tap for stock. */}
     <div style={{ position: 'absolute', left: FLAT.fridge.x, top: FLAT.fridge.y, width: FLAT.fridge.w, height: FLAT.fridge.h, borderRadius: '3px 3px 4px 4px', background: 'linear-gradient(100deg, #1E2624 0%, #161D1C 62%, #1A2220 100%)', border: '1px solid rgba(255,255,255,0.11)', boxShadow: '0 6px 16px rgba(0,0,0,0.45)', cursor: 'pointer', overflow: 'hidden' }}>
@@ -181,20 +189,19 @@ const HomeFlat = ({ children, lit = true, tape }) => {
         <span style={{ width: 7, height: 6, borderRadius: 1, background: 'rgba(205,179,128,0.4)', marginLeft: 1.5 }}></span>
       </div>
     </div>
-    {/* the couch. There is no set in this corner any more: one TV, and it is the
-        tape room's, at the bottom of the room. */}
-    <div style={{ position: 'absolute', left: FLAT.couch.x, top: FLAT.couch.y, width: FLAT.couch.w, height: FLAT.couch.h, borderRadius: 8, background: 'linear-gradient(180deg, #241D26 0%, #1A151C 100%)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div style={{ position: 'absolute', left: 6, top: 8, right: 6, height: 34, borderRadius: 5, background: 'rgba(255,255,255,0.035)' }}/>
-      <div style={{ position: 'absolute', left: 6, bottom: 8, right: 6, height: 34, borderRadius: 5, background: 'rgba(255,255,255,0.035)' }}/>
-    </div>
-    {/* the kitchen table, from above */}
-    <div style={{ position: 'absolute', left: FLAT.table.cx - FLAT.table.rx, top: FLAT.table.cy - FLAT.table.ry, width: FLAT.table.rx * 2, height: FLAT.table.ry * 2, borderRadius: '50%', background: 'radial-gradient(ellipse at 50% 38%, #33413C 0%, #232E2B 68%, #1B2422 100%)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 22px rgba(0,0,0,0.45)' }}/>
-    {/* the door, right wall. Its tag is drawn by the nav layer and is anchored to
-        the FRAME's right edge, not to the door's left edge — at 390 the door starts
-        at x356, so anything laid out rightward from it leaves the screen. */}
-    <div style={{ position: 'absolute', left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h, background: 'linear-gradient(90deg, #14120F 0%, #241F1A 100%)', borderTop: '2px solid rgba(255,255,255,0.13)', borderBottom: '2px solid rgba(255,255,255,0.13)', borderLeft: '2px solid rgba(255,255,255,0.13)' }}>
-      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent 30%, ${M_GOLD}22 100%)` }}/>
-      <span style={{ position: 'absolute', left: 6, top: '50%', width: 4, height: 4, borderRadius: '50%', background: M_GOLD, opacity: 0.7 }}/>
+    {/* THE COUCH, from above: a back along the wall it stands against, two seat
+        cushions in front of it, an arm at each end. Two horizontal bands in a
+        rounded rect read as a mattress from overhead, not a couch. */}
+    <div style={{ position: 'absolute', left: FLAT.couch.x, top: FLAT.couch.y, width: FLAT.couch.w, height: FLAT.couch.h, borderRadius: '4px 9px 9px 4px', background: 'linear-gradient(100deg, #2A2130 0%, #1C1622 100%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 7px 18px rgba(0,0,0,0.45)', overflow: 'hidden' }}>
+      {/* the back, against the wall */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: 'linear-gradient(90deg, #332942 0%, #241C2E 100%)', borderRight: '1px solid rgba(0,0,0,0.4)' }}></div>
+      {/* the arms, one at each end */}
+      <div style={{ position: 'absolute', left: 20, right: 0, top: 0, height: 15, borderRadius: '0 7px 3px 0', background: 'linear-gradient(180deg, #302640 0%, #241C2E 100%)', borderBottom: '1px solid rgba(0,0,0,0.35)' }}></div>
+      <div style={{ position: 'absolute', left: 20, right: 0, bottom: 0, height: 15, borderRadius: '0 3px 7px 0', background: 'linear-gradient(0deg, #302640 0%, #241C2E 100%)', borderTop: '1px solid rgba(0,0,0,0.35)' }}></div>
+      {/* two seat cushions, with the seam between them */}
+      {[0, 1].map(i => (
+        <div key={i} style={{ position: 'absolute', left: 26, right: 5, top: 19 + i * 41, height: 37, borderRadius: 5, background: 'linear-gradient(160deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%)', border: '1px solid rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.045)' }}></div>
+      ))}
     </div>
     {/* THE TAPE ROOM: a chair and a small screen where he reviews his flagged hands */}
     {/* the tape room's edge lands ON a floorboard rather than 6px above one:

@@ -11,12 +11,26 @@
 // A long press lifts him. Everything about the lift says "held": he grows, his shadow
 // separates from the floor, and he says something about it — because being picked up
 // is a thing that happens TO him, and he has opinions.
+// A drop target is the FURNITURE, so it is measured from the furniture. The first
+// version was authored from STAND — where a body stands next to a thing — which put
+// the couch's highlight 38px above the couch with the bed sticking out below it.
+// Derived from FLAT, a target cannot be misaligned with the object it names.
+const pad = 6;
+const fromFixture = (f, lbl, k) => ({
+  k, lbl,
+  x: f.x + f.w / 2,
+  y: f.y + f.h + pad,
+  w: f.w + pad * 2,
+  h: f.h + pad * 2,
+});
 const CARRY_TARGETS = [
-  { k: 'couch',  x: 58,  y: 408, w: 92,  h: 116, lbl: 'REST' },
-  { k: 'table',  x: 208, y: 300, w: 132, h: 96,  lbl: 'DEAL HIM IN' },
-  { k: 'fridge', x: 284, y: 200, w: 60,  h: 88,  lbl: 'A BEER' },
-  { k: 'tv',     x: 296, y: 540, w: 108, h: 62,  lbl: 'WATCH TAPE' },
-  { k: 'door',   x: 358, y: 300, w: 40,  h: 116, lbl: 'SEND HIM OUT' },
+  fromFixture(FLAT.couch, 'REST', 'couch'),
+  // the table is an ellipse, so its box is the ellipse's bounds
+  { k: 'table', lbl: 'DEAL HIM IN', x: FLAT.table.cx, y: FLAT.table.cy + FLAT.table.ry + pad, w: FLAT.table.rx * 2 + pad * 2, h: FLAT.table.ry * 2 + pad * 2 },
+  fromFixture(FLAT.fridge, 'A BEER', 'fridge'),
+  // the TV is the screen, not the whole tape-room band: you drop him at the screen
+  { k: 'tv', lbl: 'WATCH TAPE', x: FLAT.tape.x + 16 + 50, y: FLAT.tape.y + 58 + pad, w: 100 + pad * 2, h: 58 + pad * 2 },
+  fromFixture(FLAT.door, 'SEND HIM OUT', 'door'),
 ];
 
 // what he says while he is off the ground, by state. A worn agent dangles, a hot one

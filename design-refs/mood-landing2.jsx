@@ -57,7 +57,22 @@ const L2Shot = ({ children, s = 0.42, cap }) => (
 // One screen, centred, as large as the column allows. At 1280 and up that is 0.95 —
 // an 802px phone — because the screenshots ARE the argument on this page and 0.80
 // made them illustrations of one.
+const L2_SLIVER = 26;   // how much of the room shows under the fold
 const L2BIG_S = w => (w >= 1280 ? 0.95 : w > 700 ? 0.86 : 0.86);
+
+// the desktop product, scaled into the column: 1440 into (w − 128), so 0.8 at 1280
+// and 0.91 at 1440 — the same shot both times, and never a phone.
+const L2BigDesk = ({ children, w, cap }) => {
+  const k = (w - 128) / 1440;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', width: '100%' }}>
+      <div style={{ width: 1440 * k, height: 900 * k, overflow: 'hidden', flexShrink: 0, borderRadius: 6 }}>
+        <div style={{ width: 1440, height: 900, transform: `scale(${k})`, transformOrigin: '0 0' }}>{children}</div>
+      </div>
+      <div style={{ maxWidth: 620, textAlign: 'center', fontSize: 12.5, color: L2.faint, lineHeight: 1.5 }}>{cap}</div>
+    </div>
+  );
+};
 
 const L2Big = ({ children, s, cap }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', width: '100%' }}>
@@ -74,7 +89,7 @@ const L2Cta = ({ big, label = 'DRAFT HIM' }) => (
       <span style={{ fontFamily: OSWALD, fontSize: big ? 14 : 12, fontWeight: 600, letterSpacing: '0.18em', color: '#1A0A10' }}>{label}</span>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1A0A10" strokeWidth="2.2" strokeLinecap="round"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>
     </div>
-    <span style={{ fontFamily: MONO, fontSize: 10.5, color: L2.faint }}>Free · plays in Telegram</span>
+    <span style={{ fontFamily: MONO, fontSize: 10.5, color: L2.faint }}>Free · no account needed</span>
   </div>
 );
 
@@ -85,10 +100,20 @@ const L2Fist = ({ w, flip }) => (
   </svg>
 );
 
+// the ghost svg is a 280 box holding a 154 body: the hood path measures 0.55 of the
+// viewport and spans y42-280, its face recess bottoming at 0.73 of the box.
+const L2_HOOD = 0.55, L2_FACE_BOTTOM = 0.732;
+
 const L2Hand = ({ gh }) => {
-  const cw = Math.round(gh * 0.62), ch = Math.round(cw * 1.4), fw = Math.round(gh * 0.30);
+  const hoodW = gh * L2_HOOD;                     // his actual width
+  const cw = Math.round(hoodW * 0.55);            // 55% of the HOOD, per wave 60
+  const ch = Math.round(cw * 1.4);
+  const fw = Math.round(hoodW * 0.22);            // the wave-43 law, restored
+  // chest height, taken from the face recess rather than a guessed fraction: the fan
+  // starts below the lowest part of his face, so hood, face and shoulders all show.
+  const top = Math.round(gh * L2_FACE_BOTTOM) + Math.round(hoodW * 0.05);
   return (
-    <div style={{ position: 'absolute', left: '50%', top: gh * 0.62, width: cw * 1.62, height: ch + fw, marginLeft: -(cw * 1.62) / 2, zIndex: 4, pointerEvents: 'none' }}>
+    <div style={{ position: 'absolute', left: '50%', top, width: cw * 1.62, height: ch + fw, marginLeft: -(cw * 1.62) / 2, zIndex: 4, pointerEvents: 'none' }}>
       {[-9, 9].map((r, i) => (
         <div key={r} style={{ position: 'absolute', left: i ? 'auto' : 0, right: i ? 0 : 'auto', top: 0, width: cw, height: ch, borderRadius: Math.round(cw * 0.055), background: 'linear-gradient(150deg, #123C36 0%, #08211E 100%)', border: `1px solid ${L2.teal}59`, boxShadow: `inset 0 0 0 1px rgba(0,212,170,0.16), 0 14px 34px rgba(0,0,0,0.62)`, transform: `rotate(${r}deg)`, transformOrigin: '50% 100%', animation: `dealin 0.55s ease-out ${0.3 + i * 0.22}s both` }}>
           {/* the back's own mark, so a 174px card is a card and not a maroon slab */}
@@ -140,6 +165,94 @@ const L2Masthead = ({ w }) => (
   </div>
 );
 
+// the recruiter sheet's content, shared by both compositions
+const L2Sheet = ({ pad = 14 }) => (
+  <>
+    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: `10px ${pad}px 6px` }}>
+      <span style={{ width: 30, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }}></span>
+      <span style={{ flex: 1 }}></span>
+      <span style={{ fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.16em', color: M_DIM }}>THE DRAFT &middot; 1 OF 5</span>
+    </div>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: `2px ${pad}px 0`, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <DraftRow r={DRAFT_TALK[0][0]}/>
+    </div>
+    {/* the composer, focused: the caret is the only call to action down here */}
+    <div style={{ flexShrink: 0, padding: `9px ${pad - 2}px 16px` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 44, borderRadius: 22, background: 'rgba(255,255,255,0.06)', border: `1px solid ${M_TEAL}66`, boxShadow: `0 0 0 3px ${M_TEAL}1A`, padding: '0 8px 0 14px' }}>
+        <span style={{ width: 1.5, height: 17, background: M_TEAL, animation: 'shimmer 1.1s steps(2) infinite' }}></span>
+        <span style={{ flex: 1, fontSize: 12.5, color: M_MUTED }}>tight, loose, somewhere between…</span>
+        <span style={{ width: 30, height: 30, borderRadius: 15, background: `${M_TEAL}26`, border: `1px solid ${M_TEAL}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 20 20"><path d="M2 10L18 3L11 18L9.4 11.6L2 10Z" fill="none" stroke={M_TEAL} strokeWidth="1.5" strokeLinejoin="round"/></svg>
+        </span>
+      </div>
+    </div>
+  </>
+);
+
+// phone: wave 59's G1 without the browser chrome — on this page the browser IS the
+// browser. No caption, no heading, no "try it": it is the product, so it looks like
+// the product.
+const L2RoomPhone = ({ h }) => (
+  <div style={{ width: F_W, height: h, position: 'relative', overflow: 'hidden', background: M_BG }}>
+    <div style={{ position: 'absolute', inset: 0, opacity: 0.46 }}>
+      <HomeFlat lit={false} balance={null}>
+        <TableChairs taken={0} of={1}/>
+        <DoorTap/>
+      </HomeFlat>
+    </div>
+    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(6,10,10,0.5) 0%, rgba(6,10,10,0.78) 100%)' }}></div>
+    <div style={{ position: 'absolute', left: 0, right: 0, top: Math.max(18, Math.round(h * 0.06)), display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, zIndex: 3 }}>
+      <FormingGhost stage={1}/>
+      <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: M_MUTED }}>A SILHOUETTE</span>
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: Math.round(h * 0.5), zIndex: 6, background: V5GLASS.panel, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur, borderTop: `1px solid ${V5GLASS.edgeUp}`, borderTopLeftRadius: 18, borderTopRightRadius: 18, display: 'flex', flexDirection: 'column' }}>
+      <L2Sheet/>
+    </div>
+  </div>
+);
+
+// desktop: the wave-58 three columns. The roster is empty because nobody has been
+// drafted, and the sheet is the right column's content rather than glass over the
+// room — desktop has a column and does not need to cover anything.
+const L2RoomDesk = ({ w, h }) => {
+  const centre = w - DW.roster - DW.thread;
+  return (
+    <div style={{ width: w, height: h, display: 'flex', background: M_BG, overflow: 'hidden', borderTop: `1px solid ${M_BORDER}` }}>
+      <div style={{ width: DW.roster, flexShrink: 0, borderRight: `1px solid ${M_BORDER}`, background: M_PANEL, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px 10px', borderBottom: `1px solid ${M_BORDER}` }}>
+          <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.16em', color: M_TEAL }}>YOUR AGENTS</span>
+          <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: M_MUTED }}>0 of 4</span>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 42, height: 42, margin: '0 auto', borderRadius: 11, border: `1px dashed ${M_TEAL}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={M_TEAL} strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div style={{ fontSize: 11.5, color: M_MUTED, marginTop: 9 }}>Nobody yet</div>
+          </div>
+        </div>
+      </div>
+      {/* DkFlat itself, not a copy of it: the inlined version had dropped the top
+          wall band and both side walls, so the picture frames hung on bare
+          floorboards and the room had no back wall. */}
+      <DkFlat w={centre} h={h}>
+        {dkRoomEmpty()}
+        <div style={{ position: 'absolute', left: 280, top: 318, transform: 'translate(-50%,-100%)', zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>
+          <FormingGhost stage={1} size={150}/>
+          <span style={{ fontFamily: OSWALD, fontSize: 9, fontWeight: 600, letterSpacing: '0.2em', color: M_MUTED }}>A SILHOUETTE</span>
+        </div>
+      </DkFlat>
+      <div style={{ width: DW.thread, flexShrink: 0, borderLeft: `1px solid ${M_BORDER}`, background: 'rgba(14,20,19,0.97)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '11px 15px 10px', borderBottom: `1px solid ${M_BORDER}` }}>
+          <span style={{ fontFamily: PLAYFAIR, fontSize: 14, fontWeight: 600, color: M_TEXT }}>The draft</span>
+          <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', color: M_MUTED }}>1 OF 5</span>
+        </div>
+        <L2Sheet pad={15}/>
+      </div>
+    </div>
+  );
+};
+
 // ═════════════════════════════════════════════════════════════════
 // THE PAGE
 // ═════════════════════════════════════════════════════════════════
@@ -151,9 +264,12 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: vh, background: `radial-gradient(ellipse at 62% 34%, ${L2.raised} 0%, ${L2.wine} 44%, ${L2.ink} 82%)` }}></div>
 
       <div style={{ position: 'relative' }}>
+        {/* THE HERO IS EXACTLY ONE VIEWPORT. Masthead and hero share it, and the
+            fold falls on the room's top edge — so the strip under the fold is the
+            product rather than a heading about it. */}
+        <div style={{ height: vh - L2_SLIVER, display: 'flex', flexDirection: 'column' }}>
         <L2Masthead w={w}/>
-        {/* HERO — fits the first viewport with the next label peeking */}
-        <div style={{ minHeight: vh - (big ? 130 : 96), display: 'flex', alignItems: 'center', padding: big ? '0 64px 40px' : '0 24px 32px' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', padding: big ? '0 64px 30px' : '0 24px 24px' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: big ? 'row' : 'column', alignItems: big ? 'center' : 'flex-start', gap: big ? 40 : 22 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <h1 style={{ fontFamily: ROZHA, fontWeight: 400, fontSize: big ? (w >= 1440 ? 88 : 72) : 46, lineHeight: 0.98, letterSpacing: '0.005em', margin: 0, color: L2.cream }}>Deal him in.</h1>
@@ -165,19 +281,19 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
             <L2Hero w={w}/>
           </div>
         </div>
+        </div>
 
-        {heroOnly ? <div style={{ padding: big ? '0 64px 26px' : '0 24px 22px', display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: L2.gold, letterSpacing: '0.1em' }}>01</span>
-          <L2Lbl size={big ? 10 : 9}>Draft him</L2Lbl>
-        </div> : null}
+        {/* THE ROOM. No caption, no heading, no label — it is the product. */}
+        <div style={{ display: 'flex', justifyContent: 'center', background: M_BG }}>
+          {big ? <L2RoomDesk w={w} h={vh}/> : <L2RoomPhone h={vh}/>}
+        </div>
+
         {!heroOnly && <>
         {/* 1 · DRAFT HIM */}
         <L2Section n="01" w={w} label="Draft him" title="Thirty seconds of conversation, and he exists."
           lede="No sliders, no build screen, and no account. You answer a few questions about how you want him to play, the recruiter tells you what that makes him, and the last thing you press is his name. Sign in later, once he has a night worth keeping.">
+          {/* no screenshot here: the reader has just used this screen */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
-            <L2Big s={L2BIG_S(w)} cap="This is the real screen the button opens — no account, no install. The recruiter speaks for the system; the ghost has no voice until he is born, and he forms on the table above the sheet as the answers land.">
-              <GuestDraftM stage={3}/>
-            </L2Big>
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['A NATURE', 'One of eight temperaments, read out of the conversation and announced in his first words. It never changes.'],
                 ['SIX ATTRIBUTES', 'Reads, Focus, Discipline, Composure, Deception, Stamina. You set the tactics; these are how well he executes them.'],
@@ -194,14 +310,18 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 2 · HE LIVES AT HOME */}
         <L2Section n="02" w={w} alt label="He lives at home" title="A room, seen from above, with your agents in it."
           lede="Between sessions he is somewhere. At the kitchen table playing your other agents for nothing, on the couch worn out, at the fridge you stock, in front of the TV watching a hand back. You can see who is rested and who is tilted without opening anything.">
-          <L2Big s={L2BIG_S(w)} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change. Tap the door and he walks to the casino; the TV on the wall is showing the floor."><NavHomeM/></L2Big>
+          {big
+            ? <L2BigDesk w={w} cap="Three columns, always open: who you have on the left, the room in the centre, the thread of whoever is selected on the right. Hovering a body shows his pill and bars; clicking a fixture opens it in the right column."><DkHomeRoomScreenM/></L2BigDesk>
+            : <L2Big s={L2BIG_S(w)} cap="Four agents, four creatures — hood and eye colour are rolled at birth and never change. Tap the door and he walks to the casino; the TV on the wall is showing the floor."><NavHomeM/></L2Big>}
         </L2Section>
 
         {/* 3 · HE PLAYS FOR REAL */}
         <L2Section n="03" w={w} label="He plays for real" title="He sits at the bottom of the felt, facing you."
           lede="Real hands at real stakes against the house cast and other people's agents. He holds his cards, pushes his own chips, and says what he is doing in twelve words or fewer. You can whisper to him mid-hand; he decides whether to listen.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: big ? 40 : 28, alignItems: 'center' }}>
-            <L2Big s={L2BIG_S(w)} cap="A hand, live: his line, the rope, his own hands on his cards. Never solver language."><V5CeremonyWonScreenM/></L2Big>
+            {big
+              ? <L2BigDesk w={w} cap="The felt at 900px in the centre, the floor you came from as a strip on the left, and his thread open beside it — the one thing desktop can show at the same time."><DkWatchM/></L2BigDesk>
+              : <L2Big s={L2BIG_S(w)} cap="A hand, live: his line, the rope, his own hands on his cards. Never solver language."><V5CeremonyWonScreenM/></L2Big>}
             <div style={{ width: '100%', display: 'grid', gridTemplateColumns: big ? '1fr 1fr' : '1fr', gap: big ? '20px 46px' : 16 }}>
               {[['THE ROPE', 'Equity as a tug-of-war under the board, moving on every street. It is the one thing a non-poker player reads.'],
                 ['A WHISPER', 'You can lean in mid-hand. It is advice, not a command — a stubborn nature may ignore it and tell you so.'],
@@ -218,13 +338,17 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 4 · THE CASINO */}
         <L2Section n="04" w={w} alt label="The casino" title="A building with rooms, and a board by the stairs."
           lede="The floor is 10/20, upstairs is 25/50, the back room is 50/100 — and where he plays is set by the pocket you give him. The board ranks the night by money: the biggest pot, the coolers, the heaters. Felts go hot when a big showdown builds.">
-          <L2Big s={L2BIG_S(w)} cap="The board by the stairs, ranked by money: the biggest pot of the night is the headline, and every line says who, how much and which room. Three doorways under it — the floor, upstairs, the back room."><NavCasinoM/></L2Big>
+          {big
+            ? <L2BigDesk w={w} cap="Six live felts you can see at once, the bar along the bottom wall, and the board bolted beside the stairs as a permanent column rather than a panel you open."><DkCasinoFloorScreenM/></L2BigDesk>
+            : <L2Big s={L2BIG_S(w)} cap="The board by the stairs, ranked by money: the biggest pot of the night is the headline, and every line says who, how much and which room. Three doorways under it — the floor, upstairs, the back room."><NavCasinoM/></L2Big>}
         </L2Section>
 
         {/* 5 · MOODS AND WANTS */}
         <L2Section n="05" w={w} label="Moods and wants" title="He runs hot, and he asks you for things."
           lede="Bad beats raise his heat and heat changes how he plays — visibly, boundedly, and always counterable. He will also ask for things: a beer, a bigger pocket, one more hour, a shot at the player who cracked him. Yes, later, or no.">
-          <L2Big s={L2BIG_S(w)} cap="A want is a sentence in his voice with three answers — yes, later, no. Saying no costs nothing, which is the whole difference from a need."><HomeWantM/></L2Big>
+          {big
+            ? <L2BigDesk w={w} cap="Hovering him shows his stamina and his heat, above his head where they always sit. At heat 78 the face is tilted and the hands clenched — the tone is in the words and the face, never in the size of the box."><DkHoverScreenM/></L2BigDesk>
+            : <L2Big s={L2BIG_S(w)} cap="A want is a sentence in his voice with three answers — yes, later, no. Saying no costs nothing, which is the whole difference from a need."><HomeWantM/></L2Big>}
         </L2Section>
 
         {/* 6 · HE REMEMBERS */}
@@ -246,7 +370,9 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 7 · SIT DOWN YOURSELF */}
         <L2Section n="07" w={w} label="Sit down yourself" title="Take a chair at your own kitchen table."
           lede="Your agents play each other for nothing when they are home. You can sit down in an empty chair and play them — and they will build a read on you the same way they build one on anybody else.">
-          <L2Big s={L2BIG_S(w)} cap="Your seat is the one at the bottom: your two cards face up, your stack, your name pill — and no ghost of your own, because you are the player. Granite reads you from across the table."><SitDownM/></L2Big>
+          {big
+            ? <L2BigDesk w={w} cap="Your seat is the one at the bottom: your two cards face up, your stack, your name pill — and no ghost of your own, because you are the player. The four verbs sit inside the felt's own bottom edge."><DkOwnerM/></L2BigDesk>
+            : <L2Big s={L2BIG_S(w)} cap="Your seat is the one at the bottom: your two cards face up, your stack, your name pill — and no ghost of your own, because you are the player. Granite reads you from across the table."><SitDownM/></L2Big>}
         </L2Section>
 
         {/* 8 · THE SEATS */}
@@ -269,7 +395,7 @@ const LandingPage = ({ w = 1280, vh = 800, heroOnly }) => {
         {/* 9 · CTA */}
         <div style={{ padding: big ? '72px 64px 30px' : '48px 24px 24px', borderTop: `1px solid ${L2.rule}`, textAlign: big ? 'center' : 'left' }}>
           <h2 style={{ fontFamily: ROZHA, fontWeight: 400, fontSize: big ? 56 : 34, lineHeight: 1.02, color: L2.cream, margin: 0 }}>Deal him in.</h2>
-          <p style={{ fontSize: big ? 15.5 : 13.5, lineHeight: 1.6, color: L2.dim, margin: '14px auto 0', maxWidth: 440 }}>He plays in Telegram. Draft him in a chat, and check on him tonight.</p>
+          <p style={{ fontSize: big ? 15.5 : 13.5, lineHeight: 1.6, color: L2.dim, margin: '14px auto 0', maxWidth: 440 }}>Draft him in a chat, and check on him tonight.</p>
           <div style={{ display: 'flex', justifyContent: big ? 'center' : 'flex-start', marginTop: 26 }}><L2Cta big label="DRAFT HIM"/></div>
           {/* the only endorsement this product can honestly print */}
           <div style={{ maxWidth: 480, margin: `${big ? 46 : 34}px auto 0`, paddingTop: 20, borderTop: `1px solid ${L2.rule}` }}>
@@ -299,6 +425,6 @@ const LandingHeroN = ({ w = 1280, vh = 800 }) => (
 );
 
 Object.assign(window, {
-  L2, ROZHA, L2Lbl, L2Section, L2Shot, L2Big, L2Cta, L2Fist, L2Hand, L2Hero, L2Masthead,
+  L2, ROZHA, L2_HOOD, L2_FACE_BOTTOM, L2_SLIVER, L2Sheet, L2RoomPhone, L2RoomDesk, L2Lbl, L2Section, L2Shot, L2Big, L2BigDesk, L2Cta, L2Fist, L2Hand, L2Hero, L2Masthead,
   LandingPage, Landing1280N, Landing390N, LandingHeroN,
 });
