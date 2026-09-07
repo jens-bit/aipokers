@@ -361,8 +361,10 @@ const D7HeatScreenM = () => (
       <div style={{ position: 'absolute', left: 60, right: 60, top: 470 }}>
         <Lbl size={9.5}>The seat pip, at 1440</Lbl>
         <div style={{ display: 'flex', gap: 40, marginTop: 16, alignItems: 'flex-start' }}>
-          <DeskSeat s={{ ...D6_SEATS[0], x: 60, y: 0 }} order={0}/>
-          <div style={{ marginLeft: 120, flex: 1, fontSize: 12.5, color: M_MUTED, lineHeight: 1.6, paddingTop: 8 }}>
+          <div style={{ position: 'relative', width: 140, height: 96, flexShrink: 0 }}>
+            <DeskSeat s={{ ...D6_SEATS[0], x: 70, y: 0 }} order={0}/>
+          </div>
+          <div style={{ flex: 1, fontSize: 12.5, color: M_MUTED, lineHeight: 1.6, paddingTop: 8 }}>
             The biography layer&rsquo;s gold count sits at 17px on a 62px body &mdash; the same corner it takes at 34px on mobile, opposite the dealer button. <b style={{ color: M_DIM }}>It is the only number allowed on a seat</b>, and it means &ldquo;you two have a history, and it is this many notable hands long&rdquo;.
           </div>
         </div>

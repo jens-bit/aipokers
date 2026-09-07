@@ -172,7 +172,7 @@ const FormingGhost = ({ stage = 1, size = 104 }) => {
             steps lighter, going gold when his colour lands. */}
         {st.collar && (
           <svg width={size} height={size} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none', animation: 'rise 0.4s ease-out both' }}>
-            <path d="M14 56 C22 62 30 64 40 64 C50 64 58 62 66 56 L66 62 C58 68 50 70 40 70 C30 70 22 68 14 62 Z"
+            <path d="M12 60 L34 60 L40 66 L46 60 L68 60 L68 66 L46 66 L40 72 L34 66 L12 66 Z"
               fill={st.named ? `${GLOWS[1].c}3D` : 'rgba(255,255,255,0.13)'} stroke={st.named ? GLOWS[1].c : 'rgba(255,255,255,0.24)'} strokeWidth="1.2"/>
           </svg>
         )}

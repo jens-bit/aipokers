@@ -329,27 +329,36 @@ const D8HandEndScreenM = () => (
   <DesktopShell>
     <DeskTopBar net="+$7,406" flagged="4 flagged"/>
     <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden', display: 'flex' }}>
-        <div style={{ flex: 1, opacity: 0.45, display: 'flex' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* THE HAND, at full brightness. Nothing is printed over it. */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <DeskFelt4 reveal board={B5F} flip={5} pot="3,694" equity={100}/>
         </div>
-        <div style={{ position: 'absolute', inset: 0, zIndex: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(ellipse at 50% 46%, ${M_TEAL}14 0%, rgba(8,12,11,0.8) 52%, rgba(8,12,11,0.94) 100%)` }}>
-          <div style={{ position: 'relative', marginBottom: 6 }}>
-            <div style={{ position: 'absolute', left: '50%', top: '52%', width: 240, height: 240, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${M_TEAL}26, transparent 68%)` }}/>
-            <MoodGhost mood="confident" accent={M_TEAL} size={132} heat={54} event="smug" ring={false}/>
+        {/* THE RESULT, in a band of its own. Across, not stacked: a band this wide
+            reads left to right, and stacking would push the buttons off it. */}
+        <div style={{ flexShrink: 0, height: 172, display: 'flex', alignItems: 'center', gap: 26, padding: '0 30px',
+          background: V5GLASS.raised, backdropFilter: V5GLASS.blur, WebkitBackdropFilter: V5GLASS.blur,
+          borderTop: `1px solid ${M_TEAL}4D`, boxShadow: `0 -14px 40px rgba(0,0,0,0.5)` }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{ position: 'absolute', left: '50%', top: '52%', width: 190, height: 190, transform: 'translate(-50%,-50%)', background: `radial-gradient(circle, ${M_TEAL}26, transparent 68%)` }}/>
+            <MoodGhost mood="confident" accent={M_TEAL} size={108} heat={54} event="smug" ring={false}/>
           </div>
-          <div style={{ fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.24em', textTransform: 'uppercase', color: M_MUTED }}>Balanced v2.1</div>
-          <div style={{ fontFamily: PLAYFAIR, fontSize: 56, fontWeight: 600, color: M_TEAL, letterSpacing: '-0.02em', lineHeight: 1.02, marginTop: 6 }}>WON</div>
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 11 }}>
-            <Num size={34} weight={700} color={M_TEAL}>+$3,694</Num>
-            <span style={{ fontSize: 15, color: M_MUTED }}>&middot;</span>
-            <span style={{ fontSize: 15, color: M_DIM }}>stack</span>
-            <Num size={26} weight={700} color={M_TEXT}>$5,541</Num>
+          <div style={{ flexShrink: 0 }}>
+            <div style={{ fontFamily: OSWALD, fontSize: 10.5, fontWeight: 600, letterSpacing: '0.24em', textTransform: 'uppercase', color: M_MUTED }}>Balanced v2.1</div>
+            <div style={{ fontFamily: PLAYFAIR, fontSize: 46, fontWeight: 600, color: M_TEAL, letterSpacing: '-0.02em', lineHeight: 1.24, marginTop: 4 }}>WON</div>
           </div>
-          <div style={{ marginTop: 9 }}><Num size={10} color={M_MUTED} weight={500}>HAND #4188 &middot; 3s</Num></div>
-          <div style={{ marginTop: 26, width: 320, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <Btn kind="primary" h={46} full>Deal him in</Btn>
-            <Btn kind="ghost" h={42} full>Talk to Balanced about this hand</Btn>
+          <div style={{ flexShrink: 0 }}>
+            <Num size={32} weight={700} color={M_TEAL}>+$3,694</Num>
+            {/* the sentence names the hand, per wave 58 */}
+            <div style={{ fontSize: 13, color: M_DIM, lineHeight: 1.45, marginTop: 4, maxWidth: 260 }}>
+              took it with <b style={{ color: M_TEXT, fontWeight: 600 }}>a pair of nines</b> &middot; stack <b style={{ color: M_TEXT, fontWeight: 600 }}>$5,541</b>
+            </div>
+            <div style={{ marginTop: 5 }}><Num size={10} color={M_MUTED} weight={500}>HAND #4188 &middot; 3s</Num></div>
+          </div>
+          <div style={{ flex: 1 }}/>
+          <div style={{ flexShrink: 0, width: 300, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <Btn kind="primary" h={44} full>Deal him in</Btn>
+            <Btn kind="ghost" h={40} full>Talk to Balanced about this hand</Btn>
           </div>
         </div>
       </div>
