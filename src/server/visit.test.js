@@ -295,3 +295,68 @@ test('VISIT-1: no stake, no escrow — an ordinary friendly game', async () => {
   assert.equal(read(GUEST, 'traveler').pocket.balance, 3_000);
   assert.equal(read(HOST, 'resident').pocket.balance, 3_000);
 });
+
+// ── Reads, grudges and roles cross households (job 3) ───────────────────────
+//
+// Nothing new is built here. table.js's own _recordBiographyHand and
+// _threadTo already key off `this.agentUserIds[seat]` regardless of `home`
+// (HOME-STATE-1's own law: "the BIOGRAPHY is written... two agents sharing a
+// flat is worth simulating at all") — the one thing that was ever wrong was
+// WHOSE owner that seat was booked under, which job 1's fix to homeGame.js's
+// open() corrects. These tests exercise the exact seam table.js calls through,
+// with the real seats an accepted visit produces, to prove the fix reaches it.
+
+test('VISIT-1 / BIO-2: a hand at the kitchen table writes a grudge row for EACH side, under his own owner', async () => {
+  const { body: knock } = await visitReq('traveler', HOST, 0);
+  await answerReq(knock.visitId, HOST, true);
+
+  const table = registry.getTable(homeGame.homeTableId(HOST));
+  const guestSeat = table.agentIds.indexOf('traveler');
+  const hostSeat = table.agentIds.indexOf('resident');
+  const guestPlayerId = table.pending[guestSeat].playerId;
+  const hostPlayerId = table.pending[hostSeat].playerId;
+
+  // The exact call table.js's _recordBiographyHand makes after a completed
+  // hand — same shape, same per-seat owner lookup.
+  profiles.recordOpponentHand('resident', table.agentUserIds[hostSeat], {
+    opponents: [{ playerId: guestPlayerId, displayName: 'Away Day' }], net: 200, pot: 400, won: true, handNumber: 1,
+  });
+  profiles.recordOpponentHand('traveler', table.agentUserIds[guestSeat], {
+    opponents: [{ playerId: hostPlayerId, displayName: 'Resident' }], net: -200, pot: 400, won: false, handNumber: 1,
+  });
+
+  const hostLedger = profiles.getAgentBioLedger('resident', HOST);
+  const guestLedger = profiles.getAgentBioLedger('traveler', GUEST);
+  assert.ok(hostLedger[guestPlayerId], "the host's own resident remembers who visited");
+  assert.equal(hostLedger[guestPlayerId].hands, 1);
+  assert.ok(guestLedger[hostPlayerId], 'and the visitor remembers his host, in HIS OWN ledger');
+  assert.equal(guestLedger[hostPlayerId].net, -200);
+});
+
+test('VISIT-1: both seats get their own thread session, so both threads can carry a line', async () => {
+  const { body: knock } = await visitReq('traveler', HOST, 0);
+  await answerReq(knock.visitId, HOST, true);
+
+  const table = registry.getTable(homeGame.homeTableId(HOST));
+  const guestSeat = table.agentIds.indexOf('traveler');
+  const hostSeat = table.agentIds.indexOf('resident');
+  const guestSessionId = table.seatSessionIds[guestSeat];
+  const hostSessionId = table.seatSessionIds[hostSeat];
+  assert.ok(guestSessionId, 'the visitor has a session of his own, exactly like a resident');
+  assert.notEqual(guestSessionId, hostSessionId);
+
+  const { appendLine, readThread, ThreadKind } = await import('./thread.js');
+  appendLine({
+    sessionId: guestSessionId, agentId: 'traveler', ownerId: table.agentUserIds[guestSeat],
+    tableId: table.tableId, kind: ThreadKind.TABLE, who: 'Away Day', text: 'Nice spot.',
+  });
+  appendLine({
+    sessionId: hostSessionId, agentId: 'resident', ownerId: table.agentUserIds[hostSeat],
+    tableId: table.tableId, kind: ThreadKind.TABLE, who: 'Resident', text: 'Cheers.',
+  });
+
+  const guestThread = readThread(guestSessionId, { owner: true });
+  const hostThread = readThread(hostSessionId, { owner: true });
+  assert.ok(guestThread.some((l) => l.text === 'Nice spot.'), "the visitor's own thread carries his line");
+  assert.ok(hostThread.some((l) => l.text === 'Cheers.'), "the host's thread carries his, separately");
+});
