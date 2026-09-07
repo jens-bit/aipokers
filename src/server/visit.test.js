@@ -171,6 +171,22 @@ test('VISIT-1: 404 for an agent nobody has', async () => {
   assert.equal(res.status, 404);
 });
 
+// ── job 6: the public preview ───────────────────────────────────────────────
+
+test('VISIT-1: the preview names him, with no auth at all', async () => {
+  const res = await fetch(`${base}/api/agents/traveler/visit-preview`);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(body, { agentId: 'traveler', agentName: 'TRAVELER' });
+});
+
+test('VISIT-1: the preview is 404 for an agent nobody has, or a retired one', async () => {
+  const gone = await fetch(`${base}/api/agents/nobody/visit-preview`);
+  assert.equal(gone.status, 404);
+  const retired = await fetch(`${base}/api/agents/retired/visit-preview`);
+  assert.equal(retired.status, 404);
+});
+
 // ── Answering ────────────────────────────────────────────────────────────────
 
 test('VISIT-1: declined, he walks home with a line', async () => {

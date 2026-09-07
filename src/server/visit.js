@@ -450,4 +450,17 @@ export function installVisitRoutes(app) {
     const out = answerVisit(req.params.visitId, hostUserId, req.body.accept);
     res.status(out.status).json(out.body);
   });
+
+  // GET /api/agents/:agentId/visit-preview — job 6, and deliberately public.
+  //
+  // A recipient with no account holds no credential at all, and the guest
+  // landing has to say whose door he is answering before one exists — his
+  // NAME, and only his name. No auth, no owner check, the same public-facing
+  // law GET /share/<id>.png already draws on: a name is not the flat.
+  app.get('/api/agents/:agentId/visit-preview', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const found = findAgentOwner(req.params.agentId);
+    if (!found || found.agent.archived) return res.status(404).json({ error: 'Agent not found' });
+    res.json({ agentId: req.params.agentId, agentName: found.agent.name || 'Agent' });
+  });
 }

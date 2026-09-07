@@ -554,6 +554,20 @@
         }
       }
     },
+    "/api/agents/{agentId}/visit-preview": {
+      "get": {
+        "summary": "His name, before any account exists",
+        "operationId": "visitPreview",
+        "description": "VISIT-1 job 6. Deliberately public — no auth, no owner check. A recipient who followed a visit_<agentId> link with no Telegram session behind it holds no credential at all, and the no-account guest landing has to say whose door he is answering before one exists. A name is not the flat.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "{ agentId, agentName }", "content": { "application/json": { "schema": { "type": "object", "properties": { "agentId": { "type": "string" }, "agentName": { "type": "string" } } } } } },
+          "404": { "description": "Agent not found, or retired", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/agents/chat": {
       "post": {
         "summary": "Conversational turn — agent creation flow or owner chat",
@@ -656,7 +670,20 @@
       "post": {
         "summary": "Play without an account — mint a guest owner",
         "operationId": "createGuest",
-        "description": "GUEST-1. Mints a guest owner and sets `ap_guest` — an httpOnly, SameSite=Lax cookie, thirty days — which is his whole credential from then on. Every other route in this API takes a guest exactly as it takes anybody: `userId` is his ownerId and the cookie is the proof, so a guest asking about somebody else's id is refused the same way a Telegram owner is.\n\nTHE TOKEN IS NOT IN THE RESPONSE. It is the entire identity, and a token the page can read is a token an injected script can post somewhere — which is the reason the cookie is httpOnly. The one thing that genuinely needs it in a URL is the bot deep link, and GET /api/guest/link builds that server-side.\n\n404 unless GUEST_ENABLED=1 on the deployment. 429 `guestCap` past five creations from one address in a day, counted in rows rather than in memory: a cap a restart clears is not a cap.",
+        "description": "GUEST-1. Mints a guest owner and sets `ap_guest` — an httpOnly, SameSite=Lax cookie, thirty days — which is his whole credential from then on. Every other route in this API takes a guest exactly as it takes anybody: `userId` is his ownerId and the cookie is the proof, so a guest asking about somebody else's id is refused the same way a Telegram owner is.\n\nTHE TOKEN IS NOT IN THE RESPONSE. It is the entire identity, and a token the page can read is a token an injected script can post somewhere — which is the reason the cookie is httpOnly. The one thing that genuinely needs it in a URL is the bot deep link, and GET /api/guest/link builds that server-side.\n\n404 unless GUEST_ENABLED=1 on the deployment. 429 `guestCap` past five creations from one address in a day, counted in rows rather than in memory: a cap a restart clears is not a cap.\n\nVISIT-1 job 6: optional `visitAgentId` records who sent him — stored verbatim as `referredBy`, unvalidated. The moment this guest's first agent is born, that referral fires POST /api/agents/:id/visit on its own behalf.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "visitAgentId": { "type": "string", "description": "VISIT-1 job 6: the agent whose door he arrived at, off a visit_<agentId> link with no Telegram session behind it." }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "A new guest owner. The cookie is in Set-Cookie.",

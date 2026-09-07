@@ -301,6 +301,45 @@
   animation: guest-bob 5.5s ease-in-out infinite;
 }
 
+/* VISIT-1 job 6 — a door, and somebody standing outside it. Positioned at the
+   creature's own right edge so it never collides with the seated ghost. */
+.guest-hero__door-scene {
+  position: absolute;
+  right: 4px;
+  bottom: 18px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.guest-hero__door {
+  position: relative;
+  width: 30px;
+  height: 96px;
+  border-radius: 3px 3px 0 0;
+  background: rgba(205, 179, 128, 0.1);
+  border: 1px solid rgba(205, 179, 128, 0.35);
+}
+.guest-hero__door-glow {
+  position: absolute;
+  inset: 4px;
+  border-radius: 2px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(205, 179, 128, 0.28) 0%, rgba(205, 179, 128, 0) 75%);
+}
+.guest-hero__door-visitor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.guest-hero__door-name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--marketing-gold, #CDB380);
+  white-space: nowrap;
+}
+
 @keyframes guest-bob {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-6px); }

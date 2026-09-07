@@ -4,8 +4,9 @@ import { isOwner } from './auth.js';
 import {
   getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener,
   reconcileActiveSessions, presentedRoster, noteHomeThreadLine,
-  setHomeChangeListener, setTypingListener,
+  setHomeChangeListener, setTypingListener, setBirthListener,
 } from './agentProfiles.js';
+import { isGuestOwner, guestFor } from './guest.js';
 import * as registry from './tableRegistry.js';
 import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
@@ -158,6 +159,25 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   // SERVER-4: he is answering you. Straight through; there is nothing to
   // reconcile and nothing to store.
   setTypingListener((userId, agentId, sessionId) => floor.broadcastTyping(userId, agentId, sessionId));
+  // VISIT-1 job 6: a guest owner's first agent is his first household — the
+  // moment the referral on his guest record (visit.js's own visit_<agentId>,
+  // recorded at POST /api/guest) can finally be acted on. Fired for every
+  // birth; only a guest with a referral on record does anything with it, and
+  // a guest is capped at one agent (GUEST_AGENT_CAP), so this can only ever
+  // fire once per referral.
+  setBirthListener((userId) => {
+    if (!isGuestOwner(userId)) return;
+    const referredBy = guestFor(userId)?.referredBy;
+    if (!referredBy) return;
+    try {
+      const out = visit.requestVisit({ agentId: referredBy, hostUserId: userId });
+      if (out.status !== 200) {
+        console.log(`[visit] referral for ${userId} did not knock: ${out.body?.reason ?? out.status}`);
+      }
+    } catch (err) {
+      console.error('[visit] referral knock failed:', err.message);
+    }
+  });
   const retired = reconcileActiveSessions();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);

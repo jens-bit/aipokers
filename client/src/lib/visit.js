@@ -64,6 +64,20 @@ export async function shareVisitLink(agentId, agentName = 'Him') {
 }
 
 /**
+ * The one thing worth knowing before an account exists: his name. Public, no
+ * auth — see the route's own note for why that is safe.
+ */
+export async function visitPreview(agentId) {
+  try {
+    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/visit-preview`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The far end of the deep link: the RECIPIENT's own client asks the door to
  * open. `hostUserId` is always the caller's own id — the agent's owner never
  * touches this route, which is what lets the server validate ownership on the
@@ -82,6 +96,30 @@ export async function requestVisit(agentId) {
   } catch {
     return { ok: false, status: 0, body: null };
   }
+}
+
+// ── job 6: the handoff from the landing hero to the draft ──────────────────
+//
+// GuestLanding knows the visitor's name (it fetched visit-preview to draw the
+// hero); BirthScreen is what writes the draft's opening line, four
+// components and one scroll later. sessionStorage rather than a prop threaded
+// through all of it — this is one tab's one referral, gone the moment the
+// draft has read it or the tab closes, and neither of those is a shape a prop
+// chain answers well.
+
+const PENDING_VISITOR_KEY = 'agentic_visit_pending';
+
+export function rememberPendingVisitor(name) {
+  try { sessionStorage.setItem(PENDING_VISITOR_KEY, name || ''); } catch { /* private mode, etc. */ }
+}
+
+/** Read once, by the draft's opening line — call clearPendingVisitor after. */
+export function pendingVisitorName() {
+  try { return sessionStorage.getItem(PENDING_VISITOR_KEY) || null; } catch { return null; }
+}
+
+export function clearPendingVisitor() {
+  try { sessionStorage.removeItem(PENDING_VISITOR_KEY); } catch { /* nothing to clear */ }
 }
 
 /** The host's own yes or no. */

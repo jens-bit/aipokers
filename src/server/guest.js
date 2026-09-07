@@ -377,8 +377,13 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
 
     const token = newToken();
     const ownerId = newOwnerId();
+    // VISIT-1 job 6: the agent id off the visit_<agentId> link he arrived on,
+    // if he arrived on one. Stored verbatim and unvalidated — this route does
+    // not reach agentProfiles.js (guest.js is deliberately a leaf), and a
+    // stray or stale id costs nothing worse than a referral nobody credits.
+    const referredBy = String(req.body?.visitAgentId ?? '').trim() || null;
     try {
-      insertGuest({ token, ownerId, ip, now: at });
+      insertGuest({ token, ownerId, ip, referredBy, now: at });
     } catch (err) {
       console.error('[guest] create failed:', err.message);
       return res.status(500).json({ error: 'guestCreateFailed' });

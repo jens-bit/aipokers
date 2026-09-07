@@ -330,6 +330,16 @@ function emitHomeChange(userId) {
   catch (err) { console.error('[home] change listener failed:', err.message); }
 }
 
+// VISIT-1 job 6: a NEW agent exists. Injected exactly like the listeners
+// above, for exactly the same reason — this module must not import guest.js
+// or visit.js to ask "was this a referral", so it hands the fact to whoever
+// was told to want it.
+let birthListener = null;
+
+export function setBirthListener(fn) {
+  birthListener = typeof fn === 'function' ? fn : null;
+}
+
 // ── SERVER-4 · the room thread's unread marker ───────────────────────────────
 //
 // Exactly parallel to an agent's `unseenRecap`, one level up: `unseenRecap` is
@@ -622,6 +632,11 @@ function commitAgent(profile, existingAgentId, agentData) {
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
               ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
+  // VISIT-1 job 6: a birth is the one moment a guest owner FIRST has a
+  // household to receive a visitor into. Fired for every new agent, not only
+  // a guest's — the listener itself is what asks whether there is a referral
+  // on record — because this module must not know what a guest is.
+  try { birthListener?.(profile.userId, agent); } catch (err) { console.error('[agents] birth listener failed:', err.message); }
   return agent;
 }
 

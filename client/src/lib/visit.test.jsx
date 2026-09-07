@@ -4,7 +4,10 @@
 // knock and the answer.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { visitLink, shareVisitLink, requestVisit, answerVisit, VISIT_START_PREFIX } from './visit.js';
+import {
+  visitLink, shareVisitLink, requestVisit, answerVisit, VISIT_START_PREFIX,
+  visitPreview, rememberPendingVisitor, pendingVisitorName, clearPendingVisitor,
+} from './visit.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
 beforeEach(() => {
@@ -95,5 +98,34 @@ describe('requestVisit / answerVisit', () => {
     fetchMock.route(/\/agents\/a1\/visit/, () => { throw new Error('offline'); }, { method: 'POST' });
     const res = await requestVisit('a1');
     expect(res).toEqual({ ok: false, status: 0, body: null });
+  });
+});
+
+// ── VISIT-1 job 6 ────────────────────────────────────────────────────────────
+
+describe('visitPreview', () => {
+  it('reads his name off the public route — no auth header at all', async () => {
+    fetchMock.route(/\/agents\/friend1\/visit-preview/, { agentId: 'friend1', agentName: 'Away Day' });
+    expect(await visitPreview('friend1')).toEqual({ agentId: 'friend1', agentName: 'Away Day' });
+  });
+
+  it('is null for an agent nobody has', async () => {
+    fetchMock.route(/\/agents\/nobody\/visit-preview/, { status: 404, body: {} });
+    expect(await visitPreview('nobody')).toBeNull();
+  });
+});
+
+describe('pending visitor handoff', () => {
+  beforeEach(() => { sessionStorage.clear(); });
+
+  it('is null until somebody has remembered one', () => {
+    expect(pendingVisitorName()).toBeNull();
+  });
+
+  it('round-trips the name across the landing → draft handoff', () => {
+    rememberPendingVisitor('Away Day');
+    expect(pendingVisitorName()).toBe('Away Day');
+    clearPendingVisitor();
+    expect(pendingVisitorName()).toBeNull();
   });
 });

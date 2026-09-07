@@ -219,6 +219,21 @@ smaller, escrowed from both at accept through wallet.js's buy-in ledger and
 paid out through its cash-out ledger when the stay ends: winner takes the pot,
 a push refunds both.
 
+  GET  /api/agents/:agentId/visit-preview
+  Public — no auth, no owner check. 200 { agentId, agentName }, or 404. This
+  is job 6's own door: a recipient with no account yet holds no credential at
+  all, and the no-account landing (see "Guests" below) has to say whose door
+  he is answering before one exists. A name is not the flat.
+
+VISIT-1 job 6 — invite = visit. "Send to a friend" shares a Telegram inline
+message carrying visit_<agentId>, the same mechanism SHARE-2's own card uses.
+Opened by somebody who already has an account, it is job 1's knock, made
+straight away. Opened by a stranger with none — no Telegram session behind
+the tap at all — it resolves to a plain web link instead, and he lands on the
+guest door (GUEST-1) with visit-preview's name already on the hero: "<name>
+is at your door." Drafting there IS answering it — see POST /api/guest's
+`visitAgentId` above for what happens the moment he is born.
+
 ## Guests — playing without an account
 
 A third way to be somebody here, beside Mini App initData and the desktop
@@ -237,6 +252,16 @@ is read, and nothing else in the API changes.
                            script can post somewhere.
                            429 { error: 'guestCap' } past five from one address
                            in a day.
+                           VISIT-1 job 6: optional `{ visitAgentId }` — the
+                           agent whose door he arrived at, off a visit_<id>
+                           link followed with no Telegram session behind it.
+                           Stored verbatim as `referredBy`, unvalidated (this
+                           route does not reach the roster); nothing is
+                           credited yet. The moment this guest owner's first
+                           agent is born, the referral fires job 1's own
+                           POST /api/agents/:id/visit on its behalf — the
+                           knock a claim will later find waiting at his door,
+                           the same as anybody else's.
   GET  /api/guest/me       who this cookie is: { ownerId, sessionsToday, limits }.
                            404 for a browser that is not a guest — not an error.
   GET  /api/guest/link     the bot deep link for the claim, built server-side
