@@ -70,6 +70,10 @@ let liveTables = null;
 // HOME-STATE-1: how the channel learns what the owner's home game is doing.
 // Injected like liveTables so nothing here imports homeGame.js.
 let homeGames = null;
+// VISIT-1: same law — the guest bodies standing in this flat and the one
+// knock waiting on an answer, injected so nothing here imports visit.js
+// (which itself calls back into this file's own notifyHomeChanged).
+let visits = null;
 
 // ROOMS-1 push state: the last payload sent (so an unchanged floor is silent),
 // when it went, the trailing-edge timer, and the one-shot that fires when the
@@ -84,9 +88,10 @@ let tablesSignature = null;
 let tablesLastPushAt = 0;
 let tablesTimer = null;
 
-export function configure({ liveTables: provider, homeGames: homes } = {}) {
+export function configure({ liveTables: provider, homeGames: homes, visits: visitMod } = {}) {
   liveTables = provider ?? null;
   homeGames = homes ?? null;
+  visits = visitMod ?? null;
   // EVENT-1: exactly one listener on the casino bus, no matter how many times
   // a process composes a server (tests build several). off-then-on is
   // idempotent because `relayEvent` is a stable module-level function.
@@ -173,6 +178,8 @@ function sendHomeState(ws, entry) {
     payload = homeSnapshot(entry.userId, {
       owner: entry.owner,
       game: homeGames?.state?.(entry.userId) ?? null,
+      visitors: visits?.visitBodiesFor?.(entry.userId) ?? [],
+      visitor: visits?.pendingVisitorFor?.(entry.userId) ?? null,
     });
   } catch (err) {
     console.error('[floor] home snapshot failed:', err.message);
@@ -574,4 +581,5 @@ export function reset() {
   tablesLastPushAt = 0;
   liveTables = null;
   homeGames = null;
+  visits = null;
 }

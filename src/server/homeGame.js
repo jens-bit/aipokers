@@ -92,14 +92,23 @@ let liveTables = null;
 let agentsFor = null;
 let onChange = null;
 let tick = null;
+// VISIT-1: a household's own roster plus whoever is visiting it, from
+// somewhere else's flat entirely. Injected exactly like `agentsFor` and for
+// the same reason — this module must not import visit.js, or the graph closes
+// a cycle. Presented, HOME-shaped and already tagged `guest: true`, so
+// eligible() reads them with no idea they came from a second owner.
+let visitorsFor = null;
 
 // ownerId -> { tableId, state, roster: [agentId], cooldownUntil }
 const households = new Map();
 
-export function configure({ liveTables: tables = null, agentsFor: roster = null, onChange: notify = null } = {}) {
+export function configure({
+  liveTables: tables = null, agentsFor: roster = null, onChange: notify = null, visitorsFor: visitors = null,
+} = {}) {
   liveTables = tables;
   agentsFor = typeof roster === 'function' ? roster : null;
   onChange = typeof notify === 'function' ? notify : null;
+  visitorsFor = typeof visitors === 'function' ? visitors : null;
 }
 
 // ── Who should be at the table ──────────────────────────────────────────────
@@ -148,7 +157,13 @@ export function sync(userId, { now = Date.now() } = {}) {
 
   let roster = [];
   try {
-    roster = eligible(agentsFor(ownerId));
+    // VISIT-1: the household's own eligible bodies first, then whoever is
+    // visiting — a full house of four residents leaves no chair for a guest,
+    // which is right, and eligible()'s own slice(0, HOME_SEATS) is what
+    // enforces it. One call, one cap, exactly as it was before there was
+    // anyone else's agent to seat here.
+    const guests = visitorsFor ? (visitorsFor(ownerId) ?? []) : [];
+    roster = eligible([...agentsFor(ownerId), ...guests]);
   } catch (err) {
     console.error('[home] roster lookup failed:', err.message);
     return before;
@@ -243,7 +258,10 @@ function open(ownerId, roster) {
       // path the casino uses, which is what "the same way" means.
       const seated = table.startAgentSession({
         agentId: roster[0].id,
-        userId: ownerId,
+        // VISIT-1: `ownerId` unless the roster itself says otherwise — a
+        // solo game is always the household's own, so this is unchanged for
+        // everybody who was already playing it.
+        userId: roster[0].ownerId ?? ownerId,
         displayName: roster[0].name || 'Agent',
         strategy: roster[0].strategy || '',
         agentProfile: roster[0].profile ?? null,
@@ -254,7 +272,11 @@ function open(ownerId, roster) {
       for (const agent of roster) {
         table.joinAgentSession({
           agentId: agent.id,
-          userId: ownerId,
+          // VISIT-1: a guest's seat is booked under HIS OWN owner, not the
+          // host's — agentUserIds is what benchCutSeat, bio and grudges key
+          // off, and crediting a visit to the wrong household would be the
+          // one thing this rule was written to prevent.
+          userId: agent.ownerId ?? ownerId,
           displayName: agent.name || 'Agent',
           strategy: agent.strategy || '',
           agentProfile: agent.profile ?? null,

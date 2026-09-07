@@ -11,6 +11,7 @@ import * as floor from './floorChannel.js';
 import * as rooms from './rooms.js';
 import * as roomTables from './roomTables.js';
 import * as homeGame from './homeGame.js';
+import * as visit from './visit.js';
 import * as homeNight from './homeNight.js';
 import * as rustNight from './rustNight.js';
 import * as guestNight from './guestNight.js';
@@ -37,7 +38,10 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
   setLiveTableProvider(registry);
   // AGE-38: the floor channel listens to both sides — table state changes for
   // FLOOR_GAME deltas, agent standing changes for FLOOR_STATE refreshes.
-  floor.configure({ liveTables: registry, homeGames: homeGame });
+  floor.configure({ liveTables: registry, homeGames: homeGame, visits: visit });
+  // VISIT-1: reads a live table's seats to settle a wager at the end of a
+  // stay. Injected exactly like homeGame's own registry, for the same reason.
+  visit.configure({ liveTables: registry });
   // ROOMS-1: the floor-by-stakes view reads the same registry, through the same
   // kind of injected provider, so neither it nor floorChannel imports table.js.
   rooms.configure({ liveTables: registry });
@@ -53,6 +57,10 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     liveTables: registry,
     agentsFor: (userId) => presentedRoster(userId, { owner: true }),
     onChange: (userId) => floor.notifyHomeChanged(userId),
+    // VISIT-1: whoever is visiting this household right now, HOME-shaped and
+    // already tagged `guest: true` — see visit.js, which is the only place
+    // that ever builds one of these.
+    visitorsFor: (userId) => visit.listVisitorsFor(userId),
   });
   registry.setStateHook((table) => floor.notifyTable(table));
   // HOME-STATE-1: an agent's standing changing is the trigger for all three —

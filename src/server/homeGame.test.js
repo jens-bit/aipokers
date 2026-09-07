@@ -218,6 +218,41 @@ test('HOME-STATE-1: one alone plays the House on the TV, the same way', () => {
   assert.equal(back.seats.some((s) => s.house), false);
 });
 
+// ── VISIT-1 ──────────────────────────────────────────────────────────────────
+
+test('VISIT-1: a visitor is seated under his OWN owner, not the host', () => {
+  const roster = [home('one', 'The Clock')];
+  const guests = [{ ...home('friend', 'Away Day'), ownerId: 'guest-owner' }];
+  configure({ liveTables: registry, agentsFor: () => roster, visitorsFor: () => guests });
+
+  const running = sync('flat');
+  assert.deepEqual(running.seats.map((s) => s.agentId).sort(), ['friend', 'one']);
+  assert.equal(running.seats.some((s) => s.house), false, 'a real second body — no House needed');
+
+  const table = registry.getTable(running.tableId);
+  const guestSeat = table.agentIds.indexOf('friend');
+  const hostSeat = table.agentIds.indexOf('one');
+  assert.equal(table.agentUserIds[guestSeat], 'guest-owner');
+  assert.equal(table.agentUserIds[hostSeat], 'flat');
+});
+
+test('VISIT-1: a full house leaves no chair for a guest', () => {
+  const roster = Array.from({ length: HOME_SEATS }, (_, i) => home(`r${i}`, `R${i}`));
+  const guests = [{ ...home('friend', 'Away Day'), ownerId: 'guest-owner' }];
+  configure({ liveTables: registry, agentsFor: () => roster, visitorsFor: () => guests });
+
+  const running = sync('flat');
+  assert.equal(running.seats.length, HOME_SEATS);
+  assert.equal(running.seats.some((s) => s.agentId === 'friend'), false);
+});
+
+test('VISIT-1: a household with no visitorsFor injected behaves exactly as before', () => {
+  const roster = [home('one', 'A'), home('two', 'B')];
+  configure({ liveTables: registry, agentsFor: () => roster });
+  const running = sync('flat');
+  assert.deepEqual(running.seats.map((s) => s.agentId).sort(), ['one', 'two']);
+});
+
 test('HOME-STATE-1: the table id is stable, so a watcher does not lose it', () => {
   let roster = [home('one', 'A'), home('two', 'B')];
   configure({ liveTables: registry, agentsFor: () => roster });
