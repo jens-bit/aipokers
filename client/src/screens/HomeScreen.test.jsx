@@ -635,6 +635,46 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
   });
 });
 
+// ── BUGS-C job 3 · tap the table, not the player ────────────────────────────
+
+describe('BUGS-C job 3: the table region, mid-hand', () => {
+  const GAME = {
+    tableId: 'home-u1',
+    state: 'running',
+    seats: [
+      { seat: 0, agentId: 'a1', name: 'The Clock', house: false },
+      { seat: 1, agentId: 'a2', name: 'River Rat', house: false },
+    ],
+  };
+
+  it('BUGS-C-3: in a hand, a tap on a seated agent\'s pill opens the TableSheet, not his thread', async () => {
+    const onOpenThread = vi.fn();
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
+    await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')], GAME, { onOpenThread });
+
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    await userEvent.click(body);
+
+    expect(await screen.findByTestId('home-table-sheet-mobile')).toBeInTheDocument();
+    expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  it('BUGS-C-3: an idle, standing agent keeps his own tap, hand or no hand', async () => {
+    // a3 is home but not in the game — his tap still goes to the thread.
+    const onOpenThread = vi.fn();
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat'), mkAgent('a3', 'Idle Ivan')],
+      GAME,
+      { onOpenThread },
+    );
+    const body = await screen.findByRole('button', { name: /Idle Ivan — / });
+    await userEvent.click(body);
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
+    expect(screen.queryByTestId('home-table-sheet-mobile')).not.toBeInTheDocument();
+  });
+});
+
 // ── The tape room ───────────────────────────────────────────────────────────
 
 describe('HOME-1 · the tape room', () => {

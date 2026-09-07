@@ -402,6 +402,14 @@ export function HomeScreen({
     [game],
   );
 
+  // BUGS-C job 3: is a home hand actually running right now? While it is, the
+  // table region — the felt AND the seated bodies playing it — is one target
+  // with one destination, the sheet the tap already opens for the felt itself
+  // (see `onTable` below). Tapping a man's face mid-hand used to open HIS
+  // thread, which pulled the owner off the table he was in the middle of
+  // watching.
+  const inHand = game?.state === 'running';
+
   // HOME-2 job 3 · WHO EVERYBODY IS, rolled once for the whole household.
   //
   // Rolled here rather than inside each body because the ROSTER is the
@@ -570,6 +578,24 @@ export function HomeScreen({
     if (onOpenThread) onOpenThread(agent);
     else setThreadOpen(true);
   }, [onOpenThread, desktop]);
+
+  // BUGS-C job 3 · A MAN AT THE TABLE IS PART OF THE TABLE.
+  //
+  // Mid-hand, his face and his pill are the table region same as the felt is
+  // — BIRTH-5/BUGS-A job 7 already gave the felt itself one destination, the
+  // sheet, and a tap on the man playing it went somewhere else entirely. With
+  // nobody dealing, he is just a body standing at a chair, and the tap goes to
+  // his profile — not his thread, which `tapAgent` still owns for the idle
+  // and wandering rest of the household.
+  const tapSeated = useCallback((agent) => {
+    if (inHand) {
+      if (desktop) { setRail('table'); return; }
+      setTableOpen(true);
+      return;
+    }
+    if (desktop) { setFocusId(agent.id); setRail('agent'); return; }
+    onProfile?.(agent);
+  }, [inHand, desktop, onProfile]);
 
   // BUGS-A job 2 · THE ROOM IS THE DEFAULT, NOT THE EMPTY STATE.
   //
@@ -752,7 +778,7 @@ export function HomeScreen({
             // news while his turn is coming.
             bubble={bubble}
             news={!!(agent.want || agent.unseenRecap)}
-            onClick={() => tapAgent(agent)}
+            onClick={() => (seated ? tapSeated(agent) : tapAgent(agent))}
           />
         );
       })}
