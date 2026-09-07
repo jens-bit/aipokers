@@ -606,7 +606,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-bubble {
   position: absolute;
   bottom: 0;
-  width: 152px;
+  /* BUGS-C job 2: 150px, down from 152 — the playtest called these "far too
+     large", and clamped to two lines with an ellipsis rather than growing to
+     fit whatever the household had to say. */
+  width: 150px;
   padding: 5px 9px;
   border-radius: 11px;
   background: rgba(20, 28, 27, 0.94);
@@ -616,6 +619,11 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: var(--text-secondary, #A1A1A1);
   text-align: left;
   white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
   animation: home-bubblein 0.3s ease-out both;
 }
 .home-bubble--right { left: 9px; border-bottom-left-radius: 3px; }
