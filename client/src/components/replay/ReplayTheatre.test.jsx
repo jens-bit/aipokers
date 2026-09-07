@@ -5,7 +5,7 @@
 // to that moment, and does the same ALL-IN hold and showdown reveal land where
 // the timeline says they should.
 
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -74,6 +74,7 @@ function installResizeObserver() {
 
 const felt = (container) => container.querySelector('.watch-felt');
 const scrubber = (container) => container.querySelector('.replay-scrub');
+const stage = (container) => container.querySelector('.replay-theatre__stage');
 
 describe('R-2 the theatre', () => {
   beforeEach(() => { telegram.signIn(); });
@@ -327,5 +328,80 @@ describe('R-2 the theatre', () => {
 
     rerender(<ReplayTheatre hand={coolerHand} onBack={() => {}} autoPlay={false} />);
     expect(screen.queryByRole('button', { name: 'Open hand' })).not.toBeInTheDocument();
+  });
+
+  // ── BUGS-C job 10 · hold to fast-forward ──────────────────────────────────
+  describe('BUGS-C job 10: hold the felt to fast-forward', () => {
+    it('BUGS-C-10: shows the 3x chip while held, and only while held', () => {
+      const { container } = renderTheatre();
+      expect(screen.queryByTestId('replay-hold-chip')).not.toBeInTheDocument();
+
+      fireEvent.pointerDown(stage(container));
+      expect(screen.getByTestId('replay-hold-chip')).toHaveTextContent('3×');
+
+      fireEvent.pointerUp(stage(container));
+      expect(screen.queryByTestId('replay-hold-chip')).not.toBeInTheDocument();
+    });
+
+    it('BUGS-C-10: starts playback and advances at three times the rate while held', () => {
+      vi.useFakeTimers();
+      try {
+        const { container } = renderTheatre(coolerHand, { autoPlay: false });
+        fireEvent.pointerDown(stage(container));
+        expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+
+        act(() => { vi.advanceTimersByTime(1000); });
+        // One second of wall clock at 3x is ~3s of reel — allow the 100ms tick
+        // granularity some slack either side.
+        const shown = parseFloat(container.querySelector('.replay-scrub__clock').textContent);
+        expect(shown).toBeGreaterThanOrEqual(2.5);
+        expect(shown).toBeLessThanOrEqual(3.5);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('BUGS-C-10: releasing drops back to normal speed without pausing', () => {
+      vi.useFakeTimers();
+      try {
+        const { container } = renderTheatre(coolerHand, { autoPlay: false });
+        fireEvent.pointerDown(stage(container));
+        act(() => { vi.advanceTimersByTime(500); });
+        fireEvent.pointerUp(stage(container));
+
+        // Still playing — "returns to normal speed", not to paused.
+        expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+
+        const before = parseFloat(container.querySelector('.replay-scrub__clock').textContent);
+        act(() => { vi.advanceTimersByTime(1000); });
+        const after = parseFloat(container.querySelector('.replay-scrub__clock').textContent);
+        // A further second of wall clock at 1x advances the reel by ~1s.
+        expect(after - before).toBeGreaterThanOrEqual(0.6);
+        expect(after - before).toBeLessThanOrEqual(1.4);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('BUGS-C-10: releasing off-target (pointercancel/leave) also drops the hold', () => {
+      const { container } = renderTheatre();
+      fireEvent.pointerDown(stage(container));
+      expect(screen.getByTestId('replay-hold-chip')).toBeInTheDocument();
+
+      fireEvent.pointerLeave(stage(container));
+      expect(screen.queryByTestId('replay-hold-chip')).not.toBeInTheDocument();
+    });
+
+    it('BUGS-C-10: pointer events, not click — a plain click on the stage never fast-forwards', () => {
+      vi.useFakeTimers();
+      try {
+        const { container } = renderTheatre(coolerHand, { autoPlay: false });
+        fireEvent.click(stage(container));
+        expect(screen.queryByTestId('replay-hold-chip')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
