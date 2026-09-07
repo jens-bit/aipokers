@@ -79,6 +79,21 @@ describe('GUEST-1 · minting one', () => {
     expect(await startGuest()).toBe(null);
     expect(isGuest()).toBe(false);
   });
+
+  // VISIT-1 job 6
+  it('carries the referral off a visit link, when there is one', async () => {
+    let posted = null;
+    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_new' }; }, { method: 'POST' });
+    await startGuest('agent_friend1');
+    expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
+  });
+
+  it('sends no referral at all for an ordinary mint', async () => {
+    let posted = null;
+    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_new' }; }, { method: 'POST' });
+    await startGuest();
+    expect(posted).toEqual({});
+  });
 });
 
 // ── Who the app says it is ──────────────────────────────────────────────────

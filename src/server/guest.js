@@ -14,7 +14,7 @@
 // told apart by ONE thing: the credential he holds is an httpOnly cookie this
 // server minted, not a signature Telegram made.
 //
-// ── THE FOUR LIMITS, AND WHY THEY ARE HERE ──────────────────────────────────
+// ── THE FIVE LIMITS, AND WHY THEY ARE HERE ──────────────────────────────────
 //
 // A guest costs money and holds a seat, and neither is free, so he is bounded:
 //
@@ -29,6 +29,11 @@
 //                      the compiled policy, and his table talk comes from the
 //                      templates. A guest owner never reaches a model except
 //                      for the draft itself.
+//   HE CANNOT VISIT    VISIT-1: a guest's agent may not be SENT to a friend's
+//                      flat (POST /api/agents/:id/visit refuses 403
+//                      guestCannotVisit) — but a guest may HOST one, which
+//                      costs him nothing a claim would not already unlock, so
+//                      nothing here refuses a hostUserId.
 //
 // EVERY ONE OF THEM IS DECIDED IN THIS FILE. The enforcement necessarily lives
 // where the action is — deployAgent knows what a session is, router.js knows
@@ -311,6 +316,14 @@ export function mustClaimToTalk(ownerId) {
 }
 
 /**
+ * VISIT-1: may this owner's agent be SENT visiting? Never a guest's — but
+ * nothing checks the HOST this way, because a guest may host one.
+ */
+export function guestCannotVisit(ownerId) {
+  return isGuestOwner(ownerId);
+}
+
+/**
  * True when nothing this owner does may reach a model.
  *
  * The one exception is the draft, and it is an exception by OMISSION: the two
@@ -364,8 +377,13 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
 
     const token = newToken();
     const ownerId = newOwnerId();
+    // VISIT-1 job 6: the agent id off the visit_<agentId> link he arrived on,
+    // if he arrived on one. Stored verbatim and unvalidated — this route does
+    // not reach agentProfiles.js (guest.js is deliberately a leaf), and a
+    // stray or stale id costs nothing worse than a referral nobody credits.
+    const referredBy = String(req.body?.visitAgentId ?? '').trim() || null;
     try {
-      insertGuest({ token, ownerId, ip, now: at });
+      insertGuest({ token, ownerId, ip, referredBy, now: at });
     } catch (err) {
       console.error('[guest] create failed:', err.message);
       return res.status(500).json({ error: 'guestCreateFailed' });

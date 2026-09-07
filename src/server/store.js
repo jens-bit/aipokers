@@ -246,6 +246,11 @@ function applySchema(d) {
   // ALTER rather than a column in CREATE TABLE: databases from SQLITE-1 exist.
   addColumnIfMissing(d, 'agents', 'pocket_balance', "INTEGER NOT NULL DEFAULT 0");
 
+  // VISIT-1 job 6: who sent this stranger the link — an agent id, from the
+  // visit_<agentId> he arrived on. Recorded at birth so a later claim can
+  // credit it; nothing pays out yet, this is only the record.
+  addColumnIfMissing(d, 'guests', 'referred_by', 'TEXT');
+
   // THREAD-2: who said it and who it was said to. Agent ids, 'owner', or
   // 'all' (the room) — the client renders "BALANCE -> GRANITE" from the pair,
   // and a line with neither is a line nobody can attribute. Nullable, because
@@ -1083,11 +1088,11 @@ export function readDecisionRoutes({ sinceDay = null, ownerId = null } = {}) {
 // had today". A limit written twice is a limit that will one day disagree with
 // itself, so the rules live in exactly one file and the rows live here.
 
-export function insertGuest({ token, ownerId, ip = null, now = Date.now() }) {
+export function insertGuest({ token, ownerId, ip = null, referredBy = null, now = Date.now() }) {
   conn().prepare(`
-    INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count)
-    VALUES (?, ?, ?, ?, ?, 0)
-  `).run(String(token), String(ownerId), now, now, ip === null ? null : String(ip));
+    INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count, referred_by)
+    VALUES (?, ?, ?, ?, ?, 0, ?)
+  `).run(String(token), String(ownerId), now, now, ip === null ? null : String(ip), referredBy === null ? null : String(referredBy));
   return loadGuestByToken(token);
 }
 
@@ -1100,6 +1105,9 @@ const guestRow = (row) => (row ? {
   claimedBy: row.claimed_by ?? null,
   sessionDay: row.session_day ?? null,
   sessionCount: row.session_count ?? 0,
+  // VISIT-1 job 6: the agent id off the visit_<agentId> link he arrived on,
+  // or null for every guest who did not.
+  referredBy: row.referred_by ?? null,
 } : null);
 
 export function loadGuestByToken(token) {

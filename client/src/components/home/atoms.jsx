@@ -111,12 +111,16 @@ export function RoutineProp({ kind, size }) {
 // these colours in the product: the pill here, the strip over the felt, the
 // seat pill and the profile card cannot disagree about a man.
 
-export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', heat = 45, news = false }) {
+export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', heat = 45, news = false, guest = false }) {
   const h = Math.max(0, Math.min(100, Number(heat) || 0));
   // Fatigue is three stages on the wire and one length-and-colour on screen.
   const stam = Math.round((staminaOf(fatigue) ?? 1) * 100);
   return (
-    <span className={`home-pill${news ? ' home-pill--news' : ''}`} data-fatigue={fatigue} data-heat={heatStep(h)}>
+    <span className={`home-pill${news ? ' home-pill--news' : ''}${guest ? ' home-pill--guest' : ''}`} data-fatigue={fatigue} data-heat={heatStep(h)}>
+      {/* VISIT-1: he is not one of yours — the one fact this pill has to add,
+          and the only place it is said. A body already reads as a stranger's
+          the moment he is not one you can tap; this is what says WHY. */}
+      {guest ? <span className="home-pill__guest" data-testid="home-pill-guest">GUEST</span> : null}
       <span className="home-pill__name" style={{ color: accent }}>{shortName(name, nickname)}</span>
       <span className="home-pill__bars" aria-hidden>
         <span className="home-pill__bar" data-bar="stamina">
@@ -209,6 +213,7 @@ export function HomeOne({
         fatigue={fatigue}
         heat={heat}
         news={!!news}
+        guest={!!agent?.guest}
       />
 
       <span className="home-one__body" style={{ width: size, height: size }}>

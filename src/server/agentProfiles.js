@@ -330,6 +330,16 @@ function emitHomeChange(userId) {
   catch (err) { console.error('[home] change listener failed:', err.message); }
 }
 
+// VISIT-1 job 6: a NEW agent exists. Injected exactly like the listeners
+// above, for exactly the same reason — this module must not import guest.js
+// or visit.js to ask "was this a referral", so it hands the fact to whoever
+// was told to want it.
+let birthListener = null;
+
+export function setBirthListener(fn) {
+  birthListener = typeof fn === 'function' ? fn : null;
+}
+
 // ── SERVER-4 · the room thread's unread marker ───────────────────────────────
 //
 // Exactly parallel to an agent's `unseenRecap`, one level up: `unseenRecap` is
@@ -622,6 +632,11 @@ function commitAgent(profile, existingAgentId, agentData) {
   profile.agents.push(agent);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
               ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
+  // VISIT-1 job 6: a birth is the one moment a guest owner FIRST has a
+  // household to receive a visitor into. Fired for every new agent, not only
+  // a guest's — the listener itself is what asks whether there is a referral
+  // on record — because this module must not know what a guest is.
+  try { birthListener?.(profile.userId, agent); } catch (err) { console.error('[agents] birth listener failed:', err.message); }
   return agent;
 }
 
@@ -1931,7 +1946,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   const tableBigBlind = activeTableId
     ? (liveTables?.getTable?.(activeTableId)?.bigBlind ?? null)
     : null;
-  const location = stampLocation(agent, locationFor({
+  let location = stampLocation(agent, locationFor({
     presence,
     tableId: activeTableId ?? null,
     room: tableBigBlind === null ? null : (roomForBigBlind(tableBigBlind)?.id ?? null),
@@ -1941,6 +1956,17 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // could only say "at the casino, somewhere".
     headingTo: agent.headingTo ?? null,
   }));
+  // VISIT-1: he walked out HIS OWN door. Nothing above this line has any way
+  // to know that — activeTableId is the HOST's table, on the HOST's agent
+  // record, never this one — so it is forced here, the one place location is
+  // settled. CASINO rather than a third `where` the rest of the app would have
+  // to learn: it already reads as "away, no felt of his own" everywhere this
+  // projection is drawn, and homeGame.eligible's `where === HOME` gate already
+  // keeps him out of his own kitchen table for free. visit.js hands the HOST a
+  // separate, HOME-shaped copy of him for the room he is actually standing in.
+  if (agent.visiting && location.where === Where.HOME) {
+    location = stampLocation(agent, { where: Where.CASINO, tableId: null, room: null });
+  }
   // He is home, so he is not on his way anywhere. Cleared here rather than by
   // whatever brought him back, because there are four ways home (bust, worn,
   // called in, the table closing under him) and a stale destination that
@@ -2072,13 +2098,21 @@ export function floorSnapshot(userId, { owner = false } = {}) {
 //
 // `game` is injected rather than looked up, so this module still knows nothing
 // about tables; floorChannel hands in whatever homeGame.js reports.
-export function homeSnapshot(userId, { owner = false, game = null } = {}) {
-  return homeStateMessage(userId, presentedRoster(userId, { owner }), game, {
+// VISIT-1: `visitors` and `visitor` are injected by the caller (floorChannel,
+// place.js) exactly the way `game` already is — this module must not import
+// visit.js, or the graph closes a cycle the same way homeGame.js's injection
+// avoids one. `visitors` are presented guest bodies, already HOME-shaped and
+// tagged `guest: true` (visit.js's job); `visitor` is the one pending request
+// waiting on an answer, or null.
+export function homeSnapshot(userId, { owner = false, game = null, visitors = [], visitor = null } = {}) {
+  const roster = presentedRoster(userId, { owner }).concat(visitors ?? []);
+  return homeStateMessage(userId, roster, game, {
     // SERVER-4: the room's unread marker and the fridge's counts. Both are
     // things the HOME screen draws on its first paint and both used to cost it
     // a second request; neither is worth a route of its own to keep current.
     thread: { unreadSince: homeThreadUnread(userId) },
     fridge: walletFor(userId)?.fridge ?? null,
+    visitor,
   });
 }
 
@@ -2107,6 +2141,20 @@ export function presentedRoster(userId, { owner = false } = {}) {
  * profile, not the record). One narrow accessor rather than exporting the
  * record itself, in the style of getAgentMood and getAgentPocket.
  */
+/**
+ * VISIT-1: the full presented projection of one agent, from HIS OWNER'S
+ * roster. What visit.js needs and getAgentHome does not give it — a whole
+ * body to stand in somebody else's flat, not the four home-screen fields.
+ * Narrow rather than exporting the record itself, in the style of every other
+ * accessor on this line.
+ */
+export function presentAgentById(agentId, userId, { owner = false } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  return presentAgent(agent, { owner, wallet: walletFor(userId) });
+}
+
 export function getAgentHome(agentId, userId) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);

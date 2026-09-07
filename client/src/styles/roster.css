@@ -129,6 +129,23 @@
 }
 .roster__row:active { background: rgba(255, 255, 255, 0.04); }
 
+/* VISIT-1: "Send to a friend" — a second, smaller action under the row it
+   belongs to, never nested inside it (the row is itself a button). */
+.roster__item { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+.roster__item .roster__row { border-top: none; }
+.roster__send {
+  display: block;
+  margin: 0 6px 8px 51px;   /* lines up under the name, past the face */
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid rgba(0, 212, 170, 0.35);
+  border-radius: 8px;
+  color: var(--accent, #00D4AA);
+  font-size: 11px;
+  cursor: pointer;
+}
+.roster__send:active { background: rgba(0, 212, 170, 0.08); }
+
 .roster__face {
   position: relative;
   width: 34px;

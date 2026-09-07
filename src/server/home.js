@@ -287,7 +287,7 @@ export function isNewborn(agent, { now = Date.now() } = {}) {
  *   fridge  { beer, snack } — what is on the shelves, so the flat can draw a
  *           full or an empty fridge without a second call
  */
-export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null, now = Date.now() } = {}) {
+export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null, visitor = null, now = Date.now() } = {}) {
   return {
     userId: String(userId ?? 'anon'),
     agents: (agents ?? []).map((agent) => homeAgentProjection(agent, { now })),
@@ -299,6 +299,9 @@ export function homeStateMessage(userId, agents, game = null, { thread = null, f
     // null means nothing is waiting.
     thread: { unreadSince: thread?.unreadSince ?? null },
     fridge: fridgeCounts(fridge),
+    // VISIT-1: somebody is at the door, waiting on an answer. null the rest of
+    // the time — see visit.js, the only writer of this shape.
+    visitor: visitor ?? null,
   };
 }
 
@@ -335,6 +338,17 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
+    // VISIT-1: is this body somebody else's agent, standing in for a session in
+    // this flat? Never stored on a resident's own record — only on the
+    // synthetic projection visit.js hands homeSnapshot for the DURATION of the
+    // stay — so a client that has never heard of visiting draws every home
+    // exactly as before.
+    guest: !!agent.guest,
+    // VISIT-1: the other half, on the RESIDENT'S own record — he is out at
+    // somebody else's kitchen table. `hostName` is the only fact worth a line
+    // ("visiting River Rat's place"); the id and the stake are the server's
+    // business.
+    visiting: agent.visiting ? { hostName: agent.visiting.hostName ?? null } : null,
     // SERVER-4 / BUG-32: when he was made, and whether that was a moment ago.
     // The flat draws a newborn differently for his first minute — standing in
     // the doorway with his bag, not yet part of the furniture — and it used to

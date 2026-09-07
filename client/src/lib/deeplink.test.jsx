@@ -27,6 +27,10 @@ describe('parseStartParam', () => {
     expect(parseStartParam('table_table-9f2c1a44')).toEqual({ kind: 'table', tableId: 'table-9f2c1a44' });
   });
 
+  it('reads a visit link — VISIT-1', () => {
+    expect(parseStartParam('visit_agent_m3x9q1')).toEqual({ kind: 'visit', agentId: 'agent_m3x9q1' });
+  });
+
   it('is null for nothing, for junk, and for a param from a bot we do not know', () => {
     expect(parseStartParam('')).toBeNull();
     expect(parseStartParam(null)).toBeNull();
@@ -34,6 +38,7 @@ describe('parseStartParam', () => {
     expect(parseStartParam('agent_')).toBeNull();
     expect(parseStartParam('hand_37')).toBeNull();      // no agent half
     expect(parseStartParam('table_')).toBeNull();
+    expect(parseStartParam('visit_')).toBeNull();
   });
 });
 
@@ -146,5 +151,23 @@ describe('resolveDeepLink', () => {
   it('is null when the roster cannot be read at all', async () => {
     fetchMock.route('/api/agents?', () => ({ status: 500, body: {} }));
     expect(await resolveDeepLink({ kind: 'agent', agentId: playingAgent.id })).toBeNull();
+  });
+
+  // VISIT-1: opening the link IS the action — there is nobody of ours to look
+  // up, only the door's own POST to make.
+  it('a visit link knocks on the door, as the CALLER, and never touches the roster', async () => {
+    let posted = null;
+    fetchMock.route(/\/agents\/friend1\/visit/, ({ body }) => { posted = body; return { visitId: 'v1' }; }, { method: 'POST' });
+
+    const opened = await resolveDeepLink({ kind: 'visit', agentId: 'friend1' });
+    expect(opened).toEqual({ kind: 'visit', ok: true, body: { visitId: 'v1' } });
+    expect(posted).toEqual(expect.objectContaining({ hostUserId: '4242' }));
+    expect(fetchMock.requestsMatching('/api/agents?')).toHaveLength(0);
+  });
+
+  it('a refused knock still resolves — the room says why, not this', async () => {
+    fetchMock.route(/\/agents\/friend1\/visit/, () => ({ status: 409, body: { reason: 'notHome' } }), { method: 'POST' });
+    const opened = await resolveDeepLink({ kind: 'visit', agentId: 'friend1' });
+    expect(opened).toEqual({ kind: 'visit', ok: false, body: { reason: 'notHome' } });
   });
 });
