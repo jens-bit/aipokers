@@ -544,6 +544,33 @@ describe('HOME-1 · the thread', () => {
     resolveSend(null);
     await waitFor(() => expect(screen.queryByText('you punted that')).toBeNull());
   });
+
+  // BUGS-C job 5 · the bottom strip is one field with the send arrow inside
+  // it, not a pill beside a separate button — and Enter has to reach that
+  // field the way it does everywhere else in the app (FIX-6).
+  it('BUGS-C-5: Enter sends, same as tapping the arrow', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
+    const input = await screen.findByTestId('home-thread-input');
+    await userEvent.type(input, 'he was priced in{Enter}');
+
+    expect(await screen.findByText('he was priced in')).toBeInTheDocument();
+    await waitFor(() => expect(input).toHaveValue(''));
+    resolveSend(null);
+  });
+
+  // The strip carries only the line and the composer — no third element, and
+  // the composer is one control (an input and a send button) rather than the
+  // line's own row growing a second thing beside it.
+  it('BUGS-C-5: the strip carries only the line and the composer', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    const band = (await screen.findByTestId('home-thread')).querySelector('.home-thread__band');
+    expect(band.children).toHaveLength(2);
+    expect(band.children[0]).toHaveClass('home-thread__line');
+    expect(band.children[1]).toHaveClass('home-thread__composer');
+  });
 });
 
 // ── BUGS-A job 7 ────────────────────────────────────────────────────────────
