@@ -15,6 +15,8 @@ Last updated: 2026-09-07 (integrator, CI #84) — 9 open, 33 resolved
 **Measurement (2026-09-07, local, the CI env exactly):** against a server whose room had the man at the table, `:359` failed 3 runs out of 3 while the other three job-5 tests passed; against a freshly seeded room, `:359` passed and `:404` failed. One suite, two tests, and which one is red depends only on what the room happened to be doing.
 **Found by:** the integrator, gating CI #84 — this step never ran in CI before (#82's smoke job predates it), so main has never seen it green.
 **Fix:** not made here, because the honest fix is a product question the integrator should not answer alone: `:404` needs the room quiesced for the length of a gesture (or the claim restated as "the DROP moved nobody", which the POST assertion beside it already proves), and `:359` needs to ask whether he is in a hand rather than inferring it from where he is sitting. Both belong to the tab that owns HOME-2 job 5. Do not re-run to green.
+**Marked, not deleted (Testing law #6):** `:404` is `test.fixme('BUG-43: …')` with its body untouched — it is the one that is red from the empty data dir CI starts with, so the gate goes green while saying out loud what it is not checking. Un-fixme it when the drag rule is decided.
+**`:359` is deliberately left live.** It passes from a fresh room and fails once the man is at the table, so it is the same bug with a different trigger rather than a second one; fixme-ing a test that currently passes would hide coverage the product still has. If a CI run goes red on "drop on the couch changes his state", this entry is the reason and the answer is the fix, not a second fixme.
 
 ---
 
