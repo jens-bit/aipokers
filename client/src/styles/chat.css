@@ -417,13 +417,16 @@
   color: var(--sys-teal, #00D4AA);
 }
 
-/* ── CostLine + AttrExplain (F-3) ────────────────────────────────────────
+/* ── CostLine + AttrExplain (F-3, moved to the profile by BUGS-C job 9) ────
  * design-refs/mood-birth3.jsx FirstCostLineScreenM and AttrExplain. An
- * attribute explains itself the first time it costs him something, in the
- * thread, in one sentence, on a tap. After that the label is just a label. */
+ * attribute explains itself the first time it costs him something, in one
+ * sentence, on a tap. After that the label is just a label. This card lived
+ * in the chat thread; it is a Recent activity entry on the profile now
+ * (AgentProfileScreen.jsx), which is why the selectors stay generic rather
+ * than being renamed into a screen they no longer belong to alone. */
 
 .cost-line {
-  margin: 0 14px 9px;
+  margin: 0 0 9px;
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(205, 179, 128, 0.05);
