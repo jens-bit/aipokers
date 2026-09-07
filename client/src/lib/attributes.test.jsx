@@ -18,6 +18,7 @@ import {
   ATTR_KEYS,
   ATTR_STEP,
   NATURES,
+  fatigueLineFor,
   gainsWithin,
   grewWithin,
   isGrowthTick,
@@ -50,6 +51,22 @@ describe('attributes contract', () => {
       expect(row.lo).toBeGreaterThanOrEqual(row.cur);
       expect(row.hi).toBeLessThanOrEqual(100);
     }
+  });
+});
+
+// BUGS-C job 7: the CONDITION row's sentence names an actual cost instead of
+// a bare word — 'worn' is the only stage that erodes anything
+// (normalizeAttrs dips FOCUS and DISCIPLINE there, and nowhere else).
+describe('BUGS-C job 7: the condition sentence names its cost', () => {
+  it('worn says what it costs', () => {
+    expect(fatigueLineFor('worn')).toMatch(/costs him Focus and Discipline/);
+    expect(fatigueLineFor('worn', 140)).toMatch(/140 hands in.*Focus and Discipline/);
+  });
+
+  it('fresh and settled name no cost, because there is not one', () => {
+    expect(fatigueLineFor('fresh')).not.toMatch(/costs/);
+    expect(fatigueLineFor('settled')).not.toMatch(/costs/);
+    expect(fatigueLineFor('settled')).toMatch(/nothing costing him yet/);
   });
 });
 

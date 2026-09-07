@@ -11,6 +11,13 @@ import { FATIGUE, ATTR_SHORT, fatigueLineFor } from '../../lib/attributes.js';
 // ── Fatigue, in words ───────────────────────────────────────────────────────
 // Fatigue is STATE, not skill: no button, nothing to spend, and it names its own
 // cost. The blocks are the redundant channel; the sentence is the message.
+//
+// BUGS-C job 7: the row used to be the blocks and a bare word ("fresh") with
+// nothing saying what either meant — on the profile it sat under STAMINA and
+// HEAT with no label of its own, so it read as an unexplained three-pip
+// mystery. It is CONDITION now, in the same small-caps style as the two bars
+// above it (`attr-bar__name`), with the state word beside the pips and the
+// cost — or lack of one — spelled out underneath.
 export function FatigueLine({ stage = 'fresh', hands, line, compact }) {
   const f = FATIGUE[stage] ?? FATIGUE.fresh;
   const text = line || fatigueLineFor(f.key, hands);
@@ -21,10 +28,14 @@ export function FatigueLine({ stage = 'fresh', hands, line, compact }) {
   ].filter(Boolean).join(' ');
   return (
     <div className={cls}>
-      <div className="fatigue-line__blocks">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className={`fatigue-line__block${i < f.blocks ? ' fatigue-line__block--on' : ''}`} />
-        ))}
+      <div className="fatigue-line__row">
+        <span className="attr-bar__name">Condition</span>
+        <div className="fatigue-line__blocks">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={`fatigue-line__block${i < f.blocks ? ' fatigue-line__block--on' : ''}`} />
+          ))}
+        </div>
+        <span className="fatigue-line__word">{f.word}</span>
       </div>
       <span className="fatigue-line__text">{text}</span>
     </div>
