@@ -214,6 +214,10 @@ export function feltsForRoom(felts = [], agents = []) {
 export function FloorView({
   room, felts = [], agents = [], events = [], board = null,
   onWatch, onClose, desktop = false,
+  // BUGS-C job 12: the Floor | Board segmented control, rendered by the
+  // caller (CasinoScreen.jsx owns which view is current) so this file never
+  // has to know about the toggle's own state.
+  toggle = null,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
@@ -292,6 +296,7 @@ export function FloorView({
             {`${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
           </div>
         </div>
+        {toggle}
       </div>
 
       <div className="csn-floor__body">

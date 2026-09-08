@@ -43,6 +43,27 @@ export const FLAT = {
 // little to the left, which is what a room with one armchair in front of one
 // television looks like from above.
 export const TV_SCREEN = { x: FLAT.tv.x + 16, y: FLAT.tv.y, w: 100, h: 58 };
+
+// BUGS-C job 4 · the marquee's own footprint, one fixture with the door. Right
+// edge flush with the room's, the way home1.css's .home-flat__sign renders it
+// (`right: 6px`) — the door's own anchor, for the same reason: rightward from
+// x356 of 390 is off the room. `SIGN_W`/`SIGN_H` are read a little larger than
+// the rendered box on purpose, per roomBubbles.js's rule that a modelled box
+// must never be smaller than the thing it stands for.
+export const SIGN_W = 88;
+export const SIGN_H = 20;
+export const SIGN = { x: F_W - 6 - SIGN_W, y: FLAT.door.y - 32, w: SIGN_W, h: SIGN_H };
+
+// BUGS-C job 2 · the app's own header, sticky above the room in real layout —
+// not a fixture the flat draws, so there is nothing in FLAT for it. Modelled
+// as a shallow band across the very top rather than measured (the room has no
+// idea how tall the real header is, and does not need to: it only needs to
+// keep a bubble from reaching the one strip nothing in the room may use).
+// Kept short on purpose — FLAT.wall runs to y86 and a body facing it
+// (WALL_SPOT, y150) already has a bubble reaching y34; a header as tall as the
+// wall would leave him with no side left to open on.
+export const HEADER = { x: 0, y: 0, w: F_W, h: 24 };
+
 export const TV_CHAIR  = { x: FLAT.tv.x + 48, y: FLAT.tv.y + 78, w: 34, h: 14 };
 
 // Seats around the table, clockwise from the near side. Two agents sit opposite,
@@ -151,8 +172,10 @@ export function homePositions(agents = [], { gameAgentIds = [] } = {}) {
 // The ref's round-1 bubble was a fixed 168px opening one fixed way, so near an
 // edge it either clipped or reached into a neighbour. It picks its side from
 // where it stands instead.
-
-export const BUBBLE_W = 152;
+//
+// BUGS-C job 2 capped it at 150 (down from 152) — the playtest called the room
+// bubbles "far too large", and 150 is the brief's own number.
+export const BUBBLE_W = 150;
 
 // The gap between the body and its bubble, both ways. Matches home1.css.
 const BUBBLE_GAP = 9;
@@ -212,6 +235,9 @@ export const FOOTPRINTS = {
   door:   FLAT.door,
   couch:  FLAT.couch,
   tv:     TV_SCREEN,
+  // BUGS-C job 4: the sign is a no-walk zone too — nobody's target point may
+  // land under a lit marquee.
+  sign:   SIGN,
 };
 
 /** The box a body standing here occupies: his feet at y, `size` of him above. */

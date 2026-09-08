@@ -1,4 +1,4 @@
-// client/src/components/home/roomBubbles.js — FIX-6 job 3
+// client/src/components/home/roomBubbles.js — FIX-6 job 3, revised BUGS-C job 2
 //
 // THE ROOM'S SPEECH, QUEUED.
 //
@@ -8,29 +8,34 @@
 // a 390px room, half of them were drawn across somebody else's name pill. The
 // room stopped being readable exactly when it had the most to tell you.
 //
-// The felt solved this in WATCH v4 (lib/bubbles.js) with a law the room can
-// borrow most of, and one clause it must not:
+// Playtest 7 Sep, on FIX-6's own fix: still too large, and still overlapping —
+// now the CASINO sign and the wall TV rather than each other. BUGS-C job 2
+// tightens the law FIX-6 wrote:
 //
-//   ONE PER BODY          borrowed. Two boxes over one head is not a
-//                         conversation, it is a stack.
-//   AT MOST TWO AT ONCE   borrowed. Any more and the room is a wall of text.
-//   NEVER A QUEUE         NOT borrowed, and this is the whole difference. The
-//                         felt is a performance that cannot be paused — a hand
-//                         moves on whether or not you read the line. The room
-//                         is not going anywhere, so a third thing to say WAITS
-//                         its turn instead of being thrown away.
-//
-// The beat it waits is lib/pace.js's BUBBLE_DWELL_MS, which is where every
-// dwell in the app lives. A bubble holds its place for one beat before anyone
-// queued behind it may take it, and it is only ever taken by somebody actually
-// waiting — a line nobody is queued behind stays up rather than blanking for
-// nothing.
+//   ONE PER BODY           unchanged. Two boxes over one head is not a
+//                          conversation, it is a stack.
+//   ONE IN THE ROOM        was "at most two" — one is what the brief asks for,
+//                          and it is what keeps a bubble from ever competing
+//                          with the sign or the TV for the same clear patch of
+//                          wall two speakers at once needed instead.
+//   NEVER A QUEUE          unchanged, and still the whole difference from the
+//                          felt (lib/bubbles.js): the room is not a performance
+//                          that moves on without you, so a third line WAITS
+//                          rather than being thrown away.
+//   A LIFE, NOT JUST A BEAT  a bubble now holds a MINIMUM of BUBBLE_PREEMPT_MS
+//                          before a new line may bump it early, and clears on
+//                          its own at BUBBLE_LIFE_MS even with nobody queued
+//                          behind it — FIX-6's bubble never went away on its
+//                          own, which was fine at two-in-the-room and reads as
+//                          a stuck sign at one.
 //
 // AND NOTHING IS DRAWN OVER ANYTHING. A bubble takes the side with clearance:
-// the room edge first (flat.js's rule, which has always been there), then every
-// name pill in the room and every bubble already placed. If neither side is
-// clear, he waits too — a sentence you cannot read is not better than a
-// sentence that arrives a beat later.
+// the room edge first (flat.js's rule, which has always been there), then
+// every name pill, then the fixtures nothing may render over — the CASINO
+// sign, the wall TV, the safe, and the top header (the app's own, sticky above
+// the room — flat.js's `HEADER`, a modelled band rather than a drawn fixture).
+// If neither side is clear, he waits too — a sentence you cannot read is not
+// better than a sentence that arrives a beat later.
 //
 // THE BOXES ARE MODELLED, NOT MEASURED, and that is deliberate. Measuring means
 // layout, layout means the DOM, and the DOM means this file could not be pure
@@ -41,13 +46,38 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { BUBBLE_W, bubbleFits, bubbleSide } from './flat.js';
+import { BUBBLE_W, FLAT, HEADER, SIGN, TV_SCREEN, TV_SPOT, bubbleFits, bubbleSide } from './flat.js';
 import { overlaps, place, sideFor as placeSide } from '../../lib/bubblePlace.js';
-import { BUBBLE_DWELL_MS } from '../../lib/pace.js';
 import { shortName } from '../../lib/names.js';
 
-/** How many bubbles the room may hold at once. bubbles.js's MAX_ON_FELT. */
-export const MAX_IN_ROOM = 2;
+/** How many bubbles the room may hold at once, BUGS-C job 2: one. */
+export const MAX_IN_ROOM = 1;
+
+// BUGS-C job 2's own numbers, not lib/pace.js's — the room's life cycle is not
+// a "dwell" any more (that word meant "how long before the QUEUE moves"; this
+// is "how long this bubble is allowed to exist at all"), so it gets its own
+// constants rather than reusing BUBBLE_DWELL_MS, which no caller of this file
+// needs any more.
+export const BUBBLE_PREEMPT_MS = 2500;
+export const BUBBLE_LIFE_MS = 3000;
+
+/** `{x,y,w,h}` (flat.js's fixture shape) as an `{left,right,top,bottom}` rect. */
+const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y + f.h });
+
+// BUGS-C job 2/4: the sign, the TV, the safe and the top header — none of
+// them move, so their boxes are fixed rather than derived per body the way a
+// name pill is.
+//
+// THE TV IS A CARVE-OUT, the way flat.js's own furniture test exempts the
+// couch: the tape spot sits right in front of the screen it faces, so the one
+// body whose routine puts him there (his study tally, "+3 GRANITE") can never
+// clear it — no more than a man on the couch can stand clear of the couch. No
+// other named spot in the room reaches anywhere near the TV, so the exclusion
+// only ever relaxes for the speaker it would otherwise silence.
+const ALWAYS_BLOCKED = [SIGN, FLAT.safe, HEADER].map(fixtureRect);
+const withTv = [...ALWAYS_BLOCKED, fixtureRect(TV_SCREEN)];
+const atTv = (b) => b?.x === TV_SPOT.x && b?.y === TV_SPOT.y;
+const fixtureBlockersFor = (speakers) => (speakers.some(atTv) ? ALWAYS_BLOCKED : withTv);
 
 // ── The boxes, from home1.css ───────────────────────────────────────────────
 //
@@ -133,13 +163,20 @@ export function layout(speakers = [], bodies = []) {
     max: MAX_IN_ROOM,
     sides: roomSides,
     rect: roomRect,
-    blockers: bodies.map(pillRect),
+    blockers: [...bodies.map(pillRect), ...fixtureBlockersFor(speakers)],
   });
 }
 
 /**
  * The whole of it: who is on screen, who is holding a place, and when to look
  * again. Pure — the caller owns the clock and the state.
+ *
+ * BUGS-C job 2's life cycle: the one bubble shown holds for at least
+ * BUBBLE_PREEMPT_MS before a new line may bump it, and clears on its own at
+ * BUBBLE_LIFE_MS — whichever comes first, and the second one fires even with
+ * nobody queued behind it. FIX-6's bubble never expired on its own; that read
+ * as "a beat before the QUEUE moves on", which made sense with two bubbles up
+ * and reads as a jammed sign with one.
  *
  * @param speakers  priority-ordered, ONE per agent already
  * @param bodies    everyone in the room
@@ -159,19 +196,17 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
     .map((s) => s.id)
     .sort((a, b) => (seen[a] ?? -1) - (seen[b] ?? -1));
 
-  // A bubble gives its place up once it has served its beat — but only to
-  // somebody who is actually waiting for it.
+  // Give up the held place either because its life is fully spent (nobody
+  // need be waiting for that) or because it has served its minimum beat AND
+  // somebody is actually waiting for it.
   const evicted = [];
-  if (waiting.length > 0) {
-    const spent = keep.filter((h) => now - h.at >= BUBBLE_DWELL_MS).sort((a, b) => a.at - b.at);
-    let free = MAX_IN_ROOM - keep.length;
-    for (const h of spent) {
-      if (free >= waiting.length) break;
-      keep = keep.filter((k) => k.id !== h.id);
-      evicted.push(h.id);
-      free += 1;
-    }
+  for (const h of keep) {
+    const age = now - h.at;
+    const expired = age >= BUBBLE_LIFE_MS;
+    const preempted = age >= BUBBLE_PREEMPT_MS && waiting.length > 0;
+    if (expired || preempted) evicted.push(h.id);
   }
+  if (evicted.length > 0) keep = keep.filter((h) => !evicted.includes(h.id));
 
   // Whoever just gave a place up goes to the very back of the queue.
   const order = [
@@ -188,11 +223,12 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
     nextSeen[s.id] = keep.some((h) => h.id === s.id) ? (seen[s.id] ?? now) : now;
   }
 
-  // Somebody is still queued: look again when the oldest bubble has served its
-  // beat. Nobody queued means no timer at all — the room is quiet and stays up.
+  // Look again at whichever comes first for the bubble now up: the moment a
+  // waiting line is allowed to preempt it, or the moment its life is spent.
+  // Nothing shown and nobody waiting means no timer at all.
   const stillWaiting = speakers.some((s) => !shown.some((p) => p.id === s.id));
-  const oldest = nextHeld.length ? Math.min(...nextHeld.map((h) => h.at)) : null;
-  const nextAt = stillWaiting && oldest != null ? oldest + BUBBLE_DWELL_MS : null;
+  const heldAt = nextHeld.length ? Math.min(...nextHeld.map((h) => h.at)) : null;
+  const nextAt = heldAt == null ? null : heldAt + (stillWaiting ? BUBBLE_PREEMPT_MS : BUBBLE_LIFE_MS);
 
   return { shown, held: nextHeld, seen: nextSeen, nextAt };
 }

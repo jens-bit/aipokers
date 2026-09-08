@@ -169,21 +169,14 @@ export const DWELL_MS = {
 export const SHOWDOWN_HOLD_MS = 1000;
 export const SETTLE_MS = DWELL_MS.showdown - SHOWDOWN_HOLD_MS;   // 3000
 
-// ── FIX-6 job 3 · the room's bubble beat ────────────────────────────────────
-//
-// The flat has the same problem the felt had, for the same reason: everything
-// the household says arrives at once, and the room painted all of it. Four
-// bodies with a want each is four boxes over four heads, two of them across
-// somebody else's name.
-//
-// So the room queues its speech the way the felt queues its frames — at most
-// two on screen, one per body, and a bubble HOLDS its place for a beat before
-// the next one may take it. This is that beat. It sits here rather than in
-// lib/bubbles.js because it is a dwell, and every dwell in the app is in this
-// file; bubbles.js owns the felt's law (never a queue, newest wins), which is
-// the opposite rule for the opposite surface — a felt is a performance you
-// cannot pause, a room is not.
-export const BUBBLE_DWELL_MS = 3500;
+// FIX-6 job 3 gave the room's bubble beat a home here (BUBBLE_DWELL_MS), on
+// the rule that every dwell in the app lives in this file. BUGS-C job 2
+// retired it: at "at most two in the room" a bubble only ever needed to know
+// how long to hold before the queue moved past it, which was a dwell; at "one
+// in the room" it also needs to know how long it is allowed to exist at all
+// even with nobody waiting, which is not — so the room's timing moved to its
+// own two constants (BUBBLE_PREEMPT_MS, BUBBLE_LIFE_MS) in
+// components/home/roomBubbles.js, next to the law they serve.
 
 // How long the result toast sits over his strip. Short on purpose: it is a
 // receipt, not an announcement, and the next deal must never wait for it.

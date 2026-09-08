@@ -305,6 +305,17 @@ button.home-flat__table:active { filter: brightness(1.12); }
   text-shadow: 0 0 6px rgba(205, 179, 128, 0.9), 0 0 14px rgba(205, 179, 128, 0.45);
 }
 
+/* BUGS-C job 4 · lit when a table of yours is actually running — the same
+   fact CasinoOnTv's set switches on. A real marquee is warm at rest; this is
+   the difference between "there is a casino" and "there is a hand on right
+   now", so it runs hotter rather than switching on from nothing. */
+.home-flat__sign--live .home-flat__sign-glow {
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 107, 109, 0.32), transparent 70%);
+}
+.home-flat__sign--live .home-flat__sign-word {
+  text-shadow: 0 0 7px rgba(255, 155, 130, 0.95), 0 0 16px rgba(255, 107, 109, 0.55);
+}
+
 /* the safe, against the left wall under the frames */
 .home-flat__safe {
   position: absolute;
@@ -604,7 +615,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-bubble {
   position: absolute;
   bottom: 0;
-  width: 152px;
+  /* BUGS-C job 2: 150px, down from 152 — the playtest called these "far too
+     large", and clamped to two lines with an ellipsis rather than growing to
+     fit whatever the household had to say. */
+  width: 150px;
   padding: 5px 9px;
   border-radius: 11px;
   background: rgba(20, 28, 27, 0.94);
@@ -614,6 +628,11 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: var(--text-secondary, #A1A1A1);
   text-align: left;
   white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
   animation: home-bubblein 0.3s ease-out both;
 }
 .home-bubble--right { left: 9px; border-bottom-left-radius: 3px; }
@@ -733,22 +752,27 @@ button.home-flat__table:active { filter: brightness(1.12); }
   z-index: 20;
 }
 
+/* BUGS-C job 5 · one strip, full width, two rows — ported from
+   design-refs/mood-home2.jsx's `HomeThread` (the collapsed band). It used to
+   be one row split between the line and a 108px composer pill squeezed
+   beside it; the ref stacks them instead, each spanning the full width: the
+   latest line on top, the composer — one field with the send arrow inside
+   it, at the right edge of the field itself — underneath. Nothing else lives
+   in the strip. */
 .home-thread__band {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  flex-direction: column;
+  padding: 8px 12px 11px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(12, 17, 17, 0.96);
   backdrop-filter: blur(12px);
 }
 .home-thread__line {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 0;
+  padding: 0 1px 8px;
   background: none;
   border: none;
   text-align: left;
@@ -771,20 +795,34 @@ button.home-flat__table:active { filter: brightness(1.12); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.home-thread__composer { display: flex; align-items: center; gap: 6px; }
-.home-thread__input {
-  width: 108px;
-  padding: 5px 9px;
-  border-radius: 999px;
+/* The field itself — the ref's own bar: height 36, radius 18, the text on the
+   left and the arrow inset on the right, both inside ONE control rather than
+   a pill input beside a floating round button. */
+.home-thread__composer {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  border-radius: 18px;
+  padding: 0 5px 0 13px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+}
+.home-thread__composer:focus-within { border-color: var(--accent, #00D4AA); }
+.home-thread__input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--text-primary, #EDEDED);
   font-size: 11.5px;
 }
-.home-thread__input:focus { outline: none; border-color: var(--accent, #00D4AA); width: 150px; }
+.home-thread__input:focus { outline: none; }
 .home-thread__send {
+  flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px;
+  width: 26px; height: 26px;
   border-radius: 50%;
   border: none;
   background: var(--accent, #00D4AA);
@@ -843,26 +881,39 @@ button.home-flat__table:active { filter: brightness(1.12); }
 
 /* ── The want toast ──────────────────────────────────────────────────────── */
 
-/* HOME-2 job 8 · a toast takes `panel`, with its own edge over the top of it.
-   The gold is what makes it a WANT — it is the one thing in the room waiting on
-   an answer — and it is a tint on the glass rather than the material itself. */
+/* BUGS-C job 6 · ported from design-refs/mood-home2.jsx's HomeToast: a
+   floating rounded card above the strip, not a full-width bar flush to it —
+   `position: absolute` off .home-thread (already `position: relative`),
+   margined off both edges the way the ref's own `left:10, right:10, bottom:7`
+   is. The gold border is still what makes it a WANT; red is job 8's dangerous
+   want, unchanged. */
 .home-want {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 100%;
+  margin-bottom: 7px;
+  z-index: 40;
+  border-radius: 12px;
+  padding: 8px 10px 9px;
   background:
     linear-gradient(rgba(205, 179, 128, 0.09), rgba(205, 179, 128, 0.09)),
     var(--v5-panel);
   backdrop-filter: var(--v5-blur);
   -webkit-backdrop-filter: var(--v5-blur);
-  border-top: 1px solid rgba(205, 179, 128, 0.42);
+  border: 1px solid rgba(205, 179, 128, 0.42);
+  animation: home-sheetup 0.3s ease-out both;
 }
 .home-want.is-dangerous {
-  border-top-color: rgba(255, 77, 79, 0.42);
+  border-color: rgba(255, 77, 79, 0.42);
   background:
     linear-gradient(rgba(255, 77, 79, 0.08), rgba(255, 77, 79, 0.08)),
     var(--v5-panel);
+}
+.home-want__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 .home-want__who {
   flex-shrink: 0;
@@ -873,20 +924,27 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-want__text {
   flex: 1; min-width: 0;
   font-size: 11.5px;
+  line-height: 1.35;
   color: var(--text-primary, #EDEDED);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.home-want__chips { display: flex; gap: 5px; flex-shrink: 0; }
+.home-want__chips { display: flex; gap: 5px; margin-top: 7px; }
 .home-want__chip {
+  flex-shrink: 0;
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
   color: var(--text-secondary, #A1A1A1);
-  font-size: 10.5px;
   cursor: pointer;
 }
-.home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); color: var(--accent, #00D4AA); }
+.home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); background: rgba(0, 212, 170, 0.08); color: var(--accent, #00D4AA); }
+.home-want__chip--later { border-color: rgba(255, 255, 255, 0.22); color: var(--text-secondary, #A1A1A1); }
+.home-want__chip--no { border-color: rgba(255, 77, 79, 0.5); background: rgba(255, 77, 79, 0.08); color: #FF6B6D; }
 .home-want__chip:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Sheets (the fridge) ─────────────────────────────────────────────────── */

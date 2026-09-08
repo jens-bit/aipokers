@@ -36,6 +36,10 @@ function formatWhen(ts) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+// BUGS-C job 10 · press-and-hold anywhere on the felt plays at this rate
+// while held, TikTok-style, and drops back to 1x on release.
+const HOLD_RATE = 3;
+
 export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = true }) {
   const timeline = useMemo(() => buildTimeline(hand), [hand]);
   const [at, setAt] = useState(0);
@@ -52,17 +56,30 @@ export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = tr
   const totalRef = useRef(timeline.total);
   totalRef.current = timeline.total;
 
+  // BUGS-C job 10 · held is the only other thing allowed to touch the timer,
+  // and `rate` is a ref rather than a dependency: bumping it must not itself
+  // restart the interval (that would reset `originWall` mid-tick and jump the
+  // reel). The effect below reads it fresh every tick instead.
+  const [held, setHeld] = useState(false);
+  const rateRef = useRef(1);
+  useEffect(() => { rateRef.current = held ? HOLD_RATE : 1; }, [held]);
+
   // The reel. Elapsed time, not an accumulator: adding a fixed step per tick
   // drifts on a busy main thread and loses every tick React batches together,
-  // so the reel is always "how long since play began" instead. Stops itself at
-  // the end rather than looping — a replay that loops is a screensaver, and the
-  // point is the one moment it turned.
+  // so the reel is always "how long since play began" instead — generalised
+  // here to "how long since the current rate segment began, times the rate,
+  // plus wherever the reel already was". `held` restarts the segment (so a
+  // rate change takes effect from exactly where the reel was, not from a
+  // recomputed origin that would jump it) without resetting `at` itself.
+  // Stops itself at the end rather than looping — a replay that loops is a
+  // screensaver, and the point is the one moment it turned.
   useEffect(() => {
     if (!playing) return undefined;
-    const startedAt = Date.now() - atRef.current * 1000;
+    const originAt = atRef.current;
+    const originWall = Date.now();
     const id = setInterval(() => {
       const total = totalRef.current;
-      const elapsed = (Date.now() - startedAt) / 1000;
+      const elapsed = originAt + ((Date.now() - originWall) / 1000) * rateRef.current;
       if (elapsed >= total) {
         setAt(total);
         setPlaying(false);
@@ -71,7 +88,26 @@ export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = tr
       }
     }, TICK_MS);
     return () => clearInterval(id);
-  }, [playing]);
+  }, [playing, held]);
+
+  // BUGS-C job 10 · pointer events, not click: a hold is not a tap, and the
+  // felt has nothing else listening for either today, but this must never
+  // start double-firing if it does. Holding starts playback if it was
+  // paused — there is no reel to fast-forward through otherwise — and
+  // releasing only ever drops the RATE, never the play state, which is what
+  // "returns to normal speed" means as opposed to "returns to paused".
+  const holdOn = useCallback((e) => {
+    e.stopPropagation();
+    setHeld(true);
+    setPlaying((p) => {
+      if (!p && atRef.current >= totalRef.current) setAt(0);
+      return true;
+    });
+  }, []);
+  const holdOff = useCallback((e) => {
+    e?.stopPropagation();
+    setHeld(false);
+  }, []);
 
   const seek = useCallback((t) => {
     setPlaying(false);
@@ -136,7 +172,17 @@ export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = tr
         <ShareButton hand={hand} agentId={agentId ?? hand?.agentId} agentName={hand?.agentName} mood={hand?.mood} style={{ marginLeft: 'auto' }} />
       </div>
 
-      <div className="replay-theatre__stage">
+      {/* BUGS-C job 10 · press and hold anywhere here to fast-forward. Pointer
+          events so a mouse drag off the stage still releases the hold
+          (pointercancel/pointerleave), the way a finger lifting off-target
+          would. */}
+      <div
+        className="replay-theatre__stage"
+        onPointerDown={holdOn}
+        onPointerUp={holdOff}
+        onPointerCancel={holdOff}
+        onPointerLeave={holdOff}
+      >
         <WatchFelt
           game={snapshot}
           mySeat={0}
@@ -145,6 +191,11 @@ export function ReplayTheatre({ hand, agentId, onBack, onOpenHand, autoPlay = tr
           line={beat.line}
           geom={geom}
         />
+        {held && (
+          <span className="replay-theatre__hold-chip" data-testid="replay-hold-chip" aria-hidden>
+            {HOLD_RATE}×
+          </span>
+        )}
       </div>
 
       <Scrubber

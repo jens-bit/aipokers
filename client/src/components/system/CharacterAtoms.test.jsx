@@ -12,7 +12,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { GrowthLine } from './CharacterAtoms.jsx';
+import { FatigueLine, GrowthLine } from './CharacterAtoms.jsx';
 
 const TICK = {
   attr: 'FOCUS', from: 51, to: 52, time: '19:00',
@@ -78,5 +78,31 @@ describe('CHAT-2 — GrowthLine is one line', () => {
   it('treats a blank cause as no cause', () => {
     render(<GrowthLine attr="FOCUS" from={51} to={52} line="   " />);
     expect(row()).toBeDisabled();
+  });
+});
+
+// BUGS-C job 7 — the profile's three-pip row was labelled only with the bare
+// word ("fresh"), which nobody could place next to STAMINA and HEAT above it.
+describe('BUGS-C job 7: the CONDITION row', () => {
+  it('BUGS-C-7: labels itself CONDITION, in the bars\' own small-caps style', () => {
+    render(<FatigueLine stage="fresh" />);
+    const label = document.querySelector('.fatigue-line .attr-bar__name');
+    expect(label).toHaveTextContent('Condition');
+  });
+
+  it('BUGS-C-7: shows the state word beside the pips', () => {
+    render(<FatigueLine stage="worn" />);
+    expect(document.querySelector('.fatigue-line__word')).toHaveTextContent('worn');
+  });
+
+  it('BUGS-C-7: explains the cost underneath — worn: playing tired costs him Focus and Discipline this session', () => {
+    render(<FatigueLine stage="worn" />);
+    expect(document.querySelector('.fatigue-line__text'))
+      .toHaveTextContent('worn: playing tired costs him Focus and Discipline this session');
+  });
+
+  it('BUGS-C-7: fresh names no cost, because there is not one', () => {
+    render(<FatigueLine stage="fresh" />);
+    expect(document.querySelector('.fatigue-line__text')).not.toHaveTextContent(/costs/);
   });
 });

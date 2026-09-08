@@ -57,6 +57,38 @@
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
+  /* BUGS-C job 10: a held press must not also select the felt's text or
+     trigger iOS's callout/magnifier — the same reason a native video app
+     disables it under a scrub gesture. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* BUGS-C job 10 · the hold-to-fast-forward chip, centred over the felt while
+   a press is down. */
+.replay-theatre__hold-chip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #EDEDED;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: replay-hold-chip-in 0.12s ease-out both;
+}
+
+@keyframes replay-hold-chip-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .replay-theatre__panel {

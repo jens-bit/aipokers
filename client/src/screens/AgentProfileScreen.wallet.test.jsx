@@ -69,6 +69,24 @@ describe('WUI-3 — the pocket line', () => {
     expect(line().querySelector('.wal-bar__fill').style.width).toBe('64%');
   });
 
+  // BUGS-C job 8 — POCKET $6,000 · plays 25/50 used to be split across a
+  // second "Pocket" label and a 1px vertical rule, which is what read as text
+  // laid over a strikethrough at 390 wide. One row now, and no rule at all.
+  it('BUGS-C-8: no vertical rule, and the amount does not repeat the section label', () => {
+    renderProfile(balancedAgent);
+    expect(line().querySelector('.wal-line__rule')).toBeNull();
+    // "Pocket" is said once, by the section label above the card.
+    expect(within(line()).queryByText('Pocket')).toBeNull();
+  });
+
+  it('BUGS-C-8: the buttons sit in their own action row under the amount', () => {
+    renderProfile(balancedAgent);
+    const actions = line().querySelector('.wal-line__actions');
+    expect(actions).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
+    expect(within(actions).getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
+  });
+
   it('sits between the attribute cluster and the career line', () => {
     const { container } = renderProfile(balancedAgent);
     const text = container.textContent;
@@ -253,6 +271,18 @@ describe('WUI-3 — no dead buttons', () => {
     // The state is still reported in full.
     expect(within(line()).getByText('CALLED IN')).toBeInTheDocument();
     expect(within(line()).getByText('called in · nothing pending')).toBeInTheDocument();
+  });
+
+  // BUGS-C job 8 — the header's own "Give him chips" duplicated the pocket
+  // row's, whenever the agent actually had a pocket to show one in. It is a
+  // fallback for an agent with no wallet data at all (actions.test.jsx and
+  // split.test.jsx's minimal fixtures), not a second copy of a real one.
+  it('BUGS-C-8: one Give him chips, not two, once there is a pocket to carry it', () => {
+    renderProfile(balancedAgent);
+    expect(screen.getAllByRole('button', { name: 'Give him chips' })).toHaveLength(1);
+    // And it lives in the pocket row, not the header.
+    expect(within(line()).getByRole('button', { name: 'Give him chips' })).toBeInTheDocument();
+    expect(document.querySelector('.profile-actions').textContent).not.toContain('Give him chips');
   });
 });
 

@@ -31,11 +31,17 @@
 // law and it is why the cards are drawn here rather than borrowed from the
 // product's own Card component.
 
-import { useCallback, useRef } from 'react';
-import App from '../../App.jsx';
+import { useCallback, useRef, lazy, Suspense } from 'react';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { HOODS, GLOWS } from '../../lib/identity.js';
 import '../../styles/guest.css';
+
+// BUGS-C job 1: the hero above this is a poster — it has no reason to wait on
+// the game client's bundle. The room is still mounted unconditionally (wave
+// 61's rule: the landing IS the game, not a link to it) but `lazy` gives it
+// its own chunk, so a visitor who never scrolls past the fold never forces
+// the download, and one who does gets the hero painted first.
+const App = lazy(() => import('../../App.jsx'));
 
 // The hood he wears on the poster. Fixed, not rolled: this is one drawing on
 // one page, not an agent with an identity.
@@ -174,7 +180,9 @@ export function GuestLanding({ visitorName = null }) {
 
       {/* The room, mounted. Not a picture of one. */}
       <div ref={roomRef} className="guest-landing__room">
-        <App guestBoot="new" />
+        <Suspense fallback={null}>
+          <App guestBoot="new" />
+        </Suspense>
       </div>
     </div>
   );

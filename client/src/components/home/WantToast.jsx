@@ -73,8 +73,15 @@ export function WantToast({ agent, onAnswered, onNeeds }) {
       data-testid="home-want"
       data-agent={agent.id}
     >
-      <span className="home-want__who">{pillName(agent.name)}</span>
-      <span className="home-want__text">{want.text}</span>
+      {/* BUGS-C job 6: ported from design-refs/mood-home2.jsx's HomeToast — the
+          name and the FULL sentence on one row (never ellipsised: this is the
+          one place the whole thing is said; his bubble carries the short
+          version), the three chips on their own row underneath rather than
+          squeezed beside a truncated line. */}
+      <div className="home-want__row">
+        <span className="home-want__who">{pillName(agent.name)}</span>
+        <span className="home-want__text">{want.text}</span>
+      </div>
       <span className="home-want__chips">
         {ANSWERS.map((a) => (
           <button

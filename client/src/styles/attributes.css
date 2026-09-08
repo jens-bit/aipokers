@@ -218,10 +218,12 @@
 .attr-spark { display: block; overflow: visible; }
 
 /* ── FatigueLine ───────────────────────────────────────────────────────────
- * Fatigue explains itself in words; the blocks are the redundant channel. */
+ * BUGS-C job 7: CONDITION, in words. The label matches STAMINA/HEAT's own
+ * (`attr-bar__name`); the blocks are the redundant channel; the word beside
+ * them and the sentence underneath are the message. */
 
-.fatigue-line { display: flex; align-items: center; gap: 11px; }
-.fatigue-line--compact { display: block; }
+.fatigue-line { display: block; }
+.fatigue-line__row { display: flex; align-items: center; gap: 11px; }
 
 .fatigue-line__blocks {
   display: flex;
@@ -247,18 +249,28 @@
   box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
 }
 
-.fatigue-line__text {
+.fatigue-line__word {
   flex: 1;
+  min-width: 0;
   font-size: 12px;
-  line-height: 1.4;
+  font-weight: 600;
   color: var(--sys-dim);
+  text-transform: capitalize;
+}
+
+.fatigue-line--worn .fatigue-line__word { color: var(--sys-gold); }
+
+.fatigue-line__text {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--sys-muted);
 }
 
 .fatigue-line--worn .fatigue-line__text { color: var(--sys-gold); }
 
 .fatigue-line--compact .fatigue-line__text {
-  display: block;
-  margin-top: 7px;
   font-size: 11.5px;
 }
 

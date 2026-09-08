@@ -173,7 +173,11 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
     await act(async () => { await (await import('./main.jsx')).booted; });
 
     expect(posted).toEqual({});
-    expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument();
+    // MERGE-21: same claim, awaited — BUGS-C-1 made GuestLanding a lazy
+    // chunk, so the heading arrives a microtask after boot resolves rather
+    // than on its tick. The two tests above already read it this way.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument());
   });
 });
 

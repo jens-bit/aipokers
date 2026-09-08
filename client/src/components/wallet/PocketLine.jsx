@@ -32,45 +32,52 @@ export function PocketLine({ agent, onFund, onCollect, onCallIn }) {
   if (!pocket) return null;
 
   const actions = rowActions(pocket, { seated: agent?.activeTableId != null || agent?.presence === 'playing' });
+  const hasActions = (actions.collect && onCollect) || (actions.callIn && onCallIn) || (actions.fund && onFund);
 
   return (
     <>
       <div style={{ padding: '0 14px 5px' }}><Lbl size={9.5}>Pocket</Lbl></div>
+      {/* BUGS-C job 8 · POCKET $6,000 · plays 25/50, on one line. The section
+          label above already says POCKET, so the card does not say it a
+          second time — that second "Pocket" and the 1px vertical rule beside
+          it were what made "plays $25/$50" read as text laid over a
+          strikethrough at 390 wide. Amount, mode tag and note are one flex
+          row now, wrapping rather than being sliced by a rule. */}
       <div className="wal-line">
         <div className="wal-line__top">
-          <div style={{ minWidth: 0 }}>
-            <Lbl size={8.5}>Pocket</Lbl>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <Num size={15} weight={700} color={pocket.broke ? M_MUTED : undefined}>
-                {money(pocket.balance)}
-              </Num>
-              <ModeTag mode={pocket.mode} />
-            </div>
-          </div>
-          <div className="wal-line__rule" />
+          <Num size={15} weight={700} color={pocket.broke ? M_MUTED : undefined}>
+            {money(pocket.balance)}
+          </Num>
+          <ModeTag mode={pocket.mode} />
           <span className="wal-line__note">{noteFor(pocket)}</span>
-          {/* An action is only drawn when a host can act on it. The profile
-              card is reachable from screens that do not own the funding sheet,
-              and a button that does nothing is worse than no button. */}
-          {actions.collect && onCollect && (
-            <button type="button" className="wal-btn wal-btn--outline" style={{ height: 28 }} onClick={() => onCollect(agent)}>
-              Collect
-            </button>
-          )}
-          {actions.callIn && onCallIn && (
-            <button type="button" className="wal-btn wal-btn--outline" style={{ height: 28 }} onClick={() => onCallIn(agent)}>
-              {CALL_IN}
-            </button>
-          )}
-          {actions.fund && onFund && (
-            <button type="button" className="wal-btn wal-btn--primary" style={{ height: 28 }} onClick={() => onFund(agent)}>
-              {GIVE}
-            </button>
-          )}
         </div>
         <div style={{ marginTop: 9 }}>
           <PocketBar pocket={pocket} />
         </div>
+        {/* BUGS-C job 8 · ONE ACTION ROW of real buttons, under the amount —
+            not squeezed onto the same line as it. An action is only drawn
+            when a host can act on it: the profile card is reachable from
+            screens that do not own the funding sheet, and a button that does
+            nothing is worse than no button. */}
+        {hasActions && (
+          <div className="wal-line__actions">
+            {actions.collect && onCollect && (
+              <button type="button" className="wal-btn wal-btn--outline" onClick={() => onCollect(agent)}>
+                Collect
+              </button>
+            )}
+            {actions.callIn && onCallIn && (
+              <button type="button" className="wal-btn wal-btn--outline" onClick={() => onCallIn(agent)}>
+                {CALL_IN}
+              </button>
+            )}
+            {actions.fund && onFund && (
+              <button type="button" className="wal-btn wal-btn--primary" onClick={() => onFund(agent)}>
+                {GIVE}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

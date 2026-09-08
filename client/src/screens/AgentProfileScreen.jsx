@@ -23,9 +23,10 @@ import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
 import { BodyBars } from '../components/system/BodyBars.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
+import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
-import { normalizeAttrs, seriesFor } from '../lib/attributes.js';
+import { ATTR_KEYS, normalizeAttrs, seriesFor } from '../lib/attributes.js';
 import { callInAgent, collectFrom, collectsEverything, pocketOf } from '../lib/wallet.js';
 import { setAgentMuted } from '../lib/notifyApi.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
@@ -149,6 +150,46 @@ function ActivityRow({ color, label, meta, amount, last }) {
   );
 }
 
+// ── BUGS-C job 9 · the cost line, moved here from the chat thread ──────────
+// Port of design-refs/mood-birth3.jsx FirstCostLineScreenM, unchanged: the
+// sentence is his misjudgment, never a debuff readout, and the attribute
+// label beside it is the tap target that opens an explanation the first
+// time only. It used to interrupt the conversation as its own card in
+// ChatsScreen.jsx; the chat now carries only talk and hand replay cards, and
+// this is the record of it instead — a Recent activity entry like any other,
+// "+KEY · HAND #N", newest first, with the label still tappable.
+function ActivityCostRow({ cost, row, explained, onExplain, last }) {
+  const [open, setOpen] = useState(false);
+  const canExplain = !explained;
+
+  return (
+    <div style={{ padding: '8px 0', borderBottom: last ? 'none' : `1px solid ${M_BORDER}` }}>
+      <div className="cost-line" style={{ margin: 0 }}>
+        <div className="cost-line__row">
+          <span className="cost-line__text">{cost.line}</span>
+          {canExplain ? (
+            <button
+              type="button"
+              className="cost-line__key"
+              onClick={() => { setOpen(true); onExplain(); }}
+              aria-label={`What ${cost.key} means`}
+            >
+              +{cost.key}
+            </button>
+          ) : (
+            <span className="cost-line__key cost-line__key--plain">+{cost.key}</span>
+          )}
+        </div>
+        <div className="cost-line__meta">
+          {cost.handNumber != null ? `HAND #${cost.handNumber}` : 'THIS SESSION'}
+          {canExplain ? ' · TAP THE LABEL' : ''}
+        </div>
+      </div>
+      {open && <AttrExplain attrKey={cost.key} row={row} />}
+    </div>
+  );
+}
+
 // ── Flag type → display ───────────────────────────────────────────────────
 const FLAG_DISPLAY = {
   biggestPot: { label: 'Session biggest pot',      color: M_TEAL },
@@ -158,7 +199,47 @@ const FLAG_DISPLAY = {
   cooler:     { label: 'Cooler — strong hand lost', color: M_GOLD },
 };
 
-function buildActivityRows(agent) {
+// BUGS-C job 9: the first time each attribute cost him something, off the
+// SAME sessionFlagged records buildActivityRows already reads — no second
+// fetch. flaggedHands.js stores `attrCosts` on every entry regardless of
+// flagType, and agent.sessionFlagged is pushed oldest-first (this file's own
+// `.slice().reverse()` above is what makes its OWN rows newest-first), so
+// this scans it in that native order without reversing.
+function firstCostsFromSessionFlagged(flagged) {
+  const seen = new Set();
+  const out = [];
+  for (const hand of flagged) {
+    for (const c of (Array.isArray(hand.attrCosts) ? hand.attrCosts : [])) {
+      if (!c?.key || !c?.line || !ATTR_KEYS.includes(c.key) || seen.has(c.key)) continue;
+      seen.add(c.key);
+      out.push({ key: c.key, line: c.line, handNumber: hand.handNumber ?? null });
+    }
+  }
+  return out;
+}
+
+// Which attributes this owner has already had explained. Per viewer, per
+// attribute, once — localStorage throws in private webviews, so every touch
+// is guarded and a failure just means the sentence shows again.
+const EXPLAINED_KEY = 'agentic_attr_explained';
+
+function readExplained() {
+  try {
+    const raw = localStorage.getItem(EXPLAINED_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list : []);
+  } catch { return new Set(); }
+}
+
+function markExplained(key) {
+  try {
+    const next = readExplained();
+    next.add(key);
+    localStorage.setItem(EXPLAINED_KEY, JSON.stringify([...next]));
+  } catch { /* storage unavailable — it explains itself again next time */ }
+}
+
+function buildActivityRows(agent, { firstCosts = [], explained = new Set() } = {}) {
   const rows = [];
   const flagged = Array.isArray(agent.sessionFlagged) ? agent.sessionFlagged : [];
 
@@ -168,9 +249,21 @@ function buildActivityRows(agent) {
     const amtRaw = f.pot ?? null;
     const amt = amtRaw != null ? (f.won ? `+${amtRaw}` : `−${amtRaw}`) : null;
     const meta = `HAND #${f.handNumber ?? '?'}`;
-    rows.push({ color: d.color, label: d.label, meta, amount: amt });
+    rows.push({
+      type: 'flag', color: d.color, label: d.label, meta, amount: amt,
+      handNumber: f.handNumber ?? -1,
+    });
   }
 
+  for (const c of firstCosts) {
+    rows.push({
+      type: 'cost', cost: c, explained: explained.has(c.key),
+      handNumber: c.handNumber ?? -1,
+    });
+  }
+
+  // Newest hand first, across both kinds of entry together.
+  rows.sort((a, b) => b.handNumber - a.handNumber);
   return rows;
 }
 
@@ -253,7 +346,14 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 //
 // "Call him in" is Deploy's opposite and takes its slot rather than sitting
 // beside it; only one of the two is ever true.
-function ActionRow({ live, muted, onPrimary, onFund, onRetire, onToggleMute }) {
+//
+// BUGS-C job 8: "Give him chips" is drawn here ONLY when there is no pocket
+// row to carry it (`showFund`) — an agent with no wallet data at all still
+// needs a way to be funded. Whenever the pocket row exists it is the only
+// place the button lives; before this the two ran side by side, the same
+// button twice on one screen. The header always keeps Deploy/Call him in and
+// the overflow menu.
+function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute }) {
   const [menu, setMenu] = useState(false);
 
   return (
@@ -268,23 +368,25 @@ function ActionRow({ live, muted, onPrimary, onFund, onRetire, onToggleMute }) {
         type="button"
         onClick={onPrimary}
         style={{
-          flex: 1.4, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+          flex: showFund ? 1.4 : 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
           background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
           fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
           textTransform: 'uppercase', whiteSpace: 'nowrap',
         }}
       >{live ? 'Call him in' : 'Deploy'}</button>
 
-      <button
-        type="button"
-        onClick={onFund}
-        style={{
-          flex: 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
-          background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
-          fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          textTransform: 'uppercase', whiteSpace: 'nowrap',
-        }}
-      >Give him chips</button>
+      {showFund && (
+        <button
+          type="button"
+          onClick={onFund}
+          style={{
+            flex: 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
+            background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
+            fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+            textTransform: 'uppercase', whiteSpace: 'nowrap',
+          }}
+        >Give him chips</button>
+      )}
 
       <button
         type="button"
@@ -554,6 +656,15 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
     [character.rows],
   );
 
+  // BUGS-C job 9: which attributes this owner has already had explained.
+  // Read once on mount so a re-render cannot resurrect a sentence already
+  // answered — same rule ChatsScreen.jsx held before this moved here.
+  const [explained, setExplained] = useState(() => readExplained());
+  const firstCosts = useMemo(
+    () => firstCostsFromSessionFlagged(Array.isArray(agent?.sessionFlagged) ? agent.sessionFlagged : []),
+    [agent],
+  );
+
   if (!agent) return null;
 
   const accent  = accentFor(agent);
@@ -562,9 +673,15 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const state   = stateOf(agent);
   const cause   = causeOf(agent);
   const isLive  = state === 'live';
+  // BUGS-C job 8: the header's own "Give him chips" is a fallback for when
+  // there is no pocket row to carry it (pocketOf returns null for an agent
+  // with no wallet data at all — "graceful absence: no pocket, no row",
+  // PocketLine.jsx) — not a second copy of a button the pocket row already
+  // has.
+  const hasPocket = !!pocketOf(agent);
 
   const sessionLog   = Array.isArray(agent.sessionLog) ? agent.sessionLog : [];
-  const activityRows = buildActivityRows(agent);
+  const activityRows = buildActivityRows(agent, { firstCosts, explained });
 
   // Fatigue is within-session state: it belongs on the card while he is at a
   // table or has just left one, and whenever it is anything but fresh.
@@ -615,6 +732,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
       <ActionRow
         live={isLive}
         muted={isMuted}
+        showFund={!hasPocket}
         onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))}
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
@@ -714,7 +832,19 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
           <>
             <div style={{ padding: '0 14px 4px' }}><Lbl size={9.5}>Recent activity</Lbl></div>
             <div style={{ margin: '0 14px 12px', padding: '2px 13px', borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_BORDER}` }}>
-              {activityRows.map((row, i) => (
+              {activityRows.map((row, i) => (row.type === 'cost' ? (
+                <ActivityCostRow
+                  key={i}
+                  cost={row.cost}
+                  row={character.rows.find((r) => r.key === row.cost.key) ?? null}
+                  explained={row.explained}
+                  onExplain={() => {
+                    markExplained(row.cost.key);
+                    setExplained((prev) => new Set(prev).add(row.cost.key));
+                  }}
+                  last={i === activityRows.length - 1}
+                />
+              ) : (
                 <ActivityRow
                   key={i}
                   color={row.color}
@@ -723,7 +853,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
                   amount={row.amount}
                   last={i === activityRows.length - 1}
                 />
-              ))}
+              )))}
             </div>
           </>
         )}

@@ -262,17 +262,27 @@ export function captionFor(key, value) { // eslint-disable-line no-unused-vars
 /**
  * Fatigue in words. The refs always name the hand count when there is one —
  * "worn — 140 hands, Focus dipping" — and never name a cost below 'worn'.
+ *
+ * BUGS-C job 7: this is the sentence under the CONDITION row, and it exists
+ * because the row used to be a three-pip block labelled only with the bare
+ * word ("fresh") and nobody could tell what it meant. It names the actual
+ * cost rather than gesturing at it — attributes.js's own dip is FOCUS and
+ * DISCIPLINE, only at 'worn', so that is what the sentence says.
  */
 export function fatigueLineFor(stage, hands) {
   const f = FATIGUE[stage] ?? FATIGUE.fresh;
   const count = Number.isFinite(hands) && hands > 0
-    ? `${hands.toLocaleString()} hand${hands === 1 ? '' : 's'}`
+    ? `${hands.toLocaleString()} hand${hands === 1 ? '' : 's'} in`
     : null;
   if (f.key === 'worn') {
-    return count ? `worn — ${count}, Focus dipping` : 'worn — Focus dipping';
+    return count
+      ? `worn: ${count}, and playing tired costs him Focus and Discipline this session`
+      : 'worn: playing tired costs him Focus and Discipline this session';
   }
-  if (f.key === 'settled') return count ? `settled in — ${count}` : 'settled in';
-  return count ? `fresh — ${count} in` : 'fresh';
+  if (f.key === 'settled') {
+    return count ? `settled in: ${count}, nothing costing him yet` : 'settled in: nothing costing him yet';
+  }
+  return count ? `fresh: ${count}, nothing costing him tonight` : 'fresh: nothing costing him tonight';
 }
 
 /**

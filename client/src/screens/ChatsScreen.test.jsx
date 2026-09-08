@@ -247,4 +247,22 @@ describe('ChatsScreen', () => {
     const [post] = fetchMock.requestsMatching('/api/agents/chat');
     expect(post.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
   });
+
+  // BUGS-C job 9: the COMPOSURE/READS "cost" card ("he was steaming when he
+  // played this one… TAP THE LABEL") made the chat unreadable. It moved to
+  // the profile's Recent activity (AgentProfileScreen.activity.test.jsx) —
+  // the chat carries only talk and hand replay cards now.
+  it('BUGS-C-9: carries no cost line — that moved to the profile', async () => {
+    fetchMock.route('/flagged', {
+      flaggedHands: [{
+        handNumber: 12,
+        attrCosts: [{ key: 'FOCUS', line: 'He misjudged equity by 7% on the river', street: 'river' }],
+      }],
+    });
+    renderThread();
+    await screen.findByText(OPENER);
+
+    expect(screen.queryByText(/misjudged equity by 7%/)).toBeNull();
+    expect(screen.queryByText(/TAP THE LABEL/)).toBeNull();
+  });
 });

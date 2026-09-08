@@ -399,6 +399,33 @@ describe('HOME-1 · the want', () => {
     sock.emit({ type: 'want', userId: 'u1', agentId: 'a1', want: null });
     await waitFor(() => expect(screen.queryByTestId('home-want')).toBeNull());
   });
+
+  // BUGS-C job 6 · the server stamps a want into lastMoment the instant he
+  // asks (agentProfiles.js, `kind: 'want'`) — the same sentence the toast and
+  // his bubble already carry. The strip picked that up too, which is the
+  // third copy the brief is about.
+  it('BUGS-C-6: one pending want shows one toast, not a third copy on the strip', async () => {
+    await boot([mkAgent('a1', 'The Clock', {
+      want: { kind: 'beer', text: "Can I have a beer. It's been rough.", needs: null, dangerous: false },
+      lastMoment: { text: "Can I have a beer. It's been rough.", kind: 'want', at: 1 },
+    })]);
+    expect(screen.getAllByTestId('home-want')).toHaveLength(1);
+    expect(screen.getAllByTestId('home-news-a1')).toHaveLength(1);
+    // The strip falls back to something else while it is still pending.
+    expect(screen.getByTestId('home-thread-line')).not.toHaveTextContent('Can I have a beer');
+    expect(screen.getByTestId('home-thread-line')).toHaveTextContent('Sit down.');
+  });
+
+  it('BUGS-C-6: it carries on the strip as history once it is answered', async () => {
+    // Same sentence, but the server has moved on — a want in the air is
+    // `kind: 'want'`; an answered one is an ordinary moment like any other.
+    await boot([mkAgent('a1', 'The Clock', {
+      want: null,
+      lastMoment: { text: "Can I have a beer. It's been rough.", kind: 'said', at: 1 },
+    })]);
+    expect(screen.queryByTestId('home-want')).toBeNull();
+    expect(screen.getByTestId('home-thread-line')).toHaveTextContent('Can I have a beer');
+  });
 });
 
 // ── VISIT-1 · a friend at the door ──────────────────────────────────────────
@@ -599,6 +626,33 @@ describe('HOME-1 · the thread', () => {
     resolveSend(null);
     await waitFor(() => expect(screen.queryByText('you punted that')).toBeNull());
   });
+
+  // BUGS-C job 5 · the bottom strip is one field with the send arrow inside
+  // it, not a pill beside a separate button — and Enter has to reach that
+  // field the way it does everywhere else in the app (FIX-6).
+  it('BUGS-C-5: Enter sends, same as tapping the arrow', async () => {
+    let resolveSend;
+    const onSend = () => new Promise((r) => { resolveSend = r; });
+    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+
+    const input = await screen.findByTestId('home-thread-input');
+    await userEvent.type(input, 'he was priced in{Enter}');
+
+    expect(await screen.findByText('he was priced in')).toBeInTheDocument();
+    await waitFor(() => expect(input).toHaveValue(''));
+    resolveSend(null);
+  });
+
+  // The strip carries only the line and the composer — no third element, and
+  // the composer is one control (an input and a send button) rather than the
+  // line's own row growing a second thing beside it.
+  it('BUGS-C-5: the strip carries only the line and the composer', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    const band = (await screen.findByTestId('home-thread')).querySelector('.home-thread__band');
+    expect(band.children).toHaveLength(2);
+    expect(band.children[0]).toHaveClass('home-thread__line');
+    expect(band.children[1]).toHaveClass('home-thread__composer');
+  });
 });
 
 // ── BUGS-A job 7 ────────────────────────────────────────────────────────────
@@ -690,6 +744,46 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
   });
 });
 
+// ── BUGS-C job 3 · tap the table, not the player ────────────────────────────
+
+describe('BUGS-C job 3: the table region, mid-hand', () => {
+  const GAME = {
+    tableId: 'home-u1',
+    state: 'running',
+    seats: [
+      { seat: 0, agentId: 'a1', name: 'The Clock', house: false },
+      { seat: 1, agentId: 'a2', name: 'River Rat', house: false },
+    ],
+  };
+
+  it('BUGS-C-3: in a hand, a tap on a seated agent\'s pill opens the TableSheet, not his thread', async () => {
+    const onOpenThread = vi.fn();
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
+    await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')], GAME, { onOpenThread });
+
+    const body = await screen.findByRole('button', { name: /The Clock — / });
+    await userEvent.click(body);
+
+    expect(await screen.findByTestId('home-table-sheet-mobile')).toBeInTheDocument();
+    expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  it('BUGS-C-3: an idle, standing agent keeps his own tap, hand or no hand', async () => {
+    // a3 is home but not in the game — his tap still goes to the thread.
+    const onOpenThread = vi.fn();
+    fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
+    await boot(
+      [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat'), mkAgent('a3', 'Idle Ivan')],
+      GAME,
+      { onOpenThread },
+    );
+    const body = await screen.findByRole('button', { name: /Idle Ivan — / });
+    await userEvent.click(body);
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
+    expect(screen.queryByTestId('home-table-sheet-mobile')).not.toBeInTheDocument();
+  });
+});
+
 // ── The tape room ───────────────────────────────────────────────────────────
 
 describe('HOME-1 · the tape room', () => {
@@ -713,6 +807,29 @@ describe('HOME-1 · the tape room', () => {
     expect(studyTag([{ displayName: 'Granite', lines: [1, 2, 3] }])).toBe('+3 GRANITE');
     expect(studyTag([])).toBeNull();
     expect(studyTag(null)).toBeNull();
+  });
+});
+
+// ── BUGS-C job 4 · one casino sign, not two ─────────────────────────────────
+
+describe('BUGS-C job 4: the CASINO sign', () => {
+  it('BUGS-C-4: the room never draws the old door tag alongside the marquee', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-door-sign')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-door-tag')).toBeNull();
+  });
+
+  it('BUGS-C-4: the sign lights when one of yours is actually in a hand out there', async () => {
+    await boot([mkAgent('a1', 'The Clock', {
+      location: loc('casino'),
+      liveGame: { tableId: 't1', pot: 400 },
+    })]);
+    expect(await screen.findByTestId('home-door-sign')).toHaveAttribute('data-live', 'true');
+  });
+
+  it('BUGS-C-4: it stays dark with nobody of yours in a live hand', async () => {
+    await boot([mkAgent('a1', 'The Clock')]);
+    expect(await screen.findByTestId('home-door-sign')).toHaveAttribute('data-live', 'false');
   });
 });
 

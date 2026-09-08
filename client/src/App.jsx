@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
@@ -7,32 +7,35 @@ import { resolveDeepLink } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
 import { RosterSheet } from './components/RosterSheet.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
-import { CasinoFloor } from './components/floor/CasinoFloor.jsx';
-import { AgentsTab } from './components/AgentsTab.jsx';
-import { AgentChat } from './components/AgentChat.jsx';
 import { getTelegramDisplayName, getTelegramInitData, getUserId, initViewportTracking } from './lib/telegram.js';
-import { PlayerSeat } from './components/PlayerSeat.jsx';
 import { TableSeat } from './components/TableSeat.jsx';
 import { Card } from './components/Card.jsx';
 import { ActionBar } from './components/ActionBar.jsx';
 import { ChatBar } from './components/ChatBar.jsx';
 import { HistoryDrawer } from './components/HistoryDrawer.jsx';
-import { HistoryTab } from './components/HistoryTab.jsx';
 import { HandHistory } from './components/HandHistory.jsx';
 import { AnalysisPanel } from './components/AnalysisPanel.jsx';
-import { DesktopHome } from './components/desktop/DesktopHome.jsx';
 import { useIsDesktop } from './hooks/useIsDesktop.js';
 import { Streets } from './lib/protocol.js';
 import { AgentThread } from './screens/ChatsScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { YouScreen } from './screens/YouScreen.jsx';
 import { BirthScreen } from './screens/BirthScreen.jsx';
-import { AgentProfileScreen } from './screens/AgentProfileScreen.jsx';
-import { CasinoScreen } from './screens/CasinoScreen.jsx';
-import { ReplayTheatre } from './components/replay/ReplayTheatre.jsx';
 import { rowsFromThread } from './lib/thread.js';
 import { useGuestSession } from './hooks/useGuestSession.js';
 import { ClaimWall } from './components/guest/ClaimWall.jsx';
+
+// BUGS-C job 1: the Telegram entry has to load a home shell, not the whole
+// app. These four are screens a session may never visit in a given sitting
+// (the desktop rail, the casino building, a profile overlay, a hand replay),
+// so they are split into their own chunks and only fetched the moment a tap
+// actually needs one — Suspense's fallback is `null` because each of them
+// replaces a screen that was not on screen yet, so there is nothing to hold
+// a loading spinner over.
+const DesktopHome = lazy(() => import('./components/desktop/DesktopHome.jsx').then((m) => ({ default: m.DesktopHome })));
+const AgentProfileScreen = lazy(() => import('./screens/AgentProfileScreen.jsx').then((m) => ({ default: m.AgentProfileScreen })));
+const CasinoScreen = lazy(() => import('./screens/CasinoScreen.jsx').then((m) => ({ default: m.CasinoScreen })));
+const ReplayTheatre = lazy(() => import('./components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 
 function resolveWsUrl() {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -563,15 +566,17 @@ function AppShell({ guest }) {
   if (deepLinkHand) {
     return (
       <div className="app">
-        <ReplayTheatre
-          hand={deepLinkHand.hand}
-          agentId={deepLinkHand.agent?.id ?? null}
-          onBack={() => {
-            const agent = deepLinkHand.agent;
-            setDeepLinkHand(null);
-            if (agent) openAgentChat(agent);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ReplayTheatre
+            hand={deepLinkHand.hand}
+            agentId={deepLinkHand.agent?.id ?? null}
+            onBack={() => {
+              const agent = deepLinkHand.agent;
+              setDeepLinkHand(null);
+              if (agent) openAgentChat(agent);
+            }}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -592,6 +597,7 @@ function AppShell({ guest }) {
     };
 
     return (
+      <Suspense fallback={null}>
       <DesktopHome
         game={game}
         lastDecision={lastDecision}
@@ -661,6 +667,7 @@ function AppShell({ guest }) {
         // that owns the rail is the one that has to be told.
         openHomeTable={homeTableOpen}
       />
+      </Suspense>
     );
   }
 
@@ -688,6 +695,7 @@ function AppShell({ guest }) {
           {/* WUI-4: onFund is what makes the pocket line's action render. The
               funding sheet lives on the YOU screen with the rest of the money,
               so Fund goes there rather than opening a second copy of it here. */}
+          <Suspense fallback={null}>
           <AgentProfileScreen
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
@@ -739,6 +747,7 @@ function AppShell({ guest }) {
             // the one he still has.
             onRetired={() => { setAgentProfileTarget(null); navigateTo('home'); }}
           />
+          </Suspense>
         </div>
       );
     }
@@ -843,6 +852,7 @@ function AppShell({ guest }) {
           {/* CASINO-1 · board 27. The building: rooms by stakes, the board by
               the stairs, and the one tray you deploy from. */}
           {activeTab === 'casino' && (
+            <Suspense fallback={null}>
             <CasinoScreen
               wsUrl={WS_URL}
               deployAgent={deployTarget?.agent ?? null}
@@ -880,6 +890,7 @@ function AppShell({ guest }) {
                 });
               }}
             />
+            </Suspense>
           )}
           {/* CHAT-2: the thread has no Deploy and no Watch any more — the face
               and the name open the profile, and the profile is where an owner

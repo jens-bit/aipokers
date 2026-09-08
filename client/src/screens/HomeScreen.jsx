@@ -55,7 +55,7 @@ import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { VisitorToast } from '../components/home/VisitorToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
-import { CasinoOnTv, TapeOnTv } from '../components/home/CasinoOnTv.jsx';
+import { CasinoOnTv, TapeOnTv, onScreen } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
 import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
@@ -403,6 +403,14 @@ export function HomeScreen({
     [game],
   );
 
+  // BUGS-C job 3: is a home hand actually running right now? While it is, the
+  // table region — the felt AND the seated bodies playing it — is one target
+  // with one destination, the sheet the tap already opens for the felt itself
+  // (see `onTable` below). Tapping a man's face mid-hand used to open HIS
+  // thread, which pulled the owner off the table he was in the middle of
+  // watching.
+  const inHand = game?.state === 'running';
+
   // HOME-2 job 3 · WHO EVERYBODY IS, rolled once for the whole household.
   //
   // Rolled here rather than inside each body because the ROSTER is the
@@ -577,6 +585,24 @@ export function HomeScreen({
     else setThreadOpen(true);
   }, [onOpenThread, desktop]);
 
+  // BUGS-C job 3 · A MAN AT THE TABLE IS PART OF THE TABLE.
+  //
+  // Mid-hand, his face and his pill are the table region same as the felt is
+  // — BIRTH-5/BUGS-A job 7 already gave the felt itself one destination, the
+  // sheet, and a tap on the man playing it went somewhere else entirely. With
+  // nobody dealing, he is just a body standing at a chair, and the tap goes to
+  // his profile — not his thread, which `tapAgent` still owns for the idle
+  // and wandering rest of the household.
+  const tapSeated = useCallback((agent) => {
+    if (inHand) {
+      if (desktop) { setRail('table'); return; }
+      setTableOpen(true);
+      return;
+    }
+    if (desktop) { setFocusId(agent.id); setRail('agent'); return; }
+    onProfile?.(agent);
+  }, [inHand, desktop, onProfile]);
+
   // BUGS-A job 2 · THE ROOM IS THE DEFAULT, NOT THE EMPTY STATE.
   //
   // "Nobody lives here yet" is a claim about the owner, and the screen used to
@@ -673,11 +699,14 @@ export function HomeScreen({
       // none is. Drawing a felt nobody is sitting at would be the one outright
       // lie on the screen.
       tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
-      // DRAFT-2: the wave-53 law makes the door the way to the casino ("CASINO
-      // is the door"), and the ref hangs the tag over it on every HOME frame
-      // (design-refs/mood-nav.jsx `navRoom`). It is a label, not a control — the
-      // door itself is still furniture, exactly as it was.
-      doorTag="THE CASINO →"
+      // BUGS-C job 4 · no more `doorTag` here. The marquee sign is always
+      // drawn (HOME-2 job 4) and DRAFT-2's "THE CASINO →" tag used to be
+      // passed alongside it, so the live room carried two casino signs
+      // stacked on the same spot above the door — "the casino is on top of
+      // itself". The marquee is the room's only signage now; `signLive` lights
+      // it with the same fact CasinoOnTv's set switches on: one of yours is
+      // actually in a hand out there.
+      signLive={!!onScreen(away)}
     >
       <AwayWall
         away={away}
@@ -757,8 +786,12 @@ export function HomeScreen({
             news={!!(agent.want || agent.unseenRecap)}
             // VISIT-1: he is not one of yours — there is no thread of his to
             // open from here, so the tap that opens every other body's does
-            // nothing on a guest's.
-            onClick={agent.guest ? undefined : () => tapAgent(agent)}
+            // nothing on a guest's. BUGS-C-3 then split what a tap on one of
+            // YOURS means: seated with a hand running, the tap belongs to the
+            // table he is sitting at, not to him.
+            onClick={agent.guest
+              ? undefined
+              : () => (seated ? tapSeated(agent) : tapAgent(agent))}
           />
         );
       })}

@@ -19,7 +19,7 @@
 // file only pins where the two columns put things.
 
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CasinoScreen } from './CasinoScreen.jsx';
 import { rooms, casinoEvent } from '../test/fixtures/rooms.js';
@@ -51,8 +51,17 @@ function routeFloor({ agents = [], events = EIGHT } = {}) {
 const rail = () => document.querySelector('.csn-desk__rail');
 const stage = () => document.querySelector('.csn-desk__stage');
 
+// BUGS-C job 12: the casino opens on the floor by default now (remembered in
+// sessionStorage). This whole file is about the BUILDING on the desk, so it
+// starts on the board view same as before — job 12's own floor-first default
+// is asserted in CasinoScreen.test.jsx.
 beforeEach(() => {
   telegram.signIn();
+  try { sessionStorage.setItem('agentic_casino_view', 'board'); } catch { /* n/a */ }
+});
+
+afterEach(() => {
+  try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
 });
 
 describe('DESK-2 · the casino on the desk', () => {

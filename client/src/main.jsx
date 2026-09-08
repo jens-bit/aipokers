@@ -1,12 +1,16 @@
-import { StrictMode } from 'react';
+import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import LoginGate from './components/LoginGate.jsx';
-import { GuestLanding } from './components/guest/GuestLanding.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import { visitPreview, rememberPendingVisitor, requestVisit } from './lib/visit.js';
 import './styles/index.css';
+
+// BUGS-C job 1: a Mini App session (by far the common case) always takes the
+// first branch below and never renders either of these — so they are loaded
+// on demand rather than bundled into the entry chunk every session pays for.
+const LoginGate = lazy(() => import('./components/LoginGate.jsx'));
+const GuestLanding = lazy(() => import('./components/guest/GuestLanding.jsx').then((m) => ({ default: m.GuestLanding })));
 
 // AUTH-1 — two ways in: the Telegram Mini App (initData) and the web Login
 // Widget (LoginGate).
@@ -45,7 +49,7 @@ async function boot() {
   // redirected to the marketing page never has the SDK initialised at all, and
   // initialising it up here to save three lines would quietly break that.
   if (isMiniAppSession()) { initTelegram(); return render(<App />); }
-  if (getWebLogin() != null) { initTelegram(); return render(<LoginGate><App /></LoginGate>); }
+  if (getWebLogin() != null) { initTelegram(); return render(<Suspense fallback={null}><LoginGate><App /></LoginGate></Suspense>); }
 
   // (3): is the no-account door open, and are we already through it?
   const { enabled, ownerId } = await resolveGuest();
@@ -84,7 +88,13 @@ async function boot() {
       // VISIT-1 job 6: "someone is at your door" — the draft's opening line
       // (BirthScreen.jsx) reads this back once, the first time it renders.
       if (visitor) rememberPendingVisitor(visitor.agentName);
-      return render(<GuestLanding visitorName={visitor?.agentName ?? null} />);
+      // BUGS-C-1: the landing is lazy, so a Mini App session never pays for
+      // it — which is why it needs the boundary the eager import did not.
+      return render(
+        <Suspense fallback={null}>
+          <GuestLanding visitorName={visitor?.agentName ?? null} />
+        </Suspense>,
+      );
     }
   }
 
@@ -98,7 +108,7 @@ async function boot() {
     return undefined;
   }
   initTelegram();
-  return render(<LoginGate><App /></LoginGate>);
+  return render(<Suspense fallback={null}><LoginGate><App /></LoginGate></Suspense>);
 }
 
 // Exported so a test can await the decision. Deciding which of the four doors

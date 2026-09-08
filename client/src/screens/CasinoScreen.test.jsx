@@ -11,7 +11,7 @@
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CasinoScreen, canAfford, defaultRoom, isRoomHot, hotFocus } from './CasinoScreen.jsx';
 import {
@@ -19,6 +19,20 @@ import {
 } from '../test/fixtures/rooms.js';
 import { playingAgent, restingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
+
+// BUGS-C job 12: the casino opens on the floor by default now, remembered for
+// the session in sessionStorage. Every describe block below that asserts on
+// the BUILDING (doorways, the board, the sign) seeds 'board' as the starting
+// view — the fact under test in each of those is the building's own
+// behaviour, not which of the two the screen opens on (that is job 12's own
+// describe block, further down). Cleared after every test so one test's
+// choice cannot leak into the next.
+function startOnBoard() {
+  try { sessionStorage.setItem('agentic_casino_view', 'board'); } catch { /* n/a */ }
+}
+afterEach(() => {
+  try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
+});
 
 const POCKET = { mode: 'allowance', cap: 5000, broke: false, collectable: 0, pnl: 0 };
 const withPocket = (agent, balance, over = {}) => ({
@@ -105,7 +119,7 @@ describe('CASINO-1 what counts as hot', () => {
 // ── The screen ──────────────────────────────────────────────────────────────
 
 describe('CASINO-1 the building', () => {
-  beforeEach(() => { telegram.signIn(); });
+  beforeEach(() => { telegram.signIn(); startOnBoard(); });
 
   // CASINO-2 job 3 split the doorway in two. AT REST the rooms are three small
   // doors under the sign — the building's own organisation, the only navigation
@@ -265,7 +279,7 @@ describe('CASINO-1 the building', () => {
 // ── CASINO-2 job 4 · your table ─────────────────────────────────────────────
 
 describe('CASINO-2 job 4 · your table, once per man', () => {
-  beforeEach(() => { telegram.signIn(); });
+  beforeEach(() => { telegram.signIn(); startOnBoard(); });
 
   const atFelt = {
     ...playingAgent,
@@ -438,7 +452,7 @@ describe('CASINO-1 deploy', () => {
 // a place you WALK INTO: the felts on its floor, drawn from job 1. Every claim
 // below is the same one on the new surface.
 describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
-  beforeEach(() => { telegram.signIn(); });
+  beforeEach(() => { telegram.signIn(); startOnBoard(); });
 
   it('tapping a room with nobody in the tray takes you into it', async () => {
     const user = userEvent.setup();
@@ -513,5 +527,65 @@ describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
 
     expect(screen.queryByTestId('floor-view')).toBeNull();
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
+  });
+});
+
+// ── BUGS-C job 12 · the casino opens on the floor ───────────────────────────
+
+describe('BUGS-C job 12: the floor first', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('BUGS-C-12: initial casino render mounts the floor, not the building', async () => {
+    routeFloor();
+    renderCasino();
+
+    const view = await screen.findByTestId('floor-view');
+    // The room with the biggest pot in the air, absent anything hotter — the
+    // same room the "a felt goes hot" card would point at.
+    expect(view.dataset.room).toBe('floor');
+    expect(document.querySelectorAll('.csn-room-door')).toHaveLength(0);
+  });
+
+  it('BUGS-C-12: the toggle switches to the board, and back', async () => {
+    const user = userEvent.setup();
+    routeFloor();
+    renderCasino();
+
+    await screen.findByTestId('floor-view');
+    await user.click(await screen.findByRole('button', { name: 'Board' }));
+
+    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
+    expect(await screen.findByText('THE FLOOR')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Floor' }));
+    expect(await screen.findByTestId('floor-view')).toBeInTheDocument();
+  });
+
+  it('BUGS-C-12: remembers the last choice for the session', async () => {
+    const user = userEvent.setup();
+    routeFloor();
+    const { unmount } = renderCasino();
+
+    await user.click(await screen.findByRole('button', { name: 'Board' }));
+    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
+    unmount();
+
+    // A fresh mount of the same session — the casino tab, left and returned to.
+    renderCasino();
+    await screen.findByText('THE FLOOR');
+    expect(screen.queryByTestId('floor-view')).toBeNull();
+  });
+
+  it('BUGS-C-12: with nobody in the tray, tapping a doorway from the board still walks you in', async () => {
+    const user = userEvent.setup();
+    routeFloor();
+    renderCasino();
+
+    await user.click(await screen.findByRole('button', { name: 'Board' }));
+    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
+
+    await user.click(await screen.findByRole('button', { name: /^upstairs,/ }));
+    const view = await screen.findByTestId('floor-view');
+    expect(view.dataset.room).toBe('upstairs');
   });
 });

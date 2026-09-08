@@ -109,6 +109,13 @@ export function collapsedLine(agent, rows = []) {
   if (agent?.unseenRecap && agent?.sessionRecap?.text) return agent.sessionRecap.text;
   const last = rows.length ? rows[rows.length - 1] : null;
   if (last?.text) return last.text;
+  // BUGS-C job 6: a pending want is the toast's line and his own bubble's
+  // already — the server stamps it into `lastMoment` the instant he asks
+  // (agentProfiles.js: `kind: 'want'`), and this fell through to it too,
+  // which is the same sentence shown a third time. It carries as history
+  // here once it is ANSWERED, same as any other moment — the server moves
+  // `lastMoment` on then, and this falls through to it exactly as before.
+  if (agent?.lastMoment?.kind === 'want') return agent?.opener ?? '';
   if (agent?.lastMoment?.text) return agent.lastMoment.text;
   return agent?.opener ?? '';
 }
