@@ -211,7 +211,7 @@ export function HomeThread({
             className="home-thread__input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Say something"
+            placeholder="Say something to the room…"
             aria-label={`Say something to ${agent.name}`}
             data-testid="home-thread-input"
           />

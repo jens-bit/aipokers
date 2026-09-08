@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-08, batch 1
+
+Jens clarified that Watch's gameplay presentation is the successful reference point; preserve it. Home/casino now use one contextual header, one-step Home from either casino view, a roster doorway in that header, and full mobile width. Home safe/couch/fridge/right-wall artwork is ported; safe displays the owner's actual wallet balance. Conversation band corrected from 100px to 76px with a circular send control; design Inter/mono fonts included. Table is intentionally retained even in archive frames that omit its visible surface, per Jens's explicit instruction. BUG-59/60 have browser evidence; all first-batch gates passed. These changes are not yet deployed.
+
+Home and casino remain PARTIAL: empty-room composer, casino conversation strip, TV content, door treatment and mixed routines still differ. Board 42 agent view is next. See OVERNIGHT_DESIGN_WORK.md for evidence and active queue. This update supersedes stale status prose below without certifying its other historical SHIPPED claims.
+
 ## Railbird playtest follow-up — 2026-09-08
 
 After Jens's successful push of 4007703, his four-agent screenshot reproduced an invisible agent click area over the felt (BUG-55), the duplicated request (BUG-56), and the unported client brand (BUG-57). These are now repaired on the playtest branch and await the integrator's push report. Requests appear once in a compact F11-material strip; the room bubble duplication is removed as a repair choice for this playtest, while board 42's full agent view remains NOT BUILT. RailMark/wordmark now reach actual phone/watch/desktop/guest headers, page title, favicon and /welcome. Board 41 is therefore PARTIAL, not entirely unbuilt. Other brand deliverables, landing layout and room artwork remain in their queues.

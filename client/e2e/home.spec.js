@@ -27,6 +27,7 @@
 
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { roomsResponse } from '../src/test/fixtures/rooms.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -190,6 +191,57 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  test('BUG-59: casino has one header and Home is one tap from floor or board', async ({ page }) => {
+    await room(page, CASTS.alone);
+    await page.route('**/api/rooms', r => r.fulfill({ json: roomsResponse }));
+    await page.route('**/api/rooms/*/tables', r => r.fulfill({ json: { tables: [] } }));
+    await page.getByTestId('home-door').click();
+    await expect(page.getByTestId('floor-view')).toBeVisible();
+    await expect(page.locator('.dr-app-header')).toHaveCount(0);
+    const head = await page.locator('.csn-floor__head').boundingBox();
+    expect(head.y).toBe(0);
+    expect(head.height).toBeLessThanOrEqual(62);
+    await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'The casino', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Your agents', exact: true })).toHaveCount(1);
+    expect((await page.locator('.csn-head').boundingBox()).height).toBeLessThanOrEqual(62);
+    await page.screenshot({ path: '../artifacts/casino-board-shell.png' });
+    await page.getByRole('button', { name: 'Back home', exact: true }).click();
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+    await page.getByTestId('home-door').click();
+    await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Floor', exact: true }).click();
+    await page.getByRole('button', { name: 'Back home', exact: true }).click();
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+  });
+  test('BUG-60: the room conversation stays a compact strip with a round send control', async ({ page }) => {
+    await room(page, CASTS.alone);
+    const band = await page.locator('.home-thread__band').boundingBox();
+    expect(band.height).toBeLessThanOrEqual(76);
+    const send = await page.locator('.home-thread__send').boundingBox();
+    expect(send.height).toBeCloseTo(send.width, 0);
+    expect(send.height).toBe(26);
+    await page.getByTestId('home-thread-input').fill('How are you?');
+    await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
+    await page.getByTestId('home-thread-line').click();
+    await expect(page.getByTestId('home-thread-rows')).toBeVisible();
+  });
+  for (const width of [390, 490]) {
+    test(`BUG-59: Home uses one compact contextual header and fills ${width}px Telegram`, async ({ page }) => {
+      await room(page, CASTS.alone, { width, height: 844 });
+      await page.screenshot({ path: `../artifacts/home-shell-${width}.png` });
+      await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+      const header = page.locator('[data-testid="room-header"]');
+      expect((await header.boundingBox()).height).toBeLessThanOrEqual(48);
+      await expect(page.getByRole('button', { name: 'Your agents', exact: true })).toHaveCount(1);
+      const flat = await page.locator('.home-flat').boundingBox();
+      expect(flat.width).toBeCloseTo(width, 0);
+      expect(flat.x).toBeCloseTo(0, 0);
+      await expect(page.getByTestId('home-table')).toBeVisible();
+      await expect(page.getByTestId('home-safe')).toContainText('$12,000');
+      await page.getByRole('button', { name: 'Your agents', exact: true }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+    });
+  }
   for (const height of [590, 844]) {
     test(`BUG-55: four agents and a pending want leave the table tappable at 390x${height}`, async ({ page }) => {
       const names = ['Loose Cannon', 'The Grinder', 'Wild Card', 'Bluff'];
@@ -210,8 +262,10 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await expect(page.getByTestId('home-table-sheet-mobile')).toBeVisible({ timeout: 2000 });
       await page.getByTestId('home-table-sheet-mobile').getByRole('button', { name: 'Close', exact: true }).last().click();
       await expect(page.getByText("I'm fresh and I'm sat here doing nothing. Put me in.", { exact: true })).toHaveCount(1);
-      await expect(page.getByText('RAILBIRD', { exact: true })).toBeVisible();
-      await expect(page.getByText('0 in casino', { exact: true })).toBeVisible();
+      // BUG-59: approved HomeHead replaces the global wordmark/count row.
+      // Brand identity and the roster stay accessible in the single header.
+      await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+      await expect(page.getByRole('img', { name: 'Railbird', exact: true })).toBeVisible();
       // Visible DOM nodes can still lie outside a clipped Telegram viewport.
       for (const control of [page.getByTestId('home-want-yes'), page.locator('.home-thread__input')]) {
         await expect(control).toBeInViewport();

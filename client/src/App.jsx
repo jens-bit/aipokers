@@ -753,8 +753,8 @@ function AppShell({ guest }) {
     }
 
     return (
-      <div className="app">
-        <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />
+      <div className={`app${activeTab === 'home' || activeTab === 'casino' ? ' app--room' : ''}`}>
+        {activeTab !== 'home' && activeTab !== 'casino' && <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />}
         {rosterOpen && (
           <RosterSheet
             onClose={() => setRosterOpen(false)}
@@ -780,6 +780,7 @@ function AppShell({ guest }) {
           {activeTab === 'home' && (
             <HomeScreen
               wsUrl={WS_URL}
+              onOpenRoster={() => setRosterOpen(true)}
               openTable={homeTableOpen}
               onCreateAgent={() => setIsCreating(true)}
               onProfile={openAgentProfile}
@@ -855,6 +856,7 @@ function AppShell({ guest }) {
             <Suspense fallback={null}>
             <CasinoScreen
               wsUrl={WS_URL}
+              onOpenRoster={() => setRosterOpen(true)}
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}
               // HOME-2 job 1: you came in through the door; ← HOME is the way

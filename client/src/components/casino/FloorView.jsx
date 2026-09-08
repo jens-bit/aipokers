@@ -55,6 +55,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
+import { RosterButton } from '../Header.jsx';
 import { TheFloor, FLOOR_CAP, FLOOR_W, FLOOR_H } from './TheFloor.jsx';
 import { money } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
@@ -213,7 +214,7 @@ export function feltsForRoom(felts = [], agents = []) {
  */
 export function FloorView({
   room, felts = [], agents = [], events = [], board = null,
-  onWatch, onClose, desktop = false,
+  onWatch, onClose, onHome = null, onOpenRoster = null, desktop = false,
   // BUGS-C job 12: the Floor | Board segmented control, rendered by the
   // caller (CasinoScreen.jsx owns which view is current) so this file never
   // has to know about the toggle's own state.
@@ -284,8 +285,8 @@ export function FloorView({
       {...(desktop ? {} : drag.handlers)}
     >
       <div className="csn-floor__head">
-        <button type="button" className="csn-floor__back" onClick={onClose} aria-label="Back to the casino">
-          ← THE CASINO
+        <button type="button" className="csn-floor__back" onClick={onHome || onClose} aria-label={onHome ? 'Back home' : 'Back to the casino'}>
+          {onHome ? '← HOME' : '← THE CASINO'}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -297,6 +298,7 @@ export function FloorView({
           </div>
         </div>
         {toggle}
+        {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
       </div>
 
       <div className="csn-floor__body">

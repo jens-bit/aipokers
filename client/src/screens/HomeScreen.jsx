@@ -47,6 +47,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHomeState } from '../hooks/useHomeState.js';
 import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
+import { RoomHeader } from '../components/Header.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
 import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
@@ -295,6 +296,7 @@ export function HomeScreen({
   // by any more, so the room carries the only way in — and the phone is the
   // only shell that needs it: the desk has the building beside it in a rail.
   onCasino,
+  onOpenRoster,
   onOpenWallet,
   onOpenThread,
   onSend,
@@ -345,6 +347,17 @@ export function HomeScreen({
   // with a screen change and a second tap; board 29 F12 opens it where he is
   // standing, over the room he opened it from.
   const [safeOpen, setSafeOpen] = useState(false);
+  const [roomWallet, setRoomWallet] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const wallet = await fetchWallet();
+      if (!cancelled) setRoomWallet(wallet);
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [safeOpen, fridgeOpen]);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
@@ -437,7 +450,7 @@ export function HomeScreen({
       // Keep phone characters readable: fit the width and allow the room to
       // scroll in a short Telegram window instead of miniaturising the cast.
       setDeskScale(desktop ? fitScale(box.width, box.height)
-        : Math.min(1, box.width / F_W));
+        : box.width / F_W);
     });
     ro.observe(roomEl);
     return () => ro.disconnect();
@@ -646,6 +659,7 @@ export function HomeScreen({
   const flat = (
     <HomeFlat
       lit={lit}
+      balance={roomWallet?.balance ?? null}
       // HOME-2 job 8 · THE SAFE OPENS THE MONEY, over the room. Board 29 F12:
       // "a small safe on the floor with the balance on its door. Tapping it
       // opens the money sheet." It used to navigate to the YOU screen, which
@@ -792,12 +806,12 @@ export function HomeScreen({
     <div
       className="home1__room"
       ref={setRoomEl}
-      style={{ '--home-room-height': `${F_H}px`, ...(desktop
+      style={{ '--home-room-height': `${F_H * deskScale}px`, ...(desktop
         ? { '--home-desk-scale': deskScale }
         : { aspectRatio: `${F_W} / ${F_H}` }) }}
       data-dim={dimmed ? 'true' : 'false'}
     >
-      <div className="home1__scale" style={{ width: F_W, height: F_H, ...(!desktop ? { transform: `scale(${deskScale})` } : {}) }} ref={setFlatEl}>
+      <div className="home1__scale" style={{ width: F_W, height: F_H, ...(!desktop ? { transform: `scale(${deskScale})`, marginBottom: F_H * (deskScale - 1) } : {}) }} ref={setFlatEl}>
         {flat}
       </div>
     </div>
@@ -840,6 +854,7 @@ export function HomeScreen({
 
   return (
     <div className="home1" data-testid="home-screen">
+      <RoomHeader title="Home" subtitle={agents.length === 0 ? 'Your room · his story starts here' : `${home.length} home${away.length ? ` · ${away.length} away` : ' · nobody at the casino'}`} onOpenRoster={onOpenRoster} />
       {roomBox}
 
       <HomeThread

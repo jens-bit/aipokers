@@ -131,11 +131,8 @@ test.describe('HOME-2 job 1 · the three destinations are things in the world', 
     await expect(page.getByTestId('home-screen')).toHaveCount(0);
     await shot(page, 'job1-casino');
 
-    // BUGS-C-12: the casino now opens on the floor, not the building, so
-    // "Back home" is not the first control an owner meets — the floor's own
-    // back control (← THE CASINO) returns to the board first, and the board's
-    // is the one that says Back home.
-    await page.getByRole('button', { name: 'Back to the casino' }).click();
+      // BUG-59 / Jens's overnight brief: one Home destination from either
+      // casino view. Floor/Board stays in its own toggle, not in a back chain.
     await page.getByRole('button', { name: 'Back home' }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
   });
@@ -480,13 +477,18 @@ test.describe('HOME-2 job 6 · one sheet, and no money on the table', () => {
     await shot(page, 'job6-table-sheet');
   });
 
-  // FIX-6 job 4, still true and now measured in a browser: the price lives on
-  // this sheet and NOWHERE ELSE. The room's own table says nothing about money.
-  test('the room prices nothing — the sheet is the only surface that does', async ({ page }) => {
+  // BUG-59: board 29 explicitly puts the wallet balance on the safe and
+  // casino results on the TV. Seat prices still belong only in the sheet.
+  test('the kitchen table prices no seats; the safe carries the wallet balance', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
 
-    const room = await page.locator('.home-flat').textContent();
+    await expect(page.getByTestId('home-safe')).toContainText(/\$/);
+    const room = await page.locator('.home-flat').evaluate(el => {
+      const copy = el.cloneNode(true);
+      copy.querySelectorAll('[data-testid="home-safe"], [data-testid="home-tv"]').forEach(fixture => fixture.remove());
+      return copy.textContent;
+    });
     expect(room).not.toMatch(/\$/);
     expect(room).not.toMatch(/won\b/i);
     expect(room).not.toMatch(/FOR NOTHING/i);

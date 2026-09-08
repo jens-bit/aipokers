@@ -26,6 +26,7 @@
 // shape.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
+import { RosterButton } from '../Header.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
 import { accentFor, M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { moodOf, heatOf } from '../floor/agentView.js';
@@ -457,11 +458,11 @@ export function Marquee({ lit = true }) {
   );
 }
 
-export function CasinoHead({ sub, right, lit = true, onBack = null }) {
+export function CasinoHead({ sub, right, lit = true, onBack = null, onOpenRoster = null, toggle = null }) {
   return (
     <div className="csn-head" style={{
       flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
-      padding: '6px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
+      padding: '4px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
     }}>
       {/* HOME-2 job 1 · through the door, and still no bottom bar: ← HOME is
           where the back button goes (board 29 F07). */}
@@ -477,10 +478,12 @@ export function CasinoHead({ sub, right, lit = true, onBack = null }) {
         >← HOME</button>
       ) : null}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <Marquee lit={lit} />
-        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 2 }}>{sub}</div>
+        {onOpenRoster ? <h1 className="csn-marquee__word" style={{ margin: 0, fontFamily: PLAYFAIR, fontSize: 15, fontWeight: 600, lineHeight: 1.3, whiteSpace: 'nowrap', color: M_TEXT }}>The casino</h1> : <Marquee lit={lit} />}
+        <div style={{ fontSize: 9.5, color: M_MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>
       </div>
       {right}
+      {toggle}
+      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
     </div>
   );
 }

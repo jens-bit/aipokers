@@ -14,6 +14,8 @@
  */
 
 .home1 {
+  font-family: Inter, system-ui, sans-serif;
+  letter-spacing: normal;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -212,17 +214,25 @@
 
 .home-flat__couch {
   position: absolute;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #241D26 0%, #1A151C 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px 9px 9px 4px;
+  background: linear-gradient(100deg, #2A2130 0%, #1C1622 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 7px 18px rgba(0,0,0,.45);
+  overflow: hidden;
 }
 .home-flat__couch span {
-  position: absolute; left: 6px; right: 6px;
-  height: 34px; border-radius: 5px;
-  background: rgba(255, 255, 255, 0.035);
+  position: absolute; left: 26px; right: 5px;
+  height: 37px; border-radius: 5px;
+  background: linear-gradient(160deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.05);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
 }
-.home-flat__couch span:first-child { top: 8px; }
-.home-flat__couch span:last-child { bottom: 8px; }
+.home-flat__couch span:nth-last-child(2) { top: 19px; }
+.home-flat__couch span:last-child { top: 60px; }
+.home-flat__couch-back { position: absolute; left: 0; top: 0; bottom: 0; width: 22px; background: linear-gradient(90deg, #332942, #241C2E); border-right: 1px solid rgba(0,0,0,.4); }
+.home-flat__couch-arm { position: absolute; left: 20px; right: 0; height: 15px; background: linear-gradient(180deg, #302640, #241C2E); }
+.home-flat__couch-arm--top { top: 0; border-radius: 0 7px 3px 0; border-bottom: 1px solid rgba(0,0,0,.35); }
+.home-flat__couch-arm--bottom { bottom: 0; border-radius: 0 3px 7px 0; border-top: 1px solid rgba(0,0,0,.35); }
 
 /* DESK-2 made this a <button> where the table sheet is reachable and left it a
    <div> where it is not, and BIRTH-5 made the phone one of the places it is
@@ -322,18 +332,24 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-flat__safe {
   position: absolute;
   padding: 0;
-  border-radius: 3px;
-  background: linear-gradient(160deg, #232624 0%, #171A19 100%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  min-height: 0;
+  border-radius: 4px;
+  background: linear-gradient(160deg, #23211C 0%, #16150F 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 14px rgba(0,0,0,.5);
+  overflow: hidden;
   cursor: pointer;
 }
 .home-flat__safe-dial {
-  position: absolute; left: 50%; top: 50%;
-  width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  position: absolute; right: 9px; top: 50%;
+  width: 14px; height: 14px; margin-top: -7px;
   border-radius: 50%;
   border: 1.5px solid rgba(205, 179, 128, 0.55);
 }
+.home-flat__safe-dial i { position: absolute; left: 50%; top: 1.5px; width: 1.5px; height: 5px; margin-left: -.75px; background: #CDB380; opacity: .85; }
+.home-flat__safe-inset { position: absolute; inset: 4px; border-radius: 2px; border: 1px solid #CDB3802E; }
+.home-flat__safe-lever { position: absolute; right: 4px; bottom: 9px; width: 3px; height: 13px; border-radius: 2px; background: #CDB38088; }
+.home-flat__safe-balance { position: absolute; left: 8px; top: 50%; margin-top: -7px; font: 700 11px/14px 'JetBrains Mono', monospace !important; color: #CDB380; letter-spacing: -.01em !important; }
 .home-flat__safe-hinge {
   position: absolute; left: 4px; top: 6px; bottom: 6px;
   width: 2px; border-radius: 1px;
@@ -344,23 +360,28 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-flat__fridge {
   position: absolute;
   padding: 0;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #2A2E2C 0%, #1D2120 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05);
+  border-radius: 3px 3px 4px 4px;
+  background: linear-gradient(100deg, #1E2624 0%, #161D1C 62%, #1A2220 100%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 6px 16px rgba(0,0,0,.45);
   cursor: pointer;
 }
 .home-flat__fridge-split {
-  position: absolute; left: 5px; right: 5px; top: 42%;
+  position: absolute; left: 0; right: 0; top: 30px;
   height: 1px;
   background: rgba(255, 255, 255, 0.09);
 }
 .home-flat__fridge-handle {
-  position: absolute; right: 7px; top: 22%;
-  width: 2px; height: 30%;
-  border-radius: 1px;
-  background: rgba(237, 237, 237, 0.35);
+  position: absolute; right: 6px; top: 38px;
+  width: 3px; height: 26px;
+  border-radius: 2px;
+  background: rgba(255,255,255,.22);
 }
+.home-flat__fridge-handle--freezer { top: 9px; height: 14px; opacity: .82; }
+.home-flat__fridge-stock { position: absolute; left: 7px; bottom: 8px; display: flex; gap: 2.5px; align-items: flex-end; }
+.home-flat__fridge-stock i { width: 4px; height: 11px; border-radius: 1px 1px 2px 2px; background: rgba(122,168,138,.55); }
+.home-flat__fridge-stock b { width: 7px; height: 6px; border-radius: 1px; background: rgba(205,179,128,.4); margin-left: 1.5px; }
+.home-flat__right-wall { position: absolute; right: 0; top: 94px; bottom: 0; width: 8px; background: linear-gradient(90deg, rgba(0,0,0,.25), #131A19); border-left: 1px solid rgba(255,255,255,.05); }
 
 .home-flat__lamp {
   position: absolute;
@@ -779,11 +800,14 @@ button.home-flat__table:active { filter: brightness(1.12); }
   backdrop-filter: blur(12px);
 }
 .home-thread__line {
+  min-height: 20px;
+  height: 20px;
+  line-height: 15px;
   width: 100%;
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 0 1px 8px;
+  padding: 0 1px 5px;
   background: none;
   border: none;
   text-align: left;
@@ -820,6 +844,9 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-thread__composer:focus-within { border-color: var(--accent, #00D4AA); }
 .home-thread__input {
+  min-height: 0;
+  height: 32px;
+  font-family: Inter, system-ui, sans-serif;
   flex: 1;
   min-width: 0;
   width: auto;
@@ -831,6 +858,8 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-thread__input:focus { outline: none; }
 .home-thread__send {
+  min-height: 26px;
+  padding: 0;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
@@ -840,6 +869,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: #06110F;
   cursor: pointer;
 }
+.home-thread__send::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; }
 .home-thread__send:disabled { opacity: 0.35; cursor: default; }
 
 /* Expanded: a glass sheet OVER the room. The room never resizes for it. */

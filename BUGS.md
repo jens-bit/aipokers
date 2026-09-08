@@ -1,6 +1,14 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-59 — mobile room shell duplicates navigation and leaves unused width — FIXED on overnight branch
+Global Header stacked above CasinoHead/FloorView; Home capped its room scale at 1 and app at 420px. Use each room's contextual header, direct Home exit and in-header Floor/Board toggle, and scale Home to viewport width. Preserve the kitchen table. Port safe/couch/fridge detail and actual balance. Browser regression failed before (no Home heading) and passes at 390/490; four-agent hit checks and roster navigation pass. Intentional old-test changes: global wordmark/count becomes Home+Railbird mark, casino back chain becomes toggle+Home, safe/TV may show money while the kitchen table never prices seats. See OVERNIGHT_DESIGN_WORK.md for complete gates and remaining visual gaps.
+
+### BUG-60 — room conversation band is 100px and send control is oval — FIXED on overnight branch
+Global button/input minimum heights overrode the 26px send and compact line. Browser regression reproduced 100px band (then 80px in the first correction). Explicit control geometry gives a 76px band and circular 26px send with an enlarged touch target. Opening thread and composing remain functional. Imported the reference's Inter/JetBrains Mono font families, previously requested by components but absent from the page.
+
+**BUG-39/34 overnight verifier update:** cache verifier now drains HTTP responses before cleanup, waits for child close before removing scratch data, uses exitCode rather than forced process.exit, and allows 30 seconds for readiness. Unexpected exceptions now increment failures. Full test:all passed after the observed native abort; BUG-34 is not claimed globally resolved.
+
 
 ---
 

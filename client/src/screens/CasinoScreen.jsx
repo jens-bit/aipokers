@@ -176,6 +176,7 @@ export function CasinoScreen({
   // the casino through the door, so the way out of it is a back arrow rather
   // than a tab; the desk never passes one, because the desk did not leave home.
   onBack = null,
+  onOpenRoster = null,
   desktop = false,
 }) {
   const [agents, setAgents] = useState([]);
@@ -419,6 +420,8 @@ export function CasinoScreen({
   const head = (
     <CasinoHead
         sub={sub}
+        onOpenRoster={desktop ? null : onOpenRoster}
+        toggle={!desktop && !trayAgent && rooms.length > 0 ? <ViewToggle view={view} onChange={changeView} /> : null}
         onBack={desktop ? null : onBack}
         lit={rooms.length > 0}
         right={trayAgent ? (
@@ -431,7 +434,7 @@ export function CasinoScreen({
               border: '1px solid rgba(255,255,255,0.12)', color: '#A1A1A1', fontSize: 9, cursor: 'pointer',
             }}
           >Not now</button>
-        ) : (
+        ) : desktop ? (
           <span style={{
             display: 'inline-flex', alignItems: 'center', height: 17, padding: '0 7px',
             borderRadius: 9, background: 'rgba(14,17,18,0.86)',
@@ -441,7 +444,7 @@ export function CasinoScreen({
               {money(net, { sign: true })}
             </Num>
           </span>
-        )}
+        ) : null}
     />
   );
 
@@ -563,6 +566,8 @@ export function CasinoScreen({
   const floorView = view === 'floor' && openRoom && !trayAgent ? (
     <FloorView
       room={openRoom}
+      onHome={desktop ? null : onBack}
+      onOpenRoster={desktop ? null : onOpenRoster}
       desktop={desktop}
       felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
@@ -658,7 +663,6 @@ export function CasinoScreen({
       style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
       {head}
-      {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
       {roomsColumn}
       {tray}
     </div>

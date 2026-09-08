@@ -127,6 +127,25 @@ function PersonIcon() {
   );
 }
 
+// Board 29 HomeHead: the room owns its one 46px contextual header.
+// Reuse the roster doorway in the casino instead of stacking app chrome.
+export function RosterButton({ onOpenRoster }) {
+  return <button type="button" className="room-header__roster" onClick={onOpenRoster} aria-label="Your agents"><PersonIcon /></button>;
+}
+
+export function RoomHeader({ title, subtitle, onOpenRoster }) {
+  return (
+    <header className="room-header" data-testid="room-header">
+      <RailMark size={20} />
+      <div className="room-header__copy">
+        <h1>{title}</h1>
+        {subtitle && <div className="room-header__sub">{subtitle}</div>}
+      </div>
+      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
+    </header>
+  );
+}
+
 export function Header({
   status, game, mySeat, hasConfig,
   historyCount, reconnectAttempt, maxReconnectAttempts,

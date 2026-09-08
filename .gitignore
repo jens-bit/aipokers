@@ -27,3 +27,6 @@ home2-shots/
 # Scratch that lands next to the repo rather than in it: screenshots and
 # exports dropped here while looking at a design. Never part of a build.
 Claude outputs/
+
+# Local design imports, comparison renders and overnight test evidence.
+artifacts/

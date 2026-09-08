@@ -3,7 +3,8 @@
 // index.html (no-store) and hashed /assets/* (immutable).
 // Run: node scripts/verify-cache-headers.js
 
-import { execSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import fs, { existsSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,15 +60,17 @@ async function fetchHeaders(urlPath) {
   return new Promise((resolve, reject) => {
     const options = { hostname: '127.0.0.1', port: PORT, path: urlPath, method: 'GET' };
     const req = http.request(options, (res) => {
-      res.resume(); // drain body
-      resolve({ status: res.statusCode, headers: res.headers });
+      // BUG-39/34: finish the response before beginning process cleanup.
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers }));
+      res.on('error', reject);
+      res.resume();
     });
     req.on('error', reject);
     req.end();
   });
 }
 
-async function waitForServer(retries = 20) {
+async function waitForServer(retries = 150) {
   for (let i = 0; i < retries; i++) {
     try {
       await fetchHeaders('/');
@@ -105,8 +108,7 @@ async function run() {
     console.log('Server up.\n');
   } catch (err) {
     console.error('Server failed to start:', err.message);
-    serverProc.kill();
-    process.exit(1);
+    throw err;
   }
 
   // ── index.html: no-store ────────────────────────────────────────────────────
@@ -142,9 +144,15 @@ async function run() {
 }
 
 run()
-  .catch((err) => { console.error(err); })
-  .finally(() => {
-    if (serverProc) serverProc.kill();
+  .catch((err) => { failed++; console.error(err); })
+  .finally(async () => {
+    // A killed child still owns pipes and SQLite files until close. Forcing
+    // process.exit here could interrupt libuv shutdown, especially on Windows.
+    if (serverProc && serverProc.exitCode === null && serverProc.signalCode === null) {
+      const closed = once(serverProc, 'close');
+      serverProc.kill();
+      await closed;
+    }
     if (serverCwd) { try { fs.rmSync(serverCwd, { recursive: true, force: true }); } catch { /* best effort */ } }
-    process.exit(failed > 0 ? 1 : 0);
+    process.exitCode = failed > 0 ? 1 : 0;
   });

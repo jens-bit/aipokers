@@ -7,6 +7,8 @@ Dates are UTC. Format: `[version] — date — summary`.
 
 ## [Unreleased] — 2026-09-08 — Astra security and home repairs
 
+- Overnight design batch 1 (BUG-59/60): Home/casino use one contextual header and the full Telegram width, with direct Home navigation and accessible roster. Ported Home furniture, actual safe balance and design text fonts; fixed the inflated conversation band/send button. Watch layout preserved. Updated navigation/price tests for explicit reference rules and repaired cache verifier cleanup/error reporting. Full design parity remains in progress in `read-me-claude/OVERNIGHT_DESIGN_WORK.md`.
+
 - Railbird playtest follow-up (BUG-55–58): fixed the agent speech slot stealing table clicks, removed duplicated room requests, compacted the request strip, and made short Telegram rooms scroll. Ported the actual Railbird mark/wordmark into app/guest/desktop headers, title/favicon and /welcome. Mobile count now identifies casino seats. Added the four-agent browser regression to deployment CI and corrected the stale couch-drop check to assert the actual server outcome. Evidence and remaining design gaps: `read-me-claude/RAILBIRD_PLAYTEST_REPAIR.md`.
 
 Telegram verification rejects malformed signatures; agent mutations check ownership; public profile, flagged-hand, memory, session and hand-history paths withhold private data. WebSocket owners authenticate, public viewers receive a public viewpoint, and clients send credentials on watch/join and legacy queue/finish calls. Failed model builds keep the draft and return a retryable error.

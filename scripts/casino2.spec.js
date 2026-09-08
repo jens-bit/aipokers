@@ -309,7 +309,10 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         await shot(page, `${shell}-casino2-room`);
 
         // And back out the way you came in.
-        await page.getByRole('button', { name: 'Back to the casino' }).click();
+        // BUG-59: Home is a direct exit; Floor/Board switches the casino view.
+        // The desktop still has its own room-to-building back control.
+        if (desktop) await page.getByRole('button', { name: 'Back to the casino' }).click();
+        else await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
         await expect(page.getByTestId('floor-view')).toHaveCount(0);
         await expect(page.locator('.csn-room-door')).toHaveCount(3);
       });
