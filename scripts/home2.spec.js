@@ -131,6 +131,11 @@ test.describe('HOME-2 job 1 · the three destinations are things in the world', 
     await expect(page.getByTestId('home-screen')).toHaveCount(0);
     await shot(page, 'job1-casino');
 
+    // BUGS-C-12: the casino now opens on the floor, not the building, so
+    // "Back home" is not the first control an owner meets — the floor's own
+    // back control (← THE CASINO) returns to the board first, and the board's
+    // is the one that says Back home.
+    await page.getByRole('button', { name: 'Back to the casino' }).click();
     await page.getByRole('button', { name: 'Back home' }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
   });
