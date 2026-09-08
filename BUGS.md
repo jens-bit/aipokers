@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-64 — the fridge cannot be restocked — FIXED on overnight branch
+The sheet only called /give despite the server supporting household stock. Ported board 29 F13: confirmed counts/prices, Buy 6 from the safe, unknown/error/retry states, and wallet refresh after purchase. Giving remains the want/Carry action. Tests failed before implementation on the missing stock controls; purchase, wallet refusal and failed GET now pass. Phone and desktop checks cover the new control; matched-stock reference pair inspected. Old GIVE expectations intentionally changed to the designed BUY 6 flow.
+
+### BUG-65 — Home's room composer sends privately and ignores room replies — FIXED on overnight branch
+The phone claimed to address the room but targeted one agent and vanished in an empty household. It now uses the existing owner-gated /api/home/thread and /api/home/say routes, displays actual speakers and listens to owner_line messages scoped to today's household session. Other owners and private table sessions are excluded. Failed sends restore the draft. The same socket feeds the desktop room rail. Regression tests failed before stream merge/error handling and now cover empty Home, actual POST, attribution, deduplication and private-session exclusion. No new model path was added.
+
 ### BUG-61 — failed or unfulfilled want answers disappear — FIXED on overnight branch
 Home's WantToast called onAnswered even after a non-200 response; a successful HTTP response with `answered: null, needs: stock` also cleared an unfulfilled request. Both Home and the new agent view keep the question pending, report transport/refusal failures, and open the fridge for stock. Tests reproduced both failures before correction. Fridge stock UI itself remains a separate unfinished port; do not confuse opening that sheet with a completed restocking flow.
 

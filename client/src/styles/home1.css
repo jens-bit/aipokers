@@ -1085,6 +1085,35 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: var(--text-faded, #4A4A4A);
 }
 
+/* F13: household shelves; counts and prices come from the server. */
+.fridge-stock{font-family:Inter,sans-serif;letter-spacing:normal}
+.fridge-stock__handle{height:4px;width:30px;margin:2px auto 0;border-radius:4px;background:#ffffff33}
+.fridge-stock .home-sheet__head{gap:8px;margin:0;padding:0;height:32px}
+.fridge-stock .home-sheet__close{min-height:32px;padding:0;align-self:stretch;font-size:14px}
+.fridge-stock .home-sheet__title{font:600 9px Oswald,sans-serif;letter-spacing:.16em;flex:0;color:#6B6B6B;white-space:nowrap}
+.fridge-stock__from{flex:1;font-size:10.5px;color:#6B6B6B}
+.fridge-stock__row{display:flex;align-items:center;gap:10px;padding:3px 0;border-top:1px solid #ffffff1f}
+.fridge-stock__icon{position:relative;display:block;flex-shrink:0;width:26px;height:22px}
+.fridge-stock__icon:before{content:"";position:absolute;bottom:0;left:9px;width:8px;height:20px;border-radius:2px 2px 3px 3px;background:#7aa88ab3;border-top:3px solid #7AA88A}
+.fridge-stock__icon--snack:before{left:4px;width:18px;height:13px;border:0;border-radius:2px;background:#cdb38077}
+.fridge-stock__icon.is-empty:before{background:#ffffff1a;border-color:#ffffff24}
+.fridge-stock__detail{flex:1;min-width:0}
+.fridge-stock__detail>div{display:flex;align-items:baseline;gap:7px}
+.fridge-stock__detail b{font:600 10px Oswald,sans-serif;letter-spacing:.12em;color:#EDEDED}
+.fridge-stock__count{font:700 11px 'JetBrains Mono',monospace;color:#00D4AA}
+.fridge-stock__count.is-empty{color:#FF4D4F}
+.fridge-stock__detail small{display:block;margin-top:2px;font:10.5px Inter,sans-serif;color:#6B6B6B}
+.fridge-stock__detail small span{font:9.5px 'JetBrains Mono',monospace}
+.fridge-stock__buy{min-height:44px;min-width:44px;flex-shrink:0;border:0;padding:0;font:600 8.5px Oswald,sans-serif;letter-spacing:.1em;color:#CDB380;background:transparent}
+.fridge-stock__buy span{display:block;border:1px solid #cdb38055;border-radius:10px;padding:4px 10px}
+.fridge-stock__foot{margin:6px 0 0;padding-top:10px;border-top:1px solid #ffffff1a;font:10.5px/1.5 Inter,sans-serif;color:#6B6B6B}
+.fridge-stock__foot b{color:#A1A1A1}
+.fridge-stock__loading,.fridge-stock__error{padding:6px 0;font:11px/1.4 Inter,sans-serif;color:#CDB380}
+.fridge-stock__error button{display:block;padding:6px 0;color:#CDB380;font:11px Inter,sans-serif}
+.home-thread__error{position:absolute;left:12px;right:12px;bottom:76px;padding:8px 10px;border:1px solid #cdb38044;border-radius:10px;background:#1b2019;color:#CDB380;font:11px/1.4 Inter,sans-serif;z-index:20}
+.home-thread__night{margin:6px 12px;border-top:1px solid #cdb38044;padding-top:6px}
+.home-thread__night summary{min-height:32px;color:#CDB380;font:600 9px/32px Oswald,sans-serif;letter-spacing:.12em;cursor:pointer}
+
 /* ── Keyframes ───────────────────────────────────────────────────────────── */
 
 @keyframes home-shimmer {

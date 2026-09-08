@@ -30,6 +30,7 @@
 //      because a fixture panel is a decision and an unanswered ask on top of
 //      one is two questions at once.
 
+import { useCallback, useState } from 'react';
 import { SafeSheet } from '../wallet/SafeSheet.jsx';
 import { FridgeSheet } from '../home/FridgeSheet.jsx';
 import { RoomThread } from '../home/RoomThread.jsx';
@@ -86,13 +87,16 @@ export function DeskHome({
   // THREAD-2's room thread. It is read here rather than inside RoomThread so a
   // `say` and the reload it triggers stay owned by the thing that also owns the
   // panel — the same rule DeskWalletPanel follows about the wallet.
-  const room = useHomeThread();
+  const [ownerLines, setOwnerLines] = useState([]);
+  const receiveOwnerLine = useCallback(line => setOwnerLines(prev => [...prev.filter(l => l.id !== line.id), line].slice(-200)), []);
+  const room = useHomeThread({ pushed: ownerLines });
   const { slots } = useSlots();
 
   return (
     <HomeScreen
       desktop
       wsUrl={wsUrl}
+      onOwnerLine={receiveOwnerLine}
       onWatch={onWatch}
       onProfile={onProfile}
       onDeploy={onDeploy}
@@ -134,9 +138,8 @@ export function DeskHome({
             <RailPanel title="The fridge" onClose={backToRoom}>
               <FridgeSheet
                 variant="rail"
-                agents={home}
                 onClose={backToRoom}
-                onGiven={() => refresh()}
+                onStocked={() => { onRefreshWallet?.(); refresh(); }}
               />
             </RailPanel>
           );

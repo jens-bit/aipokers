@@ -89,10 +89,11 @@ export const ServerMsg = Object.freeze({
   // TABLE-SCOPED — { tableId, sessionId, agentId, line }, delivered to the
   // sockets watching that seat. The server pushes the SAME written line a
   // second way, to the owner's floor channel, under the name OWNER_LINE
-  // ('owner_line'); nothing here consumes that yet, and when something does it
-  // gets its own constant. One name per payload shape: a client that had to
+  // ('owner_line'), consumed by the household stream with a session filter.
+  // One name per payload shape: a client that had to
   // sniff which 'thread_line' it just received is a bug waiting to happen.
   THREAD_LINE: 'thread_line',
+  OWNER_LINE: 'owner_line',
 });
 
 export const Streets = Object.freeze({

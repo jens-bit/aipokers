@@ -160,6 +160,7 @@ async function stub(page, { agents = AGENTS, game = GAME, slots = null } = {}) {
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: { sessionId: 's1', lines: [], count: 0 } }));
   await page.route('**/api/agents/*/hands**', (route) => route.fulfill({ json: { recentHands: [] } }));
   await page.route('**/api/home/thread**', (route) => route.fulfill({ json: ROOM_THREAD }));
+  await page.route('**/api/fridge?**', route => route.fulfill({ json: { items: [{ id: 'beer', count: 4, price: 12 }, { id: 'snack', count: 2, price: 8 }] } }));
   await page.route('**/api/slots**', (route) => route.fulfill({
     json: slots ?? { used: 3, cap: 4, next: { index: 4, price: 250_000, earned: 41_000, unlocked: false } },
   }));
@@ -306,7 +307,8 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
     await page.getByTestId('home-fridge').click();
 
     await expect(page.getByTestId('home-fridge-sheet')).toBeVisible();
-    await expect(page.getByTestId('home-give-beer')).toBeVisible();
+    // F13 stocks the household shelf; giving happens through a want or Carry.
+    await expect(page.getByTestId('home-buy-beer')).toBeEnabled();
     await expect(page.getByTestId('desk-roster')).toBeVisible();
     await page.waitForTimeout(300);
     await shot(page, 'fridge');

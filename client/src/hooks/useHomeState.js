@@ -47,9 +47,13 @@ export function useHomeState({
   userId = undefined,
   initData = undefined,
   enabled = true,
+  onOwnerLine = null,
 } = {}) {
   const [agents, setAgents] = useState([]);
   const [game, setGame] = useState(null);
+  const [ownerLines, setOwnerLines] = useState([]);
+  const ownerLineRef = useRef(onOwnerLine);
+  ownerLineRef.current = onOwnerLine;
   // BUGS-A job 2: has the roster ANSWERED yet?
   //
   // `agents.length === 0` is two different facts wearing one shape — "he has
@@ -104,6 +108,7 @@ export function useHomeState({
       if (!res.ok) return;
       const body = await res.json();
       if (!aliveRef.current) return;
+
       if (!Array.isArray(body?.agents)) return;
       setLoaded(true);
       const pushed = pushRef.current;
@@ -156,6 +161,13 @@ export function useHomeState({
       try { msg = JSON.parse(event.data); } catch { return; }
       if (!aliveRef.current) return;
 
+      if (msg?.type === ServerMsg.OWNER_LINE && String(msg.userId) === String(wireUserId) && msg.line) {
+        const line = { ...msg.line, sessionId: msg.line.sessionId ?? msg.sessionId };
+        setOwnerLines(prev => [...prev.filter(l => l.id !== line.id), line].slice(-200));
+        ownerLineRef.current?.(line);
+        return;
+      }
+
       if (msg?.type === ServerMsg.HOME_STATE) {
         if (Array.isArray(msg.agents)) {
           setLoaded(true);
@@ -206,6 +218,7 @@ export function useHomeState({
   useEffect(() => {
     if (!enabled) { setStatus('idle'); return undefined; }
     aliveRef.current = true;
+    setOwnerLines([]);
     attemptRef.current = 0;
     refresh();
     if (wsUrl && wireUserId) openSocketRef.current();
@@ -247,6 +260,7 @@ export function useHomeState({
     status, refresh, setAgents, clearWant,
     arrival, clearArrival: () => setArrival(null),
     visitor,
+    ownerLines,
   };
 }
 

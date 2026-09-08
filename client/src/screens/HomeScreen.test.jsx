@@ -493,6 +493,27 @@ describe('VISIT-1 · a friend at the door', () => {
 // ── The thread ──────────────────────────────────────────────────────────────
 
 describe('HOME-1 · the thread', () => {
+  it('BUG-65: an empty Home still has its composer and says it to the household route', async () => {
+    let body;
+    fetchMock.route('/api/home/say', ({ body: sent }) => { body = sent; return { sessionId: 's1', said: sent.text, home: 0, replies: [] }; });
+    await boot([]);
+    const input = await screen.findByTestId('home-thread-input');
+    await userEvent.type(input, 'Anyone here?');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(body).toEqual({ userId: '4242', text: 'Anyone here?' }));
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(0);
+    expect(screen.getByTestId('home-table')).toBeInTheDocument();
+  });
+
+  it('BUG-65: a household reply streams into the strip, with the actual speaker', async () => {
+    const { sock } = await boot([mkAgent('a1', 'The Clock')]);
+    await waitFor(() => expect(fetchMock.requestsMatching('/api/home/thread').length).toBeGreaterThan(0));
+    await act(async () => sock.emit({ type: 'owner_line', userId: '4242', sessionId: 's1', line: { id: 12, kind: 'him', who: 'The Clock', text: 'I heard the room.', ts: 500 } }));
+    await waitFor(() => expect(screen.getByTestId('home-thread-line')).toHaveTextContent('I heard the room.'));
+    expect(screen.getByTestId('home-thread-line')).toHaveTextContent('The Clock');
+    await act(async () => sock.emit({ type: 'owner_line', userId: 'other', sessionId: 's1', line: { id: 13, kind: 'him', text: 'A stranger’s message', ts: 600 } }));
+    expect(screen.getByTestId('home-thread-line')).not.toHaveTextContent('stranger');
+  });
   it('collapsed it is one line and a composer', async () => {
     await boot([mkAgent('a1', 'The Clock', {
       unseenRecap: true,
@@ -566,7 +587,7 @@ describe('HOME-1 · the thread', () => {
     // rather than dropping the tap on the floor.
     await boot([mkAgent('a1', 'The Clock')]);
     await userEvent.click(await screen.findByRole('button', { name: /The Clock — / }));
-    expect(await screen.findByRole('dialog', { name: /The Clock/i })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'The room conversation' })).toBeInTheDocument();
   });
 
   // BUGS-A job 11 REVERSED HALF OF THIS RULE, deliberately.
@@ -579,8 +600,9 @@ describe('HOME-1 · the thread', () => {
   // plus a model call made send look like a broken button.
   it('shows YOUR line at once, and never puts words in his mouth', async () => {
     let resolveSend;
-    const onSend = () => new Promise((r) => { resolveSend = r; });
-    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // BUG-65: the visible room field now calls the household route.
+    fetchMock.route('/api/home/say', () => new Promise(r => { resolveSend = r; }), { method: 'POST' });
+    await boot([mkAgent('a1', 'The Clock')]);
 
     const input = await screen.findByTestId('home-thread-input');
     await userEvent.type(input, 'you punted that');
@@ -597,8 +619,9 @@ describe('HOME-1 · the thread', () => {
 
   it('attributes it to YOU, in order, once the sheet is open', async () => {
     let resolveSend;
-    const onSend = () => new Promise((r) => { resolveSend = r; });
-    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // BUG-65: the visible room field now calls the household route.
+    fetchMock.route('/api/home/say', () => new Promise(r => { resolveSend = r; }), { method: 'POST' });
+    await boot([mkAgent('a1', 'The Clock')]);
     // Registered after boot: routes match newest-first, so this wins over the
     // empty thread `defaults()` puts in.
     fetchMock.route(/\/thread\?/, () => ({
@@ -623,8 +646,9 @@ describe('HOME-1 · the thread', () => {
   it('a line the server never stored does not stay — then it was never said', async () => {
     // The reload is the truth, and this thread endpoint returns nothing ever.
     let resolveSend;
-    const onSend = () => new Promise((r) => { resolveSend = r; });
-    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // BUG-65: the visible room field now calls the household route.
+    fetchMock.route('/api/home/say', () => new Promise(r => { resolveSend = r; }), { method: 'POST' });
+    await boot([mkAgent('a1', 'The Clock')]);
 
     await userEvent.type(await screen.findByTestId('home-thread-input'), 'you punted that');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -639,8 +663,9 @@ describe('HOME-1 · the thread', () => {
   // field the way it does everywhere else in the app (FIX-6).
   it('BUGS-C-5: Enter sends, same as tapping the arrow', async () => {
     let resolveSend;
-    const onSend = () => new Promise((r) => { resolveSend = r; });
-    await boot([mkAgent('a1', 'The Clock')], null, { onSend });
+    // BUG-65: the visible room field now calls the household route.
+    fetchMock.route('/api/home/say', () => new Promise(r => { resolveSend = r; }), { method: 'POST' });
+    await boot([mkAgent('a1', 'The Clock')]);
 
     const input = await screen.findByTestId('home-thread-input');
     await userEvent.type(input, 'he was priced in{Enter}');
@@ -843,15 +868,18 @@ describe('BUGS-C job 4: the CASINO sign', () => {
 // ── The fixtures that open sheets ───────────────────────────────────────────
 
 describe('HOME-1 · the safe and the fridge', () => {
-  it('the fridge opens the stock sheet and gives one thing to one agent', async () => {
-    let given = null;
-    fetchMock.route(/\/give\?/, ({ body }) => { given = body; return { ok: true, moment: { text: 'That helps. Thanks.' } }; }, { method: 'POST' });
+  it('BUG-64: F13 stocks the household from the safe, without silently giving an item', async () => {
+    let stocked = null;
+    fetchMock.route('/api/fridge', { items: [{ id: 'beer', count: 0, price: 12 }, { id: 'snack', count: 2, price: 8 }] });
+    fetchMock.route('/api/fridge/stock', ({ body }) => { stocked = body; return { qty: 6, fridge: { beer: 6, snack: 2 } }; }, { method: 'POST' });
     await boot([mkAgent('a1', 'The Clock')]);
 
     await userEvent.click(await screen.findByTestId('home-fridge'));
-    await userEvent.click(await screen.findByTestId('home-give-beer'));
-    await waitFor(() => expect(given).toEqual(expect.objectContaining({ item: 'beer' })));
-    expect(await screen.findByText('That helps. Thanks.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('home-buy-beer')).toBeEnabled());
+    await userEvent.click(screen.getByTestId('home-buy-beer'));
+    await waitFor(() => expect(stocked).toEqual(expect.objectContaining({ item: 'beer', qty: 6 })));
+    expect(await screen.findByText('Bought 6 beers from the safe.')).toBeInTheDocument();
+    expect(fetchMock.requestsMatching('/give')).toHaveLength(0);
   });
 
   it('the room never prints a seat price', async () => {

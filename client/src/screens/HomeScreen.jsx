@@ -297,6 +297,7 @@ export function HomeScreen({
   // only shell that needs it: the desk has the building beside it in a rail.
   onCasino,
   onOpenRoster,
+  onOwnerLine,
   carryAgentId = null,
   onCarryStarted,
   onOpenWallet,
@@ -327,8 +328,8 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
-  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded, visitor } =
-    useHomeState({ wsUrl });
+  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
+    useHomeState({ wsUrl, onOwnerLine });
 
   // The home game runs on its own spectator socket. The app's table socket
   // belongs to whatever the owner chose to watch, and the kitchen table must
@@ -593,8 +594,8 @@ export function HomeScreen({
     if (needs === 'deploy') onDeploy?.(agent, { room });
     else if (needs === 'fund') onOpenWallet?.(agent);
     else if (needs === 'stock') { if (desktop) setRail('fridge'); else setFridgeOpen(true); }
-    else if (needs === 'thread') { setFocusId(agent.id); setThreadOpen(true); }
-  }, [onDeploy, onOpenWallet, desktop]);
+    else if (needs === 'thread') { setFocusId(agent.id); if (desktop) setRail('agent'); else if (onOpenThread) onOpenThread(agent); else setThreadOpen(true); }
+  }, [onDeploy, onOpenWallet, onOpenThread, desktop]);
 
   // Tapping a body opens HIS THREAD — the screen, not the band. CASINO-1 took
   // CHATS off the tab bar on the promise that the thread is reached from Home
@@ -868,6 +869,9 @@ export function HomeScreen({
       {carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
 
       <HomeThread
+        roomMode
+        roomPushed={ownerLines}
+        connection={roomConnection}
         agent={focus}
         open={threadOpen}
         onToggle={setThreadOpen}
@@ -895,10 +899,9 @@ export function HomeScreen({
       ) : null}
 
       {fridgeOpen ? (
-        <FridgeSheet
-          agents={home}
-          onClose={() => setFridgeOpen(false)}
-          onGiven={() => refresh()}
+          <FridgeSheet
+            onClose={() => setFridgeOpen(false)}
+            onStocked={() => refresh()}
         />
       ) : null}
 

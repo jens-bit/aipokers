@@ -203,7 +203,8 @@ describe('DESK-2 · the fixtures open in the rail', () => {
     // has the close, so the sheet contributes only its stock.
     expect(within(sheet).queryByRole('button', { name: /^Close$/ })).toBeNull();
     expect(sheet.querySelector('.home-sheet__head')).toBeNull();
-    expect(screen.getByTestId('home-give-beer')).toBeInTheDocument();
+    // F13 stocks the household; agents fetch through wants or placement.
+    expect(screen.getByTestId('home-buy-beer')).toBeInTheDocument();
   });
 
   it('the table prices the next chair from the server, and does not offer a locked one', async () => {

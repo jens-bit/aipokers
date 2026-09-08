@@ -123,6 +123,8 @@ async function stub(page, cast) {
   await page.route('**/api/agents?**', (route) => route.fulfill({ json: { agents: cast.agents } }));
   await page.route('**/api/agents/*/study**', (route) => route.fulfill({ json: cast.study ?? { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: THREAD }));
+  await page.route('**/api/home/thread**', route => route.fulfill({ json: cast.agents.length ? THREAD : { sessionId: 'home-empty', lines: [], count: 0 } }));
+  await page.route('**/api/fridge?**', route => route.fulfill({ json: { items: [{ id: 'beer', count: 4, price: 12 }, { id: 'snack', count: 2, price: 8 }] } }));
   await page.route('**/api/wallet**', (route) => route.fulfill({ json: { balance: 12_000, ledger: [] } }));
   await page.route('**/api/events**', (route) => route.fulfill({ json: { events: [], lastId: 0 } }));
   await page.route('**/api/rooms**', (route) => route.fulfill({ json: { rooms: [], hotWindowMs: 20_000 } }));
@@ -192,6 +194,20 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  test('BUG-64: F13 renders stock and buys six from the safe', async ({ page }) => {
+    await room(page, CASTS.alone);
+    const bought = [];
+    await page.route('**/api/fridge/stock', r => { bought.push(r.request().postDataJSON()); return r.fulfill({ json: { qty: 6, fridge: { beer: 10, snack: 2 } } }); });
+    await page.getByTestId('home-fridge').click();
+    const shelf = page.getByTestId('fridge-shelf-beer');
+    await expect(shelf).toContainText('× 4');
+    await expect(shelf).toContainText('$12 each');
+    await expect(page.locator('.fridge-stock')).toHaveCSS('opacity', '1');
+    await page.screenshot({ path: '../artifacts/fridge-f13.png' });
+    await shelf.getByRole('button', { name: 'Buy 6 beer' }).click();
+    await expect(shelf).toContainText('× 10');
+    expect(bought).toEqual([{ userId: '4242', item: 'beer', qty: 6 }]);
+  });
   for (const [frame, companion] of [
     ['c1', agent('bal', 'Balanced v2.1', { nickname: 'Bal', mood: { state: 'confident', heat: 22 }, drinking: true, opener: 'Put me in.', pocket: { balance: 1200, cap: 5000 } })],
     ['c2', agent('agg', 'Aggressive v1.3', { nickname: 'Agg', mood: { state: 'tilted', heat: 84 }, fatigue: 'settled', opener: 'Still thinking about that cooler against The Grinder.', want: { text: 'Let me back in there. Right now.', dangerous: true }, pocket: { balance: 640, cap: 2000 } })],

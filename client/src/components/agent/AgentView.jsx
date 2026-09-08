@@ -66,10 +66,10 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     finally { setBusy(null); }
   }
 
-  async function afterGiven() {
+  async function afterStocked() {
     setFridgeOpen(false);
-    // Giving a different item is not proof that his pending request was met.
-    // Read the server's new want instead of inventing an answer locally.
+    // Stocking a shelf is not giving an item. Read the updated request and
+    // let the owner answer it; only the server decides what he needs.
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
       if (!res.ok) return;
@@ -121,6 +121,6 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       <div><input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Whisper to him…" disabled={loading}/><button type="submit" aria-label="Send" disabled={loading || !draft.trim()}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button></div>
     </form>
     {funding && <div className="agent-view__fund"><FundSheet agent={currentAgent} wallet={wallet} onCancel={() => { setFunding(false); setError(''); }} onConfirm={fund}/>{error && <div className="agent-view__error" role="alert">{error}</div>}</div>}
-    {fridgeOpen && <FridgeSheet agents={[currentAgent]} onClose={() => setFridgeOpen(false)} onGiven={afterGiven}/>}
+    {fridgeOpen && <FridgeSheet onClose={() => setFridgeOpen(false)} onStocked={afterStocked}/>}
   </section>;
 }

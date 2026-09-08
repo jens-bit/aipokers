@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 3
+
+F13 fridge is ported with actual household stock and Buy 6 charged by the server to the safe. Reference/actual pair `client/e2e/shots/overnight-batch3-fridge-f13.png` uses matching 4 beers/2 snacks and $12/$8 prices; differing occupants/balance and the retained table are labelled. Small visible buy pills retain 44px touch targets. Manual GIVE rows were an earlier interaction, intentionally replaced by the stock shelf; want answers and Carry still give items.
+
+Empty and occupied Home share the 76px conversation strip. It speaks to the household route and renders streamed replies, including overheard conversations when expanded. Private whispers remain in the agent view. BUG-64/65 are fixed on the branch. Casino's bottom conversation band, first meeting, C4–C9 and other listed differences remain pending; this entry supersedes the earlier claim that restocking/empty composer are missing. No production deployment is claimed.
+
 ## Overnight design port — 2026-09-09, batch 2
 
 Board 42 C1–C3 are now **PARTIAL**, implemented on the actual phone agent route: 178px character, 40px contextual header, real four-action row, inline want answers, saved chat history, compact hand card and Whisper composer. Home/table/roster agent taps reach this view. Watch remains the existing gameplay screen. CARRY opens Home with the agent lifted and lets the next gesture place him; Escape/Cancel drops the selection without a request. Wants and chat have explicit failure handling (BUG-61–63).

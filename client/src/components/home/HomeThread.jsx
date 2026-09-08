@@ -39,19 +39,21 @@ import { GlassLabel } from '../system/Glass.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { pillName } from '../../lib/names.js';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
+import { useHomeThread } from '../../hooks/useHomeThread.js';
 
 const WHO_BY_KIND = { him: 'HIM', you: 'YOU', table: 'TABLE' };
 
 /** Server thread lines → the row shape ThreadRow renders. */
-export function toRows(lines = []) {
+export function toRows(lines = [], { named = false } = {}) {
   return lines.map((l, i) => ({
     id: l.id ?? i,
-    who: WHO_BY_KIND[l.kind] ?? (l.who || 'THEM'),
-    text: l.text,
+    who: named && l.kind !== 'you' ? (l.who || WHO_BY_KIND[l.kind] || 'THEM') : WHO_BY_KIND[l.kind] ?? (l.who || 'THEM'),
+    text: l.text ?? (l.kind === 'overheard' ? l.lines?.[0]?.text : null),
     t: l.ts,
     // HOME-STATE-1: a line said at home rather than at a felt. Carried through
     // so the sheet can mark it; never used to change what the row says.
     source: l.source ?? 'table',
+    ...(l.kind === 'overheard' ? { overheard: l.lines ?? [] } : {}),
   }));
 }
 
@@ -127,9 +129,18 @@ export function HomeThread({
   onSend,
   sending = false,
   toast = null,
+  roomMode = false,
+  roomPushed,
+  connection = null,
 }) {
-  const { rows, loading, reload } = useThread(agent?.id, { enabled: !!agent });
+  const privateThread = useThread(agent?.id, { enabled: !!agent && !roomMode });
+  const room = useHomeThread({ enabled: roomMode, pushed: roomPushed, connection });
+  const rows = roomMode ? toRows(room.lines, { named: true }) : privateThread.rows;
+  const loading = roomMode ? room.loading : privateThread.loading;
+  const reload = roomMode ? room.reload : privateThread.reload;
+  const busy = sending || (roomMode && room.sending);
   const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
   // BUGS-A job 11: what you have said and the server has not served back yet.
   // Cleared by the reload, whose answer is the truth either way.
   const [pending, setPending] = useState([]);
@@ -145,25 +156,31 @@ export function HomeThread({
   const submit = (e) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || sending || !agent) return;
+    if (!text || busy || (!agent && !roomMode)) return;
     setDraft('');
+    setError('');
     // Your own line, at once. His is not appended here — the server writes it
     // and the reload serves it, which is the rule in the header.
     const id = `pending-${++pendingIdRef.current}`;
     setPending((prev) => prev.concat([{ id, who: 'YOU', kind: 'you', text, t: Date.now() }]));
-    Promise.resolve(onSend?.(agent, text)).then(() => {
+    Promise.resolve(roomMode ? room.say(text) : onSend?.(agent, text)).then((body) => {
       // The record has spoken; drop the placeholder whether it is in there or
       // not. Keeping a line the server did not store would be this screen
       // inventing a conversation, which is the one thing it must never do.
       setPending((prev) => prev.filter((r) => r.id !== id));
+      if (roomMode && !body) { setDraft(text); setError('Could not send your message. Please try again.'); }
       reload();
+    }).catch(() => {
+      setPending(prev => prev.filter(r => r.id !== id));
+      setDraft(text); setError('Could not send your message. Please try again.');
     });
   };
 
-  if (!agent) return null;
+  if (!agent && !roomMode) return null;
   // Ordered: the record, then whatever you have said since it was read.
   const shown = pending.length ? rows.concat(pending) : rows;
-  const line = collapsedLine(agent, shown);
+  const line = pending.length ? pending.at(-1).text : (collapsedLine(agent, shown) || (roomMode ? 'Nobody is home.' : ''));
+  const who = roomMode ? (shown.at(-1)?.who || (agent ? pillName(agent.name) : 'THE ROOM')) : pillName(agent.name);
 
   return (
     <div className={`home-thread${open ? ' is-open' : ''}`} data-testid="home-thread" data-open={open ? 'true' : 'false'}>
@@ -173,7 +190,7 @@ export function HomeThread({
         <div
           className={`home-thread__sheet${drag.dragging ? ' is-dragging' : ''}`}
           role="dialog"
-          aria-label={`${agent.name}'s thread`}
+          aria-label={roomMode ? 'The room conversation' : `${agent.name}'s thread`}
           ref={drag.ref}
           style={drag.style}
           {...drag.handlers}
@@ -182,7 +199,7 @@ export function HomeThread({
             <span />
           </button>
           <div className="home-thread__head">
-            <GlassLabel>{pillName(agent.name)}</GlassLabel>
+            <GlassLabel>{roomMode ? 'THE ROOM' : pillName(agent.name)}</GlassLabel>
             <span className="home-thread__spacer" />
             <span className="home-thread__state">{loading ? 'LOADING' : 'AT HOME'}</span>
           </div>
@@ -190,7 +207,7 @@ export function HomeThread({
             {shown.length === 0 && !loading ? (
               <div className="home-thread__empty">Nothing said yet.</div>
             ) : null}
-            {shown.map((r) => <ThreadRow key={r.id} row={r} />)}
+            {shown.map((r) => r.overheard ? <details key={r.id} className="home-thread__night"><summary>OVERHEARD · {r.overheard.length} lines</summary>{r.overheard.map((l, i) => <ThreadRow key={l.id ?? i} row={{ who: l.who || 'THEM', text: l.text, t: l.ts, source: 'home' }}/>)}</details> : <ThreadRow key={r.id} row={r} />)}
           </div>
         </div>
       ) : null}
@@ -203,7 +220,7 @@ export function HomeThread({
           data-testid="home-thread-line"
           aria-expanded={open}
         >
-          <span className="home-thread__who">{pillName(agent.name)}</span>
+          <span className="home-thread__who">{who}</span>
           <span className="home-thread__text">{line}</span>
         </button>
         <form className="home-thread__composer" onSubmit={submit}>
@@ -212,15 +229,17 @@ export function HomeThread({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Say something to the room…"
-            aria-label={`Say something to ${agent.name}`}
+            aria-label={roomMode ? 'Say something to the room' : `Say something to ${agent.name}`}
             data-testid="home-thread-input"
+            disabled={busy}
           />
-          <button type="submit" className="home-thread__send" disabled={!draft.trim() || sending} aria-label="Send">
+          <button type="submit" className="home-thread__send" disabled={!draft.trim() || busy} aria-label="Send">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 12h14M13 6l6 6-6 6" />
             </svg>
           </button>
         </form>
+        {error && <div role="alert" className="home-thread__error">{error}</div>}
       </div>
     </div>
   );

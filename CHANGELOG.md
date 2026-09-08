@@ -1,6 +1,8 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
 All notable changes to this project are documented here.
+
+- Overnight design batch 3 (BUG-64/65): ported F13 fridge stock with real counts/prices, Buy 6 and refusal/retry handling. Home now addresses the household, works empty and consumes room replies without mixing private table chats; desktop shares the stream. Old manual GIVE assertions intentionally follow the approved BUY 6 stock interaction; wants and Carry still give items. Inspected reference pair and server/client/e2e, built smoke and Home2 gates passed. See the overnight log for details and remaining work.
 Dates are UTC. Format: `[version] — date — summary`.
 
 ---

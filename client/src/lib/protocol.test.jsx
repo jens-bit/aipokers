@@ -60,6 +60,8 @@ describe('protocol', () => {
       // it was opened and never again; this is the server saying what it has
       // just written, and the client switches on it in useTable.
       THREAD_LINE: 'thread_line',
+      // BUG-65: owner-proved household stream, separate from a table's line.
+      OWNER_LINE: 'owner_line',
     });
   });
 

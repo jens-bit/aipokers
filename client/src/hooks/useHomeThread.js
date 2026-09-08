@@ -19,7 +19,7 @@
 // tell two different stories. The reload is what puts your line and their
 // answers on screen, in the order the server filed them.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
 function headers() {
@@ -27,8 +27,11 @@ function headers() {
   return initData ? { 'X-Telegram-Init-Data': initData } : undefined;
 }
 
-export function useHomeThread({ enabled = true } = {}) {
+const NONE = [];
+export function useHomeThread({ enabled = true, pushed = NONE, connection = null } = {}) {
   const [lines, setLines] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const aliveRef = useRef(true);
@@ -54,6 +57,7 @@ export function useHomeThread({ enabled = true } = {}) {
       const body = await res.json();
       if (!aliveRef.current) return;
       setLines(Array.isArray(body?.lines) ? body.lines : []);
+      setSessionId(body?.sessionId ?? null);
     } catch {
       // A thread that will not load is an empty rail, not an error state: the
       // room beside it is still the screen.
@@ -63,11 +67,13 @@ export function useHomeThread({ enabled = true } = {}) {
   }, [enabled]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (connection === 'live') load(); }, [connection, load]);
 
   const say = useCallback(async (text) => {
     const said = String(text ?? '').trim();
     if (!said || sending) return null;
     setSending(true);
+    setError('');
     try {
       const userId = getUserId();
       const res = await fetch('/api/home/say', {
@@ -76,16 +82,26 @@ export function useHomeThread({ enabled = true } = {}) {
         body: JSON.stringify({ userId, text: said }),
       });
       const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error('Room send failed');
       // The answers are one model call per agent at home, so the reload happens
       // after the route returns rather than on a timer.
       await load();
       return body;
     } catch {
+      if (aliveRef.current) setError('Could not send your message. Please try again.');
       return null;
     } finally {
       if (aliveRef.current) setSending(false);
     }
   }, [load, sending]);
 
-  return { lines, loading, sending, reload: load, say };
+  const merged = useMemo(() => {
+    if (!sessionId) return lines;
+    const byId = new Map(lines.map(l => [l.id, l]));
+    for (const line of pushed) {
+      if (line?.sessionId === sessionId && line.id != null) byId.set(line.id, line);
+    }
+    return [...byId.values()].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+  }, [lines, pushed, sessionId]);
+  return { lines: merged, loading, sending, error, reload: load, say };
 }
