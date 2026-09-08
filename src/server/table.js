@@ -45,7 +45,10 @@ import { recordModelCall, Kind as MeterKind } from './meter.js';
 // COST-1: the decision router. Before every AI turn the server asks, for free,
 // whether this spot is decided already; the ones that are never reach a model.
 // See router.js for the gates and policyPlay.js for what answers them.
-import { routeFor, Route, newRouteCounter, countRoute, formatRoutes } from './router.js';
+import {
+  routeFor, Route, newRouteCounter, countRoute, formatRoutes,
+  unwatchedPolicyEnabled, UNWATCHED_POLICY_MS,
+} from './router.js';
 // GUEST-1: the one question every model-spending path in this file asks —
 // 'is anybody paying for this owner yet'. See guest.js for what it means and
 // why the answer lives in exactly one file.
@@ -507,6 +510,12 @@ export class Table {
     // sat through. This is the ONE watched-flag that is stored rather than
     // derived, and it is stored precisely because it is a fact about the past.
     this._everWatched = false;
+    // COST-2: the moment watching last stopped, or null while somebody is
+    // still here. Cleared the instant a watcher reappears — see
+    // _unwatchedForMs — so a flicker of disconnect/reconnect never
+    // accumulates across separate unwatched spans the way `_everWatched`
+    // deliberately does for its own, different question.
+    this._unwatchedSince = null;
     // COST-1: the hands worth mentioning, in the order they happened. The
     // input to the end-of-session write-up on an unwatched table — see
     // _writeNightRecap. One sentence per flagged hand, capped, because an
@@ -1776,6 +1785,21 @@ export class Table {
     const watched = this.spectators.length > 0 || this.hasHumanPlayer();
     if (watched) this._everWatched = true;
     return watched;
+  }
+
+  // COST-2: how long, continuously, has nobody been watching?
+  //
+  // Derived off isWatched() the same way _everWatched is, except this one
+  // resets to zero the instant a watcher reappears rather than remembering
+  // forever — the router's UNWATCHED_POLICY gate cares about RIGHT NOW, not
+  // about whether the table was ever alone.
+  _unwatchedForMs(now = Date.now()) {
+    if (this.isWatched()) {
+      this._unwatchedSince = null;
+      return 0;
+    }
+    if (this._unwatchedSince == null) this._unwatchedSince = now;
+    return now - this._unwatchedSince;
   }
 
   // How long before the next deal. See UNWATCHED_HAND_PAUSE_MS.
@@ -4534,6 +4558,9 @@ export class Table {
       // them being free is no reason for the other to be.
       guest: modelBlocked(this.agentUserIds[aiSeat]),
       nemesis: this._roleAtTable(aiSeat)?.role === 'nemesis',
+      // COST-2: computed live, every decision, off the same isWatched() the
+      // tempo and the talk already read — see _unwatchedForMs.
+      unwatched: unwatchedPolicyEnabled() && this._unwatchedForMs() >= UNWATCHED_POLICY_MS,
     });
     countRoute(this.routes, routed);
     // Every decision is filed, including the free ones. See recordDecisionRoute:

@@ -11,8 +11,10 @@ import assert from 'node:assert/strict';
 
 import { Table } from './table.js';
 import { Actions } from '../engine/game.js';
-import { routeFor, Route, Reason } from './router.js';
+import { routeFor, Route, Reason, UNWATCHED_POLICY_MS, isAllIn } from './router.js';
+import { chooseFromPolicy } from '../agent/policyPlay.js';
 import { setPersistEnabled } from './opponentStats.js';
+import { potInBb, heatThresholdBb } from './pace.js';
 
 setPersistEnabled(false);
 
@@ -231,6 +233,96 @@ test('COST-1: the kitchen table is never written up either', () => {
   table.connections = table.connections.map(() => null);
   table._writeNightRecap();
   assert.equal(table._recapWritten, false);
+});
+
+// ── the unwatched dial (COST-2) ──────────────────────────────────────────────
+
+test('COST-2: _unwatchedForMs is zero while watched, and counts up once nobody is', () => {
+  const table = dealt();
+  table.connections = table.connections.map(() => null);
+  assert.equal(table.isWatched(), false);
+
+  const t0 = 1_000_000;
+  assert.equal(table._unwatchedForMs(t0), 0, 'the first ask starts the clock, it does not back-date it');
+  assert.equal(table._unwatchedForMs(t0 + 30_000), 30_000);
+  assert.equal(table._unwatchedForMs(t0 + UNWATCHED_POLICY_MS), UNWATCHED_POLICY_MS);
+
+  table.spectators.push({ ws: fakeWs(), spectatorSeat: 0 });
+  assert.equal(table._unwatchedForMs(t0 + 90_000), 0, 'a watcher resets the clock to zero');
+
+  table.spectators.length = 0;
+  assert.equal(table._unwatchedForMs(t0 + 90_000), 0, 'and a fresh span starts from now, not from before');
+  assert.equal(table._unwatchedForMs(t0 + 91_000), 1000);
+});
+
+test('COST-2: 20 hands with no subscriber spend on nothing but a stack in the middle or a big pot', () => {
+  const table = dealt();
+  // Seats stay PLAIN here, not marked AI — marking them AI with no connections
+  // makes the table adopt itself as autonomous (_adoptUndrivenTable) and start
+  // dealing on its own timer, which would race this loop's own maybeStartHand
+  // calls. _buildAiGameState does not read aiSeats, so the briefing is the
+  // same either way; see the same note in scripts/verify-cost-router.js.
+  table.connections = table.connections.map(() => null);
+  // Past the grace period for the whole run — this test is about the routing
+  // gate, not the clock, which _unwatchedForMs already covers on its own.
+  table._unwatchedSince = 0;
+  const now = UNWATCHED_POLICY_MS + 1;
+
+  let modelCalls = 0;
+  let hands = 0;
+  for (let h = 0; h < 20; h++) {
+    table.maybeStartHand({ clientDriven: true });
+    if (!table.game || table.game.street === 'complete') break;
+    hands++;
+    let guard = 0;
+    while (table.game.street !== 'complete' && guard++ < 60) {
+      const seat = table.game.toAct;
+      if (seat === null || seat === undefined) break;
+      const gs = table._buildAiGameState(seat);
+      const routed = routeFor(gs, {
+        home: table.home,
+        unwatched: table._unwatchedForMs(now) >= UNWATCHED_POLICY_MS,
+      });
+      if (routed.route === Route.MODEL) {
+        modelCalls++;
+        // The two conditions that are allowed to buy a model call while
+        // unwatched — not the REASON string, which still names whichever gate
+        // in modelReason() fired first (river, options, a read...) once one
+        // of these has let the spot through. See routeFor's UNWATCHED gate.
+        const exempt = isAllIn(gs) || potInBb(gs.pot ?? 0, gs.bb ?? 0) >= heatThresholdBb();
+        assert.ok(exempt, `a model call while unwatched with neither exception: ${routed.tag}`);
+      }
+      const { action } = chooseFromPolicy(gs);
+      try {
+        table.game.act(seat, table._disciplineAction(seat, action));
+      } catch {
+        break;
+      }
+    }
+    if (table.game?.street === 'complete') table._captureStacks();
+    if (table._survivingSeats().length < 2) break;
+  }
+
+  assert.ok(hands >= 10, `expected at least 10 hands, got ${hands}`);
+});
+
+test('COST-2: a subscriber flips the table back to normal routing on the next decision', () => {
+  const table = dealt();
+  table.connections = table.connections.map(() => null);
+  table._unwatchedSince = 0;
+  const now = UNWATCHED_POLICY_MS + 1;
+
+  const gsBefore = table._buildAiGameState(table.game.toAct);
+  assert.equal(
+    routeFor(gsBefore, { unwatched: table._unwatchedForMs(now) >= UNWATCHED_POLICY_MS }).reason,
+    Reason.UNWATCHED,
+  );
+
+  table.spectators.push({ ws: fakeWs(), spectatorSeat: 0 });
+  assert.equal(table._unwatchedForMs(now), 0, 'watching resumed');
+  const gsAfter = table._buildAiGameState(table.game.toAct);
+  const after = routeFor(gsAfter, { unwatched: table._unwatchedForMs(now) >= UNWATCHED_POLICY_MS });
+  assert.notEqual(after.reason, Reason.UNWATCHED);
 });
 
 // ── the route counter ───────────────────────────────────────────────────────
