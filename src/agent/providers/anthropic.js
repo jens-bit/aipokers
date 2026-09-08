@@ -5,11 +5,13 @@
 // cache_control: ephemeral, same 9s timeout, same usage fields.
 //
 // The cache_control block stays even though CACHE-1 measured it as inert on
-// Haiku 4.5 (4096-token minimum cacheable prefix; our static prefix is ~235
-// tokens). It costs nothing, it is already correct, and the verdict says to
-// revisit "if decisions move to a model with a lower floor" — Opus 5 is 512
-// and Sonnet 5 is 1024, so a --model flag pointed at either is exactly that
-// case. Removing the block would mean re-deriving it later.
+// Haiku 4.5 (4096-token minimum cacheable prefix; our static prefix was ~235
+// tokens then, 291 after COST-2-2's trim — still 7% of the floor). It costs
+// nothing, it is already correct, and the verdict says to revisit "if
+// decisions move to a model with a lower floor" — Opus 5 is 512 and Sonnet 5
+// is 1024, so a --model flag pointed at either is exactly that case. Removing
+// the block would mean re-deriving it later. Full arithmetic, updated for
+// COST-2: read-me-claude/COST.md.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { normaliseUsage } from './index.js';
