@@ -126,6 +126,8 @@ Both call `commitAgent(profile, existingAgentId, …)` with `existingAgentId` nu
 **Where:** the test harness, not the product. `src/server/tapeRoom.test.js` and `scripts/verify-pace.js` (both fixed, below); the native abort is not in any one file — see the 2026-09-07 reproduction.
 **Reported:** roughly one full `npm run test:all` in five came back red on Windows, two ways: a spawned suite exiting **3221226505** (`STATUS_STACK_BUFFER_OVERRUN` — a native abort, not an assertion), or `scripts/verify-pace.js` failing `every snapshot of a live hand carries it — 1 without`. Reproduced on unmodified main.
 
+**Re-observed 2026-09-08 (integrator, cost-2 merge).** Four aborts in twelve `npm test` runs on merged main — `src/server/guestClaim.test.js`, `src/server/whisper.test.js` and `scripts/verify-visit-referral.js` twice, all exit **3221226505**, a different file almost every time. Two of those twelve runs had a newly added test file pulled out of the tree first and the abort still landed, so nothing about it is specific to what was merged. This is the entry above holding: it is the harness, not any one suite, and re-running is not a diagnosis. One in three here rather than one in five, on a machine that had just run the client suite — worth knowing if anyone tries to correlate it with load.
+
 **Tooling:** `node scripts/stress-suites.js [rounds] [concurrency]` runs everything `npm test` spawns — every `src/**/*.test.js` and the fast `scripts/verify-*.js` group — through the same `runScript` helper, in a loop, recording every non-zero exit with the child's own output. One run in five is too slow a signal to debug against; this turns it into minutes.
 
 #### Found and fixed: `verify-pace.js` "1 without"
