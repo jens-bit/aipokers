@@ -1,7 +1,12 @@
-# Agentic Poker — design boards
+# Railbird — design boards
+
+A railbird is the one at the rail watching somebody else play with money on it, and
+that is the owner: you don't play, you raise a player, back him and sweat him.
 
 A Tamagotchi-skinned poker manager in Telegram. You draft an agent in conversation,
 he plays hands without you, and you live with who he turns out to be.
+
+`railbird.se` · `@railbird_app_bot`
 
 Boards are numbered by layer, not by date. Open the highest number in a family for
 the current thinking; earlier boards in the same family are kept because their
@@ -27,6 +32,8 @@ captions carry decisions the later ones assume.
 | 30 | Desktop · Command Center | The desktop product |
 | 31 | Desktop · Parity | Desktop versions of everything mobile drew first, including home |
 | 40 | Marketing · Landing | **Current.** The landing page: nine sections, every screenshot a live component from 26 · 27 · 29 |
+| 41 | Brand · Railbird | **Current.** The mark: the ghost at the rail, rebuilt from his own vector parts. Reduction, the chat-list and tab tests, the palettes, every placement at size, and the two motion beats |
+| 42 | Mobile · The Agent | **Current.** Tap him, get him: the agent sheet, his line first, the whisper, the profile with RECENT, the roster, absence, the TV by state, the celebration, and the desktop column |
 
 ## Laws that bind every board
 
@@ -62,6 +69,23 @@ captions carry decisions the later ones assume.
   hairline is `edgeUp`. No solid grey bands anywhere, including the owner's action
   strip and the BET panel.
 - **The owner never plays the hand**, and never looks like he does. No guilt anywhere.
+- **The mark is the ghost at the rail** (wave 63) — not a drawing *of* the product but the
+  product itself, rebuilt from the ghost's own vector parts in `mood-atoms.jsx`: hood arch,
+  face as a hole, two ellipse eyes, flat brows, the floating fists, both hands gripping a
+  padded rail that runs off both edges with square ends. Wave 62's bird is dropped; a bird
+  has nothing to do with this game. **One colour at a time:** the whole mark is an SVG mask
+  filled with one colour, so every dark part is a *hole* and the background shows through —
+  no second fill on black, burgundy, cream, or inside a circular crop. The eyes are never
+  dots, at any size. Wordmark is Oswald 500 caps at 0.26em with its baseline on the mark's
+  rail. `RailMark` in `mood-atoms.jsx` (aliased as `SpadeLogo`) keeps the 20×20 call site,
+  so every header has now swapped twice without one screen changing. The door inside the
+  flat still says CASINO.
+- **Tap him, get him** (wave 63) — the agent view is not a chat page with an avatar in the
+  header. The character fills the upper half at 196px, animated as he is in the room, and
+  the conversation is what is left over, **his line first**. Nothing is written on him; the
+  name pill floats above his head. The upgrade cards left the conversation entirely and live
+  on the profile under RECENT. A want's Yes / Later / No sit under **his** bubble and nowhere
+  else. Nothing in a conversation is a card except a hand.
 
 ## Component files
 
@@ -78,6 +102,16 @@ a file is rarely owned by a single board.
   (`TableCam`) and the desktop room.
 - `mood-nav.jsx` — wave 53: the roster sheet behind the avatar, the ranked floor
   board, the identity sheet, and the first five minutes on the no-bar nav.
+- `mood-brand.jsx` — wave 62, rebuilt in wave 63: the mark and its five poses (close,
+  lean, hood, far, glyph), the wordmark, the lockups, the bot avatar, the app icon and
+  favicon, the marquee sign, the loading screen, the empty room, and the chat-list /
+  browser-tab / reduction tests. Self-contained: its own tokens, no dependency on
+  `mood-atoms.jsx`, so an export can load it alone.
+- `mood-agent.jsx` / `mood-agent2.jsx` — wave 63: the agent sheet (stage, action row,
+  thread, composer, profile) and everything around it (roster, absence, the TV's two
+  states, the celebration, the desktop column).
+- `brand/` — the three pose references for the mark. Reference only: the mark is vector,
+  rebuilt from the ghost, never traced from these.
 - `mood-landing2.jsx` — wave 54: the landing page. `mood-landing.jsx` is the previous
   one and is still loaded by board 02 for its hero anatomy.
 - `mood-watch*.jsx`, `mood-wallet.jsx`, `mood-casino*.jsx`, `mood-birth*.jsx`,

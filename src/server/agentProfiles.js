@@ -2000,7 +2000,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     bankroll: agent.bankroll,
   };
   return {
-    ...agent,
+    // BUG-49: persisted records contain private cards, memories and prompts.
+    // Public responses start from an allowlist, never a spread of storage.
+    ...(owner ? agent : Object.fromEntries([
+      'id', 'name', 'status', 'style', 'risk', 'nature', 'attrs', 'potential',
+      'activeTableId', 'archived', 'retiring', 'createdAt', 'bornAt',
+    ].filter(key => key in agent).map(key => [key, agent[key]]))),
     // WALLET-1: the pocket rides the agent list projection, so the floor, the
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
@@ -2014,14 +2019,14 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
       cause: agent.mood.cause ?? null,
       updatedAt: agent.mood.updatedAt ?? null,
     } : null,
-    lastMoment: agent.lastMoment ?? null,
+    lastMoment: owner ? (agent.lastMoment ?? null) : null,
     // WANTS-1: the one thing he is asking for, or null. Never a queue.
     // FRIDGE-1: the wallet rides in so an ask for something the fridge does not
     // have reads as "we're out of beer" rather than as a request nobody can
     // answer. Without a wallet (a caller that has none) the ask is printed as
     // he said it, which is the old behaviour and the safe one.
     want: wantView(agent, { wallet }),
-    sessionRecap: agent.sessionRecap ?? null,
+    sessionRecap: owner ? (agent.sessionRecap ?? null) : null,
     // BIO-2b: the three relationships, each with the one fact it is built on
     // and his opinion of it. Derived, never stored as a badge — and never
     // anywhere near an attribute.
@@ -2029,9 +2034,9 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // MOOD-2c / RAISE-2: the thread's first line, in his voice. ALWAYS present
     // — the client has no business composing a greeting, and the one it used to
     // compose when this was null was a win/loss tally.
-    opener: openerForAgent(agent),
+    opener: owner ? openerForAgent(agent) : null,
     unseenRecap: !!agent.unseenRecap,
-    proposal: agent.proposal ?? null,
+    proposal: owner ? (agent.proposal ?? null) : null,
     presence,
     liveGame,
     // HOME-STATE-1: `location` is where he is (home | casino | table) with the
@@ -2051,7 +2056,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     sessionHands,
     effectiveAttrs: effective,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),
-    sessionLog,
+    sessionLog: owner ? sessionLog : [],
     careerStats,
   };
 }
@@ -3286,9 +3291,11 @@ async function buildFromDraft(profile, brief, ownerId = null) {
     }
   } catch (err) {
     console.error('[agentProfiles] draft build error:', err.message);
+    if (process.env.ANTHROPIC_API_KEY) throw err;
   }
 
   if (!agent || typeof agent !== 'object' || !agent.strategy) {
+    if (process.env.ANTHROPIC_API_KEY) throw new Error('The draft could not be built. Please try again.');
     agent = { ...inferFallback(brief), ...(vague ? vague.profile : {}) };
     if (vague) {
       // The whole character comes from the brief, not just the dials. A chaotic
@@ -3830,6 +3837,25 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
 }
 
 export function installAgentProfileRoutes(app) {
+  // BUG-48: authentication alone is not ownership. Gate every agent mutation
+  // before its handler (including deploy, finish and draft endpoints).
+  app.use('/api/agents', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    telegramAuthMiddleware(req, res, () => {
+      const bodyId = req.body?.userId;
+      const queryId = req.query.userId;
+      if (bodyId && queryId && String(bodyId) !== String(queryId)) {
+        return res.status(403).json({ error: 'Conflicting owner identities' });
+      }
+      const userId = String(bodyId || queryId || 'anon');
+      if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
+      // Older handlers read different locations. Give all of them the one
+      // identity we just checked, including requests with no explicit id.
+      req.body = { ...req.body, userId };
+      req.query.userId = userId;
+      next();
+    });
+  });
   // Tighter rate limit for LLM-spending endpoints (chat + build).
   const chatLimiter = rateLimiter({
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
@@ -3847,7 +3873,7 @@ export function installAgentProfileRoutes(app) {
       hasAgents: activeAgents(profile).length > 0,
       agents: (refreshWantsFor(userId), rosterFor(req, profile))
         .map((a) => presentAgent(a, { owner, wallet: walletFor(userId) })),
-      chat: profile.chat,
+      chat: owner ? profile.chat : [],
     });
   });
 
@@ -4682,7 +4708,9 @@ export function installAgentProfileRoutes(app) {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     const owner = isOwner(req, userId);
     const hands = (agent.sessionFlagged ?? []).map((h) => ({
-      ...h,
+      ...(owner ? h : Object.fromEntries([
+        'flagType', 'handNumber', 'pot', 'won', 'opponents', 'opponentShowdownCards', 'flaggedAt',
+      ].filter(key => key in h).map(key => [key, h[key]]))),
       holeCards: owner ? (h.holeCards ?? []) : [],
       // opponentShowdownCards exposed as-is — public information from the showdown
       // RIDERS-1: a hand flagged before pot/allIn were recorded reads them as
@@ -4691,7 +4719,8 @@ export function installAgentProfileRoutes(app) {
       streets: (h.streets ?? []).map((st) => ({
         pot: null,
         allIn: null,
-        ...st,
+        ...(owner ? st : { street: st.street, board: st.board, action: st.action,
+          pot: st.pot ?? null, allIn: st.allIn ?? null, reasoning: null, equity: null, potOdds: null }),
       })),
     }));
     if (owner && hands.length > 0) {
@@ -4734,8 +4763,9 @@ export function installAgentProfileRoutes(app) {
   // GET /api/agents/:agentId/memory?userId=...
   // Returns the agent's memory record alongside the formatted memoryContext
   // string the table caches and feeds into the decision-time system prompt.
-  app.get('/api/agents/:agentId/memory', (req, res) => {
+  app.get('/api/agents/:agentId/memory', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || 'anon');
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
@@ -4772,7 +4802,7 @@ export function installAgentProfileRoutes(app) {
     if (!sessionId) return res.json({ sessionId: null, lines: [], count: 0 });
 
     const owner = isOwner(req, userId);
-    const lines = readThread(sessionId, { owner });
+    const lines = readThread(sessionId, { owner, agentId, ownerId: userId });
     res.json({ sessionId, lines, count: lines.length });
   });
 
@@ -4988,7 +5018,14 @@ export function installAgentProfileRoutes(app) {
         saveStore(userId);
         return res.status(409).json(refusal);
       }
-      const built = await buildFromDraft(profile, briefSoFar, userId);
+      let built;
+      try {
+        built = await buildFromDraft(profile, briefSoFar, userId);
+      } catch (err) {
+        console.error('[agentProfiles] draft not committed:', err.message);
+        saveStore(userId);
+        return res.status(503).json({ error: 'Could not finish your agent. Your draft is saved — please try again.' });
+      }
       const agent = commitAgent(profile, null, built.agent);
       const line = built.line;
       profile.chat.push({ role: 'assistant', content: line });
@@ -5087,7 +5124,8 @@ export function installAgentProfileRoutes(app) {
       if (raw) {
         try { agent = JSON.parse(raw); } catch {}
       }
-      if (!agent) {
+      if (!agent || typeof agent !== 'object' || Array.isArray(agent) || typeof agent.strategy !== 'string' || !agent.strategy.trim()) {
+        if (process.env.ANTHROPIC_API_KEY) throw new Error('Invalid draft response');
         const combined = profile.chat.map((m) => m.content).join(' ');
         agent = inferFallback(combined);
       }
@@ -5096,10 +5134,8 @@ export function installAgentProfileRoutes(app) {
       return res.json({ createdAgent: agent });
     } catch (err) {
       console.error('[agentProfiles] build error:', err.message);
-      const combined = profile.chat.map((m) => m.content).join(' ');
-      const agent = commitAgent(profile, existingAgentId, inferFallback(combined));
       saveStore(userId);
-      return res.json({ createdAgent: agent });
+      return res.status(503).json({ error: 'Could not finish your agent. Your draft is saved — please try again.' });
     }
   });
 }

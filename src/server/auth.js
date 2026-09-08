@@ -173,7 +173,7 @@ export function verifyTelegramLoginPayload(payload, botToken) {
   try {
     const params = new URLSearchParams(payload);
     const hash = params.get('hash');
-    if (!hash) return false;
+    if (params.getAll('hash').length !== 1 || !/^[a-f\d]{64}$/i.test(hash ?? '')) return false;
     params.delete('hash');
 
     const authDate = Number(params.get('auth_date'));
@@ -190,7 +190,7 @@ export function verifyTelegramLoginPayload(payload, botToken) {
     const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     const a = Buffer.from(computedHash, 'hex');
-    const b = Buffer.from(hash.length === computedHash.length ? hash : computedHash, 'hex');
+    const b = Buffer.from(hash, 'hex');
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch {
     return false;
@@ -201,7 +201,7 @@ function verifyTelegramInitData(initData, botToken) {
   try {
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    if (!hash) return false;
+    if (params.getAll('hash').length !== 1 || !/^[a-f\d]{64}$/i.test(hash ?? '')) return false;
     params.delete('hash');
 
     const dataCheckString = [...params.entries()]
@@ -213,7 +213,7 @@ function verifyTelegramInitData(initData, botToken) {
     const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     const a = Buffer.from(computedHash, 'hex');
-    const b = Buffer.from(hash.length === computedHash.length ? hash : computedHash, 'hex');
+    const b = Buffer.from(hash, 'hex');
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch {
     return false;

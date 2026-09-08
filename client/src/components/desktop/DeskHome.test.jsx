@@ -104,7 +104,7 @@ describe('DESK-2 · the same room, bigger', () => {
     const rooms = document.querySelectorAll('.home-flat');
     expect(rooms).toHaveLength(1);
     // flat.js's box, untouched: the desk scales it, it does not re-author it.
-    expect(rooms[0]).toHaveStyle({ width: '390px', height: '470px' });
+    expect(rooms[0]).toHaveStyle({ width: '390px', height: '612px' });
     expect(document.querySelector('.home1--desk')).not.toBeNull();
   });
 

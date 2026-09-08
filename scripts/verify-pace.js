@@ -60,7 +60,7 @@ console.log(`[verify] server up on ws://127.0.0.1:${port}`);
 
 // A socket that remembers everything it was sent, with arrival times.
 function openSocket(name) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-api-secret': process.env.DEV_API_SECRET } });
   const log = [];
   ws.on('message', (raw) => {
     let msg;

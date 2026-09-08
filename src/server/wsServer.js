@@ -3,7 +3,7 @@ import { ClientMsg, ServerMsg } from './protocol.js';
 import { isOwner } from './auth.js';
 import {
   getAgentProfile, setLiveTableProvider, setAgentChangeListener, setWantListener,
-  reconcileActiveSessions, presentedRoster, noteHomeThreadLine,
+  reconcileActiveSessions, presentedRoster, presentAgentById, noteHomeThreadLine,
   setHomeChangeListener, setTypingListener, setBirthListener,
 } from './agentProfiles.js';
 import { isGuestOwner, guestFor } from './guest.js';
@@ -192,8 +192,14 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     send(ws, { type: ServerMsg.ERROR, message });
   }
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, request) => {
     ws.tableId = null;
+    ws.publicOnly = false;
+    const authRequest = msg => ({ headers: {
+      ...request.headers,
+      'x-telegram-init-data': msg.initData ?? request.headers['x-telegram-init-data'],
+      'x-api-secret': msg.apiSecret ?? request.headers['x-api-secret'],
+    } });
 
     ws.on('message', (data) => {
       let msg;
@@ -212,13 +218,19 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
           case ClientMsg.JOIN: {
             if (!msg.tableId || !msg.playerId) throw new Error('tableId and playerId required');
+            const ownerId = String(msg.userId || 'anon');
+            if (!isOwner(authRequest(msg), ownerId)) throw new Error('Unauthorized owner');
+            if (msg.agentId && !getAgentProfile(msg.agentId, ownerId)) throw new Error('Not your agent owner');
+            const protectedServer = process.env.TELEGRAM_BOT_TOKEN || process.env.DEV_API_SECRET;
             const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind, maxSeats: msg.maxSeats });
             const seat = table.seatPlayer(ws, {
-              playerId: msg.playerId,
+              // BUG-50: public player ids cannot be replayed to steal a seat.
+              playerId: protectedServer ? `${ownerId}:${msg.playerId}` : msg.playerId,
               buyIn: msg.buyIn,
               displayName: msg.displayName,
             });
             ws.tableId = msg.tableId;
+            ws.publicOnly = false;
             send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
             // Auto-seat AI when the player explicitly asked for it (vs-You flow),
             // or schedule House as a fallback opponent if no one else joins.
@@ -242,9 +254,24 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
           case ClientMsg.WATCH: {
             if (!msg.tableId) throw new Error('tableId required');
-            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20, maxSeats: msg.maxSeats });
             const agentProfile = msg.agentId ? getAgentProfile(msg.agentId, msg.userId) : null;
+            // The shared development secret is a trusted test/operator
+            // identity, like REST. Telegram deployments require a real agent.
+            const localDev = !process.env.TELEGRAM_BOT_TOKEN;
+            const owner = isOwner(authRequest(msg), String(msg.userId || 'anon'))
+              && (localDev || (!!msg.agentId && !!agentProfile));
+            if (owner && !localDev && !tables.get(msg.tableId)?.agentIds?.includes(msg.agentId)
+              && presentAgentById(msg.agentId, msg.userId, { owner: true })?.activeTableId !== msg.tableId) {
+              throw new Error('Deploy your agent before watching a new table');
+            }
+            // BUG-50: public watching observes an existing table. Only a
+            // proven owner may use the legacy path that seats an agent.
+            const table = owner
+              ? getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20, maxSeats: msg.maxSeats })
+              : tables.get(msg.tableId);
+            if (!table) throw new Error('Table not found');
             const spectatorSeat = table.addSpectator(ws, {
+              publicOnly: !owner,
               agentStrategy: msg.agentStrategy ?? null,
               displayName: msg.displayName,
               agentId: msg.agentId ?? null,
@@ -253,6 +280,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
               agentProfile,
             });
             ws.tableId = msg.tableId;
+            ws.publicOnly = !owner;
             // SERVER-3 (additive): the id of the stay this watcher has just
             // attached to, so a client can ask for that session's thread
             // (GET /api/agents/:id/thread?session=) without waiting for a
@@ -266,7 +294,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // AGE-36: hand the watcher the hand already in progress. Sent
             // after WATCHING so the client knows its spectatorSeat first.
             table.sendSnapshot(ws, spectatorSeat);
-            table.maybeStartHand({ clientDriven: true });
+            if (owner) table.maybeStartHand({ clientDriven: true });
             return;
           }
 
@@ -285,6 +313,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
           }
 
           case ClientMsg.DEAL: {
+            if (ws.publicOnly) throw new Error('Owner control only');
             const table = tables.get(ws.tableId);
             if (!table) throw new Error('not seated at any table');
             // AGE-36: DEAL is a human control. On an autonomous AI-only table
@@ -315,6 +344,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
           }
 
           case ClientMsg.SIT_OUT: {
+            if (ws.publicOnly) throw new Error('Owner control only');
             const table = tables.get(ws.tableId);
             if (!table) throw new Error('not at a table');
             // Finishes the current hand (if any) then broadcasts TABLE_CLOSED
@@ -329,12 +359,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // Same credentials the REST layer takes, carried in the message
             // because a WebSocket frame has no headers. Without them the
             // subscription still works — it just never receives heroHole.
-            const owner = isOwner({
-              headers: {
-                'x-telegram-init-data': msg.initData,
-                'x-api-secret': msg.apiSecret,
-              },
-            }, userId);
+            const owner = isOwner(authRequest(msg), userId);
             // HOME-STATE-1: opening the app is the other honest moment to
             // bring the living room up to date. Home games are started by
             // agent changes, so after a restart an owner whose agents were

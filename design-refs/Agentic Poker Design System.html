@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="design_doc_mode" content="canvas"/>
-<title>Agentic Poker · Design System</title>
+<title>Railbird · Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -38,6 +38,14 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 </style>
 </head>
 <body>
+
+<template id="__bundler_thumbnail" data-bg-color="#0B0F0E">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#0B0F0E"/>
+    <g transform="translate(340 180) scale(8)"><path d="M2 45H62V48.6H2Z M22 30.4L31.2 27.4C33.2 24.4 37.2 23.4 40.7 24.4C46.2 26 49.6 31 49.6 36.6L62 31L52 42C50.5 44.2 47 45 42.5 45L34 45C29.5 45 27.2 41.8 27.2 37.5C27.2 35.3 27.8 33.3 29 31.7Z M38.6 29.4m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0Z" fill="#00D4AA" fill-rule="evenodd"/></g>
+    <text x="600" y="700" text-anchor="middle" font-family="Oswald, sans-serif" font-size="44" letter-spacing="11" fill="#EDEDED">RAILBIRD</text>
+  </svg>
+</template>
 
 <div class="frame" style="left:60px;top:80px">
   <div class="panel">
@@ -81,6 +89,15 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <div class="frame" style="left:600px;top:3600px">
   <div class="fh"><span class="fn">S4</span><span class="ft">Component inventory</span><span class="fb teal">production names</span></div>
   <div id="y4"></div>
+</div>
+
+<!-- BRAND · wave 62 -->
+<div class="frame" style="left:600px;top:5900px">
+  <div class="grouphdr">Brand</div>
+  <div class="groupsub">Wave 62 renamed the product <b>Railbird</b>; wave 63 settled the mark. It is not a drawing <i>of</i> the product but the product itself: <b>the ghost at the rail</b>, rebuilt from his own vector parts — hood arch, face as a hole, two eyes, flat brows, the floating fists — doing the one thing the name means. Wave 62&rsquo;s bird is dropped. Full sheet, tests and motion on <b>board 41</b>; this row is the token-level record every screen inherits through <code>RailMark</code>.</div>
+  <div class="fh"><span class="fn">S6</span><span class="ft">The mark</span><span class="fb teal">railbird.se · @railbird_app_bot</span></div>
+  <div id="y6"></div>
+  <div class="fa"><b><code>RailMark</code> replaces <code>SpadeLogo</code></b> in <code>mood-atoms.jsx</code> — same call site, same 20px slot, so every header swapped at once, twice now, without one screen changing. <b>One colour at a time:</b> the whole mark is an SVG mask filled with a single colour, so the face, the rail&rsquo;s seam and the gaps round the fists are <b>holes</b> and the background shows through — which is why it needs no second fill on black, on burgundy, on cream, or inside a circular crop. Wordmark: <b>Oswald 500 caps, 0.26em</b>, its baseline on the mark&rsquo;s rail. See <a href="41 Brand · Railbird.html">board 41</a>.</div>
 </div>
 
 <!-- GAP SWEEP -->
@@ -129,8 +146,27 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
 <script type="text/babel" src="mood-system.jsx"></script>
 <script type="text/babel" src="char-system.jsx"></script>
 <script type="text/babel" src="mood-system2.jsx"></script>
+<script type="text/babel" src="mood-brand.jsx"></script>
 
 <script type="text/babel">
+const BrandRowS6 = () => (
+  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'stretch' }}>
+    {[['#0B0F0E', BR.teal, 'teal on black · product'], [BR.wine, BR.gold, 'gold on burgundy · marketing'], [BR.cream, '#0B0F0E', 'black on cream · print'], ['#141B1A', '#FFFFFF', 'white on anything']].map(([bg, fg, cap]) => (
+      <div key={cap} style={{ width: 272, background: bg, border: '1px solid rgba(255,255,255,.07)', borderRadius: 6, padding: '22px 20px', display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center' }}>
+        <Lockup size={16} color={fg}/>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+          <BrandMark size={40} color={fg}/><BrandMark size={24} color={fg}/><BrandGlyph size={16} color={fg}/>
+        </div>
+        <span style={{ fontFamily: BR_MONO, fontSize: 9, color: fg, opacity: .55 }}>{cap}</span>
+      </div>
+    ))}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '0 4px' }}>
+      <BotAvatar size={72}/>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}><AppIcon size={56}/><Favicon size={32}/><Favicon size={16}/></div>
+    </div>
+  </div>
+);
+
 [
   ['y1', SystemTokensM],
   ['y2', MoodMatrixM],
@@ -140,6 +176,7 @@ body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:
   ['g1', HandReviewScreenM],
   ['g2', YouScreenM],
   ['g3', HomeScreenM],
+  ['y6', BrandRowS6],
 ].forEach(([id, Comp]) => {
   ReactDOM.createRoot(document.getElementById(id)).render(<Comp/>);
 });

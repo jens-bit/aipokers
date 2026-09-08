@@ -1826,14 +1826,20 @@ export class Table {
   // The legacy path survives for tables that do not exist yet (PvP queue,
   // older clients): there, the spectator's arrival still creates the session.
   // Returns the seat index being watched.
-  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '', agentProfile = null } = {}) {
+  addSpectator(ws, { agentStrategy, displayName, agentId = null, userId = null, memoryContext = '', agentProfile = null, publicOnly = false } = {}) {
+    // BUG-50: -1 is the public viewpoint. It owns no cards, reasoning, reads,
+    // private thread or seat controls, and never creates another player.
+    if (publicOnly) {
+      this.spectators.push({ ws, spectatorSeat: -1 });
+      return -1;
+    }
     const existingSeat = agentId ? this.agentIds.findIndex((id) => id === agentId) : -1;
     const attachSeat = existingSeat !== -1
       ? existingSeat
       // Autonomous table we cannot match by agentId (e.g. a watcher that
       // supplied no agentId): watch the first occupied seat rather than
       // seating anyone new.
-      : (this.autoPlay ? this.pending.findIndex((p) => p !== null) : -1);
+      : (!agentId && this.autoPlay ? this.pending.findIndex((p) => p !== null) : -1);
 
     if (attachSeat !== -1) {
       this.spectators.push({ ws, spectatorSeat: attachSeat });
@@ -1881,7 +1887,7 @@ export class Table {
   sendSnapshot(ws, seat) {
     if (!ws || ws.readyState !== ws.OPEN) return;
     if (!this.game) return;
-    if (seat < 0 || seat >= this.game.seats.length) return;
+    if (seat < -1 || seat >= this.game.seats.length) return;
     const state = this._augmentState(this.game.getPublicState(seat), seat);
     state.heroEquity = this._heroEquityFor(seat);
     const reads = this._readsFor(seat);

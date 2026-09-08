@@ -80,7 +80,7 @@ describe('GUEST-1 · one hero viewport', () => {
 // ── The room ────────────────────────────────────────────────────────────────
 
 describe('GUEST-1 · and the room, directly under it', () => {
-  it('is the real room with the real recruiter, mounted on the same page', async () => {
+  it('BUG-52: is the real room with the real recruiter, mounted on the same page', async () => {
     await openLanding();
     // The recruiter's opening question — the draft's first row, live, not a
     // picture of one.

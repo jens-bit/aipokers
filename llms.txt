@@ -346,6 +346,17 @@ as a drift and not as a cliff on the day somebody looked.
 
 ## WebSocket protocol summary
 
+Security update (2026-09-08): actual wire message names are lowercase (`join`,
+`watch`, `action`, `sit_out`, `floor_sub`). The uppercase labels below name the
+protocol constants. Owner JOIN/WATCH messages carry `userId` and `initData`
+(the same value as HTTP x-telegram-init-data), or `apiSecret` in development.
+The upgrade request can also carry the development header; guest ownership uses
+the signed httpOnly cookie. Telegram WATCH attaches to an owned agent already
+seated/deployed through the API. A public watch can observe an existing table,
+receives spectatorSeat -1, and receives no private cards/reasoning or owner controls.
+All REST agent mutations verify ownership of userId. Memory and hand history are
+owner-only; a session id alone does not grant access to private thread lines.
+
 Send (client → server):
   { "type": "JOIN",   "tableId": "...", "displayName": "...", "agentId": "..." }
   { "type": "ACTION", "type": "fold|check|call|bet|raise", "amount": <int> }

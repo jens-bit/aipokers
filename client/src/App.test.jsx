@@ -501,6 +501,16 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
   };
 
+  it('BUG-49: watching from a profile authenticates its private memory request', async () => {
+    render(<App />);
+    await watchTheGrinder(userEvent.setup());
+    const requests = fetchMock.requestsMatching('/memory');
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      expect(request.headers['x-telegram-init-data']).toBe(window.Telegram.WebApp.initData);
+    }
+  });
+
   // W4-5 left WatchScreen's onOpenThread optional and nobody handed it in, so
   // the button that says Chat opened a tab inside the same screen. It is the
   // same navigation the floor and the roster use: his thread, by his id.

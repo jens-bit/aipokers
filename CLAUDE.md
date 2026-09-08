@@ -7,13 +7,13 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 
 ## Read next, in order
 1. `CORE_GAME_PLAN.md` — current state, the active build plan (skill engine, personality layer, mood economy), tree-by-tree with megaprompts. **This is where we are.**
-2. `agentic-poker-master-spec-v8.docx` — full product vision (highest version number wins; v8 predates the game-first reframe — CORE_GAME_PLAN.md overrides where they conflict).
+2. Highest-version `agentic-poker-master-spec-*.docx` — full product vision (v14 at this repair). Read `read-me-claude/DESIGN_GAP.md` and `read-me-claude/ASTRA_REPAIR.md` for current founder overrides and verified repair status.
 3. `read-me-claude/HOW_WE_WORK.md` — workflow: worktrees, terminal discipline, merge rules, deploy.
 4. `BUGS.md` — known bugs. Verify against code; entries go stale.
 
 ## Commands
 - Run locally: `npm start` (builds client + serves on :8765). Dev client hot-reload: `npm run dev` in client/.
-- Tests: `npm test` (server, <15s) + `npm run test:client` — MUST pass before any commit; `npm run test:all` runs both. `npm run test:e2e` (~100s) MUST pass before any merge to main. See **Testing law** below.
+- Tests: `npm test` (server) + `npm run test:client` MUST pass before any commit. `npm run test:all` runs server, client AND e2e. `npm run test:e2e` (~100s) MUST pass before any merge to main. See **Testing law** below.
 - Smoke: `npm run smoke` (one hand, no browser). `npm run smoke:browser` is CI-2's browser smoke — start the app first (`npm start`), then it walks HOME/CASINO/YOU/WATCH at 390×844 and 1440×900 in chromium and drops a screenshot per screen in `smoke-shots/`.
 - Deploy: push to main → SSH root@46.62.169.246 → /opt/aipokers → git pull → pm2 restart all --update-env. Gotcha: data/agents.json on the VPS is live prod data; back it up, checkout, pull, restore (see project memory / HOW_WE_WORK).
 
@@ -24,7 +24,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 - `src/server/agentProfiles.js` — agent CRUD, creation chat, stats, memory. Auth in `auth.js` (Telegram initData), rate limiting in `rateLimit.js`.
 - `src/agent/handler.js` — the LLM decision call (claude-haiku, prompt caching) + trash-talk generation.
 - `client/src/` — React/Vite Mini App. `design-refs/` at root = design source of truth (Codex built the May-era refs; Claude Design owns the mood/mobile wave from Aug 2026 — one design source per wave, all output lands in design-refs/): **PORT from it, never redesign, never modify it.**
-- `data/` — JSON persistence. On the VPS this is LIVE USER DATA. (Migration out of git → SQLite is planned; see ownership below.)
+- `data/` — SQLite persistence (`app.db`, WAL). On the VPS this is LIVE USER DATA. Legacy JSON imports remain supported; do not treat the former JSON files as the current database.
 
 ## Team + ownership (update as it changes)
 - **Jens** (founder, non-dev, orchestrates Claude Code terminals + Cowork): product core — skill engine trees (equity, policy compiler, opponent model), personality/mood layer, UI ports, spec.
@@ -34,7 +34,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 ## Testing law
 Non-negotiable. A test suite only protects you if it is trusted, and it is only trusted if nobody is allowed to weaken it.
 
-1. **Before every commit: `npm test` and `npm run test:client`.** Together ~10s — fast enough that there is no excuse. (`npm run test:all` runs exactly that pair.)
+1. **Before every commit: `npm test` and `npm run test:client`.** (`npm run test:all` additionally runs e2e.)
 2. **Before every merge to main: `npm run test:e2e`.** ~100s, up from ~40s at COST-1: the decision router means the keyless suites now PLAY the hands out through the compiled policy instead of check/folding every spot, so the same scripts cover about three times the poker. The five suites that boot the stack and play hands to completion. CI runs all three commands on every push and PR (`.github/workflows/deploy.yml`) and the deploy job does not start until they are green — but do not make CI find it for you.
 3. **Every bug fix ships with a test named after its BUG id.** Write it first, watch it fail, then fix. `it('BUG-17: WATCH makes no POST', …)`. A fix with no failing-then-passing test is not a fix, it is a hope.
 4. **Every new module ships with a test file next to it.** `src/server/foo.js` → `src/server/foo.test.js`. `client/src/components/Foo.jsx` → `client/src/components/Foo.test.jsx`.

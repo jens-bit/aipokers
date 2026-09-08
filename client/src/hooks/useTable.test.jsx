@@ -141,6 +141,15 @@ describe('W3-6 useTable handles PACE', () => {
     vi.stubGlobal('WebSocket', ListenerSocket);
   });
 
+  it('BUG-50: WATCH carries the owner identity and Telegram credential', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    const sent = ws.sent[0];
+    expect(sent.userId).toBe('4242');
+    expect(sent.initData).toBe(window.Telegram.WebApp.initData);
+    expect(sent.initData).not.toBe('');
+  });
+
   it('W3-6: keeps the newest frame', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     const ws = connectWatching(result);

@@ -24,10 +24,13 @@ describe('BUGS-C job 1: the Telegram entry loads only the home shell', () => {
     expect(src).toMatch(/lazy\(\(\) => import\(.*LoginGate/);
   });
 
-  it('the landing never statically imports the game client', () => {
+  it('BUG-52: the landing reuses the already-loaded game without a blank Suspense gate', () => {
     const src = read('components/guest/GuestLanding.jsx');
-    expect(src).not.toMatch(/^import App from/m);
-    expect(src).toMatch(/lazy\(\(\) => import\(.*App\.jsx/);
+    // main already loads App: the old lazy assertion required a redundant
+    // loading state and did not actually prove a smaller production chunk.
+    expect(read('main.jsx')).toMatch(/^import App from/m);
+    expect(src).toMatch(/^import App from/m);
+    expect(src).not.toMatch(/<Suspense/);
   });
 
   it('App.jsx defers the desktop rail, the casino, a profile overlay and hand replay to their own chunks', () => {

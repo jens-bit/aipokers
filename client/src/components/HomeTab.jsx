@@ -23,7 +23,7 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
     try {
       const res = await fetch(`/api/agents/${agent.id}/queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId: getUserId() }),
       });
       if (!res.ok) return;
@@ -37,7 +37,7 @@ export function HomeTab({ onDeploy, onWatch, onCreateAgent, onOpenChat, onGoPlay
     if (!agent?.activeTableId) return;
     let memoryContext = '';
     try {
-      const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+      const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
       if (res.ok) memoryContext = (await res.json()).memoryContext || '';
     } catch { /* fall through */ }
     onWatch({

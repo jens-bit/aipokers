@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Railbird · Brand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#4FE3C4}
+@keyframes brandRise{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
+@keyframes brandPeek{0%{transform:translateY(15px)}70%{transform:translateY(-2px)}100%{transform:translateY(0)}}
+@keyframes brandLook{0%{transform:translateX(0)}45%{transform:translateX(-3.5px)}100%{transform:translateX(0)}}
+@keyframes brandFade{0%{opacity:0;transform:translateY(5px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes brandBulb{0%,100%{opacity:.4}50%{opacity:1}}
+.frame{position:absolute}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px;flex-wrap:wrap}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF8A8C;border-color:rgba(255,138,140,.35);background:rgba(255,138,140,.08)}
+.fa{margin-top:14px;max-width:1180px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.vf{margin-top:9px;max-width:1180px;font-family:"JetBrains Mono",monospace;font-size:11px;line-height:1.5;color:#7FE8D0}
+.vf b{color:#00D4AA;font-weight:700}
+.vf.no{color:#FF8A8C}.vf.no b{color:#FF6B6D}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:54px;flex-shrink:0;padding-top:2px;color:#CDB380}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+.card{background:#0B0F0E;border:1px solid rgba(255,255,255,.06);border-radius:6px;padding:26px}
+.cn{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#CDB380;margin-bottom:14px}
+.cd{font-size:12px;line-height:1.55;color:#9E9EA2;max-width:300px;margin-top:16px}
+.cd b{color:#C9C9CE;font-weight:600}
+</style>
+</head>
+<body>
+
+<template id="__bundler_thumbnail" data-bg-color="#0B0F0E">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#0B0F0E"/>
+    <text x="600" y="700" text-anchor="middle" font-family="Oswald, sans-serif" font-size="44" letter-spacing="11" fill="#EDEDED">RAILBIRD</text>
+    <g transform="translate(450 90) scale(4.7)">
+      <mask id="t"><rect width="64" height="64" fill="#000"/>
+        <path d="M14.4 45V27C14.4 15.6 22.5 8.6 32.5 8.6C42.5 8.6 50.6 15.6 50.6 27V45Z" fill="#fff"/>
+        <path d="M20.8 45V27.5C20.8 20.2 26 15.7 32.65 15.7C39.3 15.7 44.5 20.2 44.5 27.5V45Z" fill="#000"/>
+        <path d="M23.4 24H30.1V25.5H23.4Z M34.9 24H41.6V25.5H34.9Z" fill="#fff"/>
+        <ellipse cx="26.6" cy="29.8" rx="3" ry="2.4" fill="#fff"/><ellipse cx="38.7" cy="29.8" rx="3" ry="2.4" fill="#fff"/>
+        <path d="M-2 39.2H66V44.6H-2Z" fill="#fff"/><path d="M-2 42.2H66V42.9H-2Z" fill="#000"/><path d="M-2 45.8H66V47.4H-2Z" fill="#fff"/>
+      </mask>
+      <rect width="64" height="64" fill="#00D4AA" mask="url(#t)"/>
+    </g>
+  </svg>
+</template>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Wave 63 · part A</div>
+    <h1>The mark is the ghost at the rail.</h1>
+    <p>A railbird is the one leaning on the rail watching somebody else play, with money on it and an opinion about every hand. <b>That is the owner.</b> He doesn&rsquo;t play; he raises a player, backs him, sweats him and talks to him afterwards.</p>
+    <p><b>Wave 62&rsquo;s birds are dropped, all of them, and the magpie with them.</b> A bird has nothing to do with this game. What does is the character everybody already plays with, doing the one thing the name means.</p>
+    <p>So the mark is not a drawing <i>of</i> the product &mdash; it <b>is</b> the product: the same hood arch, the same face-as-a-hole, the same two eyes and flat brows, the same floating fists, rebuilt from the ghost&rsquo;s own vector parts in <code>mood-atoms.jsx</code>. Nothing traced.</p>
+
+    <div class="lbl">The pose</div>
+    <div class="lawrow"><span class="k">Him</span><span class="v">Default glow, identity-neutral &mdash; no owner&rsquo;s roll. Eyes level and open, brows flat. Both hands gripping the padded rail with the fingers over the front. <b>Nothing of the body below the rail</b>, and the head just clears it so the eyes are above.</span></div>
+    <div class="lawrow"><span class="k">Rail</span><span class="v">Padded band, seam inside it, one thin bright line under it. All three <b>full bleed with square ends</b>: a rail has no ends, a bench does.</span></div>
+    <div class="lawrow"><span class="k">Colour</span><span class="v">One colour at a time. Teal on the product, gold on burgundy on marketing. No gradient, glow, outline or second colour &mdash; the felt tone appears only in the large lockups, where a flat mark loses the table.</span></div>
+
+    <div class="lbl">How one colour is possible</div>
+    <div class="lawrow"><span class="k">Mask</span><span class="v">The whole mark is an SVG mask filled with a single colour, so every dark part in the reference &mdash; the face, the seam, the gap round each fist, the knuckle slits &mdash; is a <b>hole</b>, and the background shows through. That is what lets it sit on black, on burgundy, and inside a circular crop without one extra fill.</span></div>
+
+    <div class="lbl">Named things</div>
+    <div class="lawrow"><span class="k">Domain</span><span class="v">railbird.se</span></div>
+    <div class="lawrow"><span class="k">Bot</span><span class="v">@railbird_app_bot</span></div>
+    <div class="lawrow"><span class="k">Kept</span><span class="v">Headline stays <b>&ldquo;Deal him in.&rdquo;</b> The door inside the flat still says <b>CASINO</b>.</span></div>
+  </div>
+</div>
+
+<div class="frame" style="left:60px;top:1150px">
+  <div class="panel" style="border-color:rgba(0,212,170,.3)">
+    <div class="sub">One decision worth stating</div>
+    <h1>The mark is framed like &minus;hood, not &minus;close.</h1>
+    <p>The three references are the same pose at three distances. <b>&minus;close</b> puts the head at 31% of its frame, which is a poster crop: shrink it to 40px and the head is 12px of hood with the eyes closing. <b>&minus;hood</b> fills its frame, and that is what a mark has to do.</p>
+    <p>So the canonical mark takes &minus;hood&rsquo;s framing. &minus;close survives as the <code>lean</code> pose for large surfaces where he should look further away, and &minus;far is the empty room.</p>
+    <div class="lbl">The one optical size</div>
+    <div class="lawrow"><span class="k">Glyph</span><span class="v">At 16px the mark&rsquo;s own eyes are 0.95px tall and the mask antialiases them into the hood. The favicon and the notification therefore use a wider face hole and bigger eyes, and drop the brows. <b>An optical size, not a simplification</b> &mdash; they are still ellipses at 16, which is the test the brief set.</span></div>
+  </div>
+</div>
+
+<!-- B0 · the reference and the rebuild -->
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">Brand &middot; the rebuild</div>
+  <div class="groupsub">The pose reference, and our vector over it in magenta at 55%. Not a trace &mdash; the parts are the ghost&rsquo;s own, so the alignment is a check that the <i>pose</i> is right, not that the outlines are.</div>
+  <div class="fh"><span class="fn">B0</span><span class="ft">Overlay against all three references</span><span class="fb teal">512 · 55% magenta</span></div>
+  <div id="b0"></div>
+  <div class="vf"><b>verified:</b> at 512 the rebuild&rsquo;s hood, brows, eyes and both fists sit inside the &minus;hood reference&rsquo;s own shapes (grey = coincident); the rail is straight and full-bleed where the reference&rsquo;s is an oval table edge, which is the brief&rsquo;s instruction, not a miss. &minus;close and &minus;far match at <code>lean</code> and <code>far</code>.</div>
+</div>
+
+<!-- B1 · the mark -->
+<div class="frame" style="left:600px;top:760px">
+  <div class="fh"><span class="fn">B1</span><span class="ft">The mark</span><span class="fb teal">64 × 64</span></div>
+  <div id="b1"></div>
+  <div class="vf"><b>verified:</b> one path set, one colour, seven parts (hood, face, two brows, two eyes, rail, two fists); the felt variant is the only place a second colour appears and it is capped at 96px and above.</div>
+</div>
+
+<!-- B3 · reduction -->
+<div class="frame" style="left:600px;top:1330px">
+  <div class="fh"><span class="fn">B3</span><span class="ft">Reduction</span><span class="fb teal">96 → 16</span></div>
+  <div id="b3"></div>
+  <div class="vf"><b>verified:</b> hands present at 96/64/48/32 and dropped at 24 and 16, as allowed. At 16 the hood and <b>two ellipse eyes both survive</b> &mdash; checked at 4× magnification, they are 2.6 × 2.0 px ellipses, not dots. Rail dropped below 32 (at 24 it is one grey line and reads as a smudge).</div>
+</div>
+
+<!-- B2 · construction -->
+<div class="frame" style="left:1520px;top:1330px">
+  <div class="fh"><span class="fn">B2</span><span class="ft">Construction</span><span class="fb">on the grid</span></div>
+  <div id="b2"></div>
+</div>
+
+<!-- B4 · the chat list -->
+<div class="frame" style="left:600px;top:1800px">
+  <div class="grouphdr">The test</div>
+  <div class="groupsub">The Telegram chat list is the most important use, so it is the first test. 40px, circular crop, beside five neighbours a real list holds &mdash; flat one-letter utility avatars, which is what the mark competes with.</div>
+  <div class="fh"><span class="fn">B4</span><span class="ft">Chat list</span><span class="fb teal">40px, in place</span></div>
+  <div id="b4"></div>
+  <div class="vf"><b>verified:</b> at 40px the eyes land in the upper half of the circle, both fists are inside the crop, and the rail is cut by the circle on both sides. Beside a blue <b>W</b> and a red <b>F</b> it reads as <b>a hooded face at a rail</b> &mdash; a face, not a letter and not a shape. The crop was moved up 10% of the diameter to get there; the face was not touched.</div>
+</div>
+
+<!-- B5 · favicon -->
+<div class="frame" style="left:600px;top:2440px">
+  <div class="fh"><span class="fn">B5</span><span class="ft">Favicon</span><span class="fb">16 · 32 · hood and eyes only</span></div>
+  <div id="b5"></div>
+  <div class="vf"><b>verified:</b> 16 and 32 magnified 4× &mdash; hood arch and two ellipse eyes at both, brows and rail correctly absent. In a real tab strip at 16 the glyph reads as a hood; nothing merges.</div>
+</div>
+
+<!-- B5b · app icon -->
+<div class="frame" style="left:600px;top:2900px">
+  <div class="fh"><span class="fn">B5b</span><span class="ft">App icon</span><span class="fb teal">180 · 120 · 60 · solid dark teal</span></div>
+  <div id="b5b"></div>
+  <div class="vf"><b>verified:</b> all three on <code>#06322B</code>, rail running off both edges at every size, head at 86% so the margin round the hood is ~14% of the square. At 60 the knuckle slits close and nothing else does.</div>
+</div>
+
+<!-- B6 · type and lockups -->
+<div class="frame" style="left:600px;top:3440px">
+  <div class="grouphdr">Type &amp; lockups</div>
+  <div class="groupsub">Oswald 500 caps at 0.26em, as chosen in wave 62 and unchanged. The mark&rsquo;s rail and the word&rsquo;s baseline are <b>one line</b>.</div>
+  <div class="fh"><span class="fn">B6</span><span class="ft">Lockups</span><span class="fb teal">rail = baseline</span></div>
+  <div id="b6"></div>
+  <div class="vf"><b>verified:</b> at 30/22/16/13/11 the mark&rsquo;s bright rail line and the caps baseline are on one horizontal (mark dropped by <code>0.716·m − 0.85·size</code>). The marquee variant is direction B&rsquo;s word-on-a-rail with him peeking over the word&rsquo;s top edge; his eyes clear the caps at every size drawn.</div>
+</div>
+
+<!-- B7 · colour -->
+<div class="frame" style="left:600px;top:4020px">
+  <div class="grouphdr">Colour</div>
+  <div class="groupsub">One colour at a time, no gradient in the mark. Both palettes, all four fields.</div>
+  <div class="fh"><span class="fn">B7</span><span class="ft">Four fields</span><span class="fb">teal/black · gold/burgundy · black/cream · white/anything</span></div>
+  <div id="b7"></div>
+  <div class="vf"><b>verified:</b> the same mask on all four; the face, seam and fist gaps take each field&rsquo;s own background, so on cream the face is cream and nothing needed a second path.</div>
+</div>
+
+<!-- B8 · avatars -->
+<div class="frame" style="left:600px;top:4680px">
+  <div class="grouphdr">Where it lives</div>
+  <div class="groupsub">Each deliverable at its real size, on its real background.</div>
+  <div class="fh"><span class="fn">B8</span><span class="ft">Bot avatar &amp; public account</span><span class="fb teal">512 · 400 · 128 · 64 · 40</span></div>
+  <div id="b8"></div>
+  <div class="vf"><b>verified:</b> 512 circular on <code>#0B0F0E</code>; the same construction at 128/64/40 with no per-size edits; gold-on-burgundy pair for the marketing surfaces; 400 on pure black for X and TikTok.</div>
+</div>
+
+<!-- B9 · headers -->
+<div class="frame" style="left:600px;top:5540px">
+  <div class="fh"><span class="fn">B9</span><span class="ft">Page header</span><span class="fb">1440 &amp; 390 · board 40</span></div>
+  <div id="b9"></div>
+  <div class="vf"><b>verified:</b> one-for-one replacement of <code>L2Masthead</code>&rsquo;s lockup at both widths &mdash; mark in gold, RAILBIRD in cream Oswald 13/11, handle right. At 390 the mark drops to 22px and nothing else moves.</div>
+</div>
+
+<!-- B10 · marquee -->
+<div class="frame" style="left:600px;top:5980px">
+  <div class="fh"><span class="fn">B10</span><span class="ft">The sign over the door</span><span class="fb">landing hero</span></div>
+  <div id="b10"></div>
+  <div class="vf"><b>verified:</b> at 360 and 220 the word-on-a-rail holds with him over the top edge and the bulbs on the frame. <b>The door inside the flat still says CASINO</b> &mdash; board 29&rsquo;s F05 and every home frame untouched.</div>
+</div>
+
+<div class="frame" style="left:1360px;top:5980px">
+  <div class="fh"><span class="fn">B11</span><span class="ft">Share card corner</span><span class="fb">one colour</span></div>
+  <div id="b11"></div>
+  <div class="vf"><b>verified:</b> lockup at 13 on dark and on cream, in the corner, one colour, clear of the result line.</div>
+</div>
+
+<!-- B12 · loading + far pose -->
+<div class="frame" style="left:600px;top:6480px">
+  <div class="fh"><span class="fn">B12</span><span class="ft">Loading screen</span><span class="fb teal">line 1 chosen</span></div>
+  <div id="b12"></div>
+  <div class="fa"><b>Keep line 1.</b> &ldquo;You don&rsquo;t play. You raise a player.&rdquo; is the product&rsquo;s own law said out loud, and the only one of the three that explains the name and the rules in nine words. Line 2 is funnier and tells a stranger nothing. Line 3 says <i>money</i>, which the landing page&rsquo;s compliance line spends a paragraph taking back.</div>
+  <div class="vf"><b>verified:</b> all three at 390 × 560, mark centred, one line under it, <code>brandRise</code> on the mark and <code>brandFade</code> on the line.</div>
+</div>
+
+<div class="frame" style="left:2020px;top:6480px">
+  <div class="fh"><span class="fn">B13</span><span class="ft">The far pose</span><span class="fb teal">390 × 844 · empty room</span></div>
+  <div id="b13"></div>
+  <div class="vf"><b>verified:</b> at 390 × 844 he is small and further back, hands down, one line under him. The 24px notification glyph beside it is hood and eyes only &mdash; no hands, no rail.</div>
+</div>
+
+<div class="frame" style="left:2500px;top:6480px">
+  <div class="fh"><span class="fn">B14</span><span class="ft">Bot description</span><span class="fb">lockup</span></div>
+  <div id="b14"></div>
+  <div class="fa" style="max-width:340px">Recommended: <b>Railbird &middot; raise a poker player</b>. It carries the verb, and the verb is the whole product. &ldquo;Watch a poker bot play&rdquo; describes a screensaver; &ldquo;your AI poker agent&rdquo; describes eleven other bots.</div>
+  <div class="vf"><b>verified:</b> drawn as Telegram renders it &mdash; description line, then the avatar at 54 with the name and handle.</div>
+</div>
+
+<!-- B15 · motion -->
+<div class="frame" style="left:600px;top:7480px">
+  <div class="fh"><span class="fn">B15</span><span class="ft">Motion</span><span class="fb teal">two beats, CSS</span></div>
+  <div id="b15"></div>
+  <div class="vf"><b>verified:</b> both loop here to be readable on the board and fire <b>once</b> in the product. <code>brandPeek</code> 520ms / 3 keyframes: he rises from behind the rail, 2px past, settles. <code>brandLook</code> 440ms / 3 keyframes: he shifts 3.5px and back. The rail never moves in either &mdash; the rail was already there.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="mood-brand.jsx"></script>
+
+<script type="text/babel">
+const mount = (id, el) => { const n = document.getElementById(id); if (n) ReactDOM.createRoot(n).render(el); };
+const Cap = ({ children }) => <span style={{ fontFamily: BR_MONO, fontSize: 10, color: '#6B6B6B' }}>{children}</span>;
+const Mag = ({ size, k = 4, pose, favicon }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div style={{ width: size * k, height: size * k, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ transform: `scale(${k})`, transformOrigin: 'center' }}>
+        {favicon ? <Favicon size={size}/> : <BrandMark pose={pose} size={size} color={BR.teal}/>}
+      </div>
+    </div>
+    <Cap>{size}px &middot; {k}&times;</Cap>
+  </div>
+);
+
+mount('b0', <div style={{ display: 'flex', gap: 20, flexWrap: 'nowrap', width: 1150 }}>
+  {[['brand/railbird-ghost-rail-hood.png', 'close', '\u2212hood → the mark'],
+    ['brand/railbird-ghost-rail-close.png', 'lean', '\u2212close → lean'],
+    ['brand/railbird-ghost-rail-far.png', 'far', '\u2212far → far']].map(([src, pose, cap]) => (
+    <div key={pose} style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <RefOverlay src={src} size={360} pose={pose}/>
+      <Cap>{cap}</Cap>
+    </div>
+  ))}
+</div>);
+
+mount('b1', <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start', flexWrap: 'nowrap', width: 1150 }}>
+  <div className="card" style={{ width: 300 }}>
+    <div className="cn">The mark</div>
+    <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BrandMark size={230}/></div>
+    <div className="cd">Hood, face as a hole, two flat brows, two ellipse eyes, the padded rail with its seam and bright line, two fists over the front edge. <b>One colour, seven parts.</b></div>
+  </div>
+  <div className="card" style={{ width: 300 }}>
+    <div className="cn">Lean · the &minus;close framing</div>
+    <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BrandMark pose="lean" size={230}/></div>
+    <div className="cd">The same drawing, further back. Large surfaces only &mdash; posters, the hero, anything over 96px where he should look like he is watching from a distance.</div>
+  </div>
+  <div className="card" style={{ width: 300 }}>
+    <div className="cn">Large lockup · the felt</div>
+    <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BrandMarkFelt size={230}/></div>
+    <div className="cd">The one exception to one-colour: at 96px and up the reference&rsquo;s felt tone goes under the rail, because a flat mark that big loses the table. <b>Never below 96.</b></div>
+  </div>
+  <div className="card" style={{ width: 220 }}>
+    <div className="cn">Glyph</div>
+    <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BrandGlyph size={190}/></div>
+    <div className="cd" style={{ maxWidth: 180 }}>Hood and eyes. The favicon, the notification, and the marquee&rsquo;s peek.</div>
+  </div>
+</div>);
+
+mount('b2', <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
+  <Construction size={260}/>
+  <div className="cd" style={{ maxWidth: 210 }}>
+    Rail band at <b>61.3%</b> of the box, bright line at <b>71.6%</b>, eye line at <b>46.6%</b>. The head is scaled about <code>y45</code> &mdash; the point where it disappears behind the rail &mdash; so every pose keeps the same contact and only the distance changes.
+  </div>
+</div>);
+
+mount('b3', <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 24, background: '#0B0F0E', border: '1px solid rgba(255,255,255,.06)', borderRadius: 6, padding: '20px 24px' }}>
+    <SizeLadder/>
+  </div>
+  <div style={{ display: 'flex', gap: 18, alignItems: 'flex-end' }}>
+    <Mag size={16} k={5}/><Mag size={24} k={5}/><Mag size={32} k={4}/>
+    <span className="cd" style={{ maxWidth: 300, marginTop: 0 }}>The same three magnified. <b>At 16 and 24 the two eyes are ellipses</b>, wider than tall, with the hood closed around them. Nothing rounded to a dot.</span>
+  </div>
+</div>);
+
+mount('b4', <div style={{ display: 'flex', gap: 24, flexWrap: 'nowrap', width: 1150 }}>
+  <ChatListTest label="the mark · 40px"/>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+      {[40, 32, 24].map(s => <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'center' }}><BotAvatar size={s}/><Cap>{s}</Cap></div>)}
+    </div>
+    <Mag size={40} k={4}/>
+  </div>
+</div>);
+
+mount('b5', <div style={{ display: 'flex', gap: 26, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+  <TabTest/>
+  <Mag size={16} k={6} favicon/>
+  <Mag size={32} k={4} favicon/>
+  <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end' }}>
+    {[16, 32].map(s => <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'center' }}><Favicon size={s}/><Cap>{s}</Cap></div>)}
+  </div>
+</div>);
+
+mount('b5b', <div style={{ display: 'flex', gap: 30, alignItems: 'flex-end' }}>
+  {[180, 120, 60].map(s => <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 9, alignItems: 'center' }}><AppIcon size={s}/><Cap>{s}</Cap></div>)}
+  <span className="cd" style={{ maxWidth: 300, marginTop: 0 }}>Solid dark teal <code style={{ fontFamily: BR_MONO, color: '#00D4AA' }}>#06322B</code>, no gradient, no glow. The rail runs off both edges &mdash; it is the one element that must never be contained by the icon.</span>
+</div>);
+
+const TypeRow = ({ label, children }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 26, padding: '20px 24px', background: '#0B0F0E', border: '1px solid rgba(255,255,255,.06)', borderRadius: 6 }}>
+    <span style={{ fontFamily: BR_MONO, fontSize: 10, color: '#6B6B6B', width: 190, flexShrink: 0 }}>{label}</span>
+    {children}
+  </div>
+);
+
+mount('b6', <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 1150 }}>
+  <TypeRow label="Lockup · 30 · rail = baseline"><Lockup size={30}/><span className="fb teal" style={{ marginLeft: 'auto' }}>chosen</span></TypeRow>
+  <TypeRow label="Lockup · 22 / 16 / 13 / 11">
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 40 }}>
+      <Lockup size={22}/><Lockup size={16}/><Lockup size={13}/><Lockup size={11}/>
+    </div>
+  </TypeRow>
+  <TypeRow label="Wordmark alone · caps 0.26em"><Wordmark size={30}/></TypeRow>
+  <TypeRow label="B · word on a rail, him over it"><WordmarkB size={30}/><span className="fb" style={{ marginLeft: 'auto' }}>marquee &amp; masthead only</span></TypeRow>
+</div>);
+
+const Field = ({ bg, fg, label, border }) => (
+  <div style={{ width: 280, height: 210, background: bg, border: border || '1px solid rgba(255,255,255,.06)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+    <Lockup size={16} color={fg}/>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+      <BrandMark size={44} color={fg}/><BrandMark size={28} color={fg}/><BrandGlyph size={16} color={fg}/>
+    </div>
+    <span style={{ fontFamily: BR_MONO, fontSize: 9.5, color: fg, opacity: 0.6 }}>{label}</span>
+  </div>
+);
+
+mount('b7', <div style={{ display: 'flex', gap: 20, flexWrap: 'nowrap', width: 1220 }}>
+  <Field bg={BR.black} fg={BR.teal} label="#00D4AA on #0B0F0E"/>
+  <Field bg={BR.wine} fg={BR.gold} label="#CDB380 on #3A1424"/>
+  <Field bg={BR.cream} fg="#0B0F0E" label="#0B0F0E on #F4EBDD" border="1px solid rgba(0,0,0,.10)"/>
+  <Field bg="#141B1A" fg="#FFFFFF" label="#FFFFFF on anything"/>
+</div>);
+
+mount('b8', <div style={{ display: 'flex', gap: 34, alignItems: 'flex-start', flexWrap: 'nowrap', width: 1150 }}>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <BotAvatar size={480}/>
+    <Cap>512 &middot; telegram bot avatar &middot; teal on black</Cap>
+  </div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 22 }}>
+      {[128, 64, 40].map(s => <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}><BotAvatar size={s}/><Cap>{s}</Cap></div>)}
+    </div>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 22 }}>
+      {[128, 64].map(s => <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}><BotAvatar size={s} palette="marketing"/><Cap>{s} gold</Cap></div>)}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+        <div style={{ width: 128, height: 128, background: '#000', overflow: 'hidden', display: 'flex', justifyContent: 'center' }}><BrandMark size={150} color={BR.off} style={{ marginTop: -12 }}/></div>
+        <Cap>400 &middot; X / TikTok</Cap>
+      </div>
+    </div>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 22 }}>
+      <AppIcon size={90}/><Favicon size={32}/><Favicon size={16}/>
+      <span className="cd" style={{ maxWidth: 250, marginTop: 0 }}>The app icon, the favicon and the notification glyph, so the whole small-size family sits together.</span>
+    </div>
+  </div>
+</div>);
+
+mount('b9', <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'flex-start' }}>
+  <div style={{ width: 1440, overflow: 'hidden', borderRadius: 4 }}><LandingHeader w={1440}/></div>
+  <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start' }}>
+    <div style={{ width: 390, overflow: 'hidden', borderRadius: 4 }}><LandingHeader w={390}/></div>
+    <div style={{ width: 390, overflow: 'hidden', borderRadius: 4 }}><LandingHeader w={390} dir="B"/></div>
+    <span className="cd" style={{ marginTop: 0 }}>Left: the chosen lockup at 390. Right: direction B in the same slot &mdash; the better header and the worse system, so it stays for the marquee and the hero and is not the app&rsquo;s identity.</span>
+  </div>
+</div>);
+
+mount('b10', <div style={{ background: '#1A0A10', border: '1px solid rgba(205,179,128,.2)', borderRadius: 6, padding: '36px 44px', display: 'flex', flexDirection: 'column', gap: 30, alignItems: 'center' }}>
+  <MarqueeSign w={360}/>
+  <MarqueeSign w={220}/>
+</div>);
+
+mount('b11', <div style={{ display: 'flex', gap: 20 }}>
+  <div style={{ width: 300, height: 200, background: '#0B0F0E', border: '1px solid rgba(255,255,255,.06)', borderRadius: 8, position: 'relative', padding: 18 }}>
+    <span style={{ fontFamily: BR_PLAYFAIR, fontSize: 20, color: BR.off }}>Kase took it down<br/>to the felt.</span>
+    <span style={{ position: 'absolute', left: 18, bottom: 16 }}><ShareCorner/></span>
+  </div>
+  <div style={{ width: 300, height: 200, background: BR.cream, borderRadius: 8, position: 'relative', padding: 18 }}>
+    <span style={{ fontFamily: BR_PLAYFAIR, fontSize: 20, color: '#1A0A10' }}>Kase took it down<br/>to the felt.</span>
+    <span style={{ position: 'absolute', left: 18, bottom: 16 }}><ShareCorner light/></span>
+  </div>
+</div>);
+
+mount('b12', <div style={{ display: 'flex', gap: 24 }}>
+  {[0, 1, 2].map(i => (
+    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,.06)' }}><LoadingScreen w={390} h={560} line={i}/></div>
+      <span className={'fb' + (i === 0 ? ' teal' : '')} style={{ alignSelf: 'flex-start' }}>{i === 0 ? 'Line 1 · chosen' : 'Line ' + (i + 1)}</span>
+    </div>
+  ))}
+</div>);
+
+mount('b13', <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+  <div style={{ borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,.06)' }}><EmptyRoomFrame/></div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#17212B', borderRadius: 8, padding: '10px 14px' }}>
+      <BrandGlyph size={24}/>
+      <span style={{ fontSize: 12.5, color: '#C9CDD2' }}>Kase sat down at #48291</span>
+    </div>
+    <Cap>24px notification glyph</Cap>
+  </div>
+</div>);
+
+mount('b14', <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: '#17212B', border: '1px solid rgba(255,255,255,.06)', borderRadius: 10, padding: 22, width: 380 }}>
+  <BotDescription/>
+  <div style={{ height: 1, background: 'rgba(255,255,255,.07)' }}></div>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <BotAvatar size={54}/>
+    <div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: '#F0F2F3' }}>Railbird</div>
+      <div style={{ fontSize: 12.5, color: '#8E959B', marginTop: 2 }}>@railbird_app_bot</div>
+    </div>
+  </div>
+  <span style={{ fontSize: 12.5, color: '#8E959B', lineHeight: 1.5 }}>raise a poker player &middot; railbird.se</span>
+</div>);
+
+const MotionFrame = ({ kind, label, note }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ width: 200, height: 200, background: BR.black, borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+      {/* the rail alone, which never moves */}
+      <svg width="200" height="200" viewBox="0 0 64 64" style={{ position: 'absolute', inset: 0 }}>
+        <path d="M-2 39.2H66V44.6H-2Z" fill={BR.teal}/><path d="M-2 42.2H66V42.9H-2Z" fill={BR.black}/><path d="M-2 45.8H66V47.4H-2Z" fill={BR.teal}/>
+      </svg>
+      {/* him, and only him */}
+      <div style={{ position: 'absolute', inset: 0, animation: kind === 'peek' ? 'brandPeek 0.52s cubic-bezier(.22,1.1,.36,1) infinite' : 'brandLook 0.44s ease-in-out infinite', clipPath: 'inset(0 0 39.4% 0)' }}>
+        <BrandGlyph size={200} color={BR.teal}/>
+      </div>
+    </div>
+    <Cap>{label}</Cap>
+    <span className="cd" style={{ maxWidth: 200, marginTop: 0 }}>{note}</span>
+  </div>
+);
+
+mount('b15', <div style={{ display: 'flex', gap: 30, alignItems: 'flex-start' }}>
+  <MotionFrame kind="peek" label="brandPeek · 520ms · app open" note={<>He rises from behind the rail, 2px past it, and settles. Three keyframes, one transform, and the rail is furniture.</>}/>
+  <MotionFrame kind="look" label="brandLook · 440ms · a notification arrived" note={<>He shifts 3.5px and comes back. Fires once, and the badge appears at the end of it.</>}/>
+  <span className="cd" style={{ maxWidth: 300, marginTop: 0 }}>
+    Both drawn with the glyph clipped at the rail line, so the moving part is the head only &mdash; one composited layer, and the same code works at 20px in a header.
+  </span>
+</div>);
+</script>
+<script>
+/* ─── canvas auto-layout ─────────────────────────────────────────────────
+   Frames are authored at hand-set coordinates; content that grew after the
+   fact used to overlap the frame below. This pass measures every frame in a
+   column and pushes the ones under it down, keeping the authored order. */
+(function () {
+  const GAP = 90;
+  const run = () => {
+    const frames = [...document.querySelectorAll('.frame')];
+    const cols = {};
+    frames.forEach(f => {
+      const x = Math.round(parseFloat(f.style.left) || 0);
+      (cols[x] = cols[x] || []).push(f);
+    });
+    Object.values(cols).forEach(list => {
+      list.sort((a, b) => (parseFloat(a.style.top) || 0) - (parseFloat(b.style.top) || 0));
+      let y = null;
+      list.forEach(f => {
+        const top = parseFloat(f.style.top) || 0;
+        const use = y == null ? top : Math.max(top, y);
+        f.style.top = use + 'px';
+        y = use + f.getBoundingClientRect().height / (window.__dcZoom || 1) + GAP;
+      });
+    });
+  };
+  const kick = () => { run(); setTimeout(run, 400); setTimeout(run, 1200); setTimeout(run, 2600); };
+  if (document.readyState === 'complete') kick(); else window.addEventListener('load', kick);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+})();
+</script>
+</body>
+</html>

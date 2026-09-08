@@ -67,6 +67,21 @@ const widgetFields = (over = {}) => ({
   ...over,
 });
 
+for (const [scheme, fields, verify] of [
+  ['widget', widgetFields, verifyTelegramLoginPayload],
+  ['mini app', initDataFields, verifyTelegramInitData],
+]) {
+  test(`BUG-47: ${scheme} rejects malformed and duplicate signatures`, () => {
+    for (const hash of ['x', 'a'.repeat(63), 'a'.repeat(65), 'g'.repeat(64), '']) {
+      const forged = serialise({ ...fields(), hash });
+      assert.equal(verify(forged, TOKEN), false, `accepted hash ${hash}`);
+      assert.equal(verifyTelegramCredential(forged, TOKEN), false);
+    }
+    const signed = scheme === 'widget' ? signLoginPayload(fields()) : signInitData(fields());
+    assert.equal(verify(`${signed}&hash=x`, TOKEN), false, 'ambiguous duplicate hash');
+  });
+}
+
 // ── Login Widget scheme ──────────────────────────────────────────────────
 
 test('widget payload signed with the bot token verifies', () => {

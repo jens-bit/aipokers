@@ -436,7 +436,7 @@ function AppShell({ guest }) {
     if (!agentId) return;
     fetch(`/api/agents/${agentId}/finish`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
       body: JSON.stringify({ userId: getUserId() }),
     }).catch(() => {});
     activeAgentIdRef.current = null;
@@ -712,7 +712,7 @@ function AppShell({ guest }) {
               watchOriginRef.current = hereOrigin();
               let memoryContext = '';
               try {
-                const res = await fetch(`/api/agents/${ag.id}/memory?userId=${getUserId()}`);
+                const res = await fetch(`/api/agents/${ag.id}/memory?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
                 if (res.ok) memoryContext = (await res.json()).memoryContext || '';
               } catch { /* watch with empty context */ }
               setAgentProfileTarget(null);
@@ -824,7 +824,7 @@ function AppShell({ guest }) {
                 watchOriginRef.current = hereOrigin();
                 let memoryContext = '';
                 try {
-                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`);
+                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
                   if (res.ok) memoryContext = (await res.json()).memoryContext || '';
                 } catch { /* watch with empty context */ }
                 setActiveAgent(agent.id, agent);

@@ -25,7 +25,7 @@
 //
 // ── DESK-2 · the same screen at 1440 ────────────────────────────────────────
 //
-// `desktop` does not fork the room. It is THE SAME ROOM — the same 390x470
+// `desktop` does not fork the room. It is THE SAME ROOM — the same 390x612
 // coordinate space, the same fixtures, the same bodies, the same walks — shown
 // bigger, with the one thing 1440 actually buys: a permanent rail where the
 // phone has a collapsing sheet. Board 31 P15-P18, ported from
@@ -178,7 +178,7 @@ export function useBirthWalk(agents, positions) {
 // The ref hard-codes 1.34 (HD_SCALE in mood-home-desk.jsx) because that is what
 // fits ITS stage. What it is CLAIMING is "the same room, bigger", so the number
 // is derived from the stage this room is actually given: the largest scale at
-// which the 390x470 space still fits, whichever axis runs out first. At
+// which the 390x612 space still fits, whichever axis runs out first. At
 // 1440x900 with the rail beside it that lands around 1.7.
 //
 // Capped at 1.9, because past about twice size the room stops reading as a room
@@ -585,23 +585,8 @@ export function HomeScreen({
     else setThreadOpen(true);
   }, [onOpenThread, desktop]);
 
-  // BUGS-C job 3 · A MAN AT THE TABLE IS PART OF THE TABLE.
-  //
-  // Mid-hand, his face and his pill are the table region same as the felt is
-  // — BIRTH-5/BUGS-A job 7 already gave the felt itself one destination, the
-  // sheet, and a tap on the man playing it went somewhere else entirely. With
-  // nobody dealing, he is just a body standing at a chair, and the tap goes to
-  // his profile — not his thread, which `tapAgent` still owns for the idle
-  // and wandering rest of the household.
-  const tapSeated = useCallback((agent) => {
-    if (inHand) {
-      if (desktop) { setRail('table'); return; }
-      setTableOpen(true);
-      return;
-    }
-    if (desktop) { setFocusId(agent.id); setRail('agent'); return; }
-    onProfile?.(agent);
-  }, [inHand, desktop, onProfile]);
+  // BUG-54 / board 42: a body always selects that agent. The felt itself
+  // opens the table; moving into a chair must not change a person's tap.
 
   // BUGS-A job 2 · THE ROOM IS THE DEFAULT, NOT THE EMPTY STATE.
   //
@@ -786,12 +771,11 @@ export function HomeScreen({
             news={!!(agent.want || agent.unseenRecap)}
             // VISIT-1: he is not one of yours — there is no thread of his to
             // open from here, so the tap that opens every other body's does
-            // nothing on a guest's. BUGS-C-3 then split what a tap on one of
-            // YOURS means: seated with a hand running, the tap belongs to the
-            // table he is sitting at, not to him.
+            // nothing on a guest's. Your own agents keep the same destination
+            // whether seated, standing or walking.
             onClick={agent.guest
               ? undefined
-              : () => (seated ? tapSeated(agent) : tapAgent(agent))}
+              : () => tapAgent(agent)}
           />
         );
       })}
@@ -802,9 +786,9 @@ export function HomeScreen({
     <div
       className="home1__room"
       ref={setRoomEl}
-      style={desktop
+      style={{ '--home-room-height': `${F_H}px`, ...(desktop
         ? { '--home-desk-scale': deskScale }
-        : { aspectRatio: `${F_W} / ${F_H}` }}
+        : { aspectRatio: `${F_W} / ${F_H}` }) }}
       data-dim={dimmed ? 'true' : 'false'}
     >
       <div className="home1__scale" style={{ width: F_W, height: F_H }} ref={setFlatEl}>

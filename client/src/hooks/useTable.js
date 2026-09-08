@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg, Streets } from '../lib/protocol.js';
+import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000]; // attempts 1..5
 const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS_MS.length;
@@ -257,6 +258,7 @@ export function useTable({ wsUrl }) {
       if (cfg.isSpectator) {
         ws.send(JSON.stringify({
           type: ClientMsg.WATCH,
+          initData: getTelegramInitData(),
           tableId: cfg.tableId,
           agentStrategy: cfg.agentStrategy ?? null,
           displayName: cfg.displayName,
@@ -264,12 +266,13 @@ export function useTable({ wsUrl }) {
           smallBlind: cfg.smallBlind ?? 10,
           bigBlind: cfg.bigBlind ?? 20,
           agentId: cfg.agentId ?? null,
-          userId: cfg.userId ?? null,
+          userId: cfg.userId ?? getUserId(),
           memoryContext: cfg.memoryContext ?? '',
         }));
       } else {
         ws.send(JSON.stringify({
           type: ClientMsg.JOIN,
+          initData: getTelegramInitData(),
           tableId: cfg.tableId,
           playerId: playerIdRef.current,
           displayName: cfg.displayName,
@@ -280,7 +283,7 @@ export function useTable({ wsUrl }) {
           agentStrategy: cfg.agentStrategy ?? null,
           agentDisplayName: cfg.agentDisplayName ?? null,
           agentId: cfg.agentId ?? null,
-          userId: cfg.userId ?? null,
+          userId: cfg.userId ?? getUserId(),
           memoryContext: cfg.memoryContext ?? '',
         }));
       }

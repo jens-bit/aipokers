@@ -139,16 +139,12 @@ const SitBetM = () => (
 // near-black with a near-black glow is a silhouette; the real hood with a dead glow
 // is a body without eyes; the real glow lights them; the accent halo lands with the
 // name. Nothing here is a second drawing of the ghost.
-// Four stages made his colour arrive on the same beat as his name, so the two biggest
-// moments shared one and neither got room. Five separates them: the COLLAR is the beat
-// that says he has stopped being a shape, and colour plus the name pill are held back
-// for the button. Still one atom — the collar is the only added geometry.
+// Jens, 2026-09-08: four stages. The extra costume stage is cancelled.
 const DRAFT_STAGES = [
   { n: 1, hood: { top: '#0C0F12', bot: '#05070A' }, glow: '#0B0E11', halo: 0,   cap: 'a silhouette' },
   { n: 2, hood: { top: '#2A2E33', bot: '#171A1E' }, glow: '#191C20', halo: 0,   cap: 'the hood' },
   { n: 3, hood: { top: '#2A2E33', bot: '#171A1E' }, glow: '#7E6420', halo: 0.3, cap: 'the eyes' },
-  { n: 4, hood: { top: '#2A2E33', bot: '#171A1E' }, glow: '#9C7C28', halo: 0.5, cap: 'the collar', collar: true },
-  { n: 5, hood: HOODS[1], glow: GLOWS[1].c, halo: 1, cap: 'his colour', collar: true, named: true },
+  { n: 4, hood: HOODS[1], glow: GLOWS[1].c, halo: 1, cap: 'his colour', named: true },
 ];
 
 const FormingGhost = ({ stage = 1, size = 104 }) => {
@@ -168,14 +164,6 @@ const FormingGhost = ({ stage = 1, size = 104 }) => {
         <div style={{ animation: 'bubblein 0.5s ease-out both', opacity: stage === 1 ? 0.8 : 1 }}>
           <MoodGhost mood="neutral" accent={GLOWS[1].c} size={size} ring={false} hood={st.hood} glow={st.glow}/>
         </div>
-        {/* THE COLLAR: a band across the hood's lower edge, in the hood's own ink two
-            steps lighter, going gold when his colour lands. */}
-        {st.collar && (
-          <svg width={size} height={size} viewBox="0 0 80 80" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none', animation: 'rise 0.4s ease-out both' }}>
-            <path d="M12 60 L34 60 L40 66 L46 60 L68 60 L68 66 L46 66 L40 72 L34 66 L12 66 Z"
-              fill={st.named ? `${GLOWS[1].c}3D` : 'rgba(255,255,255,0.13)'} stroke={st.named ? GLOWS[1].c : 'rgba(255,255,255,0.24)'} strokeWidth="1.2"/>
-          </svg>
-        )}
       </div>
     </div>
   );
@@ -188,8 +176,6 @@ const DRAFT_TALK = [
    { w: 'you', t: 'Wait to be paid.' }],
   [{ w: 'sys', t: 'Then he folds a lot and it will cost him pots he could have taken. You are describing a Rock.' },
    { w: 'you', t: 'Good.' }],
-  [{ w: 'sys', t: 'One more. When someone runs him over for an hour — does he wait it out, or hit back?' },
-   { w: 'you', t: 'Wait it out.' }],
   [{ w: 'sys', t: 'He is ready. What do you call him?' },
    { w: 'you', t: 'Granite. He can call himself Gran.' }],
 ];
@@ -210,7 +196,7 @@ const DraftSheetM = ({ stage = 1, named }) => {
   const s = DRAFT_STAGES[stage - 1];
   return (
     <PhoneShell>
-      <HomeHead sub={stage < 5 ? 'drafting · nobody in the room yet' : 'drafting · he has a name'}/>
+      <HomeHead sub={stage < 4 ? 'drafting · nobody in the room yet' : 'drafting · he has a name'}/>
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: M_BG }}>
         {/* the room, dimmed to almost nothing: he is not in it yet */}
         <div style={{ position: 'absolute', inset: 0, opacity: 0.4 }}><HomeFlat lit={false}/></div>
@@ -218,8 +204,8 @@ const DraftSheetM = ({ stage = 1, named }) => {
         {/* him, forming over the table */}
         <div style={{ position: 'absolute', left: 0, right: 0, top: 34, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, zIndex: 3 }}>
           <FormingGhost stage={stage}/>
-          <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: stage === 5 ? M_GOLD : M_MUTED }}>
-            {stage === 5 ? 'GRANITE · A ROCK' : s.cap.toUpperCase()}
+          <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.18em', color: stage === 4 ? M_GOLD : M_MUTED }}>
+            {stage === 4 ? 'GRANITE · A ROCK' : s.cap.toUpperCase()}
           </span>
         </div>
         {/* the glass sheet, over the lower band only */}
@@ -227,7 +213,7 @@ const DraftSheetM = ({ stage = 1, named }) => {
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 6px' }}>
             <span style={{ width: 30, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }}/>
             <span style={{ flex: 1 }}/>
-            <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE DRAFT · {stage} OF 5</span>
+            <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_MUTED }}>THE DRAFT · {stage} OF 4</span>
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '2px 14px 0', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             {rows.slice(-4).map((r, i) => <DraftRow key={i} r={r}/>)}
@@ -239,7 +225,7 @@ const DraftSheetM = ({ stage = 1, named }) => {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 44, borderRadius: 22, background: 'rgba(255,255,255,0.05)', border: `1px solid ${V5GLASS.edge}`, padding: '0 8px 0 14px' }}>
-                <span style={{ flex: 1, fontSize: 12.5, color: M_MUTED }}>{stage === 5 ? 'his name…' : 'answer him…'}</span>
+                <span style={{ flex: 1, fontSize: 12.5, color: M_MUTED }}>{stage === 4 ? 'his name…' : 'answer him…'}</span>
                 <span style={{ width: 30, height: 30, borderRadius: 15, background: `${M_TEAL}26`, border: `1px solid ${M_TEAL}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" viewBox="0 0 20 20"><path d="M2 10L18 3L11 18L9.4 11.6L2 10Z" fill="none" stroke={M_TEAL} strokeWidth="1.5" strokeLinejoin="round"/></svg>
                 </span>
@@ -255,7 +241,7 @@ const DraftSheetM = ({ stage = 1, named }) => {
 const Draft1M = () => <DraftSheetM stage={1}/>;
 const Draft3M = () => <DraftSheetM stage={3}/>;
 const Draft4M = () => <DraftSheetM stage={4}/>;
-const Draft5M = () => <DraftSheetM stage={5} named/>;
+const Draft5M = () => <DraftSheetM stage={4} named/>;
 
 // the four stages side by side, so the forming is legible as a sequence
 const FormingStripM = () => (

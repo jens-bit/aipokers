@@ -1,9 +1,13 @@
-# Railbird brand refs (2026-09-07)
+# Railbird brand refs
 
-Image-model output chosen by Jens; Claude Design traces these in wave 63A, never redraws.
+DECISION 2026-09-08 evening: THE MARK IS THE GHOST AT THE RAIL. The magpie is parked ("nothing to do with anything, maybe later"). Wave 63 Part A (replaced) rebuilds the ghost pose from the product ghost's own vector parts; nothing is traced.
 
-- railbird-mark-oval.png — THE MARK: magpie leaning over the rail of a full oval poker table (double rim, flat felt). App icon, Telegram avatar, favicon, header.
-- railbird-hero-table.png — THE HERO: same bird on a large cropped table corner. Landing hero, share-card background, banner, casino marquee. Never shrunk to icon size.
-- railbird-bird-rail.png — the bird alone on a straight full-bleed rail (reference for the silhouette; not a lockup).
+## The mark — the ghost at the rail (image-model pose references, not to be traced)
+- railbird-ghost-rail-close.png — hands on the rail, close: the mark, Telegram avatar, app icon.
+- railbird-ghost-rail-hood.png — hood and eyes only: favicon, tiny sizes, notification glyph.
+- railbird-ghost-rail-far.png — far, hands on the rail: empty room ("Nobody lives here yet.").
 
-Rules: one colour on dark (mint M_TEAL; gold on burgundy for marketing), no outline, no gradient, no glow; the rail in the mark runs full-bleed with square ends; no cards, chips, spades or robots. Wordmark RAILBIRD in Oswald caps, set separately.
+Rules: default hood and glow (identity-neutral), eyes level, brows flat, both floating hands gripping the padded rail with fingers showing, head just clearing the rail, nothing below the rail. Rail: padded with the seam, one thin bright line, flat felt, full-bleed square ends. One colour on dark for the small sizes. Wordmark RAILBIRD in Oswald caps, rail of the mark and baseline of the word on one line.
+
+## Parked — the magpie (7 Sep exploration)
+- railbird-mark-oval.png, railbird-hero-table.png, railbird-bird-rail.png. Kept for reference only; not used anywhere.

@@ -362,6 +362,9 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
     test(`three columns on the casino stage too (${size.width}x${size.height})`, async ({ page }) => {
       await desk(page, size);
       await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      // BUG-53: the casino opens on the floor; the board is an explicit choice.
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
 
       await page.waitForSelector('.csn-desk__rail');
       await expect(page.getByTestId('desk-roster')).toBeVisible();
@@ -381,6 +384,9 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
   test('the three doorways sit side by side, same top, same height', async ({ page }) => {
     await desk(page, SIZES[0]);
     await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      // BUG-53: the casino opens on the floor; the board is an explicit choice.
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
     await page.waitForSelector('.csn-doors');
 
     const doors = await page.locator('.csn-room-door').all();
@@ -401,6 +407,9 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
   test('a doorway opens the floor full width, with the board as its own column, beside the roster', async ({ page }) => {
     await desk(page, SIZES[0]);
     await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      // BUG-53: the casino opens on the floor; the board is an explicit choice.
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
     await page.waitForSelector('.csn-doors');
 
     const roster = await page.getByTestId('desk-roster').boundingBox();

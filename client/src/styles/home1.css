@@ -1,7 +1,7 @@
 /* client/src/styles/home1.css — HOME-1
  *
  * The flat, seen from above. Ported from design-refs/mood-home.jsx, whose room
- * is authored inline at a fixed 390x470. That fixed box is kept: every
+ * is authored inline at a fixed 390x612. That fixed box is kept: every
  * coordinate in flat.js is in it, and the whole room is scaled to the viewport
  * with one transform rather than by making nine fixtures responsive. One
  * arithmetic, every device — which is also what lets the layout tests assert on
@@ -23,7 +23,7 @@
   overflow: hidden;
 }
 
-/* The room is authored at 390x470 and the phone is taller than that, so there
+/* The room is authored at 390x612 and the phone is taller than that, so there
  * is always floor below it. The container carries the flat's OWN ground so the
  * seam is invisible and the extra space reads as more room rather than as a
  * black band under a picture of one. */
@@ -56,7 +56,7 @@
 .home1__room::after {
   content: '';
   position: absolute;
-  left: 0; right: 0; top: 470px; bottom: 0;
+  left: 0; right: 0; top: var(--home-room-height); bottom: 0;
   background-image: repeating-linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.028) 0 1px,
@@ -81,7 +81,7 @@
   border: 0;
 }
 
-/* The room is authored at 390x470 and scaled to whatever it is given. */
+/* The room is authored at 390x612 and scaled to whatever it is given. */
 .home1__scale {
   position: relative;
   transform-origin: top center;
@@ -1122,7 +1122,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
  * DESK-2 · HOME at 1440. Board 31 P15-P18, from design-refs/mood-home-desk.jsx.
  *
  * THE SAME ROOM, BIGGER. Nothing below moves a fixture or redraws a body: the
- * flat is still authored at 390x470 in flat.js and every coordinate in it is
+ * flat is still authored at 390x612 in flat.js and every coordinate in it is
  * untouched. The desk scales it once (the ref's own HD_SCALE, 1.34) and stands
  * a rail beside it. That is the entire difference, which is the ref's claim.
  * ══════════════════════════════════════════════════════════════════════════ */

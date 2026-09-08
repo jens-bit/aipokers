@@ -305,7 +305,7 @@
       "get": {
         "summary": "Agent memory record",
         "operationId": "getMemory",
-        "description": "Returns the agent's persistent self-knowledge plus the formatted memoryContext string injected into decision-time system prompts.",
+        "description": "Owner-only. Authenticate with x-telegram-init-data (or a guest cookie / development x-api-secret); userId must match the caller. Returns persistent self-knowledge and the formatted memoryContext used in decision-time prompts. Missing credentials return 401; another owner's identity returns 403.",
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "userId", "in": "query", "required": false, "schema": { "type": "string", "default": "anon" } }

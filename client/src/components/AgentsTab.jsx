@@ -30,7 +30,7 @@ export function AgentsTab({ onDeploy, onCreateAgent, onOpenChat, onVsYou }) {
     try {
       const res = await fetch(`/api/agents/${agent.id}/queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId: getUserId() }),
       });
       if (!res.ok) return;

@@ -5,6 +5,14 @@ Dates are UTC. Format: `[version] — date — summary`.
 
 ---
 
+## [Unreleased] — 2026-09-08 — Astra security and home repairs
+
+Telegram verification rejects malformed signatures; agent mutations check ownership; public profile, flagged-hand, memory, session and hand-history paths withhold private data. WebSocket owners authenticate, public viewers receive a public viewpoint, and clients send credentials on watch/join and legacy queue/finish calls. Failed model builds keep the draft and return a retryable error.
+
+The home uses the reference's 612px coordinate space, clearing the first-agent button from the TV. Agent taps have one destination regardless of seating. The guest recruiter mounts without a redundant lazy gate. Jens cancelled the collar stage; the draft remains four stages and the reference/ledger reflect that decision. Desktop browser checks follow the current Floor/Board navigation. Referral verification shuts down its handles without a forced process exit.
+
+See `read-me-claude/ASTRA_REPAIR.md` for validation, review evidence and remaining work.
+
 ## [0.12.0] — 2026-09-07 — Railbird: the name, the mark, a visit, the desk
 
 Written from the branch and integrator reports of 2026-09-07 (Monday evening, deploys #79–#86). The product got its name and its logo, the first phone playtest of the HOME-2 build produced a twelve-job fix queue and four design decisions, and two branches shipped. Details in the master spec v14; process unchanged from HOW_WE_WORK v3.

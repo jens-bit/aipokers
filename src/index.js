@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from './server/wsServer.js';
 import { installAgentProfileRoutes, getProfileStats } from './server/agentProfiles.js';
-import { readHands } from './server/handHistory.js';
+import { installHandHistoryRoutes } from './server/handHistory.js';
 import { logAuthWarningIfNeeded, telegramAuthMiddleware, telegramUserIdFrom } from './server/auth.js';
 import { rateLimiter } from './server/rateLimit.js';
 import { openStore } from './server/store.js';
@@ -190,10 +190,7 @@ app.get('/api/auth/me', telegramAuthMiddleware, (req, res) => {
 });
 
 // GET /api/history/:userId — last 20 completed hands for a user, newest first.
-app.get('/api/history/:userId', (req, res) => {
-  const hands = readHands(req.params.userId, 20);
-  res.json(hands);
-});
+installHandHistoryRoutes(app);
 
 // GET /openapi.json — OpenAPI 3.0 spec, CORS-open for AI agent discovery.
 if (openApiSpec) {

@@ -212,7 +212,7 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
 
   const tableId = 'watch-v2-pvp';
   const watch = (agent, owner) => new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-api-secret': process.env.DEV_API_SECRET } });
     ws.on('error', reject);
     ws.on('open', () => {
       ws.send(JSON.stringify({
@@ -272,7 +272,7 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
     const first = await getAgent(await newAgent('same-owner 1', ownerA), ownerA);
     const second = await getAgent(await newAgent('same-owner 2', ownerA), ownerA);
     const openWatch = async (agent) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-api-secret': process.env.DEV_API_SECRET } });
       const seen = [];
       await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
       ws.on('message', (d) => { try { seen.push(JSON.parse(d.toString())); } catch { /* ignore */ } });
@@ -493,7 +493,7 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
 
   const seen = [];
   const ws = await new Promise((resolve, reject) => {
-    const sock = new WebSocket(`ws://127.0.0.1:${port}`);
+    const sock = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-api-secret': process.env.DEV_API_SECRET } });
     sock.on('error', reject);
     sock.on('message', (raw) => { try { seen.push(JSON.parse(raw.toString())); } catch { /* ignore */ } });
     sock.on('open', () => {

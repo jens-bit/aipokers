@@ -18,6 +18,11 @@ const agent = (id, routine, location = at('home')) => ({
 });
 
 describe('HOME-1 · the plan', () => {
+  it('BUG-51: uses the reference room height and keeps the TV clear of the draft action', () => {
+    expect(F_H).toBe(612);
+    // First-agent invitation below the table: text and 44px action end by 420.
+    expect(TV_SCREEN.y).toBeGreaterThan(420);
+  });
   it('every fixture is inside the room', () => {
     for (const [name, f] of Object.entries(FLAT)) {
       if (f.cx !== undefined) {

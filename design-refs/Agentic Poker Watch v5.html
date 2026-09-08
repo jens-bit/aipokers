@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="design_doc_mode" content="canvas"/>
-<title>Agentic Poker · Watch v5</title>
+<title>Railbird · Watch v5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -20,7 +20,14 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 @keyframes bubblein{from{opacity:0}to{opacity:1}}
 @keyframes sheetup{from{opacity:0}to{opacity:1}}
+/* WAVE 63 · the celebration */
+@keyframes agBurst{0%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-4px) scale(.3)}30%{opacity:1}100%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-40px) scale(1)}}
+@keyframes agFlash{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(9)}}
+@keyframes agPillFall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(56px) rotate(24deg)}}
+@keyframes agentBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.012)}}
 .frame{position:absolute}
+.no-scrollbar::-webkit-scrollbar{display:none}
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
 .fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
 .fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
 .ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
@@ -137,6 +144,24 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fa">The anatomy was proven at <b>6-max only</b>, so every smaller ring would have been a fresh pile-up — heads-up would have marooned one seat at Granite's corner with the whole top row empty. <b>One ring per handed count</b>, each seat on the same 64px stack, the cast keeping its seating order so a name never moves between sizes.</div>
 </div>
 
+<div class="frame" style="left:600px;top:3800px">
+  <div class="grouphdr">Wave 63 &middot; the celebration</div>
+  <div class="groupsub">At showdown the winner throws both floating hands up and holds them; the losers&rsquo; hands drop to their sides. Those are <code>raise</code> and <code>rest</code> &mdash; poses the hand system already had, so the celebration invented nothing. Full section on <a href="42 Mobile · The Agent.html">board 42</a>.</div>
+  <div class="fh" style="margin-top:96px"><span class="fn">52p</span><span class="ft">An ordinary win</span><span class="fb">hands up, held</span></div>
+  <div id="v14"></div>
+  <div class="fa">Hands up and <b>held for a beat</b>, wide of the head and clear of the brow. No fireworks: 3,694 is a good pot, not a 100&nbsp;bb pot. <b>Sound:</b> one low room-swell, ~400&nbsp;ms, no cheer &mdash; <code>win_swell</code>.<br/><br/><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#7FE8D0">verified: hero hands in <b>raise</b>; the six seats dimmed with the folded ones at rest; one glass line over the felt; no bursts.</span></div>
+</div>
+<div class="frame" style="left:1060px;top:3800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52q</span><span class="ft">A big win</span><span class="fb teal">148 bb</span></div>
+  <div id="v15"></div>
+  <div class="fa">At <b>100 bb or more</b>: three bursts over the felt, teal and gold, staggered 260&nbsp;ms, done in <b>1.2&nbsp;s</b>. Over the table, never full-screen. <b>Sound:</b> three soft reports on the bursts&rsquo; own timing under the swell &mdash; <code>big_win_bursts</code>.<br/><br/><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#7FE8D0">verified: bursts at (92,150) teal, (300,118) gold, (196,196) teal, 10 particles each on a 36&deg; wheel, drawn <b>mid-flight</b> at 86% / 60% / 30% of their travel &mdash; a still of a finished burst is an empty frame. Pot and board legible through them.</span></div>
+</div>
+<div class="frame" style="left:1520px;top:3800px">
+  <div class="fh" style="margin-top:118px"><span class="fn">52r</span><span class="ft">A bust</span><span class="fb red">the seat goes dark</span></div>
+  <div id="v16"></div>
+  <div class="fa"><b>A bust is bigger than a win</b> because it takes furniture off the felt instead of adding light to it: the seat goes dark and his name pill falls off the table &mdash; 900&nbsp;ms, 56px, rotating 24&deg;. Drawn at mid-fall, because a still of a finished fall is an empty seat and says nothing. <b>Sound:</b> one dry wooden knock as it lands, room noise ducked 600&nbsp;ms after &mdash; <code>bust_knock</code>.<br/><br/><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#7FE8D0">verified: the seat under a radial black scrim; the pill mid-fall and rotated; the bursts fire mid-flight because a bust qualifies; the line reads GRANITE IS OUT with the hand that did it.</span></div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -161,6 +186,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="char-system.jsx"></script>
 <script type="text/babel" src="mood-watch4c.jsx"></script>
 <script type="text/babel" src="mood-watch5.jsx"></script>
+<script type="text/babel" src="mood-replay.jsx"></script>
+<script type="text/babel" src="mood-agent.jsx"></script>
+<script type="text/babel" src="mood-agent2.jsx"></script>
 
 <script type="text/babel">
 [
@@ -177,6 +205,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['v11', V5CostDotScreenM],
   ['v12', SeatAnatomyM],
   ['v13', TableSizesM],
+  ['v14', AgentCelebWinM],
+  ['v15', AgentCelebBigM],
+  ['v16', AgentCelebBustM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
   if (el) ReactDOM.createRoot(el).render(<Comp/>);

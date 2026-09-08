@@ -189,6 +189,34 @@ async function room(page, cast) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  test('BUG-51: the first-agent action stays clear of the TV and can be clicked', async ({ page }) => {
+    await page.route('**/api/slots**', route => route.fulfill({ json: { used: 0, cap: 4, next: { index: 1, price: 0, earned: 0, unlocked: true } } }));
+    await room(page, { agents: [], game: null });
+    const action = page.locator('.home1__ftu-draft');
+    await expect(action).toBeVisible();
+    const actionBox = await action.boundingBox();
+    const tvBox = await page.getByTestId('home-tv').boundingBox();
+    expect(actionBox.y + actionBox.height).toBeLessThan(tvBox.y);
+    const actual = await page.screenshot({ path: 'e2e/__screenshots__/home-empty-repaired.png' });
+    // Optional local reference server: render the design itself for the
+    // integrator's side-by-side review. Ordinary test runs need no board server.
+    if (process.env.DESIGN_REF_URL) {
+      const ref = await page.context().newPage();
+      await ref.setViewportSize({ width: 1600, height: 1000 });
+      await ref.goto(`${process.env.DESIGN_REF_URL}/Agentic%20Poker%20Home.html`);
+      const frame = ref.locator('#f01 > div').first();
+      await expect(frame).toBeVisible({ timeout: 30000 });
+      const reference = await frame.screenshot();
+      const pair = await page.context().newPage();
+      await pair.setViewportSize({ width: 800, height: 900 });
+      await pair.setContent(`<body style="margin:0;background:#161a1a;color:white;font:14px system-ui"><div style="display:flex;gap:20px;padding:0 0 0 0"><div>Reference · 29 F01<br><img width="390" src="data:image/png;base64,${reference.toString('base64')}"></div><div>Repair · 390 × 844<br><img width="390" src="data:image/png;base64,${actual.toString('base64')}"></div></div></body>`);
+      await pair.screenshot({ path: 'e2e/shots/astra-home-empty-pair.png', fullPage: true });
+      await pair.close();
+      await ref.close();
+    }
+    await action.click();
+    await expect(page.getByTestId('draft-input')).toBeVisible();
+  });
   test('one agent alone', async ({ page }) => {
     await room(page, CASTS.alone);
     await expect(page.getByTestId('home-screen')).toBeVisible();

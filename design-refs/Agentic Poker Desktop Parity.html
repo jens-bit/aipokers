@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="design_doc_mode" content="canvas"/>
-<title>Agentic Poker · Desktop Parity</title>
+<title>Railbird · Desktop Parity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -20,7 +20,11 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 @keyframes sheetup{from{opacity:0}to{opacity:1}}
 @keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes agentBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.012)}}
+@keyframes agBurst{0%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-4px) scale(.3)}30%{opacity:1}100%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-40px) scale(1)}}
 .frame{position:absolute}
+.no-scrollbar::-webkit-scrollbar{display:none}
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
 .fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px}
 .fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
 .ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
@@ -274,6 +278,15 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   <div class="fa">Same content, same order: his face, his name, the result line with the hand he won with, then what a guest cannot do, then the two buttons. The room stays <b>visible and dimmed</b> rather than hidden &mdash; on a screen this wide, covering the thing you are about to lose would be the wrong argument for keeping it.</div>
 </div>
 
+<div class="frame" style="left:600px;top:38500px">
+  <div class="grouphdr teal">6 &middot; Wave 63 &middot; the agent, in the column</div>
+  <div class="groupsub">Tapping an agent on mobile takes the whole screen, because the screen is all there is. On desktop the agent view is not a screen at all &mdash; it is <b>the right column changing what it holds</b>, which is the whole reason wave 58 gave this composition three always-open columns. Full sheet on <a href="42 Mobile · The Agent.html">board 42</a>.</div>
+  <div class="fh" style="margin-top:6px"><span class="fn">C9</span><span class="ft">The agent in the column</span><span class="fb teal">1440 × 900</span></div>
+  <div id="c9"></div>
+  <div class="fa">Him large at the top of the column at <b>132px</b> with his pill above his head and his bubble beside it, the four glass actions under him, the conversation below that, the composer pinned to the <b>column&rsquo;s</b> bottom rather than the window&rsquo;s. The roster stays open on the left and the room stays lit in the centre, so opening an agent costs you nothing you were already looking at.<br/><br/>The header&rsquo;s agent count is <b>not a button here</b>: the roster column is already the roster sheet, permanently, so there is nothing for the pill to open.</div>
+  <div class="fa" style="color:#7FE8D0;font-family:'JetBrains Mono',monospace;font-size:11px">verified: 1440&times;900, three columns at 250 / 810 / 380; the flat renders behind with its cast and fixtures; his bubble sits beside his head inside the column and does not cross into the room; exactly one card in the conversation and it is a hand.</div>
+</div>
+
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -320,6 +333,9 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
 <script type="text/babel" src="mood-floor58.jsx"></script>
 <script type="text/babel" src="mood-desk59.jsx"></script>
 <script type="text/babel" src="mood-desk59b.jsx"></script>
+<script type="text/babel" src="mood-replay.jsx"></script>
+<script type="text/babel" src="mood-agent.jsx"></script>
+<script type="text/babel" src="mood-agent2.jsx"></script>
 <script type="text/babel" src="mood-guest.jsx"></script>
 
 <script type="text/babel">
@@ -343,6 +359,7 @@ a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
   ['x5', DkCasinoFloorScreenM], ['x6', DkWatchM], ['x7', DkOwnerM], ['x8', DkOwnerBetM],
   ['y1', DkHome1920M], ['y2', DkCasino1920M], ['y3', DkWatch1920M], ['y4', DkOwner1920M],
   ['z1', GuestClaimDeskM],
+  ['c9', DkAgentScreenM],
 ].forEach(([id, Comp]) => {
   const el = document.getElementById(id);
   if (el) ReactDOM.createRoot(el).render(<Comp/>);

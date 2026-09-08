@@ -21,7 +21,7 @@
 // the television at the bottom of it rather than in the left corner.
 
 export const F_W = 390;
-export const F_H = 470;
+export const F_H = 612;
 
 export const FLAT = {
   wall:   { x: 10,  y: 8,   w: 370, h: 78 },     // the frames hang here

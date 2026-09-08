@@ -630,12 +630,61 @@ const TabBar = ({ active = 'chats' }) => {
 };
 
 // ── LAW 1 · the global header. Right side is identical on every screen. ──
-const SpadeLogo = () => (
-  <svg width="17" height="21" viewBox="0 0 22 26" style={{ display: 'block', flexShrink: 0 }}>
-    <path d="M11 1.6 C11 1.6 2.2 9.4 2.2 15.6 C2.2 19 4.5 21.4 7.5 21.4 C8.9 21.4 10 20.9 10.7 20.1 C10.8 22.5 10 24.5 8 25.7 L14 25.7 C12 24.5 11.2 22.5 11.3 20.1 C12 20.9 13.1 21.4 14.5 21.4 C17.5 21.4 19.8 19 19.8 15.6 C19.8 9.4 11 1.6 11 1.6 Z" fill="none" stroke={M_TEAL} strokeWidth="1.6" strokeLinejoin="round"/>
-    <path d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12" stroke={M_TEAL} strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-  </svg>
-);
+// WAVE 63 · THE MARK IS THE GHOST AT THE RAIL. Wave 62's bird is dropped: a bird
+// has nothing to do with this game. A railbird is the one leaning on the rail
+// watching somebody else play, so the mark is this product's own character doing
+// exactly that — the same hood arch, the same face-as-a-hole, the same two eyes
+// and flat brows, the same floating fists.
+//
+// ONE COLOUR ON DARK: the whole thing is a mask filled with one colour, so every
+// dark part (the face, the rail's seam, the gap around each fist) is a HOLE and
+// whatever is behind shows through. Works on black, on burgundy, and inside a
+// circular crop with no second fill.
+//
+// Exported as RailMark AND as SpadeLogo — same 20×20 call site, so not one screen
+// changed. mood-brand.jsx owns the full sheet (poses, avatars, icons, lockups).
+const RB_MARK = {
+  hood: 'M14.4 45V27C14.4 15.6 22.5 8.6 32.5 8.6C42.5 8.6 50.6 15.6 50.6 27V45Z',
+  face: 'M20.8 45V27.5C20.8 20.2 26 15.7 32.65 15.7C39.3 15.7 44.5 20.2 44.5 27.5V45Z',
+  browL: 'M23.4 24H30.1A0.7 0.7 0 0 1 30.1 25.5H23.4A0.7 0.7 0 0 1 23.4 24Z',
+  browR: 'M34.9 24H41.6A0.7 0.7 0 0 1 41.6 25.5H34.9A0.7 0.7 0 0 1 34.9 24Z',
+  eyeL: 'M26.6 29.8m-3 0a3 2.4 0 1 0 6 0a3 2.4 0 1 0-6 0Z',
+  eyeR: 'M38.7 29.8m-3 0a3 2.4 0 1 0 6 0a3 2.4 0 1 0-6 0Z',
+  pad: 'M-2 39.2H66V44.6H-2Z', seam: 'M-2 42.2H66V42.9H-2Z', line: 'M-2 45.8H66V47.4H-2Z',
+};
+
+const RailMark = ({ size = 20, color = M_TEAL }) => {
+  const uid = React.useId().replace(/:/g, '');
+  const fist = x => (
+    <g key={x} transform={`translate(${x} 37.4)`}>
+      <rect x="-6.1" y="-4.85" width="12.2" height="9.7" rx="4.7" fill="#000"/>
+      <rect x="-4.95" y="-3.7" width="9.9" height="7.4" rx="3.6" fill="#fff"/>
+      <rect x="-2.2" y="-2" width="1" height="3.2" rx="0.5" fill="#000"/>
+      <rect x="1.2" y="-2" width="1" height="3.2" rx="0.5" fill="#000"/>
+    </g>
+  );
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" style={{ display: 'block', flexShrink: 0 }} role="img" aria-label="Railbird">
+      <defs>
+        <mask id={'rbm' + uid} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          <rect x="0" y="0" width="64" height="64" fill="#000"/>
+          <path d={RB_MARK.hood} fill="#fff"/>
+          <path d={RB_MARK.face} fill="#000"/>
+          <path d={RB_MARK.browL} fill="#fff"/>
+          <path d={RB_MARK.browR} fill="#fff"/>
+          <path d={RB_MARK.eyeL} fill="#fff"/>
+          <path d={RB_MARK.eyeR} fill="#fff"/>
+          <path d={RB_MARK.pad} fill="#fff"/>
+          <path d={RB_MARK.seam} fill="#000"/>
+          <path d={RB_MARK.line} fill="#fff"/>
+          {[14.7, 49.3].map(fist)}
+        </mask>
+      </defs>
+      <rect x="0" y="0" width="64" height="64" fill={color} mask={`url(#rbm${uid})`}/>
+    </svg>
+  );
+};
+const SpadeLogo = RailMark;
 
 const GlobalHeader = ({ title, back }) => (
   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, padding: '2px 14px 10px' }}>
@@ -649,7 +698,7 @@ const GlobalHeader = ({ title, back }) => (
       letterSpacing: title ? '0.14em' : '0.18em',
       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       textTransform: 'uppercase',
-    }}>{title || 'Agentic Poker'}</span>
+    }}>{title || 'Railbird'}</span>
     <div style={{ flex: 1, minWidth: 6 }}/>
     {/* right side — never varies */}
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, height: 29, padding: '0 10px', borderRadius: 15, background: M_PANEL_2, border: `1px solid ${M_BORDER}`, flexShrink: 0 }}>
@@ -861,5 +910,5 @@ Object.assign(window, {
   M_TEAL, M_GOLD, M_RED, M_PURPLE, M_PINK, M_NEUTRAL, PLAYFAIR, ROZHA, OSWALD, MONO, INTER,
   MOODS, MoodGhost, MoodPip, MoodAvatar, MoodChip,
   Lbl, Num, Amt, LiveDot, Btn, PhoneShell, TabBar, ChatComposer, DayDivider, BackHeader,
-  GlobalHeader, SpadeLogo, STATES, StateTag, MoodBand, LiveBar, CANON,
+  GlobalHeader, SpadeLogo, RailMark, RB_MARK, STATES, StateTag, MoodBand, LiveBar, CANON,
 });

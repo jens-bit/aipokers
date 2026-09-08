@@ -756,7 +756,7 @@ describe('BUGS-C job 3: the table region, mid-hand', () => {
     ],
   };
 
-  it('BUGS-C-3: in a hand, a tap on a seated agent\'s pill opens the TableSheet, not his thread', async () => {
+  it('BUG-54: tapping a seated agent opens his conversation, just like a standing agent', async () => {
     const onOpenThread = vi.fn();
     fetchMock.route('/api/slots', { used: 2, cap: 4, next: null });
     await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')], GAME, { onOpenThread });
@@ -764,8 +764,8 @@ describe('BUGS-C job 3: the table region, mid-hand', () => {
     const body = await screen.findByRole('button', { name: /The Clock — / });
     await userEvent.click(body);
 
-    expect(await screen.findByTestId('home-table-sheet-mobile')).toBeInTheDocument();
-    expect(onOpenThread).not.toHaveBeenCalled();
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }));
+    expect(screen.queryByTestId('home-table-sheet-mobile')).not.toBeInTheDocument();
   });
 
   it('BUGS-C-3: an idle, standing agent keeps his own tap, hand or no hand', async () => {

@@ -320,7 +320,7 @@ function defaultLabel(kind) {
  * talking and the seats talking are public at a real table, and a spectator
  * who can watch the felt can hear them.
  */
-export function readThread(sessionId, { owner = false, limit } = {}) {
+export function readThread(sessionId, { owner = false, limit, agentId, ownerId } = {}) {
   if (!sessionId) return [];
   let rows = [];
   try {
@@ -329,7 +329,10 @@ export function readThread(sessionId, { owner = false, limit } = {}) {
     console.error('[thread] read failed:', err.message);
     return [];
   }
-  const visible = owner ? rows : rows.filter((r) => !PRIVATE_KINDS.has(r.kind));
+  // BUG-49: a session id is a locator, not permission to read its private lines.
+  const scoped = rows.filter(r => (agentId == null || r.agentId === agentId)
+    && (ownerId == null || String(r.ownerId) === String(ownerId)));
+  const visible = owner ? scoped : scoped.filter((r) => !PRIVATE_KINDS.has(r.kind));
   return visible.map(({ ownerId, agentId, ...line }) => line);
 }
 

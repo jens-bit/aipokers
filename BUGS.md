@@ -1,51 +1,10 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-08 (integrator, cost-2 merge) — 14 open, 35 resolved
+Last updated: 2026-09-08 (Astra repair integration); statuses and evidence below.
 
 
 ---
 
 ## OPEN
-
-### BUG-46 — A failed draft commits "The Grinder" into the owner's household, silently
-**Severity:** HIGH (the household gains a member the owner did not draft, and it burns one of his agent slots)
-**Where:** `src/server/agentProfiles.js:3247` (`inferFallback`), `:5090` and `:5100` (the two `/api/agents/build` branches), `:529` (`commitAgent`)
-**Reported:** a "house/opponent agent" called **The Grinder** in Jens's household roster on prod, sitting at his home table, since at least 2026-09-07 19:07.
-
-**It is not a house agent and it is not an ownership leak.** Both of those were checked and both are clear:
-
-* The House cast is `Doyle_v3`, `Phil_AI`, `Granite`, `MsAllIn`, `TiltedTed`, `TheProfessor` (`houseCast.js`). "The Grinder" is not among them, and a House seat has no agent record at all — it can never reach a roster.
-* There is exactly **one** write that adds an agent to a household: `profile.agents.push(agent)` at `agentProfiles.js:632`, reached only through `commitAgent`, reached only from `POST /api/agents/chat` and `POST /api/agents/build`, both behind auth and both writing into `getOrCreate(userId)` — the caller's own profile. `moveOwner` (guest claim) moves a guest's own agents to the account claiming them, which is its job. `getOrCreate` seeds an empty roster. Nothing else sets `ownerId`.
-
-**The actual path.** "The Grinder" is the **draft fallback name**. `inferFallback(text)` returns `Loose Cannon` for an aggressive brief, `Rock Solid` for a tight one, and **`The Grinder` for everything else** — it is the default branch. `/api/agents/build` reaches it two ways, and neither tells the owner anything went wrong:
-
-1. `:5086` `callClaude(...)` returns `null` the instant `ANTHROPIC_API_KEY` is missing (`:3331`) — no request, no error. `:5090` then commits `inferFallback(combined)`.
-2. `:5099` the `catch` — a timeout, a 401 on an expired key, an overload — commits `inferFallback(combined)` too.
-
-Both call `commitAgent(profile, existingAgentId, …)` with `existingAgentId` null on a fresh draft, so a **new agent is pushed** and `res.json({ createdAgent })` returns 200. From the owner's side an agent he never finished drafting simply appears, correctly owned by him — which is why he is in the roster, why the home game seats him, and why he reads as somebody else's: the name is a generic archetype and the strategy is the canned "calculated, adaptive player" text.
-
-**So the invariant was never violated** — he really is Jens's agent by `ownerId`. The bug is that the account created him without the owner's say-so, on an error path that returns success.
-
-**Fix (not made — this is a product call, not a query fix).** The error branches must stop committing. The options, in the order they are worth considering: refuse the build (`503`, draft left intact — it already survives the slot refusal at `:4990` exactly this way, so the shape exists), or commit but mark the agent as unfinished so the birth screen can say the recruiter never answered. Either way the two branches at `:5090` and `:5100` should not silently push. `inferFallback` itself is fine and should stay — a brief-derived archetype is the right thing to *offer*; it is the committing that is wrong.
-
-**What was done here:** the roster invariant is now a test (`src/server/homeRoster.test.js`) — every entry in `HOME_STATE.agents` is either an active agent of this owner or is tagged `guest: true` — and it drove out a second, unrelated hole that *was* a one-file fix: `homeSnapshot` concatenated its injected `visitors` as given, trusting each caller to have tagged them. It now stamps `guest: true` itself and drops anything already in the household. That hole opened with VISIT-1 (2026-09-07 22:32) and so **cannot** explain a 19:07 sighting; it is closed on its own merits.
-
-**To confirm on prod without touching the data:** read that agent's record — a fallback build has `style: 'Balanced'`, `risk: 'Medium'` and the verbatim strategy string at `agentProfiles.js:3247`, and its `chat` transcript will end with the owner's brief and no recruiter hand-over line.
-
----
-
-### bugs-d — the profile, the fridge, and the bundle (playtest queue, not yet started)
-**Severity:** Mixed (one server hole, two visible on the profile, one dead feature, one weight)
-**Where:** `client/src/screens/AgentProfileScreen.jsx`, `client/src/components/home/FridgeSheet.jsx`, `src/server/agentProfiles.js`, `client/src/styles/index.css`
-**What:** The list the 2026-09-07 phone playtest left over once `fix/bugs-c` took its twelve. Filed as one queue rather than five numbers because they will be worked as one. All five re-checked against merged main (1c86a8e) on 2026-09-08 — bugs-c touched this screen twice (jobs 7 and 8) and none of these went away.
-
-1. **His name is at the top of the profile twice.** `AgentProfileScreen.jsx:716` (the sticky back-bar, Playfair 16, ellipsised) and `:330` (`IdentityBlock`'s Playfair 19, beside his face) render `{agent.name}` one directly above the other. The bar is the one that has to stay — it is what the back arrow belongs to and it survives the scroll — so the card's is the candidate for cutting, not the reverse.
-2. **The profile scrolls sideways.** Reported as pocket-row overflow. BUGS-C-8 rebuilt the pocket row and removed its duplicate in the header, so if the sideways scroll survives that it is *not* the pocket row and the next suspect is the header frame's own flex children. **Unverified in a browser since the merge** — measure it at 390px before assuming it is still there.
-3. **The fridge's beer does nothing.** The client posts the right thing (`FridgeSheet.jsx:38`, `POST /api/agents/:id/give` with `{item:'beer'}`) and the server has a whole path for it (`giveItemTo`, `agentProfiles.js:2862`). Check the two refusals *before* looking for a break: a level agent is refused outright with `400 "He's fine. Save it."` (`:2872`, `isMoodSoothable`), and an empty shelf is refused `409` with `outOfStock`. Both come back as a *line in the sheet*, so "nothing happened" and "he said no" look identical to a thumb. If it is one of those two, this is a copy bug and not a wiring bug.
-4. **`agent.sessionDips` never reaches the client, so CONDITION can only ever show fatigue.** SERVER-5 stores the three world states — worn, hungry, tilted — on the record (`agentProfiles.js:3017`) and `table.js:259` takes them at sit-down. `sessionDipsOf()` is exported at `:3023` **and has no caller outside `dips.test.js`** — nothing serialises it, so no payload carries it. The profile card ships `fatigue` (`:1981`) and that is the whole of what the CONDITION row BUGS-C-7 just labelled can show. **Server work, and the enabling half of the other four:** expose the dips on the same projection as `fatigue`, then the row can say why he is dipped.
-5. **One stylesheet, 301.5 kB, on every session.** Measured on the post-merge build (2026-09-08): `dist/assets/index-*.css` is 301.50 kB raw / 50.63 kB gzip, and it is the *only* CSS file emitted — BUGS-C-1 split the JS (entry 490 kB, with `CasinoScreen`, `AgentProfileScreen`, `DesktopHome`, `GuestLanding` and `LoginGate` now their own chunks) and left the CSS whole. **The landing suspicion is mostly wrong and should not drive the fix:** `guest.css` is 9 kB, 3% of the sheet, and it rides in through `App.jsx:26 → ClaimWall`, not through the landing. The weight is `styles/index.css`, which eagerly `@import`s 24 sheets — `desktop.css` 66 kB, `watch.css` 61 kB, `home1.css` 51 kB and `layout.css` 37 kB are 215 kB of the 301 between them, and a phone in the flat downloads all four.
-**Also seen, same build:** vite warns that `ReplayTheatre.jsx` is dynamically imported by `App.jsx` but statically imported by `FlaggedHandsSheet.jsx` and `ChatsScreen.jsx`, so *that* `import()` splits nothing. Whoever takes item 5 should take this with it.
-
----
 
 ### BUG-45 — `CasinoScreen.test.jsx` "a bigger pocket opens the room above" only passes with the file
 **Severity:** Medium (a green suite hiding an order dependency — BUG-36's family)
@@ -122,6 +81,7 @@ Both call `commitAgent(profile, existingAgentId, …)` with `existingAgentId` nu
 ---
 
 ### BUG-34 — `test:all` dies intermittently on Windows (native abort: REPRODUCED 2026-09-07, still unfixed)
+**2026-09-08 repair progress:** reproduced a native libuv abort after `verify-visit-referral.js` printed PASS. That script now closes HTTP, WebSocket and SQLite handles and sets exitCode instead of forcing process.exit. The full suite subsequently passed. This is a targeted shutdown fix, not proof that the entire Windows flake family is resolved; BUG-34 stays OPEN.
 **Severity:** Medium (a flaky suite teaches people to re-run instead of to look — the testing law's own words)
 **Where:** the test harness, not the product. `src/server/tapeRoom.test.js` and `scripts/verify-pace.js` (both fixed, below); the native abort is not in any one file — see the 2026-09-07 reproduction.
 **Reported:** roughly one full `npm run test:all` in five came back red on Windows, two ways: a spawned suite exiting **3221226505** (`STATUS_STACK_BUFFER_OVERRUN` — a native abort, not an assertion), or `scripts/verify-pace.js` failing `every snapshot of a live hand carries it — 1 without`. Reproduced on unmodified main.
@@ -215,6 +175,62 @@ Across everything seen on 2026-09-07 that makes **nine distinct victim files**, 
 ---
 
 ## RESOLVED — kept here for traceability
+
+### Astra repair batch — 2026-09-08 (local; deployment pending)
+
+- **BUG-47 (critical):** malformed Telegram hashes accepted forged identities. Both signature schemes now require exactly one 64-digit hexadecimal hash. `auth.test.js`: malformed and duplicate signatures rejected; legitimate signatures still accepted.
+- **BUG-48 (high):** agent writes trusted the supplied owner id. All agent mutations now authenticate and check one consistent owner id; mismatched body/query ids are rejected. Legacy client queue/finish calls now send credentials. `ownership.test.js`: signed stranger, anonymous caller, guest and real owner exercised.
+- **BUG-49 (high):** public profile, flagged-hand and session/history reads leaked private records. Public projections use allowlists; memory/history require ownership; session rows are scoped to the requested owner and agent; opponent hidden cards and private reasoning are withheld. Stored records remain intact. `ownership.test.js` covers each repaired route.
+- **BUG-50 (high):** WebSocket WATCH inherited a private seat without proof. Public spectators now have viewpoint -1 and cannot create a table or control a session. Telegram owners prove their identity and watch their deployed/seated agent; JOIN player ids are namespaced by owner. Guest cookies reach WebSocket auth. Existing protocol tests now send their development credential, just as their HTTP requests already did. `ownership.test.js` tests real sockets plus real table snapshots; `useTable.test.jsx` verifies credential transmission.
+- **BUG-51 (medium):** the 470px flat put the TV into the first-agent action. The room now uses the reference's 612px height and one shared CSS height. The phone browser regression measures separation and clicks the draft button. The desktop dimension assertion was changed to the actual reference size, retaining exact equality.
+- **BUG-52 (medium):** the guest room stayed blank behind a redundant lazy App import. App is already eagerly imported by main. The landing now reuses it directly. The old source-only lazy assertion was replaced to reflect this deliberate behavior change; the real recruiter mounting test is unchanged in strength and now passes.
+- **BUG-53 (medium):** the desktop browser checks still assumed the casino opened on its building. They now assert the floor opens first, select Board through the real toggle, and retain the column/door geometry assertions.
+- **BUG-54 (medium):** a seated agent tap opened the table while a standing agent tap opened his conversation. Bodies consistently select their agent; the felt retains its own action. This deliberately supersedes BUGS-C-3's older tap rule, as called for by the board-42 interaction direction. The full board-42 agent view remains unbuilt.
+
+### BUG-46 — A failed draft silently commits a fallback agent — RESOLVED locally 2026-09-08
+**Severity:** HIGH (the household gains a member the owner did not draft, and it burns one of his agent slots)
+**Where:** `src/server/agentProfiles.js:3247` (`inferFallback`), `:5090` and `:5100` (the two `/api/agents/build` branches), `:529` (`commitAgent`)
+**Reported:** a "house/opponent agent" called **The Grinder** in Jens's household roster on prod, sitting at his home table, since at least 2026-09-07 19:07.
+
+**Correction from Astra audit, 2026-09-08:** it is not a House cast member. The earlier claim that ownership was clear was wrong: authentication did not bind these writes to the requested userId (BUG-48). The original production incident cannot be attributed conclusively without its request logs. The fallback path below was independently reproduced.
+
+* The House cast is `Doyle_v3`, `Phil_AI`, `Granite`, `MsAllIn`, `TiltedTed`, `TheProfessor` (`houseCast.js`). "The Grinder" is not among them, and a House seat has no agent record at all — it can never reach a roster.
+* There is exactly **one** write that adds an agent to a household: `profile.agents.push(agent)` at `agentProfiles.js:632`, reached only through `commitAgent`, reached only from `POST /api/agents/chat` and `POST /api/agents/build`, both behind auth and both writing into `getOrCreate(userId)` — the profile named by the request, which was not necessarily the caller's until BUG-48. `moveOwner` (guest claim) moves a guest's own agents to the account claiming them, which is its job. `getOrCreate` seeds an empty roster. Nothing else sets `ownerId`.
+
+**The actual path.** "The Grinder" is the **draft fallback name**. `inferFallback(text)` returns `Loose Cannon` for an aggressive brief, `Rock Solid` for a tight one, and **`The Grinder` for everything else** — it is the default branch. `/api/agents/build` reaches it two ways, and neither tells the owner anything went wrong:
+
+1. `:5086` `callClaude(...)` returns `null` the instant `ANTHROPIC_API_KEY` is missing (`:3331`) — no request, no error. `:5090` then commits `inferFallback(combined)`.
+2. `:5099` the `catch` — a timeout, a 401 on an expired key, an overload — commits `inferFallback(combined)` too.
+
+Both call `commitAgent(profile, existingAgentId, …)` with `existingAgentId` null on a fresh draft, so a **new agent is pushed** and `res.json({ createdAgent })` returns 200. From the owner's side an agent he never finished drafting simply appears, correctly owned by him — which is why he is in the roster, why the home game seats him, and why he reads as somebody else's: the name is a generic archetype and the strategy is the canned "calculated, adaptive player" text.
+
+**So the invariant was never violated** — he really is Jens's agent by `ownerId`. The bug is that the account created him without the owner's say-so, on an error path that returns success.
+
+**Fix (not made — this is a product call, not a query fix).** The error branches must stop committing. The options, in the order they are worth considering: refuse the build (`503`, draft left intact — it already survives the slot refusal at `:4990` exactly this way, so the shape exists), or commit but mark the agent as unfinished so the birth screen can say the recruiter never answered. Either way the two branches at `:5090` and `:5100` should not silently push. `inferFallback` itself is fine and should stay — a brief-derived archetype is the right thing to *offer*; it is the committing that is wrong.
+
+**What was done here:** the roster invariant is now a test (`src/server/homeRoster.test.js`) — every entry in `HOME_STATE.agents` is either an active agent of this owner or is tagged `guest: true` — and it drove out a second, unrelated hole that *was* a one-file fix: `homeSnapshot` concatenated its injected `visitors` as given, trusting each caller to have tagged them. It now stamps `guest: true` itself and drops anything already in the household. That hole opened with VISIT-1 (2026-09-07 22:32) and so **cannot** explain a 19:07 sighting; it is closed on its own merits.
+
+**To confirm on prod without touching the data:** read that agent's record — a fallback build has `style: 'Balanced'`, `risk: 'Medium'` and the verbatim strategy string at `agentProfiles.js:3247`, and its `chat` transcript will end with the owner's brief and no recruiter hand-over line.
+
+---
+
+### bugs-d — the profile, the fridge, and the bundle (playtest queue, not yet started)
+**Severity:** Mixed (one server hole, two visible on the profile, one dead feature, one weight)
+**Where:** `client/src/screens/AgentProfileScreen.jsx`, `client/src/components/home/FridgeSheet.jsx`, `src/server/agentProfiles.js`, `client/src/styles/index.css`
+**What:** The list the 2026-09-07 phone playtest left over once `fix/bugs-c` took its twelve. Filed as one queue rather than five numbers because they will be worked as one. All five re-checked against merged main (1c86a8e) on 2026-09-08 — bugs-c touched this screen twice (jobs 7 and 8) and none of these went away.
+
+1. **His name is at the top of the profile twice.** `AgentProfileScreen.jsx:716` (the sticky back-bar, Playfair 16, ellipsised) and `:330` (`IdentityBlock`'s Playfair 19, beside his face) render `{agent.name}` one directly above the other. The bar is the one that has to stay — it is what the back arrow belongs to and it survives the scroll — so the card's is the candidate for cutting, not the reverse.
+2. **The profile scrolls sideways.** Reported as pocket-row overflow. BUGS-C-8 rebuilt the pocket row and removed its duplicate in the header, so if the sideways scroll survives that it is *not* the pocket row and the next suspect is the header frame's own flex children. **Unverified in a browser since the merge** — measure it at 390px before assuming it is still there.
+3. **The fridge's beer does nothing.** The client posts the right thing (`FridgeSheet.jsx:38`, `POST /api/agents/:id/give` with `{item:'beer'}`) and the server has a whole path for it (`giveItemTo`, `agentProfiles.js:2862`). Check the two refusals *before* looking for a break: a level agent is refused outright with `400 "He's fine. Save it."` (`:2872`, `isMoodSoothable`), and an empty shelf is refused `409` with `outOfStock`. Both come back as a *line in the sheet*, so "nothing happened" and "he said no" look identical to a thumb. If it is one of those two, this is a copy bug and not a wiring bug.
+4. **`agent.sessionDips` never reaches the client, so CONDITION can only ever show fatigue.** SERVER-5 stores the three world states — worn, hungry, tilted — on the record (`agentProfiles.js:3017`) and `table.js:259` takes them at sit-down. `sessionDipsOf()` is exported at `:3023` **and has no caller outside `dips.test.js`** — nothing serialises it, so no payload carries it. The profile card ships `fatigue` (`:1981`) and that is the whole of what the CONDITION row BUGS-C-7 just labelled can show. **Server work, and the enabling half of the other four:** expose the dips on the same projection as `fatigue`, then the row can say why he is dipped.
+5. **One stylesheet, 301.5 kB, on every session.** Measured on the post-merge build (2026-09-08): `dist/assets/index-*.css` is 301.50 kB raw / 50.63 kB gzip, and it is the *only* CSS file emitted — BUGS-C-1 split the JS (entry 490 kB, with `CasinoScreen`, `AgentProfileScreen`, `DesktopHome`, `GuestLanding` and `LoginGate` now their own chunks) and left the CSS whole. **The landing suspicion is mostly wrong and should not drive the fix:** `guest.css` is 9 kB, 3% of the sheet, and it rides in through `App.jsx:26 → ClaimWall`, not through the landing. The weight is `styles/index.css`, which eagerly `@import`s 24 sheets — `desktop.css` 66 kB, `watch.css` 61 kB, `home1.css` 51 kB and `layout.css` 37 kB are 215 kB of the 301 between them, and a phone in the flat downloads all four.
+**Also seen, same build:** vite warns that `ReplayTheatre.jsx` is dynamically imported by `App.jsx` but statically imported by `FlaggedHandsSheet.jsx` and `ChatsScreen.jsx`, so *that* `import()` splits nothing. Whoever takes item 5 should take this with it.
+
+---
+
+**Repair:** both draft completion routes return 503 on model errors or malformed output and keep the draft. Deterministic creation remains only for keyless local/test runs. No existing production agent was deleted. Regression: `ownership.test.js`, BUG-46, uses intercepted synthetic model responses and makes no paid calls.
+
+
 
 ### "Two TVs" (playtest queue job 11) — CLOSED 2026-09-07 as by-design, no code changed
 **Where:** the flat — `client/src/components/home/`

@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="design_doc_mode" content="canvas"/>
+<title>Railbird · The Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Playfair+Display:wght@500;600;700&family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#141416;font-family:"Inter",system-ui,sans-serif;color:#EDEDED}
+a{color:#00D4AA;text-decoration:none}a:hover{color:#CDB380}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes shimmer{0%,100%{opacity:.25}50%{opacity:.6}}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(10px,-6px)}}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes bubblein{from{opacity:0}to{opacity:1}}
+@keyframes sheetup{from{opacity:0}to{opacity:1}}
+@keyframes pacewalk{0%,100%{transform:translate(-50%,-100%)}50%{transform:translate(calc(-50% + var(--travel,34px)),-100%)}}
+@keyframes walkout{0%{transform:translate(-50%,-100%)}100%{transform:translate(calc(-50% + var(--travel,60px)),-100%)}}
+@keyframes whisper{0%{opacity:0;transform:translateY(10px)}18%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0}}
+/* WAVE 63 · the agent view's own two motions, and the celebration's */
+@keyframes agentBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.012)}}
+@keyframes agBurst{0%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-4px) scale(.3)}30%{opacity:1}100%{opacity:0;transform:rotate(var(--r,0deg)) translateY(-40px) scale(1)}}
+@keyframes agFlash{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(9)}}
+@keyframes agPillFall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(56px) rotate(24deg)}}
+.frame{position:absolute}
+/* The system has ~40 no-scrollbar usages and the rule had only ever been written
+   into one archived board, so all of them were inert. It belongs in every board
+   that renders a scroll region — a 15px desktop scrollbar inside a 390px phone
+   both lies about the platform and steals bubble width. */
+.no-scrollbar::-webkit-scrollbar{display:none}
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+.fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-left:2px;flex-wrap:wrap}
+.fn{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;color:#00D4AA;letter-spacing:.1em}
+.ft{font-family:"Playfair Display",serif;font-size:18px;font-weight:600;color:#EDEDED}
+.fb{font-family:"Oswald",sans-serif;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#CDB380;border:1px solid rgba(205,179,128,.35);background:rgba(205,179,128,.08);padding:3px 7px;border-radius:3px;white-space:nowrap}
+.fb.teal{color:#00D4AA;border-color:rgba(0,212,170,.35);background:rgba(0,212,170,.08)}
+.fb.red{color:#FF6B6D;border-color:rgba(255,107,109,.35);background:rgba(255,107,109,.08)}
+.fa{margin-top:14px;max-width:390px;font-size:12.5px;line-height:1.55;color:#9E9EA2}
+.fa b{color:#C9C9CE;font-weight:600}
+.fa code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#00D4AA}
+.vf{margin-top:9px;max-width:390px;font-family:"JetBrains Mono",monospace;font-size:10.5px;line-height:1.5;color:#7FE8D0}
+.vf b{color:#00D4AA;font-weight:700}
+.vf.no{color:#FF8A8C}.vf.no b{color:#FF6B6D}
+.vf.wide{max-width:1180px}
+.step{position:absolute;left:-62px;top:0;font-family:"Rozha One",serif;font-size:38px;color:rgba(255,255,255,.13);line-height:1}
+.panel{width:460px;background:#111;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px}
+.panel h1{font-family:"Playfair Display",serif;font-size:27px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.panel .sub{font-family:"Oswald",sans-serif;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#00D4AA;margin-bottom:16px}
+.panel p{font-size:13px;line-height:1.6;color:#C3C3C6;margin:0 0 12px}
+.panel p b{color:#EDEDED;font-weight:600}
+.panel .quote{border-left:2px solid rgba(255,107,109,.5);padding:2px 0 2px 13px;margin:0 0 14px;font-family:"Playfair Display",serif;font-size:16px;line-height:1.45;color:#EDEDED}
+.panel .lbl{font-family:"Oswald",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9E9EA2;margin:20px 0 8px}
+.lawrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.lawrow .k{font-family:"JetBrains Mono",monospace;font-size:10px;width:58px;flex-shrink:0;padding-top:2px;color:#CDB380}
+.lawrow .v{font-size:12.5px;line-height:1.5;color:#C3C3C6}
+.grouphdr{font-family:"Oswald",sans-serif;font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00D4AA;margin-bottom:7px}
+.groupsub{font-size:13px;color:#9E9EA2;line-height:1.6;margin-bottom:22px;max-width:1100px}
+.groupsub b{color:#C9C9CE;font-weight:600}
+.row{display:flex;gap:56px;align-items:flex-start;flex-wrap:nowrap}
+</style>
+</head>
+<body>
+
+<template id="__bundler_thumbnail" data-bg-color="#0D1413">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#0D1413"/>
+    <g transform="translate(470 130) scale(3.6)">
+      <mask id="t2"><rect width="64" height="64" fill="#000"/>
+        <path d="M14.4 45V27C14.4 15.6 22.5 8.6 32.5 8.6C42.5 8.6 50.6 15.6 50.6 27V45Z" fill="#fff"/>
+        <path d="M20.8 45V27.5C20.8 20.2 26 15.7 32.65 15.7C39.3 15.7 44.5 20.2 44.5 27.5V45Z" fill="#000"/>
+        <ellipse cx="26.6" cy="29.8" rx="3" ry="2.4" fill="#fff"/><ellipse cx="38.7" cy="29.8" rx="3" ry="2.4" fill="#fff"/>
+      </mask>
+      <rect width="64" height="64" fill="#00D4AA" mask="url(#t2)"/>
+    </g>
+    <text x="600" y="640" text-anchor="middle" font-family="Playfair Display, serif" font-size="58" fill="#EDEDED">The Agent</text>
+    <text x="600" y="706" text-anchor="middle" font-family="Oswald, sans-serif" font-size="26" letter-spacing="7" fill="#00D4AA">TAP HIM, GET HIM</text>
+  </svg>
+</template>
+
+<div class="frame" style="left:60px;top:80px">
+  <div class="panel">
+    <div class="sub">Wave 63 · part C</div>
+    <h1>Tap him, get him.</h1>
+    <div class="quote">&ldquo;It&rsquo;s too much, I have no idea what is going on.&rdquo;<br/><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9E9EA2;letter-spacing:.06em">&mdash; the owner, 7 Sep playtest</span></div>
+    <p>What he tapped was a chat page: a <b>tiny avatar</b> in a header, COMPOSURE and READS &ldquo;upgrade&rdquo; cards wedged between the lines of a conversation, and a profile that printed his name twice.</p>
+    <p>The fix is not a cleaner chat. It is a different idea: <b>when you tap him, you get HIM.</b> The character fills the upper half at the size he deserves, animated the way he is in the room, and the conversation is what is left over &mdash; his line first, in his voice.</p>
+
+    <div class="lbl">What that costs the old screen</div>
+    <div class="lawrow"><span class="k">Gone</span><span class="v">The upgrade cards leave the conversation entirely. They are one line each under <b>RECENT</b> on the profile, newest first, and the label is still the tap target for the old explainer &mdash; the explainer was never the problem, its position in the middle of a sentence was.</span></div>
+    <div class="lawrow"><span class="k">Gone</span><span class="v">The second copy of his name. The sheet title is the name; nothing under it repeats it.</span></div>
+    <div class="lawrow"><span class="k">New</span><span class="v">Four glass actions in one row, at the felt&rsquo;s whisper-row height. <b>Deploy carries its own answer</b> &mdash; the stakes and his pocket are on the button, so it is not a question you have to leave to answer.</span></div>
+
+    <div class="lbl">The measurements</div>
+    <div class="lawrow"><span class="k">844</span><span class="v">44 status + 40 header + <b>264 stage</b> + 66 actions + 344 conversation + 76 composer. The stage never scrolls; only the lower half does, which is the whole of C3 — and it scrolls without a scrollbar, because a 15px desktop gutter inside a 390px phone is both a lie and 15px of bubble width.</span></div>
+    <div class="lawrow"><span class="k">Rules</span><span class="v">Glass only, no flat gray. Bubbles &le; 150px, two lines, tail from the side. Names &le; 6 characters on pills, bars anchored left. Identity never changes with mood.</span></div>
+  </div>
+</div>
+
+<div class="frame" style="left:60px;top:1120px">
+  <div class="panel">
+    <div class="sub">The three that are not the sheet</div>
+    <h1>Absence, the TV, the ceremony.</h1>
+    <p><b>Absence (C6).</b> An agent who is out does not become a caption saying he is out. His chair stays at the kitchen table with his name tag on it, dimmed, and his frame on the wall is lit &mdash; which is where he actually is. The room reports it; nothing labels it.</p>
+    <p><b>The TV (C7).</b> One TV, two states, and the state is <b>read from the room</b> rather than set by a flag: somebody out, it carries his table; nobody out, it is the tape room. <code>HomeFlat</code> already derives this from its own children, so no screen sets it.</p>
+    <p><b>The ceremony (C8).</b> The winner throws both hands up and holds them; the loser&rsquo;s drop to his sides. Those are <code>raise</code> and <code>rest</code> &mdash; poses the hand system already had, so the celebration invented nothing.</p>
+    <div class="lbl">Why a bust is bigger than a win</div>
+    <div class="lawrow"><span class="k">Win</span><span class="v">Adds something to the felt: hands up, a line, and above 100 bb three bursts over the table.</span></div>
+    <div class="lawrow"><span class="k">Bust</span><span class="v"><b>Takes a piece of furniture off it.</b> The seat goes dark and his name pill falls off the table. Nothing is added, and that is why it lands harder than any amount of confetti would.</span></div>
+  </div>
+</div>
+
+<!-- ═══ C1–C4 · THE SHEET ═══ -->
+<div class="frame" style="left:600px;top:80px">
+  <div class="grouphdr">The sheet</div>
+  <div class="groupsub">Tap him anywhere &mdash; the flat, the roster, the felt &mdash; and this rises to full height. Four frames at 390&nbsp;&times;&nbsp;844.</div>
+  <div class="row">
+    <div style="position:relative">
+      <div class="step">C1</div>
+      <div class="fh"><span class="fn">C1</span><span class="ft">The agent</span><span class="fb teal">him, large</span></div>
+      <div id="c1"></div>
+      <div class="fa">The whole silhouette at <b>178px</b>, his real identity (hood &times; glow, fixed for life), breathing, eyes doing the mood, hands floating, a bottle because he asked for one and somebody went. <b>Nothing is written on him.</b> The pill above his head is the room&rsquo;s own pill: <code>Bal</code>, stamina and heat anchored left.</div>
+      <div class="vf"><b>verified:</b> at 390&times;844 the stage measures 264px and he clears both the header and the action row; the pill reads <code>Bal</code> (3 of 6 characters); the shadow is under his feet and nothing else is; DEPLOY carries <code>25/50 &middot; $1,200</code>. His one line sits on the composer rather than at the top of an empty region — a conversation that has had one thing said in it should look like one, not like a page with a gap.</div>
+    </div>
+    <div style="position:relative">
+      <div class="step">C2</div>
+      <div class="fh"><span class="fn">C2</span><span class="ft">His line first</span><span class="fb">a want, at heat 84</span></div>
+      <div id="c2"></div>
+      <div class="fa">The first thing in the conversation is his. Here it is a <b>want</b>, so the gold bubble sits beside his head and <b>Yes / Later / No sit under that bubble and nowhere else</b> &mdash; the WantToast&rsquo;s own three buttons, not a card, not a toast, not twice. The thread below holds his mood line from earlier.</div>
+      <div class="vf"><b>verified:</b> the want bubble is 148px wide over two lines with the tail on its left, pointing back at him; the three buttons are directly under it; no second copy anywhere on the screen; header shows WATCH because he is not live.</div>
+    </div>
+    <div style="position:relative">
+      <div class="step">C3</div>
+      <div class="fh"><span class="fn">C3</span><span class="ft">The whisper</span><span class="fb teal">three exchanges</span></div>
+      <div id="c3"></div>
+      <div class="fa">You type; he answers beside his head, one or two lines, the way he answers at the table. <b>He does not scroll away:</b> the stage is fixed and the conversation scrolls under it. Nothing here is a card <b>except a hand</b> &mdash; and the replay card that used to go there was a 196px poster built to <i>end</i> a thread, so it has an inline variant: the board, the pot, one line, 55px, same tap target.</div>
+      <div class="vf"><b>verified:</b> the region measures 344px and its content 338px, so all <b>six messages of the three exchanges are fully on screen</b> with the stage unmoved and 6px of slack (probed: every child inside the box). It is a real scroll container (<code>overflow-y:auto</code>, first child pushed down by <code>margin-top:auto</code>) carrying <code>no-scrollbar</code>, so a longer conversation scrolls without a desktop gutter appearing inside the phone; exactly one card and it is a hand.</div>
+    </div>
+    <div style="position:relative">
+      <div class="step">C4</div>
+      <div class="fh"><span class="fn">C4</span><span class="ft">What left the chat</span><span class="fb red">RECENT</span></div>
+      <div id="c4"></div>
+      <div class="fa">The profile, with the four upgrade lines that used to interrupt the conversation. One line each, newest first, <b>the label is the tap target</b>. Above them the header is fixed: his name once, state pill, LIVE, DEPLOY / GIVE HIM CHIPS / &hellip; as today, and a <b>CONDITION</b> row that is finally labelled &mdash; worn, three pips, and one line saying what worn does to him.</div>
+      <div class="vf"><b>verified:</b> his name appears exactly once (in the header); RECENT holds 4 lines with <code>+READS</code> / <code>&minus;COMPOSURE</code> as tappable labels; CONDITION reads &ldquo;worn&rdquo; with 2 of 3 pips and its explainer; nothing scrolls sideways at 390.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ C5 · THE ROSTER ═══ -->
+<div class="frame" style="left:600px;top:1120px">
+  <div class="grouphdr">The roster</div>
+  <div class="groupsub">The header&rsquo;s &ldquo;N agents live&rdquo; pill is the button. The row&rsquo;s only job is to answer <b>where he is</b> &mdash; the question the old home screen made you tap four things to answer.</div>
+  <div class="row">
+    <div style="position:relative">
+      <div class="step">C5</div>
+      <div class="fh"><span class="fn">C5</span><span class="ft">Four agents, four places</span><span class="fb teal">tap a row → C1</span></div>
+      <div id="c5"></div>
+      <div class="fa">Face, name, where he is, pocket, tonight&rsquo;s net, live dot. Four different places at once: <b>at the casino</b> on 25/50, <b>home</b> pacing, <b>visiting Fidde&rsquo;s</b>, and <b>at your table</b> in the kitchen. A gold dot instead of teal means he wants something rather than that he is live.</div>
+      <div class="vf"><b>verified:</b> four rows, four distinct places, two teal live dots and one gold want dot; the room is still visible above the sheet; the pill in the header reads <code>2 AGENTS LIVE</code> and is the thing that opened it.</div>
+    </div>
+    <div>
+      <div class="fh"><span class="fn">C5b</span><span class="ft">The rows alone</span><span class="fb">at width</span></div>
+      <div id="c5b"></div>
+      <div class="fa">The sheet out of the room, so the row is readable as a component. Net is the only coloured number; pocket is gold because it is his money and not his result.</div>
+      <div class="vf"><b>verified:</b> 390 wide, no horizontal overflow with the longest name (&ldquo;Aggressive v1.3&rdquo;) and the longest place (&ldquo;visiting Fidde&rsquo;s&rdquo;) &mdash; the name ellipsises, the place does not.</div>
+    </div>
+    <div>
+      <div class="fh"><span class="fn">C5c</span><span class="ft">On the desk</span><span class="fb">board 31</span></div>
+      <div id="c5c"></div>
+      <div class="fa">On desktop the roster is the <code>DkRoster</code> column, always open on the left. <b>The pill opens nothing there</b>, because there is nothing to open &mdash; the column is already the sheet, permanently. So the desktop header has a count and no button.</div>
+      <div class="vf"><b>verified:</b> the existing left column at 250px, unchanged from wave 59; drawn here only to record that C5 has no desktop sheet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ C6–C7 · THE FLAT ═══ -->
+<div class="frame" style="left:600px;top:2160px">
+  <div class="grouphdr">The flat</div>
+  <div class="groupsub">Absence, and the TV&rsquo;s two states. Every one of these is the same <code>HomeFlat</code> with different children &mdash; no new screen, no flag.</div>
+  <div class="row">
+    <div style="position:relative">
+      <div class="step">C6</div>
+      <div class="fh"><span class="fn">C6</span><span class="ft">Absence</span><span class="fb">one agent away</span></div>
+      <div id="c6"></div>
+      <div class="fa">Bal is at the casino. <b>His chair is still at the table</b>, dimmed, with his name tag on it, and <b>his frame on the wall is lit</b> (wave 59 rule 5). The two who stayed are playing the home game around the gap he left; Bluff says the only thing anybody says about it.</div>
+      <div class="vf"><b>verified:</b> the chair sits on <code>TABLE_SEATS[4][2]</code> at 50% opacity with the tag reading <code>Bal</code>; his wall frame is the hot one; the two players are dealt and the third is asleep on the couch; no money words anywhere on the home table.</div>
+    </div>
+    <div style="position:relative">
+      <div class="step">C7</div>
+      <div class="fh"><span class="fn">C7a</span><span class="ft">The TV · someone is out</span><span class="fb teal">tap = watch</span></div>
+      <div id="c7a"></div>
+      <div class="fa">The TV carries <b>his live table in miniature</b>, moving, and tapping it is watching. Aggro has taken the seat in front of it and is saying what he thinks of Bal&rsquo;s session, which is the only editorial the room ever gives you.</div>
+      <div class="vf"><b>verified:</b> the tape screen is showing the away table (derived from the away child, not set); Aggro is on the TV seat with his bubble; the absent chair and the lit frame are both still there from C6.</div>
+    </div>
+    <div>
+      <div class="fh"><span class="fn">C7b</span><span class="ft">The TV · everyone home</span><span class="fb">tap = his review</span></div>
+      <div id="c7b"></div>
+      <div class="fa">Nobody is out, so the same TV is <b>the tape room</b>: last night&rsquo;s hands playing small on the screen with Bal in the seat in front of it, and tapping it opens his review. The wall has three empty hooks, which is what an empty wall should look like &mdash; hooks, not nothing.</div>
+      <div class="vf"><b>verified:</b> the screen switched to the tape state with no flag passed but <code>tape="study"</code>; Bal is in the tape seat; the header pill correctly reads NOBODY LIVE instead of a count.</div>
+      <div class="vf no"><b>not done:</b> the brief asks for him <b>on the couch</b> in front of the TV. The flat&rsquo;s couch is at <code>x8,y330</code> and the tape screen is at <code>x244,y486</code> &mdash; they do not face each other, so he is in the tape room&rsquo;s own chair instead. Moving the couch is a change to the flat, which this wave froze; flagging it rather than doing it.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ C8 · THE CELEBRATION ═══ -->
+<div class="frame" style="left:600px;top:3200px">
+  <div class="grouphdr">The celebration</div>
+  <div class="groupsub">On the felt, at showdown. Three frames: an ordinary win, a big win with fireworks, and a bust.</div>
+  <div class="row">
+    <div style="position:relative">
+      <div class="step">C8</div>
+      <div class="fh"><span class="fn">C8a</span><span class="ft">An ordinary win</span><span class="fb">hands up, held</span></div>
+      <div id="c8a"></div>
+      <div class="fa">Both floating hands go up and <b>hold for a beat</b> &mdash; the <code>raise</code> pose, which the hand system already had for exactly this. The losers&rsquo; hands drop to their sides (<code>rest</code>). No fireworks: 3,694 is a good pot, not a 100&nbsp;bb pot.</div>
+      <div class="vf"><b>verified:</b> hero hands in <code>raise</code>, wide of the head and clear of the brow; the six seats dimmed with the folded ones at rest; one glass line over the felt; no bursts.</div>
+      <div class="fa"><b>Sound:</b> a single low room-swell, ~400 ms, no cheer. Named <code>win_swell</code>; we pick the file later.</div>
+    </div>
+    <div>
+      <div class="fh"><span class="fn">C8b</span><span class="ft">A big win</span><span class="fb teal">148 bb · fireworks</span></div>
+      <div id="c8b"></div>
+      <div class="fa">At <b>100 bb or more</b>: three bursts over the felt, teal and gold, staggered 260 ms, the whole thing done in <b>1.2 s</b>. Over the table, never full-screen &mdash; the table is still what you are looking at.</div>
+      <div class="vf"><b>verified:</b> three burst origins at (92,150) teal, (300,118) gold, (196,196) teal, each 10 particles on a 36&deg; wheel. Drawn <b>mid-flight</b> &mdash; the left one nearly spent at 86%, the gold one opening at 60%, the near one still flashing at 30% &mdash; because a still of a finished burst is an empty frame, which is exactly what the first pass shipped. The pot and board stay legible through them.</div>
+      <div class="fa"><b>Sound:</b> three soft reports on the bursts&rsquo; own timing, pitched down, plus the <code>win_swell</code> under it. Named <code>big_win_bursts</code>.</div>
+    </div>
+    <div>
+      <div class="fh"><span class="fn">C8c</span><span class="ft">A bust</span><span class="fb red">the seat goes dark</span></div>
+      <div id="c8c"></div>
+      <div class="fa">Granite called it off and is out. <b>His seat goes dark</b> and <b>his name pill falls off the table</b> &mdash; 900 ms, rotating 24&deg; as it goes. A bust is bigger than a win because it takes furniture off the felt instead of adding light to it.</div>
+      <div class="vf"><b>verified:</b> the seat is under a radial black scrim, the pill is drawn mid-fall rotated 18&deg;; the three bursts fire mid-flight because a bust qualifies; the line reads GRANITE IS OUT with the hand that did it.</div>
+      <div class="fa"><b>Sound:</b> one dry wooden knock as the pill lands, and the room noise ducks for 600 ms after it. Named <code>bust_knock</code>.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ C9 · DESKTOP ═══ -->
+<div class="frame" style="left:600px;top:4240px">
+  <div class="grouphdr">Desktop</div>
+  <div class="groupsub">The agent view is not a new desktop screen. It is <b>the right column changing what it holds</b> &mdash; which is the whole reason wave 58 gave the desktop three always-open columns.</div>
+  <div class="fh"><span class="fn">C9</span><span class="ft">The agent in the column</span><span class="fb teal">1440 × 900 · board 31</span></div>
+  <div id="c9"></div>
+  <div class="fa" style="max-width:1180px">Him large at the top of the column at 132px, the action row under him, the conversation below that, the composer at the bottom of the column. <b>The room stays visible in the centre</b> and the roster stays open on the left, so opening an agent costs you nothing you were already looking at &mdash; the opposite of the phone, where the sheet takes the whole screen because the screen is all there is.</div>
+  <div class="vf wide"><b>verified:</b> 1440&times;900, three columns at 250 / 810 / 380; the flat renders behind with its cast and fixtures; his bubble sits beside his head inside the column and does not cross into the room; the composer is pinned to the column&rsquo;s bottom, not the window&rsquo;s.</div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="header.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mood-atoms.jsx"></script>
+<script type="text/babel" src="mood-screens-a.jsx"></script>
+<script type="text/babel" src="mood-screens-b.jsx"></script>
+<script type="text/babel" src="mood-screens-c.jsx"></script>
+<script type="text/babel" src="mood-screens-d.jsx"></script>
+<script type="text/babel" src="mood-casino.jsx"></script>
+<script type="text/babel" src="mood-watch.jsx"></script>
+<script type="text/babel" src="mood-system.jsx"></script>
+<script type="text/babel" src="mood-desktop.jsx"></script>
+<script type="text/babel" src="mood-desktop2.jsx"></script>
+<script type="text/babel" src="mood-watch3.jsx"></script>
+<script type="text/babel" src="mood-desktop3.jsx"></script>
+<script type="text/babel" src="mood-watch4.jsx"></script>
+<script type="text/babel" src="mood-watch4b.jsx"></script>
+<script type="text/babel" src="char-system.jsx"></script>
+<script type="text/babel" src="mood-watch4c.jsx"></script>
+<script type="text/babel" src="mood-watch5.jsx"></script>
+<script type="text/babel" src="mood-floor3.jsx"></script>
+<script type="text/babel" src="mood-home.jsx"></script>
+<script type="text/babel" src="mood-home2.jsx"></script>
+<script type="text/babel" src="mood-nav.jsx"></script>
+<script type="text/babel" src="mood-sit.jsx"></script>
+<script type="text/babel" src="mood-floor58.jsx"></script>
+<script type="text/babel" src="mood-carry.jsx"></script>
+<script type="text/babel" src="mood-guest.jsx"></script>
+<script type="text/babel" src="mood-replay.jsx"></script>
+<script type="text/babel" src="mood-desk59.jsx"></script>
+<script type="text/babel" src="mood-desk59b.jsx"></script>
+<script type="text/babel" src="mood-agent.jsx"></script>
+<script type="text/babel" src="mood-agent2.jsx"></script>
+
+<script type="text/babel">
+[
+  ['c1', AgentSheetM], ['c2', AgentWantM], ['c3', AgentWhisperM], ['c4', AgentProfileM],
+  ['c5', AgentRosterM],
+  ['c6', AgentAbsenceM], ['c7a', AgentTvAwayM], ['c7b', AgentTvHomeM],
+  ['c8a', AgentCelebWinM], ['c8b', AgentCelebBigM], ['c8c', AgentCelebBustM],
+  ['c9', DkAgentScreenM],
+].forEach(([id, C]) => {
+  const n = document.getElementById(id);
+  if (n && C) ReactDOM.createRoot(n).render(<C/>);
+});
+
+// the roster sheet on its own, and the desktop column it becomes
+const n5b = document.getElementById('c5b');
+if (n5b) ReactDOM.createRoot(n5b).render(
+  <div style={{ width: 390, borderRadius: 10, overflow: 'hidden', border: `1px solid ${M_BORDER}`, background: '#101817' }}>
+    <AgentRosterSheet/>
+  </div>
+);
+const n5c = document.getElementById('c5c');
+if (n5c) ReactDOM.createRoot(n5c).render(
+  <div style={{ height: 620, display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${M_BORDER}` }}>
+    <DkRoster/>
+  </div>
+);
+</script>
+
+<script>
+/* ─── canvas auto-layout ───────────────────────────────────────────────── */
+(function () {
+  const GAP = 110;
+  const run = () => {
+    const frames = [...document.querySelectorAll('.frame')];
+    const cols = {};
+    frames.forEach(f => {
+      const x = Math.round(parseFloat(f.style.left) || 0);
+      (cols[x] = cols[x] || []).push(f);
+    });
+    Object.values(cols).forEach(list => {
+      list.sort((a, b) => (parseFloat(a.style.top) || 0) - (parseFloat(b.style.top) || 0));
+      let y = null;
+      list.forEach(f => {
+        const top = parseFloat(f.style.top) || 0;
+        const use = y == null ? top : Math.max(top, y);
+        f.style.top = use + 'px';
+        y = use + f.getBoundingClientRect().height / (window.__dcZoom || 1) + GAP;
+      });
+    });
+  };
+  const kick = () => { run(); setTimeout(run, 500); setTimeout(run, 1400); setTimeout(run, 3000); setTimeout(run, 5000); setTimeout(run, 8000); };
+  if (document.readyState === 'complete') kick(); else window.addEventListener('load', kick);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+})();
+</script>
+</body>
+</html>

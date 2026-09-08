@@ -61,7 +61,7 @@ guest.installGuestRoutes(app);
 installAgentProfileRoutes(app);
 visit.installVisitRoutes(app);
 const httpServer = http.createServer(app);
-createServer({ server: httpServer, defaultBlinds: { smallBlind: 10, bigBlind: 20 } });
+const { wss } = createServer({ server: httpServer, defaultBlinds: { smallBlind: 10, bigBlind: 20 } });
 await new Promise((res) => httpServer.listen(0, '127.0.0.1', res));
 const base = `http://127.0.0.1:${httpServer.address().port}`;
 console.log(`[verify] server up on ${base}`);
@@ -147,4 +147,8 @@ check('nothing knocked on a household built from a stray referral',
 console.log(`\n[verify] ${failures === 0 ? 'PASS' : `FAIL — ${failures} failure(s)`}`);
 try { registry.resetRegistry('verify-visit-referral finished'); } catch { /* best effort */ }
 await new Promise((res) => httpServer.close(res));
-process.exit(failures > 0 ? 1 : 0);
+await new Promise((res) => wss.close(res));
+store._closeForTests();
+// BUG-34: forced exit while Windows is closing async handles can abort libuv
+// after every assertion passed. Let the event loop finish its own cleanup.
+process.exitCode = failures > 0 ? 1 : 0;

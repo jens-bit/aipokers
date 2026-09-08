@@ -236,7 +236,7 @@ console.log('\n[verify] 4) one agent sits out — the seat frees, the table play
 {
   const quitter = agents[1].id;
   const quitterOwner = agents[1].owner;
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-api-secret': process.env.DEV_API_SECRET } });
   const seen = [];
   await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
   ws.on('message', (d) => { try { seen.push(JSON.parse(d.toString())); } catch { /* ignore */ } });
