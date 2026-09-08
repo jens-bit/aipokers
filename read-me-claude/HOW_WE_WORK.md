@@ -56,9 +56,9 @@ Given the merge order, it follows it. For each branch, in order: `git merge`, `n
 
 **Conflicts and merge-caused reds are fixed in the owning branch's worktree, never in main.** Either the owning tab merges main itself (Job N: "merge main") or the integrator does it in that worktree; both land as `Merge branch 'main' into <branch> (MERGE-n)`, and the merge to main then fast-forwards. Resolutions keep both sides' intent; a test that encoded a rule the product no longer wants is rewritten to the new rule with the reasoning in the commit, never loosened (Testing law #5).
 
-**A merged branch that touched `client/` gets `npm run smoke:browser` before the push report.** This is not the same gate as `test:all`: the browser smoke is the only thing in the repo that ever loads `client/dist`, so it is the only thing that can see a screen that breaks once Vite has minified it — and more to the point, it is the only thing that opens the app the way a user does. The deploy after the bugs-c merge (2026-09-08) went red on exactly that gap: BUGS-C-12 made the floor the casino's default view, every jsdom test was rewritten to match and stayed green, and `casino2.spec.js` was left waiting twenty seconds for a sign that is no longer rendered on first open. `test:all` could not have caught it. Run it before saying `git push`, not after Jens has pushed.
+**A merged branch that touched `client/` gets all three Playwright configs before the push report: `npm run smoke:browser`, `npm run test:home2`, and `e2e/desk.spec.js`.** None of these is the same gate as `test:all`: they are the only things in the repo that ever load `client/dist` or lay out a real screen, so they are the only things that can see a screen that breaks once Vite has minified it, or a claim about pixels jsdom reports as all zeroes — and more to the point, smoke and home2 are the only things that open the app the way a user does. The deploy after the bugs-c merge (2026-09-08) went red on exactly that gap, twice over: BUGS-C-12 made the floor the casino's default view, every jsdom test was rewritten to match and stayed green, `casino2.spec.js` was left waiting twenty seconds for a sign that is no longer rendered on first open, and `home2.spec.js` was left waiting for a "Back home" button that isn't the floor's own back control anymore. `test:all` could not have caught either. Run all three before saying `git push`, not after Jens has pushed.
 
-Run it the way CI does, or it will lie to you twice. `npm start` in the project folder is the wrong server for this: the `/api` limiter is 60 a minute per IP and four browser tests burn that in one run, so the seed comes back `429` and the failure says nothing about the product. And the second run against the same database is worse than the first — the home game is in cooldown by then, so the smoke's SIT step finds no chair and goes red for a reason that is not there on a clean boot. So: a scratch data directory, the limiters open, the pauses short, and no key — the same five variables the workflow's "Start the server" step sets.
+Run smoke:browser and test:home2 the way CI does, or they will lie to you twice. `npm start` in the project folder is the wrong server for this: the `/api` limiter is 60 a minute per IP and four browser tests burn that in one run, so the seed comes back `429` and the failure says nothing about the product. And the second run against the same database is worse than the first — the home game is in cooldown by then, so the smoke's SIT step finds no chair and goes red for a reason that is not there on a clean boot. So: a scratch data directory, the limiters open, the pauses short, and no key — the same five variables the workflow's "Start the server" step sets. Both suites point at the same scratch server, so start it once:
 
 ```
 mkdir -p /tmp/smoke-data && cd /tmp/smoke-data
@@ -66,9 +66,18 @@ NOTIFY_ENABLED=0 RATE_LIMIT_MAX=100000 RATE_LIMIT_CHAT_MAX=100000 \
   HAND_PAUSE_MS=600 HOME_PAUSE_MS=600 node /path/to/ai-poker/src/index.js
 # then, in the project folder, with ANTHROPIC_API_KEY unset:
 npm run smoke:browser
+npm run test:home2
 ```
 
-Build the client first (`npm start` once, or `npm run build:client`) — the smoke loads `client/dist` and a stale bundle is a green run that proves nothing. Wipe the scratch directory between runs. Four tests, about twenty seconds, and the screenshots land in `smoke-shots/`.
+Build the client first (`npm start` once, or `npm run build:client`) — both suites load `client/dist` and a stale bundle is a green run that proves nothing. Wipe the scratch directory between runs. Four smoke tests plus home2's twenty (one `test.fixme`, BUG-43), about forty seconds total, and the screenshots land in `smoke-shots/` and `home2-shots/`.
+
+`e2e/desk.spec.js` is different in kind — a look check, not a gate, with its own Vite dev server and no fixture or key needed — but it is still one of the three, because it is the only thing that ever lays out the desktop's three-column claim in a real browser:
+
+```
+cd client && npx playwright test e2e/desk.spec.js
+```
+
+It never fails on its own (screenshots gate nothing); run it and look at `client/e2e/__screenshots__/desk3-*.png` for anything the merge could plausibly have moved.
 
 **Before every push report, it fetches and merges origin** — PRs merge on GitHub while it works, and a push that gets rejected is a push Jens has to come back for. Its report ends with the one line for Jens: `git push`.
 
