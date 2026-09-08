@@ -40,7 +40,10 @@ import crypto from 'node:crypto';
 
 import { costOf } from '../agent/providers/pricing.js';
 import { normaliseUsage } from '../agent/providers/index.js';
-import { addModelCall, readModelCalls, addDecisionRoute, readDecisionRoutes } from './store.js';
+import {
+  addModelCall, readModelCalls, addDecisionRoute, readDecisionRoutes,
+  addWatchHand, readWatchHands, addWatchCall, readWatchCalls,
+} from './store.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
@@ -165,6 +168,48 @@ export function recordDecisionRoute({ ownerId = null, route, reason, at = Date.n
   }
 }
 
+/**
+ * COST-2 job 5: one hand, filed under whether anybody was watching the table
+ * at the moment it finished. Called once per seat-owner from table.js's
+ * `_handCompleted` — see the note on `watch_hands` in store.js for why this is
+ * a separate table from the decision router's own count of decisions.
+ */
+export function recordHandWatched({ ownerId = null, watched = false, at = Date.now() } = {}) {
+  try {
+    addWatchHand({
+      day: dayKey(at),
+      ownerId: ownerId == null || ownerId === '' ? HOUSE : String(ownerId),
+      watched: !!watched,
+    });
+    return true;
+  } catch (err) {
+    console.error('[meter] could not record a hand:', err.message);
+    return false;
+  }
+}
+
+/**
+ * COST-2 job 5: one decision call's cost, filed the same way, alongside
+ * (not instead of) recordModelCall — this is the split model_calls itself
+ * cannot carry without rebuilding its primary key. Decision calls only; the
+ * caller passes the same `watched` fact that went into that decision's
+ * routeFor() opts.
+ */
+export function recordDecisionCallWatch({ ownerId = null, watched = false, usd = 0, at = Date.now() } = {}) {
+  try {
+    addWatchCall({
+      day: dayKey(at),
+      ownerId: ownerId == null || ownerId === '' ? HOUSE : String(ownerId),
+      watched: !!watched,
+      usd: Number.isFinite(usd) ? usd : 0,
+    });
+    return true;
+  } catch (err) {
+    console.error('[meter] could not record a watched call:', err.message);
+    return false;
+  }
+}
+
 // ── Reading ──────────────────────────────────────────────────────────────────
 
 function emptyTotals() {
@@ -206,6 +251,38 @@ export function foldRoutes(rows) {
   return out;
 }
 
+function emptyWatchBucket() {
+  return { hands: 0, calls: 0, usd: 0 };
+}
+
+/**
+ * COST-2 job 5: calls and USD, per 100 hands, watched vs unwatched — the
+ * number that answers "is the unwatched dial actually saving anything" in one
+ * glance, rather than by comparing two raw totals from tables of different
+ * sizes. `usdPer100Hands`/`callsPer100Hands` are null rather than 0 when no
+ * hand of that kind has been recorded — a rate with no hands behind it is not
+ * a rate, the same rule policyShare follows above.
+ */
+export function foldWatch(handRows, callRows) {
+  const buckets = { watched: emptyWatchBucket(), unwatched: emptyWatchBucket() };
+  for (const row of handRows ?? []) {
+    buckets[row.watched ? 'watched' : 'unwatched'].hands += row.hands;
+  }
+  for (const row of callRows ?? []) {
+    const b = buckets[row.watched ? 'watched' : 'unwatched'];
+    b.calls += row.calls;
+    b.usd += row.usd;
+  }
+  const present100 = (b) => ({
+    hands: b.hands,
+    calls: b.calls,
+    usd: round(b.usd),
+    usdPer100Hands: b.hands > 0 ? round((b.usd / b.hands) * 100) : null,
+    callsPer100Hands: b.hands > 0 ? Math.round((b.calls / b.hands) * 1000) / 10 : null,
+  });
+  return { watched: present100(buckets.watched), unwatched: present100(buckets.unwatched) };
+}
+
 function foldByDay(rows) {
   const byDay = new Map();
   for (const row of rows) {
@@ -226,6 +303,8 @@ export function ownerMeter(ownerId, { days = DEFAULT_DAYS, now = Date.now() } = 
   const since = sinceDay(days, now);
   const rows = readModelCalls({ sinceDay: since, ownerId: String(ownerId) });
   const routeRows = readDecisionRoutes({ sinceDay: since, ownerId: String(ownerId) });
+  const watchHandRows = readWatchHands({ sinceDay: since, ownerId: String(ownerId) });
+  const watchCallRows = readWatchCalls({ sinceDay: since, ownerId: String(ownerId) });
 
   const totals = emptyTotals();
   const byModel = new Map();
@@ -241,6 +320,7 @@ export function ownerMeter(ownerId, { days = DEFAULT_DAYS, now = Date.now() } = 
     days: foldByDay(rows),
     models: [...byModel.values()].map((m) => present(m)).sort((a, b) => b.usd - a.usd),
     routes: foldRoutes(routeRows),
+    watch: foldWatch(watchHandRows, watchCallRows),
     totals: present(totals),
   };
 }
@@ -253,6 +333,8 @@ export function adminMeter({ days = DEFAULT_DAYS, now = Date.now() } = {}) {
   const since = sinceDay(days, now);
   const rows = readModelCalls({ sinceDay: since });
   const routeRows = readDecisionRoutes({ sinceDay: since });
+  const watchHandRows = readWatchHands({ sinceDay: since });
+  const watchCallRows = readWatchCalls({ sinceDay: since });
 
   const totals = emptyTotals();
   const byOwner = new Map();
@@ -273,6 +355,7 @@ export function adminMeter({ days = DEFAULT_DAYS, now = Date.now() } = {}) {
     owners: [...byOwner.values()].map((o) => present(o)).sort((a, b) => b.usd - a.usd),
     models: [...byModel.values()].map((m) => present(m)).sort((a, b) => b.usd - a.usd),
     routes: foldRoutes(routeRows),
+    watch: foldWatch(watchHandRows, watchCallRows),
     totals: present(totals),
   };
 }

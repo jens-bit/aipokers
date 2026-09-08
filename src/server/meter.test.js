@@ -23,6 +23,7 @@ import http from 'node:http';
 
 import {
   recordModelCall, recordAnthropicCall, recordDecisionRoute, foldRoutes,
+  recordHandWatched, recordDecisionCallWatch, foldWatch,
   ownerMeter, adminMeter,
   installMeterRoutes, dayKey, sinceDay, Kind, HOUSE, DEFAULT_DAYS,
 } from './meter.js';
@@ -210,6 +211,78 @@ test('METER-1: the admin view is per owner AND total, biggest spender first', ()
   assert.ok(all.totals.usd >= 6);
 });
 
+// ── COST-2 job 5 · watched vs unwatched, per 100 hands ──────────────────────
+
+test('COST-2: hands and calls are filed by whether the owner was watching, and read back per 100 hands', () => {
+  const me = owner();
+  // 8 watched hands, 1 model call costing $0.02.
+  for (let i = 0; i < 8; i++) recordHandWatched({ ownerId: me, watched: true, at: TODAY });
+  recordDecisionCallWatch({ ownerId: me, watched: true, usd: 0.02, at: TODAY });
+  // 40 unwatched hands, 2 model calls costing $0.001 each (the two exceptions).
+  for (let i = 0; i < 40; i++) recordHandWatched({ ownerId: me, watched: false, at: TODAY });
+  recordDecisionCallWatch({ ownerId: me, watched: false, usd: 0.001, at: TODAY });
+  recordDecisionCallWatch({ ownerId: me, watched: false, usd: 0.001, at: TODAY });
+
+  const bill = ownerMeter(me, { now: TODAY });
+  assert.equal(bill.watch.watched.hands, 8);
+  assert.equal(bill.watch.watched.calls, 1);
+  assert.equal(bill.watch.watched.usd, 0.02);
+  // 1 call / 8 hands * 100 = 12.5 calls per 100 hands.
+  assert.equal(bill.watch.watched.callsPer100Hands, 12.5);
+  assert.equal(bill.watch.watched.usdPer100Hands, 0.25);
+
+  assert.equal(bill.watch.unwatched.hands, 40);
+  assert.equal(bill.watch.unwatched.calls, 2);
+  assert.equal(bill.watch.unwatched.usd, 0.002);
+  assert.equal(bill.watch.unwatched.callsPer100Hands, 5);
+
+  assert.ok(
+    bill.watch.unwatched.usdPer100Hands < bill.watch.watched.usdPer100Hands,
+    'the dial should cost less per 100 hands than watching does — that is the entire point of it',
+  );
+});
+
+test('COST-2: no hands of a kind reports a null rate, not a zero — nothing divided by nothing', () => {
+  const me = owner();
+  const bill = ownerMeter(me, { now: TODAY });
+  assert.equal(bill.watch.watched.hands, 0);
+  assert.equal(bill.watch.watched.usdPer100Hands, null);
+  assert.equal(bill.watch.watched.callsPer100Hands, null);
+  assert.deepEqual(foldWatch([], []), {
+    watched:   { hands: 0, calls: 0, usd: 0, usdPer100Hands: null, callsPer100Hands: null },
+    unwatched: { hands: 0, calls: 0, usd: 0, usdPer100Hands: null, callsPer100Hands: null },
+  });
+});
+
+test('COST-2: a hand costs nothing to file even with no calls behind it — that is the denominator', () => {
+  const me = owner();
+  recordHandWatched({ ownerId: me, watched: false, at: TODAY });
+  const bill = ownerMeter(me, { now: TODAY });
+  assert.equal(bill.watch.unwatched.hands, 1);
+  assert.equal(bill.watch.unwatched.calls, 0);
+  assert.equal(bill.watch.unwatched.usdPer100Hands, 0, 'zero spend over a real hand count IS zero, not unknown');
+});
+
+test('COST-2: the admin view folds every owner\'s watch split into one floor-wide total', () => {
+  const a = owner();
+  const b = owner();
+  recordHandWatched({ ownerId: a, watched: true, at: TODAY });
+  recordHandWatched({ ownerId: b, watched: true, at: TODAY });
+  recordDecisionCallWatch({ ownerId: a, watched: true, usd: 1, at: TODAY });
+  recordDecisionCallWatch({ ownerId: b, watched: true, usd: 1, at: TODAY });
+
+  const floor = adminMeter({ now: TODAY });
+  assert.ok(floor.watch.watched.hands >= 2);
+  assert.ok(floor.watch.watched.usd >= 2);
+});
+
+test('COST-2: recording a hand or a watched call never throws into the hand that made it', () => {
+  assert.doesNotThrow(() => recordHandWatched(undefined));
+  assert.doesNotThrow(() => recordDecisionCallWatch(undefined));
+  assert.equal(recordHandWatched({ ownerId: owner(), watched: true }), true);
+  assert.equal(recordDecisionCallWatch({ ownerId: owner(), watched: true, usd: 0.01 }), true);
+});
+
 // ── The routes ───────────────────────────────────────────────────────────────
 
 function serve() {
@@ -237,12 +310,17 @@ after(() => {
 test('METER-1: GET /api/meter answers the caller his own bill', async () => {
   const me = owner();
   recordModelCall({ ownerId: me, kind: Kind.DECISION, model: 'claude-haiku-4-5', provider: 'anthropic', usage: usage(1_000_000, 0), at: Date.now() });
+  // COST-2 job 5: the watched/unwatched split rides the same route.
+  recordHandWatched({ ownerId: me, watched: false });
+  recordDecisionCallWatch({ ownerId: me, watched: false, usd: 0.5 });
 
   const res = await get(`/api/meter?userId=${me}`);
   assert.equal(res.status, 200);
   assert.equal(res.body.ownerId, me);
   assert.equal(res.body.totals.usd, 1);
   assert.equal(res.body.since, sinceDay(DEFAULT_DAYS));
+  assert.equal(res.body.watch.unwatched.hands, 1);
+  assert.equal(res.body.watch.unwatched.usdPer100Hands, 50);
 
   // Somebody else's meter is empty rather than forbidden here, because with no
   // bot token configured (local dev) isOwner() is true for everyone — the same
