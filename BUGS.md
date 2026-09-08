@@ -1,10 +1,34 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-07 (integrator, VISIT-1 merge) — 11 open, 34 resolved
+Last updated: 2026-09-08 (integrator, bugs-c merge) — 13 open, 35 resolved
 
 
 ---
 
 ## OPEN
+
+### bugs-d — the profile, the fridge, and the bundle (playtest queue, not yet started)
+**Severity:** Mixed (one server hole, two visible on the profile, one dead feature, one weight)
+**Where:** `client/src/screens/AgentProfileScreen.jsx`, `client/src/components/home/FridgeSheet.jsx`, `src/server/agentProfiles.js`, `client/src/styles/index.css`
+**What:** The list the 2026-09-07 phone playtest left over once `fix/bugs-c` took its twelve. Filed as one queue rather than five numbers because they will be worked as one. All five re-checked against merged main (1c86a8e) on 2026-09-08 — bugs-c touched this screen twice (jobs 7 and 8) and none of these went away.
+
+1. **His name is at the top of the profile twice.** `AgentProfileScreen.jsx:716` (the sticky back-bar, Playfair 16, ellipsised) and `:330` (`IdentityBlock`'s Playfair 19, beside his face) render `{agent.name}` one directly above the other. The bar is the one that has to stay — it is what the back arrow belongs to and it survives the scroll — so the card's is the candidate for cutting, not the reverse.
+2. **The profile scrolls sideways.** Reported as pocket-row overflow. BUGS-C-8 rebuilt the pocket row and removed its duplicate in the header, so if the sideways scroll survives that it is *not* the pocket row and the next suspect is the header frame's own flex children. **Unverified in a browser since the merge** — measure it at 390px before assuming it is still there.
+3. **The fridge's beer does nothing.** The client posts the right thing (`FridgeSheet.jsx:38`, `POST /api/agents/:id/give` with `{item:'beer'}`) and the server has a whole path for it (`giveItemTo`, `agentProfiles.js:2862`). Check the two refusals *before* looking for a break: a level agent is refused outright with `400 "He's fine. Save it."` (`:2872`, `isMoodSoothable`), and an empty shelf is refused `409` with `outOfStock`. Both come back as a *line in the sheet*, so "nothing happened" and "he said no" look identical to a thumb. If it is one of those two, this is a copy bug and not a wiring bug.
+4. **`agent.sessionDips` never reaches the client, so CONDITION can only ever show fatigue.** SERVER-5 stores the three world states — worn, hungry, tilted — on the record (`agentProfiles.js:3017`) and `table.js:259` takes them at sit-down. `sessionDipsOf()` is exported at `:3023` **and has no caller outside `dips.test.js`** — nothing serialises it, so no payload carries it. The profile card ships `fatigue` (`:1981`) and that is the whole of what the CONDITION row BUGS-C-7 just labelled can show. **Server work, and the enabling half of the other four:** expose the dips on the same projection as `fatigue`, then the row can say why he is dipped.
+5. **One stylesheet, 301.5 kB, on every session.** Measured on the post-merge build (2026-09-08): `dist/assets/index-*.css` is 301.50 kB raw / 50.63 kB gzip, and it is the *only* CSS file emitted — BUGS-C-1 split the JS (entry 490 kB, with `CasinoScreen`, `AgentProfileScreen`, `DesktopHome`, `GuestLanding` and `LoginGate` now their own chunks) and left the CSS whole. **The landing suspicion is mostly wrong and should not drive the fix:** `guest.css` is 9 kB, 3% of the sheet, and it rides in through `App.jsx:26 → ClaimWall`, not through the landing. The weight is `styles/index.css`, which eagerly `@import`s 24 sheets — `desktop.css` 66 kB, `watch.css` 61 kB, `home1.css` 51 kB and `layout.css` 37 kB are 215 kB of the 301 between them, and a phone in the flat downloads all four.
+**Also seen, same build:** vite warns that `ReplayTheatre.jsx` is dynamically imported by `App.jsx` but statically imported by `FlaggedHandsSheet.jsx` and `ChatsScreen.jsx`, so *that* `import()` splits nothing. Whoever takes item 5 should take this with it.
+
+---
+
+### BUG-45 — `CasinoScreen.test.jsx` "a bigger pocket opens the room above" only passes with the file
+**Severity:** Medium (a green suite hiding an order dependency — BUG-36's family)
+**Where:** `client/src/screens/CasinoScreen.test.jsx:353` (was `:339` on origin/main — the line moved, the body did not)
+**What:** Run the file and it passes. Run the one test — `npx vitest run src/screens/CasinoScreen.test.jsx -t "a bigger pocket opens the room above"` — and it fails on `getByText('pocket $6,000 · buy-in at 25/50 is $5,000')`: the doorway assertion above it passes, the tray text is simply not in the DOM. So the tray's copy depends on something an earlier test in the file leaves behind, not on what this test sets up.
+**Pre-existing, and not bugs-c's.** `git show origin/main:client/src/screens/CasinoScreen.test.jsx` has this test byte-identical; bugs-c (job 12, the floor-first casino) added tests around it and moved it down 14 lines without touching it. Reproduced on merged main 2026-09-08.
+**Why it matters more than it looks:** the suite is green in CI and will stay green, because CI runs the file. What it is not doing is proving this claim — it is proving "this claim holds *after* the tests above it ran". That is the shape BUG-36 has on the server side.
+**Fix:** not made here. Find the leak (a module-level fixture, `fetchMock` state, or a `localStorage` key the earlier tests write) and give this test its own setup. Do not delete the `-t` reproduction from this entry — it is the whole diagnosis.
+
+---
 
 ### DESK-4 — Sitting down is not wired on desktop (debt, not a bug)
 **Severity:** Low (missing wiring in a screen that shipped deliberately incomplete)
@@ -46,6 +70,7 @@ Last updated: 2026-09-07 (integrator, VISIT-1 merge) — 11 open, 34 resolved
 **What:** The script spawns the real server on port 18765 and polls it. Its budget is **20 x 200ms = 4s**; its two siblings that boot a server the same way, `verify-deeplink-routes.js:63` and `verify-home-routes.js:79`, allow 25 retries (5s). On a loaded box 4s is not enough for a cold Node boot, and the script fails with `Server failed to start: Server did not start in time` — the whole `npm test` then exits 1 on an assertion from `src/test/helpers/verifyGroups.js:90`.
 **Measurement:** three consecutive `npm test` runs on unmodified main (a288355, integrator session 2026-09-07): run 1 red on this script, runs 2 and 3 green with the same script passing in 996ms and 1042ms. It is the fast group's shortest boot budget and it runs alongside `verify-growth.js` (8.3s) and `verify-cost-router.js` (5.5s), which are what make the box loaded. Nothing in the branch touched it — the only commit in the tree is a `design-refs/` commit.
 **Found by:** the integrator, on the gate run after the design 56 commit.
+**Seen again 2026-09-08** (integrator, bugs-c merge gate), unchanged and still on the first run of the session: `npm run test:all` on main red on this script with the same `Server did not start in time`; run standalone immediately afterwards it booted and passed 9/9, and the next full `test:all` was green through all three commands. Third session in a row it has cost a gate run. Nothing was re-run to green to get past it — the merge below it was gated on the second run, and this entry is the reason the first one was red.
 **Fix:** not yet made. The obvious one is to give it the siblings' 25 retries, or better, the same budget for all three in one place — but a boot that takes longer than 4s under load may itself be worth a look before the number is simply raised. Do not re-run to green; that is the habit the testing law exists to prevent.
 
 ---
@@ -161,6 +186,14 @@ Across everything seen on 2026-09-07 that makes **nine distinct victim files**, 
 ---
 
 ## RESOLVED — kept here for traceability
+
+### "Two TVs" (playtest queue job 11) — CLOSED 2026-09-07 as by-design, no code changed
+**Where:** the flat — `client/src/components/home/`
+**Reported:** the 2026-09-07 phone playtest listed two televisions in the room as a twelfth job for `fix/bugs-c`, alongside the CASINO sign that really was doubled (BUGS-C-4).
+**Closed without a fix.** Wave 59 rule 5 has the room carrying two screens on purpose; the second is not a duplicate of the first. The queue shipped eleven jobs plus job 12 (the casino floor) and dropped this one deliberately rather than leaving it unexplained.
+**Kept here** so the next playtest that counts the TVs finds the decision instead of re-filing it. Wave 63's TV decision (the split by state — live feed when someone is out, tape room when everyone is home) is the thing that will change what is on them; it does not change how many there are.
+
+---
 
 ### BUG-44 — The casino room measured itself against the window, not against the roster — RESOLVED 2026-09-07 (MERGE-20)
 **Where:** `scripts/casino2.spec.js:267` (as it was)
