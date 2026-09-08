@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   routeFor, isAllIn, isPriced, routingEnabled, Route, Reason, MARGIN_MIN, HEAT_MAX,
   newRouteCounter, countRoute, policyShare, formatRoutes,
+  unwatchedPolicyEnabled, UNWATCHED_POLICY_MS,
 } from './router.js';
 
 // A clear preflop fold: 72o, out of range, tiny pot, level head. This is the
@@ -200,6 +201,78 @@ test('the kitchen table never calls a model, whatever the spot is', () => {
 test('isAllIn does not fire on a call he can comfortably afford', () => {
   assert.equal(isAllIn({ toCall: 40, myStack: 2000 }), false);
   assert.equal(isAllIn({ toCall: 0, myStack: 0 }), false, 'a busted seat is not a decision');
+});
+
+// ── the unwatched dial (COST-2) ──────────────────────────────────────────────
+
+test('an unwatched table routes an otherwise-model spot to the policy', () => {
+  // Tilted, a nemesis opposite, a needle queued, a read on the wire, a close
+  // call, two options the policy cannot separate, the river — every one of
+  // these fires Route.MODEL when watched. None of them should when nobody is
+  // looking.
+  const spots = [
+    clearFold({ mood: { state: 'tilted', heat: 90 } }),
+    clearFold({ readOnWire: true }),
+    clearFold({ tableTalk: 'Still folding, then?' }),
+    clearFold({ equity: 0.36, toCall: 40, potOdds: 0.4 }),  // close
+    clearFold({ street: 'river', community: ['2h', '7d', 'Jc', '4s', '9d'] }),
+    clearFold({
+      street: 'flop', community: ['As', 'Ah', '7c'], holeCards: ['Ad', 'Ac'],
+      equity: 0.93, toCall: 60, potOdds: 0.2, pot: 200, canRaise: true,
+      minRaise: 120, maxRaise: 2000,
+    }),  // options
+  ];
+  for (const gs of spots) {
+    assert.equal(routeFor(gs, { unwatched: true }).route, Route.POLICY, JSON.stringify(gs.mood));
+    assert.equal(routeFor(gs, { unwatched: true }).reason, Reason.UNWATCHED);
+  }
+  // The nemesis gate is a routeFor option, not a gs field.
+  const r = routeFor(clearFold(), { unwatched: true, nemesis: true });
+  assert.equal(r.route, Route.POLICY);
+  assert.equal(r.reason, Reason.UNWATCHED);
+});
+
+test('the two exceptions still reach the model even when nobody is watching', () => {
+  assert.equal(routeFor(clearFold({ anyAllIn: true }), { unwatched: true }).reason, Reason.ALLIN);
+  assert.equal(routeFor(clearFold({ pot: 800 }), { unwatched: true }).reason, Reason.BIG_POT);
+});
+
+test('unwatched is inert when watched is false (the default) or the dial has not been asked for', () => {
+  assert.equal(routeFor(clearFold({ readOnWire: true })).reason, Reason.READ);
+  assert.equal(routeFor(clearFold({ readOnWire: true }), { unwatched: false }).reason, Reason.READ);
+});
+
+test('unwatched never overrides home or guest, and never survives DECISION_ROUTER=off', () => {
+  assert.equal(routeFor(clearFold(), { home: true, unwatched: true }).reason, Reason.HOME);
+  assert.equal(routeFor(clearFold(), { guest: true, unwatched: true }).reason, Reason.GUEST);
+
+  const had = process.env.DECISION_ROUTER;
+  process.env.DECISION_ROUTER = 'off';
+  try {
+    assert.equal(routeFor(clearFold(), { unwatched: true }).reason, Reason.OFF);
+  } finally {
+    if (had === undefined) delete process.env.DECISION_ROUTER;
+    else process.env.DECISION_ROUTER = had;
+  }
+});
+
+test('UNWATCHED_POLICY defaults on and =0 turns it off', () => {
+  const had = process.env.UNWATCHED_POLICY;
+  try {
+    delete process.env.UNWATCHED_POLICY;
+    assert.equal(unwatchedPolicyEnabled(), true);
+    process.env.UNWATCHED_POLICY = '0';
+    assert.equal(unwatchedPolicyEnabled(), false);
+    process.env.UNWATCHED_POLICY = '1';
+    assert.equal(unwatchedPolicyEnabled(), true);
+  } finally {
+    if (had === undefined) delete process.env.UNWATCHED_POLICY;
+    else process.env.UNWATCHED_POLICY = had;
+  }
+});
+
+test('the dial has a fixed grace period', () => {
+  assert.equal(UNWATCHED_POLICY_MS, 60_000);
 });
 
 // ── the kill switch ─────────────────────────────────────────────────────────

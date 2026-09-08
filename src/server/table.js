@@ -41,11 +41,14 @@ import {
 // METER-1: every model call this table makes is filed under the owner of the
 // seat that made it. Best-effort by construction — recordModelCall swallows
 // its own errors, because a meter that can break a hand is worse than none.
-import { recordModelCall, Kind as MeterKind } from './meter.js';
+import { recordModelCall, Kind as MeterKind, recordHandWatched, recordDecisionCallWatch } from './meter.js';
 // COST-1: the decision router. Before every AI turn the server asks, for free,
 // whether this spot is decided already; the ones that are never reach a model.
 // See router.js for the gates and policyPlay.js for what answers them.
-import { routeFor, Route, newRouteCounter, countRoute, formatRoutes } from './router.js';
+import {
+  routeFor, Route, newRouteCounter, countRoute, formatRoutes,
+  unwatchedPolicyEnabled, UNWATCHED_POLICY_MS,
+} from './router.js';
 // GUEST-1: the one question every model-spending path in this file asks —
 // 'is anybody paying for this owner yet'. See guest.js for what it means and
 // why the answer lives in exactly one file.
@@ -507,6 +510,12 @@ export class Table {
     // sat through. This is the ONE watched-flag that is stored rather than
     // derived, and it is stored precisely because it is a fact about the past.
     this._everWatched = false;
+    // COST-2: the moment watching last stopped, or null while somebody is
+    // still here. Cleared the instant a watcher reappears — see
+    // _unwatchedForMs — so a flicker of disconnect/reconnect never
+    // accumulates across separate unwatched spans the way `_everWatched`
+    // deliberately does for its own, different question.
+    this._unwatchedSince = null;
     // COST-1: the hands worth mentioning, in the order they happened. The
     // input to the end-of-session write-up on an unwatched table — see
     // _writeNightRecap. One sentence per flagged hand, capped, because an
@@ -1778,6 +1787,21 @@ export class Table {
     return watched;
   }
 
+  // COST-2: how long, continuously, has nobody been watching?
+  //
+  // Derived off isWatched() the same way _everWatched is, except this one
+  // resets to zero the instant a watcher reappears rather than remembering
+  // forever — the router's UNWATCHED_POLICY gate cares about RIGHT NOW, not
+  // about whether the table was ever alone.
+  _unwatchedForMs(now = Date.now()) {
+    if (this.isWatched()) {
+      this._unwatchedSince = null;
+      return 0;
+    }
+    if (this._unwatchedSince == null) this._unwatchedSince = now;
+    return now - this._unwatchedSince;
+  }
+
   // How long before the next deal. See UNWATCHED_HAND_PAUSE_MS.
   _dealPauseMs() {
     // A legacy spectator-created AI table that never became autonomous keeps
@@ -2296,6 +2320,21 @@ export class Table {
 
   _handCompleted() {
     this.handsThisSession++;
+    // COST-2 job 5: one hand, filed under whether the unwatched dial was
+    // engaged for it — the same fact recordDecisionCallWatch files calls
+    // under, above, so "calls per 100 hands" compares like to like. Per
+    // seat-owner, because two agents at the same felt can belong to two
+    // different people and each owner's meter is his own. Best-effort, like
+    // every other meter write in this file.
+    {
+      const watched = !(unwatchedPolicyEnabled() && this._unwatchedForMs() >= UNWATCHED_POLICY_MS);
+      for (let seat = 0; seat < this.maxSeats; seat++) {
+        if (!this.pending[seat]) continue;
+        const ownerId = this.agentUserIds[seat];
+        if (!ownerId) continue;
+        recordHandWatched({ ownerId, watched });
+      }
+    }
     this.actionDeadline = null;
     this.actionTimer = null;      // SERVER-3: nobody is on the clock any more
     // SERVER-3: the two things that have to be true of `result` before it goes
@@ -4526,6 +4565,11 @@ export class Table {
     // the client is drawing, and an agent who answers a spot in 0ms and the
     // next one in 1.8s is visibly two different things. What the router
     // changes is what it costs, never what it looks like.
+    // COST-2: computed live, every decision, off the same isWatched() the
+    // tempo and the talk already read — see _unwatchedForMs. Named rather
+    // than inlined because job 5's meter split (recordDecisionCallWatch,
+    // below) reads exactly this fact, not a re-derived one.
+    const unwatchedGateActive = unwatchedPolicyEnabled() && this._unwatchedForMs() >= UNWATCHED_POLICY_MS;
     const routed = routeFor(gameState, {
       home: this.home,
       // GUEST-1: an unclaimed owner's agent plays on the compiled policy, all
@@ -4534,6 +4578,7 @@ export class Table {
       // them being free is no reason for the other to be.
       guest: modelBlocked(this.agentUserIds[aiSeat]),
       nemesis: this._roleAtTable(aiSeat)?.role === 'nemesis',
+      unwatched: unwatchedGateActive,
     });
     countRoute(this.routes, routed);
     // Every decision is filed, including the free ones. See recordDecisionRoute:
@@ -4567,6 +4612,14 @@ export class Table {
           provider: decision.provider,
           usage: decision.usage,
           costUsd: decision.costUsd,
+        });
+        // COST-2 job 5: the same call, filed a second way — by whether the
+        // unwatched dial was engaged when it was made, so GET /api/meter can
+        // answer "is the dial actually saving anything" per 100 hands.
+        recordDecisionCallWatch({
+          ownerId: this.agentUserIds[aiSeat],
+          watched: !unwatchedGateActive,
+          usd: decision.costUsd,
         });
       }
     }

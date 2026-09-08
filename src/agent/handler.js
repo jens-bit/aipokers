@@ -46,6 +46,7 @@ import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
 import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js';
 import { moodBriefingHint } from './mood.js';
+import { estimateTokens } from './tokenEstimate.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -58,7 +59,11 @@ const DEFAULT_STRATEGY =
 // Build the system prompt (strategy + memory + output contract). Stays stable
 // per (strategy, memoryContext) so it benefits from prompt caching across
 // multiple hands until the memory next refreshes.
-function buildSystem(strategy, memoryContext = '') {
+//
+// Exported for COST-2: job 1's token measurement and job 2's determinism
+// harness both need to build the exact prompt without going anywhere near a
+// model.
+export function buildSystem(strategy, memoryContext = '') {
   return `${strategy || DEFAULT_STRATEGY}${memoryContext || ''}
 
 You are playing No-Limit Texas Hold'em poker.
@@ -68,29 +73,18 @@ JSON format (the "amount" key is required for bet/raise, omit otherwise;
 "say" is optional and usually absent):
 {"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>","say":"<optional line spoken aloud>"}
 
-For bet/raise, "amount" is the TOTAL chips you want committed this street
-(your existing contribution plus any additional you're putting in now).
+For bet/raise, "amount" is the TOTAL chips committed this street — your
+existing contribution plus whatever you add now.
 
-The "reasoning" field is what you THINK — it is printed under your face while
-your owner watches you play, and only he sees it.
+"reasoning" is what you THINK, in your own voice, for your owner's eyes only —
+e.g. "Ace-ten. Fine. Let's see who's home." "say" is what you say OUT LOUD to
+the table, and everybody hears it: leave it out unless the moment actually
+calls for it (a big move, a pot just taken, somebody needling you) — most
+hands, say nothing.
 
-Say it the way a player at the table would, in your own character:
-  "Ace-ten. Fine. Let's see who's home."
-  "He's missed this flop twice already."
-  "Nothing here. Away it goes."
-
-The "say" field is different: it is what you say OUT LOUD, to the other
-players, and everybody at the table hears it. LEAVE IT OUT unless this
-particular moment actually calls for saying something — a big move, a pot you
-have just taken, somebody who has been needling you. A player who comments on
-every hand is not a character, he is a chat log. Most of the time you say
-nothing, and that is correct.
-
-NEVER write poker theory. No bet sizes in blinds, no percentages, no "range",
-no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
-"line", no "villain", no "hero". A sentence like "tight aggressive line—open
-3bb standard" is exactly wrong: that is a solver talking, and nobody wants to
-watch a solver. Talk about the hand, the opponent, or the moment.
+Never talk like a solver: no bet sizes in blinds, no percentages, no "range",
+"equity", "pot odds", "GTO", "+EV", "c-bet", "line", "villain", or "hero".
+Talk about the hand, the opponent, or the moment instead.
 
 Maximum ${VOICE_MAX_WORDS} words. One sentence or two short ones.`;
 }
@@ -117,7 +111,8 @@ export function perceivedMath(gs) {
 }
 
 // Build the per-turn user message describing the current game state.
-function buildUserPrompt(gs) {
+// Exported alongside buildSystem — see the note there.
+export function buildUserPrompt(gs) {
   const board = gs.community.length > 0 ? gs.community.join(' ') : 'none (preflop)';
   const actions = [];
   if (gs.canCheck) {
@@ -237,17 +232,10 @@ MY CONTRIB THIS STREET: ${gs.myContrib}
 POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${moodLine}${tableTalkLine}${readsBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
-The math and policy lines above are ADVISORY server hints, not commands.
-Weigh them; deviate when your strategy calls for it, and say why briefly.
-
-An EXPLOIT line is different: it is the counter-strategy for how this specific
-opponent has actually been playing, measured over real hands. Follow it. In
-particular, a high showdown percentage means he PAYS OFF your value bets — it
-is never a reason to fold more.
-
-Reminder: for bet/raise the "amount" field is total chips committed this street.
-Respond with the JSON object including both "action" and "reasoning", and
-"say" only if this moment is actually worth speaking into.
+Math/policy lines above are advisory — weigh them, deviate with a brief reason
+when your strategy calls for it. EXPLOIT lines are the measured counter for
+how this opponent has actually played: follow them; a high showdown rate is
+never a reason to fold more.
 Decision:`;
 }
 
@@ -367,6 +355,31 @@ function parseDecision(text, gs) {
 // somebody wires back up in six months without reading this paragraph.
 
 
+// Reasoning string takes some tokens; keep it tight but not starved.
+const OUTPUT_TOKENS_CAP = 200;
+
+/**
+ * COST-2 job 1: the token shape of one call, without making it.
+ *
+ * `static` is the system prompt — strategy + memory + the output contract —
+ * stable per (strategy, memoryContext) until the memory next refreshes.
+ * `dynamic` is the per-hand briefing buildUserPrompt writes. Both are
+ * character-count estimates (see tokenEstimate.js); neither touches a model.
+ *
+ * Exported so a measurement script can walk a stack of game states and report
+ * a median without duplicating the two builders.
+ */
+export function estimateCallTokens(gameState, strategy, memoryContext = '') {
+  const system = buildSystem(strategy, memoryContext);
+  const userPrompt = buildUserPrompt(gameState);
+  return {
+    staticTokens: estimateTokens(system),
+    dynamicTokens: estimateTokens(userPrompt),
+    system,
+    userPrompt,
+  };
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.
 // memoryContext (optional) is the agent's persistent self-knowledge, formatted
@@ -379,6 +392,17 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
   const model = opts.model || MODEL;
   const provider = opts.provider || null;
 
+  // COST-2 job 1: built and measured BEFORE the configured check, on purpose —
+  // this is free (a string template, not a request), and it is what lets an
+  // offline replay with no key report real token numbers instead of skipping
+  // straight to the fallback.
+  const { staticTokens, dynamicTokens, system, userPrompt } =
+    estimateCallTokens(gameState, strategy, memoryContext);
+  console.log(
+    `[agent] tokens (est., chars/4) — ` +
+    `static:${staticTokens} dynamic:${dynamicTokens} maxOutput:${OUTPUT_TOKENS_CAP}`,
+  );
+
   if (!isConfigured(model, provider)) {
     console.error(`[agent] ${providerIdFor(model, provider)} not configured for ${model} — using safe fallback`);
     return {
@@ -387,9 +411,6 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
     };
   }
 
-  const system = buildSystem(strategy, memoryContext);
-  const userPrompt = buildUserPrompt(gameState);
-
   console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${model}...`);
   console.log(`[agent] system prompt (first 200): ${system.slice(0, 200).replace(/\s+/g, ' ')}`);
   try {
@@ -397,8 +418,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       model,
       provider,
       system,
-      // Reasoning string takes some tokens; keep it tight but not starved.
-      maxTokens: 200,
+      maxTokens: OUTPUT_TOKENS_CAP,
       messages: [{ role: 'user', content: userPrompt }],
       timeoutMs: 9000,
       transport: opts.transport ?? null,
@@ -411,7 +431,8 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
     const usd = costOf(res.usage, model, res.provider);
     console.log(
       `[agent] → ${JSON.stringify(action)}  ` +
-      `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)})`,
+      `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)}) ` +
+      `[est. static:${staticTokens} dynamic:${dynamicTokens}]`,
     );
     return { action, reasoning, say, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {

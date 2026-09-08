@@ -204,6 +204,35 @@ function applySchema(d) {
     );
     CREATE INDEX IF NOT EXISTS decision_routes_day ON decision_routes (day);
 
+    -- COST-2: hands and decision-call spend, split by whether anybody was
+    -- watching the table at the time — the question job 5 answers that
+    -- decision_routes cannot on its own, because "policy" there mixes a clear
+    -- fold at a watched table with one the UNWATCHED_POLICY gate produced.
+    -- Two tables rather than a "watched" column bolted onto model_calls and
+    -- decision_routes: their primary keys already exist and don't include it,
+    -- and adding it there would either rebuild a live table or silently merge
+    -- watched and unwatched rows under one key. Additive instead.
+    CREATE TABLE IF NOT EXISTS watch_hands (
+      day        TEXT    NOT NULL,
+      owner_id   TEXT    NOT NULL,
+      watched    INTEGER NOT NULL,
+      hands      INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, owner_id, watched)
+    );
+    CREATE INDEX IF NOT EXISTS watch_hands_day ON watch_hands (day);
+
+    CREATE TABLE IF NOT EXISTS watch_calls (
+      day        TEXT    NOT NULL,
+      owner_id   TEXT    NOT NULL,
+      watched    INTEGER NOT NULL,
+      calls      INTEGER NOT NULL DEFAULT 0,
+      usd        REAL    NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, owner_id, watched)
+    );
+    CREATE INDEX IF NOT EXISTS watch_calls_day ON watch_calls (day);
+
     -- GUEST-1: the third way in. A guest is an owner like any other — the same
     -- owner_id runs through profiles, agents, wallets and every thread row —
     -- and this table is only the CREDENTIAL and the meter beside it.
@@ -1080,6 +1109,69 @@ export function readDecisionRoutes({ sinceDay = null, ownerId = null } = {}) {
   }));
 }
 
+// ── COST-2: watched vs unwatched (job 5) ─────────────────────────────────────
+// Same add-and-forget shape as the meter and the router above.
+
+export function addWatchHand({ day, ownerId, watched, hands = 1 } = {}) {
+  conn().prepare(`
+    INSERT INTO watch_hands (day, owner_id, watched, hands, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(day, owner_id, watched) DO UPDATE SET
+      hands      = hands + excluded.hands,
+      updated_at = excluded.updated_at
+  `).run(String(day), String(ownerId), watched ? 1 : 0, Math.max(0, Math.floor(hands)), Date.now());
+}
+
+/** The rolled-up hand-watch rows, oldest day first. */
+export function readWatchHands({ sinceDay = null, ownerId = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceDay) { where.push('day >= ?'); args.push(String(sinceDay)); }
+  if (ownerId !== null) { where.push('owner_id = ?'); args.push(String(ownerId)); }
+  const rows = conn().prepare(`
+    SELECT day, owner_id, watched, hands
+    FROM watch_hands
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY day, owner_id, watched
+  `).all(...args);
+  return rows.map((r) => ({
+    day: r.day, ownerId: r.owner_id, watched: !!r.watched, hands: r.hands ?? 0,
+  }));
+}
+
+export function addWatchCall({ day, ownerId, watched, calls = 1, usd = 0 } = {}) {
+  conn().prepare(`
+    INSERT INTO watch_calls (day, owner_id, watched, calls, usd, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(day, owner_id, watched) DO UPDATE SET
+      calls      = calls + excluded.calls,
+      usd        = usd   + excluded.usd,
+      updated_at = excluded.updated_at
+  `).run(
+    String(day), String(ownerId), watched ? 1 : 0,
+    Math.max(0, Math.floor(calls)),
+    Number.isFinite(Number(usd)) ? Number(usd) : 0,
+    Date.now(),
+  );
+}
+
+/** The rolled-up decision-call-watch rows, oldest day first. */
+export function readWatchCalls({ sinceDay = null, ownerId = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceDay) { where.push('day >= ?'); args.push(String(sinceDay)); }
+  if (ownerId !== null) { where.push('owner_id = ?'); args.push(String(ownerId)); }
+  const rows = conn().prepare(`
+    SELECT day, owner_id, watched, calls, usd
+    FROM watch_calls
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY day, owner_id, watched
+  `).all(...args);
+  return rows.map((r) => ({
+    day: r.day, ownerId: r.owner_id, watched: !!r.watched, calls: r.calls ?? 0, usd: r.usd ?? 0,
+  }));
+}
+
 // ── GUEST-1 · the guest credential ───────────────────────────────────────────
 //
 // Six accessors, and none of them knows what a guest is ALLOWED to do — that
@@ -1244,6 +1336,9 @@ export function moveOwner(fromId, toId) {
     mergeMeter(d, 'model_calls', ['day', 'kind', 'model'],
       ['calls', 'input_tokens', 'output_tokens', 'cached_input_tokens', 'usd', 'unpriced'], from, to);
     mergeMeter(d, 'decision_routes', ['day', 'route', 'reason'], ['decisions'], from, to);
+    // COST-2: same treatment for the watched/unwatched split.
+    mergeMeter(d, 'watch_hands', ['day', 'watched'], ['hands'], from, to);
+    mergeMeter(d, 'watch_calls', ['day', 'watched'], ['calls', 'usd'], from, to);
 
     out.moved = true;
   })();

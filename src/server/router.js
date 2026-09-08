@@ -79,6 +79,7 @@ export const Reason = Object.freeze({
   CLEAR: 'clear',          // big margin, one option, small pot, level head
   HOME: 'home',            // the kitchen table never calls a model, ever
   GUEST: 'guest',          // nobody has claimed him yet — see guest.js
+  UNWATCHED: 'unwatched',  // COST-2: nobody has watched this table for a while
   // → model
   OFF: 'off',              // the router is switched off; everything is a call
   BLIND: 'blind',          // no equity estimate — nothing here can judge it
@@ -125,19 +126,35 @@ export function routingEnabled() {
   return String(process.env.DECISION_ROUTER ?? 'on').toLowerCase() !== 'off';
 }
 
+// COST-2: the unwatched dial. UNWATCHED_POLICY=1 (the default) routes a table
+// nobody has watched for a while to the policy for everything except a stack
+// in the middle and a pot big enough to matter to the record — see the note
+// in routeFor. =0 turns the dial off without touching DECISION_ROUTER, so it
+// can be reverted independently of the router that shipped with COST-1.
+export function unwatchedPolicyEnabled() {
+  return String(process.env.UNWATCHED_POLICY ?? '1') !== '0';
+}
+
+// How long a table has to have gone unwatched before the dial engages. Fixed
+// rather than an env knob: this is a judgement about attention span, not a
+// cost lever anybody needs to retune from the VPS.
+export const UNWATCHED_POLICY_MS = 60_000;
+
 /**
  * Where this decision goes.
  *
  * @param gs   the game state table.js built for the seat
- * @param opts.home     this is the kitchen table — policy only, no exceptions
- * @param opts.guest    his owner has not claimed him — policy only, no exceptions
- * @param opts.nemesis  somebody he has history with is sitting here
+ * @param opts.home       this is the kitchen table — policy only, no exceptions
+ * @param opts.guest      his owner has not claimed him — policy only, no exceptions
+ * @param opts.nemesis    somebody he has history with is sitting here
+ * @param opts.unwatched  COST-2: nobody has watched this table for
+ *                        UNWATCHED_POLICY_MS or more, continuously
  * @returns { route, reason, margin, options, tag }
  *
  * `tag` is the one-token form for the log and the meter: "policy/clear",
  * "model/river".
  */
-export function routeFor(gs, { home = false, guest = false, nemesis = false } = {}) {
+export function routeFor(gs, { home = false, guest = false, nemesis = false, unwatched = false } = {}) {
   const margin = marginOf(gs);
   const rated = rateActions(gs);
   const options = countOptions(rated);
@@ -162,6 +179,18 @@ export function routeFor(gs, { home = false, guest = false, nemesis = false } = 
   // that a friendly game at home may never stand in for a night's work, and
   // turning the router off must not turn that off with it.
   if (!routingEnabled()) return answer(Route.MODEL, Reason.OFF, margin, options);
+
+  // COST-2: nobody has been watching. Everything that made the model worth
+  // paying for below — a tilt nobody sees, a read nobody reads, a needle
+  // nobody hears, the river nobody was leaning in for — is spending on an
+  // audience of none. Two exceptions still reach the model: a stack going in
+  // the middle and a pot big enough to matter to his record, because those
+  // change what actually happened whether or not anybody watched it happen.
+  // Checked by falling through to modelReason() rather than short-circuiting,
+  // so ALLIN and BIG_POT keep their own names in the log and the meter.
+  if (unwatched && !isAllIn(gs) && potInBb(gs?.pot ?? 0, gs?.bb ?? 0) < heatThresholdBb()) {
+    return answer(Route.POLICY, Reason.UNWATCHED, margin, options);
+  }
 
   const reason = modelReason(gs, { margin, options, nemesis });
   return reason
