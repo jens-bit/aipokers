@@ -53,6 +53,7 @@ import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
 import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
+import { VisitorToast } from '../components/home/VisitorToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
 import { CasinoOnTv, TapeOnTv, onScreen } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
@@ -322,7 +323,7 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
-  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded } =
+  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded, visitor } =
     useHomeState({ wsUrl });
 
   // The home game runs on its own spectator socket. The app's table socket
@@ -557,6 +558,11 @@ export function HomeScreen({
     if (body) refresh();
   }, [clearWant, refresh]);
 
+  // VISIT-1: the answer is the server's (HOME_STATE clears `visitor` on its
+  // own the moment it has one on record); a refresh picks up the game he may
+  // have just been seated at.
+  const onVisitorAnswered = useCallback(() => { refresh(); }, [refresh]);
+
   const onNeeds = useCallback((needs, { agent, room }) => {
     if (needs === 'deploy') onDeploy?.(agent, { room });
     else if (needs === 'fund') onOpenWallet?.(agent);
@@ -778,7 +784,14 @@ export function HomeScreen({
             // news while his turn is coming.
             bubble={bubble}
             news={!!(agent.want || agent.unseenRecap)}
-            onClick={() => (seated ? tapSeated(agent) : tapAgent(agent))}
+            // VISIT-1: he is not one of yours — there is no thread of his to
+            // open from here, so the tap that opens every other body's does
+            // nothing on a guest's. BUGS-C-3 then split what a tap on one of
+            // YOURS means: seated with a hand running, the tap belongs to the
+            // table he is sitting at, not to him.
+            onClick={agent.guest
+              ? undefined
+              : () => (seated ? tapSeated(agent) : tapAgent(agent))}
           />
         );
       })}
@@ -823,7 +836,9 @@ export function HomeScreen({
             focus,
             wanting,
             refresh,
-            toast: wanting ? (
+            toast: visitor ? (
+              <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
+            ) : wanting ? (
               <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
             ) : null,
           })}
@@ -843,7 +858,9 @@ export function HomeScreen({
         onToggle={setThreadOpen}
         onSend={onSend}
         sending={sending}
-        toast={wanting ? (
+        toast={visitor ? (
+          <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
+        ) : wanting ? (
           <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
         ) : null}
       />

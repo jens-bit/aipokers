@@ -49,6 +49,7 @@ import {
 } from './agentProfiles.js';
 import { beginStudy } from './tapeRoom.js';
 import * as homeGame from './homeGame.js';
+import * as visit from './visit.js';
 import { notifyHomeChanged } from './floorChannel.js';
 import { Where } from './home.js';
 
@@ -210,7 +211,12 @@ export function installPlaceRoutes(app) {
 
 function homeStateFor(userId) {
   try {
-    return homeSnapshot(userId, { owner: true, game: homeGame.state(userId) });
+    return homeSnapshot(userId, {
+      owner: true,
+      game: homeGame.state(userId),
+      visitors: visit.visitBodiesFor(userId),
+      visitor: visit.pendingVisitorFor(userId),
+    });
   } catch (err) {
     console.error('[place] home snapshot failed:', err.message);
     return null;

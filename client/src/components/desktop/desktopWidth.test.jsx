@@ -1,16 +1,23 @@
-// client/src/components/desktop/desktopWidth.test.jsx — FIX-2c
+// client/src/components/desktop/desktopWidth.test.jsx — FIX-2c, superseded by DESK-3
 //
-// design-refs/mood-ww-ref.jsx S5: "1440 does not fit three columns". The thread
-// screen with a panel open overflows by 337px — 340 roster + 917 stage + 520
-// panel. The chosen fix is the roster collapsing to a 68px avatar strip, not
-// the stage going away.
+// design-refs/mood-ww-ref.jsx S5: "1440 does not fit three columns". FIX-2c's
+// answer was the roster collapsing to a 68px avatar strip whenever a panel
+// opened — the stage kept its width, the roster gave up its name and its line.
+//
+// DESK-3 (design-refs/mood-desk59.jsx) rejects that trade explicitly: "three
+// columns, always open, nothing sliding over anything." The roster is a real
+// 250px column now — .dsk3-roster, DeskRoster.jsx — and it never collapses,
+// never disappears, and is not a mode the panel state decides. What the stage
+// gives up instead is the width the strip used to leave it, which is the
+// point: a roster you can only glance at through 68px of avatars was never
+// "always open" in the sense DESK-3 means it.
 //
 // jsdom performs no layout, so nothing here can measure a rendered pixel. What
-// it can do is check the arithmetic that overflowed: read the FIXED column
-// widths out of the real stylesheet and assert they leave room for a stage at
-// both target sizes. A fixed column is one that cannot shrink — those are what
-// sum past the viewport; the stage is `flex: 1; min-width: 0` and absorbs
-// whatever is left, so it can never be the thing that overflows.
+// it can do is check the arithmetic: read the FIXED column widths out of the
+// real stylesheet and assert they leave room for a stage at both target
+// sizes. A fixed column is one that cannot shrink — those are what sum past
+// the viewport; the stage is `flex: 1; min-width: 0` and absorbs whatever is
+// left, so it can never be the thing that overflows.
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -47,52 +54,66 @@ function wideBlock() {
   return CSS.replace(narrowBlock(), '');
 }
 
-const RAIL = 68;   // ww-ref S5: the collapsed roster
-const MIN_STAGE = 700; // below this the floor stops being a room
+const ROSTER = 250; // DESK-3: the permanent column, wide open
+const MIN_STAGE = 600; // below this the floor stops being a room
 
-describe('FIX-2c: the desktop columns fit the viewport', () => {
-  it('1440x900 — rail + panel leave the stage the refs 852px', () => {
+describe('DESK-3: the desktop columns fit the viewport', () => {
+  it('1440x900 — roster + panel leave the stage 670px', () => {
     const panel = widthOf('.dsk-panel', wideBlock());
-    const strip = widthOf('.dsk-strip', wideBlock());
+    const roster = widthOf('.dsk3-roster', wideBlock());
 
-    expect(strip).toBe(RAIL);
+    expect(roster).toBe(ROSTER);
     expect(panel).toBe(520);
-    expect(strip + panel).toBeLessThanOrEqual(1440);
-    expect(1440 - strip - panel).toBe(852); // the refs chosen split, exactly
+    expect(roster + panel).toBeLessThanOrEqual(1440);
+    expect(1440 - roster - panel).toBe(670);
   });
 
-  it('1280x800 — the panel narrows to the refs 460 and the stage keeps 752', () => {
+  it('1280x800 — both columns narrow and the stage keeps 600', () => {
     const panel = widthOf('.dsk-panel', narrowBlock());
+    const roster = widthOf('.dsk3-roster', narrowBlock());
 
     expect(panel).toBe(460);
-    expect(RAIL + panel).toBeLessThanOrEqual(1280);
-    expect(1280 - RAIL - panel).toBe(752); // the refs 1280 note, exactly
+    expect(roster).toBe(220);
+    expect(roster + panel).toBeLessThanOrEqual(1280);
+    expect(1280 - roster - panel).toBe(600);
   });
 
   it('leaves a usable stage at both sizes', () => {
-    expect(1440 - RAIL - widthOf('.dsk-panel', wideBlock())).toBeGreaterThanOrEqual(MIN_STAGE);
-    expect(1280 - RAIL - widthOf('.dsk-panel', narrowBlock())).toBeGreaterThanOrEqual(MIN_STAGE);
+    expect(1440 - widthOf('.dsk3-roster', wideBlock()) - widthOf('.dsk-panel', wideBlock()))
+      .toBeGreaterThanOrEqual(MIN_STAGE);
+    expect(1280 - widthOf('.dsk3-roster', narrowBlock()) - widthOf('.dsk-panel', narrowBlock()))
+      .toBeGreaterThanOrEqual(MIN_STAGE);
   });
 
   it('the stage is the only column that flexes, so it cannot push the others out', () => {
     expect(CSS).toMatch(/\.dsk-stage\s*\{[^}]*flex:\s*1/);
     expect(CSS).toMatch(/\.dsk-stage\s*\{[^}]*min-width:\s*0/);
     expect(CSS).toMatch(/\.dsk-panel\s*\{[^}]*flex-shrink:\s*0/);
-    expect(CSS).toMatch(/\.dsk-strip\s*\{[^}]*flex-shrink:\s*0/);
+    expect(CSS).toMatch(/\.dsk3-roster\s*\{[^}]*flex-shrink:\s*0/);
   });
 
   it('the shell clips rather than scrolling sideways', () => {
     expect(CSS).toMatch(/\.dsk-root\s*\{[^}]*overflow:\s*hidden/);
   });
+
+  // The rule this file used to encode — a fixed rail collapsing to 68px so a
+  // panel would fit — is exactly the trade DESK-3 rejects. Nothing in the
+  // stylesheet should still know how to draw that strip.
+  it('the collapsed roster strip is gone, not just unused', () => {
+    expect(CSS).not.toMatch(/\.dsk-strip\b/);
+  });
 });
 
-describe('FIX-2c: the roster collapses instead of disappearing', () => {
+describe('DESK-3: the roster never collapses', () => {
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
     fetchMock.route('/hands', { recentHands: [] });
   });
 
+  // Unambiguous as long as the standup panel's own copy of the roster is not
+  // open: with the permanent column always mounted, one name matches exactly
+  // one row.
   function rosterRow(name) {
     const row = screen
       .getAllByRole('button', { name: new RegExp(name) })
@@ -101,15 +122,8 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
     return row;
   }
 
+  const roster = () => document.querySelector('.dsk3-roster');
   const strip = () => document.querySelector('.dsk-strip');
-
-  // DESK-2: the desk opens on the ROOM now, so the standup — which is what
-  // holds the roster rows — is one click away rather than already up. The rule
-  // these four tests encode is unchanged; only the way to the panel is.
-  async function openStandup() {
-    await userEvent.click(screen.getByRole('button', { name: /Standup/ }));
-    await waitFor(() => rosterRow(playingAgent.name));
-  }
 
   function desk() {
     return render(
@@ -117,45 +131,49 @@ describe('FIX-2c: the roster collapses instead of disappearing', () => {
     );
   }
 
-  it('shows no strip while the standup panel holds the full roster', async () => {
+  it('shows every agent before any thread is open — no click required to see it', async () => {
     desk();
-    await openStandup();
-
+    await waitFor(() => expect(roster()).not.toBeNull());
+    expect(rosterRow(playingAgent.name)).toBeInTheDocument();
+    expect(rosterRow(restingAgent.name)).toBeInTheDocument();
     expect(strip()).toBeNull();
   });
 
-  it('collapses to the strip when a thread opens, keeping every agent', async () => {
+  it('keeps every agent, at full width, once a thread is open', async () => {
     desk();
-    await openStandup();
-    await userEvent.click(rosterRow(restingAgent.name));
-
-    await waitFor(() => expect(strip()).not.toBeNull());
-    expect(strip().querySelectorAll('.dsk-strip__row')).toHaveLength(agentsResponse.agents.length);
-  });
-
-  it('marks the open agent in the strip', async () => {
-    desk();
-    await openStandup();
+    await waitFor(() => rosterRow(playingAgent.name));
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => {
-      const active = strip().querySelector('.dsk-strip__row.is-active');
-      expect(active?.getAttribute('aria-label')).toBe(restingAgent.name);
+      expect(screen.getByRole('tab', { name: /player card/i })).toBeInTheDocument();
+    });
+    expect(rosterRow(playingAgent.name)).toBeInTheDocument();
+    expect(rosterRow(restingAgent.name)).toBeInTheDocument();
+    expect(strip()).toBeNull();
+  });
+
+  it('marks the open agent in the roster', async () => {
+    desk();
+    await waitFor(() => rosterRow(playingAgent.name));
+    await userEvent.click(rosterRow(restingAgent.name));
+
+    await waitFor(() => {
+      expect(rosterRow(restingAgent.name).classList.contains('is-active')).toBe(true);
     });
   });
 
-  it('switches threads from the strip, so the roster is still a way around', async () => {
+  it('switches threads from the roster, with no strip ever appearing', async () => {
     desk();
-    await openStandup();
+    await waitFor(() => rosterRow(playingAgent.name));
     await userEvent.click(rosterRow(restingAgent.name));
-    await waitFor(() => expect(strip()).not.toBeNull());
+    await waitFor(() => expect(rosterRow(restingAgent.name).classList.contains('is-active')).toBe(true));
 
-    await userEvent.click(screen.getByRole('button', { name: playingAgent.name }));
+    await userEvent.click(rosterRow(playingAgent.name));
 
     await waitFor(() => {
-      const active = strip().querySelector('.dsk-strip__row.is-active');
-      expect(active?.getAttribute('aria-label')).toBe(playingAgent.name);
+      expect(rosterRow(playingAgent.name).classList.contains('is-active')).toBe(true);
     });
+    expect(strip()).toBeNull();
   });
 });
 

@@ -1,28 +1,45 @@
-// client/e2e/desk.spec.js — DESK-2
+// client/e2e/desk.spec.js — DESK-3
 //
-// Six pictures of the desk at 1440×900 — HOME and its rail, each fixture, and
-// the casino with the ticker in the rail.
+// Pictures of the desk at 1440×900 and 1920×1080 — three columns, always open:
+// the roster on the left, the room (or the floor, or a felt) in the centre,
+// the thread (or a fixture, or the board) on the right.
+//
+// DESK-3 replaces DESK-2's layout outright (design-refs/mood-desk59.jsx,
+// mood-desk59b.jsx): "three columns, always open, nothing sliding over
+// anything." The roster used to be FIX-2c's 68px strip, mounted only once a
+// panel had taken its place; it is DeskRoster.jsx now, a permanent 250px
+// column, on every stage. This file's job is to hold THAT claim honest — the
+// roster never disappears, never collapses, and is not a mode any panel
+// toggles it into.
 //
 // WHY THIS IS NOT IN `npm test` OR IN CI: the same reason home.spec.js gives.
-// It is a LOOK check, not a rule check. Every rule this wave has — the room is
-// the phone's room, the thread is the ROOM's thread, a fixture opens in the
-// rail, the ticker is in the rail and holds more than five lines — is asserted
-// in DeskHome.test.jsx and CasinoScreen.desk.test.jsx under vitest, which runs
-// in seconds and gates every commit. Screenshots gate nothing; they are for a
-// person's eyes.
+// It is a LOOK check, not a rule check. Every rule this wave has — the roster
+// is permanent, a fixture opens beside it rather than over it, the felt caps
+// at 900 — is asserted in DesktopHome.test.jsx and desktopWidth.test.jsx under
+// vitest, which runs in seconds and gates every commit. Screenshots gate
+// nothing; they are for a person's eyes.
 //
 // Everything is served from a fixture through page.route, so nothing here needs
 // a server, a database or a model, and the pictures are the same on every
-// machine. 1440×900 is the desktop the parity board is drawn at; the app's own
-// breakpoint is 1100, so this viewport is what puts the desk on screen.
+// machine. 1440×900 is the desktop the parity board is drawn at; 1920×1080 is
+// board 31's wide variant — "a wider window buys a bigger felt and a wider
+// floor, not a fourth column." The app's own breakpoint is 1100, so both
+// viewports put the desk on screen.
 //
 // Run:  cd client && npx playwright test e2e/desk.spec.js
-// Look: client/e2e/__screenshots__/desk-*.png
+// Look: client/e2e/__screenshots__/desk3-*.png
 
 import { test, expect } from '@playwright/test';
 
-const VIEWPORT = { width: 1440, height: 900 };
 const HOME = 'http://127.0.0.1:5199/';
+
+// The two widths board 31 draws the desk at. Every test that exists to prove
+// the three-column claim runs at both; a test about one interaction's
+// geometry (a fixture, a felt) runs once, at the size the ref itself uses.
+const SIZES = [
+  { tag: '', width: 1440, height: 900 },
+  { tag: '-1920', width: 1920, height: 1080 },
+];
 
 const loc = (where = 'home', extra = {}) => ({
   where, tableId: null, room: null, since: Date.now() - 41 * 60_000, ...extra,
@@ -211,9 +228,9 @@ async function stub(page, { agents = AGENTS, game = GAME, slots = null } = {}) {
   }, [AGENTS, GAME]);
 }
 
-async function desk(page, opts = {}) {
+async function desk(page, { width = 1440, height = 900 } = {}, opts = {}) {
   await stub(page, opts);
-  await page.setViewportSize(VIEWPORT);
+  await page.setViewportSize({ width, height });
   await page.goto(HOME);
   await page.waitForSelector('.dsk-root');
   await page.waitForSelector('.home-flat');
@@ -221,99 +238,152 @@ async function desk(page, opts = {}) {
 }
 
 async function shot(page, name) {
-  await page.screenshot({ path: `e2e/__screenshots__/desk-${name}.png` });
+  await page.screenshot({ path: `e2e/__screenshots__/desk3-${name}.png` });
 }
 
-test.use({ viewport: VIEWPORT, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+// The default project viewport (390×844, hasTouch) is the Mini App's own
+// size; every test here calls desk() with its own width, but the touch/mobile
+// emulation still needs turning off, or the desk renders as if dragged onto a
+// touch device.
+test.use({ isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
 
-test.describe('DESK-2 · HOME at 1440×900', () => {
-  test('the room, and the thread', async ({ page }) => {
-    await desk(page);
+// Unambiguous as long as the standup panel is not open: with the permanent
+// column always mounted, one name matches exactly one roster row.
+function rosterRow(page, name) {
+  return page.locator('.dsk3-roster .dsk-roster-row', { hasText: name });
+}
 
-    // P15: one room, the thread permanently beside it, and away shown as a
-    // frame on the wall rather than as a row somewhere.
-    await expect(page.getByTestId('home-screen')).toBeVisible();
-    await expect(page.getByTestId('room-thread')).toBeVisible();
-    await expect(page.getByTestId('home-frame-a3')).toBeVisible();
-    await expect(page.locator('.home-flat')).toHaveCount(1);
-    await shot(page, 'home');
-  });
+test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)', () => {
+  for (const size of SIZES) {
+    test(`the roster, the room, and the thread — no click required (${size.width}x${size.height})`, async ({ page }) => {
+      await desk(page, size);
 
-  test('the safe, in the rail', async ({ page }) => {
-    await desk(page);
+      // Job 1: roster, room and thread are all up at once, before anything is
+      // clicked — the roster is furniture, not a mode a panel toggles it into.
+      await expect(page.getByTestId('desk-roster')).toBeVisible();
+      await expect(page.getByTestId('home-screen')).toBeVisible();
+      await expect(page.getByTestId('room-thread')).toBeVisible();
+      for (const a of AGENTS) await expect(rosterRow(page, a.name)).toBeVisible();
+
+      await expect(page.getByTestId('home-frame-a3')).toBeVisible();
+      await expect(page.locator('.home-flat')).toHaveCount(1);
+      // No 68px strip anywhere — DESK-2's collapsed form is gone, not hiding.
+      await expect(page.locator('.dsk-strip')).toHaveCount(0);
+      await shot(page, `home${size.tag}`);
+    });
+  }
+
+  test('the safe opens beside the roster, not instead of it', async ({ page }) => {
+    await desk(page, SIZES[0]);
     await page.getByTestId('home-safe').click();
 
-    // P16: the money in the rail, the room dimmed rather than covered.
-    await expect(page.getByText('The safe')).toBeVisible();
+    await expect(page.locator('.dsk-panel-head__title', { hasText: 'The safe' })).toBeVisible();
     await expect(page.locator('.home1__room')).toHaveAttribute('data-dim', 'true');
+    // The room dims; the roster does not — it is furniture, not a panel.
+    await expect(page.getByTestId('desk-roster')).toBeVisible();
+    await expect(rosterRow(page, BALANCE.name)).toBeVisible();
+    await expect(rosterRow(page, GRANITE.name)).toBeVisible();
     await page.waitForTimeout(300);
     await shot(page, 'safe');
   });
 
-  test('tap the table', async ({ page }) => {
-    await desk(page);
+  test('the table sheet opens beside the roster', async ({ page }) => {
+    await desk(page, SIZES[0]);
     await page.getByTestId('home-table').click();
 
     // P17: the only place a seat price appears, and it is the server's price.
+    // `exact: true` — the refusal line below it also contains "4th seat",
+    // case-insensitively, and a substring match resolves to both.
     await expect(page.getByTestId('home-table-sheet')).toBeVisible();
-    await expect(page.getByText('4TH SEAT')).toBeVisible();
+    await expect(page.getByText('4TH SEAT', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('desk-roster')).toBeVisible();
     await page.waitForTimeout(300);
     await shot(page, 'table');
   });
 
-  test('the fridge, in the rail', async ({ page }) => {
-    await desk(page);
+  test('the fridge opens beside the roster', async ({ page }) => {
+    await desk(page, SIZES[0]);
     await page.getByTestId('home-fridge').click();
 
-    // P18's fixture: the same stock sheet, mounted rather than glassed.
     await expect(page.getByTestId('home-fridge-sheet')).toBeVisible();
     await expect(page.getByTestId('home-give-beer')).toBeVisible();
+    await expect(page.getByTestId('desk-roster')).toBeVisible();
     await page.waitForTimeout(300);
     await shot(page, 'fridge');
   });
 
-  test('a man, in the rail', async ({ page }) => {
-    await desk(page);
+  test('a man, in the thread — the roster still shows every agent', async ({ page }) => {
+    await desk(page, SIZES[0]);
     await page.locator('.home-one[data-agent="a2"]').click();
 
     await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
     await expect(page.locator('.home-flat')).toHaveCount(1);
+    for (const a of AGENTS) await expect(rosterRow(page, a.name)).toBeVisible();
     await page.waitForTimeout(400);
     await shot(page, 'man');
   });
-});
 
-test.describe('DESK-2 · the casino at 1440×900', () => {
-  test('the building on the stage, the ticker in the rail', async ({ page }) => {
-    await desk(page);
-    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+  test('the roster switches threads on its own, with no strip ever appearing', async ({ page }) => {
+    await desk(page, SIZES[0]);
+    await rosterRow(page, GRANITE.name).click();
+    await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
 
-    await page.waitForSelector('.csn-desk__rail');
-    await expect(page.locator('.csn-door')).toHaveCount(ROOMS.length);
-    // One ticker, and it is in the rail.
-    await expect(page.locator('.csn-board')).toHaveCount(1);
-    await expect(page.locator('.csn-desk__rail .csn-board')).toBeVisible();
-    await page.waitForTimeout(600);
-    await shot(page, 'casino');
+    await rosterRow(page, BALANCE.name).click();
+    await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
+    await expect(page.locator('.dsk-strip')).toHaveCount(0);
   });
 });
 
-// ── FIX-6 job 5 ─────────────────────────────────────────────────────────────
-//
-// THE ONE CHECK THIS SUITE MAKES THAT IS NOT A PICTURE, and it is here rather
-// than in vitest because it is about GEOMETRY: jsdom has no layout, so "the
-// sheet does not span the viewport" is a claim only a real browser can settle.
-// Where the sheet is mounted is asserted in CasinoScreen.desk.test.jsx, which
-// runs in CI; this asserts what that mounting is FOR.
+test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => {
+  test('a body is quiet at rest; hovering shows his pill', async ({ page }) => {
+    await desk(page, SIZES[0]);
+    const pill = page.locator('.home-one[data-agent="a2"] .home-pill');
 
-test.describe('FIX-6 · no sheet spans the desk', () => {
-  test('the rooms are three cards across, and every sheet opens in the rail', async ({ page }) => {
-    await desk(page);
+    await expect(pill).toHaveCSS('opacity', '0');
+    await page.locator('.home-one[data-agent="a2"]').hover();
+    await expect(pill).toHaveCSS('opacity', '1');
+    await page.waitForTimeout(150);
+    await shot(page, 'hover-body');
+  });
+
+  test('a fixture is quiet at rest; hovering shows its one line', async ({ page }) => {
+    await desk(page, SIZES[0]);
+    const safe = page.locator('.home-flat__safe');
+    const hintOpacity = () => safe.evaluate((el) => getComputedStyle(el, '::after').opacity);
+
+    await expect.poll(hintOpacity).toBe('0');
+    await safe.hover();
+    await expect.poll(hintOpacity).toBe('1');
+  });
+});
+
+test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent board', () => {
+  for (const size of SIZES) {
+    test(`three columns on the casino stage too (${size.width}x${size.height})`, async ({ page }) => {
+      await desk(page, size);
+      await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+
+      await page.waitForSelector('.csn-desk__rail');
+      await expect(page.getByTestId('desk-roster')).toBeVisible();
+      // Under the tray-less deploy state the three rooms are the compact
+      // doorway row (CasinoBuilding's RoomDoors) — the tall deploy doorway
+      // (.csn-door) only appears with an agent in the tray, which this stub
+      // never puts there.
+      await expect(page.locator('.csn-room-door')).toHaveCount(ROOMS.length);
+      // One board, and it is the permanent right column.
+      await expect(page.locator('.csn-board')).toHaveCount(1);
+      await expect(page.locator('.csn-desk__rail .csn-board')).toBeVisible();
+      await page.waitForTimeout(600);
+      await shot(page, `casino${size.tag}`);
+    });
+  }
+
+  test('the three doorways sit side by side, same top, same height', async ({ page }) => {
+    await desk(page, SIZES[0]);
     await page.getByRole('button', { name: 'CASINO', exact: true }).click();
-    await page.waitForSelector('.csn-rooms__row');
+    await page.waitForSelector('.csn-doors');
 
-    // Three cards side by side: same top, same height, left to right.
-    const doors = await page.locator('.csn-door').all();
+    const doors = await page.locator('.csn-room-door').all();
     expect(doors).toHaveLength(ROOMS.length);
     const boxes = [];
     for (const door of doors) boxes.push(await door.boundingBox());
@@ -322,21 +392,66 @@ test.describe('FIX-6 · no sheet spans the desk', () => {
       expect(Math.abs(boxes[i].height - boxes[0].height)).toBeLessThan(2);
       expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width - 2);
     }
-    await shot(page, 'casino-rooms');
+  });
 
-    // A doorway opens the room in the RAIL. Not a bottom sheet: it must not
-    // reach the left edge of the desk and must not be the width of it.
-    const rail = await page.locator('.csn-desk__rail').boundingBox();
+  // FloorView's own header states the departure explicitly: opening a room is
+  // a DESTINATION, not a sheet — "full width with the board as a right
+  // column." That already held before DESK-3; what DESK-3 adds is the roster
+  // staying up beside it, so this is still three columns rather than two.
+  test('a doorway opens the floor full width, with the board as its own column, beside the roster', async ({ page }) => {
+    await desk(page, SIZES[0]);
+    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.waitForSelector('.csn-doors');
+
+    const roster = await page.getByTestId('desk-roster').boundingBox();
     await page.getByRole('button', { name: /^The floor,/ }).click();
-    const sheet = page.getByTestId('room-tables-sheet');
-    await expect(sheet).toBeVisible();
 
-    const box = await sheet.boundingBox();
-    expect(box.width).toBeLessThan(VIEWPORT.width * 0.6);
-    expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
-    // ...and the building it is about is still on screen beside it.
-    await expect(page.locator('.csn-door')).toHaveCount(ROOMS.length);
+    const view = page.getByTestId('floor-view');
+    await expect(view).toBeVisible();
+    await expect(page.getByTestId('desk-roster')).toBeVisible();
+
+    const viewBox = await view.boundingBox();
+    // The floor picks up exactly where the roster leaves off — nothing
+    // between them, and nothing of the roster left behind under it.
+    expect(viewBox.x).toBeGreaterThanOrEqual(roster.x + roster.width - 1);
+
+    const board = page.locator('.csn-floor__board');
+    await expect(board).toBeVisible();
+    const boardBox = await board.boundingBox();
+    // The board is the room's own right edge — a column, not a sheet pulled
+    // over the middle of it.
+    expect(boardBox.x + boardBox.width).toBeGreaterThan(viewBox.x + viewBox.width - 2);
+
     await page.waitForTimeout(300);
-    await shot(page, 'casino-room-sheet');
+    await shot(page, 'casino-room');
+  });
+});
+
+test.describe('DESK-3, job 4 · watching a felt', () => {
+  test('the felt centres and caps at 900, the roster and the thread stay either side', async ({ page }) => {
+    await desk(page, SIZES[0]);
+    await page.getByRole('button', { name: /Standup/ }).click();
+    await page.getByRole('button', { name: 'WATCH →' }).first().click();
+
+    await expect(page.locator('.dtb')).toBeVisible();
+    await expect(page.getByTestId('desk-roster')).toBeVisible();
+    await expect(page.locator('.dsk-panel--watch')).toBeVisible();
+
+    const felt = await page.locator('.dtb').boundingBox();
+    expect(felt.width).toBeLessThanOrEqual(901);
+
+    await page.waitForTimeout(400);
+    await shot(page, 'watch');
+  });
+
+  test('at 1920 the felt still caps at 900 rather than stretching', async ({ page }) => {
+    await desk(page, SIZES[1]);
+    await page.getByRole('button', { name: /Standup/ }).click();
+    await page.getByRole('button', { name: 'WATCH →' }).first().click();
+
+    const felt = await page.locator('.dtb').boundingBox();
+    expect(felt.width).toBeLessThanOrEqual(901);
+    await page.waitForTimeout(400);
+    await shot(page, 'watch-1920');
   });
 });

@@ -1,6 +1,6 @@
-# How We Work — Agentic Poker
+# How We Work — Railbird (formerly Agentic Poker)
 
-The operating protocol as it actually ran on 2026-09-06 (v3). It replaces the numbered-tab protocol of 2026-09-05. Read it at the start of every session.
+The operating protocol as it actually ran on 2026-09-06 (v3), with the 2026-09-07 additions (v3.1: arena runs, keys, brand art). It replaces the numbered-tab protocol of 2026-09-05. Read it at the start of every session.
 
 ## Who is Jens
 
@@ -84,28 +84,17 @@ Jens plays prod on the phone and the desktop and writes down what broke or felt 
 
 `npm run test:all` = server (node:test), client (Vitest), e2e (the verify scripts). The Testing law in CLAUDE.md governs: a new test fails on the old behaviour before it passes on the new; no assertion is loosened to reach green; a flaky test is fixed, not re-run. Known flakes are filed in BUGS.md with the measurement that shows they predate the branch. Running a verify script by hand writes into the worktree's `data/`; use the harness (scratch cwd) or clean up after.
 
-## Env on the VPS
+## Arena runs
 
-Every variable lives in `.bashrc` on the VPS; `pm2 restart all --update-env` is what picks a change up. The canonical list with what each one does is in CLAUDE.md's hard rules — this section is only for the switches that are DELIBERATELY OFF and the order to turn them on in.
+Backtests run on Jens's PC, never on the VPS and never in the integrator's folder (`data/arena/` is untracked, but the integrator's working tree must stay clean). Use a spare worktree: `git fetch origin && git checkout -B arena origin/main && npm install` in it (`git checkout main` fails there — main lives in the integrator's worktree). The key goes into that one PowerShell tab as `$env:ANTHROPIC_API_KEY="…"` and nowhere else; `$env:ANTHROPIC_API_KEY.Length` prints 108 if it pasted whole. Chain runs with `;` and `Tee-Object <name>.log`; watch the first minute for `API error: 401` (a bad key does not stop the run — the harness falls back to policy play and the results are garbage, so Ctrl+C, fix the key, delete the log and `data\arena`, rerun). Windows sleep off (Settings → Power → all three Never; do not "Apply all" on the energy page). In the morning: `Get-Content <name>.log -Tail 30` per run; the numbers go to spec §5.2.
 
-### GUEST_ENABLED — play without an account (GUEST-1)
+## Keys
 
-**Default off. Jens flips it, not a tab.**
+A key that has been in a chat window is burned, whoever the chat is with. Revoke it in the console the next morning and create a new one that is typed only into the PowerShell tab. The same holds for the bot token and the deploy key. Cowork never writes a key anywhere; the spec's Known debt row tracks what is still to rotate.
 
-```
-GUEST_ENABLED=1
-```
+## Brand art
 
-Unset, the three guest routes 404, no cookie is read, `isGuestOwner` is false for everybody, and the whole app behaves exactly as it did before the tree landed — including the `/welcome` redirect for a visitor with no session on agenticpoker.app. That is the way back, and it needs no deploy: unset it and restart.
-
-Set, a stranger who opens the app is given an owner and a thirty-day httpOnly cookie, lands on the hero with the room under it, and drafts somebody. He gets one agent, one casino session a day, no talking, and every decision on the compiled policy — so a guest costs nothing but his draft.
-
-Two things to check before flipping it:
-
-1. **`TELEGRAM_BOT_USERNAME` must be set**, or the claim wall's CONTINUE IN TELEGRAM button has no link to offer and draws itself disabled. It is already needed for the web login widget, so on a working deployment it is there.
-2. **The bot must be able to receive `/start`.** Nothing to configure — `/start guest_<token>` rides the same `getUpdates` loop the share cards already use — but it is the same loop, so `SHARE_INLINE=0` turns the claim link off with it. Only one process may poll per bot token: if a second one is ever started, both break.
-
-Worth watching for a day after it goes on: `GET /api/admin/meter?key=$ADMIN_KEY`. A guest owner should appear in the decision routes as `policy/guest` and never in the model spend at all.
+Claude Design draws SVGs by typing path coordinates, so it cannot draw a silhouette with character (wave 62's birds read as blobs). Character art comes from an image model (ChatGPT) with a single dense visual description — no frame sizes, no rules, no verify clauses, those leak into the picture — generated four at a time, squint-tested at 40 px, then handed to Claude Design as PNGs with the instruction to trace, never redraw, and to overlay the trace on the PNG before reporting. Image models mangle lettering: wordmark and mark are separate images.
 
 ## End of session
 

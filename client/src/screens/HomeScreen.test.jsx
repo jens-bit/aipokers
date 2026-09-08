@@ -428,6 +428,61 @@ describe('HOME-1 · the want', () => {
   });
 });
 
+// ── VISIT-1 · a friend at the door ──────────────────────────────────────────
+
+describe('VISIT-1 · a friend at the door', () => {
+  const knock = () => ({ id: 'v1', agentId: 'friend1', agentName: 'Away Day', respondBy: Date.now() + 30 * 60_000 });
+
+  it('a knock shows as a want-style toast, in the room', async () => {
+    const { sock } = await boot([mkAgent('a1', 'Resident')]);
+    act(() => {
+      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
+    });
+    const toast = await screen.findByTestId('home-visitor');
+    expect(toast).toHaveTextContent('Away Day');
+    expect(toast).toHaveTextContent('at the door');
+    expect(within(toast).getByTestId('home-visitor-accept')).toBeInTheDocument();
+    expect(within(toast).getByTestId('home-visitor-decline')).toBeInTheDocument();
+    // No dismiss X — same law as the want toast: a yes or a no is the only
+    // way it goes away.
+    expect(within(toast).getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('accepting POSTs hostUserId and the knock clears when the server says so', async () => {
+    let posted = null;
+    const { sock } = await boot([mkAgent('a1', 'Resident')]);
+    fetchMock.route(/\/visitors\/.*\/answer/, ({ body }) => {
+      posted = body;
+      return { visitId: 'v1', accepted: true, line: 'Pull up a chair.' };
+    }, { method: 'POST' });
+
+    act(() => {
+      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
+    });
+    await userEvent.click(await screen.findByTestId('home-visitor-accept'));
+    // hostUserId is always the CALLER's own id (telegram.js's getUserId,
+    // 4242 for the default signed-in fixture) — never the agent's owner.
+    await waitFor(() => expect(posted).toEqual(expect.objectContaining({ accept: true, hostUserId: '4242' })));
+
+    // HOME_STATE clears it on its own — the toast has no local dismissal.
+    act(() => {
+      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: null });
+    });
+    await waitFor(() => expect(screen.queryByTestId('home-visitor')).toBeNull());
+  });
+
+  it("a guest body wears the GUEST tag and is not one you can tap into a thread", async () => {
+    let opened = null;
+    const guestBody = { ...mkAgent('friend1', 'Away Day'), guest: true };
+    await boot([mkAgent('a1', 'Resident'), guestBody], null, { onOpenThread: (a) => { opened = a; } });
+
+    expect(await screen.findByTestId('home-pill-guest')).toBeInTheDocument();
+    const body = document.querySelector('[data-agent="friend1"]');
+    await userEvent.click(body);
+    expect(opened).toBeNull();
+  });
+});
+
 // ── The thread ──────────────────────────────────────────────────────────────
 
 describe('HOME-1 · the thread', () => {

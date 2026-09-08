@@ -402,6 +402,14 @@ function AppShell({ guest }) {
     resolveDeepLink(route)
       .then((opened) => {
         if (!opened) return;
+        // VISIT-1: the link already DID the thing — the knock landed, or it
+        // did not, and either way there is no agent of ours to open a thread
+        // on. HOME_STATE carries the rest (his own household sees him at the
+        // door), so the only job left here is to be standing in the room.
+        if (opened.kind === 'visit') {
+          setActiveTab('home');
+          return;
+        }
         if (opened.kind === 'hand') {
           setDeepLinkHand(opened);
           return;

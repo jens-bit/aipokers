@@ -18,6 +18,7 @@ import { installRoomRoutes } from './server/rooms.js';
 import { installRoomTableRoutes } from './server/roomTables.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
 import { installPlaceRoutes } from './server/place.js';
+import { installVisitRoutes } from './server/visit.js';
 import { installGuestRoutes, guestsEnabled } from './server/guest.js';
 import { installClaimRoute } from './server/guestClaim.js';
 import { handleStart } from './server/guestBot.js';
@@ -113,6 +114,12 @@ installTapeRoomRoutes(app);
 // reaches the home game and the table registry, and neither exists until
 // createServer() has run.
 installPlaceRoutes(app);
+
+// VISIT-1: POST /api/agents/:id/visit and POST /api/home/visitors/:id/answer
+// — the door onto somebody else's flat. Registered here for the same reason
+// as the fixtures above: it reaches the home game and the table registry,
+// and neither exists until createServer() has run.
+installVisitRoutes(app);
 
 // Load the OpenAPI spec once at startup so it can be served cheaply.
 const openApiPath = path.join(__dirname, '..', 'openapi.json');

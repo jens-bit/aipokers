@@ -40,6 +40,7 @@ import { identityOf } from '../lib/identity.js';
 import { pillName } from '../lib/names.js';
 import { fetchWallet, money } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
+import { shareVisitLink } from '../lib/visit.js';
 import '../styles/roster.css';
 
 /**
@@ -63,14 +64,33 @@ export function hasUnread(agent) {
   return hasUnseenRecap(agent) || !!agent?.want;
 }
 
+/**
+ * VISIT-1 — "Send to a friend": home only. A body already at somebody else's
+ * table, or already visiting, has nowhere left to walk out to — the same law
+ * the door's own 409 `notHome`/`alreadyVisiting` enforce server-side; this is
+ * only the button not offering what the server would refuse anyway.
+ */
+export function canSendVisiting(agent) {
+  return (agent?.location?.where ?? 'home') === 'home' && !agent?.visiting;
+}
+
 export function RosterRow({ agent, index, onOpen }) {
   const stack = stackOf(agent);
   const unread = hasUnread(agent);
   // HOME-2 job 3: the same creature the room draws. A row that tinted him
   // differently from his body would be a second man with his name on it.
   const id = identityOf(agent);
+  const [sent, setSent] = useState(null);
+
+  const send = async (e) => {
+    e.stopPropagation();
+    const res = await shareVisitLink(agent.id, agent.name);
+    setSent(res.ok ? (res.via === 'clipboard' ? 'copied' : 'sent') : 'failed');
+    setTimeout(() => setSent(null), 3000);
+  };
+
   return (
-    <li>
+    <li className="roster__item">
       <button
         type="button"
         className="roster__row"
@@ -96,6 +116,17 @@ export function RosterRow({ agent, index, onOpen }) {
         </span>
         {stack !== null && <span className="roster__stack">{money(stack)}</span>}
       </button>
+      {canSendVisiting(agent) ? (
+        <button
+          type="button"
+          className="roster__send"
+          onClick={send}
+          data-testid={`roster-send-${agent.id}`}
+          aria-label={`Send ${agent.name} to a friend`}
+        >
+          {sent === 'copied' ? 'Link copied' : sent === 'sent' ? 'Sent' : sent === 'failed' ? 'No link yet' : 'Send to a friend'}
+        </button>
+      ) : null}
     </li>
   );
 }

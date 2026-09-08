@@ -60,6 +60,7 @@ import { pillName } from '../lib/names.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { DraftSheet } from '../components/draft/DraftSheet.jsx';
 import { FormingGhost as StageGhost, DRAFT_STAGES, draftStage } from '../components/system/FormingGhost.jsx';
+import { pendingVisitorName, clearPendingVisitor } from '../lib/visit.js';
 import '../styles/draft2.css';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
@@ -640,9 +641,18 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   // sheet row is a thing somebody said, and nothing in this conversation says a
   // footnote. The suggestion chips are what tells an owner with no words ready
   // where to start now.
+  // VISIT-1 job 6: a stranger who scrolled down off "<name> is at your door"
+  // is not drafting for its own sake — read once, so the recruiter's very
+  // first line says so rather than repeating the hero a beat later. Cleared
+  // immediately: a rebuild reached from anywhere else in the app must never
+  // pick up a stale knock from an earlier tab.
+  const visitorAtDoor = !isEdit ? pendingVisitorName() : null;
+  useEffect(() => { if (visitorAtDoor) clearPendingVisitor(); }, [visitorAtDoor]);
   const openingLine = isEdit
     ? 'Tell me what to change.'
-    : 'One open seat. Tell me how it should play — style, risk, how tight, how aggressive.';
+    : visitorAtDoor
+      ? `${visitorAtDoor} is waiting at the door. Tell me how yours should play, and you can let him in.`
+      : 'One open seat. Tell me how it should play — style, risk, how tight, how aggressive.';
 
   // The nature reveal and the birth card. Shared by both shells: he is born the
   // same way whichever screen drafted him.

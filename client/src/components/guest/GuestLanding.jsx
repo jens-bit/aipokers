@@ -75,7 +75,32 @@ function HeldCards() {
   );
 }
 
-export function GuestLanding() {
+/**
+ * VISIT-1 job 6 — a small door, and a body standing outside it. Not the
+ * product's own HomeFlat door (this page is the marketing palette, and
+ * nothing here is meant to be mistaken for the room a household actually
+ * lives in) — a simple mark that reads as "outside", so the ghost beside it
+ * reads as somebody who has not been let in yet.
+ */
+function DoorWithVisitor({ name }) {
+  return (
+    <div className="guest-hero__door-scene" data-testid="guest-hero-visitor">
+      <div className="guest-hero__door" aria-hidden>
+        <span className="guest-hero__door-glow" />
+      </div>
+      <div className="guest-hero__door-visitor">
+        <MoodGhost mood="neutral" size={72} ring={false} hood={HODS_VISITOR} glow="#CDB380" heat={40} />
+        <span className="guest-hero__door-name">{name}</span>
+      </div>
+    </div>
+  );
+}
+
+// A different hood from the hero's own (HERO_HOOD) — two bodies on one poster
+// have to read as two people, not one drawing twice.
+const HODS_VISITOR = HOODS[2];
+
+export function GuestLanding({ visitorName = null }) {
   const roomRef = useRef(null);
 
   // DRAFT HIM is a scroll and a focus, because what it would have opened is
@@ -111,11 +136,16 @@ export function GuestLanding() {
 
         <div className="guest-hero__body">
           <div>
-            <h1 className="guest-hero__head">Deal him in.</h1>
+            {/* VISIT-1 job 6: a knock changes the promise on the page from "make
+                somebody" to "let somebody in" — the first fact this stranger
+                needs is not the product, it is that he is expected. */}
+            <h1 className="guest-hero__head">
+              {visitorName ? `${visitorName} is at your door.` : 'Deal him in.'}
+            </h1>
             <p className="guest-hero__lede">
-              A poker player you raise. You draft him in a chat, he is born with a nature
-              and six attributes, and then he lives in a room in your phone — and plays
-              real hands without you.
+              {visitorName
+                ? `${visitorName} wants to sit down for a while. Draft somebody of your own and you can let him in.`
+                : 'A poker player you raise. You draft him in a chat, he is born with a nature and six attributes, and then he lives in a room in your phone — and plays real hands without you.'}
             </p>
             <div style={{ marginTop: 22 }}>
               <button type="button" className="guest-hero__cta" onClick={draftHim}>
@@ -143,6 +173,7 @@ export function GuestLanding() {
               />
               <HeldCards />
             </div>
+            {visitorName ? <DoorWithVisitor name={visitorName} /> : null}
           </div>
         </div>
       </section>

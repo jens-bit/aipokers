@@ -19,6 +19,7 @@
 // network — which is what lets the parser be tested without one.
 
 import { getTelegramInitData, getUserId, getWebApp } from './telegram.js';
+import { requestVisit } from './visit.js';
 
 // ── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,14 @@ export function parseStartParam(raw) {
   if (s.startsWith('table_')) {
     const tableId = s.slice(6);
     return tableId ? { kind: 'table', tableId } : null;
+  }
+
+  // VISIT-1: visit_<agentId> — the agent is somebody ELSE'S, so unlike every
+  // other kind above there is nothing of ours to look up. The whole point of
+  // this link is that opening it IS the knock at the door; see requestVisit.
+  if (s.startsWith('visit_')) {
+    const agentId = s.slice(6);
+    return agentId ? { kind: 'visit', agentId } : null;
   }
 
   return null;
@@ -143,6 +152,14 @@ async function roster() {
  */
 export async function resolveDeepLink(route) {
   if (!route) return null;
+
+  // VISIT-1: opening the link IS the action — there is no record of ours to
+  // fetch first. The caller (useDeepLink's consumer) is told whether the
+  // knock landed; the room itself shows the answer, through HOME_STATE.
+  if (route.kind === 'visit') {
+    const result = await requestVisit(route.agentId);
+    return { kind: 'visit', ok: result.ok, body: result.body };
+  }
 
   if (route.kind === 'table') {
     // Who is at that table, if he is one of ours. It is what lets the watch

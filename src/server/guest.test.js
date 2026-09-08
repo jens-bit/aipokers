@@ -158,6 +158,23 @@ test('GUEST-1: the token is not derivable from the owner id, and vice versa', as
   assert.match(token, /^[A-Za-z0-9_-]+$/);
 });
 
+// VISIT-1 job 6
+test('VISIT-1: a mint carries the referral off a visit link, unvalidated', async () => {
+  const { body } = await post('/api/guest', { visitAgentId: 'agent_friend1' });
+  const row = guest.guestFor(body.ownerId);
+  assert.equal(row.referredBy, 'agent_friend1');
+});
+
+test('VISIT-1: an ordinary mint records no referral at all', async () => {
+  const { body } = await post('/api/guest');
+  assert.equal(guest.guestFor(body.ownerId).referredBy, null);
+});
+
+test('VISIT-1: guestCannotVisit is isGuestOwner exactly — the enforcement lives at visit.js\'s call site', () => {
+  const nobody = 'not-a-guest-at-all';
+  assert.equal(guest.guestCannotVisit(nobody), false);
+});
+
 test('GUEST-1: parseCookies survives every shape a browser sends', () => {
   assert.deepEqual(guest.parseCookies('a=1; b=2'), { a: '1', b: '2' });
   assert.deepEqual(guest.parseCookies(''), {});

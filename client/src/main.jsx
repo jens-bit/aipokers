@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
+import { visitPreview, rememberPendingVisitor, requestVisit } from './lib/visit.js';
 import './styles/index.css';
 
 // BUGS-C job 1: a Mini App session (by far the common case) always takes the
@@ -59,7 +60,22 @@ async function boot() {
     // guest — a browser with an account must not have its fetches wrapped.
     installClaimCatcher();
 
-    if (ownerId) return render(<App guestBoot="returning" />);
+    // VISIT-1 job 6: a friend's invite, carried as a plain query param rather
+    // than a Telegram start param — a real Mini App launch never reaches this
+    // branch at all (door 1 above already took it), so this is specifically
+    // the "no Telegram, no account" reader of the same link.
+    const visitAgentId = new URLSearchParams(window.location.search).get('visit');
+
+    if (ownerId) {
+      // He already has a household. The special hero is for a stranger with
+      // none yet — a returning guest's flat already has the answer, so this
+      // is job 1's own knock, made straight away rather than staged behind a
+      // birth that already happened.
+      if (visitAgentId) requestVisit(visitAgentId).catch(() => {});
+      return render(<App guestBoot="returning" />);
+    }
+
+    const visitor = visitAgentId ? await visitPreview(visitAgentId) : null;
 
     // Nobody yet — mint one, and land him on the page that IS the game (job
     // 6): one hero viewport, and the room itself directly under it with the
@@ -67,8 +83,19 @@ async function boot() {
     // bounds a crawler or a bounced tab; see guest.js for why that cap is rows
     // rather than a Map. A server that refuses falls through to the login door
     // rather than rendering an app with no owner behind it.
-    const made = await startGuest();
-    if (made) return render(<Suspense fallback={null}><GuestLanding /></Suspense>);
+    const made = await startGuest(visitor ? visitAgentId : null);
+    if (made) {
+      // VISIT-1 job 6: "someone is at your door" — the draft's opening line
+      // (BirthScreen.jsx) reads this back once, the first time it renders.
+      if (visitor) rememberPendingVisitor(visitor.agentName);
+      // BUGS-C-1: the landing is lazy, so a Mini App session never pays for
+      // it — which is why it needs the boundary the eager import did not.
+      return render(
+        <Suspense fallback={null}>
+          <GuestLanding visitorName={visitor?.agentName ?? null} />
+        </Suspense>,
+      );
+    }
   }
 
   // (4): the door that was always here.

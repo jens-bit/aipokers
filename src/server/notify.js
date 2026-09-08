@@ -96,6 +96,12 @@ export const LADDER = {
   milestone:      8,
   biggest_pot:    9,
   quiet_win:     10,
+  // VISIT-1: last on the ladder, deliberately. A ping that loses out on
+  // budget is not a lost decision — the visitor is still standing at the
+  // door for the same thirty minutes either way (visit.js's own clock, not
+  // this one), and the room itself shows him arrived the moment the owner
+  // next opens it. The ladder only decides who gets a PUSH first.
+  visitor:       11,
 };
 
 export const BUDGET = {
@@ -286,8 +292,23 @@ function buildQuietWin(i, { agentName }) {
   return { text: alts[i % alts.length], button: null };
 }
 
+// VISIT-1: no button. The deep link every other type's button carries opens
+// ONE OF THE OWNER'S OWN agents' threads (`agent_<agentId>`), and the agent
+// this is about is somebody else's — a button built the ordinary way would
+// point at nothing this owner has. The room itself is the only honest place
+// to answer from, and it is already showing him standing at the door.
+function buildVisitor(i, { agentName }) {
+  const alts = [
+    `${agentName} is at the door — wants a game.`,
+    `${agentName} showed up. Wants to sit in.`,
+    `There's a knock — ${agentName}, looking for a table.`,
+  ];
+  return { text: alts[i % alts.length], button: null };
+}
+
 const BUILDERS = {
   session_ended: buildSessionEnded,
+  visitor:       buildVisitor,
   busted:        buildBusted,
   broke:         buildBroke,
   proposal:      buildProposal,

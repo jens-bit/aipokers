@@ -24,12 +24,12 @@ import { agentsResponse } from './test/fixtures/agents.js';
 
 const realLocation = window.location;
 
-function stubLocation(hostname) {
+function stubLocation(hostname, { search = '' } = {}) {
   const replace = vi.fn();
   Object.defineProperty(window, 'location', {
     configurable: true,
     writable: true,
-    value: { ...realLocation, hostname, protocol: 'https:', host: hostname, search: '', replace },
+    value: { ...realLocation, hostname, protocol: 'https:', host: hostname, search, replace },
   });
   return replace;
 }
@@ -122,6 +122,62 @@ describe('GUEST-1 · which door', () => {
     await (await import('./main.jsx')).booted;
 
     expect(replace).toHaveBeenCalledWith('/welcome');
+  });
+});
+
+// ── VISIT-1 job 6 · the door order's fifth question ─────────────────────────
+
+describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () => {
+  it('a brand new visitor previews his name, records the referral, and lands on the door-knock hero', async () => {
+    stubLocation('agenticpoker.app', { search: '?visit=agent_friend1' });
+    telegram.signOut();
+    const root = mountPoint();
+    fetchMock.route('/api/auth/config', { guest: true });
+    fetchMock.route('/api/guest/me', { status: 404, body: {} });
+    fetchMock.route(/\/agents\/agent_friend1\/visit-preview/, { agentId: 'agent_friend1', agentName: 'Away Day' });
+    let posted = null;
+    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_visited' }; }, { method: 'POST' });
+
+    await act(async () => { await (await import('./main.jsx')).booted; });
+
+    expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
+    await waitFor(() => expect(root).not.toBeEmptyDOMElement());
+    expect(screen.getByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
+  });
+
+  it('a returning guest with the same link knocks straight away — no landing, no referral recorded twice', async () => {
+    stubLocation('agenticpoker.app', { search: '?visit=agent_friend1' });
+    telegram.signOut();
+    mountPoint();
+    fetchMock.route('/api/auth/config', { guest: true });
+    fetchMock.route('/api/guest/me', { ownerId: 'g_back', kind: 'guest' });
+    fetchMock.route('/api/agents', { agents: [] });
+    let visited = null;
+    fetchMock.route(/\/agents\/agent_friend1\/visit\b/, ({ body }) => { visited = body; return { visitId: 'v1' }; }, { method: 'POST' });
+
+    await act(async () => { await (await import('./main.jsx')).booted; });
+
+    expect(fetchMock.posts.filter((c) => c.url.includes('/api/guest') && !c.url.includes('visit'))).toHaveLength(0);
+    await waitFor(() => expect(visited).toEqual(expect.objectContaining({ hostUserId: 'g_back' })));
+  });
+
+  it('with no invite at all, boot is exactly what it was', async () => {
+    stubLocation('agenticpoker.app');
+    telegram.signOut();
+    mountPoint();
+    fetchMock.route('/api/auth/config', { guest: true });
+    fetchMock.route('/api/guest/me', { status: 404, body: {} });
+    let posted = null;
+    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_plain' }; }, { method: 'POST' });
+
+    await act(async () => { await (await import('./main.jsx')).booted; });
+
+    expect(posted).toEqual({});
+    // MERGE-21: same claim, awaited — BUGS-C-1 made GuestLanding a lazy
+    // chunk, so the heading arrives a microtask after boot resolves rather
+    // than on its tick. The two tests above already read it this way.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument());
   });
 });
 

@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { RosterSheet, whereLine, hasUnread } from './RosterSheet.jsx';
+import { RosterSheet, whereLine, hasUnread, canSendVisiting } from './RosterSheet.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
 const agent = (id, name, over = {}) => ({
@@ -193,5 +193,44 @@ describe('HOME-2 job 1 · the money is a line at the foot of the roster', () => 
 
     await screen.findByText('Nobody works for you yet.');
     expect(screen.queryByTestId('roster-wallet')).toBeNull();
+  });
+});
+
+// ── VISIT-1 · "Send to a friend" ─────────────────────────────────────────────
+
+describe('VISIT-1 · send him to a friend', () => {
+  it('is offered only for a body that is home, and not already out visiting', () => {
+    expect(canSendVisiting(agent('a1', 'x'))).toBe(true);
+    expect(canSendVisiting(AT_TABLE)).toBe(false);
+    expect(canSendVisiting(agent('a1', 'x', { visiting: { hostName: null } }))).toBe(false);
+  });
+
+  it('a home body gets the button; one already out visiting does not', async () => {
+    fetchMock.route('/api/agents', {
+      agents: [agent('a1', 'The Clock'), agent('a2', 'River Rat', { visiting: { hostName: null } })],
+    });
+    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
+
+    await screen.findByRole('button', { name: /^The Clock — / });
+    expect(screen.getByTestId('roster-send-a1')).toBeInTheDocument();
+    expect(screen.queryByTestId('roster-send-a2')).toBeNull();
+  });
+
+  it('taps the link, not the row — his thread does not open underneath it', async () => {
+    const user = userEvent.setup();
+    const onOpenThread = vi.fn();
+    fetchMock.route('/api/auth/config', { botUsername: 'AigenicPokerBot' });
+    fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock')] });
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue() }, configurable: true,
+    });
+    render(<RosterSheet onOpenThread={onOpenThread} onClose={() => {}} />);
+
+    await user.click(await screen.findByTestId('roster-send-a1'));
+    expect(onOpenThread).not.toHaveBeenCalled();
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'https://t.me/AigenicPokerBot?start=visit_a1',
+    ));
+    expect(await screen.findByText('Link copied')).toBeInTheDocument();
   });
 });

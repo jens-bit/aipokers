@@ -177,6 +177,63 @@ half:
   worn      he is cooked, so he is not dealt in at home either — that is what
             the bar is for. Read LIVE, so an hour at the bar counts
 
+## Visiting — send him to a friend's flat
+
+A second agent's owner can send him to yours for an evening. Never a casino
+table — MATCH-1's matchmaking is untouched — only the kitchen table, and only
+with your say-so.
+
+  POST /api/agents/:agentId/visit
+    { "hostUserId": "<uid>" }
+  He walks out his own door the moment this lands — `agent.visiting` on his own
+  record excludes him from his own household's kitchen table until the stay
+  ends, one way or another. Refusals are the same shape as /place's:
+
+    inHand            a hand is running in his seat right now
+    notHome           he is not home to send anywhere
+    self              hostUserId is his own owner
+    alreadyVisiting   he is already out
+    guestCannotVisit  his owner is a no-account guest — GUEST-1's door opens
+                       one way only: a guest may HOST, never be sent
+    hostBusy          somebody is already at the host's door, unanswered
+
+  200 { visitId, agentId, agentName, hostUserId, respondBy }. respondBy is
+  thirty minutes out — an unanswered knock times out and he walks home.
+
+  POST /api/home/visitors/:visitId/answer
+    { "hostUserId": "<uid>", "accept": true }
+  Only the host answers his own door. 200 { visitId, accepted, line, game }.
+  `line` is the host's own resident, in character, no model call. Accepted, he
+  is seated at the host's kitchen table through the same derive-and-reconcile
+  homeGame.js already runs for the household's own roster — one more body in
+  the `visitorsFor` feed, HOME_STATE-shaped and tagged `guest: true` on the
+  wire. The stay is bounded at 40 hands or 2 hours, whichever comes first.
+
+Every reads, grudge and thread entry a hand at the casino would write, this
+writes too — under EACH agent's own owner, never the host's, which is the one
+thing VISIT-1 had to get right for the rest to be true for free.
+
+An optional wager rides along: { "stake": <chips> } on the knock, capped at
+10% of whichever pocket — his or the host's own resident who answered — is
+smaller, escrowed from both at accept through wallet.js's buy-in ledger and
+paid out through its cash-out ledger when the stay ends: winner takes the pot,
+a push refunds both.
+
+  GET  /api/agents/:agentId/visit-preview
+  Public — no auth, no owner check. 200 { agentId, agentName }, or 404. This
+  is job 6's own door: a recipient with no account yet holds no credential at
+  all, and the no-account landing (see "Guests" below) has to say whose door
+  he is answering before one exists. A name is not the flat.
+
+VISIT-1 job 6 — invite = visit. "Send to a friend" shares a Telegram inline
+message carrying visit_<agentId>, the same mechanism SHARE-2's own card uses.
+Opened by somebody who already has an account, it is job 1's knock, made
+straight away. Opened by a stranger with none — no Telegram session behind
+the tap at all — it resolves to a plain web link instead, and he lands on the
+guest door (GUEST-1) with visit-preview's name already on the hero: "<name>
+is at your door." Drafting there IS answering it — see POST /api/guest's
+`visitAgentId` above for what happens the moment he is born.
+
 ## Guests — playing without an account
 
 A third way to be somebody here, beside Mini App initData and the desktop
@@ -195,6 +252,16 @@ is read, and nothing else in the API changes.
                            script can post somewhere.
                            429 { error: 'guestCap' } past five from one address
                            in a day.
+                           VISIT-1 job 6: optional `{ visitAgentId }` — the
+                           agent whose door he arrived at, off a visit_<id>
+                           link followed with no Telegram session behind it.
+                           Stored verbatim as `referredBy`, unvalidated (this
+                           route does not reach the roster); nothing is
+                           credited yet. The moment this guest owner's first
+                           agent is born, the referral fires job 1's own
+                           POST /api/agents/:id/visit on its behalf — the
+                           knock a claim will later find waiting at his door,
+                           the same as anybody else's.
   GET  /api/guest/me       who this cookie is: { ownerId, sessionsToday, limits }.
                            404 for a browser that is not a guest — not an error.
   GET  /api/guest/link     the bot deep link for the claim, built server-side
@@ -224,6 +291,10 @@ FOUR LIMITS, all enforced server-side:
                      from the templates. A guest owner never reaches a model
                      except for the draft itself, which is the one thing he may
                      spend on.
+
+A fifth, from VISIT-1, alongside those four: he may not be SENT (POST
+/api/agents/:id/visit refuses 403 guestCannotVisit) but he may HOST — a friend
+at his door costs a guest owner nothing a claim would not already unlock.
 
 Each refusal carries `claim: true` beside its `error`, so one screen can answer
 all of them:
@@ -368,15 +439,16 @@ Receive (server → client):
                 Like the ticker it is NOT filtered by owner — it is counts and
                 table ids, nothing private. A client that ignores this message
                 sees exactly what it saw before it existed.
-  HOME_STATE  — { userId, agents: [...], game } — the owner's living room.
-                Owner-filtered like FLOOR_STATE: it rides the first subscribe
-                and is pushed whenever an agent's standing, location or routine
-                changes, or the home game is stood up or broken up.
+  HOME_STATE  — { userId, agents: [...], game, visitor } — the owner's living
+                room. Owner-filtered like FLOOR_STATE: it rides the first
+                subscribe and is pushed whenever an agent's standing, location
+                or routine changes, or the home game is stood up or broken up.
                 Each agent is
                   { id, name, nature, mood,
                     location: { where, tableId, room, since },
                     routine: { key, label } | null,
-                    fatigue, unseenRecap, study }
+                    fatigue, unseenRecap, study,
+                    guest, visiting }
                 `where` is home | casino | table. `room` is the stakes-tier
                 room id (floor | upstairs | backroom) while he is out, null at
                 home. `since` is server epoch ms — when he arrived where he is,
@@ -385,6 +457,13 @@ Receive (server → client):
                 `routine` is what he is doing AT HOME and is null anywhere else;
                 `key` is one of plays | tape | sulks | sleeps | waits | paces |
                 reads | shuffles | counts.
+                VISIT-1: `guest` is true only on a body standing in through
+                somebody ELSE's visit (see below) — never on a resident of your
+                own household. `visiting` is the other half, on YOUR OWN agent
+                who is out at somebody else's flat: { hostName } or null. A
+                visiting agent's own `where` reads `casino` (away, no felt of
+                his own) rather than a third value — his OWN household's
+                kitchen table is what that keeps from double-booking him.
                 `game` is the home game or null:
                   { tableId, state, seats: [{ seat, agentId, name, house }],
                     handsPlayed }
@@ -392,6 +471,9 @@ Receive (server → client):
                 — WATCH it exactly as you watch any other table. It is at no
                 stakes, on no rung of the ladder and in no room, so it never
                 appears in FLOOR_ROOMS and never carries a FLOOR_GAME.
+                VISIT-1: `visitor` is the one knock at the door still waiting
+                on an answer, or null: { id, agentId, agentName, respondBy }.
+                See "Visiting" above for POST /api/home/visitors/:id/answer.
                 A client that ignores this message sees exactly what it saw
                 before it existed.
   WANT        — { userId, agentId, want } — what one agent is asking his owner

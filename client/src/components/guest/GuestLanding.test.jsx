@@ -21,6 +21,7 @@ import userEvent from '@testing-library/user-event';
 import { GuestLanding } from './GuestLanding.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 import { _resetForTests } from '../../lib/guest.js';
+import { pendingVisitorName, rememberPendingVisitor, clearPendingVisitor } from '../../lib/visit.js';
 
 const openLanding = async () => {
   let out;
@@ -114,5 +115,33 @@ describe('GUEST-1 · and the room, directly under it', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ── VISIT-1 job 6 · a knock changes the promise ─────────────────────────────
+
+describe('VISIT-1 job 6 · someone at the door', () => {
+  beforeEach(() => { clearPendingVisitor(); });
+
+  it('the hero names him and the door draws a body outside it', async () => {
+    await act(async () => { render(<GuestLanding visitorName="Away Day" />); });
+    expect(screen.getByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
+    expect(screen.getByText(/Away Day wants to sit down/)).toBeInTheDocument();
+    expect(screen.getByTestId('guest-hero-visitor')).toHaveTextContent('Away Day');
+  });
+
+  it('with no visitor at all, the ordinary hero is untouched', async () => {
+    await act(async () => { render(<GuestLanding />); });
+    expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument();
+    expect(screen.queryByTestId('guest-hero-visitor')).toBeNull();
+  });
+
+  it("the recruiter's own first line is about letting him in", async () => {
+    // main.jsx's own handoff, ahead of the mount — see lib/visit.js.
+    rememberPendingVisitor('Away Day');
+    await act(async () => { render(<GuestLanding visitorName="Away Day" />); });
+    expect(await screen.findByText(/Away Day is waiting at the door/)).toBeInTheDocument();
+    // Read once — a second draft elsewhere in the app must not inherit it.
+    expect(pendingVisitorName()).toBeNull();
   });
 });
