@@ -168,6 +168,23 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
       // ── job 3 · the sign and the doors ───────────────────────────────────
       await test.step('the sign, and three doors under it', async () => {
+        // BUGS-C-12 · THE CASINO OPENS ON THE FLOOR. `view` now defaults to
+        // 'floor' and CasinoScreen returns the room BEFORE either shell, so
+        // the building this step is about is not merely scrolled away — it is
+        // not rendered at all. That is the new rule and it gets a claim of its
+        // own here, because everything below it now depends on it being true.
+        await expect(page.getByTestId('floor-view'), 'the casino opens on the floor, not the building')
+          .toBeVisible({ timeout: 20_000 });
+
+        // Then to the building the way a user gets there: the Floor|Board
+        // segmented control, which BUGS-C-12 put in the floor's own header
+        // exactly so this is one tap. Not a URL, not a state poke — if the
+        // toggle ever stops being reachable from the floor, this fails here,
+        // which is where it should.
+        await page.getByTestId('casino-view-toggle')
+          .getByRole('button', { name: 'Board', exact: true })
+          .click();
+
         const sign = page.locator('.csn-marquee__word');
         await expect(sign).toBeVisible({ timeout: 20_000 });
 
