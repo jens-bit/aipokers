@@ -1,10 +1,37 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-08 (integrator, bugs-c merge) — 13 open, 35 resolved
+Last updated: 2026-09-08 (integrator, cost-2 merge) — 14 open, 35 resolved
 
 
 ---
 
 ## OPEN
+
+### BUG-46 — A failed draft commits "The Grinder" into the owner's household, silently
+**Severity:** HIGH (the household gains a member the owner did not draft, and it burns one of his agent slots)
+**Where:** `src/server/agentProfiles.js:3247` (`inferFallback`), `:5090` and `:5100` (the two `/api/agents/build` branches), `:529` (`commitAgent`)
+**Reported:** a "house/opponent agent" called **The Grinder** in Jens's household roster on prod, sitting at his home table, since at least 2026-09-07 19:07.
+
+**It is not a house agent and it is not an ownership leak.** Both of those were checked and both are clear:
+
+* The House cast is `Doyle_v3`, `Phil_AI`, `Granite`, `MsAllIn`, `TiltedTed`, `TheProfessor` (`houseCast.js`). "The Grinder" is not among them, and a House seat has no agent record at all — it can never reach a roster.
+* There is exactly **one** write that adds an agent to a household: `profile.agents.push(agent)` at `agentProfiles.js:632`, reached only through `commitAgent`, reached only from `POST /api/agents/chat` and `POST /api/agents/build`, both behind auth and both writing into `getOrCreate(userId)` — the caller's own profile. `moveOwner` (guest claim) moves a guest's own agents to the account claiming them, which is its job. `getOrCreate` seeds an empty roster. Nothing else sets `ownerId`.
+
+**The actual path.** "The Grinder" is the **draft fallback name**. `inferFallback(text)` returns `Loose Cannon` for an aggressive brief, `Rock Solid` for a tight one, and **`The Grinder` for everything else** — it is the default branch. `/api/agents/build` reaches it two ways, and neither tells the owner anything went wrong:
+
+1. `:5086` `callClaude(...)` returns `null` the instant `ANTHROPIC_API_KEY` is missing (`:3331`) — no request, no error. `:5090` then commits `inferFallback(combined)`.
+2. `:5099` the `catch` — a timeout, a 401 on an expired key, an overload — commits `inferFallback(combined)` too.
+
+Both call `commitAgent(profile, existingAgentId, …)` with `existingAgentId` null on a fresh draft, so a **new agent is pushed** and `res.json({ createdAgent })` returns 200. From the owner's side an agent he never finished drafting simply appears, correctly owned by him — which is why he is in the roster, why the home game seats him, and why he reads as somebody else's: the name is a generic archetype and the strategy is the canned "calculated, adaptive player" text.
+
+**So the invariant was never violated** — he really is Jens's agent by `ownerId`. The bug is that the account created him without the owner's say-so, on an error path that returns success.
+
+**Fix (not made — this is a product call, not a query fix).** The error branches must stop committing. The options, in the order they are worth considering: refuse the build (`503`, draft left intact — it already survives the slot refusal at `:4990` exactly this way, so the shape exists), or commit but mark the agent as unfinished so the birth screen can say the recruiter never answered. Either way the two branches at `:5090` and `:5100` should not silently push. `inferFallback` itself is fine and should stay — a brief-derived archetype is the right thing to *offer*; it is the committing that is wrong.
+
+**What was done here:** the roster invariant is now a test (`src/server/homeRoster.test.js`) — every entry in `HOME_STATE.agents` is either an active agent of this owner or is tagged `guest: true` — and it drove out a second, unrelated hole that *was* a one-file fix: `homeSnapshot` concatenated its injected `visitors` as given, trusting each caller to have tagged them. It now stamps `guest: true` itself and drops anything already in the household. That hole opened with VISIT-1 (2026-09-07 22:32) and so **cannot** explain a 19:07 sighting; it is closed on its own merits.
+
+**To confirm on prod without touching the data:** read that agent's record — a fallback build has `style: 'Balanced'`, `risk: 'Medium'` and the verbatim strategy string at `agentProfiles.js:3247`, and its `chat` transcript will end with the owner's brief and no recruiter hand-over line.
+
+---
 
 ### bugs-d — the profile, the fridge, and the bundle (playtest queue, not yet started)
 **Severity:** Mixed (one server hole, two visible on the profile, one dead feature, one weight)

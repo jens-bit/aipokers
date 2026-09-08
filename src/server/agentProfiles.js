@@ -2105,7 +2105,25 @@ export function floorSnapshot(userId, { owner = false } = {}) {
 // tagged `guest: true` (visit.js's job); `visitor` is the one pending request
 // waiting on an answer, or null.
 export function homeSnapshot(userId, { owner = false, game = null, visitors = [], visitor = null } = {}) {
-  const roster = presentedRoster(userId, { owner }).concat(visitors ?? []);
+  const residents = presentedRoster(userId, { owner });
+  // BUG-46: the roster invariant, enforced where both halves are known.
+  //
+  // `visitors` used to be concatenated as given, which made the tag that keeps
+  // a stranger from being drawn as one of yours a promise every caller had to
+  // remember to keep — and there is no second place that can check it, because
+  // this is the only line where the household and the arrivals are both in
+  // hand. So the tag is STAMPED here rather than trusted: whatever comes in
+  // through `visitors` is somebody else's by construction, and a body already
+  // in the household is dropped rather than drawn twice.
+  //
+  // The rule the rest of the system can now rely on: every entry in
+  // HOME_STATE.agents is either an active agent of THIS owner, or is
+  // `guest: true`. See homeRoster.test.js.
+  const mine = new Set(residents.map((a) => a.id));
+  const guests = (visitors ?? [])
+    .filter((v) => v && v.id != null && !mine.has(v.id))
+    .map((v) => ({ ...v, guest: true }));
+  const roster = residents.concat(guests);
   return homeStateMessage(userId, roster, game, {
     // SERVER-4: the room's unread marker and the fridge's counts. Both are
     // things the HOME screen draws on its first paint and both used to cost it
