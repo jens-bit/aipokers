@@ -116,7 +116,7 @@ describe('App shell', () => {
     // HOME-1: in the room you tap the man, not a zoom card about him.
     await user.click(await bodyOf('The Grinder'));
 
-    expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   // The old "switches to YOU". YOU is the avatar, the roster is what it opens,
@@ -220,7 +220,7 @@ describe('BUGS-A job 9 · the roster behind the avatar', () => {
     const sheet = await screen.findByTestId('roster-sheet');
     await user.click(within(sheet).getByRole('button', { name: /^Loose Cannon — / }));
 
-    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
     expect(screen.queryByTestId('roster-sheet')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -245,7 +245,7 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
     await bootedOnHome();
 
     await user.click(await bodyOf('The Grinder'));
-    expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(await bootedOnHome()).toBeInTheDocument();
@@ -258,10 +258,10 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
 
     // Somebody resting: his card's primary action is Chat rather than Watch.
     await user.click(await bodyOf('Loose Cannon'));
-    await user.click(await screen.findByRole('button', { name: "Open Loose Cannon's profile" }));
+    await user.click(await screen.findByRole('button', { name: "Profile" }));
     // The profile's own Chat, which is the second way into the same thread.
     await user.click(await screen.findByRole('button', { name: 'Chat' }));
-    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     // The card he was reading, not the room and not a list.
@@ -304,7 +304,7 @@ describe('BUGS-A job 3 · retiring him lands on HOME', () => {
     // Room -> his thread -> his profile, which is how an owner actually gets
     // to Retire.
     await user.click(await bodyOf('Loose Cannon'));
-    await user.click(await screen.findByRole('button', { name: "Open Loose Cannon's profile" }));
+    await user.click(await screen.findByRole('button', { name: "Profile" }));
     await user.click(await screen.findByRole('button', { name: 'More actions' }));
     await user.click(screen.getByRole('button', { name: 'Retire' }));
     await user.click(screen.getByRole('button', { name: 'Retire him' }));
@@ -312,7 +312,7 @@ describe('BUGS-A job 3 · retiring him lands on HOME', () => {
     // The room, with the household he still has — not the thread of the man
     // who has just gone.
     expect(await bootedOnHome()).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Message Loose Cannon…')).toBeNull();
+    expect(screen.queryByPlaceholderText('Whisper to him…')).toBeNull();
   });
 });
 
@@ -373,8 +373,8 @@ describe('the profile card can reach the funding sheet', () => {
     // HOME-1: from his body in the room to his thread, and from the thread
     // header to his profile — the two hops CASINO-1 left in place of the zoom.
     await user.click(await screen.findByRole('button', { name: /^Value Bot — / }));
-    await screen.findByPlaceholderText('Message Value Bot…');
-    await user.click(screen.getByRole('button', { name: /Open Value Bot's profile/ }));
+    await screen.findByPlaceholderText('Whisper to him…');
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
 
     const pocketLine = await waitFor(() => {
       const el = document.querySelector('.wal-line');
@@ -487,8 +487,8 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     // HOME-1: the room hands him over through his thread and his profile, which
     // is where CASINO-1 put every action on an agent.
     await user.click(await screen.findByRole('button', { name: /^The Grinder — / }));
-    await screen.findByPlaceholderText('Message The Grinder…');
-    await user.click(screen.getByRole('button', { name: /Open The Grinder's profile/ }));
+    await screen.findByPlaceholderText('Whisper to him…');
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
     const row = await waitFor(() => {
       const el = document.querySelector('.profile-actions');
       expect(el).toBeTruthy();
@@ -527,7 +527,7 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     // over a room that is no longer on screen.
     await waitFor(() => expect(document.querySelector('.watch-screen')).toBeNull());
     expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument();
-    expect(await screen.findByPlaceholderText('Message The Grinder…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
     expect(screen.getAllByText('The Grinder').length).toBeGreaterThan(0);
     expect(screen.queryByText('Loose Cannon')).not.toBeInTheDocument();
@@ -614,7 +614,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   async function openThread(user) {
     // HOME-1: tapping the man in the room IS opening his thread.
     await user.click(await screen.findByRole('button', { name: /^Loose Cannon — / }));
-    return screen.findByPlaceholderText('Message Loose Cannon…');
+    return screen.findByPlaceholderText('Whisper to him…');
   }
 
   // The casino tray, once an agent has been handed to it.
@@ -636,8 +636,8 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   async function deployFromThread(user) {
     await openThread(user);
 
-    // CHAT-2: the thread has no Deploy; the face opens the control centre.
-    await user.click(screen.getByRole('button', { name: /Open Loose Cannon's profile/ }));
+    // Board 42: Profile still opens the control centre; this tests its return origin.
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
     const row = await waitFor(() => {
       const el = document.querySelector('.profile-actions');
       expect(el).toBeTruthy();
@@ -655,7 +655,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await deployFromThread(user);
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
 
-    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   it('CHAT-2: back from a watch started in the room still lands in the room', async () => {
@@ -666,8 +666,8 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     // From the room, through his profile, to the casino tray — CASINO-1's own
     // route, which is the one the origin has to survive.
     await user.click(await screen.findByRole('button', { name: /^Loose Cannon — / }));
-    await screen.findByPlaceholderText('Message Loose Cannon…');
-    await user.click(screen.getByRole('button', { name: /Open Loose Cannon's profile/ }));
+    await screen.findByPlaceholderText('Whisper to him…');
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
     const row = await waitFor(() => {
       const el = document.querySelector('.profile-actions');
       expect(el).toBeTruthy();
@@ -678,7 +678,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
 
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
     // The thread he came through is where he lands; the room is behind it.
-    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   // HOME-2 job 1: the tap that used to be a tab is Back out of the thread. The
@@ -693,7 +693,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await deployFromThread(user);
     // The watch screen has no bar of any kind; leave first, then choose.
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
-    await screen.findByPlaceholderText('Message Loose Cannon…');
+    await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
@@ -708,10 +708,10 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
 
     await deployFromThread(user);
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
-    await screen.findByPlaceholderText('Message Loose Cannon…');
+    await screen.findByPlaceholderText('Whisper to him…');
 
     // Straight back out and in again, from the thread we just landed in.
-    await user.click(screen.getByRole('button', { name: /Open Loose Cannon's profile/ }));
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
     const row = await waitFor(() => {
       const el = document.querySelector('.profile-actions');
       expect(el).toBeTruthy();
@@ -721,6 +721,6 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await dealHimIn(user);
 
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
-    expect(await screen.findByPlaceholderText('Message Loose Cannon…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 });

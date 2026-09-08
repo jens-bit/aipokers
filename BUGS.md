@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-61 — failed or unfulfilled want answers disappear — FIXED on overnight branch
+Home's WantToast called onAnswered even after a non-200 response; a successful HTTP response with `answered: null, needs: stock` also cleared an unfulfilled request. Both Home and the new agent view keep the question pending, report transport/refusal failures, and open the fridge for stock. Tests reproduced both failures before correction. Fridge stock UI itself remains a separate unfinished port; do not confuse opening that sheet with a completed restocking flow.
+
+### BUG-62 — rejected agent chat silently consumes the message — FIXED on overnight branch
+AgentThread parsed error responses as conversations without checking response.ok. It now reports a retryable failure and leaves the composer usable; the failure is not repeated as a stage speech bubble. Regression exercises a 403.
+
+### BUG-63 — reopening the agent loses the saved conversation — FIXED on overnight branch
+Board 42's companion view reads the owner's server-projected chatHistory rather than replacing it with an opener. Recap loading preserves new messages sent while the request was in flight and ignores stale/unmounted requests. The server currently retains twelve chat messages; this is not a claim of unlimited history. Regression failed on the missing saved owner line, then passed, with an additional delayed-response race check.
+
 ### BUG-59 — mobile room shell duplicates navigation and leaves unused width — FIXED on overnight branch
 Global Header stacked above CasinoHead/FloorView; Home capped its room scale at 1 and app at 420px. Use each room's contextual header, direct Home exit and in-header Floor/Board toggle, and scale Home to viewport width. Preserve the kitchen table. Port safe/couch/fridge detail and actual balance. Browser regression failed before (no Home heading) and passes at 390/490; four-agent hit checks and roster navigation pass. Intentional old-test changes: global wordmark/count becomes Home+Railbird mark, casino back chain becomes toggle+Home, safe/TV may show money while the kitchen table never prices seats. See OVERNIGHT_DESIGN_WORK.md for complete gates and remaining visual gaps.
 

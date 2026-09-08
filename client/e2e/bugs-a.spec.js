@@ -357,7 +357,7 @@ test.describe('BUGS-A job 9 · the roster behind the avatar', () => {
     await settled(page, '.roster__panel');
     await page.getByTestId('roster-sheet').getByRole('button', { name: /^River Rat — / }).click();
 
-    await expect(page.getByPlaceholder('Message River Rat…')).toBeVisible();
+    await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
     await page.screenshot({ path: 'e2e/__screenshots__/bugsa-9-thread-from-roster.png' });
   });
 

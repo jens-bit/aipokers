@@ -14,6 +14,7 @@ import { money } from '../lib/wallet.js';
 import { ReplayCard } from '../components/replay/ReplayCard.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 import { ReplayTheatre } from '../components/replay/ReplayTheatre.jsx';
+import { AgentView } from '../components/agent/AgentView.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -581,7 +582,7 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent, onBack, onOpenProfile }) {
+export function AgentThread({ agent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
@@ -618,17 +619,24 @@ export function AgentThread({ agent, onBack, onOpenProfile }) {
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    const startedAtId = msgIdRef.current;
+    const initialMessages = () => {
+      const history = companion && Array.isArray(agent.chatHistory) ? agent.chatHistory.filter(m => (m.role === 'assistant' || m.role === 'user') && typeof m.content === 'string') : [];
+      return history.length ? history.map(m => mkMsg(m.role, m.content)) : [mkMsg('assistant', openerFor(agent))];
+    };
     Promise.all([
       fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
       loadAttrLog(agent, userId),
       loadFlagged(agent, userId),
     ])
       .then(([data, attrLog, flagged]) => {
+        if (!alive) return;
         const hands = data.recentHands || [];
         // WIRE-1 / RAISE-2: his opener, written by the server. The tally is
         // gone from openerFor entirely — the hands below are the review sheet's
         // material, never a greeting's.
-        const msgs = [mkMsg('assistant', openerFor(agent))];
+        const msgs = initialMessages();
         // What he trained tonight rides inside the recap bubble; each tick then
         // gets its own quiet line, in his voice, with the cause behind it.
         // Nothing here fires without an attrLog entry to draw it from.
@@ -654,13 +662,16 @@ export function AgentThread({ agent, onBack, onOpenProfile }) {
         if (agent.proposal) {
           msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
         }
-        setChat(msgs);
+        // BUG-63: keep anything typed while the recap request was in flight.
+        setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
       })
       .catch(() => {
-        const msgs = [mkMsg('assistant', openerFor(agent))];
+        if (!alive) return;
+        const msgs = initialMessages();
         if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
-        setChat(msgs);
+        setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
       });
+    return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
 
@@ -683,6 +694,7 @@ export function AgentThread({ agent, onBack, onOpenProfile }) {
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, content: text, existingAgentId: agent.id }),
       });
+      if (!res.ok) throw new Error('Chat request failed');
       const data = await res.json();
       const newAi = (data.chat || []).filter((m) => m.role === 'assistant').pop();
       if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
@@ -691,7 +703,7 @@ export function AgentThread({ agent, onBack, onOpenProfile }) {
         setLocalMood(data.pepTalk.newState);
       }
     } catch {
-      setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — please try again.')]);
+      setChat((prev) => [...prev, { ...mkMsg('assistant', 'Something went wrong — please try again.'), error: true }]);
     } finally {
       setLoading(false);
     }
@@ -740,6 +752,8 @@ export function AgentThread({ agent, onBack, onOpenProfile }) {
       />
     );
   }
+
+  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} />;
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>

@@ -40,6 +40,7 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
   const pressRef = useRef(null);
   const carryRef = useRef(null);
   const liftedRef = useRef(false);
+  const swallowClickRef = useRef(false);
 
   carryRef.current = carry;
 
@@ -79,11 +80,13 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
 
   const end = useCallback(() => {
     const press = pressRef.current;
+    if (press?.awaitPress) return;
     const held = carryRef.current;
     if (press?.timer) clearTimeout(press.timer);
     pressRef.current = null;
     setCarry(null);
     if (!press?.lifted) return;
+    if (press.picked) swallowClickRef.current = true;
     // A drop on the floor is a real answer — he goes back where he was — so
     // onDrop is called either way and null is the fixture that means "nowhere".
     onDrop?.(press.id, held?.over ?? null);
@@ -92,16 +95,45 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
   useEffect(() => {
     if (!enabled) return undefined;
     const onMove = (e) => move(e.clientX, e.clientY);
+    const onDown = (e) => {
+      if (!pressRef.current?.picked || (e.button != null && e.button !== 0)) return;
+      pressRef.current.awaitPress = false;
+      move(e.clientX, e.clientY);
+    };
     const onUp = () => end();
+    const onCancel = () => clear();
+    const onKey = (e) => { if (e.key === 'Escape') clear(); };
+    const onClick = (e) => {
+      if (!swallowClickRef.current) return;
+      swallowClickRef.current = false;
+      e.preventDefault(); e.stopPropagation();
+    };
+    window.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('click', onClick, true);
     return () => {
+      window.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', onClick, true);
     };
-  }, [enabled, move, end]);
+  }, [enabled, move, end, clear]);
+
+  // Board 42's Carry action hands the room an already lifted man. Wait for a
+  // fresh gesture so the pointerup that opened Home cannot place him itself.
+  const pick = useCallback((agentId, at = { x: 195, y: 280 }) => {
+    if (!enabled || !roomEl) return false;
+    clear();
+    const id = String(agentId);
+    pressRef.current = { id, size: 46, lifted: true, picked: true, awaitPress: true };
+    setCarry({ id, x: at.x, y: at.y, over: null });
+    return true;
+  }, [enabled, roomEl, clear]);
 
   /** The handlers one body wears. */
   const bind = useCallback((agentId, { size = 46 } = {}) => {
@@ -138,5 +170,5 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
     };
   }, [enabled, roomEl, move, end]);
 
-  return { carry, bind, cancel: clear };
+  return { carry, bind, pick, cancel: clear };
 }

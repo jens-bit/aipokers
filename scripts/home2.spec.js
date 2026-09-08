@@ -157,7 +157,7 @@ test.describe('HOME-2 job 1 · the three destinations are things in the world', 
     const agent = await seedOnce();
     await page.goto(`${BASE}/?startapp=agent_${agent.id}`, { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByPlaceholder(`Message ${agent.name}…`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
   });

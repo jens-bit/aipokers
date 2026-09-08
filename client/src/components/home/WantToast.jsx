@@ -48,17 +48,22 @@ export async function answerWant(agentId, answer) {
 export function WantToast({ agent, onAnswered, onNeeds }) {
   const want = agent?.want ?? null;
   const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
   if (!want) return null;
 
   const send = async (answer) => {
     if (busy) return;
     setBusy(answer);
+    setError('');
     try {
       const body = await answerWant(agent.id, answer);
-      // The want is cleared optimistically either way: a failed POST that left
-      // the toast up would read as him asking twice.
-      onAnswered?.(agent.id, answer, body);
+      // BUG-61: an unsuccessful request is not an answer. Keep the original
+      // request and let the owner retry instead of silently discarding it.
+      if (!body) throw new Error('Want was not saved');
+      if (body.answered !== null && !body.want) onAnswered?.(agent.id, answer, body);
       if (body?.needs) onNeeds?.(body.needs, { agent, room: body.room ?? null });
+    } catch {
+      setError('Could not save your answer. Please try again.');
     } finally {
       setBusy(null);
     }
@@ -91,6 +96,7 @@ export function WantToast({ agent, onAnswered, onNeeds }) {
           </button>
         ))}
       </span>
+      {error && <span role="alert" className="home-want__text">{error}</span>}
     </div>
   );
 }

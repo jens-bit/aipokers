@@ -13,6 +13,15 @@ import { badBeatHand, bigBluffHand, flaggedResponse } from '../../test/fixtures/
 import { fetchMock, telegram } from '../../test/harness.js';
 
 describe('R-3 the replay card', () => {
+  it('AGENT-1: the inline hand keeps its actual board, pot and replay action', async () => {
+    const onOpen = vi.fn();
+    const { container } = render(<ReplayCard compact hand={bigBluffHand} onOpen={onOpen} />);
+    expect(container.querySelectorAll('.agent-hand-card__board > *')).toHaveLength(5);
+    expect(screen.getByText('$620')).toBeInTheDocument();
+    expect(screen.getByText(/the board says I have it/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /replay big bluff/i }));
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
   it('R-3: is a poster — flag, board, pot and one line', () => {
     const { container } = render(<ReplayCard hand={bigBluffHand} onOpen={() => {}} />);
 

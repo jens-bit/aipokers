@@ -33,7 +33,7 @@ describe('DEEPLINK-1 start params', () => {
     telegram.startWith(`agent_${restingAgent.id}`);
     render(<App />);
 
-    expect(await screen.findByPlaceholderText(`Message ${restingAgent.name}…`)).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
     // CASINO-1 took CHATS out of the bar — the thread is reached from Home or a
     // profile instead — and HOME-2 job 1 took the bar itself away. 'chats' is
     // still the tab VALUE, so the rule this test exists for is unchanged: the
@@ -50,7 +50,7 @@ describe('DEEPLINK-1 start params', () => {
     telegram.startWith(`agent_${restingAgent.id}`);
     telegram.emit('activated');
 
-    expect(await screen.findByPlaceholderText(`Message ${restingAgent.name}…`)).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   it('agent_<id>: a link to an agent this owner does not have leaves him in the room', async () => {
@@ -60,7 +60,7 @@ describe('DEEPLINK-1 start params', () => {
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
     // Give the resolve a turn to finish before deciding nothing happened.
     await waitFor(() => expect(fetchMock.requestsMatching('/api/agents').length).toBeGreaterThan(0));
-    expect(screen.queryByPlaceholderText(/^Message /)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Whisper to him…')).not.toBeInTheDocument();
   });
 
   // ── hand_<agentId>_<handId> ──────────────────────────────────────────────
@@ -84,7 +84,7 @@ describe('DEEPLINK-1 start params', () => {
 
     await user.click(screen.getByRole('button', { name: /back/i }));
 
-    expect(await screen.findByPlaceholderText(`Message ${playingAgent.name}…`)).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   it('hand_<agentId>_<handId>: a hand that has aged out still lands on the agent', async () => {
@@ -92,7 +92,7 @@ describe('DEEPLINK-1 start params', () => {
     telegram.startWith(`hand_${playingAgent.id}_999`);
     render(<App />);
 
-    expect(await screen.findByPlaceholderText(`Message ${playingAgent.name}…`)).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
 
   // ── table_<id> ───────────────────────────────────────────────────────────

@@ -297,6 +297,8 @@ export function HomeScreen({
   // only shell that needs it: the desk has the building beside it in a rail.
   onCasino,
   onOpenRoster,
+  carryAgentId = null,
+  onCarryStarted,
   onOpenWallet,
   onOpenThread,
   onSend,
@@ -546,11 +548,16 @@ export function HomeScreen({
     if (res.ok) refresh();
   }, [home, positions, game, onDeploy, refresh]);
 
-  const { carry, bind: bindCarry } = useCarry({
+  const { carry, bind: bindCarry, pick, cancel: cancelCarry } = useCarry({
     roomEl: flatEl,
     onDrop,
     enabled: !desktop,
   });
+
+  useEffect(() => {
+    if (!carryAgentId || !flatEl || !home.some(a => String(a.id) === String(carryAgentId))) return;
+    if (pick(carryAgentId)) onCarryStarted?.();
+  }, [carryAgentId, flatEl, home, pick, onCarryStarted]);
 
   // The line clears itself; it lands once, the way the money line does.
   useEffect(() => {
@@ -585,8 +592,9 @@ export function HomeScreen({
   const onNeeds = useCallback((needs, { agent, room }) => {
     if (needs === 'deploy') onDeploy?.(agent, { room });
     else if (needs === 'fund') onOpenWallet?.(agent);
+    else if (needs === 'stock') { if (desktop) setRail('fridge'); else setFridgeOpen(true); }
     else if (needs === 'thread') { setFocusId(agent.id); setThreadOpen(true); }
-  }, [onDeploy, onOpenWallet]);
+  }, [onDeploy, onOpenWallet, desktop]);
 
   // Tapping a body opens HIS THREAD — the screen, not the band. CASINO-1 took
   // CHATS off the tab bar on the promise that the thread is reached from Home
@@ -856,6 +864,8 @@ export function HomeScreen({
     <div className="home1" data-testid="home-screen">
       <RoomHeader title="Home" subtitle={agents.length === 0 ? 'Your room · his story starts here' : `${home.length} home${away.length ? ` · ${away.length} away` : ' · nobody at the casino'}`} onOpenRoster={onOpenRoster} />
       {roomBox}
+
+      {carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
 
       <HomeThread
         agent={focus}

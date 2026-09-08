@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 2
+
+Board 42 C1–C3 are now **PARTIAL**, implemented on the actual phone agent route: 178px character, 40px contextual header, real four-action row, inline want answers, saved chat history, compact hand card and Whisper composer. Home/table/roster agent taps reach this view. Watch remains the existing gameplay screen. CARRY opens Home with the agent lifted and lets the next gesture place him; Escape/Cancel drops the selection without a request. Wants and chat have explicit failure handling (BUG-61–63).
+
+Reference-state screenshots cover C1, C2, C3 and three phone sizes. Differences still stated: stamina uses the server's three fatigue bands instead of the ref's continuous sample percentages; LIVE appears only for a known live table; the latest flagged hand is attached at the conversation end because the server does not link an arbitrary chat sentence to a particular hand. Timestamps absent from stored chatHistory are not fabricated. C4 profile, C5 roster, C6 absence and C7–C9 remain in the upcoming batches. Fridge stock is supported by the server but its current sheet only gives items; finish that path next. The records below are historical and are superseded by this entry where they say the entire agent view is unbuilt.
+
 ## Overnight design port — 2026-09-08, batch 1
 
 Jens clarified that Watch's gameplay presentation is the successful reference point; preserve it. Home/casino now use one contextual header, one-step Home from either casino view, a roster doorway in that header, and full mobile width. Home safe/couch/fridge/right-wall artwork is ported; safe displays the owner's actual wallet balance. Conversation band corrected from 100px to 76px with a circular send control; design Inter/mono fonts included. Table is intentionally retained even in archive frames that omit its visible surface, per Jens's explicit instruction. BUG-59/60 have browser evidence; all first-batch gates passed. These changes are not yet deployed.

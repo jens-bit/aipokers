@@ -136,6 +136,7 @@ function AppShell({ guest }) {
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  const [carryAgentId, setCarryAgentId] = useState(null);
   const [agentProfileTarget, setAgentProfileTarget] = useState(null);
   // GUEST-1 (G1): a guest who has just been minted opens straight into the
   // flat with the recruiter sheet already talking — wave 61's rule that the
@@ -185,6 +186,19 @@ function AppShell({ guest }) {
     setAgentProfileTarget(null);
     setAgentChatTarget(null);
     setActiveTab('casino');
+  }
+
+  async function watchCompanion(agent) {
+    const tableId = agent?.activeTableId || agent?.liveGame?.tableId || agent?.location?.tableId;
+    if (!tableId) return;
+    watchOriginRef.current = hereOrigin();
+    let memoryContext = '';
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/memory?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
+      if (res.ok) memoryContext = (await res.json()).memoryContext || '';
+    } catch { /* Watching does not depend on memory loading. */ }
+    setActiveAgent(agent.id, agent);
+    watch({ tableId, agentId: agent.id, userId: getUserId(), agentStrategy: agent.strategy, displayName: agent.name || 'Agent', wantOpponentAI: false, memoryContext });
   }
 
   function setActiveAgent(id, agent = null) {
@@ -753,8 +767,8 @@ function AppShell({ guest }) {
     }
 
     return (
-      <div className={`app${activeTab === 'home' || activeTab === 'casino' ? ' app--room' : ''}`}>
-        {activeTab !== 'home' && activeTab !== 'casino' && <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />}
+      <div className={`app${activeTab === 'home' || activeTab === 'casino' || activeTab === 'chats' ? ' app--room' : ''}`}>
+        {activeTab !== 'home' && activeTab !== 'casino' && activeTab !== 'chats' && <Header status={status} hasConfig={false} onOpenRoster={() => setRosterOpen(true)} />}
         {rosterOpen && (
           <RosterSheet
             onClose={() => setRosterOpen(false)}
@@ -782,6 +796,8 @@ function AppShell({ guest }) {
               wsUrl={WS_URL}
               onOpenRoster={() => setRosterOpen(true)}
               openTable={homeTableOpen}
+              carryAgentId={carryAgentId}
+              onCarryStarted={() => setCarryAgentId(null)}
               onCreateAgent={() => setIsCreating(true)}
               onProfile={openAgentProfile}
               // CASINO-1's promise: the thread is reached from Home and from a
@@ -904,9 +920,14 @@ function AppShell({ guest }) {
               by — the room, or the profile — never to a list. */}
           {activeTab === 'chats' && agentChatTarget && (
             <AgentThread
+              key={agentChatTarget.id}
+              companion
               agent={agentChatTarget}
               onBack={closeAgentChat}
               onOpenProfile={openAgentProfile}
+              onDeploy={placeInCasino}
+              onWatch={watchCompanion}
+              onCarry={(agent) => { setCarryAgentId(agent.id); setAgentChatTarget(null); setActiveTab('home'); }}
             />
           )}
           {activeTab === 'you' && (

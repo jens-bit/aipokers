@@ -28,6 +28,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { roomsResponse } from '../src/test/fixtures/rooms.js';
+import { bigBluffHand } from '../src/test/fixtures/flagged.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -191,6 +192,63 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  for (const [frame, companion] of [
+    ['c1', agent('bal', 'Balanced v2.1', { nickname: 'Bal', mood: { state: 'confident', heat: 22 }, drinking: true, opener: 'Put me in.', pocket: { balance: 1200, cap: 5000 } })],
+    ['c2', agent('agg', 'Aggressive v1.3', { nickname: 'Agg', mood: { state: 'tilted', heat: 84 }, fatigue: 'settled', opener: 'Still thinking about that cooler against The Grinder.', want: { text: 'Let me back in there. Right now.', dangerous: true }, pocket: { balance: 640, cap: 2000 } })],
+    ['c3', agent('bal', 'Balanced v2.1', { nickname: 'Bal', mood: { state: 'confident', heat: 22 }, chatHistory: [{ role: 'user', content: 'Why did you call there?' }, { role: 'assistant', content: 'It was the sizing. He never bets that big with a hand.' }, { role: 'user', content: 'Which hand?' }, { role: 'assistant', content: 'This one.' }, { role: 'user', content: 'Stay off him for a bit.' }, { role: 'assistant', content: 'Fine. I will wait for the button.' }] })],
+  ]) {
+    test(`AGENT-1: board 42 ${frame} reference state`, async ({ page }) => {
+      await room(page, { agents: [companion], game: null });
+      await page.route('**/api/agents/*/hands?**', r => r.fulfill({ json: { recentHands: [] } }));
+      await page.route('**/api/agents/*/flagged?**', r => r.fulfill({ json: { flaggedHands: frame === 'c3' ? [bigBluffHand] : [] } }));
+      await page.getByRole('button', { name: new RegExp(`^${companion.name} — `) }).click();
+      await expect(page.getByTestId('agent-stage')).toBeVisible();
+      await expect(page.locator('.agent-view__thread .agent-view__text').first()).toBeVisible();
+      if (companion.want) await expect(page.getByRole('button', { name: 'Yes', exact: true })).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      if (companion.fatigue === 'fresh') {
+        const full = page.locator('.agent-view__body [data-bar="stamina"]');
+        expect((await full.locator('i').boundingBox()).width).toBeCloseTo((await full.boundingBox()).width, 0);
+      }
+      await page.screenshot({ path: `../artifacts/agent-${frame}.png` });
+      expect(await page.locator('.agent-view').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    });
+  }
+  for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 590 }, { width: 490, height: 844 }]) {
+    test(`AGENT-1: character, conversation and Carry at ${viewport.width}×${viewport.height}`, async ({ page }) => {
+      await room(page, CASTS.alone, viewport);
+      await page.route('**/api/agents/*/hands?**', r => r.fulfill({ json: { recentHands: [] } }));
+      await page.route('**/api/agents/*/attributes/log?**', r => r.fulfill({ json: { entries: [] } }));
+      await page.route('**/api/agents/*/flagged?**', r => r.fulfill({ json: { flaggedHands: [] } }));
+      await page.getByRole('button', { name: /^The Clock — / }).click();
+      await expect(page.getByTestId('agent-stage')).toBeVisible();
+      await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
+      await expect(page.locator('.dr-app-header')).toHaveCount(0);
+      expect((await page.locator('.agent-view__header').boundingBox()).height).toBe(40);
+      expect((await page.getByTestId('agent-stage').boundingBox()).width).toBe(viewport.width);
+      const stage = await page.getByTestId('agent-stage').boundingBox();
+      const namePill = await page.locator('.agent-view__body .home-pill').boundingBox();
+      expect(namePill.y).toBeGreaterThanOrEqual(stage.y);
+      // A clipped accessibility label has a 1px layout box, so Playwright's
+      // visibility predicate deliberately calls it visible. Assert clipping.
+      await expect(page.locator('.agent-view__body .sr-only')).toHaveCSS('clip', 'rect(0px, 0px, 0px, 0px)');
+      expect(namePill.height).toBeLessThanOrEqual(32);
+      const composer = await page.locator('.agent-view__composer').boundingBox();
+      expect(composer.y + composer.height).toBeLessThanOrEqual(viewport.height);
+      await page.screenshot({ path: `../artifacts/agent-view-${viewport.width}-${viewport.height}.png` });
+      const placements = [];
+      await page.route('**/api/agents/*/place**', r => { placements.push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true, line: 'I needed a rest.' } }); });
+      await page.getByRole('button', { name: 'Carry', exact: true }).click();
+      await expect(page.getByTestId('home-screen')).toBeVisible();
+      await expect(page.locator('.home-carry-help')).toBeVisible();
+      expect(placements).toHaveLength(0);
+      const flat = await page.locator('.home-flat').boundingBox();
+      await page.mouse.click(flat.x + 55 * flat.width / 390, flat.y + 385 * flat.width / 390);
+      await expect.poll(() => placements.length).toBe(1);
+      expect(placements[0].fixture).toBe('couch');
+      await expect(page.locator('.home-carry-help')).toHaveCount(0);
+    });
+  }
   test('BUG-59: casino has one header and Home is one tap from floor or board', async ({ page }) => {
     await room(page, CASTS.alone);
     await page.route('**/api/rooms', r => r.fulfill({ json: roomsResponse }));

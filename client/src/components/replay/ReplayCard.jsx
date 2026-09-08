@@ -10,6 +10,7 @@
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 import { TugBar } from '../system/TugBar.jsx';
 import { buildTimeline } from './timeline.js';
+import { money } from '../../lib/wallet.js';
 
 // The last thing he said in the hand, which is the line worth putting on a
 // poster. Never composed here — if he said nothing, the card says nothing.
@@ -22,7 +23,7 @@ function posterLine(hand) {
   return null;
 }
 
-export function ReplayCard({ hand, onOpen }) {
+export function ReplayCard({ hand, onOpen, compact = false }) {
   const timeline = buildTimeline(hand);
   const board = timeline.beats[timeline.beats.length - 1].board ?? [];
   const slots = [...board];
@@ -30,6 +31,13 @@ export function ReplayCard({ hand, onOpen }) {
 
   const line = posterLine(hand);
   const tone = timeline.flag.tone;
+
+  // Board 42 C3: the same hand and theatre in a conversation-sized card.
+  if (compact) return <button type="button" className="agent-hand-card" onClick={onOpen} aria-label={`Replay ${timeline.flag.label.toLowerCase()}${timeline.handNumber != null ? `, hand ${timeline.handNumber}` : ''}`}>
+    <span className="agent-hand-card__board">{slots.map((c, i) => typeof c === 'string' && c.length >= 2 ? <PlayingCard key={i} rank={c[0]} suit={c[1].toLowerCase()} w={13} h={18}/> : <CardBack key={i} w={13} h={18} branded />)}</span>
+    <span className="agent-hand-card__detail"><span><b>{money(timeline.pot)}</b><small>{timeline.flag.label}</small></span>{line && <span className="agent-hand-card__line">{line}</span>}</span>
+    <span className="agent-hand-card__replay">REPLAY</span>
+  </button>;
 
   return (
     <button
