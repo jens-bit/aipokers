@@ -92,6 +92,14 @@ Backtests run on Jens's PC, never on the VPS and never in the integrator's folde
 
 A key that has been in a chat window is burned, whoever the chat is with. Revoke it in the console the next morning and create a new one that is typed only into the PowerShell tab. The same holds for the bot token and the deploy key. Cowork never writes a key anywhere; the spec's Known debt row tracks what is still to rotate.
 
+## Env
+
+The full list of variables and what each one does lives in `CLAUDE.md`; this section is only the standing debt — which of them the VPS still has to be told about, and what is already true without touching it.
+
+**Known debt.** Nothing to do on the VPS for COST-2. `UNWATCHED_POLICY` defaults on, so a casino table nobody has watched for 60 seconds straight routes its decisions to the compiled policy the moment the merge deploys, with no line added to `.bashrc`. Setting it to `0` is the way back, and it is the only reason to add the line at all: the revert needs no code change, just the variable and a restart. The two exceptions — a stack in the middle of a hand and a big pot — reach the model either way, on or off (`src/server/router.js`).
+
+`GET /api/meter` (an owner's own bill, behind auth) and `GET /api/admin/meter?key=…` (everybody's, behind `ADMIN_KEY`) now both carry a `watch` block that splits hands, calls and dollars into `watched` and `unwatched`, each with a per-100-hands rate. That is where you look to find out whether the dial is earning its keep before deciding to turn it off — the unwatched line should be the cheap one, and if it is not, the gate is not firing.
+
 ## Brand art
 
 Claude Design draws SVGs by typing path coordinates, so it cannot draw a silhouette with character (wave 62's birds read as blobs). Character art comes from an image model (ChatGPT) with a single dense visual description — no frame sizes, no rules, no verify clauses, those leak into the picture — generated four at a time, squint-tested at 40 px, then handed to Claude Design as PNGs with the instruction to trace, never redraw, and to overlay the trace on the PNG before reporting. Image models mangle lettering: wordmark and mark are separate images.
