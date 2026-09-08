@@ -194,6 +194,31 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  test('BUG-69: C5 roster distinguishes location, result and pocket in compact rows', async ({ page }) => {
+    const cast = [
+      agent('bal', 'Balanced v2.1', { activeTableId: 't1', location: loc('table', { tableId: 't1', room: 'upstairs' }), liveGame: { tableId: 't1', net: 3694, heroStack: 4894 }, pocket: { balance: 1200 }, mood: { state: 'confident', heat: 22 } }),
+      agent('agg', 'Aggressive v1.3', { pocket: { balance: 640 }, sessionLog: [{ net: -820, endedAt: Date.now() }], mood: { state: 'tilted', heat: 84 }, want: { text: 'Let me back in there. Right now.' }, routine: { key: 'paces', label: 'pacing' } }),
+      agent('blf', 'Bluff Master', { location: loc('casino'), visiting: { hostName: 'Fidde' }, pocket: { balance: 410 }, sessionLog: [{ net: 95, endedAt: Date.now() }], mood: { state: 'frustrated', heat: 60 } }),
+      agent('val', 'Value Bot', { homeTableId: 'home-4242', pocket: { balance: 80 }, mood: { state: 'sulking', heat: 12 }, routine: null }),
+    ];
+    await room(page, { agents: cast, game: null });
+    await page.getByRole('button', { name: 'Your agents', exact: true }).click();
+    const sheet = page.getByTestId('roster-sheet');
+    await expect(sheet).toContainText('4 agents · 1 live');
+    await expect(sheet).toContainText("visiting Fidde's");
+    await expect(sheet).toContainText('at your table');
+    await expect(sheet).toContainText('−$820');
+    await expect(sheet.getByText('POCKET', { exact: true })).toHaveCount(4);
+    for (const row of await sheet.locator('.roster__row').all()) expect((await row.boundingBox()).height).toBeLessThanOrEqual(64);
+    await expect(page.locator('.roster__panel')).toHaveCSS('opacity', '1');
+    await page.screenshot({ path: '../artifacts/roster-c5.png' });
+    await page.route('**/api/agents/agg/hands?**', r => r.fulfill({ json: { recentHands: [] } }));
+    await page.route('**/api/agents/agg/flagged?**', r => r.fulfill({ json: { flaggedHands: [] } }));
+    await sheet.getByRole('button', { name: /^Aggressive v1.3 —/ }).click();
+    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('button', { name: 'Send to a friend' })).toBeVisible();
+  });
   test('BUG-64: F13 renders stock and buys six from the safe', async ({ page }) => {
     await room(page, CASTS.alone);
     const bought = [];

@@ -19,8 +19,8 @@
 //           strangers.
 //   where   in the room's own words — at a table, in a named room, or at home.
 //           This is the question the sheet exists to answer.
-//   stack   what he is sitting behind, or the pocket he would sit down with
-//           (agentView's stackOf — one definition of that number in the app).
+//   pocket  his actual pocket, with a separate current/last session result.
+//           C5 labels the pocket explicitly; Watch carries the live stack.
 //
 // ...and the unread dot, which is not a fact about him but a fact about YOU:
 // he has said something you have not read.
@@ -34,13 +34,12 @@ import { useEffect, useState } from 'react';
 import { MoodGhost } from './system/MoodGhost.jsx';
 import { useSheetDrag } from '../hooks/useSheetDrag.js';
 import { accentFor } from './floor/atoms.jsx';
-import { heatOf, moodOf, presenceOf, stackOf, hasUnseenRecap } from './floor/agentView.js';
+import { heatOf, moodOf, presenceOf, hasUnseenRecap } from './floor/agentView.js';
 import { roomLabel } from './home/AwayWall.jsx';
 import { identityOf } from '../lib/identity.js';
-import { pillName } from '../lib/names.js';
-import { fetchWallet, money } from '../lib/wallet.js';
+import { fetchWallet, money, signedMoney } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
-import { shareVisitLink } from '../lib/visit.js';
+export { canSendVisiting } from '../lib/visit.js';
 import '../styles/roster.css';
 
 /**
@@ -50,6 +49,8 @@ import '../styles/roster.css';
  * is a fact about a man, and the difference is the whole product.
  */
 export function whereLine(agent) {
+  if (agent?.visiting) return agent.visiting.hostName ? `visiting ${agent.visiting.hostName}'s` : 'visiting a friend';
+  if (agent?.homeTableId && (agent?.location?.where ?? 'home') === 'home') return 'at your table';
   const where = agent?.location?.where ?? null;
   const room = roomLabel(agent?.location?.room);
   if (presenceOf(agent) === 'playing' || where === 'table') {
@@ -64,30 +65,25 @@ export function hasUnread(agent) {
   return hasUnseenRecap(agent) || !!agent?.want;
 }
 
-/**
- * VISIT-1 — "Send to a friend": home only. A body already at somebody else's
- * table, or already visiting, has nowhere left to walk out to — the same law
- * the door's own 409 `notHome`/`alreadyVisiting` enforce server-side; this is
- * only the button not offering what the server would refuse anyway.
- */
-export function canSendVisiting(agent) {
-  return (agent?.location?.where ?? 'home') === 'home' && !agent?.visiting;
+// C5's result is a real session result, not lifetime earnings or a guessed night.
+export function rosterResult(agent) {
+  if (Number.isFinite(agent?.liveGame?.net)) return { value: agent.liveGame.net, label: 'Current session result' };
+  const recent = agent?.sessionLog?.at(-1);
+  return { value: Number.isFinite(recent?.net) ? recent.net : null, label: 'Last session result' };
+}
+
+export function rosterLive(agent) {
+  return !!agent?.liveGame?.tableId && !agent?.homeTableId;
 }
 
 export function RosterRow({ agent, index, onOpen }) {
-  const stack = stackOf(agent);
+  const pocket = Number.isFinite(agent?.pocket?.balance) ? agent.pocket.balance : null;
+  const result = rosterResult(agent);
+  const live = rosterLive(agent);
   const unread = hasUnread(agent);
   // HOME-2 job 3: the same creature the room draws. A row that tinted him
   // differently from his body would be a second man with his name on it.
   const id = identityOf(agent);
-  const [sent, setSent] = useState(null);
-
-  const send = async (e) => {
-    e.stopPropagation();
-    const res = await shareVisitLink(agent.id, agent.name);
-    setSent(res.ok ? (res.via === 'clipboard' ? 'copied' : 'sent') : 'failed');
-    setTimeout(() => setSent(null), 3000);
-  };
 
   return (
     <li className="roster__item">
@@ -103,30 +99,26 @@ export function RosterRow({ agent, index, onOpen }) {
             mood={moodOf(agent)}
             heat={heatOf(agent)}
             accent={accentFor(agent, index)}
-            size={34}
+            size={38}
             ring={false}
             hood={id.hood}
             glow={id.glow.c}
           />
-          {unread ? <span className="roster__dot" data-testid={`roster-unread-${agent.id}`} /> : null}
+          {unread && !agent.want && !live ? <span className="roster__dot" data-testid={`roster-unread-${agent.id}`} /> : null}
+          {live && <span className="roster__live" role="img" aria-label="Live at a table"/>}
+          {agent.want && <span className="roster__want" role="img" aria-label="Wants your attention"/>}
         </span>
         <span className="roster__id">
-          <span className="roster__name">{pillName(agent.name)}</span>
-          <span className="roster__where">{whereLine(agent)}</span>
+          <span className="roster__name">{agent.name}</span>
+          <span className="roster__place"><span className="roster__where">{whereLine(agent)}</span>
+          {agent.location?.where === 'home' && agent.routine?.label && <span className="roster__routine">{agent.routine.label}</span>}</span>
         </span>
-        {stack !== null && <span className="roster__stack">{money(stack)}</span>}
+        <span className="roster__numbers">
+          <span className={`roster__result${result.value > 0 ? ' is-up' : result.value < 0 ? ' is-down' : ''}`} title={result.label}>{signedMoney(result.value)}</span>
+          <span className="roster__pocket"><small>POCKET</small><span>{pocket === null ? '—' : money(pocket)}</span></span>
+        </span>
+        <svg className="roster__chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M9 6l6 6-6 6"/></svg>
       </button>
-      {canSendVisiting(agent) ? (
-        <button
-          type="button"
-          className="roster__send"
-          onClick={send}
-          data-testid={`roster-send-${agent.id}`}
-          aria-label={`Send ${agent.name} to a friend`}
-        >
-          {sent === 'copied' ? 'Link copied' : sent === 'sent' ? 'Sent' : sent === 'failed' ? 'No link yet' : 'Send to a friend'}
-        </button>
-      ) : null}
     </li>
   );
 }
@@ -145,6 +137,8 @@ export function RosterRow({ agent, index, onOpen }) {
 export function RosterSheet({ onOpenThread, onClose, onCreateAgent, onOpenMoney, onOpenLedger }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   // WUI-1's law, unchanged: null until asked, and null forever on a deployment
   // with no wallet. The line then states the stable's own chips rather than
   // quoting a balance nobody keeps.
@@ -159,18 +153,21 @@ export function RosterSheet({ onOpenThread, onClose, onCreateAgent, onOpenMoney,
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/agents?userId=${encodeURIComponent(getUserId())}`, {
-      headers: { 'x-telegram-init-data': getTelegramInitData() },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => {
-        if (!alive) return;
-        if (Array.isArray(body?.agents)) setAgents(body.agents);
-        setLoading(false);
-      })
-      .catch(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, []);
+    setLoading(true); setError('');
+    async function load() {
+      try {
+        const res = await fetch(`/api/agents?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
+        if (!res.ok) throw new Error('refused');
+        const body = await res.json();
+        if (!Array.isArray(body?.agents)) throw new Error('missing roster');
+        if (alive) { setAgents(body.agents); setError(''); }
+      } catch { if (alive) setError('Could not read your agents. Please try again.'); }
+      finally { if (alive) setLoading(false); }
+    }
+    load();
+    const timer = setInterval(load, 10_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [attempt]);
 
   return (
     <div className="roster" role="dialog" aria-label="Your agents" data-testid="roster-sheet">
@@ -183,16 +180,18 @@ export function RosterSheet({ onOpenThread, onClose, onCreateAgent, onOpenMoney,
       >
         <span className="roster__grab" aria-hidden />
         <div className="roster__head">
-          <span className="roster__title">Your agents</span>
+          <span className="roster__title">THE ROSTER</span>
           <span className="roster__count">
             {/* Same law as job 2: no count until the roster has answered. */}
-            {loading ? '' : `${agents.length}`}
+            {loading || error ? '' : `${agents.length} agent${agents.length === 1 ? '' : 's'} · ${agents.filter(rosterLive).length} live`}
           </span>
           <button type="button" className="roster__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
         {loading ? (
           <p className="roster__empty">Reading the room…</p>
+        ) : error ? (
+          <div className="roster__error" role="alert">{error}<button type="button" onClick={() => setAttempt(a => a + 1)}>Try again</button></div>
         ) : agents.length === 0 ? (
           <div className="roster__ftu">
             <p className="roster__empty">Nobody works for you yet.</p>

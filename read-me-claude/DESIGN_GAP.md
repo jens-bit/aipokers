@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 5
+
+C5 roster is ported and visually inspected in `client/e2e/shots/overnight-batch5-roster-c5.png`: full names, 38px faces, 60px rows, want/live/unread priority, visiting/home-table locations, signed actual session results and separate pocket. Still PARTIAL: the retained wallet/ledger footer comes from the earlier approved navigation; the reference's two-live sample differs from the one live table actually known in the fixture. The server does not currently project a visitor's friend's live table into this owner roster. Send to a friend remains available in profile More. C4 and C6–C9 are still pending. No production deployment is claimed.
+
 ## Overnight design port — 2026-09-09, batch 4
 
 First-agent reliability: persistent hood/glow shared by server and client (BUG-66), readable long drafts at full phone width (BUG-67), one character when the card rises (BUG-68). Four forming stages and no collar remain the explicit founder override. Identity is cosmetic; no skill or money changes. No new item inventory is invented from the archived collar drawing.

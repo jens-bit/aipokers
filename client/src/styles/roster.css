@@ -13,6 +13,7 @@
  */
 
 .roster {
+  font-family: Inter, sans-serif;
   position: fixed;
   inset: 0;
   z-index: 70;
@@ -65,7 +66,7 @@
   display: block;
   width: 34px;
   height: 3px;
-  margin: 8px auto 2px;
+  margin: 10px auto 6px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.25);
 }
@@ -74,21 +75,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px 10px;
+  padding: 0 14px;
+  height: 32px;
   flex-shrink: 0;
 }
 .roster__title {
-  flex: 1;
-  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
-  font-size: 16px;
+  flex: 0 0 auto;
+  font-family: Oswald, sans-serif;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-primary, #EDEDED);
+  color: #00D4AA;
   text-transform: none;
-  letter-spacing: 0;
+  letter-spacing: .18em;
 }
 .roster__count {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 10px;
+  flex: 1;
+  font-family: Inter, sans-serif;
+  font-size: 11px;
   color: var(--text-muted, #6B6B6B);
 }
 .roster__close {
@@ -107,7 +110,7 @@
 .roster__list {
   list-style: none;
   margin: 0;
-  padding: 0 8px;
+  padding: 0;
   overflow-y: auto;
   min-height: 0;
 }
@@ -118,7 +121,7 @@
   gap: 11px;
   width: 100%;
   min-height: 0;
-  padding: 8px 6px;
+  padding: 11px 14px;
   background: none;
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -128,28 +131,31 @@
   cursor: pointer;
 }
 .roster__row:active { background: rgba(255, 255, 255, 0.04); }
+.roster__row .roster__name { font:600 12.5px Inter,sans-serif; }
+.roster__row .roster__where { font:11px Inter,sans-serif; white-space:nowrap; }
+.roster__place { display:flex; align-items:center; gap:6px; margin-top:2.5px; min-width:0; }
+.roster__routine { font:9.5px 'JetBrains Mono',monospace; color:#6B6B6B; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.roster__numbers { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:2.5px; }
+.roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:#6B6B6B; }
+.roster__result.is-up { color:#00D4AA; }
+.roster__result.is-down { color:#FF4D4F; }
+.roster__pocket { display:flex; align-items:center; gap:4px; font:600 10px 'JetBrains Mono',monospace; color:#CDB380; }
+.roster__pocket small { font:600 7.5px Oswald,sans-serif; letter-spacing:.1em; color:#6B6B6B; }
+.roster__chevron { flex-shrink:0; color:#6B6B6B; }
+.roster__live,.roster__want { position:absolute; right:-1px; top:1px; width:6px; height:6px; border-radius:50%; background:#00D4AA; box-shadow:0 0 6px #00D4AA; }
+.roster__want { background:#CDB380; box-shadow:0 0 6px #CDB380; }
+.roster__face .roster__dot { top:auto; bottom:0; }
+.roster__error { padding:12px 14px; font:12px/1.5 Inter,sans-serif; color:#CDB380; }
+.roster__error button { display:block; color:#00D4AA; font:12px Inter,sans-serif; }
 
-/* VISIT-1: "Send to a friend" — a second, smaller action under the row it
-   belongs to, never nested inside it (the row is itself a button). */
+/* C5 has one navigation row; the visit action lives in the profile menu. */
 .roster__item { border-top: 1px solid rgba(255, 255, 255, 0.05); }
 .roster__item .roster__row { border-top: none; }
-.roster__send {
-  display: block;
-  margin: 0 6px 8px 51px;   /* lines up under the name, past the face */
-  padding: 5px 10px;
-  background: none;
-  border: 1px solid rgba(0, 212, 170, 0.35);
-  border-radius: 8px;
-  color: var(--accent, #00D4AA);
-  font-size: 11px;
-  cursor: pointer;
-}
-.roster__send:active { background: rgba(0, 212, 170, 0.08); }
 
 .roster__face {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
 }
 /* His news, at the corner of his face: he has said something you have not

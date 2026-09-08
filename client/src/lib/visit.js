@@ -13,6 +13,10 @@ import { getUserId, getTelegramInitData } from './telegram.js';
  * is the sibling of. Read back by lib/deeplink.js's parseStartParam. */
 export const VISIT_START_PREFIX = 'visit_';
 
+export function canSendVisiting(agent) {
+  return (agent?.location?.where ?? 'home') === 'home' && !agent?.visiting && !agent?.activeTableId;
+}
+
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   'X-Telegram-Init-Data': getTelegramInitData() || '',

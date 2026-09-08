@@ -18,6 +18,7 @@
 // rather than as a bar of its own. Nothing the engine tracks left the card.
 
 import { useEffect, useMemo, useState } from 'react';
+import { canSendVisiting, shareVisitLink } from '../lib/visit.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
@@ -353,7 +354,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 // place the button lives; before this the two ran side by side, the same
 // button twice on one screen. The header always keeps Deploy/Call him in and
 // the overflow menu.
-function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute }) {
+function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit }) {
   const [menu, setMenu] = useState(false);
 
   return (
@@ -441,6 +442,8 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
               textTransform: 'uppercase',
             }}
           >{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
+
+          {onVisit && <button type="button" onClick={() => { setMenu(false); onVisit(); }} style={{ width:'100%', minHeight:44, padding:'0 13px', textAlign:'left', color:M_TEAL, background:'none', borderBottom:`1px solid ${M_BORDER}`, fontFamily:OSWALD, fontSize:11, letterSpacing:'.12em', textTransform:'uppercase' }}>Send to a friend</button>}
 
           <button
             type="button"
@@ -538,6 +541,12 @@ async function retireAgent(agentId) {
 
 // ── Main screen ────────────────────────────────────────────────────────────
 export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired }) {
+  const [visitStatus, setVisitStatus] = useState(null);
+  useEffect(() => { setVisitStatus(null); }, [agent?.id]);
+  async function handleVisit() {
+    const res = await shareVisitLink(agent.id, agent.name);
+    setVisitStatus(res.ok ? (res.via === 'clipboard' ? { text: 'Link copied' } : res.via === 'link' ? { text: 'Open the visit link', url: res.url } : null) : { text: 'Could not create a visit link. Please try again.' });
+  }
   // WUI-3: the receipt for a collect that just happened. Drawn as a transfer,
   // pocket -> wallet, and only while it is the freshest thing on the card.
   const [collected, setCollected] = useState(null);
@@ -737,7 +746,9 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
         onToggleMute={handleToggleMute}
+        onVisit={canSendVisiting(agent) ? handleVisit : undefined}
       />
+      {visitStatus && <div role="status" className="profile-visit-status" style={{padding:'8px 14px',fontSize:12,color:M_TEAL}}>{visitStatus.url ? <a href={visitStatus.url} target="_blank" rel="noreferrer">{visitStatus.text}</a> : visitStatus.text}</div>}
 
       {/* Scrollable body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>

@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-69 — roster mislabels visits, abbreviates identity and invents an empty household on errors — FIXED on overnight branch
+Board 42 C5 now uses full names, real pocket balances and signed current/last session results in 60px rows. Visiting takes priority over the casino label; a kitchen game reads “at your table.” LIVE counts only a known live casino table, not a stored active flag. Failed requests show a retryable error rather than “no agents.” Three regressions failed before correction and now pass. Send to a friend moved into the existing profile More menu to preserve the compact roster; its eligibility, clipboard and fallback link remain functional. C5 browser check inspects the four-agent sheet and follows that action to the profile. A visiting agent without projected liveGame is not counted live; no invented TONIGHT total.
+
 ### BUG-66 — birth, Home and solo views can draw different identities — FIXED on overnight branch
 The client claimed household colors in roster order but rolled solo views independently. The server now persists the same reference roll once at birth, and backfills existing households without changing the currently visible active roster. Public projection exposes two palette IDs only. Birth reveal/card use the stored identity. Shared pure palette/roll prevents server/client drift. Tests cover color collisions, retirement/reorder/new arrivals, public privacy and actual legacy SQLite migration across process restart. The birth card test failed on its missing hood, then passed. The forming preview still uses the reference's provisional palette before birth; no collar stage or undesigned inventory added.
 

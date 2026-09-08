@@ -8,6 +8,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { RosterSheet, whereLine, hasUnread, canSendVisiting } from './RosterSheet.jsx';
+import { AgentProfileScreen } from '../screens/AgentProfileScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
 const agent = (id, name, over = {}) => ({
@@ -34,6 +35,11 @@ beforeEach(() => {
 });
 
 describe('BUGS-A job 9 · where he is, in the room own words', () => {
+  it('BUG-69: a visit and the kitchen table are not labelled as the casino', () => {
+    expect(whereLine(agent('v', 'Visitor', { location: { where: 'casino' }, visiting: { hostName: 'Fidde' } }))).toBe("visiting Fidde's");
+    expect(whereLine(agent('v', 'Visitor', { visiting: {} }))).toBe('visiting a friend');
+    expect(whereLine(agent('h', 'Home', { homeTableId: 'home-4242' }))).toBe('at your table');
+  });
   it('at a table names the room he is in', () => {
     expect(whereLine(AT_TABLE)).toBe('at a table · 25/50');
   });
@@ -56,7 +62,24 @@ describe('BUGS-A job 9 · where he is, in the room own words', () => {
 });
 
 describe('BUGS-A job 9 · the sheet', () => {
-  it('lists everybody with his whole name, where he is and his stack', async () => {
+  it('BUG-69: the C5 row carries a full name, result and actual pocket separately', async () => {
+    fetchMock.route('/api/agents', { agents: [{ ...AT_TABLE, name: 'The Very Patient Grinder', liveGame: { tableId: 't1', heroStack: 1800, net: -120 }, pocket: { balance: 410 } }] });
+    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
+    const row = await screen.findByRole('button', { name: /^The Very Patient Grinder —/ });
+    expect(within(row).getByText('The Very Patient Grinder')).toBeInTheDocument();
+    expect(within(row).getByText('−$120')).toBeInTheDocument();
+    expect(within(row).getByText('POCKET')).toBeInTheDocument();
+    expect(within(row).getByText('$410')).toBeInTheDocument();
+  });
+
+  it('BUG-69: a refused roster read is retryable and never claims nobody exists', async () => {
+    fetchMock.route('/api/agents', { error: 'Unavailable' }, { status: 503 });
+    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not read your agents');
+    expect(screen.queryByText('Nobody works for you yet.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  });
+  it('lists everybody with his whole name, where he is and his pocket', async () => {
     fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock'), AT_TABLE] });
     render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
 
@@ -66,8 +89,8 @@ describe('BUGS-A job 9 · the sheet', () => {
     expect(within(clock).getByText('$2,400')).toBeInTheDocument();
 
     const slick = screen.getByRole('button', { name: /^Big Slick — at a table/ });
-    // At a table it is the stack he is sitting behind, not the pocket.
-    expect(within(slick).getByText('$1,800')).toBeInTheDocument();
+    // Board42 C5 explicitly labels this POCKET; Watch carries the live stack.
+    expect(within(slick).getByText('$2,400')).toBeInTheDocument();
     expect(within(slick).getByText('at a table · 25/50')).toBeInTheDocument();
   });
 
@@ -102,7 +125,7 @@ describe('BUGS-A job 9 · the sheet', () => {
 
     answer({ agents: [agent('a1', 'The Clock')] });
     await screen.findByRole('button', { name: /^The Clock — / });
-    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('1 agent · 0 live')).toBeInTheDocument();
   });
 
   it('an owner with nobody is offered the one thing that fills it', async () => {
@@ -206,17 +229,17 @@ describe('VISIT-1 · send him to a friend', () => {
   });
 
   it('a home body gets the button; one already out visiting does not', async () => {
-    fetchMock.route('/api/agents', {
-      agents: [agent('a1', 'The Clock'), agent('a2', 'River Rat', { visiting: { hostName: null } })],
-    });
-    render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
-
-    await screen.findByRole('button', { name: /^The Clock — / });
-    expect(screen.getByTestId('roster-send-a1')).toBeInTheDocument();
-    expect(screen.queryByTestId('roster-send-a2')).toBeNull();
+    // C5 is one compact navigation row. The preserved visit action now lives
+    // beside the other agent actions in the profile's existing More menu.
+    const user = userEvent.setup();
+    const view = render(<AgentProfileScreen agent={agent('a1', 'The Clock')} />);
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('button', { name: 'Send to a friend' })).toBeInTheDocument();
+    view.rerender(<AgentProfileScreen agent={agent('a2', 'River Rat', { visiting: { hostName: null } })} />);
+    expect(screen.queryByRole('button', { name: 'Send to a friend' })).toBeNull();
   });
 
-  it('taps the link, not the row — his thread does not open underneath it', async () => {
+  it('the visit action copies the same link without opening his thread', async () => {
     const user = userEvent.setup();
     const onOpenThread = vi.fn();
     fetchMock.route('/api/auth/config', { botUsername: 'AigenicPokerBot' });
@@ -224,9 +247,10 @@ describe('VISIT-1 · send him to a friend', () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue() }, configurable: true,
     });
-    render(<RosterSheet onOpenThread={onOpenThread} onClose={() => {}} />);
+    render(<AgentProfileScreen agent={agent('a1', 'The Clock')} onOpenChat={onOpenThread} />);
 
-    await user.click(await screen.findByTestId('roster-send-a1'));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('button', { name: 'Send to a friend' }));
     expect(onOpenThread).not.toHaveBeenCalled();
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       'https://t.me/AigenicPokerBot?start=visit_a1',

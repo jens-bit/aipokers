@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 5 (BUG-69): ported C5 roster density, full identity, location, actual pocket and signed session result. Added honest live counts and request retry. Send to a friend moves to the profile More menu; old row-action tests intentionally follow that route, and the old stack assertion intentionally becomes pocket balance per C5. All gates passed; paired screenshot records the remaining wallet-footer difference.
+
 - Overnight design batch 4 (BUG-66–68): persist the reference hood/glow at birth and safely backfill existing household identities; the same palette/roll now serves both runtimes. Birth reveal/card keep those colors. Wider phone drafts fill the screen, long conversations remain scrollable to the start, and the forming preview disappears when the agent is born. Four stages/no collar preserved. Old desktop door-tag check now measures the actual single marquee retained by BUGS-C, with its no-overlap assertion unchanged. Tests and inspected birth pair recorded in the overnight log.
 
 - Overnight design batch 3 (BUG-64/65): ported F13 fridge stock with real counts/prices, Buy 6 and refusal/retry handling. Home now addresses the household, works empty and consumes room replies without mixing private table chats; desktop shares the stream. Old manual GIVE assertions intentionally follow the approved BUY 6 stock interaction; wants and Carry still give items. Inspected reference pair and server/client/e2e, built smoke and Home2 gates passed. See the overnight log for details and remaining work.
