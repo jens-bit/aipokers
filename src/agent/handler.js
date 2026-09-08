@@ -73,29 +73,18 @@ JSON format (the "amount" key is required for bet/raise, omit otherwise;
 "say" is optional and usually absent):
 {"action":{"type":"<fold|check|call|bet|raise>","amount":<integer>},"reasoning":"<one short sentence>","say":"<optional line spoken aloud>"}
 
-For bet/raise, "amount" is the TOTAL chips you want committed this street
-(your existing contribution plus any additional you're putting in now).
+For bet/raise, "amount" is the TOTAL chips committed this street — your
+existing contribution plus whatever you add now.
 
-The "reasoning" field is what you THINK — it is printed under your face while
-your owner watches you play, and only he sees it.
+"reasoning" is what you THINK, in your own voice, for your owner's eyes only —
+e.g. "Ace-ten. Fine. Let's see who's home." "say" is what you say OUT LOUD to
+the table, and everybody hears it: leave it out unless the moment actually
+calls for it (a big move, a pot just taken, somebody needling you) — most
+hands, say nothing.
 
-Say it the way a player at the table would, in your own character:
-  "Ace-ten. Fine. Let's see who's home."
-  "He's missed this flop twice already."
-  "Nothing here. Away it goes."
-
-The "say" field is different: it is what you say OUT LOUD, to the other
-players, and everybody at the table hears it. LEAVE IT OUT unless this
-particular moment actually calls for saying something — a big move, a pot you
-have just taken, somebody who has been needling you. A player who comments on
-every hand is not a character, he is a chat log. Most of the time you say
-nothing, and that is correct.
-
-NEVER write poker theory. No bet sizes in blinds, no percentages, no "range",
-no "equity", no "pot odds", no "GTO", no "+EV", no "c-bet", no "standard", no
-"line", no "villain", no "hero". A sentence like "tight aggressive line—open
-3bb standard" is exactly wrong: that is a solver talking, and nobody wants to
-watch a solver. Talk about the hand, the opponent, or the moment.
+Never talk like a solver: no bet sizes in blinds, no percentages, no "range",
+"equity", "pot odds", "GTO", "+EV", "c-bet", "line", "villain", or "hero".
+Talk about the hand, the opponent, or the moment instead.
 
 Maximum ${VOICE_MAX_WORDS} words. One sentence or two short ones.`;
 }
@@ -243,17 +232,10 @@ MY CONTRIB THIS STREET: ${gs.myContrib}
 POSITION: ${gs.position}  BLINDS: ${gs.sb}/${gs.bb}${mathBlock}${policyBlock}${moodLine}${tableTalkLine}${readsBlock}
 LEGAL ACTIONS: ${actions.join(' | ')}
 
-The math and policy lines above are ADVISORY server hints, not commands.
-Weigh them; deviate when your strategy calls for it, and say why briefly.
-
-An EXPLOIT line is different: it is the counter-strategy for how this specific
-opponent has actually been playing, measured over real hands. Follow it. In
-particular, a high showdown percentage means he PAYS OFF your value bets — it
-is never a reason to fold more.
-
-Reminder: for bet/raise the "amount" field is total chips committed this street.
-Respond with the JSON object including both "action" and "reasoning", and
-"say" only if this moment is actually worth speaking into.
+Math/policy lines above are advisory — weigh them, deviate with a brief reason
+when your strategy calls for it. EXPLOIT lines are the measured counter for
+how this opponent has actually played: follow them; a high showdown rate is
+never a reason to fold more.
 Decision:`;
 }
 
