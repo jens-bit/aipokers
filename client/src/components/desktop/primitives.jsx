@@ -1,3 +1,4 @@
+import { RailMark } from '../system/RailMark.jsx';
 const TEAL = '#00D4AA';
 
 export function Hood({ size = 32, dim = false }) {
@@ -18,16 +19,8 @@ export function Hood({ size = 32, dim = false }) {
   );
 }
 
-export function LogoMark({ width = 17, height = 20, stroke = TEAL }) {
-  return (
-    <svg width={width} height={height} viewBox="0 0 22 26" aria-hidden>
-      <path
-        d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
-        fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round"
-      />
-      <path d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </svg>
-  );
+export function LogoMark({ width = 24, height = 24, stroke = TEAL }) {
+  return <RailMark size={Math.max(width, height)} color={stroke} />;
 }
 
 const SUIT_GLYPH = { s: '♠', h: '♥', d: '♦', c: '♣' };

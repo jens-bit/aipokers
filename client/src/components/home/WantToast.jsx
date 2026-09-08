@@ -13,9 +13,8 @@
 //   * IT DOES NOT COUNT DOWN, PULSE OR RE-ANNOUNCE. It sits above the collapsed
 //     thread until it is answered. `later` is thirty minutes of quiet and the
 //     same want comes back; that is the server's business and it is not drawn.
-//   * THE ASK IS ALSO HIS BUBBLE, in the room, over his own head. The toast is
-//     where you answer; the bubble is who is asking. Two places, one want, and
-//     the bubble is the one that carries his voice.
+//   * BUG-56: THE ASK IS SAID ONCE. Jens's playtest cancelled the duplicate
+//     room bubble. This compact strip keeps the full sentence and its answers.
 //
 // `needs` is the half the server cannot do — open the casino, open the wallet,
 // open the thread — and it comes back on the yes.
@@ -73,11 +72,7 @@ export function WantToast({ agent, onAnswered, onNeeds }) {
       data-testid="home-want"
       data-agent={agent.id}
     >
-      {/* BUGS-C job 6: ported from design-refs/mood-home2.jsx's HomeToast — the
-          name and the FULL sentence on one row (never ellipsised: this is the
-          one place the whole thing is said; his bubble carries the short
-          version), the three chips on their own row underneath rather than
-          squeezed beside a truncated line. */}
+      {/* Full sentence once, small pills below, using F11's panel glass. */}
       <div className="home-want__row">
         <span className="home-want__who">{pillName(agent.name)}</span>
         <span className="home-want__text">{want.text}</span>

@@ -1,5 +1,5 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-08 (Astra repair integration); statuses and evidence below.
+Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
 
 ---
@@ -175,6 +175,24 @@ Across everything seen on 2026-09-07 that makes **nine distinct victim files**, 
 ---
 
 ## RESOLVED — kept here for traceability
+
+### BUG-55 — Agent speech enlarged the invisible click area over the home felt
+**Severity:** High (Jens could not open the table with four agents).
+**Fix:** speech slot is absolutely positioned outside the body/name button and cannot intercept pointers; ordinary room speech also excludes the felt. The short Telegram room can scroll to its TV. Real mouse hit testing reproduced the failure at 390×590 and 390×844 before repair; both now open TableSheet. Regression added to deployment CI. Local tested repair; production playtest pending.
+
+### BUG-56 — Loose Cannon's request appeared twice and covered the room
+**Severity:** Medium (obstruction and redundant speech).
+**Fix:** full request appears once in a compact answer strip, with F11 panel glass and small answer pills. No duplicate request/old recap over the asking agent's head. The strip reserves space. The browser's old gold-gradient assertion was replaced with exact plain-panel/blur/gold-edge checks because the current reference no longer uses that wash. Larger board-42 agent conversation remains pending.
+
+### BUG-57 — Railbird existed in the design while the app still said Agentic Poker
+**Severity:** Medium (wrong identity and ambiguous live count).
+**Fix:** ported the reference RailMark and Oswald wordmark into actual phone/watch/desktop/guest headers, title/favicon and /welcome. The mobile count now says “N in casino”, not an ambiguous agents-live total; zero is quiet and failed refreshes clear the stale number. Production's public stats confirmed 0 casino seats and 15 total agents. Telegram's outer bot name is a separate BotFather setting and remains pending. This is a partial brand port; full landing/motion/avatar work remains in DESIGN_GAP.
+
+### BUG-58 — Couch-drop browser test assumed an obsolete client-side refusal
+**Severity:** Medium (a timing-sensitive false red).
+**Fix:** SERVER-5 already moved refusal to /place. The test sampled a chair before a long press, then expected “In a hand” and no POST even if the real server accepted the drop. The observed failure showed the accepted “Right. I am at the bar.” response. It now requires one POST for fixture couch, validates the actual 200/placed or 409/inHand result, and checks its sentence in the bubble. The fresh-database phone suite passes 19 checks with the existing BUG-43 skip. No server rule changed.
+
+See `read-me-claude/RAILBIRD_PLAYTEST_REPAIR.md` for evidence and scope of BUG-55–58.
 
 ### Astra repair batch — 2026-09-08 (local; deployment pending)
 
@@ -430,4 +448,3 @@ Discovered already fixed when checking the live code. Both placeholder component
 - All design work (icons, oval table, cards, home screen) should be PORTED from design-refs/ folder, not redesigned from scratch. Codex already built the designs.
 - For merge conflicts, prefer Cowork chat resolving them via the Edit tool directly on the conflict markers rather than running Python `re.sub` scripts — those scripts have repeatedly truncated rules at conflict boundaries, leaving unclosed CSS blocks that break the build.
 - Branch cycling within a worktree: use `git fetch origin && git checkout -B feature/next main`. The naive `git checkout main && git pull && git checkout -b feature/next` fails because git only allows one worktree per branch, and main is already checked out in C:\Projects\ai-poker.
-

@@ -91,6 +91,8 @@
   .home1__scale { transform: scale(min(1, calc(100cqw / 390))); }
 }
 .home1__room { container-type: inline-size; }
+.home1:not(.home1--desk) .home1__room { overflow-y: auto; overscroll-behavior-y: contain; }
+.home1:not(.home1--desk) .home1__scale { flex-shrink: 0; }
 
 .home1__ftu-action {
   margin-top: 12px;
@@ -611,7 +613,16 @@ button.home-flat__table:active { filter: brightness(1.12); }
 
 /* ── The bubble that flips rather than clips ─────────────────────────────── */
 
-.home-bubble-slot { position: relative; width: 0; height: 38px; }
+/* BUG-55: speech sits outside the body/name button's box. A flex item here
+   stretched that invisible button over the centre of the kitchen table. */
+.home-bubble-slot {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  width: 0;
+  height: 38px;
+  pointer-events: none;
+}
 .home-bubble {
   position: absolute;
   bottom: 0;
@@ -896,9 +907,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   z-index: 40;
   border-radius: 12px;
   padding: 8px 10px 9px;
-  background:
-    linear-gradient(rgba(205, 179, 128, 0.09), rgba(205, 179, 128, 0.09)),
-    var(--v5-panel);
+  background: var(--v5-panel);
   backdrop-filter: var(--v5-blur);
   -webkit-backdrop-filter: var(--v5-blur);
   border: 1px solid rgba(205, 179, 128, 0.42);
@@ -911,15 +920,14 @@ button.home-flat__table:active { filter: brightness(1.12); }
     var(--v5-panel);
 }
 .home-want__row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+  display: block;
 }
 .home-want__who {
   flex-shrink: 0;
   font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #CDB380;
+  margin-right: 6px;
 }
 .home-want__text {
   flex: 1; min-width: 0;
@@ -927,8 +935,11 @@ button.home-flat__table:active { filter: brightness(1.12); }
   line-height: 1.35;
   color: var(--text-primary, #EDEDED);
 }
-.home-want__chips { display: flex; gap: 5px; margin-top: 7px; }
+.home-want__chips { display: flex; gap: 7px; margin-top: 3px; }
 .home-want__chip {
+  /* F11's small pills. The transparent extension keeps a 44px touch target. */
+  min-height: 24px;
+  position: relative;
   flex-shrink: 0;
   font-family: var(--font-label, 'Oswald', sans-serif);
   font-size: 8.5px;
@@ -942,10 +953,22 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: var(--text-secondary, #A1A1A1);
   cursor: pointer;
 }
+.home-want__chip::after { content: ''; position: absolute; inset: -10px -3px; }
 .home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); background: rgba(0, 212, 170, 0.08); color: var(--accent, #00D4AA); }
 .home-want__chip--later { border-color: rgba(255, 255, 255, 0.22); color: var(--text-secondary, #A1A1A1); }
 .home-want__chip--no { border-color: rgba(255, 77, 79, 0.5); background: rgba(255, 77, 79, 0.08); color: #FF6B6D; }
 .home-want__chip:disabled { opacity: 0.4; cursor: default; }
+
+/* BUG-56: reserve space for the request instead of covering a short room.
+   Desktop's rail uses the same strip in its own flow. */
+.home-thread > .home-want,
+.room-thread__toast > .home-want {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin: 0 10px 7px;
+}
 
 /* ── Sheets (the fridge) ─────────────────────────────────────────────────── */
 

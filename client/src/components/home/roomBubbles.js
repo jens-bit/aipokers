@@ -74,7 +74,12 @@ const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y
 // clear it — no more than a man on the couch can stand clear of the couch. No
 // other named spot in the room reaches anywhere near the TV, so the exclusion
 // only ever relaxes for the speaker it would otherwise silence.
-const ALWAYS_BLOCKED = [SIGN, FLAT.safe, HEADER].map(fixtureRect);
+// BUG-55: the felt is also a control. A recap must not replace the removed
+// request bubble with another sentence over the community cards.
+const ALWAYS_BLOCKED = [SIGN, FLAT.safe, HEADER, {
+  x: FLAT.table.cx - FLAT.table.rx, y: FLAT.table.cy - FLAT.table.ry,
+  w: FLAT.table.rx * 2, h: FLAT.table.ry * 2,
+}].map(fixtureRect);
 const withTv = [...ALWAYS_BLOCKED, fixtureRect(TV_SCREEN)];
 const atTv = (b) => b?.x === TV_SPOT.x && b?.y === TV_SPOT.y;
 const fixtureBlockersFor = (speakers) => (speakers.some(atTv) ? ALWAYS_BLOCKED : withTv);

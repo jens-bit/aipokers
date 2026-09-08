@@ -431,10 +431,13 @@ export function HomeScreen({
   const walking = useWalks(positions);
 
   useEffect(() => {
-    if (!desktop || !roomEl || typeof ResizeObserver === 'undefined') return undefined;
+    if (!roomEl || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(([entry]) => {
       const box = entry.contentRect;
-      setDeskScale(fitScale(box.width, box.height));
+      // Keep phone characters readable: fit the width and allow the room to
+      // scroll in a short Telegram window instead of miniaturising the cast.
+      setDeskScale(desktop ? fitScale(box.width, box.height)
+        : Math.min(1, box.width / F_W));
     });
     ro.observe(roomEl);
     return () => ro.disconnect();
@@ -479,7 +482,10 @@ export function HomeScreen({
       if (!agent) continue;
       const landed = arrival && arrival.agentId === body.id;
       const isStudying = studying && studying.id === agent.id;
-      const line = agent.want ? { text: agent.want.text, gold: true }
+      // BUG-56: requests live once in the answer strip. Duplicating the
+      // sentence over his head obscured the home game (Jens's playtest).
+      // While asking, do not replace that duplicate with an old recap.
+      const line = agent.want ? null
         : landed ? { text: moneyLine(arrival), gold: false }
         : agent.unseenRecap ? { text: agent.sessionRecap?.text, gold: true }
         : (isStudying && tag) ? { text: tag, gold: false }
@@ -791,7 +797,7 @@ export function HomeScreen({
         : { aspectRatio: `${F_W} / ${F_H}` }) }}
       data-dim={dimmed ? 'true' : 'false'}
     >
-      <div className="home1__scale" style={{ width: F_W, height: F_H }} ref={setFlatEl}>
+      <div className="home1__scale" style={{ width: F_W, height: F_H, ...(!desktop ? { transform: `scale(${deskScale})` } : {}) }} ref={setFlatEl}>
         {flat}
       </div>
     </div>

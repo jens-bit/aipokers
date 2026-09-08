@@ -354,21 +354,16 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
 
   // THE ONE THE QUEUE NAMES: drag-drop on the couch changes his state.
   //
-  // And the state it changes to depends on what he was doing, which is the
-  // rule rather than a caveat. A live server stands the kitchen table up for
-  // anybody home and idle — one man alone plays the House — so on this seeded
-  // room he is usually IN A HAND when you pick him up, and the answer to a
-  // drop is the refusal job 5 names: he says so and walks back, and the room
-  // never asks. Both branches are asserted, and which one is taken is read off
-  // the room rather than assumed.
-  test('drop on the couch changes his state', async ({ page }) => {
+  // BUG-58: SERVER-5 moved the refusal to /place. A chair observed before a
+  // 600ms hold cannot predict the server's answer when that hand ends during
+  // the gesture. Assert the actual fixture request and its displayed outcome.
+  test('BUG-58: a couch drop displays the server-authoritative outcome', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
     const body = page.locator('.home-one').first();
-    const before = await body.getAttribute('data-spot');
-
     const posts = [];
     page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
+    const reply = page.waitForResponse(r => /\/place\?/.test(r.url()) && r.request().method() === 'POST');
 
     // The couch: x8..104, y330..446 in room coordinates.
     await carry(page, body, await roomPoint(page, 56, 388));
@@ -376,16 +371,24 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     // He is on the floor again either way — a carry ends.
     await expect(page.locator('.home-one.is-carried')).toHaveCount(0);
 
-    const midHand = before.startsWith('table:');
-    if (midHand) {
-      // He refuses, says so, and walks back to the chair he was in.
-      await expect(page.locator('.home-bubble').filter({ hasText: 'In a hand' })).toBeVisible();
-      await expect(page.locator('.home-one').first()).toHaveAttribute('data-spot', before);
-      expect(posts.filter((u) => /\/place\?|\/give\?/.test(u))).toHaveLength(0);
+    const response = await reply;
+    const result = await response.json();
+    expect(response.request().postDataJSON().fixture).toBe('couch');
+    expect(result.fixture).toBe('couch');
+    expect(posts.filter(u => /\/place\?/.test(u))).toHaveLength(1);
+    expect(posts.filter(u => /\/give\?/.test(u))).toHaveLength(0);
+    if (response.status() === 409) {
+      expect(result.reason).toBe('inHand');
+      expect(result.placed).toBe(false);
     } else {
-      // Nothing else in the room POSTs on a drop, so this is the drop.
-      await expect.poll(() => posts.filter((u) => /\/place\?/.test(u)).length).toBeGreaterThan(0);
+      expect(response.status()).toBe(200);
+      expect(result.placed).toBe(true);
+      expect(result.home.agents.length).toBeGreaterThan(0);
     }
+    const line = result.moment?.text ?? result.line;
+    expect(typeof line).toBe('string');
+    expect(line.length).toBeGreaterThan(0);
+    await expect(page.locator('.home-bubble').filter({ hasText: line })).toBeVisible();
     await shot(page, 'job5-couch');
   });
 
@@ -616,7 +619,7 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
   // the half jsdom cannot do: a token defined in a file the bundle never loads
   // resolves to nothing, and `background: var(--missing)` is transparent rather
   // than an error.
-  test('the want toast is glass too, with its gold as a tint on it', async ({ page }) => {
+  test('BUG-56: the want strip uses F11 panel glass with a gold edge', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
 
@@ -628,6 +631,7 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
       const out = {
         background: s.backgroundColor,
         image: s.backgroundImage,
+        border: s.borderTopColor,
         blur: s.backdropFilter || s.webkitBackdropFilter,
       };
       probe.remove();
@@ -637,8 +641,10 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
     // V5GLASS's panel, resolved: rgba(13, 23, 21, 0.72).
     expect(m.background).toBe('rgba(13, 23, 21, 0.72)');
     expect(m.blur).toContain('blur');
-    // The gold rides ON the glass rather than replacing it.
-    expect(m.image).toContain('gradient');
+    // The current F11 reference uses plain panel glass, not the older gold
+    // background wash. Keep the exact glass/blur checks and verify the edge.
+    expect(m.image).toBe('none');
+    expect(m.border).toBe('rgba(205, 179, 128, 0.42)');
   });
 
   // And the token really is defined where the bundle can see it — the whole

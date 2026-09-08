@@ -52,6 +52,8 @@ When a queue's premise is wrong (a ref that isn't there, a server route that doe
 
 ## The integrator
 
+**Railbird playtest addition (2026-09-08):** before a home push, also run `cd client` then `npx playwright test e2e/home.spec.js -g BUG-55`. This reproduces Jens's four-agent room with a pending want at 390×590 and 390×844, clicks the actual felt, checks the sole request and Railbird header, and verifies the short window can reach its TV. It now runs in the deploy workflow too. The old jsdom and mostly-empty-room checks missed this hit-target bug.
+
 Given the merge order, it follows it. For each branch, in order: `git merge`, `npm install` at root and in `client/`, `npm run test:all`, and a BUGS entry for anything the branch's report flagged. It skips a branch that isn't reported yet and comes back to it.
 
 **Conflicts and merge-caused reds are fixed in the owning branch's worktree, never in main.** Either the owning tab merges main itself (Job N: "merge main") or the integrator does it in that worktree; both land as `Merge branch 'main' into <branch> (MERGE-n)`, and the merge to main then fast-forwards. Resolutions keep both sides' intent; a test that encoded a rule the product no longer wants is rewritten to the new rule with the reasoning in the commit, never loosened (Testing law #5).

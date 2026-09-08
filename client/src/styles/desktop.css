@@ -2252,3 +2252,5 @@
   gap: 6px;
 }
 .dtb__bottle { align-self: center; }
+
+.dsk-top__wordmark { font-family: Oswald, sans-serif; font-weight: 500; letter-spacing: 0.26em; }

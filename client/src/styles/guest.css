@@ -387,3 +387,5 @@
   min-height: var(--tg-h, 100dvh);
   background: var(--bg-primary, #1A1A1E);
 }
+
+.guest-hero__wordmark { font-family: Oswald, sans-serif; font-weight: 500; letter-spacing: 0.26em; }

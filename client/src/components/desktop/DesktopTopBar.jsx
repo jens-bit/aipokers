@@ -34,7 +34,7 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup,
     <div className="dsk-top">
       <div className="dsk-top__brand">
         <LogoMark />
-        <span className="dsk-top__wordmark">AGENTIC POKER</span>
+        <span className="dsk-top__wordmark">RAILBIRD</span>
       </div>
       <span className="dsk-top__sep">·</span>
       <div className="dsk-top__stat">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RailMark } from './system/RailMark.jsx';
 import { Streets } from '../lib/protocol.js';
 
 function StatusDot({ status }) {
@@ -68,20 +69,7 @@ function BackArrow() {
   );
 }
 
-function BrandSpade() {
-  return (
-    <svg width="13" height="16" viewBox="0 0 22 26" aria-label="Agentic Poker" style={{ display: 'block', flexShrink: 0 }}>
-      <path
-        d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
-        fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
-      />
-      <path
-        d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
-        stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+function BrandSpade() { return <RailMark size={22} />; }
 
 function SettingsIcon() {
   return (
@@ -106,7 +94,7 @@ function AgentsCountPill() {
         // room with every chair empty. Nullish, not `||`: a floor with nobody
         // on it says 0, and only a server too old to send the field says "—".
         .then((data) => { if (!cancelled) setCount(data.activeAgents ?? null); })
-        .catch(() => {});
+        .catch(() => { if (!cancelled) setCount(null); });
     }
     load();
     const id = setInterval(load, 30_000);
@@ -121,10 +109,10 @@ function AgentsCountPill() {
   if (count == null) return null;
 
   return (
-    <div className="dr-app-header__agents-pill">
+    <div className="dr-app-header__agents-pill" data-empty={count === 0} title="Agents seated in the casino. Home games are separate." aria-label={`${count} agent${count === 1 ? '' : 's'} seated in the casino`}>
       <span className="dr-app-header__agents-dot" aria-hidden />
       <span className="dr-app-header__agents-label">
-        {`${count} agent${count === 1 ? '' : 's'} live`}
+        {`${count} in casino`}
       </span>
     </div>
   );
@@ -218,17 +206,8 @@ export function Header({
   return (
     <header className="dr-app-header">
       <div className="dr-app-header__left">
-        <svg width="22" height="26" viewBox="0 0 22 26" style={{ display: 'block' }} aria-hidden>
-          <path
-            d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
-            fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round"
-          />
-          <path
-            d="M8 14 L11 8 L14 14 M9.2 12 L12.8 12"
-            stroke="#00D4AA" strokeWidth="1.4" fill="none" strokeLinecap="round"
-          />
-        </svg>
-        <span className="dr-app-header__wordmark">AGENTIC POKER</span>
+        <RailMark size={28} />
+        <span className="dr-app-header__wordmark">RAILBIRD</span>
       </div>
       <div className="dr-app-header__right">
         <AgentsCountPill />

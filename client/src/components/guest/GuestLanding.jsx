@@ -32,6 +32,7 @@
 // product's own Card component.
 
 import { useCallback, useRef } from 'react';
+import { RailMark } from '../system/RailMark.jsx';
 import App from '../../App.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { HOODS, GLOWS } from '../../lib/identity.js';
@@ -122,13 +123,7 @@ export function GuestLanding({ visitorName = null }) {
         <div className="guest-hero__wash" />
 
         <header className="guest-hero__masthead">
-          <svg width="15" height="19" viewBox="0 0 22 26" aria-hidden="true">
-            <path
-              d="M11 1C11 1 1 9.5 1 15.2C1 19.1 4.2 21.4 7.4 21.4C8.9 21.4 10 20.9 10.5 20.3L9.4 25H12.6L11.5 20.3C12 20.9 13.1 21.4 14.6 21.4C17.8 21.4 21 19.1 21 15.2C21 9.5 11 1 11 1Z"
-              fill="var(--marketing-gold, #CDB380)"
-            />
-          </svg>
-          <span className="guest-hero__wordmark">AGENTIC POKER</span>
+          <RailMark size={30} color="#F4EBDD" /><span className="guest-hero__wordmark">RAILBIRD</span>
         </header>
 
         <div className="guest-hero__body">

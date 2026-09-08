@@ -339,10 +339,17 @@ describe('HOME-1 · the want', () => {
     want: { kind: 'beer', text: "Can I have a beer. It's been rough.", needs: null, dangerous: false },
   });
 
-  it('he asks in the room, and the answer is a toast over the thread', async () => {
+  it('BUG-56: a pending request is spoken once, in its answer strip', async () => {
     await boot([wanting()]);
-    // His bubble: who is asking, in his voice.
-    expect(await screen.findByTestId('home-news-a1')).toHaveTextContent("Can I have a beer");
+    expect(await screen.findByTestId('home-want')).toHaveTextContent("Can I have a beer");
+    expect(screen.getAllByText("Can I have a beer. It's been rough.", { exact: true })).toHaveLength(1);
+    expect(screen.queryByTestId('home-news-a1')).toBeNull();
+  });
+
+  it('BUG-56: he asks once in the compact answer strip', async () => {
+    await boot([wanting()]);
+    // Jens cancelled the duplicate room request. The answer strip keeps his voice.
+    expect(screen.queryByTestId('home-news-a1')).toBeNull();
     // The toast: where you answer.
     const toast = screen.getByTestId('home-want');
     expect(toast).toHaveTextContent("Can I have a beer");
@@ -410,7 +417,7 @@ describe('HOME-1 · the want', () => {
       lastMoment: { text: "Can I have a beer. It's been rough.", kind: 'want', at: 1 },
     })]);
     expect(screen.getAllByTestId('home-want')).toHaveLength(1);
-    expect(screen.getAllByTestId('home-news-a1')).toHaveLength(1);
+    expect(screen.queryByTestId('home-news-a1')).toBeNull();
     // The strip falls back to something else while it is still pending.
     expect(screen.getByTestId('home-thread-line')).not.toHaveTextContent('Can I have a beer');
     expect(screen.getByTestId('home-thread-line')).toHaveTextContent('Sit down.');
@@ -1068,7 +1075,7 @@ describe('FIX-6 · the room queues what it has to say', () => {
     want: { kind: 'play', text: `Put ${name} in something bigger.`, needs: 'deploy', dangerous: false },
   });
 
-  it('one man wears one bubble, however many things he has to say', async () => {
+  it('BUG-56: a request takes priority once, without a second recap over his head', async () => {
     // A want AND an unread session: two boxes over one head, before this.
     await boot([mkAgent('a1', 'The Clock', {
       want: { kind: 'beer', text: 'Can I have a beer.', needs: null, dangerous: false },
@@ -1081,9 +1088,8 @@ describe('FIX-6 · the room queues what it has to say', () => {
       expect(el).not.toBeNull();
       return el;
     });
-    expect(him.querySelectorAll('.home-bubble')).toHaveLength(1);
-    // The want is the thing waiting on an answer, so the want is what he wears.
-    expect(within(him).getByTestId('home-news-a1')).toHaveTextContent('Can I have a beer.');
+    expect(him.querySelectorAll('.home-bubble')).toHaveLength(0);
+    expect(screen.getByTestId('home-want')).toHaveTextContent('Can I have a beer.');
   });
 
   it('at most two bubbles in the room, whoever else is talking', async () => {

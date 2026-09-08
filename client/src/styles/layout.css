@@ -1490,10 +1490,10 @@
 }
 
 .dr-app-header__wordmark {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 700;
+  font-family: var(--font-label, Oswald, sans-serif);
+  font-weight: 500;
   font-size: 15px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.26em;
   color: var(--text-primary);
 }
 
@@ -1549,3 +1549,6 @@
 .dr-app-header__profile-btn:hover {
   border-color: rgba(255, 255, 255, 0.14);
 }
+
+/* Zero casino seats is quiet, not a pulsing live signal. */
+.dr-app-header__agents-pill[data-empty="true"] .dr-app-header__agents-dot { animation: none; box-shadow: none; opacity: .4; }

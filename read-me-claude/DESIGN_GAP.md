@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Railbird playtest follow-up — 2026-09-08
+
+After Jens's successful push of 4007703, his four-agent screenshot reproduced an invisible agent click area over the felt (BUG-55), the duplicated request (BUG-56), and the unported client brand (BUG-57). These are now repaired on the playtest branch and await the integrator's push report. Requests appear once in a compact F11-material strip; the room bubble duplication is removed as a repair choice for this playtest, while board 42's full agent view remains NOT BUILT. RailMark/wordmark now reach actual phone/watch/desktop/guest headers, page title, favicon and /welcome. Board 41 is therefore PARTIAL, not entirely unbuilt. Other brand deliverables, landing layout and room artwork remain in their queues.
+
+The reference/product pair is `client/e2e/shots/railbird-home-reference-pair.png`. It demonstrates the cleared felt and actual brand import, and also shows the remaining furniture/composition differences. The mobile count explicitly says “N in casino”; it excludes home games. Telegram's outer bot name still needs BotFather `/setname` → Railbird. Read `RAILBIRD_PLAYTEST_REPAIR.md` for test evidence, known gaps and the gesture-test correction. Historical status rows below are not a fresh certification.
+
 ## Astra repair update — 2026-09-08
 
 Jens asked Astra to continue repairs while Claude was unavailable. The collar stage is cancelled by explicit founder instruction; four stages are intentional. This overrides the former F03 requirement.

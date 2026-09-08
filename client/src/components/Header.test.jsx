@@ -24,35 +24,42 @@ beforeEach(() => {
 });
 
 describe('BUGS-A job 2 · the agents-live pill', () => {
+  it('BUG-57: labels the casino count and shows the Railbird identity', async () => {
+    fetchMock.route('/api/stats', () => ({ activeAgents: 0, totalAgents: 15 }));
+    render(<Header status="idle" hasConfig={false} />);
+    expect(await screen.findByText('0 in casino')).toBeInTheDocument();
+    expect(screen.getByText('RAILBIRD')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Railbird' })).toBeInTheDocument();
+  });
   it('says nothing at all until /api/stats has answered', async () => {
     let answer;
     fetchMock.route('/api/stats', () => new Promise((resolve) => { answer = resolve; }));
     render(<Header status="idle" hasConfig={false} />);
 
-    expect(screen.queryByText(/agents? live/)).toBeNull();
+    expect(screen.queryByText(/in casino/)).toBeNull();
     expect(screen.queryByText('—')).toBeNull();
 
     answer({ activeAgents: 12, totalAgents: 30 });
-    expect(await screen.findByText('12 agents live')).toBeInTheDocument();
+    expect(await screen.findByText('12 in casino')).toBeInTheDocument();
   });
 
   it('zero is a real answer and is reported as one', async () => {
     fetchMock.route('/api/stats', () => ({ activeAgents: 0, totalAgents: 11 }));
     render(<Header status="idle" hasConfig={false} />);
-    expect(await screen.findByText('0 agents live')).toBeInTheDocument();
+    expect(await screen.findByText('0 in casino')).toBeInTheDocument();
   });
 
-  it('one agent is one agent, not one agents', async () => {
+  it('one casino seat is reported as one', async () => {
     fetchMock.route('/api/stats', () => ({ activeAgents: 1, totalAgents: 9 }));
     render(<Header status="idle" hasConfig={false} />);
-    expect(await screen.findByText('1 agent live')).toBeInTheDocument();
+    expect(await screen.findByText('1 in casino')).toBeInTheDocument();
   });
 
   it('a failed request leaves the pill unsaid rather than showing a dash', async () => {
     fetchMock.route('/api/stats', () => ({ status: 500, body: {} }));
     render(<Header status="idle" hasConfig={false} />);
-    await waitFor(() => expect(screen.getByText('AGENTIC POKER')).toBeInTheDocument());
-    expect(screen.queryByText(/agents? live/)).toBeNull();
+    await waitFor(() => expect(screen.getByText('RAILBIRD')).toBeInTheDocument());
+    expect(screen.queryByText(/in casino/)).toBeNull();
   });
   // BUGS-B/7's own case: the two numbers /api/stats answers with are different
   // questions, and the pill asks the floor's.
@@ -60,7 +67,7 @@ describe('BUGS-A job 2 · the agents-live pill', () => {
     fetchMock.route('/api/stats', () => ({ activeAgents: 3, totalAgents: 11 }));
     render(<Header status="idle" hasConfig={false} />);
 
-    expect(await screen.findByText('3 agents live')).toBeInTheDocument();
-    expect(screen.queryByText('11 agents live')).toBeNull();
+    expect(await screen.findByText('3 in casino')).toBeInTheDocument();
+    expect(screen.queryByText('11 in casino')).toBeNull();
   });
 });

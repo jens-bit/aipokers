@@ -62,7 +62,7 @@ describe('GUEST-1 · one hero viewport', () => {
 
   it('carries the wordmark and nothing else as chrome', async () => {
     await openLanding();
-    expect(screen.getByText('AGENTIC POKER')).toBeInTheDocument();
+    expect(screen.getByText('RAILBIRD')).toBeInTheDocument();
   });
 
   it('he is holding two cards, in front of him, at 55% of the hood', async () => {

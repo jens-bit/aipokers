@@ -26,6 +26,7 @@
 // Look: client/e2e/__screenshots__/*.png
 
 import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -137,7 +138,7 @@ async function stub(page, cast) {
       WebApp: {
         initData: 'user=%7B%22id%22%3A4242%7D&auth_date=1756900000&hash=deadbeef',
         initDataUnsafe: { user: { id: 4242, first_name: 'Jens' } },
-        viewportHeight: 844,
+        get viewportHeight() { return window.innerHeight; },
         ready() {}, expand() {}, disableVerticalSwipes() {},
         onEvent() {}, offEvent() {},
       },
@@ -178,9 +179,9 @@ async function stub(page, cast) {
   }, [cast.agents, cast.game ?? null]);
 }
 
-async function room(page, cast) {
+async function room(page, cast, viewport = VIEWPORT) {
   await stub(page, cast);
-  await page.setViewportSize(VIEWPORT);
+  await page.setViewportSize(viewport);
   await page.goto(HOME);
   await page.waitForSelector('[data-testid="home-screen"]');
   // The room's own bodies have landed, so nothing is captured mid-mount.
@@ -189,6 +190,46 @@ async function room(page, cast) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  for (const height of [590, 844]) {
+    test(`BUG-55: four agents and a pending want leave the table tappable at 390x${height}`, async ({ page }) => {
+      const names = ['Loose Cannon', 'The Grinder', 'Wild Card', 'Bluff'];
+      const agents = names.map((name, i) => agent(`p${i}`, name, {
+        routine: { key: 'plays', label: 'in a hand' },
+        want: i === 0 ? { kind: 'deploy', text: "I'm fresh and I'm sat here doing nothing. Put me in.", needs: 'deploy' } : null,
+      }));
+      await page.route('**/api/stats', r => r.fulfill({ json: { activeAgents: 0, totalAgents: 15 } }));
+      await page.route('**/api/slots**', r => r.fulfill({ json: { used: 4, cap: 4, next: null } }));
+      await room(page, { agents, game: {
+        state: 'running', tableId: 'home-4242',
+        seats: agents.map((a, seat) => ({ seat, agentId: a.id, name: a.name, house: false })),
+      } }, { width: 390, height });
+      // Real hit testing: a DOM .click() would bypass the overlay that Jens hit.
+      const table = page.getByTestId('home-table');
+      const box = await table.boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(page.getByTestId('home-table-sheet-mobile')).toBeVisible({ timeout: 2000 });
+      await page.getByTestId('home-table-sheet-mobile').getByRole('button', { name: 'Close', exact: true }).last().click();
+      await expect(page.getByText("I'm fresh and I'm sat here doing nothing. Put me in.", { exact: true })).toHaveCount(1);
+      await expect(page.getByText('RAILBIRD', { exact: true })).toBeVisible();
+      await expect(page.getByText('0 in casino', { exact: true })).toBeVisible();
+      // Visible DOM nodes can still lie outside a clipped Telegram viewport.
+      for (const control of [page.getByTestId('home-want-yes'), page.locator('.home-thread__input')]) {
+        await expect(control).toBeInViewport();
+      }
+      await page.getByTestId('home-tv').scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('home-tv')).toBeInViewport();
+      await page.locator('.home1__room').evaluate(el => { el.scrollTop = 0; });
+      const actual = await page.screenshot({ path: `e2e/shots/railbird-home-four-${height}.png` });
+      if (height === 844) {
+        const reference = await readFile(new URL('../../design-refs/frames/board29-f10-home-game.png', import.meta.url));
+        const pair = await page.context().newPage();
+        await pair.setViewportSize({ width: 820, height: 900 });
+        await pair.setContent(`<body style="margin:0;padding:10px;background:#111818;color:#eee;font:14px system-ui"><div style="display:flex;gap:20px"><div>Reference · board 29 F10<br><img width="390" src="data:image/png;base64,${reference.toString('base64')}"></div><div>Repair · four agents + request<br><img width="390" src="data:image/png;base64,${actual.toString('base64')}"></div></div></body>`);
+        await pair.screenshot({ path: 'e2e/shots/railbird-home-reference-pair.png' });
+        await pair.close();
+      }
+    });
+  }
   test('BUG-51: the first-agent action stays clear of the TV and can be clicked', async ({ page }) => {
     await page.route('**/api/slots**', route => route.fulfill({ json: { used: 0, cap: 4, next: { index: 1, price: 0, earned: 0, unlocked: true } } }));
     await room(page, { agents: [], game: null });

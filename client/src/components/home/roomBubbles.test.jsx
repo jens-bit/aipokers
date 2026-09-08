@@ -24,7 +24,7 @@ import {
   bubbleRect, layout, overlaps, pillRect, resolve, sideFor,
 } from './roomBubbles.js';
 import {
-  DOOR_SPOT, FLOOR_SPOTS, SIGN, TABLE_SEATS, WALL_SPOT,
+  DOOR_SPOT, FLOOR_SPOTS, SIGN, TABLE_SEATS, WALL_SPOT, FLAT,
 } from './flat.js';
 
 const body = (id, x, y, over = {}) => ({ id, x, y, size: 46, name: 'Balance', ...over });
@@ -89,10 +89,22 @@ describe('picking the side with clearance', () => {
 // exactly the kind of case "picking the side with clearance" above exists to
 // prove, so it stays there. These three are a clean case with room to spare.
 const P = body('p', 100, 180);
-const Q = body('q', 100, 300);
-const R = body('r', 100, 420);
+// Queue/lifetime fixtures stay off the newly protected felt. These tests
+// exercise turn-taking with free space; BUG-55 above exercises blocked seats.
+const Q = body('q', 100, 440);
+const R = body('r', 100, 560);
 
 describe('BUGS-C job 2: one bubble in the room, ever', () => {
+  it('BUG-55: speech from any kitchen chair stays off the felt', () => {
+    const felt = { left: FLAT.table.cx - FLAT.table.rx, right: FLAT.table.cx + FLAT.table.rx,
+      top: FLAT.table.cy - FLAT.table.ry, bottom: FLAT.table.cy + FLAT.table.ry };
+    for (const spot of TABLE_SEATS[4]) {
+      const speaker = body('a', spot.x, spot.y, { size: 50 });
+      for (const placed of layout([says(speaker, 'An unread recap')], [speaker])) {
+        expect(overlaps(bubbleRect(placed, placed.side), felt)).toBe(false);
+      }
+    }
+  });
   it('BUGS-C-2: shows one and leaves the rest for later', () => {
     const placed = layout([says(P, 'one'), says(Q, 'two'), says(R, 'three')], [P, Q, R]);
     expect(MAX_IN_ROOM).toBe(1);

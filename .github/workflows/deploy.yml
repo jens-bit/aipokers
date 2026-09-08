@@ -136,6 +136,12 @@ jobs:
           HOME2_SHOT_DIR: home2-shots
         run: npm run test:home2
 
+      # Jens's four-agent playtest: the old suites never clicked the felt
+      # while a pending request enlarged an agent's invisible button over it.
+      - name: Railbird home playtest regression
+        working-directory: client
+        run: npx playwright test e2e/home.spec.js -g BUG-55
+
       # Always: a red run is exactly when the pictures and the server log are
       # worth having.
       - name: Server log
@@ -150,6 +156,7 @@ jobs:
           path: |
             smoke-shots/
             home2-shots/
+            client/e2e/shots/railbird-home-four-*.png
           if-no-files-found: warn
           retention-days: 14
 
