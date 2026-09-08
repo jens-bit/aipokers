@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 6
+
+C4 mobile profile is ported and inspected in `client/e2e/shots/overnight-batch6-profile-c4.png`. One name, saved 62px face, nature/birth date, actual condition, compact RECENT rows with the existing first-time explainer, session result and a real authenticated whisper. Full skills/history/money remain behind More → His sheet. Differences are deliberate and explicit: the server has three fatigue bands rather than a continuous stamina sample; recorded growth has no hand association unless supplied, costs are not mislabeled as growth; THIS/LAST SESSION replaces an uncomputed TONIGHT total. A live agent offers Call him in and LIVE/Watch, rather than the reference's contradictory Deploy+LIVE. Default desktop profile remains the existing detailed card until C9. C6–C9 and the other queues are not certified yet.
+
 ## Overnight design port — 2026-09-09, batch 5
 
 C5 roster is ported and visually inspected in `client/e2e/shots/overnight-batch5-roster-c5.png`: full names, 38px faces, 60px rows, want/live/unread priority, visiting/home-table locations, signed actual session results and separate pocket. Still PARTIAL: the retained wallet/ledger footer comes from the earlier approved navigation; the reference's two-live sample differs from the one live table actually known in the fixture. The server does not currently project a visitor's friend's live table into this owner roster. Send to a friend remains available in profile More. C4 and C6–C9 are still pending. No production deployment is claimed.

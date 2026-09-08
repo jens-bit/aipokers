@@ -259,7 +259,8 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
     // Somebody resting: his card's primary action is Chat rather than Watch.
     await user.click(await bodyOf('Loose Cannon'));
     await user.click(await screen.findByRole('button', { name: "Profile" }));
-    // The profile's own Chat, which is the second way into the same thread.
+    // C4 keeps the full conversation in More; the bottom composer whispers inline.
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
     await user.click(await screen.findByRole('button', { name: 'Chat' }));
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
 
@@ -366,7 +367,7 @@ describe('the profile card can reach the funding sheet', () => {
     fetchMock.route('/flagged', { flaggedHands: [] });
   });
 
-  it('renders the give-him-chips button on the profile pocket line and lands on the YOU screen', async () => {
+  it('renders C4 give-him-chips in the compact action row and lands on the YOU screen', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -377,7 +378,7 @@ describe('the profile card can reach the funding sheet', () => {
     await user.click(screen.getByRole('button', { name: 'Profile' }));
 
     const pocketLine = await waitFor(() => {
-      const el = document.querySelector('.wal-line');
+      const el = document.querySelector('.profile-actions');
       expect(el).toBeTruthy();
       return el;
     });
@@ -497,7 +498,7 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     // A live agent's row reads "Call him in"; watching him is the profile's own
     // header action, which is where CASINO-1 put it.
     expect(within(row).getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Watch' }));
+    await user.click(screen.getByRole('button', { name: 'Watch live game' }));
     await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
   };
 

@@ -194,6 +194,41 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  for (const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
+    test(`AGENT-1: C4 profile and whisper at ${viewport.width}×${viewport.height}`, async ({page}) => {
+      const now=Date.now();
+      const ag=agent('bal','Balanced v2.1',{mood:{state:'confident',heat:22},fatigue:'worn',bornAt:Date.UTC(2026,7,4),attrs:{READS:62,COMPOSURE:41},pocket:{balance:1200,stakes:{label:'25/50'}},sessionLog:[{net:3694,hands:42}],attrLog:[
+        {key:'READS',from:61,to:62,cause:'Called the river sizing.',ts:now-4*60000},
+        {key:'COMPOSURE',from:42,to:41,cause:'Time away softened his edge.',ts:now-18*60000},
+        {key:'COMPOSURE',from:41,to:42,cause:'Held after the cooler.',ts:now-26*60000},
+        {key:'READS',from:60,to:61,cause:'He had The Grinder read.',ts:now-41*60000},
+      ]});
+      await room(page,{agents:[ag],game:null},viewport);
+      await page.route('**/api/agents/*/hands?**',r=>r.fulfill({json:{recentHands:[]}}));
+      await page.route('**/api/agents/*/flagged?**',r=>r.fulfill({json:{flaggedHands:[]}}));
+      const whispers=[];
+      await page.route('**/api/agents/chat',r=>{whispers.push(r.request().postDataJSON());return r.fulfill({json:{chat:[{role:'assistant',content:'I will watch his river bet.'}]}});});
+      await page.getByRole('button',{name:/^Balanced v2.1 —/}).click();
+      await page.getByRole('button',{name:'Profile',exact:true}).click();
+      const profile=page.locator('.profile-overview');
+      await expect(profile.getByText(ag.name,{exact:true})).toHaveCount(1);
+      await expect(profile.getByText('Called the river sizing.')).toBeVisible();
+      expect((await profile.boundingBox()).width).toBe(viewport.width);
+      expect((await profile.locator('.agent-view__header').boundingBox()).height).toBe(40);
+      const composer=profile.getByRole('textbox',{name:'Whisper to him'});
+      expect((await composer.boundingBox()).y+(await composer.boundingBox()).height).toBeLessThanOrEqual(viewport.height);
+      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/profile-c4.png'});}
+      await composer.fill('Watch that river.');
+      await profile.getByRole('button',{name:'Send whisper'}).click();
+      await expect(profile.getByText('I will watch his river bet.')).toBeVisible();
+      expect(whispers).toEqual([{userId:'4242',content:'Watch that river.',existingAgentId:'bal'}]);
+      await profile.getByRole('button',{name:'More actions'}).click();
+      await page.getByRole('button',{name:'His sheet'}).click();
+      await expect(page.getByText('Skills',{exact:true})).toBeVisible();
+      await page.getByRole('button',{name:'Back',exact:true}).click();
+      await expect(profile).toBeVisible();
+    });
+  }
   test('BUG-69: C5 roster distinguishes location, result and pocket in compact rows', async ({ page }) => {
     const cast = [
       agent('bal', 'Balanced v2.1', { activeTableId: 't1', location: loc('table', { tableId: 't1', room: 'upstairs' }), liveGame: { tableId: 't1', net: 3694, heroStack: 4894 }, pocket: { balance: 1200 }, mood: { state: 'confident', heat: 22 } }),

@@ -18,6 +18,7 @@
 // rather than as a bar of its own. Nothing the engine tracks left the card.
 
 import { useEffect, useMemo, useState } from 'react';
+import { AgentProfileOverview } from '../components/agent/AgentProfileOverview.jsx';
 import { canSendVisiting, shareVisitLink } from '../lib/visit.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
@@ -28,7 +29,7 @@ import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
 import { ATTR_KEYS, normalizeAttrs, seriesFor } from '../lib/attributes.js';
-import { callInAgent, collectFrom, collectsEverything, pocketOf } from '../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, pocketOf, money, stakesFor } from '../lib/wallet.js';
 import { setAgentMuted } from '../lib/notifyApi.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
@@ -354,27 +355,31 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 // place the button lives; before this the two ran side by side, the same
 // button twice on one screen. The header always keeps Deploy/Call him in and
 // the overflow menu.
-function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit }) {
+function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, compact, agent, onSheet, onChat }) {
   const [menu, setMenu] = useState(false);
 
   return (
     <div
-      className="profile-actions"
+      className={`profile-actions${compact ? ' profile-actions--compact' : ''}`}
       style={{
         flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
         padding: '9px 14px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
+        ...(compact ? { height:44, padding:'0 12px', gap:6, border:`1px solid ${M_BORDER}`, borderRadius:10, background:'#101A1880', marginBottom:4 } : {}),
       }}
     >
       <button
         type="button"
+        className="profile-actions__primary"
+        aria-label={live ? 'Call him in' : 'Deploy'}
         onClick={onPrimary}
         style={{
           flex: showFund ? 1.4 : 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
           background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
           fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
           textTransform: 'uppercase', whiteSpace: 'nowrap',
+          ...(compact ? { flex:1.6, height:30, borderRadius:7, fontSize:9.5, borderColor:'#00d4aa59' } : {}),
         }}
-      >{live ? 'Call him in' : 'Deploy'}</button>
+      >{live ? 'Call him in' : 'Deploy'}{compact && !live && pocketOf(agent) && <span>{stakesFor(pocketOf(agent)).replace(/\s/g, '')} · {money(pocketOf(agent).balance)}</span>}</button>
 
       {showFund && (
         <button
@@ -385,6 +390,7 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
             background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
             fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
             textTransform: 'uppercase', whiteSpace: 'nowrap',
+            ...(compact ? { border:0, fontSize:8.5, height:30 } : {}),
           }}
         >Give him chips</button>
       )}
@@ -399,6 +405,7 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
           background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
           fontSize: 15, lineHeight: 1,
+          ...(compact ? { width:20, height:30, border:0 } : {}),
         }}
       >…</button>
 
@@ -425,6 +432,8 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
             boxShadow: '0 10px 26px rgba(0,0,0,0.45)', overflow: 'hidden',
           }}
         >
+          {onSheet && <button type="button" onClick={() => { setMenu(false); onSheet(); }} style={{ width:'100%', minHeight:44, padding:'0 13px', textAlign:'left', background:'none', color:M_TEXT, border:0, borderBottom:`1px solid ${M_BORDER}`, fontFamily:OSWALD, fontSize:11 }}>His sheet</button>}
+          {onChat && <button type="button" onClick={() => { setMenu(false); onChat(); }} style={{ width:'100%', minHeight:44, padding:'0 13px', textAlign:'left', background:'none', color:M_TEXT, border:0, borderBottom:`1px solid ${M_BORDER}`, fontFamily:OSWALD, fontSize:11 }}>Chat</button>}
           {/* DEEPLINK-1 — his voice when the owner is away. Per agent, because
               that is what the notifier checks (notify.js reads notifyMuted off
               the agent record), and because silencing one must not cost his
@@ -540,7 +549,9 @@ async function retireAgent(agentId) {
 
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired }) {
+export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false }) {
+  const [showDetails, setShowDetails] = useState(false);
+  useEffect(() => { setShowDetails(false); }, [agent?.id]);
   const [visitStatus, setVisitStatus] = useState(null);
   useEffect(() => { setVisitStatus(null); }, [agent?.id]);
   async function handleVisit() {
@@ -637,14 +648,14 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const log = data?.agent?.attrLog ?? data?.attrLog;
-        if (alive && Array.isArray(log)) setDetailLog(log);
+        if (alive && Array.isArray(log)) setDetailLog({ agentId, log });
       })
       .catch(() => {});
     return () => { alive = false; };
   }, [agentId, needsLog]);
 
   const character = useMemo(() => normalizeAttrs(agent), [agent]);
-  const attrLog = detailLog ?? (Array.isArray(agent?.attrLog) ? agent.attrLog : []);
+  const attrLog = detailLog?.agentId === agentId ? detailLog.log : (Array.isArray(agent?.attrLog) ? agent.attrLog : []);
   const seriesOf = useMemo(() => (key) => seriesFor(attrLog, key), [attrLog]);
 
   // PROFILE-2 — the split. normalizeAttrs still returns all six in canon order,
@@ -702,6 +713,15 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
     else { onOpenChat?.(agent); }
   }
 
+  if (companion && !showDetails) return <AgentProfileOverview key={agent.id} agent={agent} attrLog={attrLog} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
+    explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
+    actions={({ chatAgent }) => <>
+      <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? handleVisit : undefined} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
+      {visitStatus && <div role="status" className="profile-visit-status">{visitStatus.url ? <a href={visitStatus.url} target="_blank" rel="noreferrer">{visitStatus.text}</a> : visitStatus.text}</div>}
+    </>}>
+    {retirePending && <RetireSheet agent={agent} busy={retireBusy} error={retireError} onCancel={() => setRetirePending(false)} onConfirm={handleRetireConfirm}/>}
+  </AgentProfileOverview>;
+
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG, position: 'relative' }}>
 
@@ -713,7 +733,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
       }}>
         <button
           type="button"
-          onClick={onBack}
+          onClick={companion ? () => setShowDetails(false) : onBack}
           aria-label="Back"
           style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >

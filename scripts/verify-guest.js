@@ -30,6 +30,12 @@ delete process.env.ANTHROPIC_API_KEY;
 // Timings compressed so the night is over in seconds. Set BEFORE table.js is
 // evaluated, hence the dynamic imports below.
 process.env.HAND_PAUSE_MS ??= '150';
+// BUG-71: the 30-second wait was still paying the production 0.8–2.5s
+// think delay on every action. Two ordinary check-through hands can exceed
+// that budget. Compress this test's action clock as well as its deal pause;
+// the pacing suite tests real timing. Keep the two-hand/history assertions.
+process.env.THINK_MIN_MS = '25';
+process.env.THINK_SPREAD_MS = '25';
 process.env.SESSION_MAX_HANDS ??= '6';
 process.env.MAX_SEATS ??= '2';
 process.env.GUEST_ENABLED = '1';
@@ -178,7 +184,7 @@ const played = await waitFor(
   async () => (await j('GET', `/api/agents/${agentId}/hands?userId=${ownerId}`)).body?.stats?.handsPlayed ?? 0,
   (n) => n >= 2,
 );
-check('he actually plays hands, on the policy alone', played.ok, `handsPlayed=${played.value}`);
+check('BUG-71: he actually plays two hands, on the policy alone', played.ok, `handsPlayed=${played.value}`);
 
 // The routes were filed, and every one of them is free.
 const routes = store.readDecisionRoutes({ ownerId });

@@ -705,12 +705,13 @@ function AppShell({ guest }) {
 
     if (agentProfileTarget) {
       return (
-        <div className="app">
+        <div className="app app--room">
           {/* WUI-4: onFund is what makes the pocket line's action render. The
               funding sheet lives on the YOU screen with the rest of the money,
               so Fund goes there rather than opening a second copy of it here. */}
           <Suspense fallback={null}>
           <AgentProfileScreen
+            companion
             agent={agentProfileTarget}
             onBack={() => setAgentProfileTarget(null)}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}

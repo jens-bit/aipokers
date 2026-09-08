@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-70 — changing profiles can show the previous agent's attribute history — FIXED on overnight branch
+The detail log was unscoped component state. After switching agents, a failed or absent next detail read left the old log in place. The new C4 regression reproduced another agent's recent change on the card. Detail results now carry the agent ID and are consumed only for that ID; the existing unmount/late-request guard remains.
+
+### BUG-71 — guest end-to-end check times out during ordinary hands — FIXED on overnight branch
+The script compressed its deal pause but retained production 800–2500ms action clocks. Reproduced one completed hand and a second still on the turn at the 30-second deadline; the history assertion then failed for the same reason. The guest test now uses the existing THINK_MIN_MS/THINK_SPREAD_MS dials at 25ms each. Two completed hands, policy-only guest decisions and history surviving the claim remain required. Production pacing is unchanged and the dedicated pacing suite keeps its timings. The corrected guest check passed in 1.36s.
+
 ### BUG-69 — roster mislabels visits, abbreviates identity and invents an empty household on errors — FIXED on overnight branch
 Board 42 C5 now uses full names, real pocket balances and signed current/last session results in 60px rows. Visiting takes priority over the casino label; a kitchen game reads “at your table.” LIVE counts only a known live casino table, not a stored active flag. Failed requests show a retryable error rather than “no agents.” Three regressions failed before correction and now pass. Send to a friend moved into the existing profile More menu to preserve the compact roster; its eligibility, clipboard and fallback link remain functional. C5 browser check inspects the four-agent sheet and follows that action to the profile. A visiting agent without projected liveGame is not counted live; no invented TONIGHT total.
 

@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 6: C4 mobile profile now has one name, the saved 62px identity, condition, compact recorded changes and a working bottom whisper. Detailed skills/money/history remain in More → His sheet; Chat, visit, mute and retirement remain reachable. Funding moves to the compact row and LIVE is the Watch action; integration tests intentionally follow these C4 routes while retaining their origin/funding/auth assertions. BUG-70 scopes detail history to its agent; BUG-71 compresses only the guest verifier's action clock. Watch layout and production timing are unchanged.
+
 - Overnight design batch 5 (BUG-69): ported C5 roster density, full identity, location, actual pocket and signed session result. Added honest live counts and request retry. Send to a friend moves to the profile More menu; old row-action tests intentionally follow that route, and the old stack assertion intentionally becomes pocket balance per C5. All gates passed; paired screenshot records the remaining wallet-footer difference.
 
 - Overnight design batch 4 (BUG-66–68): persist the reference hood/glow at birth and safely backfill existing household identities; the same palette/roll now serves both runtimes. Birth reveal/card keep those colors. Wider phone drafts fill the screen, long conversations remain scrollable to the start, and the forming preview disappears when the agent is born. Four stages/no collar preserved. Old desktop door-tag check now measures the actual single marquee retained by BUGS-C, with its no-overlap assertion unchanged. Tests and inspected birth pair recorded in the overnight log.
