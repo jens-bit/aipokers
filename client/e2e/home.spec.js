@@ -194,6 +194,31 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
+    test(`ROSTER-1: C6 absence and vertical door at ${viewport.width}×${viewport.height}`,async({page})=>{
+      const cast=[
+        agent('bal','Balanced v2.1',{nickname:'Bal',location:loc('table',{tableId:'t1',room:'upstairs'}),activeTableId:'t1',liveGame:{tableId:'t1',pot:4180,board:['Ah','Kd','2c'],net:3694,street:'flop'},mood:{state:'confident',heat:22}}),
+        agent('agg','Aggressive v1.3',{nickname:'Agg',routine:{key:'plays',label:'in a hand'},mood:{state:'tilted',heat:84}}),
+        agent('blf','Bluff Master',{nickname:'Bluff',routine:{key:'plays',label:'in a hand'},mood:{state:'frustrated',heat:58}}),
+        agent('val','Value Bot',{nickname:'Value',routine:{key:'sleeps',label:'sleeping'},mood:{state:'sulking',heat:12},fatigue:'worn'}),
+      ];
+      const game={state:'running',tableId:'home-4242',seats:[{seat:0,agentId:'agg',house:false},{seat:1,agentId:'blf',house:false}],handsPlayed:7};
+      await room(page,{agents:cast,game},viewport);
+      await page.route('**/api/slots**',r=>r.fulfill({json:{used:4,cap:4,next:null}}));
+      await expect(page.getByRole('button',{name:'Your agents',exact:true})).toHaveText('1 AGENT LIVE');
+      await expect(page.getByLabel("Bal's empty chair")).toBeVisible();
+      await expect(page.getByTestId('home-frame-bal')).toBeVisible();
+      const sign=page.getByTestId('home-door-sign');
+      await expect(sign).toHaveCount(1);
+      await expect(sign.locator('.home-flat__sign-word')).toHaveCSS('writing-mode','vertical-rl');
+      const door=await page.getByTestId('home-door').boundingBox(), label=await sign.boundingBox();
+      expect(label.x).toBeGreaterThanOrEqual(door.x-.5);
+      expect(label.x+label.width).toBeLessThanOrEqual(door.x+door.width+.5);
+      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/absence-c6.png'});}
+      await page.getByTestId('home-table').click({position:{x:55,y:50}});
+      await expect(page.getByTestId('home-table-sheet')).toBeVisible();
+    });
+  }
   for (const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
     test(`AGENT-1: C4 profile and whisper at ${viewport.width}×${viewport.height}`, async ({page}) => {
       const now=Date.now();

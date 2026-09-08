@@ -42,7 +42,8 @@ export function plateLine(agent, { now = Date.now() } = {}) {
   if (Number.isFinite(net)) parts.push(signedMoney(Math.round(net)));
 
   const since = Number(agent?.location?.since);
-  if (Number.isFinite(since) && since > 0) {
+  if (agent?.visiting) parts.push(agent.visiting.hostName ? `${agent.visiting.hostName}'s` : 'visiting a friend');
+  else if (Number.isFinite(since) && since > 0) {
     const mins = Math.max(0, Math.floor((now - since) / 60_000));
     parts.push(`${mins} min`);
   }
@@ -79,7 +80,7 @@ export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, no
       data-agent={agent?.id}
       data-live={awake ? 'true' : 'paused'}
       data-testid={`home-frame-${agent?.id}`}
-      aria-label={`${agent?.name ?? 'Agent'} at the casino${line ? ` — ${line}` : ''}. Watch him.`}
+      aria-label={`${agent?.name ?? 'Agent'} ${agent?.visiting ? `visiting ${agent.visiting.hostName ? `${agent.visiting.hostName}'s` : 'a friend'}` : 'at the casino'}${line ? ` — ${line}` : ''}. ${agent?.liveGame?.tableId ? 'Watch him.' : 'Open him.'}`}
     >
       <MiniFelt liveGame={live} accent={accent} width={width} hot={hot} money={money} />
       <span className="home-frame__plate">
@@ -97,7 +98,7 @@ export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, no
  * the ref's own device, and the only "you could have more" this screen makes.
  * It is a hook on a wall, not a price.
  */
-export function AwayWall({ away = [], accentFor, hooks = 0, onWatch }) {
+export function AwayWall({ away = [], accentFor, hooks = 0, onWatch, onOpenAgent }) {
   // Re-render once a minute so the "41 min" on the plate is not frozen at the
   // value it had when the last push happened.
   const [now, setNow] = useState(() => Date.now());
@@ -121,7 +122,7 @@ export function AwayWall({ away = [], accentFor, hooks = 0, onWatch }) {
           width={width}
           hot={!!agent?.liveGame?.hot}
           now={now}
-          onClick={() => onWatch?.(agent)}
+          onClick={() => agent?.liveGame?.tableId ? onWatch?.(agent) : onOpenAgent?.(agent)}
         />
       ))}
       {Array.from({ length: Math.max(0, hooks) }).map((_, i) => (

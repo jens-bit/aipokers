@@ -24,7 +24,8 @@
 // from a stack, so there is no value they could be read as.
 
 import { useEffect } from 'react';
-import { FLAT, TABLE_SEATS } from './flat.js';
+import { FLAT, TABLE_SEATS, tableSeats } from './flat.js';
+import { pillName } from '../../lib/names.js';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 
 /**
@@ -60,17 +61,27 @@ export function useHomeTable(table, tableId) {
  * @param taken  how many seats have a body in them
  * @param of     how many chairs the table has
  */
-export function TableChairs({ taken = 0, of = 4 }) {
-  const seats = TABLE_SEATS[4].slice(0, Math.max(0, Math.min(4, Math.round(of))));
-  return seats.map((seat, i) => (i < taken ? null : (
+export function TableChairs({ taken = 0, of = 4, away = [] }) {
+  // Home bodies use a two/three/four-player arrangement. Subtract their
+  // actual footprints, not the first N slots of the four-player arrangement.
+  const occupied = taken > 0 ? tableSeats(taken).slice(0, taken) : [];
+  const seats = TABLE_SEATS[4].filter(s => occupied.every(p => Math.hypot(p.x-s.x,p.y-s.y)>32))
+    .slice(0, Math.max(0, Math.min(4, Math.round(of))-taken));
+  return seats.map((seat, i) => {
+    const absent=away[i];
+    const name=absent ? (absent.nickname || pillName(absent.name)) : null;
+    return (
     <span
       key={`chair-${i}`}
-      className="home-chair"
+      className={`home-chair${absent ? ' home-chair--absent' : ''}`}
       style={{ left: seat.x, top: seat.y }}
       data-chair={i}
-      aria-hidden
-    />
-  )));
+      data-absent={absent?.id}
+      role={absent ? 'img' : undefined}
+      aria-label={absent ? `${name}'s empty chair` : undefined}
+      aria-hidden={absent ? undefined : true}
+    >{absent && <><span className="home-chair__name">{name}</span><i/></>}</span>
+  );});
 }
 
 /** The community cards as the felt has actually run them. */

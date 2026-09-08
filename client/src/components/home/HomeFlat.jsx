@@ -107,34 +107,17 @@ export function HomeFlat({
         </div>
       )}
 
-      {/* HOME-2 job 4 · THE SIGN ABOVE THE DOOR. A lit marquee, all caps —
-          not a pill, because a pill is a label about a thing and this is a
-          thing in the room: it hangs over the doorway and it is switched on.
-          Anchored by its RIGHT EDGE to the room's, which is the one anchor
-          that cannot clip: the door starts at x356 of 390, so anything laid
-          out rightward from the door leaves the screen (board 29, wave 56,
-          measured — the old tag ran 38px off frame in every home room).
-
-          BUGS-C job 4 · ONE fixture with the door, not two signs stacked on
-          each other. The `doorTag` label below used to be passed alongside
-          this on the live room, which is what "the casino is on top of
-          itself" was — the marquee and "THE CASINO →" occupying the same
-          spot. The marquee is now the only signage a live room ever draws;
-          `doorTag` stays for callers with no marquee to fall back on (the
-          draft's dimmed preview). It is also the one thing guaranteed never
-          to render over: nothing else in the room carries a z-index at or
-          above it (home1.css), and its footprint (flat.js `SIGN`) is a
-          no-walk zone and a bubble exclusion rect, same as the safe and the
-          TV. `signLive` lights it the way a real marquee is lit only when
-          there is a show — a table of yours actually running. */}
+      {/* Current board 29/42 DoorTap: one word down the jamb, bulbs on both sides and light spilling into the room. SIGN uses this footprint for bubble/placement clearance. Pointer events pass to the door. */}
       <div
         className={`home-flat__sign${signLive ? ' home-flat__sign--live' : ''}`}
-        style={{ top: FLAT.door.y - 32 }}
+        style={{ left: FLAT.door.x, top: FLAT.door.y, width: FLAT.door.w, height: FLAT.door.h }}
         data-testid="home-door-sign"
         data-live={signLive ? 'true' : 'false'}
       >
         <span className="home-flat__sign-glow" aria-hidden />
+        {[0,1].map(side=><span key={side} className={`home-flat__sign-bulbs home-flat__sign-bulbs--${side}`} aria-hidden>{[0,1,2,3].map(i=><i key={i}/>)}</span>)}
         <span className="home-flat__sign-word">CASINO</span>
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden><path d="M12 5v13m-6-5 6 6 6-6"/></svg>
       </div>
 
       {/* HOME-2 job 4 · THE TAPE ROOM, at the bottom of the room: one screen

@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 7
+
+C6 absence is ported: dim named empty chair, live wall frame, one roster pill in Home's existing 46px header; visits are named distinctly. Current board 29/42 DoorTap replaces the horizontal marquee with the vertical word, bulbs and spill, using the same footprint for bubble clearance. Pair `client/e2e/shots/overnight-batch7-absence-c6.png` inspected. The kitchen table stays by Jens's explicit override of the reference's omission. Spare-chair placement respects actual occupied positions; no permanent backend chair reservation is claimed. Counts reflect known owner live casino tables and stay quiet when none are live. C7 TV click/replay behavior and C8/C9 remain upcoming work.
+
 ## Overnight design port — 2026-09-09, batch 6
 
 C4 mobile profile is ported and inspected in `client/e2e/shots/overnight-batch6-profile-c4.png`. One name, saved 62px face, nature/birth date, actual condition, compact RECENT rows with the existing first-time explainer, session result and a real authenticated whisper. Full skills/history/money remain behind More → His sheet. Differences are deliberate and explicit: the server has three fatigue bands rather than a continuous stamina sample; recorded growth has no hand association unless supplied, costs are not mislabeled as growth; THIS/LAST SESSION replaces an uncomputed TONIGHT total. A live agent offers Call him in and LIVE/Watch, rather than the reference's contradictory Deploy+LIVE. Default desktop profile remains the existing detailed card until C9. C6–C9 and the other queues are not certified yet.

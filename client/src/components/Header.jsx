@@ -129,11 +129,12 @@ function PersonIcon() {
 
 // Board 29 HomeHead: the room owns its one 46px contextual header.
 // Reuse the roster doorway in the casino instead of stacking app chrome.
-export function RosterButton({ onOpenRoster }) {
-  return <button type="button" className="room-header__roster" onClick={onOpenRoster} aria-label="Your agents"><PersonIcon /></button>;
+export function RosterButton({ onOpenRoster, liveCount }) {
+  const known = Number.isFinite(liveCount);
+  return <button type="button" className={`room-header__roster${known ? ' room-header__roster--count' : ''}${known && !liveCount ? ' is-quiet' : ''}`} onClick={onOpenRoster} aria-label="Your agents" title={known ? `${liveCount} of your agents at a live table` : 'Your agents'}>{known ? <><i aria-hidden/><span>{liveCount ? `${liveCount} ${liveCount === 1 ? 'AGENT' : 'AGENTS'} LIVE` : 'NOBODY LIVE'}</span></> : <PersonIcon />}</button>;
 }
 
-export function RoomHeader({ title, subtitle, onOpenRoster }) {
+export function RoomHeader({ title, subtitle, onOpenRoster, liveCount }) {
   return (
     <header className="room-header" data-testid="room-header">
       <RailMark size={20} />
@@ -141,7 +142,7 @@ export function RoomHeader({ title, subtitle, onOpenRoster }) {
         <h1>{title}</h1>
         {subtitle && <div className="room-header__sub">{subtitle}</div>}
       </div>
-      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
+      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} liveCount={liveCount} />}
     </header>
   );
 }

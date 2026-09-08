@@ -660,6 +660,12 @@ export function HomeScreen({
   }
 
   const lit = home.length > 0;
+  const visitingCount = away.filter(a => a.visiting).length;
+  const casinoCount = away.length - visitingCount;
+  const homeSubtitle = !agents.length ? 'Your room · his story starts here'
+    : [casinoCount ? `${casinoCount} at the casino` : null, visitingCount ? `${visitingCount} visiting` : null, `${home.length} home`].filter(Boolean).join(' · ');
+  const rosterLiveCount = loaded && roomConnection !== 'reconnecting'
+    ? agents.filter(a => !a.guest && !a.homeTableId && a.liveGame?.tableId).length : undefined;
   const board = homeTable?.game?.community ?? [];
   // P16: a fixture panel dims the room instead of covering it — on the desk you
   // never lose sight of where the money is.
@@ -727,6 +733,7 @@ export function HomeScreen({
         accentFor={(a) => accentFor(a, agents.indexOf(a))}
         hooks={Math.max(0, AGENT_CAP - agents.length)}
         onWatch={onWatch}
+        onOpenAgent={onProfile}
       />
 
       {gameAgentIds.length > 0 ? (
@@ -738,7 +745,7 @@ export function HomeScreen({
       {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
           Nobody yet is one chair, nobody in it; a retire is one chair fewer.
           Both are pictures rather than sentences. */}
-      <TableChairs taken={gameAgentIds.length} of={Math.max(1, agents.length)} />
+      <TableChairs taken={gameAgentIds.length} of={Math.max(1, agents.length)} away={away} />
 
       {/* Nobody yet: the line under the table and the one thing to press. The
           line is an OBSERVATION rather than an instruction — the only action
@@ -863,7 +870,7 @@ export function HomeScreen({
 
   return (
     <div className="home1" data-testid="home-screen">
-      <RoomHeader title="Home" subtitle={agents.length === 0 ? 'Your room · his story starts here' : `${home.length} home${away.length ? ` · ${away.length} away` : ' · nobody at the casino'}`} onOpenRoster={onOpenRoster} />
+      <RoomHeader title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} />
       {roomBox}
 
       {carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}

@@ -131,12 +131,10 @@ describe('HOME-2 job 4 · what is on the walls', () => {
 // ── BUGS-C job 4 · the sign is one fixture with the door ────────────────────
 
 describe('BUGS-C job 4: the CASINO sign', () => {
-  it('BUGS-C-4: the sign rect does not intersect the door body rect', () => {
-    const door = { left: FLAT.door.x, right: FLAT.door.x + FLAT.door.w, top: FLAT.door.y, bottom: FLAT.door.y + FLAT.door.h };
-    const sign = { left: SIGN.x, right: SIGN.x + SIGN.w, top: SIGN.y, bottom: SIGN.y + SIGN.h };
-    const hit = sign.left < door.right && door.left < sign.right
-      && sign.top < door.bottom && door.top < sign.bottom;
-    expect(hit).toBe(false);
+  it('BUGS-C-4 / C6: the sole sign occupies the doorway per current DoorTap', () => {
+    // The current reference explicitly moved the word down the jamb; the old
+    // non-overlap assertion described the superseded horizontal marquee.
+    expect(SIGN).toEqual({x:FLAT.door.x,y:FLAT.door.y,w:FLAT.door.w,h:FLAT.door.h});
   });
 
   it('BUGS-C-4: no agent target point falls inside the sign rect', () => {
@@ -148,7 +146,7 @@ describe('BUGS-C job 4: the CASINO sign', () => {
   });
 
   it('BUGS-C-4: the sign is flush with the room the way the door is', () => {
-    expect(SIGN.x + SIGN.w).toBe(F_W - 6);
+    expect(SIGN.x + SIGN.w).toBe(F_W);
   });
 });
 

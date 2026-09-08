@@ -44,15 +44,11 @@ export const FLAT = {
 // television looks like from above.
 export const TV_SCREEN = { x: FLAT.tv.x + 16, y: FLAT.tv.y, w: 100, h: 58 };
 
-// BUGS-C job 4 · the marquee's own footprint, one fixture with the door. Right
-// edge flush with the room's, the way home1.css's .home-flat__sign renders it
-// (`right: 6px`) — the door's own anchor, for the same reason: rightward from
-// x356 of 390 is off the room. `SIGN_W`/`SIGN_H` are read a little larger than
-// the rendered box on purpose, per roomBubbles.js's rule that a modelled box
-// must never be smaller than the thing it stands for.
-export const SIGN_W = 88;
-export const SIGN_H = 20;
-export const SIGN = { x: F_W - 6 - SIGN_W, y: FLAT.door.y - 32, w: SIGN_W, h: SIGN_H };
+// BUGS-C job 4's one-sign rule remains. Current DoorTap writes down the jamb;
+// its exclusion area is the door itself, inside the room at every scale.
+export const SIGN_W = FLAT.door.w;
+export const SIGN_H = FLAT.door.h;
+export const SIGN = { x: FLAT.door.x, y: FLAT.door.y, w: SIGN_W, h: SIGN_H };
 
 // BUGS-C job 2 · the app's own header, sticky above the room in real layout —
 // not a fixture the flat draws, so there is nothing in FLAT for it. Modelled

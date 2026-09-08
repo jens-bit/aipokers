@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-72 — empty chairs are drawn under agents already playing — FIXED on overnight branch
+TableChairs removed the first N positions of a four-seat map, while the bodies used a two/three-seat arrangement. The two-player case left an empty chair under the far player. Regression reproduced the overlap. Spare chairs now exclude actual occupied positions and retain the correct total; C6 adds one dim named chair per away agent, within those free positions.
+
+### BUG-73 — the away frame calls a visit the casino and opens no destination — FIXED on overnight branch
+The wall plate and accessible label ignored visiting.hostName, and every frame called Watch even without a live table. Regression reproduced the missing friend's name. Visits now name the host; a known live frame opens Watch and a frame without a table opens the agent. The Home subtitle also separates visits from casino occupants.
+
 ### BUG-70 — changing profiles can show the previous agent's attribute history — FIXED on overnight branch
 The detail log was unscoped component state. After switching agents, a failed or absent next detail read left the old log in place. The new C4 regression reproduced another agent's recent change on the card. Detail results now carry the agent ID and are consumed only for that ID; the existing unmount/late-request guard remains.
 

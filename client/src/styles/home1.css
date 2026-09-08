@@ -327,6 +327,13 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-flat__sign--live .home-flat__sign-word {
   text-shadow: 0 0 7px rgba(255, 155, 130, 0.95), 0 0 16px rgba(255, 107, 109, 0.55);
 }
+/* Current board 29/42 DoorTap: the letters and bulbs live down the doorway. */
+.home-flat__sign{right:auto;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:0;border-radius:0;background:none;box-shadow:none;color:#CDB380}
+.home-flat__sign-word{writing-mode:vertical-rl;text-orientation:mixed;font-size:8.5px;letter-spacing:.28em;color:#CDB380;text-shadow:0 0 8px #cdb38099}
+.home-flat__sign-glow{inset:auto;right:calc(100% - 4px);top:-16px;width:88px;height:calc(100% + 32px);border-radius:0;background:radial-gradient(ellipse at 100% 50%,#cdb38022,transparent 70%)}
+.home-flat__sign-bulbs{position:absolute;top:6px;bottom:6px;display:flex;flex-direction:column;justify-content:space-between}
+.home-flat__sign-bulbs--0{left:2.5px}.home-flat__sign-bulbs--1{right:2.5px}
+.home-flat__sign-bulbs i{width:2px;height:2px;border-radius:50%;background:#CDB380;box-shadow:0 0 3px #CDB380}
 
 /* the safe, against the left wall under the frames */
 .home-flat__safe {
@@ -1543,6 +1550,9 @@ button.home-flat__table:active { filter: brightness(1.12); }
   z-index: 6;
   pointer-events: none;
 }
+.home-chair--absent{width:30px;height:25px;border-style:solid;background:#ffffff06;opacity:.5}
+.home-chair__name{position:absolute;bottom:calc(100% + 3px);left:50%;transform:translateX(-50%);padding:2px 6px;border-radius:4px;background:#080c0ce6;border:1px dashed #ffffff29;white-space:nowrap;color:#6B6B6B;font:7.5px Inter,sans-serif}
+.home-chair--absent>i{position:absolute;left:3px;right:3px;top:2.5px;height:4px;border-radius:2px;background:#ffffff12}
 
 /* ── HOME-2 job 7 · nobody yet ─────────────────────────────────────────────
    Under the table, so the eye lands on the one empty chair on its way to the

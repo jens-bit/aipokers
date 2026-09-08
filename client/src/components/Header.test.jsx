@@ -15,12 +15,21 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-import { Header } from './Header.jsx';
+import { Header, RoomHeader } from './Header.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
 beforeEach(() => {
   telegram.install();
   telegram.signIn();
+});
+
+it('C5: the Home roster pill distinguishes unknown, nobody live and a known live agent',()=>{
+  const {rerender}=render(<RoomHeader title="Home" onOpenRoster={()=>{}}/>);
+  expect(screen.queryByText('NOBODY LIVE')).toBeNull();
+  rerender(<RoomHeader title="Home" onOpenRoster={()=>{}} liveCount={0}/>);
+  expect(screen.getByRole('button',{name:'Your agents'})).toHaveTextContent('NOBODY LIVE');
+  rerender(<RoomHeader title="Home" onOpenRoster={()=>{}} liveCount={1}/>);
+  expect(screen.getByRole('button',{name:'Your agents'})).toHaveTextContent('1 AGENT LIVE');
 });
 
 describe('BUGS-A job 2 · the agents-live pill', () => {

@@ -1572,3 +1572,9 @@
 }
 .room-header__roster::before { content: ''; position: absolute; inset: -7px; border-radius: 50%; }
 .room-header__roster:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.room-header__roster--count{width:auto;height:19px;min-height:19px;padding:0 8px;gap:5px;border-radius:10px;background:#00d4aa14;border-color:#00d4aa4d;color:#00D4AA}
+.room-header__roster--count::before{inset:-13px 0;border-radius:10px}
+.room-header__roster--count>span{font:600 8.5px Oswald,sans-serif;letter-spacing:.1em;white-space:nowrap}
+.room-header__roster--count>i{width:4.5px;height:4.5px;border-radius:50%;background:currentColor}
+.room-header__roster--count.is-quiet{color:#6B6B6B;border-color:#ffffff1f;background:#ffffff05}
+.room-header__sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
