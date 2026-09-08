@@ -26,6 +26,7 @@
 // a row in HIS voice.
 
 import { DRAFT_STAGE_COUNT } from '../system/FormingGhost.jsx';
+import { useLayoutEffect, useRef } from 'react';
 
 /**
  * One line of the draft.
@@ -83,6 +84,10 @@ export function DraftSheet({
   placeholder = 'answer him…',
   inputRef,
 }) {
+  const rowsRef = useRef(null);
+  useLayoutEffect(() => {
+    if (rowsRef.current) rowsRef.current.scrollTop = rowsRef.current.scrollHeight;
+  }, [rows.length, pending]);
   const submit = (e) => {
     e.preventDefault();
     if (!draft.trim() || busy) return;
@@ -103,7 +108,7 @@ export function DraftSheet({
           having, not a transcript you are auditing, and the room above it is the
           half of the screen that matters. Scrollable all the same, because a
           long answer must never be unreachable. */}
-      <div className="draft-sheet__body no-scrollbar" data-testid="draft-rows">
+      <div className="draft-sheet__body no-scrollbar" data-testid="draft-rows" ref={rowsRef}>
         {rows.map((r, i) => <DraftRow key={r.id ?? i} row={r} />)}
         {pending ? (
           <div className="draft-row draft-row--sys" data-testid="draft-pending">

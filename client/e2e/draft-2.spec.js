@@ -80,7 +80,7 @@ async function stub(page, cast = EMPTY) {
       WebApp: {
         initData: 'user=%7B%22id%22%3A4242%7D&auth_date=1756900000&hash=deadbeef',
         initDataUnsafe: { user: { id: 4242, first_name: 'Jens' } },
-        viewportHeight: 844,
+        get viewportHeight() { return window.innerHeight; },
         ready() {}, expand() {}, disableVerticalSwipes() {},
         onEvent() {}, offEvent() {},
       },
@@ -138,10 +138,10 @@ async function openDraft(page, viewport, cast = EMPTY) {
  * Playwright. The rectangles must not intersect at all.
  */
 async function expectDoorTagClear(page) {
-  // On the desk there are two rooms in the DOM and so two tags: the real one,
-  // beside the rail, and the draft's own dimmed copy, which draft2.css hides
-  // there. Only the visible one is the room's, and only it can be covered.
-  const tag = page.getByTestId('home-door-tag').locator('visible=true').first();
+  // BUGS-C removed the duplicate tag from the live room: desktop uses its
+  // marquee. The standalone draft still uses the tag on its dimmed preview.
+  // Measure the actual visible sign in each shell, with the same no-overlap rule.
+  const tag = page.locator('[data-testid="home-door-tag"]:visible, .home1__room [data-testid="home-door-sign"]:visible').first();
   await expect(tag).toBeVisible();
 
   const tagBox = await tag.boundingBox();
@@ -162,6 +162,39 @@ async function expectDoorTagClear(page) {
 }
 
 test.describe('DRAFT-2 · the draft on glass at 390×844', () => {
+  test('BUG-66: the revealed agent keeps his served colors on his birth card', async ({ page }) => {
+    await openDraft(page, PHONE);
+    const born = { ...ONE.agents[0], id: 'newborn', name: 'Granite', identity: { hood: 'moss', glow: 'ice' }, nature: { name: 'Rock', up: 'DISCIPLINE', down: 'DECEPTION', line: 'He waits.', builtFor: 'Not losing money. He is very hard to bluff.' }, firstWords: 'Patient, you said. Good. I will hate folding and I will do it anyway.' };
+    await page.route('**/api/agents?**', r => r.fulfill({ json: { agents: [born] } }));
+    await page.route('**/api/agents/chat**', r => r.fulfill({ json: { agentId: born.id, agentName: born.name, strategy: 'Patient.', chat: [{ role: 'assistant', content: 'Meet Granite.' }] } }));
+    await page.getByTestId('draft-input').fill('Call him Granite.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood', 'moss');
+    await expect(page.locator('.birth-card3')).toContainText(born.firstWords);
+    await expect(page.locator('.birth-card3')).toHaveCSS('opacity', '1');
+    await expect(page.locator('.birth-card3__deal')).toHaveCSS('text-transform', 'uppercase');
+    await expect(page.locator('.birth-card3__deal')).toHaveCSS('color', 'rgb(10, 10, 10)');
+    await page.screenshot({ path: '../artifacts/birth-card-identity.png' });
+    await page.getByRole('button', { name: /deal him in/i }).click();
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+  });
+  test('BUG-67: a long draft can be read from its first line and fills a wider phone', async ({ page }) => {
+    await openDraft(page, { width: 490, height: 590 });
+    const draft = page.getByTestId('draft-screen');
+    expect((await draft.boundingBox()).width).toBe(490);
+    for (let n = 0; n < 8; n++) {
+      await page.getByTestId('draft-input').fill(`Answer ${n}: Patient, but willing to bluff when there is a good reason.`);
+      await page.getByRole('button', { name: 'Send', exact: true }).click();
+      await expect(page.getByTestId('draft-input')).toBeEnabled();
+    }
+    const rows = page.getByTestId('draft-rows');
+    await rows.evaluate(el => { el.scrollTop = 0; });
+    const first = await rows.getByTestId('draft-row').first().boundingBox();
+    const bounds = await rows.boundingBox();
+    expect(first.y).toBeGreaterThanOrEqual(bounds.y - 1);
+    expect(first.y).toBeLessThan(bounds.y + bounds.height);
+    await page.screenshot({ path: '../artifacts/birth-long-490.png' });
+  });
   test.use({ viewport: PHONE });
 
   test('opens as a sheet over the room, and the door tag stays clear', async ({ page }) => {

@@ -158,4 +158,10 @@ describe('F-2: exactly one ghost on screen', () => {
     const wells = document.querySelectorAll('.birth-card3__well');
     expect(wells).toHaveLength(1);
   });
+
+  it('BUG-68: a born agent replaces the forming preview and recruiter sheet', async () => {
+    await reachCard();
+    expect(document.querySelectorAll('.mood-ghost')).toHaveLength(1);
+    expect(screen.queryByTestId('draft-sheet')).not.toBeInTheDocument();
+  });
 });

@@ -360,6 +360,7 @@ describe('the transcript: "be sporadic and chaotic" then "lets go"', () => {
       // ATTR-1/3: he is born a character, not just a profile.
       assert.ok(agent.nature?.name, 'he has a nature');
       assert.ok(agent.firstWords, 'he has something to say');
+      assert.ok(agent.identity?.hood && agent.identity?.glow, 'BUG-66: a birth persists both identity colors');
       assert.equal(agent.attrLog.length, 6, 'his log opens with six birth entries');
 
       const closing = second.body.chat.filter((m) => m.role === 'assistant').pop().content;

@@ -134,6 +134,13 @@ describe('BIRTH-4: the birth card renders the served face', () => {
     telegram.signIn();
   });
 
+  it('BUG-66: the birth card wears the identity the server assigned for life', async () => {
+    await reachCard({ ...BORN, identity: { hood: 'indigo', glow: 'ice' } });
+    const ghost = document.querySelector('.birth-card3__well .mood-ghost');
+    expect(ghost).toHaveAttribute('data-hood', 'indigo');
+    expect(ghost.querySelector('radialGradient stop')).toHaveAttribute('stop-color', '#7FA8C9');
+  });
+
   it('BIRTH-4: gives him the full 96px slot above his name', async () => {
     await reachCard();
 

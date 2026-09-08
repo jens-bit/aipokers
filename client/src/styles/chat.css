@@ -343,7 +343,7 @@
 }
 .birth-card3__sheet-note b { color: var(--sys-dim, #C3C3C6); font-weight: 600; }
 
-.birth-card3__deal {
+.birth-card3 .birth-card3__deal {
   width: 100%;
   height: 48px;
   min-height: 48px;

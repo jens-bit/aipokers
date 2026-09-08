@@ -57,6 +57,7 @@ import { SheetFold } from '../components/system/SheetFold.jsx';
 import { normalizeAttrs } from '../lib/attributes.js';
 import { fetchSlots, lockedSeatLine } from '../lib/slots.js';
 import { pillName } from '../lib/names.js';
+import { identityOf } from '../lib/identity.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { DraftSheet } from '../components/draft/DraftSheet.jsx';
 import { FormingGhost as StageGhost, DRAFT_STAGES, draftStage } from '../components/system/FormingGhost.jsx';
@@ -247,7 +248,7 @@ function hhmm(d = new Date()) {
 // Port of NatureRevealOccupant from char-birth.jsx. Order is the whole beat:
 // his line, then the ghost, then the name chip, then the nature chip last — the
 // chip is the label the room puts on him, so it cannot arrive before he does.
-function NatureReveal({ name, first, nature }) {
+function NatureReveal({ name, first, nature, identity, mood = 'neutral', heat = 45 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       {first && (
@@ -267,7 +268,7 @@ function NatureReveal({ name, first, nature }) {
           background: `radial-gradient(circle, ${M_TEAL}26, transparent 72%)`,
           animation: 'birth-fadein 0.8s ease-out both',
         }} />
-        <FormingGhost size={54} phase={0.72} />
+        <MoodGhost size={54} mood={mood} heat={heat} hood={identity?.hood} glow={identity?.glow?.c} ring={false} />
       </div>
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -298,7 +299,7 @@ function NatureReveal({ name, first, nature }) {
 // F-2 also gives the ghost a PLACE. The well sits half out of the sheet's top
 // edge and the card rises from it, so there is exactly one ghost on screen at
 // any moment rather than a reveal ghost being covered by a card ghost.
-function BirthCardSheet({ name, nature, firstWords, character, mood = 'neutral', heat = 45, onDealIn, first = true }) {
+function BirthCardSheet({ name, nature, firstWords, character, identity, mood = 'neutral', heat = 45, onDealIn, first = true }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -309,7 +310,7 @@ function BirthCardSheet({ name, nature, firstWords, character, mood = 'neutral',
           it; the sheet's top padding is what makes room. */}
       <div className="birth-card3__well-row">
         <div className="birth-card3__well">
-          <MoodGhost mood={mood} heat={heat} accent={M_TEAL} size={96} ring={false} />
+          <MoodGhost mood={mood} heat={heat} accent={M_TEAL} hood={identity?.hood} glow={identity?.glow?.c} size={96} ring={false} />
         </div>
       </div>
 
@@ -515,6 +516,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
     // firstWords live on the record, so the raw nature rides along too.
     setBorn({
       ...newborn,
+      identity: identityOf(record ?? newborn),
       // BIRTH-4: his face on the card is the served face. A newborn's mood is
       // whatever the server gave him a second ago — read, never invented here.
       mood: moodOf(record),
@@ -674,7 +676,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
                 display: 'flex', justifyContent: 'center',
                 transition: 'top 0.45s ease-out', pointerEvents: 'none',
               }}>
-                <NatureReveal name={born.name} first={born.first} nature={born.character.nature} />
+                <NatureReveal name={born.name} first={born.first} nature={born.character.nature} identity={born.identity} mood={born.mood} heat={born.heat} />
               </div>
             )}
             {beat === 'card' && (
@@ -685,6 +687,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
                 heat={born.heat}
                 firstWords={born.first}
                 character={born.character}
+                identity={born.identity}
                 first={firstAgent}
                 onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
               />
@@ -764,6 +767,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
           <div className="draft2__veil" />
 
           {/* him, forming over the table */}
+          {!born && <>
           <div className="draft2__forming">
             <StageGhost stage={stage} />
             <span className="draft2__cap" data-named={named ? 'true' : 'false'} data-testid="draft-cap">
@@ -838,6 +842,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
               </button>
             ) : null}
           />
+          </>}
         </div>
 
         {bornOverlay}

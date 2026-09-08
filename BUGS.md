@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-66 — birth, Home and solo views can draw different identities — FIXED on overnight branch
+The client claimed household colors in roster order but rolled solo views independently. The server now persists the same reference roll once at birth, and backfills existing households without changing the currently visible active roster. Public projection exposes two palette IDs only. Birth reveal/card use the stored identity. Shared pure palette/roll prevents server/client drift. Tests cover color collisions, retirement/reorder/new arrivals, public privacy and actual legacy SQLite migration across process restart. The birth card test failed on its missing hood, then passed. The forming preview still uses the reference's provisional palette before birth; no collar stage or undesigned inventory added.
+
+### BUG-67 — long drafts lose earlier messages and leave unused phone width — FIXED on overnight branch
+Browser regression measured 420px at a 490px viewport, then found the first message at y=-566 when scrolled to the top. The creation shell fills the phone; the draft uses safe bottom alignment plus scrolling to new replies, so old messages remain reachable. Verified at 490×590 and with the standard phone/desktop draft checks. The fixture now reports the actual Telegram viewport height instead of hardcoding 844 for every size.
+
+### BUG-68 — two ghosts remain on the birth card — FIXED on overnight branch
+The previous test counted one card well without counting the still-visible forming ghost behind it. The added regression counted two bodies. On birth the preview and recruiter sheet now stand down, leaving one revealed agent. The reference's uppercase dark action label also wins over the generic app button cascade.
+
 ### BUG-64 — the fridge cannot be restocked — FIXED on overnight branch
 The sheet only called /give despite the server supporting household stock. Ported board 29 F13: confirmed counts/prices, Buy 6 from the safe, unknown/error/retry states, and wallet refresh after purchase. Giving remains the want/Carry action. Tests failed before implementation on the missing stock controls; purchase, wallet refusal and failed GET now pass. Phone and desktop checks cover the new control; matched-stock reference pair inspected. Old GIVE expectations intentionally changed to the designed BUY 6 flow.
 

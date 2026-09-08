@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 4
+
+First-agent reliability: persistent hood/glow shared by server and client (BUG-66), readable long drafts at full phone width (BUG-67), one character when the card rises (BUG-68). Four forming stages and no collar remain the explicit founder override. Identity is cosmetic; no skill or money changes. No new item inventory is invented from the archived collar drawing.
+
+Birth card remains PARTIAL against board 23 C2: hierarchy/one body/first words/closed sheet/action are verified in `client/e2e/shots/overnight-batch4-birth-card.png`; actual uses Granite fixture and the prior BIRTH-4 96px face correction, reference uses Hothead and 64px. Current Home arrival/navigation supersedes the older casino/tab-bar surroundings. The latest archive's board29 draft is still the guiding draft reference, with the cancelled collar excluded. Phone/desktop draft browser checks pass; SQLite upgrade and restart preserve colors.
+
 ## Overnight design port — 2026-09-09, batch 3
 
 F13 fridge is ported with actual household stock and Buy 6 charged by the server to the safe. Reference/actual pair `client/e2e/shots/overnight-batch3-fridge-f13.png` uses matching 4 beers/2 snacks and $12/$8 prices; differing occupants/balance and the retained table are labelled. Small visible buy pills retain 44px touch targets. Manual GIVE rows were an earlier interaction, intentionally replaced by the stock shelf; want answers and Carry still give items.

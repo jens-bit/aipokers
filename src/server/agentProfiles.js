@@ -84,6 +84,8 @@ import {
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet } from './store.js';
+import { ensureRosterIdentities } from './identity.js';
+import { identityOf } from '../shared/identity.js';
 import { emitSessionEnd } from './sessions.js';
 import {
   readThread, latestSessionFor, appendLine as appendThreadLine,
@@ -144,6 +146,11 @@ function db() {
     } catch (err) {
       console.error('[agents] store load failed:', err.message);
       store = {};
+    }
+    // Preserve the current household colors once on upgrade. Save the record,
+    // so retirement, reordering and a process restart cannot reroll anybody.
+    for (const [userId, profile] of Object.entries(store)) {
+      if (ensureRosterIdentities(profile.agents ?? [])) saveProfile(userId, profile);
     }
   }
   return store;
@@ -207,7 +214,10 @@ export function reloadOwners(...ownerIds) {
     let fresh = null;
     try { fresh = loadProfileRow(id); }
     catch (err) { console.error(`[agents] reload of ${id} failed:`, err.message); continue; }
-    if (fresh) store[id] = fresh;
+    if (fresh) {
+      if (ensureRosterIdentities(fresh.agents ?? [])) saveProfile(id, fresh);
+      store[id] = fresh;
+    }
     else delete store[id];
   }
 }
@@ -630,6 +640,7 @@ function commitAgent(profile, existingAgentId, agentData) {
     saveWalletFor(profile.userId);
   }
   profile.agents.push(agent);
+  ensureRosterIdentities(profile.agents);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
               ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
   // VISIT-1 job 6: a birth is the one moment a guest owner FIRST has a
@@ -2010,6 +2021,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
     pocket: pocketProjection(agent.pocket),
+    // Public identity is just the two palette IDs, never arbitrary stored data.
+    identity: agent.identity ? { hood: identityOf(agent).hood.id, glow: identityOf(agent).glow.id } : null,
     // MOOD-2: heat rides with the state. The floor draws posture intensity from
     // it, the thread reads it for tone, and it is the only way two tilted
     // agents can look like different players.

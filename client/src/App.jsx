@@ -689,7 +689,7 @@ function AppShell({ guest }) {
     // Birth flow overlays all tabs — shown full-screen while creating a new agent.
     if (isCreating) {
       return (
-        <div className="app">
+        <div className="app app--room">
           <BirthScreen
             onBack={() => setIsCreating(false)}
             onBirth={(agent) => {
