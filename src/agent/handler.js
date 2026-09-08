@@ -46,6 +46,7 @@ import { formatOpponentRead } from './reads.js';
 import { perceiveEquity } from './attributes.js';
 import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js';
 import { moodBriefingHint } from './mood.js';
+import { estimateTokens } from './tokenEstimate.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -58,7 +59,11 @@ const DEFAULT_STRATEGY =
 // Build the system prompt (strategy + memory + output contract). Stays stable
 // per (strategy, memoryContext) so it benefits from prompt caching across
 // multiple hands until the memory next refreshes.
-function buildSystem(strategy, memoryContext = '') {
+//
+// Exported for COST-2: job 1's token measurement and job 2's determinism
+// harness both need to build the exact prompt without going anywhere near a
+// model.
+export function buildSystem(strategy, memoryContext = '') {
   return `${strategy || DEFAULT_STRATEGY}${memoryContext || ''}
 
 You are playing No-Limit Texas Hold'em poker.
@@ -117,7 +122,8 @@ export function perceivedMath(gs) {
 }
 
 // Build the per-turn user message describing the current game state.
-function buildUserPrompt(gs) {
+// Exported alongside buildSystem — see the note there.
+export function buildUserPrompt(gs) {
   const board = gs.community.length > 0 ? gs.community.join(' ') : 'none (preflop)';
   const actions = [];
   if (gs.canCheck) {
@@ -367,6 +373,31 @@ function parseDecision(text, gs) {
 // somebody wires back up in six months without reading this paragraph.
 
 
+// Reasoning string takes some tokens; keep it tight but not starved.
+const OUTPUT_TOKENS_CAP = 200;
+
+/**
+ * COST-2 job 1: the token shape of one call, without making it.
+ *
+ * `static` is the system prompt — strategy + memory + the output contract —
+ * stable per (strategy, memoryContext) until the memory next refreshes.
+ * `dynamic` is the per-hand briefing buildUserPrompt writes. Both are
+ * character-count estimates (see tokenEstimate.js); neither touches a model.
+ *
+ * Exported so a measurement script can walk a stack of game states and report
+ * a median without duplicating the two builders.
+ */
+export function estimateCallTokens(gameState, strategy, memoryContext = '') {
+  const system = buildSystem(strategy, memoryContext);
+  const userPrompt = buildUserPrompt(gameState);
+  return {
+    staticTokens: estimateTokens(system),
+    dynamicTokens: estimateTokens(userPrompt),
+    system,
+    userPrompt,
+  };
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 // gameState is built by Table._buildAiGameState(seat) and already validated.
 // memoryContext (optional) is the agent's persistent self-knowledge, formatted
@@ -379,6 +410,17 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
   const model = opts.model || MODEL;
   const provider = opts.provider || null;
 
+  // COST-2 job 1: built and measured BEFORE the configured check, on purpose —
+  // this is free (a string template, not a request), and it is what lets an
+  // offline replay with no key report real token numbers instead of skipping
+  // straight to the fallback.
+  const { staticTokens, dynamicTokens, system, userPrompt } =
+    estimateCallTokens(gameState, strategy, memoryContext);
+  console.log(
+    `[agent] tokens (est., chars/4) — ` +
+    `static:${staticTokens} dynamic:${dynamicTokens} maxOutput:${OUTPUT_TOKENS_CAP}`,
+  );
+
   if (!isConfigured(model, provider)) {
     console.error(`[agent] ${providerIdFor(model, provider)} not configured for ${model} — using safe fallback`);
     return {
@@ -387,9 +429,6 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
     };
   }
 
-  const system = buildSystem(strategy, memoryContext);
-  const userPrompt = buildUserPrompt(gameState);
-
   console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${model}...`);
   console.log(`[agent] system prompt (first 200): ${system.slice(0, 200).replace(/\s+/g, ' ')}`);
   try {
@@ -397,8 +436,7 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       model,
       provider,
       system,
-      // Reasoning string takes some tokens; keep it tight but not starved.
-      maxTokens: 200,
+      maxTokens: OUTPUT_TOKENS_CAP,
       messages: [{ role: 'user', content: userPrompt }],
       timeoutMs: 9000,
       transport: opts.transport ?? null,
@@ -411,7 +449,8 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
     const usd = costOf(res.usage, model, res.provider);
     console.log(
       `[agent] → ${JSON.stringify(action)}  ` +
-      `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)})`,
+      `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)}) ` +
+      `[est. static:${staticTokens} dynamic:${dynamicTokens}]`,
     );
     return { action, reasoning, say, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {
