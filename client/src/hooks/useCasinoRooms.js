@@ -40,6 +40,7 @@
 // felt frame.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { storedIdentity } from '../lib/identity.js';
 import { ClientMsg, ServerMsg } from '../lib/protocol.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 
@@ -128,6 +129,11 @@ export function roomForTable(rooms, tableId, map = null) {
   ) ?? null;
 }
 
+function seatIdentity(seat) {
+  const look = storedIdentity(seat);
+  return look ? { hood: look.hood.id, glow: look.glow.id } : null;
+}
+
 /**
  * Normalise the felts off ROOM_TABLES. Same law as normalizeRooms: a frame
  * that cannot be read is an empty floor, never a throw.
@@ -160,6 +166,7 @@ export function normalizeFelts(raw) {
         agentId: s?.agentId == null ? null : String(s.agentId),
         stack: Math.max(0, num(s?.stack)),
         accentColor: typeof s?.accentColor === 'string' ? s.accentColor : null,
+        identity: seatIdentity(s),
         mood: s?.mood ?? null,
         fatigue: s?.fatigue ?? null,
         drinking: !!s?.drinking,

@@ -1,5 +1,9 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 2026-09-09 — saved identity on every live table surface
+
+Agents retain their birth hood/glow in casino previews, deployment and live Watch, including opponents. Public table messages expose only the two validated palette IDs. Server, client, desktop, built smoke and Home2 checks passed; inspected reference pairs are recorded in DESIGN_GAP batch29.
+
 - Design completion batch 28: desktop casino Watch uses the shared animated felt in DkWatch's 900×648 canvas, compact room header and conversation column. Owned/public camera and card privacy remain intact; Home exits Watch, the floor return preserves its room, and tapping your agent focuses the compact whisper. Replay and phone Watch geometry remain unchanged. Unknown heat stays unknown. The welcome exporter follows the current rendered stage.
 
 - Design completion batch 27: queued casino stakes survive both phone and desktop WATCH requests (BUG-106), and newly arriving desktop agents open their birth card without the removed-setter crash (BUG-107). Red-first wire/runtime checks and full desktop flows cover both repairs. No layout or engine changes.

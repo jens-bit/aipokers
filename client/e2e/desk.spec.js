@@ -765,12 +765,12 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
   for(const owned of [false,true]) test(owned?'your casino table opens its owned conversation':'a public casino table opens without owner controls',async({page})=>{
     await desk(page,{width:1440,height:900});
     const tableId=owned?'t1':'tbl-public',roomId=owned?'upstairs':'floor';
-    const state={...midHandGame,tableId,seats:midHandGame.seats.map((s,i)=>({...s,displayName:i===2?'Big Slick':s.displayName,holeCards:owned&&i===2?['Ah','Kh']:[]}))};
+    const state={...midHandGame,tableId,seats:midHandGame.seats.map((s,i)=>({...s,displayName:i===2?'Big Slick':s.displayName,identity:{hood:['oxblood','moss','sand'][i],glow:['ice','violet','gold'][i]},holeCards:owned&&i===2?['Ah','Kh']:[]}))};
     await page.addInitScript(({state,owned,tableId,roomId})=>{
       const Base=window.WebSocket;window.__casinoWatchSent=[];
       window.WebSocket=class extends Base{
         send(raw){const msg=JSON.parse(raw);window.__casinoWatchSent.push(msg);super.send(raw);
-          if(msg.type==='floor_sub')setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'room_tables',tables:[{tableId,room:roomId,blinds:{small:25,big:50},pot:200,seats:[{name:'Big Slick',agentId:owned?'a3':null,stack:2000}],board:[]}],rooms:{[tableId]:roomId}})}),30);
+          if(msg.type==='floor_sub')setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'room_tables',tables:[{tableId,room:roomId,blinds:{small:25,big:50},pot:200,seats:[{name:'Big Slick',agentId:owned?'a3':null,stack:2000,identity:{hood:'sand',glow:'gold'}}],board:[]}],rooms:{[tableId]:roomId}})}),30);
           if(msg.type==='watch' && msg.tableId===tableId)setTimeout(()=>{
             this.dispatch('message',{data:JSON.stringify({type:'watching',spectatorSeat:owned?2:-1})});
             this.dispatch('message',{data:JSON.stringify({type:'state',state,legalActions:[]})});
@@ -782,6 +782,7 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     if(!owned){await page.getByRole('button',{name:'Board',exact:true}).click();await page.getByRole('button',{name:/^The floor,/}).click();}
     await expect(page.locator('.csn-felt58')).toHaveCount(1);
     await page.evaluate(()=>{window.__casinoWatchSent=[];});
+    await expect(page.locator('.csn-felt58 .csn-tiny')).toHaveAttribute('data-hood','sand');
     await page.locator('.csn-felt58').click();
     await expect(page.getByTestId('desk-casino-table')).toBeVisible();
     await expect.poll(()=>page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='watch'))).toBe(true);
@@ -792,7 +793,9 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect(page.locator('.watch-felt__pot-amt')).toHaveText('$100');
     await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity','1');
     await expect(page.locator('.watch-felt__board')).toHaveCSS('opacity','1');
-    await page.screenshot({path:'../artifacts/casino28-'+(owned?'owned':'public')+'.png'});
+    await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',owned?'sand':'oxblood');
+    await expect(page.locator('.watch-hero radialGradient stop').first()).toHaveAttribute('stop-color',owned?'#C9A227':'#7FA8C9');
+    await page.screenshot({path:'../artifacts/casino29-'+(owned?'owned':'public')+'.png'});
     await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);

@@ -1,6 +1,6 @@
 # Railbird — progress and handoff, 9 September 2026
 
-Twenty-eight implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
+Twenty-nine implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
 
 ## What is now implemented
 
@@ -11,6 +11,8 @@ Twenty-eight implementation batches are prepared. The full design/spec goal rema
 - The casino floor scales to its real space, including late live tables and short desktop windows. The welcome example now includes the full phone composer. The desktop Floor and Board now share one contextual header.
 - Board 41's chosen loading frame and favicon/install/touch/avatar exports are prepared from the shared mark. Avatar export does not mean a Telegram account was changed.
 - The long welcome page shares the actual guest entry and room, followed by the nine L2 explanatory sections. Current product captures replace the previous hand-drawn illustrations. Guest-off deployments show the existing sign-in path. Four section comparisons are in client/e2e/shots/design-batch22-*.png.
+
+Saved appearance now survives live table messages, casino normalization, floor/preview/tray and both Watch renderers (batch29). This includes opponents and preserves colours across moods/camera changes; historical replay metadata is unchanged.
 
 ## Verification
 

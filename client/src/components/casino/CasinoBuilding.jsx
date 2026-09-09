@@ -25,6 +25,7 @@
 // needs to be. The characters keep the full anatomy; the strangers get the
 // shape.
 
+import { identityOf } from '../../lib/identity.js';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { RosterButton } from '../Header.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
@@ -184,12 +185,13 @@ export function CrowdField({ n, h }) {
 // Yours, standing in the doorway at character scale (law 3). This is F3Body
 // from the ref: the full mood anatomy plus his pair, never the crowd ghost.
 function Doorman({ agent, index, pnl }) {
+  const look = identityOf(agent);
   const accent = accentFor(agent, index);
   const size = 36;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <div style={{ position: 'relative', width: size, height: size }}>
-        <MoodGhost
+        <MoodGhost hood={look.hood} glow={look.glow.c}
           mood={moodOf(agent)}
           heat={heatOf(agent)}
           accent={accent}
@@ -594,6 +596,7 @@ export function RoomDoors({ rooms = [], mineByRoom = {}, hotRooms = new Set(), o
  * A bare "Deploy someone" button threw away both facts.
  */
 export function DeployTray({ agent, index = 0, room, affordable, busy = false, onDeal, onFund }) {
+  const look = identityOf(agent);
   const pocket = pocketOf(agent);
   const balance = pocket?.balance ?? 0;
   const buyIn = room?.stakes?.buyIn ?? 0;
@@ -607,7 +610,7 @@ export function DeployTray({ agent, index = 0, room, affordable, busy = false, o
         borderTop: `1px solid ${M_TEAL}3D`, background: 'rgba(0,212,170,0.06)',
       }}
     >
-      <MoodGhost
+      <MoodGhost hood={look.hood} glow={look.glow.c}
         mood={moodOf(agent)}
         heat={heatOf(agent)}
         accent={accentFor(agent, index)}

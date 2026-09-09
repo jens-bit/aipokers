@@ -54,12 +54,12 @@ export function safeMood(mood) {
 // floor kept drawing the flat face months after the face system shipped. There
 // is one face function now; the body (scalloped wisp, bob, posture) is all this
 // component still owns.
-export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null }) {
+export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null }) {
   const uid = useId().replace(/:/g, '');
   const key = safeMood(mood);
   const m = MOODS[key];
   const p = POSTURE[key];
-  const eye = key === 'neutral' ? accent : m.color;
+  const eye = glow || (key === 'neutral' ? accent : m.color);
   const slump = key === 'sulking';
   const cy = slump ? 46 : 42;
 
@@ -70,7 +70,7 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
 
   return (
     <div
-      className="floor-ghost"
+      className="floor-ghost" data-hood={hood?.id || null}
       style={{
         width: size,
         height: size * 1.2,
@@ -81,21 +81,21 @@ export function FloorGhost({ mood = 'neutral', accent = M_TEAL, size = 56, speed
       <svg width={size} height={size * 1.2} viewBox="0 0 80 96" style={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <radialGradient id={`fa${uid}`} cx="50%" cy="50%" r="55%">
-            <stop offset="0" stopColor={m.color} stopOpacity={p.aura} />
-            <stop offset="1" stopColor={m.color} stopOpacity="0" />
+            <stop offset="0" stopColor={glow || m.color} stopOpacity={p.aura} />
+            <stop offset="1" stopColor={glow || m.color} stopOpacity="0" />
           </radialGradient>
           <linearGradient id={`fb${uid}`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#182030" />
-            <stop offset="0.7" stopColor="#0B1018" />
-            <stop offset="1" stopColor="#0B1018" stopOpacity="0.55" />
+            <stop offset="0" stopColor={hood?.top || "#182030"} />
+            <stop offset="0.7" stopColor={hood?.bot || "#0B1018"} />
+            <stop offset="1" stopColor={hood?.bot || "#0B1018"} stopOpacity="0.55" />
           </linearGradient>
         </defs>
         <ellipse cx="40" cy="46" rx="46" ry="44" fill={`url(#fa${uid})`} />
         {p.shimmer && (
           <ellipse className="floor-ghost__shimmer" cx="40" cy="46" rx="36" ry="40" fill="none"
-            stroke={M_RED} strokeWidth="1" opacity="0.35" />
+            stroke={glow || M_RED} strokeWidth="1" opacity="0.35" />
         )}
-        <path d={body} fill={`url(#fb${uid})`} stroke={`${accent}55`} strokeWidth="1.1" />
+        <path d={body} fill={`url(#fb${uid})`} stroke={`${glow || accent}55`} strokeWidth="1.1" />
         <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
         {ghostFace({ mood: key, heat, size, event, eye, cy })}
       </svg>

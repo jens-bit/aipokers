@@ -456,9 +456,17 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   expect(payload.tableId).toBeTruthy();await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   // An unmatched queue waits five seconds before the House takes its seat.
   await expect.poll(()=>received.some(m=>m.type==='state'&&m.state?.tableId===payload.tableId&&m.state.seats?.length>=2),{timeout:15000}).toBe(true);
+  const saved=(await roster(uid)).find(a=>a.id===agent.id).identity;
+  expect(saved).toBeTruthy();
+  await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',saved.hood);
+  const seat=received.findLast(m=>m.type==='watching')?.spectatorSeat;
+  expect(Number.isInteger(seat)&&seat>=0).toBe(true);
+  const state=received.findLast(m=>m.type==='state'&&m.state?.tableId===payload.tableId)?.state;
+  expect(state?.seats[seat]?.identity).toEqual(saved);
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await shot(page,'desktop-casino-deployed-watch');
   await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
   await expect(page.getByTestId('floor-view')).toBeVisible();
+  await expect(page.locator('.csn-felt58[data-table="'+payload.tableId+'"] .csn-tiny[data-mine="true"]')).toHaveAttribute('data-hood',saved.hood);
   const before=sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length;
   await page.locator('.csn-felt58[data-table="'+payload.tableId+'"] ').click();
   await expect(page.getByTestId('desk-casino-table')).toBeVisible();

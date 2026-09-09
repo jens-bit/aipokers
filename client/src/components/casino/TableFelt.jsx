@@ -27,6 +27,7 @@
 // felt payload does not carry another man's cards at all: the server never put
 // them on the wire. The law is enforced upstream and drawn honestly here.
 
+import { storedIdentity } from '../../lib/identity.js';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
 import { M_TEAL, M_GOLD } from '../floor/atoms.jsx';
@@ -100,6 +101,8 @@ export function TableFelt({
   const heroSeat = heroSeatOf(felt, agentId);
   const ring = ringOf(felt, heroSeat);
   const hero = heroSeat == null ? null : (felt.seats ?? []).find((s) => s.seat === heroSeat);
+  const heroLook = storedIdentity(hero);
+  accent = heroLook?.glow.c ?? accent;
   const board = (felt.board ?? []).slice(0, 5);
   const hole = Array.isArray(heroHole) ? heroHole.slice(0, 2) : [];
 
@@ -130,6 +133,7 @@ export function TableFelt({
           carrying the only ring on the felt */}
       {ring.map((seat, i) => {
         const place = MINI_RING[i] ?? MINI_RING[MINI_RING.length - 1];
+        const look = storedIdentity(seat);
         const toAct = felt.toAct === seat.seat;
         return (
           <div
@@ -144,7 +148,8 @@ export function TableFelt({
             <MoodGhost
               mood={moodStateOf(seat)}
               heat={heatOfSeat(seat)}
-              accent={seat.accentColor ?? '#888888'}
+              accent={look?.glow.c ?? seat.accentColor ?? '#888888'}
+              hood={look?.hood} glow={look?.glow.c}
               size={toAct ? ghost + px(4) : ghost}
               ring={false}
             />
@@ -211,14 +216,13 @@ export function TableFelt({
             {/* HE CARRIES THE RIM, and he is the only one on the felt who
                 does. A dark hood on a dark felt with his own cards over his
                 face is a shape you cannot find — and finding him is the whole
-                job of this picture. The ref gives him a coloured hood from his
-                birth identity; this client says the same thing with the accent
-                rim it uses for identity everywhere else, and his name pill
-                above is already carrying that colour. */}
+                job of this picture. His saved birth hood and glow stay the same
+                here as in Home and Watch. */}
             <MoodGhost
               mood={moodStateOf(hero)}
               heat={heatOfSeat(hero)}
               accent={accent}
+              hood={heroLook?.hood} glow={heroLook?.glow.c}
               size={heroGhost}
               hands="hold"
             />

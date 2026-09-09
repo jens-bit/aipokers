@@ -1697,6 +1697,15 @@ export function getAgentProfile(agentId, userId) {
   return agent.profile;
 }
 
+// Appearance is public; never forward arbitrary fields from stored identity.
+export function getAgentIdentity(agentId, userId) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find(a => a.id === agentId);
+  if (!agent?.identity) return null;
+  const look = identityOf(agent);
+  return { hood: look.hood.id, glow: look.glow.id };
+}
+
 // SERVER-3: the agent's pocket, backfilled. table.js reads it for one
 // question only — when a seat busts, was there anything behind him? — which
 // is what separates a SESSION_END reason of 'bust' from one of 'allowance'.

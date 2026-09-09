@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
+import { storedIdentity } from '../lib/identity.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { ChipStack, BetSpot, PotChip, potBand, stackBand, SEAT_PILE_CHIPS } from './system/Chips.jsx';
 import { Bottle, isDrinking } from './system/FeltBodyBars.jsx';
@@ -680,6 +681,7 @@ export function WatchFelt({
   var heroSeat  = Number.isInteger(mySeat) ? mySeat : 0;
   var seatCount = Math.max((game && game.seats) ? game.seats.length : 2, 2);
   var heroData  = game && game.seats ? game.seats[heroSeat] : null;
+  var heroIdentity = storedIdentity({identity:heroData?.identity});
 
   var heroHole  = (heroData && heroData.holeCards)
     ? heroData.holeCards.map(pc).filter(Boolean)
@@ -774,6 +776,7 @@ export function WatchFelt({
     var contrib = (s.contribThisStreet || 0);
     opponentSeats.push({
       seat: si,
+      identity: s.identity ?? null,
       accent: s.accentColor || '#00D4AA',
       mood: moodStateOf(s),
       heat: moodHeatOf(s),
@@ -918,6 +921,7 @@ export function WatchFelt({
                 no room to bank a pile, so there the pill still carries it. */}
             <SeatGhost
               name={o.name}
+              identity={o.identity}
               stack={geom ? potMoney(o.stack) : null}
               accent={o.accent}
               mood={o.mood}
@@ -1158,7 +1162,9 @@ export function WatchFelt({
         <WatchHero
           says={heroSays}
           mood={agentMood || 'neutral'}
-          accent={agentAccent || '#00D4AA'}
+          hood={heroIdentity?.hood}
+          glow={heroIdentity?.glow.c}
+          accent={heroIdentity?.glow.c || agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : null}
           event={heroFace}
           fatigue={heroFatigue}

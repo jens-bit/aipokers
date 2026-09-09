@@ -1,5 +1,13 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 29
+
+BUG-111: saved hood/glow now follows each real agent through live STATE, owner liveGameView, public feltView, casino normalization, floor bodies, preview tables, deployment tray, and shared phone/desktop Watch. Only validated palette IDs leave the server. Mood and camera seat changes keep appearance; unknown anonymous seats retain their existing fallback. Historical replay has no new invented identity metadata.
+
+Red checks reproduced absent live identity and all three casino renderers dropping it. The browser then caught normalizeFelts discarding the new field; corrected without weakening its floor assertion. The live smoke wire check was corrected to use the server's spectatorSeat (STATE intentionally does not carry agentId). Final test:all passed 106 server / 2219 client / 7 e2e. Build passed, with the existing >500KB bundle warning. All 38 desktop checks passed; the earlier four layout/BUG-55 checks also passed. Fresh built server artifacts/smoke-batch29-verified passed seven smoke journeys (51.4s) and 20 Home2 checks (19.4s). The first Home2 invocation mistakenly used an unsupported base-URL variable and failed against idle port 8765; the corrected run used SMOKE_BASE_URL=18886.
+
+Reference/actual pairs client/e2e/shots/design-batch29-{owned,public}.png were inspected. Geometry is unchanged from batch28; actual saved identities and served hands differ from authored illustrations. Current roster supersedes the reference's older floor strip, and public Watch has no distinct authored frame. Main28's post-integration test:all had already passed. Batch29 main integration follows; no push or account change is made. The full design/spec goal stays open.
+
 ## Design completion — 2026-09-09, batch 28
 
 DkWatchScreenM now uses shared WatchFelt in its 900×648 desktop canvas, with a contextual 54px header and permanent conversation. It fits width and height, keeps the server-assigned camera, private/public card boundaries, real stack/equity/condition and the current reasoning bubble. Ghost tap focuses the owned whisper; public viewing labels its available read action and has no private agent hook/composer/sit-out. Back home sends Leave; Back to the floor retains the selected casino room. The later 250px roster supersedes the older 190px miniature floor strip in this reference. The input is 16px for touch accessibility, and current labelled condition tracks remain. Phone Watch geometry is unchanged; an absent heat measurement no longer becomes an invented 45% inside shared WatchFelt. Replay keeps its existing renderer.

@@ -35,7 +35,7 @@
 // felts go. `floorPlan` derives that, and reproduces the ref's own six exactly
 // — the jitter tables below are its coordinates, read back out.
 
-import { HOODS, GLOWS } from '../../lib/identity.js';
+import { HOODS, GLOWS, storedIdentity } from '../../lib/identity.js';
 import { M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { pillName } from '../../lib/names.js';
 
@@ -86,19 +86,17 @@ export function floorPlan(n) {
 /**
  * A body at floor scale: a hood and two eyes, and nothing else.
  *
- * The hood and glow are picked from the index rather than from an identity
- * roll, exactly as the ref does — these are strangers, and what matters is
- * that a room of them reads as a crowd of individuals rather than as one
- * repeated shape. Yours overrides both, because yours is the one you are
- * looking for.
+ * Saved seat identities take precedence. Anonymous scenery keeps the reference
+ * index palette; the teal ownership rim remains independent of eye colour.
  */
-export function TinyGhost({ i = 0, mine = false, hot = false, size = 14 }) {
-  const hood = HOODS[((i * 5 + 1) % 6 + 6) % 6];
-  const glow = GLOWS[((i * 3) % 6 + 6) % 6];
+export function TinyGhost({ i = 0, mine = false, hot = false, size = 14, identity = null }) {
+  const look = storedIdentity({ identity });
+  const hood = look?.hood ?? HOODS[((i * 5 + 1) % 6 + 6) % 6];
+  const glow = look?.glow ?? GLOWS[((i * 3) % 6 + 6) % 6];
   return (
     <svg
       width={size} height={size} viewBox="0 0 80 80" aria-hidden
-      className="csn-tiny"
+      className="csn-tiny" data-hood={look?.hood.id}
       data-mine={mine ? 'true' : undefined}
       style={{ display: 'block', animation: `casino-bob ${4 + (i % 3)}s ease-in-out ${(i % 5) * 0.4}s infinite` }}
     >
@@ -110,8 +108,8 @@ export function TinyGhost({ i = 0, mine = false, hot = false, size = 14 }) {
       />
       {/* the eyes narrow when the table is hot — the one expression a 14px
           body has room for */}
-      <ellipse cx="29" cy="40" rx="6" ry={hot ? 4 : 7} fill={mine ? M_TEAL : glow.c} />
-      <ellipse cx="51" cy="40" rx="6" ry={hot ? 4 : 7} fill={mine ? M_TEAL : glow.c} />
+      <ellipse cx="29" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? M_TEAL : glow.c)} />
+      <ellipse cx="51" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? M_TEAL : glow.c)} />
     </svg>
   );
 }
@@ -168,7 +166,7 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
             className="csn-felt58__seat"
             style={{ left: `${50 + Math.cos(th) * 52}%`, top: `${50 + Math.sin(th) * 56}%` }}
           >
-            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} />
+            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} identity={felt.seats?.[i]?.identity} />
           </span>
         );
       })}

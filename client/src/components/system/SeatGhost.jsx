@@ -34,6 +34,7 @@ import { PlayingCard, CardBack } from './PlayingCard.jsx';
 import { SeatClock } from './SeatClock.jsx';
 import { GhostHandLayer, SEAT_GRIP } from './GhostHands.jsx';
 import { BodyBars, Bottle } from './FeltBodyBars.jsx';
+import { storedIdentity } from '../../lib/identity.js';
 import { pillName } from '../../lib/names.js';
 
 // WATCH-10 job 1 · DENSITY. "A panel is a picture, not a paragraph" is the
@@ -90,6 +91,7 @@ export function SeatGhost({
   // the replay theatre's boxed felt (`geom`) has no room to bank chips, and a
   // seat with neither chips nor a figure would say nothing about his money at
   // all. Where there are chips, the chips answer.
+  identity = null,
   name, stack = null, accent = '#00D4AA', mood = 'neutral', heat = 45, event = null,
   folded, acting, selected,
   dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
@@ -102,6 +104,8 @@ export function SeatGhost({
   size = SEAT_BODY, side = false, order = 0, onSelect,
 }) {
   const m = safeMood(mood);
+  const look = storedIdentity({identity});
+  accent = look?.glow.c || accent;
   const showing = !!(reveal && show && show.length && !folded);
   // W5-2: mid-throw. The backs stay mounted so there is something to throw, and
   // the dim of the folded state waits until they have landed — a seat that
@@ -133,7 +137,7 @@ export function SeatGhost({
 
         <span className="seat-ghost__ghost">
           {/* A tilted opponent bobs faster. It is the only tell the posture gives. */}
-          <FloorGhost mood={m} heat={heat} accent={accent} event={event}
+          <FloorGhost hood={look?.hood} glow={look?.glow.c} mood={m} heat={heat} accent={accent} event={event}
             size={size} speed={m === 'tilted' ? 3.2 : 5.6} />
         </span>
 

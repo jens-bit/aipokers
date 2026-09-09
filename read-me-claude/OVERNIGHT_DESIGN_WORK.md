@@ -189,3 +189,11 @@ Fresh built server artifacts/smoke-batch28-final passed seven smoke checks (58.6
 Main integration, final fetch and check follow this commit. No push or external account change has been made.
 
 Final public/owned capture checks passed from the client working directory (batch28-pairs-client-final.log). Earlier root-launched focused runs wrote their relative screenshots under C:/Projects/artifacts, so the pair was initially reading an older repo artifact; the timestamps exposed that mismatch. The final pair uses the refreshed repo capture and its fully visible board, and was inspected again. Both new pairs are now the final evidence.
+
+## Design completion — 2026-09-09, batch 29
+
+BUG-111: saved hood/glow now follows each real agent through live STATE, owner liveGameView, public feltView, casino normalization, floor bodies, preview tables, deployment tray, and shared phone/desktop Watch. Only validated palette IDs leave the server. Mood and camera seat changes keep appearance; unknown anonymous seats retain their existing fallback. Historical replay has no new invented identity metadata.
+
+Red checks reproduced absent live identity and all three casino renderers dropping it. The browser then caught normalizeFelts discarding the new field; corrected without weakening its floor assertion. The live smoke wire check was corrected to use the server's spectatorSeat (STATE intentionally does not carry agentId). Final test:all passed 106 server / 2219 client / 7 e2e. Build passed, with the existing >500KB bundle warning. All 38 desktop checks passed; the earlier four layout/BUG-55 checks also passed. Fresh built server artifacts/smoke-batch29-verified passed seven smoke journeys (51.4s) and 20 Home2 checks (19.4s). The first Home2 invocation mistakenly used an unsupported base-URL variable and failed against idle port 8765; the corrected run used SMOKE_BASE_URL=18886.
+
+Reference/actual pairs client/e2e/shots/design-batch29-{owned,public}.png were inspected. Geometry is unchanged from batch28; actual saved identities and served hands differ from authored illustrations. Current roster supersedes the reference's older floor strip, and public Watch has no distinct authored frame. Main28's post-integration test:all had already passed. Batch29 main integration follows; no push or account change is made. The full design/spec goal stays open.

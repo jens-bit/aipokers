@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-111 — saved appearance disappears between Home and live tables — FIXED on design branch
+Live STATE/liveGame/felt omitted hood/glow; Watch and casino ghosts ignored it, and normalizeFelts discarded it. Validated two-ID projections now reach every live renderer. Mood/camera/occupant changes preserve the right identity; private stored metadata and cards remain excluded. Red server, component and browser checks reproduced the break; final 106/2219/7 gate, 38 desktop, 7 built smoke and 20 Home2 checks passed. Reference pairs design-batch29-owned/public were inspected.
+
 ### BUG-108 — desktop Watch retains the old full-height canvas and Home cannot exit it — FIXED on design branch
 The red browser check measured width/height 0.955 instead of the DkWatch reference's 900/648. DeskCasinoTable now uses shared WatchFelt in a canvas that fits both axes; owned/public modes keep their actual server camera and served cards. The contextual 54px header replaces the old stage tabs, and Back home clears Watch and sends Leave. The current conversation rail retains stored/live speech and whispers; legacy analysis placeholders are not shown in this newer frame. Browser checks cover two wide sizes plus a 1280×600 resize, phone-like face/card presentation, exact owned/public rights, focus through the ghost, retained casino room and actual deployment. Replay retains its existing separate renderer.
 

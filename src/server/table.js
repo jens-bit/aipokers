@@ -8,6 +8,7 @@ import {
   getMemoryContext,
   updateComputedMemory,
   getAgentMood,
+  getAgentIdentity,
   setAgentMood,
   getAgentAttributes,
   noteAgentFatigue,
@@ -1449,6 +1450,11 @@ export class Table {
     return free;
   }
 
+  _seatIdentity(seat) {
+    const agentId = this.agentIds[seat];
+    return agentId ? getAgentIdentity(agentId, this.agentUserIds[seat]) : null;
+  }
+
   // SEAT-1a: the posture a seat is holding, for the felt.
   //
   // W4-2's law is "seats as characters": an opponent is somebody sitting there,
@@ -1969,6 +1975,7 @@ export class Table {
         accentColor: this.seatAccentColors[i] ?? null,
         // SEAT-1a: { state, heat } — see _seatMood.
         mood:        this._seatMood(i),
+        identity:    this._seatIdentity(i),
         // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
         fatigue:     this._seatFatigue(i),
         // FRIDGE-1: the bottle beside him, for this session only.
@@ -2041,6 +2048,7 @@ export class Table {
           stack: dealtIn ? (g.seats[i]?.stack ?? 0) : (p.buyIn ?? 0),
           accentColor: this.seatAccentColors[i] ?? null,
           mood: this._seatMood(i),
+          identity: this._seatIdentity(i),
           fatigue: this._seatFatigue(i),
           drinking: !!this.seatDrinking[i],
           // Cards in his hands, drawn as backs. Never the cards themselves.
@@ -3555,6 +3563,7 @@ export class Table {
       // on liveGameView, because WatchScreen builds its seat ring from STATE —
       // a mood that only rode the poll would never reach a SeatGhost.
       mood: this._seatMood(i),
+      identity: this._seatIdentity(i),
       // WATCH-8: and how worn he is, for the second of the two body bars.
       fatigue: this._seatFatigue(i),
       // FRIDGE-1: he had a beer before this one. Public, like the posture is —
