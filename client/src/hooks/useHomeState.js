@@ -51,6 +51,9 @@ export function useHomeState({
 } = {}) {
   const [agents, setAgents] = useState([]);
   const [game, setGame] = useState(null);
+  // REST answers the roster only. A table is unknown until HOME_STATE answers
+  // with a game or an explicit null; reconnects retain that last answer.
+  const [gameKnown, setGameKnown] = useState(false);
   const [ownerLines, setOwnerLines] = useState([]);
   const ownerLineRef = useRef(onOwnerLine);
   ownerLineRef.current = onOwnerLine;
@@ -175,7 +178,10 @@ export function useHomeState({
           pushRef.current = new Map(msg.agents.map((a) => [String(a.id), a]));
           setAgents((prev) => mergeHome(prev, msg.agents));
         }
-        setGame(msg.game ?? null);
+        if (msg.game === null || (msg.game && typeof msg.game === 'object' && !Array.isArray(msg.game))) {
+          setGame(msg.game);
+          setGameKnown(true);
+        }
         setVisitor(msg.visitor ?? null);
         return;
       }
@@ -258,6 +264,7 @@ export function useHomeState({
   return {
     ...homeViewFrom(agents, game),
     loaded,
+    gameKnown,
     status, refresh, setAgents, clearWant,
     arrival, clearArrival,
     visitor,
