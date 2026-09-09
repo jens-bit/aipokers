@@ -271,6 +271,13 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
 
       await expect(page.getByTestId('home-frame-a3')).toBeVisible();
       await expect(page.locator('.home-flat')).toHaveCount(1);
+      const flat = await page.locator('.home-flat').boundingBox();
+      const stage = await page.locator('.home1__room').boundingBox();
+      expect(flat.width / flat.height, 'C9: wider desktop floor, uniformly scaled').toBeCloseTo(560 / 700, 2);
+      expect(flat.x).toBeGreaterThanOrEqual(stage.x + 29);
+      expect(flat.x + flat.width).toBeLessThanOrEqual(stage.x + stage.width - 29);
+      expect(flat.y).toBeGreaterThanOrEqual(stage.y + 46);
+      expect(flat.y + flat.height).toBeLessThanOrEqual(stage.y + stage.height - 46);
       // No 68px strip anywhere — DESK-2's collapsed form is gone, not hiding.
       await expect(page.locator('.dsk-strip')).toHaveCount(0);
       await shot(page, `home${size.tag}`);
@@ -397,8 +404,9 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
   test('BUG-82: hover labels do not move fixtures out of their room coordinates',async({page})=>{
     await desk(page,SIZES[0]);
     const flat=await page.locator('.home-flat').boundingBox();
-    const k=flat.width/390;
-    for(const [selector,x,y] of [['.home-flat__safe',16,94],['.home-flat__fridge',250,94],['.home-flat__tv',260,486],['.home-flat__door',356,152]]) {
+    const k=flat.width/560;
+    // C9's DkFlat coordinates supersede the earlier enlarged phone room.
+    for(const [selector,x,y] of [['.home-flat__safe',24,96],['.home-flat__fridge',452,130],['.home-flat__tv',210,604],['.home-flat__door',518,288]]) {
       const fixture=page.locator(selector);
       await expect(fixture).toHaveCSS('position','absolute');
       const box=await fixture.boundingBox();

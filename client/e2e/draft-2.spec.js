@@ -246,6 +246,12 @@ test.describe('DRAFT-2 · the draft in the rail at 1440×900', () => {
     await expect(page.getByTestId('draft-sheet')).toBeVisible();
     await expect(page.getByTestId('home-rail')).toHaveAttribute('data-panel', 'draft');
     await expectDoorTagClear(page);
+    await expect(page.locator('.home1__scale [data-testid="draft-forming"]')).toHaveCount(1);
+    await expect(page.locator('.home1__rail [data-testid="draft-forming"]')).toHaveCount(0);
+    const forming = await page.locator('.draft2__forming--in-room').boundingBox();
+    const table = await page.getByTestId('home-table').boundingBox();
+    expect(forming.y + forming.height).toBeLessThanOrEqual(table.y + 4);
+    expect(Math.abs(forming.x + forming.width / 2 - table.x - table.width / 2)).toBeLessThan(2);
     await page.screenshot({ path: 'e2e/__screenshots__/draft-2-desk-empty.png' });
   });
 });

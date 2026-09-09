@@ -1,6 +1,10 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-94 — Windows test child exits without a JavaScript assertion — OPEN, not reproduced in isolation
+During recovery of the interrupted overnight gate, src/server/share.test.js exited 3221226505 after about 540ms with no child output. The same suite immediately passed alone through runScript with isolateCwd:true. An earlier client verification ended with Tinypool onUnexpectedExit around 04:56; its companion browser run stopped mid-suite. No matching verifier processes remained when inspected at 08:53. Cause is unproven; do not label this a product assertion failure or claim continuous overnight execution. Evidence: artifacts/batch17-recovered-test-all.log and batch17-share-isolated.log; the complete recovered gate is recorded separately. No test is skipped or weakened for this failure.
+
+
 ### BUG-92 — draft repeats the casino sign and covers its destination — FIXED on overnight branch
 BirthScreen retained an older horizontal THE CASINO tag after HomeFlat acquired its vertical CASINO sign. The unit regression reproduced the duplicate. The draft now uses the one vertical sign and the reference's empty chair. Wave 61's half-height glass replaces the older fixed 206px edge, with a width-dependent minimum that keeps the whole sign above the glass in a wide, short Telegram window. At keyboard-sized heights the forming preview yields space to the conversation. Actual browser boxes verify clearance at 390 and 490 widths; the old jsdom parseFloat(top) assertion intentionally becomes the responsive rule because max()/container units cannot resolve to pixels there.
 

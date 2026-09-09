@@ -26,7 +26,7 @@
 // and it is why the boxes below are checked in order of area: the pads make
 // neighbours overlap even though the fixtures themselves do not (flat.test).
 
-import { FLAT, TV_SCREEN, F_W, F_H } from './flat.js';
+import { FLAT, TV_SCREEN, PHONE_ROOM } from './flat.js';
 
 /** How long a press has to hold before he comes off the floor. */
 export const LONG_PRESS_MS = 420;
@@ -77,9 +77,12 @@ function inTable(x, y, t = FLAT.table) {
  * dropping him on the floor puts him back down where he was rather than doing
  * something almost-right.
  */
-export function fixtureAt(x, y) {
+export function fixtureAt(x, y, geometry = PHONE_ROOM) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  for (const target of DROP_TARGETS) {
+  const targets = geometry === PHONE_ROOM ? DROP_TARGETS : DROP_TARGETS.map(target => target.ellipse
+    ? { ...target, ellipse: geometry.flat.table }
+    : { ...target, box: target.fixture === 'tv' ? geometry.tvScreen : geometry.flat[target.fixture] });
+  for (const target of targets) {
     if (target.ellipse) {
       if (inTable(x, y, target.ellipse)) return target.fixture;
       continue;
@@ -105,9 +108,9 @@ export function verbFor(fixture) {
  * recomputed from the viewport: one source of the truth, and it survives a
  * rail opening beside the room.
  */
-export function toRoom(rect, clientX, clientY) {
+export function toRoom(rect, clientX, clientY, geometry = PHONE_ROOM) {
   if (!rect || !(rect.width > 0)) return null;
-  const scale = rect.width / F_W;
+  const scale = rect.width / geometry.width;
   return {
     x: (clientX - rect.left) / scale,
     y: (clientY - rect.top) / scale,
@@ -115,11 +118,11 @@ export function toRoom(rect, clientX, clientY) {
 }
 
 /** Keep a carried body inside the room, so he cannot be dragged off the edge. */
-export function clampToRoom(x, y, size = 46) {
+export function clampToRoom(x, y, size = 46, geometry = PHONE_ROOM) {
   const half = size / 2;
   return {
-    x: Math.max(half, Math.min(F_W - half, x)),
-    y: Math.max(size, Math.min(F_H, y)),
+    x: Math.max(half, Math.min(geometry.width - half, x)),
+    y: Math.max(size, Math.min(geometry.height, y)),
   };
 }
 

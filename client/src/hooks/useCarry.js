@@ -28,13 +28,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { LONG_PRESS_MS, PRESS_SLOP, clampToRoom, fixtureAt, toRoom } from '../components/home/carry.js';
+import { PHONE_ROOM } from '../components/home/flat.js';
 
 /**
  * @param roomEl   the `.home-flat` element, for the scale and the origin
  * @param onDrop   (agentId, fixture | null) — called once per completed carry
  * @param enabled  off on the desk, and off while a sheet is up
  */
-export function useCarry({ roomEl, onDrop, enabled = true }) {
+export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM }) {
   // { id, x, y, over } — where he is in room coordinates and what is under him.
   const [carry, setCarry] = useState(null);
   const pressRef = useRef(null);
@@ -63,7 +64,7 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
     const press = pressRef.current;
     if (!press) return;
     const rect = roomEl?.getBoundingClientRect?.();
-    const at = toRoom(rect, clientX, clientY);
+    const at = toRoom(rect, clientX, clientY, geometry);
     if (!at) return;
 
     if (!press.lifted) {
@@ -74,9 +75,9 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
       return;
     }
 
-    const held = clampToRoom(at.x, at.y, press.size);
-    setCarry({ id: press.id, x: held.x, y: held.y, over: fixtureAt(held.x, held.y) });
-  }, [roomEl, clear]);
+    const held = clampToRoom(at.x, at.y, press.size, geometry);
+    setCarry({ id: press.id, x: held.x, y: held.y, over: fixtureAt(held.x, held.y, geometry) });
+  }, [roomEl, clear, geometry]);
 
   const end = useCallback(() => {
     const press = pressRef.current;
@@ -130,10 +131,10 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
     if (!enabled || !roomEl) return false;
     clear();
     const id = String(agentId);
-    pressRef.current = { id, size: 46, lifted: true, picked: true, awaitPress: true };
+    pressRef.current = { id, size: geometry.bodySize, lifted: true, picked: true, awaitPress: true };
     setCarry({ id, x: at.x, y: at.y, over: null });
     return true;
-  }, [enabled, roomEl, clear]);
+  }, [enabled, roomEl, clear, geometry]);
 
   /** The handlers one body wears. */
   const bind = useCallback((agentId, { size = 46 } = {}) => {
@@ -151,9 +152,9 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
           press.lifted = true;
           liftedRef.current = true;
           const rect = roomEl?.getBoundingClientRect?.();
-          const at = toRoom(rect, press.clientX, press.clientY);
-          const held = at ? clampToRoom(at.x, at.y, size) : { x: 0, y: 0 };
-          setCarry({ id, x: held.x, y: held.y, over: at ? fixtureAt(held.x, held.y) : null });
+          const at = toRoom(rect, press.clientX, press.clientY, geometry);
+          const held = at ? clampToRoom(at.x, at.y, size, geometry) : { x: 0, y: 0 };
+          setCarry({ id, x: held.x, y: held.y, over: at ? fixtureAt(held.x, held.y, geometry) : null });
         }, LONG_PRESS_MS);
         pressRef.current = press;
       },
@@ -168,7 +169,7 @@ export function useCarry({ roomEl, onDrop, enabled = true }) {
         e.stopPropagation();
       },
     };
-  }, [enabled, roomEl, move, end]);
+  }, [enabled, roomEl, move, end, geometry]);
 
   return { carry, bind, pick, cancel: clear };
 }

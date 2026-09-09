@@ -20,7 +20,7 @@
 // so, because a fake felt is worse than an honest empty one.
 
 import { useEffect, useRef, useState } from 'react';
-import { FLAT } from './flat.js';
+import { PHONE_ROOM } from './flat.js';
 import { MiniFelt } from './MiniFelt.jsx';
 import { useOnScreen, useThrottled } from '../../hooks/useThrottledFrame.js';
 import { money, signedMoney } from '../../lib/wallet.js';
@@ -98,7 +98,8 @@ export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, no
  * the ref's own device, and the only "you could have more" this screen makes.
  * It is a hook on a wall, not a price.
  */
-export function AwayWall({ away = [], accentFor, hooks = 0, onWatch, onOpenAgent }) {
+export function AwayWall({ away = [], accentFor, hooks = 0, onWatch, onOpenAgent, geometry = PHONE_ROOM }) {
+  const FLAT = geometry.flat;
   // Re-render once a minute so the "41 min" on the plate is not frozen at the
   // value it had when the last push happened.
   const [now, setNow] = useState(() => Date.now());
@@ -107,7 +108,7 @@ export function AwayWall({ away = [], accentFor, hooks = 0, onWatch, onOpenAgent
     return () => clearInterval(t);
   }, []);
 
-  const width = away.length > 3 ? 86 : away.length > 2 ? 112 : 132;
+  const width = geometry.width === 560 ? 76 : away.length > 3 ? 86 : away.length > 2 ? 112 : 132;
   return (
     <div
       className="home-wall"

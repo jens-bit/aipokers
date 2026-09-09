@@ -27,7 +27,7 @@
 //      because a fixture panel is a decision and an unanswered ask on top of
 //      one is two questions at once.
 
-import { useCallback, useState } from 'react';
+import { cloneElement, useCallback, useState } from 'react';
 import { SafeSheet } from '../wallet/SafeSheet.jsx';
 import { FridgeSheet } from '../home/FridgeSheet.jsx';
 import { RoomThread } from '../home/RoomThread.jsx';
@@ -103,11 +103,11 @@ export function DeskHome({
       onPanel={onPanel}
       focusId={focusId}
       onFocusId={onFocusId}
-      renderRail={({ panel: open, openPanel, setFocus, agents, home, game: homeGame, focus, toast, refresh, carryAgent }) => {
+      renderRail={({ panel: open, openPanel, setFocus, agents, home, game: homeGame, focus, toast, refresh, carryAgent, roomTarget }) => {
         const backToRoom = () => openPanel('thread');
 
         if (open === 'draft' && draft) {
-          return <div className="dsk-panel dsk-panel--home draft2--desk">{draft}</div>;
+          return <div className="dsk-panel dsk-panel--home draft2--desk">{cloneElement(draft, { formingTarget: roomTarget })}</div>;
         }
 
         if (open === 'safe') {

@@ -74,8 +74,9 @@ export const TABLE_SEATS = {
   4: [{ x: 208, y: 356 }, { x: 104, y: 276 }, { x: 208, y: 238 }, { x: 312, y: 276 }],
 };
 
-export function tableSeats(n) {
-  return TABLE_SEATS[Math.min(4, Math.max(2, n | 0))] || TABLE_SEATS[2];
+export function tableSeats(n, geometry = null) {
+  const seats = geometry?.seats ?? TABLE_SEATS;
+  return seats[Math.min(4, Math.max(2, n | 0))] || seats[2];
 }
 
 // ── Where a routine happens ─────────────────────────────────────────────────
@@ -130,10 +131,13 @@ const ROUTINE_SPOT = {
  *          coordinate pair that happens to be equal is not the same statement as
  *          "he is still on the couch".
  */
-export function homePositions(agents = [], { gameAgentIds = [] } = {}) {
+export function homePositions(agents = [], { gameAgentIds = [], geometry = null } = {}) {
+  const door = geometry?.doorSpot ?? DOOR_SPOT;
+  const routines = geometry?.routines ?? ROUTINE_SPOT;
+  const floorSpots = geometry?.floorSpots ?? FLOOR_SPOTS;
   const out = new Map();
   const seated = gameAgentIds.filter(Boolean).map(String);
-  const seats = tableSeats(seated.length);
+  const seats = tableSeats(seated.length, geometry);
   seated.forEach((id, i) => {
     const at = seats[i] ?? seats[seats.length - 1];
     out.set(id, { x: at.x, y: at.y, spot: `table:${i}`, seat: i });
@@ -147,16 +151,16 @@ export function homePositions(agents = [], { gameAgentIds = [] } = {}) {
     // He still gets a position, at the door, because that is where he walks from
     // when he comes back and where he walks to when he is sent.
     if (agent?.location?.where && agent.location.where !== 'home') {
-      out.set(id, { x: DOOR_SPOT.x, y: DOOR_SPOT.y, spot: 'door:away', seat: null });
+      out.set(id, { x: door.x, y: door.y, spot: 'door:away', seat: null });
       continue;
     }
     const key = agent?.routine?.key ?? null;
-    const place = ROUTINE_SPOT[key];
+    const place = routines[key];
     if (place) {
       out.set(id, { x: place.x, y: place.y, spot: key, seat: null });
       continue;
     }
-    const at = FLOOR_SPOTS[floor % FLOOR_SPOTS.length];
+    const at = floorSpots[floor % floorSpots.length];
     floor += 1;
     out.set(id, { x: at.x, y: at.y, spot: `floor:${floor - 1}`, seat: null });
   }
@@ -177,9 +181,9 @@ export const BUBBLE_W = 150;
 const BUBBLE_GAP = 9;
 
 /** Would a bubble at this x, opening this way, stay inside the room? */
-export function sideFits(x, side) {
+export function sideFits(x, side, width = F_W) {
   const left = side === 'right' ? x + BUBBLE_GAP : x - BUBBLE_GAP - BUBBLE_W;
-  return left >= 0 && left + BUBBLE_W <= F_W;
+  return left >= 0 && left + BUBBLE_W <= width;
 }
 
 /**
@@ -197,19 +201,19 @@ export function sideFits(x, side) {
  * whose bubble is cut in half, and the room has `overflow: hidden` so it is cut
  * silently.
  */
-export function bubbleSide(x) {
-  const preferred = x > F_W - BUBBLE_W * 0.62 ? 'left' : 'right';
+export function bubbleSide(x, width = F_W) {
+  const preferred = x > width - BUBBLE_W * 0.62 ? 'left' : 'right';
   const other = preferred === 'right' ? 'left' : 'right';
-  if (sideFits(x, preferred)) return preferred;
-  return sideFits(x, other) ? other : preferred;
+  if (sideFits(x, preferred, width)) return preferred;
+  return sideFits(x, other, width) ? other : preferred;
 }
 
 // Does a bubble at this x, opening the way it would open, stay inside the room?
 // The layout test asserts this over every spot in the file rather than over
 // three examples, so a fixture moved later cannot quietly push a body somewhere
 // its bubble clips.
-export function bubbleFits(x, side = bubbleSide(x)) {
-  return sideFits(x, side);
+export function bubbleFits(x, side = bubbleSide(x), width = F_W) {
+  return sideFits(x, side, width);
 }
 
 // Every named place a body can stand, for the tests and for nothing else.
@@ -243,3 +247,40 @@ export function bodyRect(spot, size = 46) {
     top: spot.y - size, bottom: spot.y,
   };
 }
+
+// C9 / mood-desk59.jsx: desktop is a wider floor, not a stretched phone.
+// Rendering, routine destinations, bubble exclusions and pointer conversion
+// all consume this same definition. Phone exports above remain compatible.
+export const PHONE_ROOM = {
+  width: F_W, height: F_H, flat: FLAT, tvScreen: TV_SCREEN, tvChair: TV_CHAIR,
+  sign: SIGN, header: HEADER, seats: TABLE_SEATS, doorSpot: DOOR_SPOT,
+  tvSpot: TV_SPOT, routines: ROUTINE_SPOT, floorSpots: FLOOR_SPOTS,
+  wallHeight: 94, boardsTop: 96, bodySize: 46, seatedSize: 50,
+};
+
+const DESK_FLAT = {
+  wall: { x: 24, y: 16, w: 512, h: 62 },
+  table: { cx: 280, cy: 400, rx: 128, ry: 84 },
+  safe: { x: 24, y: 96, w: 78, h: 62 },
+  fridge: { x: 452, y: 130, w: 72, h: 112 },
+  couch: { x: 22, y: 470, w: 112, h: 148 },
+  door: { x: 518, y: 288, w: 42, h: 132 },
+  tv: { x: 210, y: 604, w: 140, h: 96 },
+};
+const DESK_DOOR = { x: 480, y: 390 };
+const DESK_TV = { x: 280, y: 700 };
+export const DESK_ROOM = {
+  width: 560, height: 700, flat: DESK_FLAT,
+  tvScreen: { x: 210, y: 604, w: 140, h: 78 },
+  tvChair: { x: 263, y: 686, w: 34, h: 14 },
+  sign: DESK_FLAT.door, header: { x: 0, y: 0, w: 560, h: 24 },
+  seats: {
+    2: [{ x: 280, y: 526 }, { x: 280, y: 342 }],
+    3: [{ x: 280, y: 526 }, { x: 142, y: 408 }, { x: 418, y: 408 }],
+    4: [{ x: 280, y: 526 }, { x: 140, y: 414 }, { x: 280, y: 342 }, { x: 420, y: 414 }],
+  },
+  doorSpot: DESK_DOOR, tvSpot: DESK_TV,
+  routines: { sleeps: { x: 78, y: 606 }, tape: DESK_TV, waits: DESK_DOOR, sulks: { x: 200, y: 200 } },
+  floorSpots: [{ x: 190, y: 566 }, { x: 396, y: 550 }, { x: 470, y: 276 }, { x: 134, y: 262 }],
+  wallHeight: 112, boardsTop: 118, bodySize: 56, seatedSize: 62,
+};

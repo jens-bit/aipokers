@@ -9,12 +9,46 @@ import {
   F_W, F_H, FLAT, TABLE_SEATS, tableSeats, homePositions,
   bubbleSide, bubbleFits, BUBBLE_W, ALL_SPOTS,
   COUCH_SPOT, TV_SPOT, DOOR_SPOT, WALL_SPOT,
-  FOOTPRINTS, TV_SCREEN, TV_CHAIR, bodyRect, SIGN,
+  FOOTPRINTS, TV_SCREEN, TV_CHAIR, bodyRect, SIGN, DESK_ROOM,
 } from './flat.js';
 
 const at = (where, extra = {}) => ({ where, tableId: null, room: null, since: 0, ...extra });
 const agent = (id, routine, location = at('home')) => ({
   id, name: id, location, routine: routine ? { key: routine, label: routine } : null,
+});
+
+describe('C9 · desktop room destinations', () => {
+  it('keeps each resting body on the drawn couch and arrivals beside the door', () => {
+    const positions = homePositions([agent('sleep', 'sleeps'), agent('away', null, at('casino')), agent('tape', 'tape')], { geometry: DESK_ROOM });
+    const couch = DESK_ROOM.flat.couch;
+    const sleeper = bodyRect(positions.get('sleep'), DESK_ROOM.bodySize);
+    expect(sleeper.left).toBeGreaterThanOrEqual(couch.x);
+    expect(sleeper.right).toBeLessThanOrEqual(couch.x + couch.w);
+    expect(sleeper.top).toBeGreaterThanOrEqual(couch.y);
+    expect(sleeper.bottom).toBeLessThanOrEqual(couch.y + couch.h);
+    expect(positions.get('away').x).toBeLessThan(DESK_ROOM.flat.door.x);
+    expect(positions.get('away').y).toBeGreaterThan(DESK_ROOM.flat.door.y);
+    expect(positions.get('tape').x).toBe(DESK_ROOM.tvScreen.x + DESK_ROOM.tvScreen.w / 2);
+    expect(positions.get('tape').y).toBeGreaterThan(DESK_ROOM.tvScreen.y + DESK_ROOM.tvScreen.h);
+  });
+  it('puts every live home player in a distinct chair around the actual table', () => {
+    for (const count of [2, 3, 4]) {
+      const ids = Array.from({ length: count }, (_, i) => String(i));
+      const positions = [...homePositions(ids.map(id => agent(id)), { gameAgentIds: ids, geometry: DESK_ROOM }).values()];
+      expect(new Set(positions.map(p => `${p.x},${p.y}`)).size).toBe(count);
+      for (const p of positions) {
+        expect(p.x).toBeGreaterThan(0);
+        expect(p.x).toBeLessThan(DESK_ROOM.width);
+        expect(p.y).toBeGreaterThan(DESK_ROOM.flat.table.cy - 100);
+        expect(p.y).toBeLessThan(DESK_ROOM.flat.table.cy + 150);
+      }
+    }
+  });
+  it('uses the extra floor width when choosing a readable speech side', () => {
+    expect(bubbleSide(390, DESK_ROOM.width)).toBe('right');
+    expect(bubbleFits(390, 'right', DESK_ROOM.width)).toBe(true);
+    expect(bubbleFits(520, 'right', DESK_ROOM.width)).toBe(false);
+  });
 });
 
 describe('HOME-1 · the plan', () => {

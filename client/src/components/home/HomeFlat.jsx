@@ -16,7 +16,7 @@
 // given, so the arithmetic in flat.js is the same on every device. Everything is
 // a div: no image, no sprite sheet, nothing to load.
 
-import { FLAT, TV_SCREEN, TV_CHAIR, F_W, F_H } from './flat.js';
+import { PHONE_ROOM } from './flat.js';
 import { money } from '../../lib/wallet.js';
 
 // `onTable` is optional and the table is furniture without it. Both branches
@@ -40,7 +40,9 @@ export function HomeFlat({
   // BUGS-C job 4 · is there a show on, right now, worth lighting the sign for?
   signLive = false,
   balance = null,
+  geometry = PHONE_ROOM,
 }) {
+  const { flat: FLAT, tvScreen: TV_SCREEN, tvChair: TV_CHAIR, width: F_W, height: F_H } = geometry;
   const tableBox = {
     left: FLAT.table.cx - FLAT.table.rx,
     top: FLAT.table.cy - FLAT.table.ry,
@@ -48,15 +50,15 @@ export function HomeFlat({
     height: FLAT.table.ry * 2,
   };
   return (
-    <div className="home-flat" style={{ width: F_W, height: F_H }} data-lit={lit ? 'true' : 'false'}>
+    <div className="home-flat" style={{ width: F_W, height: F_H }} data-lit={lit ? 'true' : 'false'} data-layout={F_W === 560 ? 'desktop' : 'phone'}>
       {/* floorboards, running away from the viewer */}
       <div className="home-flat__boards" aria-hidden>
-        {Array.from({ length: Math.ceil((F_H - 96) / 42) }).map((_, i) => <span key={i} style={{ top: 96 + i * 42 }} />)}
+        {Array.from({ length: Math.ceil((F_H - geometry.boardsTop) / 42) }).map((_, i) => <span key={i} style={{ top: geometry.boardsTop + i * 42 }} />)}
       </div>
       <div className="home-flat__right-wall" aria-hidden />
 
       {/* the wall the frames hang on */}
-      <div className="home-flat__wall" style={{ height: FLAT.wall.y + FLAT.wall.h + 8 }} aria-hidden />
+      <div className="home-flat__wall" style={{ height: geometry.wallHeight }} aria-hidden />
 
       {/* the couch */}
       <div className="home-flat__couch" style={{ left: FLAT.couch.x, top: FLAT.couch.y, width: FLAT.couch.w, height: FLAT.couch.h }} aria-hidden>
@@ -200,4 +202,4 @@ export function HomeFlat({
   );
 }
 
-export { F_W, F_H };
+export { F_W, F_H } from './flat.js';

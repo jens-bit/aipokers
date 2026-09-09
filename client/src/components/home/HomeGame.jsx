@@ -24,7 +24,7 @@
 // from a stack, so there is no value they could be read as.
 
 import { useEffect } from 'react';
-import { FLAT, TABLE_SEATS, tableSeats } from './flat.js';
+import { PHONE_ROOM, tableSeats } from './flat.js';
 import { pillName } from '../../lib/names.js';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 
@@ -61,11 +61,11 @@ export function useHomeTable(table, tableId) {
  * @param taken  how many seats have a body in them
  * @param of     how many chairs the table has
  */
-export function TableChairs({ taken = 0, of = 4, away = [] }) {
+export function TableChairs({ taken = 0, of = 4, away = [], geometry = PHONE_ROOM }) {
   // Home bodies use a two/three/four-player arrangement. Subtract their
   // actual footprints, not the first N slots of the four-player arrangement.
-  const occupied = taken > 0 ? tableSeats(taken).slice(0, taken) : [];
-  const seats = TABLE_SEATS[4].filter(s => occupied.every(p => Math.hypot(p.x-s.x,p.y-s.y)>32))
+  const occupied = taken > 0 ? tableSeats(taken, geometry).slice(0, taken) : [];
+  const seats = geometry.seats[4].filter(s => occupied.every(p => Math.hypot(p.x-s.x,p.y-s.y)>32))
     .slice(0, Math.max(0, Math.min(4, Math.round(of))-taken));
   return seats.map((seat, i) => {
     const absent=away[i];
@@ -85,31 +85,34 @@ export function TableChairs({ taken = 0, of = 4, away = [] }) {
 }
 
 /** The community cards as the felt has actually run them. */
-export function HomeBoard({ board = [] }) {
+export function HomeBoard({ board = [], desktop = false }) {
   if (!board.length) {
     return (
       <span className="home-game__board" data-testid="home-board">
-        {[0, 1].map((i) => <CardBack key={i} w={16} h={22} />)}
+        {[0, 1].map((i) => <CardBack key={i} w={desktop ? 20 : 16} h={desktop ? 28 : 22} />)}
       </span>
     );
   }
   return (
     <span className="home-game__board" data-testid="home-board">
       {board.slice(0, 5).map((c, i) => (
-        <PlayingCard key={`${c}-${i}`} rank={String(c)[0]} suit={String(c)[1]} w={17} h={24} />
+        <PlayingCard key={`${c}-${i}`} rank={String(c)[0]} suit={String(c)[1]} w={desktop ? 20 : 17} h={desktop ? 28 : 24} />
       ))}
     </span>
   );
 }
 
-export function HomeGameTable({ board = [], seatCount = 2, running = true }) {
+export function HomeGameTable({ board = [], seatCount = 2, running = true, geometry = PHONE_ROOM }) {
+  const FLAT = geometry.flat;
+  // C9's empty table is bare; its one empty chair says what it is.
+  if (!running && geometry.width === 560) return null;
   return (
     <>
       <div
         className="home-game__centre"
         style={{ left: FLAT.table.cx, top: FLAT.table.cy - 6 }}
       >
-        <HomeBoard board={board} />
+        <HomeBoard board={board} desktop={geometry.width === 560} />
       </div>
 
       {/* scenery chips — never a stack, never a pot */}

@@ -10,9 +10,24 @@ import {
   DROP_PAD, DROP_TARGETS, LONG_PRESS_MS, PRESS_SLOP,
   clampToRoom, fixtureAt, midHand, toRoom, verbFor,
 } from './carry.js';
-import { FLAT, TV_SCREEN, F_W, F_H } from './flat.js';
+import { FLAT, TV_SCREEN, F_W, F_H, DESK_ROOM } from './flat.js';
 
 const centre = (box) => ({ x: box.x + box.w / 2, y: box.y + box.h / 2 });
+
+describe('C9 · drops follow the rendered desktop furniture', () => {
+  it.each([0.7, 1, 1.4])('maps screen gestures at scale %s to all five actual destinations', scale => {
+    const rect = { left: 250, top: 70, width: DESK_ROOM.width * scale, height: DESK_ROOM.height * scale };
+    const targets = { ...DESK_ROOM.flat, tv: DESK_ROOM.tvScreen };
+    for (const fixture of ['door', 'couch', 'fridge', 'tv', 'table']) {
+      const box = targets[fixture];
+      const point = fixture === 'table' ? { x: box.cx, y: box.cy } : centre(box);
+      const room = toRoom(rect, rect.left + point.x * scale, rect.top + point.y * scale, DESK_ROOM);
+      expect(fixtureAt(room.x, room.y, DESK_ROOM)).toBe(fixture);
+    }
+    expect(fixtureAt(400, 100, DESK_ROOM)).toBeNull();
+    expect(clampToRoom(900, 900, 56, DESK_ROOM)).toEqual({ x: 532, y: 700 });
+  });
+});
 
 describe('HOME-2 job 5 · the five things you can drop him on', () => {
   it('is five, and the safe is not one of them', () => {

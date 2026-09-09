@@ -58,10 +58,9 @@ import { VisitorToast } from '../components/home/VisitorToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
 import { CasinoOnTv, TapeOnTv, onScreen, tvProgramme } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
-import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
+import { homePositions, bubbleSide, DOOR_SPOT, PHONE_ROOM, DESK_ROOM } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
 import { accentFor } from '../components/floor/atoms.jsx';
-import { NotYet } from '../components/ftu/NotYet.jsx';
 import { identitiesFor } from '../lib/identity.js';
 import { placeAgent } from '../lib/place.js';
 import { useCarry } from '../hooks/useCarry.js';
@@ -120,7 +119,7 @@ export function isNewborn(agent, { now = Date.now(), windowMs = 60_000 } = {}) {
  *
  * Returns the positions map to render, doors and all.
  */
-export function useBirthWalk(agents, positions) {
+export function useBirthWalk(agents, positions, doorSpot = DOOR_SPOT) {
   const [atDoor, setAtDoor] = useState(() => new Set());
   const seenRef = useRef(new Set());
   const timersRef = useRef(new Map());
@@ -168,10 +167,10 @@ export function useBirthWalk(agents, positions) {
       // `spot` is what a walk is measured in, so it has to be a name of its own
       // — reusing 'door:away' would make a newborn indistinguishable from an
       // agent who is out at the casino.
-      out.set(id, { x: DOOR_SPOT.x, y: DOOR_SPOT.y, spot: 'door:born', seat: null });
+      out.set(id, { x: doorSpot.x, y: doorSpot.y, spot: 'door:born', seat: null });
     }
     return out;
-  }, [positions, atDoor]);
+  }, [positions, atDoor, doorSpot]);
 }
 
 // DESK-2 — how much bigger the room gets on the desk.
@@ -186,11 +185,11 @@ export function useBirthWalk(agents, positions) {
 // seen from above and starts reading as a diagram of one. Floored at 1, because
 // the desk is the wide platform and a room smaller than the phone's is not a
 // thing this function should ever be able to produce.
-export const HOME_DESK_MAX = 1.9;
+export const HOME_DESK_MAX = 1.4;
 
 export function fitScale(width, height) {
   if (!(width > 0) || !(height > 0)) return 1;
-  return Math.max(1, Math.min(HOME_DESK_MAX, width / F_W, height / F_H));
+  return Math.min(HOME_DESK_MAX, width / DESK_ROOM.width, height / DESK_ROOM.height);
 }
 
 /**
@@ -329,6 +328,8 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
+  const geometry = desktop ? DESK_ROOM : PHONE_ROOM;
+  const { flat: FLAT, width: F_W, height: F_H } = geometry;
   const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
     useHomeState({ wsUrl, onOwnerLine });
 
@@ -439,12 +440,12 @@ export function HomeScreen({
   const identities = useMemo(() => identitiesFor(agents), [agents]);
 
   const settled = useMemo(
-    () => homePositions(agents, { gameAgentIds }),
-    [agents, gameAgentIds],
+    () => homePositions(agents, { gameAgentIds, geometry }),
+    [agents, gameAgentIds, geometry],
   );
   // BUG-32: a newborn stands in the doorway for one beat first, so the walk
   // machinery below has a previous position to cross him from.
-  const positions = useBirthWalk(agents, settled);
+  const positions = useBirthWalk(agents, settled, geometry.doorSpot);
   const walking = useWalks(positions);
 
   useEffect(() => {
@@ -477,10 +478,10 @@ export function HomeScreen({
     // `nickname` is what the pill writes when the name is too long for it
     // (HOME-2 job 2), so the queue has to measure the same box the room draws.
     return {
-      id: String(agent.id), x: at.x, y: at.y, size: seated ? 50 : 46,
+      id: String(agent.id), x: at.x, y: at.y, size: seated ? geometry.seatedSize : geometry.bodySize,
       name: agent.name, nickname: agent.nickname ?? null,
     };
-  }).filter(Boolean), [home, positions]);
+  }).filter(Boolean), [home, positions, geometry]);
 
   // ONE line per man, ranked. He can easily have three at once — an unanswered
   // want, a session he has not been told about, and a subject he is studying —
@@ -516,7 +517,7 @@ export function HomeScreen({
 
   // At most two on screen, one per man, nothing drawn over anything. The rest
   // wait their turn — see roomBubbles.js.
-  const bubbles = useRoomBubbles(speakers, bodies);
+  const bubbles = useRoomBubbles(speakers, bodies, geometry);
 
   // ── HOME-2 job 5 · carrying him ───────────────────────────────────────────
   //
@@ -552,6 +553,7 @@ export function HomeScreen({
 
   const { carry, bind: bindCarry, pick, cancel: cancelCarry } = useCarry({
     roomEl: flatEl,
+    geometry,
     onDrop,
     enabled: true,
   });
@@ -644,21 +646,6 @@ export function HomeScreen({
   // than a room you are standing in, and its empty state is the shell's
   // business (DESK-2) — this queue is the phone.
   const nobodyYet = loaded && agents.length === 0;
-  if (nobodyYet && desktop && rail !== 'draft') {
-    return (
-      <div className="home1 home1--desk home1--empty" data-testid="home-screen">
-        <NotYet
-          fact="Nobody lives here yet."
-          voice="Make one and he moves in."
-          fills={
-            <button type="button" className="home1__ftu-action" onClick={onCreateAgent}>
-              Make an agent
-            </button>
-          }
-        />
-      </div>
-    );
-  }
 
   const lit = home.length > 0;
   const visitingCount = away.filter(a => a.visiting).length;
@@ -670,10 +657,11 @@ export function HomeScreen({
   const board = homeTable?.game?.community ?? [];
   // P16: a fixture panel dims the room instead of covering it — on the desk you
   // never lose sight of where the money is.
-  const dimmed = desktop && rail !== 'thread' && rail !== 'agent';
+  const dimmed = desktop && rail !== 'thread' && rail !== 'agent' && rail !== 'draft';
 
   const flat = (
     <HomeFlat
+      geometry={geometry}
       lit={lit}
       balance={roomWallet?.balance ?? null}
       // HOME-2 job 8 · THE SAFE OPENS THE MONEY, over the room. Board 29 F12:
@@ -722,23 +710,24 @@ export function HomeScreen({
       signLive={!!onScreen(away)}
     >
       <AwayWall
+        geometry={geometry}
         away={away}
         accentFor={(a) => accentFor(a, agents.indexOf(a))}
-        hooks={Math.max(0, AGENT_CAP - agents.length)}
+        hooks={Math.max(0, AGENT_CAP - (desktop ? away.length : agents.length))}
         onWatch={onWatch}
         onOpenAgent={onProfile}
       />
 
       {gameAgentIds.length > 0 ? (
-        <HomeGameTable board={board} seatCount={gameAgentIds.length} running />
+        <HomeGameTable geometry={geometry} board={board} seatCount={gameAgentIds.length} running />
       ) : (
-        <HomeGameTable board={[]} seatCount={0} running={false} />
+        <HomeGameTable geometry={geometry} board={[]} seatCount={0} running={false} />
       )}
 
       {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
           Nobody yet is one chair, nobody in it; a retire is one chair fewer.
           Both are pictures rather than sentences. */}
-      <TableChairs taken={gameAgentIds.length} of={Math.max(1, agents.length)} away={away} />
+      <TableChairs geometry={geometry} taken={gameAgentIds.length} of={Math.max(1, agents.length)} away={away} />
 
       {/* Nobody yet: the line under the table and the one thing to press. The
           line is an OBSERVATION rather than an instruction — the only action
@@ -762,7 +751,7 @@ export function HomeScreen({
         if (!at) return null;
         const id = String(agent.id);
         const seated = at.seat !== null && at.seat !== undefined;
-        const size = seated ? 50 : 46;
+        const size = seated ? geometry.seatedSize : geometry.bodySize;
         const held = carry?.id === id ? carry : null;
         // HOME-2 job 5 · HIS LINE, WHEN HE IS IN YOUR HAND.
         //
@@ -778,9 +767,9 @@ export function HomeScreen({
         const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
         const own = speakers.find((sp) => sp.id === id);
         const bubble = dropped
-          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(held?.x ?? at.x) }
+          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(held?.x ?? at.x, F_W) }
           : (held && own)
-            ? { text: own.text, gold: own.gold, side: bubbleSide(held.x) }
+            ? { text: own.text, gold: own.gold, side: bubbleSide(held.x, F_W) }
             : (bubbles.get(id) ?? null);
         return (
           <HomeOne
@@ -837,6 +826,7 @@ export function HomeScreen({
         {rail === 'none' ? null : (
         <div className="home1__rail" data-testid="home-rail" data-panel={rail}>
           {renderRail?.({
+            roomTarget: flatEl,
             panel: rail,
             openPanel: setRail,
             // Point the rail at a man. The rail's own panels need this — the

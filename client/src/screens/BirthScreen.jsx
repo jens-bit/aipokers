@@ -45,6 +45,7 @@
 // always did, and the glass is the create path's.
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { M_TEAL } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf } from '../components/floor/agentView.js';
@@ -430,7 +431,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
 // Full draft conversation with FormingGhost gaining definition as you talk.
 // Calls onBirth(agent) when the server confirms agent creation.
 // Pass `agent` prop (existing agent object) to open in edit/rebuild mode.
-export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus = true }) {
+export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus = true, formingTarget = null }) {
   const userId  = getUserId();
   const isEdit  = !!agent;
 
@@ -736,6 +737,12 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     // line that carries it, so the price sits under the action rather than
     // becoming a row of its own.
     const locked = chat.length ? chat[chat.length - 1]?.seeTable : false;
+    const forming = (
+      <div className={`draft2__forming${formingTarget ? ' draft2__forming--in-room' : ''}`}>
+        <StageGhost stage={stage} size={formingTarget ? 150 : 104} />
+        <span className="draft2__cap" data-named={named ? 'true' : 'false'} data-testid="draft-cap">{cap}</span>
+      </div>
+    );
 
     return (
       // The clip is declared inline as well as in draft2.css: the back
@@ -779,12 +786,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
 
           {/* him, forming over the table */}
           {!born && <>
-          <div className="draft2__forming">
-            <StageGhost stage={stage} />
-            <span className="draft2__cap" data-named={named ? 'true' : 'false'} data-testid="draft-cap">
-              {cap}
-            </span>
-          </div>
+          {formingTarget ? createPortal(forming, formingTarget) : forming}
 
           <DraftSheet
             rows={rows}

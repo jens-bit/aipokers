@@ -455,3 +455,9 @@
   .draft-sheet { top: 36px; }
   .draft2__forming { display: none; }
 }
+
+/* L2/C9: one forming preview lives over the real desktop table. */
+.draft2__forming--in-room {
+  left: 280px; right: auto; top: 318px; transform: translate(-50%, -100%);
+  z-index: 930; gap: 9px; pointer-events: none;
+}

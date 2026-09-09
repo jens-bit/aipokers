@@ -98,13 +98,14 @@ beforeEach(() => {
   telegram.signIn();
 });
 
-describe('DESK-2 · the same room, bigger', () => {
-  it('draws ONE room, and it is the phone\'s — same flat, same coordinate space', async () => {
+describe('C9 · the shared room with desktop coordinates', () => {
+  it('draws ONE room at the reference desktop size', async () => {
     await boot();
     const rooms = document.querySelectorAll('.home-flat');
     expect(rooms).toHaveLength(1);
-    // flat.js's box, untouched: the desk scales it, it does not re-author it.
-    expect(rooms[0]).toHaveStyle({ width: '390px', height: '612px' });
+    // Latest DkFlat supersedes DESK-2's scaled phone: shared components and
+    // state, with wider furniture/interaction coordinates from the reference.
+    expect(rooms[0]).toHaveStyle({ width: '560px', height: '700px' });
     expect(document.querySelector('.home1--desk')).not.toBeNull();
   });
 

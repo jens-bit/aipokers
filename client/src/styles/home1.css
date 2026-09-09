@@ -1227,7 +1227,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
   min-width: 0;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  /* C9 passes the stage height to DkFlat, which reserves another 54px plus
+     40px around the floor. Keep that reference spacing at both desk sizes. */
+  padding: 47px 30px;
+  background: #0A0F0E;
   transition: filter 0.18s ease;
 }
 
@@ -1244,9 +1247,9 @@ button.home-flat__table:active { filter: brightness(1.12); }
   flex-shrink: 0;
   transform: scale(var(--home-desk-scale, 1));
   transform-origin: center center;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  border-radius: 5px;
+  border: none;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   background: radial-gradient(ellipse at 52% 58%, #1C2523 0%, #141B1A 62%, #0F1514 100%);
 }
@@ -1613,4 +1616,29 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .money-sheet--glass .wal-block,
 .money-sheet--glass .wal-row {
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* C9: the desktop's wider floor, using the shared DESK_ROOM coordinates. */
+.home-flat[data-layout='desktop'] {
+  background: radial-gradient(ellipse at 50% 54%, #1E2725 0%, #151D1B 58%, #0E1413 100%);
+}
+.home-flat[data-layout='desktop']::before,
+.home-flat[data-layout='desktop']::after {
+  content: ''; position: absolute; top: 112px; bottom: 0; width: 10px;
+  pointer-events: none; z-index: 1;
+}
+.home-flat[data-layout='desktop']::before { left: 0; background: linear-gradient(90deg, #131A19, rgba(0,0,0,.2)); }
+.home-flat[data-layout='desktop']::after { right: 0; background: linear-gradient(270deg, #131A19, rgba(0,0,0,.2)); }
+.home-flat[data-layout='desktop'] .home-wall { gap: 10px; }
+.home-flat[data-layout='desktop'] .home-wall__hook {
+  flex-shrink: 0; width: 76px; height: 62px;
+  background: #0C1110; border: 1px solid rgba(255,255,255,.07); padding: 6px;
+}
+.home-flat[data-layout='desktop'] .home-wall__hook i {
+  width: 100%; height: 100%; border: 1px solid rgba(255,255,255,.05);
+  border-radius: 2px; background: none;
+}
+.home-flat[data-layout='desktop'] .home-flat__table {
+  background: radial-gradient(ellipse at 50% 36%, #35443E 0%, #242F2C 68%, #1B2422 100%);
+  border: 1px solid rgba(255,255,255,.08); box-shadow: 0 14px 34px rgba(0,0,0,.5);
 }

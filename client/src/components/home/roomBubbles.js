@@ -46,7 +46,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { BUBBLE_W, FLAT, HEADER, SIGN, TV_SCREEN, TV_SPOT, bubbleFits, bubbleSide } from './flat.js';
+import { BUBBLE_W, PHONE_ROOM, bubbleFits, bubbleSide } from './flat.js';
 import { overlaps, place, sideFor as placeSide } from '../../lib/bubblePlace.js';
 import { shortName } from '../../lib/names.js';
 
@@ -76,13 +76,15 @@ const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y
 // only ever relaxes for the speaker it would otherwise silence.
 // BUG-55: the felt is also a control. A recap must not replace the removed
 // request bubble with another sentence over the community cards.
-const ALWAYS_BLOCKED = [SIGN, FLAT.safe, HEADER, {
-  x: FLAT.table.cx - FLAT.table.rx, y: FLAT.table.cy - FLAT.table.ry,
-  w: FLAT.table.rx * 2, h: FLAT.table.ry * 2,
-}].map(fixtureRect);
-const withTv = [...ALWAYS_BLOCKED, fixtureRect(TV_SCREEN)];
-const atTv = (b) => b?.x === TV_SPOT.x && b?.y === TV_SPOT.y;
-const fixtureBlockersFor = (speakers) => (speakers.some(atTv) ? ALWAYS_BLOCKED : withTv);
+const fixtureBlockersFor = (speakers, geometry) => {
+  const { flat, sign, header, tvSpot, tvScreen } = geometry;
+  const blocked = [sign, flat.safe, header, {
+    x: flat.table.cx - flat.table.rx, y: flat.table.cy - flat.table.ry,
+    w: flat.table.rx * 2, h: flat.table.ry * 2,
+  }].map(fixtureRect);
+  const atTv = b => b?.x === tvSpot.x && b?.y === tvSpot.y;
+  return speakers.some(atTv) ? blocked : [...blocked, fixtureRect(tvScreen)];
+};
 
 // ── The boxes, from home1.css ───────────────────────────────────────────────
 //
@@ -136,10 +138,10 @@ export function bubbleRect(body, side) {
 export { overlaps };
 
 /** The two sides, most wanted first. flat.js decides which is preferred. */
-const roomSides = (body) => (bubbleSide(body.x) === 'right' ? ['right', 'left'] : ['left', 'right']);
+const roomSides = (body, geometry) => (bubbleSide(body.x, geometry.width) === 'right' ? ['right', 'left'] : ['left', 'right']);
 
 /** The box, or null when the room edge would cut it — flat.js's rule. */
-const roomRect = (body, side) => (bubbleFits(body.x, side) ? bubbleRect(body, side) : null);
+const roomRect = (body, side, geometry) => (bubbleFits(body.x, side, geometry.width) ? bubbleRect(body, side) : null);
 
 /**
  * Which way this body's bubble may open, or null when neither way is clear.
@@ -148,8 +150,8 @@ const roomRect = (body, side) => (bubbleFits(body.x, side) ? bubbleRect(body, si
  * clips is cut silently (the room has overflow: hidden). Then the blockers:
  * every name pill in the room, and every bubble already placed this pass.
  */
-export function sideFor(body, blockers = []) {
-  return placeSide(body, { sides: roomSides, rect: roomRect, blockers })?.side ?? null;
+export function sideFor(body, blockers = [], geometry = PHONE_ROOM) {
+  return placeSide(body, { sides: body => roomSides(body, geometry), rect: (body, side) => roomRect(body, side, geometry), blockers })?.side ?? null;
 }
 
 /**
@@ -163,12 +165,12 @@ export function sideFor(body, blockers = []) {
  * @param speakers  [{ id, x, y, size, name, text, gold }] — priority first
  * @param bodies    everyone in the room, for their pills
  */
-export function layout(speakers = [], bodies = []) {
+export function layout(speakers = [], bodies = [], geometry = PHONE_ROOM) {
   return place(speakers, {
     max: MAX_IN_ROOM,
-    sides: roomSides,
-    rect: roomRect,
-    blockers: [...bodies.map(pillRect), ...fixtureBlockersFor(speakers)],
+    sides: body => roomSides(body, geometry),
+    rect: (body, side) => roomRect(body, side, geometry),
+    blockers: [...bodies.map(pillRect), ...fixtureBlockersFor(speakers, geometry)],
   });
 }
 
@@ -189,7 +191,7 @@ export function layout(speakers = [], bodies = []) {
  * @param seen      { [id]: when it last had a turn } — for taking turns fairly
  * @param now       ms
  */
-export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now = 0 } = {}) {
+export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now = 0, geometry = PHONE_ROOM } = {}) {
   const by = new Map(speakers.map((s) => [s.id, s]));
   let keep = held.filter((h) => by.has(h.id));
 
@@ -220,7 +222,7 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
     ...evicted,
   ];
 
-  const shown = layout(order.map((id) => by.get(id)).filter(Boolean), bodies);
+  const shown = layout(order.map((id) => by.get(id)).filter(Boolean), bodies, geometry);
 
   const nextHeld = shown.map((s) => keep.find((h) => h.id === s.id) ?? { id: s.id, at: now });
   const nextSeen = { ...seen };
@@ -245,7 +247,7 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
  * Everything else the caller handed in is waiting, and nothing about that is
  * drawn — a queue you can see is a queue that has become the subject.
  */
-export function useRoomBubbles(speakers = [], bodies = []) {
+export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM) {
   const [tick, setTick] = useState(0);
   const state = useRef({ held: [], seen: {} });
 
@@ -255,12 +257,12 @@ export function useRoomBubbles(speakers = [], bodies = []) {
   const where = bodies.map((b) => `${b.id}@${Math.round(b.x)},${Math.round(b.y)}`).join('|');
 
   const { shown, nextAt } = useMemo(() => {
-    const out = resolve(speakers, bodies, { ...state.current, now: Date.now() });
+    const out = resolve(speakers, bodies, { ...state.current, now: Date.now(), geometry });
     state.current = { held: out.held, seen: out.seen };
     return out;
   // `tick` is the timer's only job: re-run this with a later clock.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [said, where, tick]);
+  }, [said, where, tick, geometry]);
 
   useEffect(() => {
     if (nextAt == null) return undefined;

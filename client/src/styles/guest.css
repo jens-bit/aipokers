@@ -431,4 +431,6 @@
 @media (min-width: 1100px) {
   .guest-landing__room .dsk-root:has(.draft2) .dsk-top { display: none; }
   .guest-landing__room .draft2--desk .draft2 { background: #0D1715; }
+  /* L2RoomDesk gives DkFlat h=viewport, including its 54px design allowance. */
+  .guest-landing__room .home1--desk .home1__room { padding: 47px 30px; }
 }

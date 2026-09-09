@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 17: C9 now uses a shared 560×700 desktop layout for furniture, chairs, routines, newborn arrivals, speech clearance and Carry hit targets. The first-agent preview forms over the actual table; the empty desktop keeps the room. The earlier enlarged-phone geometry and empty-placeholder CTA tests are intentionally superseded by the current reference. Phone geometry and Watch presentation remain intact.
+
 - Overnight design batch 16: wave-61 guest room uses the full phone viewport with half-height glass, one vertical casino sign, its empty chair and the retained kitchen table. The embedded first-agent room hides duplicate navigation and older suggestion chips; the real recruiter and four-stage/no-collar flow remain. Desktop guest entry sheds the extra global header. BUG-92/93 cover sign overlap and competing focus/scroll helpers; five landing sizes and seven draft browser flows verify the result. Wider desktop furniture coordinates and its in-room forming preview remain explicitly partial.
 
 - Overnight verification batch 15: re-enabled BUG-43's floor-drop regression after synchronizing its starting measurement with the completed newborn arrival; all 20 real Home browser checks now pass without a skip. BUG-45's casino pocket assertion now awaits the exact selected-room copy and passes in isolation. Original interaction/amount/no-POST assertions stay; gameplay and production timing are unchanged.
