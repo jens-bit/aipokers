@@ -85,6 +85,31 @@ beforeEach(() => {
 // ── The empty state ─────────────────────────────────────────────────────────
 
 describe('BUGS-A job 2 · the room renders while the roster is in flight', () => {
+  it('BUG-157: a delayed returning roster does not claim first-agent or nobody-home status', async () => {
+    defaults();
+    let answer;
+    fetchMock.route('/api/agents?', () => new Promise(resolve => { answer = resolve; }));
+    render(<HomeScreen wsUrl={WS} />);
+    await screen.findByTestId('home-screen');
+    expect(screen.queryByText('Your room · his story starts here')).toBeNull();
+    expect(screen.queryByText('Nobody is home.')).toBeNull();
+    expect(screen.getAllByText('Reading the room…')).toHaveLength(2);
+    expect(screen.queryByTestId('home-game-label')).toBeNull();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+    answer({ agents: [mkAgent('a1', 'The Clock')] });
+    expect(await screen.findByText('1 home')).toBeInTheDocument();
+    expect(screen.queryByText('Reading the room…')).toBeNull();
+    expect(screen.queryByText('Nobody is home.')).toBeNull();
+  });
+
+  it('BUG-157: a confirmed empty roster retains the authored empty-room copy', async () => {
+    defaults();
+    serve([]);
+    render(<HomeScreen wsUrl={WS} />);
+    expect(await screen.findByTestId('home-ftu')).toBeInTheDocument();
+    expect(screen.getByText('Your room · his story starts here')).toBeInTheDocument();
+    expect(screen.getByText('Nobody is home.')).toBeInTheDocument();
+  });
   it('an unanswered roster is not an empty household', async () => {
     defaults();
     // The roster never answers. This is the width of every trip back to HOME:
@@ -125,6 +150,23 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     render(<HomeScreen wsUrl={WS} />);
     const room = await screen.findByTestId('home-screen');
     await waitFor(() => expect(within(room).getByTestId('home-fridge')).toBeInTheDocument());
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+  });
+
+  it('BUG-157: after a failed roster read, a socket answer restores the actual household', async () => {
+    defaults();
+    fetchMock.route('/api/agents?', { status: 503, body: {} });
+    render(<HomeScreen wsUrl={WS} />);
+    await screen.findByTestId('home-screen');
+    await act(async () => {});
+    expect(screen.queryByText('Your room · his story starts here')).toBeNull();
+    expect(screen.queryByText('Nobody is home.')).toBeNull();
+    const socket = socketMock.last();
+    act(() => {
+      socket.open();
+      socket.emit({ type: 'home_state', userId: '4242', agents: [mkAgent('a1', 'The Clock')], game: null });
+    });
+    expect(await screen.findByText('1 home')).toBeInTheDocument();
     expect(screen.queryByTestId('home-ftu')).toBeNull();
   });
 });
@@ -989,11 +1031,26 @@ describe('BUG-32 · a birth is an arrival', () => {
 describe('BIRTH-5 · the table, on the phone', () => {
   const SLOTS = { used: 2, cap: 4, next: { index: 3, price: 50_000, earned: 12_000, unlocked: false } };
 
+  it('BUG-154: House and human seats count toward the actual game capacity', async () => {
+    fetchMock.route('/api/slots', SLOTS);
+    const onSitTable = vi.fn(), onWatchTable = vi.fn();
+    await boot([mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')], {
+      tableId: 'home-u1', state: 'running', maxSeats: 4,
+      seats: [{ agentId: 'a1', seat: 0 }, { agentId: 'a2', seat: 1 }, { house: true, seat: 2 }, { agentId: null, name: 'YOU', seat: 3 }],
+    }, { onSitTable, onWatchTable });
+    await userEvent.click(screen.getByTestId('home-table'));
+    expect(await screen.findByTestId('home-table-seated')).toHaveTextContent('4 at the table · 0 chairs free');
+    expect(screen.getByTestId('home-table-sit')).toBeDisabled();
+    await userEvent.click(screen.getByTestId('home-table-watch'));
+    expect(onWatchTable).toHaveBeenCalledWith('home-u1');
+    expect(onSitTable).not.toHaveBeenCalled();
+  });
+
   it('tapping the table opens it, and it says who is at it and what the next chair costs', async () => {
     fetchMock.route('/api/slots', SLOTS);
     await boot(
       [mkAgent('a1', 'The Clock'), mkAgent('a2', 'River Rat')],
-      { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
+      { tableId: 'home-u1', state: 'running', maxSeats: 4, seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 3 },
     );
 
     await userEvent.click(await screen.findByTestId('home-table'));

@@ -392,6 +392,7 @@ export function state(userId) {
   return {
     tableId: household.tableId,
     state: household.state,
+    maxSeats: table.maxSeats,
     seats,
     handsPlayed: table.handsThisSession ?? 0,
   };

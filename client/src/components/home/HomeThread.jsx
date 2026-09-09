@@ -130,6 +130,7 @@ export function HomeThread({
   sending = false,
   toast = null,
   roomMode = false,
+  roomLoaded = true,
   roomPushed,
   connection = null,
   privateContext = 'AT HOME',
@@ -181,7 +182,7 @@ export function HomeThread({
   if (!agent && !roomMode) return null;
   // Ordered: the record, then whatever you have said since it was read.
   const shown = pending.length ? rows.concat(pending) : rows;
-  const line = pending.length ? pending.at(-1).text : (collapsedLine(agent, shown) || (roomMode ? 'Nobody is home.' : ''));
+  const line = pending.length ? pending.at(-1).text : (collapsedLine(agent, shown) || (roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : ''));
   const who = roomMode ? (shown.at(-1)?.who || (agent ? pillName(agent.name) : 'THE ROOM')) : pillName(agent.name);
 
   return (

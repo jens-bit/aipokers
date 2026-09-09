@@ -108,7 +108,7 @@ export function DeskHome({
       onPanel={onPanel}
       focusId={focusId}
       onFocusId={onFocusId}
-      renderRail={({ panel: open, openPanel, setFocus, agents, home, game: homeGame, focus, toast, refresh, carryAgent, roomTarget }) => {
+      renderRail={({ panel: open, openPanel, setFocus, agents, loaded, home, game: homeGame, focus, toast, refresh, carryAgent, roomTarget }) => {
         const backToRoom = () => openPanel('thread');
 
         if (open === 'draft' && draft) {
@@ -152,15 +152,15 @@ export function DeskHome({
 
         if (open === 'table') {
           const seated = homeGame?.state === 'running'
-            ? (homeGame.seats ?? []).filter((s) => s?.agentId).length
+            ? (homeGame.seats ?? []).filter(Boolean).length
             : 0;
           return (
             <RailPanel
               title="The table"
-              sub={`${slots?.used ?? agents.length} / ${slots?.cap ?? 4}`}
+              sub={slots ? `Roster · ${slots.used} of ${slots.cap} agents` : loaded ? `${agents.length} agents` : 'Reading the room…'}
               onClose={backToRoom}
             >
-              <TableSheet slots={slots} seated={seated} onDraft={onCreateAgent}
+              <TableSheet slots={slots} seated={seated} maxSeats={homeGame?.state === 'running' ? homeGame.maxSeats : null} onDraft={onCreateAgent}
                 onWatch={homeGame?.state === 'running' && homeGame.tableId && onWatchTable ? () => { backToRoom(); onWatchTable(homeGame.tableId); } : null}
                 onSit={homeGame?.state === 'running' && homeGame.tableId && onSitAtTable ? () => { backToRoom(); onSitAtTable(homeGame.tableId); } : null}
               />
@@ -176,7 +176,7 @@ export function DeskHome({
           return (
             <StandupPanel
               agents={agents}
-              loading={false}
+              loading={!loaded}
               game={game}
               lastDecision={lastDecision}
               selectedId={focus?.id ?? null}
@@ -219,6 +219,7 @@ export function DeskHome({
               lines={room.lines}
               agents={agents}
               loading={room.loading}
+              roomLoaded={loaded}
               sending={room.sending}
               atHome={home.length}
               onSay={(text) => room.say(text)}

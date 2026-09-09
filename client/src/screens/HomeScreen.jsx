@@ -652,7 +652,7 @@ export function HomeScreen({
   const lit = home.length > 0;
   const visitingCount = away.filter(a => a.visiting).length;
   const casinoCount = away.length - visitingCount;
-  const homeSubtitle = !agents.length ? 'Your room · his story starts here'
+  const homeSubtitle = !loaded ? 'Reading the room…' : !agents.length ? 'Your room · his story starts here'
     : [casinoCount ? `${casinoCount} at the casino` : null, visitingCount ? `${visitingCount} visiting` : null, `${home.length} home`].filter(Boolean).join(' · ');
   const rosterLiveCount = loaded && roomConnection !== 'reconnecting'
     ? agents.filter(a => !a.guest && (!a.homeTableId || a.visiting) && a.liveGame?.tableId).length : undefined;
@@ -724,7 +724,7 @@ export function HomeScreen({
       {gameAgentIds.length > 0 ? (
         <HomeGameTable geometry={geometry} board={board} seatCount={gameAgentIds.length} running />
       ) : (
-        <HomeGameTable geometry={geometry} board={[]} seatCount={0} running={false} />
+        <HomeGameTable geometry={geometry} board={[]} seatCount={0} running={false} statusKnown={loaded} />
       )}
 
       {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
@@ -831,6 +831,7 @@ export function HomeScreen({
             // `focus` below is derived from it.
             setFocus: (agent) => { setFocusId(agent?.id ?? null); setRail('agent'); },
             agents,
+            loaded,
             home,
             away,
             game,
@@ -859,6 +860,7 @@ export function HomeScreen({
 
       <HomeThread
         roomMode
+        roomLoaded={loaded}
         roomPushed={ownerLines}
         connection={roomConnection}
         agent={focus}
@@ -900,7 +902,8 @@ export function HomeScreen({
           rather than growing a second copy of it. */}
       {tableOpen ? (
         <MobileTableSheet
-          seated={gameAgentIds.length}
+          seated={game?.state === 'running' ? (game.seats ?? []).filter(Boolean).length : 0}
+          maxSeats={game?.state === 'running' ? game.maxSeats : null}
           onClose={() => setTableOpen(false)}
           onDraft={onCreateAgent ? () => { setTableOpen(false); onCreateAgent(); } : undefined}
           // SIT-1 · only when there is a game to sit down at. A kitchen table
@@ -960,7 +963,7 @@ function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
  * paid when the sheet is opened, not on every mount of a screen most owners
  * never open it from.
  */
-function MobileTableSheet({ seated = 0, onClose, onDraft, onSit, onWatch }) {
+function MobileTableSheet({ seated = 0, maxSeats = null, onClose, onDraft, onSit, onWatch }) {
   const { slots } = useSlots();
   return (
     <div className="home-sheet" role="dialog" aria-label="The table" data-testid="home-table-sheet-mobile">
@@ -970,7 +973,7 @@ function MobileTableSheet({ seated = 0, onClose, onDraft, onSit, onWatch }) {
           <span className="home-sheet__title">The table</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <TableSheet slots={slots} seated={seated} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
+        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
       </div>
     </div>
   );

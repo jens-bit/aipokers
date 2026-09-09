@@ -3,10 +3,11 @@
 // THE TABLE. Ported from `TableSheet` in design-refs/mood-home2.jsx, shown in
 // the rail by board 31 P17 ("Tap the table").
 //
-// The kitchen table has four chairs and this is the only surface in the product
-// that prices one. Everything it says comes from GET /api/slots (SLOTS-1):
+// Agent roster slots come from GET /api/slots (SLOTS-1). Current game chairs
+// come separately from HOME_STATE.game; owning an agent does not occupy a
+// chair in this hand when that agent is away.
 //
-//   used / cap        how many chairs are taken, and that there are four
+//   used / cap        how many agent roster slots are owned
 //   next.index        which chair the next agent takes
 //   next.price        what that chair costs, in chips his agents have WON
 //   next.earned       how much of it they have won so far
@@ -90,11 +91,12 @@ export function useSlots() {
  *                  anyone can pull a chair up to it, and a SIT DOWN that stands
  *                  a table up would be a second way to start a home game.
  */
-export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, onWatch = null }) {
+export function TableSheet({ slots = null, seated = 0, maxSeats = null, onDraft, onSit = null, onWatch = null }) {
   const cap = slots?.cap ?? 4;
   const used = slots?.used ?? 0;
   const next = slots?.next ?? null;
-  const free = Math.max(0, cap - used);
+  const free = Number.isInteger(maxSeats) && maxSeats > 0 ? Math.max(0, maxSeats - seated) : null;
+  const gameFull = free === 0;
 
   return (
     <div className="table-sheet" data-testid="home-table-sheet">
@@ -106,8 +108,7 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
       <div className="table-sheet__felt">
         <span className="table-sheet__felt-line" data-testid="home-table-seated">
           {seated === 1 ? '1 at the table' : `${seated} at the table`}
-          {' · '}
-          {free === 1 ? '1 chair free' : `${free} chairs free`}
+          {free !== null ? ` · ${free === 1 ? '1 chair free' : `${free} chairs free`}` : ''}
         </span>
       </div>
 
@@ -139,12 +140,13 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
         <div className="table-sheet__sit">
           <div className="table-sheet__sit-text">
             <span className="table-sheet__sit-title">Take a chair</span>
-            <span className="table-sheet__sit-sub">Play them yourself. No money in it.</span>
+            <span className="table-sheet__sit-sub">{gameFull ? 'This game is full. Watch until a chair opens.' : 'Play them yourself. No money in it.'}</span>
           </div>
           <button
             type="button"
             className="table-sheet__sit-go"
             onClick={onSit}
+            disabled={gameFull}
             data-testid="home-table-sit"
           >
             SIT DOWN
@@ -181,10 +183,12 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
             </span>
           )}
         </div>
-      ) : (
+      ) : slots ? (
         <p className="table-sheet__full" data-testid="home-table-full">
-          Every chair is taken. Retiring one is the only way to free another.
+          Your roster has {used} of {cap} agents. Retire an agent to create another.
         </p>
+      ) : (
+        <p className="table-sheet__full">Reading agent slots…</p>
       )}
 
       {/* HOME-2 job 6 · BIRTH-5's line, where the refusal lands. Same sentence,

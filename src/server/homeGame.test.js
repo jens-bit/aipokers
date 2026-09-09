@@ -19,7 +19,7 @@ import path from 'node:path';
 import { runScript } from '../test/helpers/runScript.js';
 
 import {
-  HOME_BLINDS, HOME_BUYIN, HOME_SEATS, HOME_PLAY_MS, HOME_COOLDOWN_MS, eligible, homeTableId, configure, sync, reset,
+  HOME_BLINDS, HOME_BUYIN, HOME_SEATS, HOME_PLAY_MS, HOME_COOLDOWN_MS, eligible, homeTableId, configure, sync, reset, state,
 } from './homeGame.js';
 import { Where } from './home.js';
 import { roomsSnapshot } from './rooms.js';
@@ -284,6 +284,18 @@ test('HOME-3: Carry can deliberately start a game during a break but cannot forc
 });
 
 // ── VISIT-1 ──────────────────────────────────────────────────────────────────
+
+test('BUG-154: HOME_STATE reports game capacity and every occupied chair independently of roster slots', () => {
+  configure({ liveTables: registry, agentsFor: () => [home('one', 'The Clock'), home('two', 'River Rat')], visitorsFor: () => [] });
+  const running = sync('flat');
+  const table = registry.getTable(running.tableId);
+  assert.equal(running.maxSeats, table.maxSeats);
+  assert.equal(running.maxSeats, HOME_SEATS);
+  table.seatPlayer({ send() {}, readyState: 1 }, { playerId: 'human', displayName: 'YOU', buyIn: 2000 });
+  const withHuman = state('flat');
+  assert.equal(withHuman.seats.length, 3, 'a human also occupies a chair');
+  assert.equal(withHuman.seats.filter(seat => !seat.agentId).length, 1);
+});
 
 test('VISIT-1: a visitor is seated under his OWN owner, not the host', () => {
   const roster = [home('one', 'The Clock')];
