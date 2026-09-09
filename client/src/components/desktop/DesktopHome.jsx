@@ -3,6 +3,7 @@ import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
 import { DeskHomeTable } from './DeskHomeTable.jsx';
 import { DeskHome } from './DeskHome.jsx';
+import { activityKeys } from '../system/RailMotion.jsx';
 import { DesktopTopBar, desktopRoomSummary } from './DesktopTopBar.jsx';
 import { heroSeatOf } from './DeskTableStage.jsx';
 import { DeskCasinoTable } from './DeskCasinoTable.jsx';
@@ -220,7 +221,7 @@ export function DesktopHome({
   };
 
   const topBar = (
-    <DesktopTopBar
+    <DesktopTopBar news={loading ? null : activityKeys(agents)}
       roomPortalRef={!homeStage && !deskTableId && !replay && !homeTableSession && !publicTableId ? setCasinoHeaderHost : null}
       room={deskTableId || publicTableId ? {title:watchBlinds?'The table · '+watchBlinds:'The table',subtitle:watchedAgent?.name || 'Watching the table'} : homeTableSession ? {title:'The kitchen table',subtitle:homeTableSession.seated?'You are in the game · play money':'Watching the home game'} : !deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
       onHome={!homeStage || deskTableId || publicTableId || homeTableSession ? goHome : null}

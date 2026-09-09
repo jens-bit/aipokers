@@ -889,7 +889,7 @@ export function WatchFelt({
   return (
     <div ref={feltRef}
       className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
-        + (metaLine ? ' watch-felt--metaline' : '')}
+        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
       style={feltStyle} data-pace={pace}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
@@ -1650,17 +1650,30 @@ export function WatchScreen({
   var liveHandRef = useRef(liveHandNo);
   liveHandRef.current = liveHandNo;
 
+  // BUG-132: each roster poll parses new objects for the same recorded hand.
+  // A cleared cost must stay in history. Timestamp distinguishes separate
+  // sessions whose hand numbers (and even misjudgment text) happen to match.
+  var lastCostKeyRef = useRef(null);
   useEffect(function () {
-    if (!lastPlayedHand || !attrCostOf(lastPlayedHand)) return;
-    setAttrPin(function (p) {
-      if (p && p.hand === lastPlayedHand) return p;
-      return { hand: lastPlayedHand, atHand: liveHandRef.current, at: Date.now() };
-    });
-  }, [lastPlayedHand]);
+    var cost = attrCostOf(lastPlayedHand);
+    if (!cost) return;
+    var key = JSON.stringify([agentId, lastPlayedHand.sessionId, lastPlayedHand.tableId,
+      lastPlayedHand.timestamp, lastPlayedHand.handNumber, cost.key, cost.street, cost.line]);
+    if (lastCostKeyRef.current === key) return;
+    lastCostKeyRef.current = key;
+    setAttrPin({ hand: lastPlayedHand, atHand: liveHandRef.current, at: Date.now() });
+  }, [agentId, lastPlayedHand]);
 
   var boardLen = (game && Array.isArray(game.community)) ? game.community.length : 0;
   useEffect(function () {
-    if (!attrPin || attrPin.atHand == null || liveHandNo == null) return;
+    if (!attrPin || liveHandNo == null) return;
+    // The roster request may finish before the first WebSocket snapshot.
+    // Anchor that pending cost once the table is known, rather than leaving
+    // a null hand number that can never reach its following flop.
+    if (attrPin.atHand == null) {
+      setAttrPin({ ...attrPin, atHand: liveHandNo });
+      return;
+    }
     if (liveHandNo <= attrPin.atHand || boardLen < 3) return;
     var cost = attrCostOf(attrPin.hand);
     setAttrRecord(function (r) {

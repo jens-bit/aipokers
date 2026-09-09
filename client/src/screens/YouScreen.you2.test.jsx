@@ -170,3 +170,12 @@ describe('YOU-2 — arriving with money to deal with', () => {
     expect(container.querySelector('.money-sheet')).toBeNull();
   });
 });
+
+
+it('BUG-124: a new roster has no session history, not one fabricated session', async () => {
+  telegram.signIn(); withMoney();
+  fetchMock.route('/api/agents?', { agents: [{ ...walletAgentsResponse.agents[0], careerStats: { sessions: 0, hands: 0 }, sessionLog: [] }] });
+  render(<YouScreen />);
+  expect(await screen.findByText('NO SESSION HISTORY YET')).toBeInTheDocument();
+  expect(screen.queryByText('ONE SESSION OF HISTORY')).toBeNull();
+});

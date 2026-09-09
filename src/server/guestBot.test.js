@@ -1,3 +1,5 @@
+// A configured test app, never a real delivery destination.
+process.env.MINI_APP_URL='https://t.me/railbird_test/game';
 // src/server/guestBot.test.js — GUEST-1 job 5
 //
 // `/start guest_<token>`, the other end of the claim wall's deep link.
@@ -203,3 +205,7 @@ test('GUEST-1: a bot that cannot send is not a reason to fail the claim', async 
   // branch — what matters is that a missing sender did not throw.
   assert.ok(typeof out === 'string');
 });
+
+ test('BUG-130: the welcome button uses Railbird and configured app URL',async()=>{
+ const prior=process.env.MINI_APP_URL;try{process.env.MINI_APP_URL='https://t.me/configured_bot/play?theme=dark';await handle('/start',9013);const button=sent[0].opts.reply_markup.inline_keyboard[0][0];assert.equal(button.text,'OPEN RAILBIRD');assert.equal(button.url,process.env.MINI_APP_URL);}finally{if(prior===undefined)delete process.env.MINI_APP_URL;else process.env.MINI_APP_URL=prior;}
+ });

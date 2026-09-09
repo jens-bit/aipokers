@@ -185,7 +185,7 @@ function saveWalletFor(userId) {
 function saveStore(userId) {
   const profile = db()[userId];
   if (!profile) return;
-  const n = saveProfile(userId, profile);
+  const n = saveProfile(userId, profile, wallets.get(String(userId)) ?? null);
   console.log(`[agents] saved profile for ${userId} — ${n} agent(s)`);
 }
 
@@ -624,22 +624,32 @@ function commitAgent(profile, existingAgentId, agentData) {
   for (const k of ATTR_KEYS) {
     logAttrChange(agent, { key: k, from: born.attrs[k], to: born.attrs[k], cause: 'birth', ts: bornAt });
   }
-  agent.bankroll = STARTING_GRANT;
-  agent.ledger = [{ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null }];
-  // WALLET-1: a new agent is funded exactly the way SEED-1 funds a migrated
-  // one — he carries one buy-in and the rest of the grant lands in the owner's
-  // wallet, so the first funding decision is available from day one.
-  agent.pocket = emptyPocket({ mode: 'auto', cap: POCKET_FLOAT, balance: Math.min(STARTING_GRANT, POCKET_FLOAT) });
+  // BUG-136: a draft is a companion, not a renewable source of chips.
+  // Existing owners keep their balances; old archived agents and seed history
+  // prove the household existed before this durable marker was introduced.
+  const w = walletFor(profile.userId);
+  const firstGrant = !w.startingGrantClaimed && profile.agents.length === 0
+    && w.balance === 0 && !(w.earned > 0)
+    && !(w.ledger ?? []).some(entry => entry.type === 'seed' || entry.type === 'grant');
+  w.startingGrantClaimed = true;
+  agent.ledger = [];
+  agent.pocket = emptyPocket({ mode: 'auto', cap: POCKET_FLOAT, balance: 0 });
   agent.pocket.agentId = agent.id;
-  agent.pocket.ledger = appendEntry(agent.pocket.ledger, { type: 'seed', amount: agent.pocket.balance });
-  agent.bankroll = agent.pocket.balance;
-  const grantRemainder = STARTING_GRANT - agent.pocket.balance;
-  if (grantRemainder > 0) {
-    const w = walletFor(profile.userId);
+  if (firstGrant) {
+    agent.pocket.balance = Math.min(STARTING_GRANT, POCKET_FLOAT);
+    agent.ledger = [{ ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null }];
+    agent.pocket.ledger = appendEntry(agent.pocket.ledger, { type: 'seed', amount: agent.pocket.balance });
+    const grantRemainder = STARTING_GRANT - agent.pocket.balance;
     w.balance += grantRemainder;
     w.ledger = appendEntry(w.ledger, { type: 'seed', amount: grantRemainder, agentId: agent.id });
-    saveWalletFor(profile.userId);
+  } else {
+    const amount = Math.min(POCKET_FLOAT, Math.max(0, w.balance));
+    walletFund(w, agent.pocket, { amount, mode: 'auto', cap: POCKET_FLOAT });
+    if (amount > 0) agent.ledger.push({ ts: Date.now(), type: 'fund', amount, tableId: null });
   }
+  agent.bankroll = agent.pocket.balance;
+  // The caller's saveStore commits the owner marker, safe and new agent in
+  // one transaction, so interruption cannot credit a second grant on retry.
   profile.agents.push(agent);
   ensureRosterIdentities(profile.agents);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
@@ -1957,6 +1967,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // table is at home; it is what he is DOING that changes, which is why it
   // lands on the routine and not on `where`.
   const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
+  // C5 / BUG-131: an accepted visit is visible to its owner even though home
+  // games never write activeTableId. This is a display projection only: the
+  // kitchen-game accounting/fatigue firewall above remains unchanged.
+  const visitingGame = agent.visiting && homeTable
+    ? (liveTables?.getLiveGame?.(homeTable.tableId, { agentId: agent.id, includeHole: owner }) ?? null)
+    : null;
   // BUGS-B/3: the table he is at is the one that EXISTS, not the one his
   // record still names. home.js's first law is that location is derived and
   // never declared, and this was the one place still handing it the stored
@@ -2068,7 +2084,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     unseenRecap: !!agent.unseenRecap,
     proposal: owner ? (agent.proposal ?? null) : null,
     presence,
-    liveGame,
+    liveGame: liveGame ?? visitingGame,
     // HOME-STATE-1: `location` is where he is (home | casino | table) with the
     // table and room he is at and when he got there; `routine` is what he is
     // doing at home, and is null anywhere else. `study` is the tape room he is
@@ -4943,21 +4959,27 @@ export function installAgentProfileRoutes(app) {
     res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
-  // POST /api/agents/:agentId/reload — free play-money reload for felted agents.
-  // Only available when the agent cannot afford the minimum buy-in.
+  // Legacy reload uses the same safe-to-pocket transfer as Give chips.
+  // It must not create money or revive an archived companion.
   app.post('/api/agents/:agentId/reload', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    ensureBankroll(agent);
+    if (agent.archived) return res.status(409).json({ error: 'This agent is retired.' });
+    const pocket = ensurePocket(agent);
+    const wallet = walletFor(userId);
     const minBuyIn = (liveTables?.getDefaultBlinds?.()?.bigBlind ?? 20) * 100;
-    if (agent.bankroll >= minBuyIn) {
+    if (pocket.balance >= minBuyIn) {
       return res.status(400).json({ error: 'Agent still has chips', bankroll: agent.bankroll });
     }
-    agent.bankroll += STARTING_GRANT;
-    appendLedger(agent, { ts: Date.now(), type: 'grant', amount: STARTING_GRANT, tableId: null });
+    const amount = minBuyIn - pocket.balance;
+    pocket.agentId = agent.id;
+    const funded = walletFund(wallet, pocket, { amount });
+    if (!funded.ok) return res.status(409).json({ error: 'There are not enough chips in your safe for another buy-in.', available: wallet.balance, needed: amount });
+    appendLedger(agent, { ts: Date.now(), type: 'fund', amount, tableId: null });
+    mirrorBankroll(agent);
     saveStore(userId);
     emitAgentChange(userId);
     res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));

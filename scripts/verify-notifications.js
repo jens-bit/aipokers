@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// A configured test app, never a real delivery destination.
+process.env.MINI_APP_URL='https://t.me/railbird_test/game';
 // scripts/verify-notifications.js — NOTIFY-2
 //
 // Drives a scripted day of events through the ONE notifier and asserts that

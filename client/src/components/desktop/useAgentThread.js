@@ -40,6 +40,7 @@ export function openerFor(agent) {
 export function useAgentThread(agent) {
   const userId = getUserId();
   const [chat, setChat] = useState([]);
+  const [hasHands, setHasHands] = useState(false);
   const [sending, setSending] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [mood, setMood] = useState(null);
@@ -54,7 +55,7 @@ export function useAgentThread(agent) {
   useEffect(() => {
     if (!agentId) return undefined;
     let cancelled = false;
-    setChat([]);
+    setChat([]); setHasHands(false);
     setMood(null);
     setCause(null);
     setError('');
@@ -72,8 +73,8 @@ export function useAgentThread(agent) {
       `/api/agents/${encodeURIComponent(agentId)}/hands?userId=${encodeURIComponent(userId)}`,
       { headers: { 'x-telegram-init-data': getTelegramInitData() } },
     )
-      .then((r) => r.json())
-      .then(() => seed())
+      .then((r) => r.ok ? r.json() : null)
+      .then(data => { if(!cancelled) setHasHands(Array.isArray(data?.recentHands) && data.recentHands.length>0); seed(); })
       .catch(() => seed());
 
     return () => { cancelled = true; };
@@ -140,5 +141,5 @@ export function useAgentThread(agent) {
     }
   }, [agentId, userId]);
 
-  return { chat, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
+  return { chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
 }

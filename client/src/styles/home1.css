@@ -543,41 +543,49 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-one.is-walking { z-index: 900 !important; animation: none; }
 .home-one.is-walking .home-one__body { animation: home-walkbob 0.5s ease-in-out infinite; }
 
-/* ── HOME-2 job 5 · in the owner's hand ────────────────────────────────────
-   A lift is 1.1 and a shadow, and both of them say the same thing in the one
-   language a room seen from above has: he is NEARER. Scale is distance from
-   the camera; a shadow is distance from the floor. Nothing about the body
-   itself changes, because he is the same man — you are just holding him.
-
-   The walk transition is dropped while he is held. It is what makes a position
-   change a crossing rather than a cut, and a finger is not a crossing: a man
-   who eased toward the thumb over 1.6s would trail it across the whole room. */
-.home-one.is-carried {
-  transition: none;
-  cursor: grabbing;
-  /* A man in your hand is not pacing, and not leaning at a television. The
-     routine animations write the body's own transform, so the lift has to
-     stop them or it is overwritten by whatever he was doing a moment ago. */
-  animation: none;
+/* Board 29 C1–C5: pill and body tilt together; voice stays level. */
+.home-one__figure { display: contents; }
+.home-one.is-carried { transition: none; cursor: grabbing; animation: none; }
+.home-one.is-carried .home-one__body { animation: none; transform: none; }
+.home-one.is-carried .home-one__figure {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  animation: home-carry-float var(--carry-bob) ease-in-out infinite;
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,.55));
 }
-.home-one.is-carried .home-one__body {
-  animation: none;
-  transform: scale(1.1);
-  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55));
-  transition: transform 140ms ease-out;
+.home-carry-shadow {
+  position: absolute; top: calc(100% + 26px); left: 50%;
+  transform: translateX(-50%); border-radius: 50%;
+  background: rgba(0,0,0,.42); filter: blur(4px); pointer-events: none;
 }
-/* Over a fixture, the thing under him lights: the drop has somewhere to land
-   and the room says so before the finger lets go. */
-.home-one.is-carried[data-over] .home-one__body {
-  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.6));
+.home-one.is-carried .home-bubble-slot, .home-one.is-refusing .home-bubble-slot { top: calc(100% - var(--home-speech-top)); bottom: auto; height: 0; }
+.home-one.is-carried .home-bubble, .home-one.is-refusing .home-bubble { bottom: auto; transform: translateY(-50%); animation: none; }
+.home-one.is-carried .home-bubble--right, .home-one.is-refusing .home-bubble--right { left: var(--home-bubble-offset); }
+.home-one.is-carried .home-bubble--left, .home-one.is-refusing .home-bubble--left { right: var(--home-bubble-offset); }
+.home-one.is-refusing .home-one__body::after {
+  content: ''; position: absolute; inset: -10px; border-radius: 50%;
+  border: 1px dashed rgba(255,77,79,.53); pointer-events: none;
 }
-.home-flat:has(.home-one[data-over='couch']) .home-flat__couch,
-.home-flat:has(.home-one[data-over='fridge']) .home-flat__fridge,
-.home-flat:has(.home-one[data-over='door']) .home-flat__door,
-.home-flat:has(.home-one[data-over='tv']) .home-flat__tv,
-.home-flat:has(.home-one[data-over='table']) .home-flat__table {
-  outline: 1px solid rgba(205, 179, 128, 0.65);
-  outline-offset: 2px;
+.home-carry-target {
+  position: absolute; z-index: 12; pointer-events: none; border-radius: 8px;
+  border: 1px dashed rgba(255,255,255,.14); box-sizing: border-box;
+}
+.home-carry-target.is-active {
+  border-color: #00D4AA; background: #00D4AA1F;
+  box-shadow: 0 0 22px #00D4AA33, inset 0 0 18px #00D4AA14;
+}
+.home-carry-target__label {
+  position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
+  padding: 2.5px 8px; border-radius: 7px; background: #00D4AA;
+  color: #06100E; white-space: nowrap;
+  font: 600 7.5px var(--font-label, 'Oswald', sans-serif); letter-spacing: .12em;
+}
+.home-carry-target__label.is-edge { left: auto; right: 0; transform: none; }
+@keyframes home-carry-float {
+  0%, 100% { transform: translateY(0) rotate(var(--carry-tilt)); }
+  50% { transform: translateY(-4px) rotate(var(--carry-tilt)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-one.is-carried .home-one__figure { animation: none; transform: rotate(var(--carry-tilt)); }
 }
 
 /* A long press on a body must not select the name inside it or raise the

@@ -862,3 +862,13 @@
   border-radius: 10px;
   overflow: hidden;
 }
+
+/* F18: the same room moves toward the chosen felt. The existing header changes
+   context; a second navigation bar never appears. */
+.csn-floor58[data-zoom] .csn-floor58__room { transition: transform 380ms ease; }
+.csn-floor58__vignette { position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 46% 34% at 50% 46%,transparent 0%,rgba(6,10,9,.78) 78%); }
+.csn-floor58__watch { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font:600 9.5px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#00D4AA;background:rgba(8,12,12,.9);border:1px solid #00D4AA66;border-radius:9px;padding:7px 14px;cursor:pointer; }
+.csn-floor--zoom:not(.csn-floor--desk) .csn-floor__room { padding:0; }
+@media(prefers-reduced-motion:reduce) { .csn-floor58[data-zoom] .csn-floor58__room { transition:none; } }
+
+.csn-floor--zoom:not(.csn-floor--desk) .csn-floor__plan { flex:1; min-height:0; }

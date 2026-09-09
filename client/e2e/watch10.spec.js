@@ -98,8 +98,9 @@ const TABLE = {
 };
 
 /** Everything the app asks for, from a fixture — and a socket that plays a hand. */
-async function stub(page, { talk = [], owned = false } = {}) {
-  const roster = owned ? HOUSEHOLD.map((a,i)=>i===0 ? {...a,activeTableId:TABLE.tableId,location:loc('table',{tableId:TABLE.tableId,room:'floor'}),liveGame:{tableId:TABLE.tableId,pot:TABLE.pot,board:TABLE.community}} : a) : HOUSEHOLD;
+async function stub(page, { talk = [], owned = false, agentOverrides = {} } = {}) {
+  const roster = owned ? HOUSEHOLD.map((a,i)=>i===0 ? {...a,activeTableId:TABLE.tableId,location:loc('table',{tableId:TABLE.tableId,room:'floor'}),liveGame:{tableId:TABLE.tableId,pot:TABLE.pot,board:TABLE.community}} : a) : HOUSEHOLD.map(a => ({ ...a }));
+  roster[0] = { ...roster[0], ...agentOverrides };
   await page.route('**/api/agents?**', (r) => r.fulfill({ json: { agents: roster } }));
   await page.route('**/api/agents/*/study**', (r) => r.fulfill({ json: { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (r) => r.fulfill({ json: { sessionId: 's1', count: 0, lines: [] } }));
@@ -120,7 +121,7 @@ async function stub(page, { talk = [], owned = false } = {}) {
       WebApp: {
         initData: 'user=%7B%22id%22%3A4242%7D&auth_date=1756900000&hash=deadbeef',
         initDataUnsafe: { user: { id: 4242, first_name: 'Jens' } },
-        viewportHeight: 844,
+        viewportHeight: window.innerHeight,
         ready() {}, expand() {},
         disableVerticalSwipes() {},
         onEvent() {}, offEvent() {},
@@ -399,4 +400,89 @@ for (const height of [844, 590]) test('BUG-120/121 real felt brow and expression
   await expect(page.locator('g[data-event="stunned"]')).toHaveCount(1);
   await page.clock.runFor(1000); await expect(page.locator('g[data-event="stunned"]')).toHaveCount(0);
   expect(await page.locator('.watch-felt').boundingBox()).toEqual(before);
+});
+
+test('FTU37: BUG-129 first preflop and no read retain the live felt',async({page})=>{
+ await felt(page,{owned:true});
+ const first={...TABLE,handNumber:1,street:'preflop',community:[],pot:30,reads:[],heroEquity:null};
+ await page.evaluate(state=>{window.__pushWatchMessage({type:'hand_start',handNumber:1});window.__pushWatchState(state);},first);
+ await expect(page.locator('.watch-felt')).toBeVisible();await expect(page.locator('.watch-hero__cards')).toBeVisible();
+ await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity','1');
+ await page.screenshot({path:'../artifacts/empty37-first-preflop.png'});
+ await page.getByRole('button',{name:'Doyle_v3 — read',exact:true}).click();
+ await expect(page.getByText('NO EVIDENCE YET',{exact:true})).toBeVisible();await expect(page.locator('.read-sheet .read-bar')).toHaveCount(5);await expect(page.locator('.read-sheet .read-bar__band')).toHaveCount(0);
+ await expect(page.locator('.read-sheet .read-bar__value')).toHaveText(['··','··','··','··','··']);
+ await page.waitForTimeout(600);await page.screenshot({path:'../artifacts/empty37-no-reads.png'});
+});
+for (const height of [844, 590]) test('AUDIT40 BUG-132/133: Watch whisper, companion, read and cost preserve the felt at 390x' + height, async ({ page }) => {
+  await felt(page, { owned: true, viewport: { width: 390, height }, agentOverrides: {
+    recentHands: [{ handNumber: 2, attrCosts: [{ key: 'DISCIPLINE', line: 'He called a river jam he had already decided to fold.', street: 'river' }] }],
+  } });
+  const feltBox = await page.locator('.watch-felt').boundingBox();
+  const cards = page.locator('.watch-hero__cards');
+  const cardsBox = await cards.boundingBox();
+  await expect(page.locator('.watch-hero__cost')).toBeVisible();
+  await page.screenshot({ path: '../artifacts/watch40-' + height + '-cost.png' });
+  const dot = page.getByRole('button', { name: /Why the hand went wrong/ });
+  await expect(dot).toBeVisible({ timeout: 6000 });
+  await page.screenshot({ path: '../artifacts/watch40-' + height + '-dot.png' });
+  await dot.click(); await expect(page.locator('.watch-hero__cost')).toBeVisible();
+  expect(await page.locator('.watch-felt').boundingBox()).toEqual(feltBox);
+  await expect(dot).toBeVisible({ timeout: 6000 });
+  const next = { ...TABLE, handNumber: 4, pot: 600 };
+  await page.evaluate(state => { window.__pushWatchMessage({ type: 'hand_start', handNumber: state.handNumber }); window.__pushWatchState({ ...state, street: 'preflop', community: [], pot: 30 }); }, next);
+  await expect(page.locator('.watch-hero__strip')).toContainText('PREFLOP');
+  await expect(dot).toBeVisible();
+  await page.evaluate(state => window.__pushWatchState(state), next);
+  await expect(page.locator('.watch-hero__strip')).toContainText('FLOP');
+  await expect(page.locator('.watch-felt__pot')).toContainText('600');
+  await expect(dot).toHaveCount(0);
+
+  await page.route('**/api/agents/chat', r => r.fulfill({ json: { chat: [{ role: 'assistant', content: 'I have him covered.' }] } }));
+  await page.getByRole('textbox', { name: /Whisper to/ }).fill('Careful with him.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await page.waitForTimeout(500);
+  await expect(page.locator('.watch-whisper')).toHaveText('Careful with him.');
+  await page.screenshot({ path: '../artifacts/watch40-' + height + '-whisper.png' });
+  await expect(page.locator('.watch-whisper')).toHaveCount(0, { timeout: 6000 });
+  await page.getByRole('button', { name: 'Doyle_v3 — read', exact: true }).click();
+  await page.waitForTimeout(600);
+  await expect(page.locator('.read-sheet')).toBeVisible();
+  expect(await page.locator('.watch-felt').boundingBox()).toEqual(feltBox);
+  expect(await cards.boundingBox()).toEqual(cardsBox);
+  await page.screenshot({ path: '../artifacts/watch40-' + height + '-read.png' });
+  expect(await page.locator('.watch-hero').evaluate(el => +getComputedStyle(el).zIndex), 'BUG-133: owned cards stay above the read glass').toBeGreaterThan(await page.locator('.read-sheet').evaluate(el => +getComputedStyle(el).zIndex));
+  await expect(page.locator('.watch-hero__body > .mood-ghost')).toHaveCSS('opacity', '0.4');
+  await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity', '1');
+  if (height === 590) {
+    await page.locator('.read-sheet').evaluate(el => { el.scrollTop = el.scrollHeight; });
+    const lineBox = await page.locator('.read-sheet__line').boundingBox();
+    expect(lineBox.y + lineBox.height, 'BUG-133: the final read line can scroll clear of owned cards').toBeLessThan(cardsBox.y);
+    await page.screenshot({ path: '../artifacts/watch40-590-read-scrolled.png' });
+    await page.locator('.read-sheet').evaluate(el => { el.scrollTop = 0; });
+  }
+  await page.getByRole('button', { name: 'Close read' }).click();
+  // Board42 C1 explicitly replaces 52d: tap him anywhere, including the felt,
+  // and get the full companion. Do not restore the older owner history sheet.
+  await page.route('**/api/agents/*/flagged**', r => r.fulfill({ json: { flagged: [] } }));
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await page.waitForTimeout(600);
+  await expect(page.locator('.agent-view')).toBeVisible();
+  await page.screenshot({ path: '../artifacts/watch40-' + height + '-companion.png' });
+  await page.getByRole('button', { name: 'Watch live game', exact: true }).click();
+  await expect(page.locator('.watch-felt')).toBeVisible();
+  expect(await page.locator('.watch-felt').boundingBox()).toEqual(feltBox);
+});
+
+test('AUDIT40: each two-to-six seat ring preserves the phone felt and visible opponent cards stay hidden', async ({ page }) => {
+  await felt(page, { owned: true });
+  const box = await page.locator('.watch-felt').boundingBox();
+  for (const count of [2, 3, 4, 5, 6]) {
+    await page.evaluate(state => window.__pushWatchState(state), { ...TABLE, seats: TABLE.seats.slice(0, count) });
+    await expect(page.locator('.watch-felt__seat')).toHaveCount(count - 1);
+    await expect(page.locator('.watch-felt__seat .seat-ghost__backs')).toHaveCount(count - 1);
+    expect(await page.locator('.watch-felt').boundingBox()).toEqual(box);
+    await page.waitForTimeout(650);
+    await page.screenshot({ path: '../artifacts/watch40-ring-' + count + '.png' });
+  }
 });

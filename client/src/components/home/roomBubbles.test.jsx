@@ -163,6 +163,17 @@ describe('BUGS-C job 2: one bubble in the room, ever', () => {
 });
 
 describe('BUGS-C job 2: a bubble has a life, not just a beat', () => {
+  it('BUG-138: an expired recap stays quiet across polling and can admit a new event', () => {
+    const one = [{ ...says(P, 'Table closed while I was away'), eventId: 123 }];
+    const first = resolve(one, [P], { now: 0 });
+    const expired = resolve(one, [P], { ...first, now: BUBBLE_LIFE_MS });
+    expect(expired.shown).toEqual([]);
+    expect(expired.nextAt).toBeNull();
+    const poll = resolve(one.map(s => ({ ...s })), [P], { ...expired, now: BUBBLE_LIFE_MS * 2 });
+    expect(poll.shown).toEqual([]);
+    const fresh = resolve([{ ...one[0], eventId: 456 }], [P], { ...poll, now: BUBBLE_LIFE_MS * 3 });
+    expect(fresh.shown.map(s => s.id)).toEqual(['p']);
+  });
   const two = [says(P, 'one'), says(Q, 'two')];
 
   it('a new line waits out the minimum beat before it may take over', () => {
@@ -181,7 +192,7 @@ describe('BUGS-C job 2: a bubble has a life, not just a beat', () => {
   // it has been there" — right with two slots (a second speaker could always
   // take the other one), wrong with one: it would pin the room's only bubble
   // up forever. BUGS-C job 2 retires that clause; this is its replacement.
-  it('BUGS-C-2: with nobody waiting, the held clock still turns over once the life is spent', () => {
+  it('BUG-138: with nobody waiting, a spent bubble clears instead of restarting its clock', () => {
     const one = [says(P, 'one')];
     const first = resolve(one, [P], { now: 0 });
     expect(first.held[0].at).toBe(0);
@@ -191,8 +202,9 @@ describe('BUGS-C job 2: a bubble has a life, not just a beat', () => {
     expect(before.held[0].at).toBe(0); // life not yet spent — the clock has not moved
 
     const after = resolve(one, [P], { ...before, now: BUBBLE_LIFE_MS });
-    expect(after.shown.map((s) => s.id)).toEqual(['p']); // still the only one with anything to say
-    expect(after.held[0].at).toBe(BUBBLE_LIFE_MS); // ...but its life actually ran out and restarted
+    expect(after.shown).toEqual([]);
+    expect(after.held).toEqual([]);
+    expect(after.nextAt).toBeNull();
   });
 
   it('everybody gets a turn — the queue rotates rather than repeating', () => {

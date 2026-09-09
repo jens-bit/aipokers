@@ -193,15 +193,17 @@ export function layout(speakers = [], bodies = [], geometry = PHONE_ROOM) {
  */
 export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now = 0, geometry = PHONE_ROOM } = {}) {
   const by = new Map(speakers.map((s) => [s.id, s]));
-  let keep = held.filter((h) => by.has(h.id));
+  const key = s => JSON.stringify([s.eventId ?? null, !!s.gold, s.text]);
+  let keep = held.filter((h) => by.has(h.id) && h.key === key(by.get(h.id)));
 
   // Longest since his last turn goes first, so the queue rotates instead of
   // letting whoever ranks highest hold the room all evening. Sort is stable, so
   // two who have never spoken stay in the priority order they arrived in.
   const waiting = speakers
     .filter((s) => !keep.some((h) => h.id === s.id))
+    .filter((s) => seen[s.id]?.key !== key(s))
     .map((s) => s.id)
-    .sort((a, b) => (seen[a] ?? -1) - (seen[b] ?? -1));
+    .sort((a, b) => (seen[a]?.at ?? -1) - (seen[b]?.at ?? -1));
 
   // Give up the held place either because its life is fully spent (nobody
   // need be waiting for that) or because it has served its minimum beat AND
@@ -215,25 +217,25 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
   }
   if (evicted.length > 0) keep = keep.filter((h) => !evicted.includes(h.id));
 
-  // Whoever just gave a place up goes to the very back of the queue.
+  // BUG-138: an expired/preempted line has had its turn. Do not requeue it
+  // from the next identical roster poll; a new event or text may speak again.
   const order = [
     ...keep.map((h) => h.id),
     ...waiting.filter((id) => !evicted.includes(id)),
-    ...evicted,
   ];
 
   const shown = layout(order.map((id) => by.get(id)).filter(Boolean), bodies, geometry);
 
-  const nextHeld = shown.map((s) => keep.find((h) => h.id === s.id) ?? { id: s.id, at: now });
+  const nextHeld = shown.map((s) => keep.find((h) => h.id === s.id) ?? { id: s.id, key: key(s), at: now });
   const nextSeen = { ...seen };
   for (const s of shown) {
-    nextSeen[s.id] = keep.some((h) => h.id === s.id) ? (seen[s.id] ?? now) : now;
+    nextSeen[s.id] = keep.some((h) => h.id === s.id) ? seen[s.id] : { key: key(s), at: now };
   }
 
   // Look again at whichever comes first for the bubble now up: the moment a
   // waiting line is allowed to preempt it, or the moment its life is spent.
   // Nothing shown and nobody waiting means no timer at all.
-  const stillWaiting = speakers.some((s) => !shown.some((p) => p.id === s.id));
+  const stillWaiting = speakers.some((s) => nextSeen[s.id]?.key !== key(s));
   const heldAt = nextHeld.length ? Math.min(...nextHeld.map((h) => h.at)) : null;
   const nextAt = heldAt == null ? null : heldAt + (stillWaiting ? BUBBLE_PREEMPT_MS : BUBBLE_LIFE_MS);
 
@@ -253,7 +255,7 @@ export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM
 
   // The identity of what is being said and where everyone stands, so a
   // re-render that changed neither does not restart anybody's beat.
-  const said = speakers.map((s) => `${s.id}:${s.gold ? 'g' : 's'}:${s.text}`).join('|');
+  const said = speakers.map((s) => `${s.id}:${s.eventId ?? ''}:${s.gold ? 'g' : 's'}:${s.text}`).join('|');
   const where = bodies.map((b) => `${b.id}@${Math.round(b.x)},${Math.round(b.y)}`).join('|');
 
   const { shown, nextAt } = useMemo(() => {

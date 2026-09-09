@@ -202,6 +202,33 @@ describe('HOME-1 · bubbles flip rather than clip', () => {
 });
 
 describe('HOME-1 · placing the household', () => {
+  it('BUG-137: agents with the same routine never settle on top of each other', () => {
+    for (const geometry of [null, DESK_ROOM]) for (const routine of ['waits', 'sleeps', 'tape', 'sulks', 'paces']) {
+      const roster = Array.from({ length: 4 }, (_, i) => agent('resident-' + i, routine));
+      const positions = homePositions(roster, { geometry });
+      const boxes = [...positions.values()].map(p => bodyRect(p, geometry?.bodySize ?? 46));
+      for (let a = 0; a < boxes.length; a++) for (let b = a + 1; b < boxes.length; b++) {
+        const x = boxes[a], y = boxes[b];
+        expect(x.right <= y.left || y.right <= x.left || x.bottom <= y.top || y.bottom <= x.top, routine).toBe(true);
+      }
+      expect([...homePositions(roster, { geometry })]).toEqual([...positions]);
+    }
+  });
+  it('BUG-137: settled guests and residents keep clear of occupied table chairs', () => {
+    for (const geometry of [null, DESK_ROOM]) {
+      const roster = Array.from({ length: 8 }, (_, i) => agent('resident-' + i, i < 4 ? 'plays' : 'counts'));
+      const positions = homePositions(roster, { gameAgentIds: roster.slice(0, 4).map(a => a.id), geometry });
+      expect(new Set([...positions.values()].map(p => p.x + ',' + p.y)).size).toBe(8);
+    }
+  });
+  it('BUG-137: displaced waiters do not stand inside the desktop fridge', () => {
+    const roster = Array.from({ length: 4 }, (_, i) => agent('waiting-' + i, 'waits'));
+    const fridge = DESK_ROOM.flat.fridge;
+    for (const p of homePositions(roster, { geometry: DESK_ROOM }).values()) {
+      const box = bodyRect(p, DESK_ROOM.bodySize);
+      expect(box.right <= fridge.x || box.left >= fridge.x + fridge.w || box.bottom <= fridge.y || box.top >= fridge.y + fridge.h).toBe(true);
+    }
+  });
   it('a routine with a place of its own happens there', () => {
     const positions = homePositions([
       agent('sleeper', 'sleeps'),

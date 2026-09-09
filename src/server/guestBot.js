@@ -37,11 +37,12 @@
 import { claimGuest } from './guestClaim.js';
 import { guestsEnabled, tokenFromStartParam } from './guest.js';
 
-const MINI_APP_URL = process.env.MINI_APP_URL || 'https://t.me/AigenicPokerBot/game';
+import { miniAppUrl } from './miniAppUrl.js';
 
 /** The Mini App button every reply below carries. */
-function openButton(text = 'OPEN AGENTIC POKER') {
-  return { inline_keyboard: [[{ text, url: MINI_APP_URL }]] };
+function openButton(text = 'OPEN RAILBIRD') {
+  const url=miniAppUrl();
+  return url ? { inline_keyboard: [[{ text, url }]] } : undefined;
 }
 
 /**

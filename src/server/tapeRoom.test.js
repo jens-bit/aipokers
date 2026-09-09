@@ -103,6 +103,7 @@ before(async () => {
         ],
       }),
       mkAgent('seated', 'Big Slick', { status: 'playing', activeTableId: 'tbl-1' }),
+      mkAgent('other', 'Sphinx', { sessionFlagged: [flagged(51, 'badBeat', [{ seat: 1, playerId: 'p_granite', displayName: 'Granite' }])] }),
     ],
   });
 
@@ -137,7 +138,7 @@ before(async () => {
 // the tests that read it say so themselves.
 beforeEach(() => {
   tape.reset();                                   // drop any pending timer
-  for (const id of ['student', 'seated']) {
+  for (const id of ['student', 'seated', 'other']) {
     try { profiles.setAgentStudy(id, 'tape', null); } catch { /* not seated yet */ }
   }
 });
@@ -169,6 +170,17 @@ test('HOME-STATE-1: the line is filed under the man who showed him a hand', () =
 });
 
 // ── The routes ──────────────────────────────────────────────────────────────
+
+test('BUG-137: the household TV admits one student at a time and releases its chair', async () => {
+  const first = await postJson(`${base}/api/agents/other/study`, { userId: 'tape', handId: 51 });
+  assert.equal(first.status, 200); await first.json();
+  const second = await postJson(`${base}/api/agents/student/study`, { userId: 'tape', handId: 41 });
+  assert.equal(second.status, 409); assert.match((await second.json()).error, /TV|television/);
+  assert.equal(profiles.getAgentStudy('student', 'tape'), null);
+  tape.finishStudy('other', 'tape');
+  const next = await postJson(`${base}/api/agents/student/study`, { userId: 'tape', handId: 41 });
+  assert.equal(next.status, 200); await next.json();
+});
 
 test('HOME-STATE-1: he goes in, ninety seconds pass, one line comes out', async () => {
   const before = profiles.getAgentAttributes('student', 'tape');

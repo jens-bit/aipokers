@@ -39,6 +39,8 @@ process.env.THINK_SPREAD_MS = '25';
 process.env.SESSION_MAX_HANDS ??= '6';
 process.env.MAX_SEATS ??= '2';
 process.env.GUEST_ENABLED = '1';
+// The fake bot's destination is configured explicitly, like a deployed app.
+process.env.MINI_APP_URL = 'https://t.me/railbird_test/game';
 
 import express from 'express';
 import http from 'node:http';

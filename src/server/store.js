@@ -363,6 +363,8 @@ function applySchema(d) {
   // quietly forgets its own first year is not a lifetime total. ALTER rather
   // than a CREATE TABLE column: wallets from WALLET-1 exist.
   addColumnIfMissing(d, 'wallets', 'earned', 'INTEGER NOT NULL DEFAULT 0');
+  // One starting grant belongs to the owner, even after every agent is deleted.
+  addColumnIfMissing(d, 'wallets', 'starting_grant_claimed', 'INTEGER NOT NULL DEFAULT 0');
   // FRIDGE-1: what is in this owner's fridge, as { beer, snack } counts. One
   // small JSON column rather than a column per shelf, because the shelves are
   // a product decision and adding a third one should not be a migration.
@@ -647,13 +649,14 @@ export function loadProfile(ownerId) {
 // Persists one owner's profile: the chat log plus every agent, and deletes
 // agent rows that are no longer in the array (a retire/delete). One
 // transaction, which is the write-atomicity the JSON rewrite never had.
-export function saveProfile(ownerId, profile) {
+export function saveProfile(ownerId, profile, wallet = null) {
   const d = conn();
   const owner = String(ownerId);
   const list = Array.isArray(profile?.agents) ? profile.agents : [];
 
   d.transaction(() => {
     putProfileRow(d, owner, profile?.chat ?? [], profile?.homeThreadUnreadSince ?? 0);
+    if (wallet) putWalletRow(d, owner, wallet);
     for (let i = 0; i < list.length; i++) putAgentRow(d, owner, list[i], i);
 
     const keep = new Set(list.map((a) => String(a?.id ?? '')));
@@ -834,7 +837,7 @@ export function deleteNotificationHold(id) {
 // ── Wallets (WALLET-1) ───────────────────────────────────────────────────────
 
 export function loadWallet(ownerId) {
-  const row = conn().prepare('SELECT owner_id, balance, earned, fridge, ledger FROM wallets WHERE owner_id = ?').get(String(ownerId));
+  const row = conn().prepare('SELECT owner_id, balance, earned, fridge, ledger, starting_grant_claimed FROM wallets WHERE owner_id = ?').get(String(ownerId));
   if (!row) return null;
   // SLOTS-1: `earned` is a lifetime total and a wallet written before the
   // column existed reads as zero — which understates a long-lived owner and is
@@ -850,6 +853,7 @@ export function loadWallet(ownerId) {
     earned: row.earned ?? 0,
     fridge: jsonParse(row.fridge, { beer: 0, snack: 0 }),
     ledger: jsonParse(row.ledger, []),
+    ...(row.starting_grant_claimed ? { startingGrantClaimed: true } : {}),
   };
 }
 
@@ -859,10 +863,11 @@ export function saveWallet(ownerId, wallet) {
 
 function putWalletRow(d, ownerId, wallet) {
   d.prepare(`
-    INSERT INTO wallets (owner_id, balance, earned, fridge, ledger, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO wallets (owner_id, balance, earned, fridge, ledger, updated_at, starting_grant_claimed) VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(owner_id) DO UPDATE SET
       balance = excluded.balance, earned = excluded.earned, fridge = excluded.fridge,
-      ledger = excluded.ledger, updated_at = excluded.updated_at
+      ledger = excluded.ledger, updated_at = excluded.updated_at,
+      starting_grant_claimed = MAX(wallets.starting_grant_claimed, excluded.starting_grant_claimed)
   `).run(
     String(ownerId),
     Math.max(0, Math.floor(wallet?.balance ?? 0)),
@@ -870,6 +875,7 @@ function putWalletRow(d, ownerId, wallet) {
     JSON.stringify(wallet?.fridge ?? { beer: 0, snack: 0 }),
     JSON.stringify(wallet?.ledger ?? []),
     Date.now(),
+    wallet?.startingGrantClaimed ? 1 : 0,
   );
 }
 
@@ -1449,10 +1455,11 @@ export function moveOwner(fromId, toId) {
         for (const [k, v] of Object.entries(jsonParse(guestWallet.fridge, {}))) {
           fridge[k] = (Number(fridge[k]) || 0) + (Number(v) || 0);
         }
-        d.prepare('UPDATE wallets SET balance = ?, earned = ?, fridge = ?, updated_at = ? WHERE owner_id = ?').run(
+        d.prepare('UPDATE wallets SET balance = ?, earned = ?, fridge = ?, starting_grant_claimed = ?, updated_at = ? WHERE owner_id = ?').run(
           (targetWallet.balance ?? 0) + (guestWallet.balance ?? 0),
           (targetWallet.earned ?? 0) + (guestWallet.earned ?? 0),
           JSON.stringify(fridge),
+          targetWallet.starting_grant_claimed || guestWallet.starting_grant_claimed ? 1 : 0,
           Date.now(),
           to,
         );

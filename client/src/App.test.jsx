@@ -315,7 +315,7 @@ describe('BUGS-A job 3 · retiring him lands on HOME', () => {
 
   it('retiring from a thread-opened profile ends in the room, not in the dead thread', async () => {
     const user = userEvent.setup();
-    fetchMock.route(/\/api\/agents\/agent_cannon$/, { success: true }, { method: 'DELETE' });
+    fetchMock.route(/\/api\/agents\/agent_cannon\/retire$/, { archived: true }, { method: 'POST' });
     render(<App />);
     await bootedOnHome();
 

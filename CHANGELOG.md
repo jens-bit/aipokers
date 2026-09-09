@@ -4,6 +4,12 @@
 
 GET /admin: one page, behind ADMIN_KEY in an x-admin-key header, that says how the game is doing without an SSH session — owners, agents, play, chips, model spend, notifications, system and 14 days of retention cohorts, with a 7-day sparkline on every tile that has a daily series and a red strip at the top for anything wrong. Read-only, no model call, six requests a minute per key per endpoint, and nothing about a request reaches the logs. Every number carries the SQL that produced it as a hover title, enforced by a test. Six new counters make numbers answerable that had no durable source before — hands by the hour, knocks at a door, chips won today, pings the notify budget refused, and model calls that succeeded or failed — plus a throttled presence row, the one write the feature adds. With ADMIN_KEY unset the whole thing 404s. read-me-claude/ADMIN.md says what "active" means and what each number does not mean.
 
+## 2026-09-09 — reference verification and release preparation (batches32–38)
+
+Share previews/exports now use the authored portrait/wide formats, saved identity and truthful net/pot labels. Home departures/returns cross the room with bounded session results. Character artwork matches the controlled 101-sprite matrix; reactions use independent authored timers and brows. Design fonts are bundled locally. Retirement archives through the existing endpoint, and the casino has its two-stage pinch camera. First-use quiet/history/read states and B15 header motion are repaired. Welcome captures show the final rendered phone/desktop product, and Telegram entry/notification links use configured destinations with Railbird branding.
+
+Reference pairs, exact checks and deliberate differences are recorded in read-me-claude/DESIGN_GAP.md and OVERNIGHT_DESIGN_WORK.md. This is local release preparation; push, deployment verification, Telegram account application and founder playtest are separate.
+
 ## 2026-09-09 — sound playback and celebration audio
 
 Existing sound hooks now play original Web Audio effects after a user gesture. C8 adds the timed swell, three reports and knockout sound. Mute cancels queued/playing effects, remains reachable beside Chat on the owned phone route, and is available in desktop Watch headers. Full tests, real-browser output/mute, all desktop cases across two groups, built smoke and Home2 passed. An original WAV preview and visual pairs are saved under client/e2e.

@@ -1,5 +1,6 @@
 // Board 42 C1–C3: the companion above his conversation. Network chat stays in
 // AgentThread; money and wants use the same authenticated routes as Home.
+import { NotYet } from '../ftu/NotYet.jsx';
 import { useState } from 'react';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { ghostHands, SEAT_GRIP } from '../system/GhostHands.jsx';
@@ -118,7 +119,7 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       {chat.map(msg => {
         if (msg.role === 'replay') return <div className="agent-view__hand" key={msg._id}><ReplayCard compact hand={msg.hand} onOpen={() => onReplay(msg.hand)}/></div>;
         if (msg.role === 'growth') return <div className="agent-view__note" key={msg._id}>{msg.tick.cause}</div>;
-        if (msg.role === 'noflags') return <div className="agent-view__note" key={msg._id}>No big bluffs, no bad beats. It was a quiet shift.</div>;
+        if (msg.role === 'noflags') return <div className="ftu-thread-note" key={msg._id}><NotYet fact="NOTHING WORTH FLAGGING" voice="No big bluffs, no bad beats. It was a quiet shift." fills="When a hand is worth watching, it arrives here as a replay you can scrub."/></div>;
         if (msg.role === 'accepted') return <div className="agent-view__note" key={msg._id}>Change accepted.</div>;
         const mine = msg.role === 'user';
         return <div key={msg._id} className={`agent-view__line${mine ? ' is-mine' : ''}`}>

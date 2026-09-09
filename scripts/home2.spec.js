@@ -335,11 +335,13 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
 
     const lifted = page.locator('.home-one.is-carried');
     await expect(lifted).toHaveCount(1);
-    // scale(1.1) and a shadow: the two ways a room seen from above says NEARER.
+    // Board 29 C1 supersedes the old scale(1.1): 62px hood, a tilted
+    // pill/body group, and a separate blurred floor shadow.
     const ghost = lifted.locator('.home-one__body');
-    const transform = await ghost.evaluate((el) => getComputedStyle(el).transform);
-    expect(transform).toMatch(/matrix\(1\.1/);
-    const shadow = await ghost.evaluate((el) => getComputedStyle(el).filter);
+    await expect(ghost).toHaveCSS('width', '62px');
+    await expect(lifted.locator('.home-carry-shadow')).toHaveCSS('filter', 'blur(4px)');
+    await expect(lifted.locator('.home-one__figure')).toHaveCSS('animation-name', 'home-carry-float');
+    const shadow = await lifted.locator('.home-one__figure').evaluate(el => getComputedStyle(el).filter);
     expect(shadow).toContain('drop-shadow');
     await shot(page, 'job5-lifted');
 

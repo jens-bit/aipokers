@@ -478,7 +478,12 @@ export function notifyTable(table) {
   // ordinary table socket — never as a FLOOR_GAME, which would draw a kitchen
   // table into the casino diorama, and never as a rooms recompute, which
   // would be a no-op anyway since it sits at no rung.
-  if (table.home) return;
+  if (table.home) {
+    for (const [ws, entry] of subs) {
+      if (entry.owner && tableBelongsTo(table, entry.userId)) pushHomePreview(ws, entry, table);
+    }
+    return;
+  }
   for (const [ws, entry] of subs) {
     if (!tableBelongsTo(table, entry.userId)) continue;
     pushGame(ws, entry, table);
@@ -491,6 +496,26 @@ export function notifyTable(table) {
   // a card on the board or a seat folding changes a miniature without changing
   // a single count. Same gate, same throttle.
   broadcastRoomTables();
+}
+
+// A visiting agent's own room needs fresh preview data while he plays in
+// another kitchen. HOME_STATE keeps this out of the public casino channel.
+// Reuse subscription timer ownership so leaving Home cancels trailing work.
+function pushHomePreview(ws, entry, table) {
+  const key = 'home:' + table.tableId;
+  let state = entry.tables.get(key);
+  if (!state) { state = { lastPushAt: -Infinity, timer: null }; entry.tables.set(key, state); }
+  const flush = () => {
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = null;
+    if (subs.get(ws) !== entry) return;
+    sendHomeState(ws, entry);
+    state.lastPushAt = Date.now();
+  };
+  const wait = state.lastPushAt + PUSH_INTERVAL_MS - Date.now();
+  if (wait > 0) {
+    if (!state.timer) { state.timer = setTimeout(flush, wait); state.timer.unref?.(); }
+  } else flush();
 }
 
 function tableBelongsTo(table, userId) {

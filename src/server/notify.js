@@ -63,6 +63,7 @@ import {
 import { isAgentNotifyMuted, setAgentNotifyMuted } from './agentProfiles.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 import { bus as eventBus } from './events.js';
+import { miniAppUrl } from './miniAppUrl.js';
 
 // The switch, inherited from the legacy notifier so that a deployment that had
 // notifications off keeps them off. It gates the SENDER only: the mute route
@@ -117,7 +118,6 @@ export const BUDGET = {
 // owner, only tzOffsetFor changes.
 const DEFAULT_TZ_OFFSET_MIN = Number(process.env.NOTIFY_TZ_OFFSET_MIN ?? 120); // UTC+2
 
-const MINI_APP_URL = process.env.MINI_APP_URL || 'https://t.me/AigenicPokerBot/game';
 
 const HEAT_TILTED = 70;   // NOTIFY-1: the heat at which tilt is worth a ping
 
@@ -541,11 +541,12 @@ function serialize(ownerId, fn) {
 
 async function send(ownerId, type, payload, at) {
   const opts = { parse_mode: 'HTML' };
-  if (payload.button) {
+  const url=payload.button ? miniAppUrl(`agent_${payload.agentId}`) : null;
+  if (url) {
     // The deep link opens the Mini App on this agent's thread rather than the
     // home screen — the message is about him, so the tap has to land on him.
     opts.reply_markup = {
-      inline_keyboard: [[{ text: payload.button, url: `${MINI_APP_URL}?startapp=agent_${payload.agentId}` }]],
+      inline_keyboard: [[{ text: payload.button, url }]],
     };
   }
   let ok = false;

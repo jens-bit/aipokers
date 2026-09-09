@@ -85,3 +85,10 @@ describe('FTU-4 the You screen, one session in', () => {
     expect(screen.getByText('Hands played')).toBeInTheDocument();
   });
 });
+
+
+it('BUG-128: one session explains uncertainty instead of presenting a win rate',async()=>{
+ telegram.signIn();fetchMock.route('/api/agents',{agents:[FIRST_SESSION]});fetchMock.route('/api/wallet',{balance:20000});
+ render(<YouScreen/>);await screen.findByText('ONE SESSION OF HISTORY');
+ expect(screen.queryByText('Win rate')).toBeNull();expect(screen.queryByText('52%')).toBeNull();
+});

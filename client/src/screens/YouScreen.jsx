@@ -430,9 +430,9 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
       {thinHistory && (
         <div className="ftu-you-note">
           <NotYet
-            fact="ONE SESSION OF HISTORY"
+            fact={sessionCount === 0 ? 'NO SESSION HISTORY YET' : 'ONE SESSION OF HISTORY'}
             voice={null}
-            fills="A second session gives him a mood line to plot, and a week gives him a win rate worth believing. Until then the only honest number on this screen is the balance."
+            fills={sessionCount === 0 ? 'His first session starts the record. A second gives him a mood line to plot; until then, the balance is what we know.' : 'A second session gives him a mood line to plot, and a week gives him a win rate worth believing. Until then the only honest number on this screen is the balance.'}
           />
         </div>
       )}
@@ -451,7 +451,7 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
       </div>
       <div style={{ margin: '0 14px 14px', borderRadius: 12, overflow: 'hidden', border: `1px solid ${M_BORDER}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: M_BORDER, flexShrink: 0 }}>
         <StatCell label="Hands played" value={loading ? '—' : formatHands(totalHands)} />
-        <StatCell label="Win rate" value={loading ? '—' : winRatePct ? `${winRatePct}%` : '—'} color={M_TEAL} />
+        {!thinHistory && <StatCell label="Win rate" value={loading ? '—' : winRatePct ? `${winRatePct}%` : '—'} color={M_TEAL} />}
         <StatCell label="Biggest pot" value={loading ? '—' : biggestPot ? `$${biggestPot}` : '—'} color={M_GOLD} />
         <StatCell label="Agents built" value={loading ? '—' : String(agentCount)} />
       </div>

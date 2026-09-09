@@ -187,10 +187,10 @@ describe('CHAT-2 — Retire', () => {
     expect(fetchMock.requests.filter((r) => r.method === 'DELETE')).toHaveLength(0);
   });
 
-  it('DELETEs the agent on confirm, with the Telegram header', async () => {
+  it('BUG-123: archives through the retirement endpoint with the Telegram header', async () => {
     const user = userEvent.setup();
     const onRetired = vi.fn();
-    fetchMock.route('/api/agents/a1', { success: true }, { method: 'DELETE' });
+    fetchMock.route('/api/agents/a1/retire', { archived: true, pending: false, collected: 2000 }, { method: 'POST' });
     renderProfile(RESTING, { onRetired });
 
     await user.click(screen.getByRole('button', { name: 'More actions' }));
@@ -198,15 +198,17 @@ describe('CHAT-2 — Retire', () => {
     await user.click(screen.getByRole('button', { name: 'Retire him' }));
 
     await waitFor(() => expect(onRetired).toHaveBeenCalledWith(RESTING));
-    const [req] = fetchMock.requests.filter((r) => r.method === 'DELETE');
-    expect(req.url).toContain('/api/agents/a1');
+    expect(fetchMock.requests.filter((r) => r.method === 'DELETE')).toHaveLength(0);
+    const [req] = fetchMock.requests.filter((r) => r.url.includes('/retire'));
+    expect(req.url).toContain('/api/agents/a1/retire?userId=');
+    expect(req.method).toBe('POST');
     expect(req.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
   });
 
   it('keeps him, and says so, when the server refuses', async () => {
     const user = userEvent.setup();
     const onRetired = vi.fn();
-    fetchMock.route('/api/agents/a1', { status: 500, body: { error: 'nope' } }, { method: 'DELETE' });
+    fetchMock.route('/api/agents/a1/retire', { status: 500, body: { error: 'nope' } }, { method: 'POST' });
     renderProfile(RESTING, { onRetired });
 
     await user.click(screen.getByRole('button', { name: 'More actions' }));

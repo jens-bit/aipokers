@@ -22,7 +22,7 @@
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { GhostHandLayer, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
-import { bubbleSide } from './flat.js';
+import { PHONE_ROOM, bubbleSide } from './flat.js';
 import { presentRoutine } from './routines.js';
 import { fatigueOf } from '../../lib/attributes.js';
 import { heatColor, heatStep, staminaOf, staminaPct } from '../system/FeltBodyBars.jsx';
@@ -30,7 +30,7 @@ import { shortName } from '../../lib/names.js';
 
 // ── The bubble ──────────────────────────────────────────────────────────────
 
-export function HomeBubble({ text, x, gold = false, side = null, testId }) {
+export function HomeBubble({ text, x, gold = false, side = null, maxWidth, testId }) {
   if (!text) return null;
   // FIX-6 job 3: the room places the bubble now (roomBubbles.js), because the
   // side that clears the WALL is not always the side that clears the man
@@ -41,6 +41,7 @@ export function HomeBubble({ text, x, gold = false, side = null, testId }) {
     <div className="home-bubble-slot">
       <div
         className={`home-bubble home-bubble--${open}${gold ? ' home-bubble--gold' : ''}`}
+        style={maxWidth ? { width: maxWidth } : undefined}
         data-side={open}
         data-testid={testId}
       >
@@ -145,7 +146,9 @@ export function HomeOne({
   // fallback for a caller that has no roster to roll against.
   identity = null,
   accent = '#00D4AA',
-  size = 46,
+  size: baseSize = 46,
+  roomWidth = 390,
+  refusing = false,
   // FIX-6 job 3 — ONE BUBBLE, or none. It used to be two props (`says` and
   // `news`) and both could be set at once, which is how a man ended up wearing
   // two boxes. The room decides which of the things he has to say is the one
@@ -172,7 +175,15 @@ export function HomeOne({
   const mood = agent?.mood?.state ?? 'neutral';
   const heat = agent?.mood?.heat ?? 45;
   const fatigue = fatigueOf(agent);
-  const pose = walking ? 'rest' : dealt ? 'hold' : r.pose;
+  const heldState = carried ? (heat >= 70 ? 'hot' : fatigue === 'worn' ? 'worn' : 'rested') : null;
+  const heldVoice = CARRY_VOICE[heldState];
+  const size = carried ? Math.max(62, Math.round(baseSize * 1.1)) : baseSize;
+  const pose = heldVoice?.pose ?? (walking ? 'rest' : dealt ? 'hold' : r.pose);
+  const besideHead = !!(carried || refusing);
+  const speechX = carried?.x ?? at.x;
+  const heldSide = speechX > roomWidth / 2 ? 'left' : 'right';
+  const heldRoom = besideHead ? (heldSide === 'left' ? speechX : roomWidth - speechX) - size / 2 - 16 : null;
+  const shownBubble = heldVoice ? { text: heldVoice.says, side: heldSide } : refusing && bubble ? { ...bubble, side: heldSide } : bubble;
   // His colour is his, not his mood's. Everything his name pill and his body
   // are tinted with comes from here.
   const glow = identity?.glow?.c ?? accent;
@@ -180,7 +191,7 @@ export function HomeOne({
   return (
     <button
       type="button"
-      className={`home-one${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
+      className={`home-one${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
       data-spot={at?.spot}
@@ -189,30 +200,34 @@ export function HomeOne({
       aria-hidden={away ? 'true' : undefined}
       disabled={away}
       tabIndex={away ? -1 : undefined}
+      data-carry-state={heldState}
       data-carried={carried ? 'true' : 'false'}
       data-over={carried?.over ?? null}
       // Carried, he is where the FINGER is, and above everything: a man in your
       // hand is nearer the viewer than any wall he is passing over. Walking is
       // an animation and carrying is not — the transition is dropped while he
       // is held, or he would lag a frame behind the thumb.
-      style={carried
-        ? { left: carried.x, top: carried.y, zIndex: 950 }
-        : { left: at.x, top: at.y, zIndex: Math.round(at.y) }}
+      style={{ ...(carried ? { left: carried.x, top: carried.y, zIndex: 950 }
+        : { left: at.x, top: at.y, zIndex: Math.round(at.y) }),
+        '--home-speech-top': (size * .65) + 'px', '--home-bubble-offset': (size / 2 + 8) + 'px' }}
       onClick={away ? undefined : onClick}
       aria-label={`${agent?.name ?? 'Agent'} — ${r.label}`}
       {...(!away ? carryHandlers ?? {} : {})}
     >
-      {returnLine ? <span className={`home-return-result${returnLine.startsWith('−') ? ' is-loss' : ''}`} data-testid={`home-says-${agent?.id}`}>{returnLine}</span> : null}
-      {bubble ? (
+      {returnLine && !carried ? <span className={`home-return-result${returnLine.startsWith('−') ? ' is-loss' : ''}`} data-testid={`home-says-${agent?.id}`}>{returnLine}</span> : null}
+      {shownBubble ? (
         <HomeBubble
-          text={bubble.text}
-          x={at.x}
-          side={bubble.side}
-          gold={bubble.gold}
-          testId={`home-${bubble.gold ? 'news' : 'says'}-${agent?.id}`}
+          text={shownBubble.text}
+          x={carried?.x ?? at.x}
+          side={shownBubble.side}
+          maxWidth={besideHead ? Math.min(150, Math.max(84, heldRoom)) : undefined}
+          gold={shownBubble.gold}
+          testId={`home-${shownBubble.gold ? 'news' : 'says'}-${agent?.id}`}
         />
       ) : null}
 
+      {carried ? <span className="home-carry-shadow" style={{ width: size * .9, height: size * .24 }} aria-hidden /> : null}
+      <span className="home-one__figure" style={heldVoice ? { '--carry-tilt': heldVoice.tilt, '--carry-bob': heldVoice.bob, '--carry-size': size + 'px' } : undefined}>
       <NamePill
         name={agent?.name}
         // Not on the wire yet; read the moment it is (lib/names.js).
@@ -225,7 +240,7 @@ export function HomeOne({
       />
 
       <span className="home-one__body" style={{ width: size, height: size }}>
-        {r.back ? (
+        {r.back && !carried ? (
           // Facing the wall: the silhouette with no face, which is the whole
           // point of the routine.
           <svg width={size} height={size} viewBox="0 0 80 80" className="home-one__back" aria-hidden>
@@ -242,22 +257,51 @@ export function HomeOne({
             heat={heat}
             accent={glow}
             size={size}
-            event={r.face}
+            event={carried ? undefined : r.face}
             ring={false}
             hood={identity?.hood ?? null}
             glow={identity?.glow?.c ?? null}
           />
         )}
 
-        {dealt && !r.back ? (
+        {dealt && !carried && !r.back ? (
           <span className="home-one__cards" aria-hidden>
             {[0, 1].map((i) => <CardBack key={i} w={size * 0.34} h={size * 0.46} />)}
           </span>
         ) : null}
 
-        {!r.back ? <GhostHandLayer className="home-one__hands" pose={pose} size={size} grip={SEAT_GRIP} /> : null}
-        {!walking && r.prop ? <RoutineProp kind={r.prop} size={size} /> : null}
+        {(!r.back || carried) ? <GhostHandLayer className="home-one__hands" pose={pose} size={size} grip={SEAT_GRIP} /> : null}
+        {!walking && !carried && r.prop ? <RoutineProp kind={r.prop} size={size} /> : null}
+      </span>
       </span>
     </button>
   );
+}
+
+// Board 29 C1–C5: the same ghost, with the authored held pose and voice.
+const CARRY_VOICE = {
+  rested: { says: 'Where are we going?', tilt: '-4deg', bob: '2.6s', pose: 'rest' },
+  worn: { says: 'Fine. Carry me.', tilt: '-14deg', bob: '4.2s', pose: 'rest' },
+  hot: { says: 'Put me down.', tilt: '6deg', bob: '0.9s', pose: 'clench' },
+};
+
+export function CarryTargets({ over, geometry = PHONE_ROOM }) {
+  const t = geometry.flat.table;
+  const targets = [
+    ['couch', 'REST', geometry.flat.couch],
+    ['table', 'DEAL HIM IN', { x: t.cx - t.rx, y: t.cy - t.ry, w: t.rx * 2, h: t.ry * 2 }],
+    // Master spec v14 supersedes the older board's beer with a snack.
+    ['fridge', 'A SNACK', geometry.flat.fridge],
+    ['tv', 'WATCH TAPE', geometry.tvScreen],
+    ['door', 'SEND HIM OUT', geometry.flat.door],
+  ];
+  return targets.map(([id, label, box]) => {
+    const left = Math.max(0, box.x - 6), top = Math.max(0, box.y - 6);
+    const width = Math.min(geometry.width, box.x + box.w + 6) - left;
+    return <div key={id} className={'home-carry-target' + (over === id ? ' is-active' : '')}
+      data-fixture={id} aria-hidden
+      style={{ left, top, width, height: box.h + 12 }}>
+      {over === id ? <span className={'home-carry-target__label' + (id === 'door' ? ' is-edge' : '')}>{label}</span> : null}
+    </div>;
+  });
 }
