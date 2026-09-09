@@ -1352,7 +1352,7 @@ export function getMemoryContext(agentId, userId) {
 // all it is his nature's greeting. There is no model call anywhere in this path
 // — it is templates the whole way down, which is why it cannot fail into a
 // tally.
-export function openerForAgent(agent) {
+export function openerForAgent(agent, { seated = false } = {}) {
   if (!agent) return null;
   // SERVER-5 job 1: while a dipped session is RUNNING, the line he would open
   // with is about tonight, not about last night. It has to come before the
@@ -1374,6 +1374,7 @@ export function openerForAgent(agent) {
     seed: handsPlayed,
     nature: agent.nature,
     played,
+    seated,
   }));
 }
 
@@ -2080,7 +2081,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // MOOD-2c / RAISE-2: the thread's first line, in his voice. ALWAYS present
     // — the client has no business composing a greeting, and the one it used to
     // compose when this was null was a win/loss tally.
-    opener: owner ? openerForAgent(agent) : null,
+    opener: owner ? openerForAgent(agent, { seated: !!homeTable }) : null,
     unseenRecap: !!agent.unseenRecap,
     proposal: owner ? (agent.proposal ?? null) : null,
     presence,

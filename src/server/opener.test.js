@@ -21,8 +21,11 @@ import {
   installAgentProfileRoutes,
   openerForAgent,
   finishAgentSession,
+  presentAgent,
+  setLiveTableProvider,
 } from './agentProfiles.js';
 import { natureOpener, OPENER_MAX_WORDS } from '../agent/moment.js';
+import { NATURES } from '../agent/attributes.js';
 
 // The sentence this ticket exists to delete, in every shape it took.
 const TALLY = /just finished|Won \d+, lost \d+|adjust my strategy/i;
@@ -71,6 +74,48 @@ test('RAISE-2: a brand new agent greets in his nature, not with a scoreboard', (
   const line = openerForAgent(fresh);
   assert.equal(line, natureOpener('Hothead'));
   assert.doesNotMatch(line, TALLY);
+});
+
+test('BUG-158: a seated Home agent with a want never asks to be put at a table', () => {
+  let seated = true;
+  setLiveTableProvider({
+    hasTable: () => false,
+    homeTableOf: () => seated ? { tableId: 'home-opener' } : null,
+  });
+  try {
+    const lines = NATURES.map(nature => {
+      const agent = {
+        id: `home-${nature.name}`, name: nature.name, nature,
+        stats: { handsPlayed: 0 }, bankroll: 2000,
+        pocket: { balance: 2000, mode: 'auto', cap: 2000, ledger: [] },
+        lastMoment: { kind: 'want', text: 'A beer would help.', at: Date.now() },
+      };
+      const view = presentAgent(agent, { owner: true });
+      assert.equal(view.homeTableId, 'home-opener');
+      assert.equal(view.routine.key, 'plays');
+      assert.notEqual(view.opener, natureOpener(nature), `${nature.name} uses the actual seated context`);
+      assert.doesNotMatch(view.opener, /deal me in|put me at|give me a table|ready when you|sit down|\byo\b/i);
+      assert.ok(view.opener.trim().split(/\s+/).length <= OPENER_MAX_WORDS);
+      assert.equal(presentAgent(agent).opener, null, 'private voice stays owner-only');
+      return view.opener;
+    });
+    assert.equal(new Set(lines).size, NATURES.length, 'each nature retains its own cadence');
+    seated = false;
+    const waiting = presentAgent({ id: 'waiting', nature: { name: 'Hothead' },
+      status: 'playing', homeTableId: 'stale-home', stats: { handsPlayed: 0 } }, { owner: true });
+    assert.equal(waiting.opener, natureOpener('Hothead'), 'stored flags cannot invent a live kitchen seat');
+  } finally { setLiveTableProvider(null); }
+});
+
+test('BUG-158: a kitchen seat does not replace an actual session recap', () => {
+  setLiveTableProvider({ hasTable: () => false, homeTableOf: () => ({ tableId: 'home-opener' }) });
+  try {
+    const view = presentAgent({ id: 'recap', nature: { name: 'Hothead' },
+      sessionRecap: { opener: 'That was ugly.', text: 'The last river stayed with me.' },
+      unseenRecap: true, stats: { handsPlayed: 10 } }, { owner: true });
+    assert.equal(view.opener, 'That was ugly.');
+    assert.equal(view.sessionRecap.text, 'The last river stayed with me.');
+  } finally { setLiveTableProvider(null); }
 });
 
 test('RAISE-2: an agent born before natures existed still gets a sentence', () => {

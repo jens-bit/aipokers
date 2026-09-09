@@ -137,11 +137,26 @@ const NATURE_OPENERS = Object.freeze({
   Showman:   'Finally. Give me a table and an audience.',
 });
 
+// BUG-158: kitchen hands do not count toward casino career stats. A player
+// can therefore still have zero recorded hands while already sitting in the
+// Home game. His fallback greeting must not ask to be seated again.
+const SEATED_OPENERS = Object.freeze({
+  Grinder:   'One hand at a time. I can do this all night.',
+  Hothead:   'This hand first. Then we make something happen.',
+  Professor: 'I am watching the sizes. Small details add up.',
+  Rock:      'No hurry. I can wait for the right cards.',
+  Gambler:   'Still in the game. Let’s see what turns up.',
+  Shark:     'I am watching how they play. There is always a tell.',
+  Sphinx:    'Cards on the table. The rest can wait.',
+  Showman:   'Keep watching. The good part could be this hand.',
+});
+
 // The one sentence he opens with when there is no session to talk about.
 // Never null: an agent born before natures existed still gets a line rather
 // than falling through to a tally.
-export function natureOpener(nature) {
+export function natureOpener(nature, { seated = false } = {}) {
   const name = typeof nature === 'string' ? nature : nature?.name;
+  if (seated) return SEATED_OPENERS[name] ?? 'One hand at a time.';
   return NATURE_OPENERS[name] ?? 'Ready when you are.';
 }
 
@@ -172,8 +187,8 @@ function pick(list, seed) {
  * @returns string, at most OPENER_MAX_WORDS words. NEVER null and never a
  *          win/loss tally — this function is the only source of the line.
  */
-export function formatOpener({ mood = null, flagged = [], seed = 0, nature = null, played = true } = {}) {
-  if (!played) return natureOpener(nature);
+export function formatOpener({ mood = null, flagged = [], seed = 0, nature = null, played = true, seated = false } = {}) {
+  if (!played) return natureOpener(nature, { seated });
   const state = mood?.state ?? 'neutral';
   const heat = Number.isFinite(mood?.heat) ? mood.heat : heatForState(state);
   const band = OPENER_LINES[state] ? state : 'neutral';
