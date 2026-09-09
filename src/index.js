@@ -14,6 +14,7 @@ import { installEventRoutes } from './server/events.js';
 import { installShareRoutes, startInlinePolling, SHARE_BODY_LIMIT } from './server/share.js';
 import { attachTicker } from './server/ticker.js';
 import { installMeterRoutes } from './server/meter.js';
+import { installAdminRoutes } from './server/admin/index.js';
 import { installRoomRoutes } from './server/rooms.js';
 import { installRoomTableRoutes } from './server/roomTables.js';
 import { installTapeRoomRoutes } from './server/tapeRoom.js';
@@ -61,6 +62,15 @@ installGuestRoutes(app);
 // GUEST-1 job 3: the claim is registered beside them but lives in its own file,
 // because it reaches the roster and guest.js is deliberately a leaf.
 installClaimRoute(app);
+// ADMIN-1: the owner's dashboard. Mounted HERE, above every owner-facing
+// route, because the first thing it installs is the presence middleware and a
+// middleware only sees the requests that reach it — registered below
+// installAgentProfileRoutes it would miss almost everything an owner's client
+// actually does. Its own routes (the three read-only JSON endpoints behind
+// ADMIN_KEY, and GET /admin) are GETs, so they have to sit above the SPA
+// fallback too, which this also satisfies. Read-only, no model call, and the
+// stats endpoint carries its own 6-a-minute limiter on top of the /api one.
+installAdminRoutes(app);
 installAgentProfileRoutes(app);
 // EVENT-1: GET /api/events?since=<id> - the floor ticker's poll. Public
 // headlines only, no model call, already inside the /api rate limiter above.

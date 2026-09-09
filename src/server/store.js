@@ -267,6 +267,37 @@ function applySchema(d) {
     CREATE INDEX IF NOT EXISTS guests_owner   ON guests (owner_id);
     CREATE INDEX IF NOT EXISTS guests_ip      ON guests (ip, created_at);
     CREATE INDEX IF NOT EXISTS guests_stale   ON guests (claimed_by, last_seen_at);
+
+    -- ADMIN-1 job 1: was anybody here. Nothing in this database recorded that
+    -- an owner OPENED the app — agents, hands and wallets all record what he
+    -- did, and an owner who looked at his flat and closed it again left no
+    -- trace at all. "Active owners" is the first number the dashboard needs
+    -- and it had no source, so this is that source.
+    --
+    -- One row per (owner, UTC day) rather than one per request: the questions
+    -- asked of it are "how many distinct owners were here in the last N days"
+    -- and "when was this one last seen", and a request log answers both no
+    -- better while growing without bound. "opens" is kept because the
+    -- difference between an owner who came once and one who came fourteen
+    -- times is the difference between a visit and a habit.
+    --
+    -- A guest lands here under his own g_ owner id exactly like anybody else;
+    -- the dashboard splits the two with a join against "guests", so "owners"
+    -- and "guests" are two readings of one table rather than two tables that
+    -- can disagree.
+    --
+    -- The write is throttled to one a minute per owner in admin/presence.js.
+    -- This table must never turn a page load into a write.
+    CREATE TABLE IF NOT EXISTS owner_activity (
+      owner_id   TEXT    NOT NULL,
+      day        TEXT    NOT NULL,
+      first_seen INTEGER NOT NULL DEFAULT 0,
+      last_seen  INTEGER NOT NULL DEFAULT 0,
+      opens      INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (owner_id, day)
+    );
+    CREATE INDEX IF NOT EXISTS owner_activity_day  ON owner_activity (day);
+    CREATE INDEX IF NOT EXISTS owner_activity_seen ON owner_activity (last_seen);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -1180,6 +1211,38 @@ export function readWatchCalls({ sinceDay = null, ownerId = null } = {}) {
 // had today". A limit written twice is a limit that will one day disagree with
 // itself, so the rules live in exactly one file and the rows live here.
 
+// ── Presence (ADMIN-1) ───────────────────────────────────────────────────────
+//
+// Add-and-forget like the meter above. `first_seen` is written once, by the
+// INSERT; the UPDATE never touches it, which is what makes it the first time
+// this owner was seen that day rather than the last time anything wrote.
+//
+// MAX() rather than a plain assignment on last_seen: two processes (or a
+// replayed clock in a test) must never move it backwards.
+
+export function touchOwnerActivity(ownerId, at = Date.now()) {
+  const ts = Number.isFinite(at) ? Math.floor(at) : Date.now();
+  const day = new Date(ts).toISOString().slice(0, 10);
+  conn().prepare(`
+    INSERT INTO owner_activity (owner_id, day, first_seen, last_seen, opens)
+    VALUES (?, ?, ?, ?, 1)
+    ON CONFLICT(owner_id, day) DO UPDATE SET
+      last_seen = MAX(last_seen, excluded.last_seen),
+      opens     = opens + 1
+  `).run(String(ownerId), day, ts, ts);
+}
+
+/** One owner's activity rows, oldest day first. The dashboard reads the whole
+ *  table through adminDb(); this is here for a caller that wants one owner. */
+export function readOwnerActivity(ownerId) {
+  return conn().prepare(`
+    SELECT day, first_seen, last_seen, opens
+      FROM owner_activity WHERE owner_id = ? ORDER BY day
+  `).all(String(ownerId)).map((r) => ({
+    day: r.day, firstSeen: r.first_seen, lastSeen: r.last_seen, opens: r.opens,
+  }));
+}
+
 export function insertGuest({ token, ownerId, ip = null, referredBy = null, now = Date.now() }) {
   conn().prepare(`
     INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count, referred_by)
@@ -1411,6 +1474,15 @@ export function deleteOwner(ownerId) {
 export function openStore() {
   conn();
   return dbPath();
+}
+
+// ADMIN-1: the owner's dashboard reads across nine tables and does it with one
+// statement per number. Handing it the connection is cheaper than growing an
+// accessor per tile here, and it is the only caller allowed to do this:
+// READ-ONLY. Every write in the product still goes through a named accessor
+// above, which is what keeps "who writes this column" answerable in one grep.
+export function adminDb() {
+  return conn();
 }
 
 export { dbPath as _dbPath };
