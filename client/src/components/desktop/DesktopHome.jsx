@@ -9,6 +9,7 @@ import { DesktopTopBar, desktopRoomSummary } from './DesktopTopBar.jsx';
 import { heroSeatOf } from './DeskTableStage.jsx';
 import { DeskCasinoTable } from './DeskCasinoTable.jsx';
 import { WatchRail } from './WatchRail.jsx';
+import { WatchAccessNotice } from '../WatchScreen.jsx';
 import { useAgentThread } from './useAgentThread.js';
 import { useTableThread } from '../../hooks/useTableThread.js';
 import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
@@ -213,14 +214,15 @@ export function DesktopHome({
 
   const watchedAgent=agents.find(a=>a.id===deskTableId);
   const watchBlinds=Number.isFinite(game?.smallBlind)&&Number.isFinite(game?.bigBlind) ? game.smallBlind+'/'+game.bigBlind : null;
+  const refusedBeforeSnapshot = !!tableError && !!tableConfig && !game && !publicTableId && !homeTableSession && !deskTableId;
   const goHome=()=>{
-    if(deskTableId||publicTableId||homeTableSession)onLeave?.();
+    if(deskTableId||publicTableId||homeTableSession||refusedBeforeSnapshot)onLeave?.();
     setDeskTableId(null);setPublicTableId(null);setHomeTableSession(null);
     onCancelDeploy?.();setStage('floor');
   };
 
   const topBar = (
-    <DesktopTopBar news={loading ? null : activityKeys(agents)}
+    <><DesktopTopBar news={loading ? null : activityKeys(agents)}
       roomPortalRef={!homeStage && !deskTableId && !replay && !homeTableSession && !publicTableId ? setCasinoHeaderHost : null}
       room={deskTableId || publicTableId ? {title:watchBlinds?'The table · '+watchBlinds:'The table',subtitle:watchedAgent?.name || 'Watching the table'} : homeTableSession ? {title:'The kitchen table',subtitle:homeTableSession.seated?'You are in the game · play money':'Watching the home game'} : !deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
       onHome={!homeStage || deskTableId || publicTableId || homeTableSession ? goHome : null}
@@ -242,6 +244,7 @@ export function DesktopHome({
         setStage(next);
       }}
     />
+    {refusedBeforeSnapshot && <WatchAccessNotice message={tableError} onBack={goHome}/>}</>
   );
 
   // DSK2-3: a live tile is one gesture — subscribe if we are not already, and

@@ -27,7 +27,7 @@ import { BodyBars } from '../components/system/BodyBars.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { AttrExplain } from '../components/system/AttrExplain.jsx';
 import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
-import { moodOf, heatOf, stateOf, causeOf } from '../components/floor/agentView.js';
+import { moodOf, heatOf, stateOf, causeOf, homeGameOf } from '../components/floor/agentView.js';
 import { ATTR_KEYS, normalizeAttrs, seriesFor } from '../lib/attributes.js';
 import { callInAgent, collectFrom, collectsEverything, pocketOf, money, stakesFor } from '../lib/wallet.js';
 import { setAgentMuted } from '../lib/notifyApi.js';
@@ -355,7 +355,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 // place the button lives; before this the two ran side by side, the same
 // button twice on one screen. The header always keeps Deploy/Call him in and
 // the overflow menu.
-function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, visitStatus, onCopyVisit, compact, agent, onSheet, onChat }) {
+function ActionRow({ live, homeLive, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, visitStatus, onCopyVisit, compact, agent, onSheet, onChat }) {
   const [menu, setMenu] = useState(false);
   const moreButton = useRef(null);
   useEffect(() => {
@@ -382,7 +382,7 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
       <button
         type="button"
         className="profile-actions__primary"
-        aria-label={live ? 'Call him in' : 'Deploy'}
+        aria-label={homeLive ? 'Watch' : live ? 'Call him in' : 'Deploy'}
         onClick={onPrimary}
         style={{
           flex: showFund ? 1.4 : 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
@@ -391,7 +391,7 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
           textTransform: 'uppercase', whiteSpace: 'nowrap',
           ...(compact ? { flex:1.6, height:30, borderRadius:7, fontSize:9.5, borderColor:'#00d4aa59' } : {}),
         }}
-      >{live ? 'Call him in' : 'Deploy'}{compact && !live && pocketOf(agent) && <span>{stakesFor(pocketOf(agent)).replace(/\s/g, '')} · {money(pocketOf(agent).balance)}</span>}</button>
+      >{homeLive ? 'Watch' : live ? 'Call him in' : 'Deploy'}{compact && !live && pocketOf(agent) && <span>{stakesFor(pocketOf(agent)).replace(/\s/g, '')} · {money(pocketOf(agent).balance)}</span>}</button>
 
       {showFund && (
         <button
@@ -731,6 +731,8 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const state   = stateOf(agent);
   const cause   = causeOf(agent);
   const isLive  = state === 'live';
+  const homeLive = !!homeGameOf(agent);
+  const onPrimary = () => homeLive ? onWatch?.(agent) : isLive ? onCallIn?.(agent) : onDeploy?.(agent);
   // BUGS-C job 8: the header's own "Give him chips" is a fallback for when
   // there is no pocket row to carry it (pocketOf returns null for an agent
   // with no wallet data at all — "graceful absence: no pocket, no row",
@@ -754,7 +756,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} career={<CareerGrid compact careerStats={agent.careerStats}/>} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
     explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
     actions={({ chatAgent }) => <>
-      <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? () => handleVisit() : undefined} visitStatus={visitStatus} onCopyVisit={() => handleVisit(true)} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
+      <ActionRow compact agent={agent} live={isLive} homeLive={homeLive} muted={isMuted} showFund onPrimary={onPrimary} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? () => handleVisit() : undefined} visitStatus={visitStatus} onCopyVisit={() => handleVisit(true)} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
     </>}>
     {retirePending && <RetireSheet agent={agent} busy={retireBusy} error={retireError} onCancel={() => setRetirePending(false)} onConfirm={handleRetireConfirm}/>}
   </AgentProfileOverview>;
@@ -798,9 +800,10 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
           taking these off the thread was that they are always to hand. */}
       <ActionRow
         live={isLive}
+        homeLive={homeLive}
         muted={isMuted}
         showFund={!hasPocket}
-        onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))}
+        onPrimary={onPrimary}
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
         onToggleMute={handleToggleMute}

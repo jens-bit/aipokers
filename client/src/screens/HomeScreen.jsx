@@ -330,7 +330,7 @@ export function HomeScreen({
 }) {
   const geometry = desktop ? DESK_ROOM : PHONE_ROOM;
   const { flat: FLAT, width: F_W, height: F_H } = geometry;
-  const { agents, home, away, game, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
+  const { agents, home, away, game, gameKnown, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
     useHomeState({ wsUrl, onOwnerLine });
 
   // The home game runs on its own spectator socket. The app's table socket
@@ -724,7 +724,7 @@ export function HomeScreen({
       {gameAgentIds.length > 0 ? (
         <HomeGameTable geometry={geometry} board={board} seatCount={gameAgentIds.length} running />
       ) : (
-        <HomeGameTable geometry={geometry} board={[]} seatCount={0} running={false} statusKnown={loaded} />
+        <HomeGameTable geometry={geometry} board={[]} seatCount={0} running={false} statusKnown={gameKnown} />
       )}
 
       {/* HOME-2 job 7 · one chair per agent he has, and never fewer than one.
@@ -832,6 +832,7 @@ export function HomeScreen({
             setFocus: (agent) => { setFocusId(agent?.id ?? null); setRail('agent'); },
             agents,
             loaded,
+            gameKnown,
             home,
             away,
             game,
@@ -903,6 +904,7 @@ export function HomeScreen({
           rather than growing a second copy of it. */}
       {tableOpen ? (
         <MobileTableSheet
+          gameKnown={gameKnown}
           seated={game?.state === 'running' ? (game.seats ?? []).filter(Boolean).length : 0}
           maxSeats={game?.state === 'running' ? game.maxSeats : null}
           game={game}
@@ -967,7 +969,7 @@ function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
  * paid when the sheet is opened, not on every mount of a screen most owners
  * never open it from.
  */
-function MobileTableSheet({ seated = 0, maxSeats = null, game, liveTable, agents, onClose, onDraft, onSit, onWatch }) {
+function MobileTableSheet({ seated = 0, maxSeats = null, game, gameKnown, liveTable, agents, onClose, onDraft, onSit, onWatch }) {
   const { slots } = useSlots();
   return (
     <div className="home-sheet" role="dialog" aria-label="The table" data-testid="home-table-sheet-mobile">
@@ -977,7 +979,7 @@ function MobileTableSheet({ seated = 0, maxSeats = null, game, liveTable, agents
           <span className="home-sheet__title">The table</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} game={game} liveTable={liveTable} agents={agents} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
+        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} game={game} gameKnown={gameKnown} liveTable={liveTable} agents={agents} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
       </div>
     </div>
   );

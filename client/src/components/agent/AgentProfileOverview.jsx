@@ -8,7 +8,7 @@ import { AttrExplain } from '../system/AttrExplain.jsx';
 import { AttrCluster } from '../system/AttrCluster.jsx';
 import { identityOf } from '../../lib/identity.js';
 import { normalizeAttrs, recentEntries, seriesFor, ATTR_KEYS } from '../../lib/attributes.js';
-import { heatOf, moodOf } from '../floor/agentView.js';
+import { heatOf, moodOf, homeGameOf } from '../floor/agentView.js';
 import { money } from '../../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 import '../../styles/agent.css';
@@ -27,7 +27,7 @@ export function profileRecent(agent, log, now = Date.now()) {
 }
 
 export function profileSession(agent) {
-  const live = agent.liveGame?.tableId ? agent.liveGame : null;
+  const live = !homeGameOf(agent) && agent.liveGame?.tableId ? agent.liveGame : null;
   const session = live ?? agent.sessionLog?.at(-1);
   if (!session) return null;
   return { label: live ? 'THIS SESSION' : 'LAST SESSION', net: Number.isFinite(session.net) ? session.net : null,

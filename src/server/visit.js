@@ -20,12 +20,20 @@ export const WAGER_CAP_PCT = 0.10;
 const VISIT_TICK_MS = 30_000;
 let liveTables = null, tick = null, loaded = false;
 const visits = new Map();
+// Live tables are not restored on boot. Bind acceptance to their existing
+// seat-session UUIDs; the explicit restart path still refunds interrupted visits.
+const visitGames = new Map();
+const pendingClosures = new Map();
 function loadVisits() {
   if (loaded) return;
   for (const record of loadVisitRecords()) visits.set(record.id, record);
   loaded = true;
 }
-export function configure({ liveTables: tables = null } = {}) { liveTables = tables; loadVisits(); }
+export function configure({ liveTables: tables = null } = {}) {
+  if (liveTables !== tables) liveTables?.setCloseHook?.(null);
+  liveTables = tables; loadVisits();
+  liveTables?.setCloseHook?.(captureClosedGame);
+}
 const REFUSAL_LINES = Object.freeze({
   inHand: 'He is in a hand. Try again after it finishes.',
   notHome: 'He is not home — bring him back first.',
@@ -223,6 +231,10 @@ export function answerVisit(visitId,hostUserId,accept) {
   });
   changed(record);
   if (!actualSeat(record)) {finishVisit(record,'ended',{refund:true});return refuse(409,'hostUnavailable');}
+  const table=hostTable(record);
+  visitGames.set(record.id,{tableId:table.tableId,
+    guestSessionId:table.sessionIdFor?.(record.agentId)??null,
+    hostSessionId:record.hostAgentId?table.sessionIdFor?.(record.hostAgentId)??null:null});
   bumpTick('visit.accept');armTick();
   return {status:200,body:{visitId,accepted:true,line,game:homeGameMod.state(hostUserId)}};
 }
@@ -231,7 +243,7 @@ export function answerVisit(visitId,hostUserId,accept) {
 export function listVisitorsFor(hostUserId) {
   loadVisits();const out=[];
   for (const v of visits.values()) {
-    if (v.hostUserId!==String(hostUserId) || v.status!=='accepted' || !currentGuest(v)) continue;
+    if (v.hostUserId!==String(hostUserId) || v.status!=='accepted' || !currentGuest(v) || closedGameFor(v)) continue;
     if (v.endsAt<=Date.now() && !tableBusy(hostTable(v))) continue;
     const p=presentAgentById(v.agentId,v.guestUserId,{owner:false});
     if (p) out.push({...p,guest:true,ownerId:v.guestUserId,location:{where:Where.HOME,tableId:null,room:null,since:v.acceptedAt}});
@@ -253,6 +265,7 @@ export function pendingVisitorFor(hostUserId) {
   return v?{id:v.id,agentId:v.agentId,agentName:v.agentName,respondBy:v.respondBy}:null;
 }
 function stillRunning(record) {
+  if (closedGameFor(record)) return false;
   const game=homeGameMod.state(record.hostUserId);
   return !!game && game.state==='running' && (game.handsPlayed??0)<VISIT_MAX_HANDS && actualSeat(record);
 }
@@ -263,15 +276,47 @@ export function hasActiveVisit(hostUserId,guestUserId,{now=Date.now()}={}) {
     && v.status==='accepted' && v.endsAt>now && currentGuest(v) && stillRunning(v));
 }
 const money=n=>`$${Math.abs(Math.round(Number(n)||0)).toLocaleString('en-US')}`;
+const closedGameFor=record=>record.closedGame??pendingClosures.get(record.id)??null;
+function captureClosedGame(closed) {
+  for (const record of visits.values()) {
+    if (record.status!=='accepted' || closedGameFor(record) || !currentGuest(record)
+      || closed.homeOwnerId!==record.hostUserId) continue;
+    const bound=visitGames.get(record.id);
+    if (!bound?.guestSessionId || bound.tableId!==closed.tableId) continue;
+    const guest=closed.seats.find(s=>s.agentId===record.agentId && s.ownerId===record.guestUserId
+      && s.sessionId===bound.guestSessionId);
+    const host=closed.seats.find(s=>s.agentId===record.hostAgentId && s.ownerId===record.hostUserId
+      && s.sessionId===bound.hostSessionId);
+    if (!guest || (record.stakeAmount>0 && !host)) continue;
+    const receipt={...bound,closedAt:closed.closedAt,handsPlayed:closed.handsPlayed,
+      completed:closed.completed===true,guestStack:guest.stack,hostStack:host?.stack??null};
+    // Keep the same receipt if SQLite rejects the write. It is per active
+    // visit, never a historical table cache, and the next sweep retries it.
+    pendingClosures.set(record.id,receipt);
+    persist({...record,closedGame:receipt});
+  }
+}
 function settleWager(record,{refund=false}={}) {
   if (!record.stakeAmount || record.settledAt) return record.result??null;
   const guest=findAgentOwner(record.agentId),host=findAgentOwner(record.hostAgentId);
   if (!guest || !host) throw new Error('Visit escrow owner unavailable');
   ensurePocket(guest.agent);ensurePocket(host.agent);
-  const table=hostTable(record),g=table?.agentIds.indexOf(record.agentId)??-1,h=table?.agentIds.indexOf(record.hostAgentId)??-1;
+  const table=hostTable(record);
   let outcome='push';
-  if (!refund && table && !table.closed && g>=0 && h>=0 && table.seatStack) {
-    const delta=table.seatStack(g)-table.seatStack(h);if(delta>0)outcome='guest';else if(delta<0)outcome='host';
+  const closed=closedGameFor(record),bound=visitGames.get(record.id);
+  let stacks=null;
+  if (closed) {
+    if (closed.completed && Number.isFinite(closed.guestStack) && Number.isFinite(closed.hostStack)) {
+      stacks=[closed.guestStack,closed.hostStack];
+    }
+  } else if (bound?.guestSessionId && table && !table.closed && table.tableId===bound.tableId) {
+    const seats=table.homeResultSeats?.()??[];
+    const guestSeat=seats.find(s=>s.agentId===record.agentId && s.ownerId===record.guestUserId && s.sessionId===bound.guestSessionId);
+    const hostSeat=seats.find(s=>s.agentId===record.hostAgentId && s.ownerId===record.hostUserId && s.sessionId===bound.hostSessionId);
+    if (guestSeat && hostSeat) stacks=[guestSeat.stack,hostSeat.stack];
+  }
+  if (!refund && stacks) {
+    const delta=stacks[0]-stacks[1];if(delta>0)outcome='guest';else if(delta<0)outcome='host';
   }
   const amount=record.stakeAmount,pot=amount*2,id=homeGameMod.homeTableId(record.hostUserId);
   if (outcome==='guest')creditCashOut(guest.agent.pocket,pot,id);
@@ -283,7 +328,11 @@ function settleWager(record,{refund=false}={}) {
 }
 function finishVisit(record,status='ended',{refund=false,sync=true}={}) {
   if (!['pending','accepted'].includes(record.status)) return;
-  persist(record,()=>{record.result=settleWager(record,{refund});record.status=status;record.endedAt=Date.now();clearVisiting(record);});
+  persist(record,()=>{
+    const closed=closedGameFor(record);if(closed)record.closedGame=closed;
+    record.result=settleWager(record,{refund});record.status=status;record.endedAt=Date.now();clearVisiting(record);
+  });
+  pendingClosures.delete(record.id);visitGames.delete(record.id);
   changed(record,{sync});
 }
 /** Boot starts no old hand: it ends/refunds durable visits and clears old
@@ -311,7 +360,8 @@ function sweep(now) {
   for(const record of [...visits.values()]) {
     if(record.status==='pending') {if(now>=record.respondBy)finishVisit(record,'timeout');else active++;}
     else if(record.status==='accepted') {
-      if(now>=record.endsAt || !stillRunning(record)) {
+      if(closedGameFor(record)) finishVisit(record);
+      else if(now>=record.endsAt || !stillRunning(record)) {
         const table=hostTable(record);
         if(tableBusy(table)) {table.maxHands=Math.min(table.maxHands,Math.max(1,table.handsThisSession));active++;}
         else finishVisit(record);
@@ -323,7 +373,7 @@ function sweep(now) {
 function armTick(){if(tick)return;tick=setInterval(()=>{try{sweep(Date.now());}catch(err){console.error('[visit] sweep failed:',err.message);}},VISIT_TICK_MS);tick.unref?.();}
 function stopTick(){if(tick)clearInterval(tick);tick=null;}
 export function _sweepNow(now=Date.now()){sweep(now);}
-export function reset(){stopTick();visits.clear();loaded=false;liveTables=null;}
+export function reset(){stopTick();liveTables?.setCloseHook?.(null);visits.clear();visitGames.clear();pendingClosures.clear();loaded=false;liveTables=null;}
 
 const respond = (res, fn) => {try{const out=fn();res.status(out.status).json(out.body);}catch(err){console.error('[visit] save failed:',err.message);const out=unavailable();res.status(out.status).json(out.body);}};
 export function installVisitRoutes(app) {

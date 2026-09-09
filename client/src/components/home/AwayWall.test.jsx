@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AwayWall, plateLine } from './AwayWall.jsx';
 
+it('BUG-162: a visiting Home frame never reports practice chips as a money result',()=>{
+  expect(plateLine({homeTableId:'kitchen',liveGame:{tableId:'kitchen',net:75},pocket:{sessionNet:900},visiting:{hostName:'Fidde'}})).toBe("Fidde's");
+});
+
 it('BUG-73: a visiting agent is named at his friend’s home, not at the casino',async()=>{
   const ag={id:'v',name:'Bluff Master',nickname:'Bluff',visiting:{hostName:'Fidde'},location:{where:'casino',since:1}};
   expect(plateLine(ag)).toContain("Fidde's");

@@ -20,9 +20,15 @@ let defaultBlinds = { smallBlind: 10, bigBlind: 20 };
 // AGE-38: invoked with the Table whenever its visible state changes. Set by
 // createServer() to feed the floor channel; null in bare unit contexts.
 let stateHook = null;
+let closeHook = null;
 
 export function setStateHook(fn) {
   stateHook = typeof fn === 'function' ? fn : null;
+}
+
+// BUG-151: injected by the visit ledger; contains no cards or strategy.
+export function setCloseHook(fn) {
+  closeHook = typeof fn === 'function' ? fn : null;
 }
 
 // Global cap on autonomous (server-driven) tables. Each one burns LLM tokens
@@ -176,7 +182,15 @@ export function getOrCreateTable(tableId, opts = {}) {
     // a thing a later caller should be able to flip.
     home: opts.home === true,
     homeOwnerId: opts.home === true ? opts.homeOwnerId : null,
-    onEmpty: (id) => { tables.delete(id); },
+    onEmpty: (id, homeClosure) => {
+      tables.delete(id);
+      // Cleanup must finish even if persistence is briefly unavailable.
+      // The visit hook retains its own bounded receipt for the next sweep.
+      if (homeClosure) {
+        try { closeHook?.(homeClosure); }
+        catch (err) { console.error('[table] close receipt failed:', err.message); }
+      }
+    },
     onStateChange: (t) => stateHook?.(t),
   });
   tables.set(tableId, table);

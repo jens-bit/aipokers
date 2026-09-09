@@ -317,6 +317,9 @@ export class Table {
     // BUG-155: set by homeGame when the kitchen is created, never by a WS
     // payload. Human seats and visiting agents are not the household owner.
     this.homeOwnerId = this.home && homeOwnerId != null ? String(homeOwnerId) : null;
+    // A Home roster is fixed for this table's lifetime; a roster change
+    // creates another table. Retain at most its four retired agent results.
+    this._homeRetiredSeats = this.home ? new Map() : null;
     this.smallBlind = smallBlind;
     this.bigBlind = bigBlind;
     this.maxSeats = maxSeats;
@@ -613,6 +616,22 @@ export class Table {
     return this.seatStacks[seat] ?? this.pending[seat]?.buyIn ?? 0;
   }
 
+  // Server-only wager evidence, including a player who busted before the
+  // other players finished. Session UUIDs survive seat compaction and cannot
+  // accidentally name a new table at the same Home ID.
+  homeResultSeats() {
+    if (!this.home) return [];
+    const results = new Map(this._homeRetiredSeats);
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      if (!this.pending[seat] || !this.agentIds[seat] || !this.seatSessionIds[seat]) continue;
+      results.set(this.seatSessionIds[seat], {
+        agentId: this.agentIds[seat], ownerId: this.agentUserIds[seat],
+        sessionId: this.seatSessionIds[seat], stack: this.seatStack(seat),
+      });
+    }
+    return [...results.values()];
+  }
+
   // Seats that will still be here for the next deal: occupied, not leaving,
   // and holding chips.
   _survivingSeats() {
@@ -768,6 +787,13 @@ export class Table {
     const occupant = this.pending[seat];
     if (!occupant) return;
     const agentId = this.agentIds[seat];
+    if (this.home && agentId && this.seatSessionIds[seat] && !this.handInProgress()
+      && this._homeRetiredSeats.size < this.maxSeats) {
+      this._homeRetiredSeats.set(this.seatSessionIds[seat], {
+        agentId, ownerId: this.agentUserIds[seat], sessionId: this.seatSessionIds[seat],
+        stack: this.seatStack(seat),
+      });
+    }
     // HOME-STATE-1: standing up from the kitchen table is not the end of a
     // session, because it was never one. finishAgentSession is what credits
     // the pocket, draws attribute growth, writes the recap and leaves an
@@ -1270,11 +1296,21 @@ export class Table {
     // behind it arrives to nobody. Same tick, same sockets, so the only thing
     // that changed is the order two messages leave in.
     this._broadcast({ type: ServerMsg.TABLE_CLOSED, reason });
+    // BUG-151: the visit ledger must retain the final public stacks before
+    // this table leaves the registry. A stable Home ID can be reused, so
+    // existing seat-session UUIDs identify the exact game that just ended.
+    // An interrupted hand has no winner: its committed chips are not a result.
+    const homeClosure = this.home ? {
+      tableId: this.tableId, homeOwnerId: this.homeOwnerId,
+      completed: !this.handInProgress(), handsPlayed: this.handsThisSession,
+      closedAt: Date.now(),
+      seats: this.homeResultSeats(),
+    } : null;
     this.game = null;
     this.actionDeadline = null;
     this._clearTimers();
     console.log(`[table:${this.tableId}] closed after ${this.handsThisSession} hand(s) — ${reason}`);
-    this.onEmpty?.(this.tableId);
+    this.onEmpty?.(this.tableId, homeClosure);
     this._notifyStateChange();
   }
 

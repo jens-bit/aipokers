@@ -1363,6 +1363,16 @@ function useStackTick(target, delta, key) {
 
 // ---- WatchScreen (export) --------------------------------------------------
 
+// BUG-161: an explicit refusal before the first snapshot is not a live table.
+// Reuse the shell's error treatment and ordinary way home; valid games keep
+// their authored felt unchanged, including during a transient reconnect.
+export function WatchAccessNotice({ message, onBack }) {
+  return <div className="error-banner" role="alert" style={{ margin: 14, cursor: 'default' }}>
+    <p style={{ margin: '0 0 12px' }}>{message}</p>
+    <button type="button" className="watch-screen__chat" style={{ minHeight: 44 }} onClick={onBack}>Back home</button>
+  </div>;
+}
+
 export function WatchScreen({
   game, mySeat, lastDecision, chatMessages, sendChat, displayNames,
   onLeave, onSitOut, config,
@@ -1370,6 +1380,7 @@ export function WatchScreen({
   // when the connection comes back. The sheet the owner left is not the sheet
   // the table has been writing while he was gone.
   connection = null,
+  error = null,
   // WATCH-9 · the lines the server has PUSHED since this socket opened
   // (THREAD_LINE). The fetch above is a snapshot taken when the sheet opens;
   // this is what keeps an open sheet current without it polling.
@@ -2014,6 +2025,16 @@ export function WatchScreen({
         )}
       />
     );
+  }
+
+  if (error && !game) {
+    return <div className="watch-screen">
+      <div className="watch-screen__header">
+        <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">‹</button>
+        <span className="watch-screen__title">Table unavailable</span>
+      </div>
+      <WatchAccessNotice message={error} onBack={onBackToFloor || onLeave}/>
+    </div>;
   }
 
   return (

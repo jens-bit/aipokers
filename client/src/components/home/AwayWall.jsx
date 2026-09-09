@@ -25,6 +25,7 @@ import { MiniFelt } from './MiniFelt.jsx';
 import { useOnScreen, useThrottled } from '../../hooks/useThrottledFrame.js';
 import { money, signedMoney } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
+import { homeGameOf } from '../floor/agentView.js';
 
 const ROOM_LABEL = { floor: '10/20', upstairs: '25/50', backroom: '50/100' };
 
@@ -38,7 +39,7 @@ export function plateLine(agent, { now = Date.now() } = {}) {
   const room = roomLabel(agent?.location?.room);
   if (room) parts.push(room);
 
-  const net = agent?.liveGame?.net ?? agent?.pocket?.sessionNet ?? null;
+  const net = homeGameOf(agent) ? null : (agent?.liveGame?.net ?? agent?.pocket?.sessionNet ?? null);
   if (Number.isFinite(net)) parts.push(signedMoney(Math.round(net)));
 
   const since = Number(agent?.location?.since);

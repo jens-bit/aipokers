@@ -1035,7 +1035,13 @@ for(const width of [390,490]) test('BUG-131: visiting agent is live in the roste
  await page.addInitScript(()=>{const Base=window.WebSocket;window.__visitWatch=[];window.WebSocket=class extends Base{send(raw){super.send(raw);const msg=JSON.parse(raw);if(msg.type==='watch')window.__visitWatch.push(msg);}};});
  await page.goto(HOME);await expect(page.locator('.room-header__live')).toHaveText('1 AGENT LIVE');
  await page.getByRole('button',{name:'Your agents',exact:true}).click();await expect(page.getByRole('img',{name:'Live at a table'})).toBeVisible();
- await expect(page.getByText("visiting Fidde's",{exact:true})).toBeVisible();await expect(page.getByText('1/2',{exact:true})).toBeVisible();await expect(page.getByText('+$95',{exact:true})).toBeVisible();
+ await expect(page.getByText("visiting Fidde's",{exact:true})).toBeVisible();await expect(page.getByText('1/2',{exact:true})).toBeVisible();
+ // BUG-162 supersedes the former +$95 expectation: practice results are not
+ // casino winnings. Keep the real pocket and unknown prior result explicit.
+ const visitingRow=page.getByRole('dialog',{name:'Your agents'}).locator('.roster__row[data-agent="a1"]');
+ await expect(visitingRow.locator('.roster__pocket')).toHaveText('POCKET$2,000');
+ await expect(visitingRow.locator('.roster__result')).toHaveText('—');
+ await expect(visitingRow).not.toContainText('+$95');
  await page.waitForTimeout(300);await page.screenshot({path:'../artifacts/visitor39-roster-'+width+'.png'});
  await page.getByRole('dialog',{name:'Your agents'}).getByRole('button',{name:'Close',exact:true}).last().click();
  await page.getByRole('button',{name:/Traveler visiting .*Watch him/}).click();
