@@ -48,16 +48,23 @@ import '../styles/roster.css';
  * Never a status word ("active", "idle"): those are facts about a record. This
  * is a fact about a man, and the difference is the whole product.
  */
-export function whereLine(agent) {
-  if (agent?.visiting) return agent.visiting.hostName ? `visiting ${agent.visiting.hostName}'s` : 'visiting a friend';
-  if (agent?.homeTableId && (agent?.location?.where ?? 'home') === 'home') return 'at your table';
-  const where = agent?.location?.where ?? null;
-  const room = roomLabel(agent?.location?.room);
-  if (presenceOf(agent) === 'playing' || where === 'table') {
-    return room ? `at a table · ${room}` : 'at a table';
+export function rosterWhereabouts(agent) {
+  if (agent?.visiting) return {
+    where: agent.visiting.hostName ? `visiting ${agent.visiting.hostName}'s` : 'visiting a friend',
+    detail: agent.liveGame?.blinds || null,
+  };
+  if (homeGameOf(agent) && (agent?.location?.where ?? 'home') === 'home') {
+    return { where: 'at your table', detail: 'kitchen' };
   }
-  if (where && where !== 'home') return room ? `at the casino · ${room}` : 'at the casino';
-  return 'at home';
+  const where = agent?.location?.where ?? null;
+  if (presenceOf(agent) === 'playing' || (where && where !== 'home')) {
+    return { where: 'at the casino', detail: roomLabel(agent?.location?.room) || agent?.liveGame?.blinds || null };
+  }
+  return { where: 'home', detail: agent?.routine?.label || null };
+}
+
+export function whereLine(agent) {
+  return rosterWhereabouts(agent).where;
 }
 
 /** Has he said something the owner has not read? */
@@ -81,6 +88,7 @@ export function RosterRow({ agent, index, onOpen }) {
   const result = rosterResult(agent);
   const live = rosterLive(agent);
   const unread = hasUnread(agent);
+  const whereabouts = rosterWhereabouts(agent);
   // HOME-2 job 3: the same creature the room draws. A row that tinted him
   // differently from his body would be a second man with his name on it.
   const id = identityOf(agent);
@@ -92,7 +100,7 @@ export function RosterRow({ agent, index, onOpen }) {
         className="roster__row"
         data-agent={agent.id}
         onClick={() => onOpen?.(agent)}
-        aria-label={`${agent.name} — ${whereLine(agent)}. Open his thread.`}
+        aria-label={`${agent.name} — ${whereabouts.where}${whereabouts.detail ? ` · ${whereabouts.detail}` : ''}. Open his thread.`}
       >
         <span className="roster__face">
           <MoodGhost
@@ -110,9 +118,8 @@ export function RosterRow({ agent, index, onOpen }) {
         </span>
         <span className="roster__id">
           <span className="roster__name">{agent.name}</span>
-          <span className="roster__place"><span className="roster__where">{whereLine(agent)}</span>
-          {agent.visiting && agent.liveGame?.blinds && <span className="roster__routine">{agent.liveGame.blinds}</span>}
-          {agent.location?.where === 'home' && agent.routine?.label && <span className="roster__routine">{agent.routine.label}</span>}</span>
+          <span className="roster__place"><span className="roster__where">{whereabouts.where}</span>
+          {whereabouts.detail && <span className="roster__routine">{whereabouts.detail}</span>}</span>
         </span>
         <span className="roster__numbers">
           <span className={`roster__result${result.value > 0 ? ' is-up' : result.value < 0 ? ' is-down' : ''}`} title={result.label}>{signedMoney(result.value)}</span>

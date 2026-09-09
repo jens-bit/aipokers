@@ -520,7 +520,9 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       agent('bal', 'Balanced v2.1', { activeTableId: 't1', location: loc('table', { tableId: 't1', room: 'upstairs' }), liveGame: { tableId: 't1', net: 3694, heroStack: 4894 }, pocket: { balance: 1200 }, mood: { state: 'confident', heat: 22 } }),
       agent('agg', 'Aggressive v1.3', { pocket: { balance: 640 }, sessionLog: [{ net: -820, endedAt: Date.now() }], mood: { state: 'tilted', heat: 84 }, want: { text: 'Let me back in there. Right now.' }, routine: { key: 'paces', label: 'pacing' } }),
       agent('blf', 'Bluff Master', { location: loc('casino'), visiting: { hostName: 'Fidde' }, pocket: { balance: 410 }, sessionLog: [{ net: 95, endedAt: Date.now() }], mood: { state: 'frustrated', heat: 60 } }),
-      agent('val', 'Value Bot', { homeTableId: 'home-4242', pocket: { balance: 80 }, mood: { state: 'sulking', heat: 12 }, routine: null }),
+      // BUG-167: current Home play needs the matching live seat projection;
+      // a remembered homeTableId alone must not manufacture a kitchen game.
+      agent('val', 'Value Bot', { homeTableId: 'home-4242', liveGame: {tableId:'home-4242',home:true}, pocket: { balance: 80 }, mood: { state: 'sulking', heat: 12 }, routine: null }),
     ];
     await room(page, { agents: cast, game: null });
     await page.getByRole('button', { name: 'Your agents', exact: true }).click();
@@ -528,6 +530,9 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     await expect(sheet).toContainText('4 agents · 1 live');
     await expect(sheet).toContainText("visiting Fidde's");
     await expect(sheet).toContainText('at your table');
+    await expect(sheet.locator('.roster__row').filter({hasText:'Value Bot'}).locator('.roster__routine')).toHaveText('kitchen');
+    await expect(sheet.locator('.roster__row').filter({hasText:'Balanced v2.1'}).locator('.roster__where')).toHaveText('at the casino');
+    await expect(sheet.locator('.roster__row').filter({hasText:'Balanced v2.1'}).locator('.roster__routine')).toHaveText('25/50');
     await expect(sheet).toContainText('−$820');
     await expect(sheet.getByText('POCKET', { exact: true })).toHaveCount(4);
     for (const row of await sheet.locator('.roster__row').all()) expect((await row.boundingBox()).height).toBeLessThanOrEqual(64);
