@@ -44,6 +44,7 @@
 
 import { telegramAuthMiddleware, verifyTelegramCredential, telegramUserIdFrom } from './auth.js';
 import { reloadOwners, reassignSeats } from './agentProfiles.js';
+import { prepareGuestClaim } from './visit.js';
 import {
   guestsEnabled, tokenFrom, clearedCookieHeader,
   loadGuestByToken, markGuestClaimed, moveOwner,
@@ -75,8 +76,10 @@ export function claimGuest(token, telegramUserId, { via = 'telegram' } = {}) {
     return { status: 409, body: { error: 'alreadyClaimed' } };
   }
 
-  let moved;
+  let moved, visitPreparation;
   try {
+    visitPreparation = prepareGuestClaim(row.ownerId);
+    if (visitPreparation.status !== 200) return visitPreparation;
     moved = moveOwner(row.ownerId, tgId);
   } catch (err) {
     console.error('[guest] claim failed:', err.message);
@@ -107,6 +110,7 @@ export function claimGuest(token, telegramUserId, { via = 'telegram' } = {}) {
       // but a claim that quietly left one behind would be worse than one that
       // says so.
       collided: moved.collided,
+      ...(visitPreparation.body.visitEnded ? {visitEnded:true} : {}),
       via,
     },
   };

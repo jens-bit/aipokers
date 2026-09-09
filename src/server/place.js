@@ -46,6 +46,7 @@ import {
   fatigueNow,
   homeSnapshot,
   getAgentHome,
+  visitActionRefusal,
 } from './agentProfiles.js';
 import { beginStudy } from './tapeRoom.js';
 import * as homeGame from './homeGame.js';
@@ -96,6 +97,8 @@ export function placeAgent(agentId, userId, fixture) {
   }
   const agent = agentsOf(userId).find((a) => a.id === agentId);
   if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+  const visitRefusal = visitActionRefusal(agent);
+  if (visitRefusal) return visitRefusal;
 
   // Rule 2, before anything else and for every fixture.
   const seat = seatStatusOf(agent);

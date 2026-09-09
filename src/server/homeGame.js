@@ -144,6 +144,16 @@ export function homeTableId(userId) {
   return `home-${String(userId ?? 'anon').replace(/[^A-Za-z0-9_-]/g, '') || 'anon'}`;
 }
 
+// BUG-153: accepting a visitor must not bypass this household's break or
+// truncate a running hand. A read-only check before any visit escrow moves.
+export function visitAvailability(userId, { now = Date.now() } = {}) {
+  const household = households.get(String(userId));
+  const table = liveTables?.getTable?.(homeTableId(userId));
+  if (table && !table.closed && table.handInProgress()) return 'hostInHand';
+  if ((household?.cooldownUntil ?? 0) > now || (household?.state === 'running' && (!table || table.closed))) return 'hostPaused';
+  return null;
+}
+
 // ── The one entry point ─────────────────────────────────────────────────────
 
 /**
@@ -177,6 +187,12 @@ export function sync(userId, { now = Date.now(), manual = false } = {}) {
   if (table && (table.closed || !table.home)) table = null;
 
   const want = roster.map((a) => a.id);
+
+  // BUG-152: a return changes the room immediately, but must not erase the
+  // hand its housemates are still playing. Reconcile the new roster only at
+  // the next boundary, including the staged result after an all-in.
+  if (table && !sameRoster(household.roster, want)
+    && (table.handInProgress() || table._pendingPaceResult)) return announce(ownerId, before);
 
   // Nobody home: the game is over until somebody comes back. Closing rather
   // than idling is what stops the deal loop, and the deal loop is the cost.

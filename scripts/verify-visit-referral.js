@@ -84,7 +84,10 @@ const j = async (method, path, body) => {
 
 console.log('\n[verify] 1) the public preview, before any account exists');
 
-const preview = await j('GET', '/api/agents/agent_referrer/visit-preview');
+const invitation = await j('POST', '/api/agents/agent_referrer/visit-invite', {userId:HOST,stake:0});
+check('the owner issued consent before sharing',invitation.status===200);
+const invitationToken=invitation.body.invitationToken;
+const preview = await j('GET', `/api/visit-invites/${invitationToken}`);
 check('200, no auth needed', preview.status === 200, `got ${preview.status}`);
 check('names him, and only him', preview.body?.agentName === 'Away Day', JSON.stringify(preview.body));
 
@@ -95,13 +98,14 @@ check('404 for an agent nobody has', noPreview.status === 404, `got ${noPreview.
 
 console.log('\n[verify] 2) he mints a guest, carrying the referral');
 
-const made = await j('POST', '/api/guest', { visitAgentId: 'agent_referrer' });
+const made = await j('POST', '/api/guest', { visitInvitationToken:invitationToken });
 check('POST /api/guest returns 200', made.status === 200, `got ${made.status}`);
 const guestOwnerId = made.body?.ownerId;
 check('he is an owner id', typeof guestOwnerId === 'string' && guestOwnerId.startsWith('g_'));
 
 const referred = guest.guestFor(guestOwnerId)?.referredBy;
 check('the referral is on record', referred === 'agent_referrer', String(referred));
+check('the invitation capability is on record',guest.guestFor(guestOwnerId)?.visitInvitationToken===invitationToken);
 
 // Before he has drafted anybody, there is nobody's door for the visit to land
 // on — the referral is recorded, not yet acted on.

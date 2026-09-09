@@ -69,6 +69,7 @@ import {
   markGuestClaimed,
   listStaleGuests,
   moveOwner,
+  loadVisitInvitation,
 } from './store.js';
 
 // ── The dials ───────────────────────────────────────────────────────────────
@@ -377,13 +378,14 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
 
     const token = newToken();
     const ownerId = newOwnerId();
-    // VISIT-1 job 6: the agent id off the visit_<agentId> link he arrived on,
-    // if he arrived on one. Stored verbatim and unvalidated — this route does
-    // not reach agentProfiles.js (guest.js is deliberately a leaf), and a
-    // stray or stale id costs nothing worse than a referral nobody credits.
-    const referredBy = String(req.body?.visitAgentId ?? '').trim() || null;
+    // BUG-149: a public agent id is attribution, never consent. Keep only a
+    // live owner-issued capability; the birth listener rechecks it before use.
+    const invitation = loadVisitInvitation(req.body?.visitInvitationToken);
+    const validInvitation = invitation && invitation.expiresAt > at && !invitation.visitId ? invitation : null;
+    const referredBy = validInvitation?.agentId ?? null;
+    const visitInvitationToken = validInvitation?.token ?? null;
     try {
-      insertGuest({ token, ownerId, ip, referredBy, now: at });
+      insertGuest({ token, ownerId, ip, referredBy, visitInvitationToken, now: at });
     } catch (err) {
       console.error('[guest] create failed:', err.message);
       return res.status(500).json({ error: 'guestCreateFailed' });
@@ -401,6 +403,7 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
     res.json({
       ownerId,
       kind: 'guest',
+      ...(req.body?.visitInvitationToken !== undefined ? {visitInvitationAccepted:!!validInvitation} : {}),
       limits: {
         agents: GUEST_AGENT_CAP,
         sessionsPerDay: GUEST_SESSIONS_PER_DAY,

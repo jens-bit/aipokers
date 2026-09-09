@@ -170,15 +170,18 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     const referredBy = guestFor(userId)?.referredBy;
     if (!referredBy) return;
     try {
-      const out = visit.requestVisit({ agentId: referredBy, hostUserId: userId });
+      const out = visit.requestReferredVisit(userId);
       if (out.status !== 200) {
         console.log(`[visit] referral for ${userId} did not knock: ${out.body?.reason ?? out.status}`);
       }
+      return visit.visitOutcome(out);
     } catch (err) {
       console.error('[visit] referral knock failed:', err.message);
+      return visit.visitOutcome({status:503,body:{error:'The invitation could not be confirmed. Please try again.',reason:'visitUnavailable'}});
     }
   });
   const retired = reconcileActiveSessions();
+  visit.reconcileVisits();
   if (retired > 0) {
     console.log(`[ai-poker] boot reconciliation retired ${retired} agent(s) whose table no longer exists`);
   }

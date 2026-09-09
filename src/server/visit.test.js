@@ -44,11 +44,21 @@ function agent(id, over = {}) {
   };
 }
 
-const visitReq = (agentId, hostUserId, stake) => fetch(`${base}/api/agents/${agentId}/visit`, {
+// BUG-149: existing gameplay assertions now arrive through owner consent.
+const visitReq = async (agentId, hostUserId, stake) => {
+  const invitation=visitMod.issueVisitInvitation({agentId,userId:GUEST,stake:stake??0});
+  if(invitation.status!==200)return invitation;
+  return fetch(`${base}/api/agents/${agentId}/visit`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ hostUserId, stake }),
+  body: JSON.stringify({ hostUserId, stake, invitationToken:invitation.body.invitationToken }),
 }).then(async (r) => ({ status: r.status, body: await r.json() }));
+};
+const directVisit = options => {
+  const invitation=visitMod.issueVisitInvitation({agentId:options.agentId,userId:GUEST,stake:options.stake??0});
+  assert.equal(invitation.status,200);
+  return visitMod.requestVisit({...options,invitationToken:invitation.body.invitationToken});
+};
 
 const answerReq = (visitId, hostUserId, accept) => fetch(`${base}/api/home/visitors/${visitId}/answer`, {
   method: 'POST',
@@ -114,6 +124,7 @@ function resetAgents(userId, list) {
 
 beforeEach(() => {
   visitMod.reset();
+  store.adminDb().exec('DELETE FROM visits; DELETE FROM visit_invitations;');
   homeGame.reset();
   homeGame.configure({
     liveTables: registry,
@@ -227,7 +238,7 @@ test('VISIT-1: answering the same knock twice is refused, not repeated', async (
 // ── HOME_STATE bodies ────────────────────────────────────────────────────────
 
 test('VISIT-1: a pending visitor stands in the room before any answer exists', () => {
-  visitMod.requestVisit({ agentId: 'traveler', hostUserId: HOST, stake: 0 });
+  directVisit({ agentId: 'traveler', hostUserId: HOST, stake: 0 });
   const bodies = visitMod.visitBodiesFor(HOST);
   assert.equal(bodies.length, 1);
   assert.equal(bodies[0].id, 'traveler');
@@ -238,7 +249,7 @@ test('VISIT-1: a pending visitor stands in the room before any answer exists', (
 });
 
 test('VISIT-1: the pending visitor pill names who is waiting', () => {
-  const { body: knock } = visitMod.requestVisit({ agentId: 'traveler', hostUserId: HOST, stake: 0 });
+  const { body: knock } = directVisit({ agentId: 'traveler', hostUserId: HOST, stake: 0 });
   const pending = visitMod.pendingVisitorFor(HOST);
   assert.equal(pending.id, knock.visitId);
   assert.equal(pending.agentId, 'traveler');

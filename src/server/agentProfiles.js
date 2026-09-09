@@ -84,7 +84,7 @@ import {
   Where, locationFor, routineFor, stampLocation, homeStateMessage,
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
-import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet } from './store.js';
+import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit } from './store.js';
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
 import { identityOf } from '../shared/identity.js';
@@ -281,6 +281,14 @@ export function agentsOf(userId) {
  */
 export function saveOwner(userId) {
   saveStore(String(userId));
+}
+
+// BUG-151: a visit owns its escrow until its durable return receipt exists.
+// Ordinary roster actions must not delete that owner or claim he came home.
+export function visitActionRefusal(agent) {
+  return agent && agentHasActiveVisit(agent.id) ? {status:409,body:{
+    error:'He is part of a visit. Try again when it finishes.',reason:'visitActive',
+  }} : null;
 }
 
 function getOrCreate(userId) {
@@ -893,6 +901,7 @@ function slotRefusal(userId, profile) {
 // `{ all: true }` is that path, and it is the same one callIn() takes.
 function archiveAgent(profile, agent) {
   if (!agent || agent.archived) return 0;
+  if (visitActionRefusal(agent)) return 0;
   const userId = profile.userId;
   const wallet = walletFor(userId);
   const pocket = ensurePocket(agent);
@@ -942,6 +951,7 @@ export function archiveAllAgents(userId) {
   let archived = 0;
   for (const agent of activeAgents(profile)) {
     if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) continue;
+    if (visitActionRefusal(agent)) continue;
     archiveAgent(profile, agent);
     archived++;
   }
@@ -3449,6 +3459,7 @@ function draftProjection(profile, receipt = null) {
       draftName: agent.name, natureHint: agent.nature?.name ?? null, profile: agent.profile ?? null,
       agentId: agent.id, agentName: agent.name, strategy: agent.strategy,
       createdAgent: presentAgent(agent, { owner: true }), firstAgent: done.firstAgent,
+      ...(done.visitOutcome ? {visitOutcome:done.visitOutcome} : {}),
     } };
   }
   const state = draftProfile(active?.brief ?? '');
@@ -3509,7 +3520,15 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
       saveStore(userId);
       // VISIT-1: announce the existing birth event only after its household is
       // durable. A failed save must not announce an agent that does not exist.
-      try { birthListener?.(profile.userId, agent); } catch (err) { console.error('[agents] birth listener failed:', err.message); }
+      try {
+        const outcome = birthListener?.(profile.userId, agent);
+        if (outcome && typeof outcome.ok === 'boolean') {
+          done.visitOutcome = outcome;
+          // Arrival is separate from birth. Failure to persist this advisory
+          // must never undo or replay the already durable agent and grant.
+          saveStore(userId);
+        }
+      } catch (err) { console.error('[agents] birth listener failed:', err.message); }
       return draftProjection(profile, done);
     } catch (err) {
       reloadOwners(userId);
@@ -3844,6 +3863,8 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   const profile = getOrCreate(userId);
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+  const visitRefusal = visitActionRefusal(agent);
+  if (visitRefusal) return visitRefusal;
   // AGENTS-2: retired is retired. And an agent who has been called in does not
   // get a second seat on the way out.
   if (agent.archived) return { status: 410, body: { error: 'agentRetired' } };
@@ -4097,6 +4118,9 @@ export function installAgentProfileRoutes(app) {
   // before its handler (including deploy, finish and draft endpoints).
   app.use('/api/agents', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    // BUG-149: the visit recipient authenticates hostUserId in visit.js.
+    // Applying this agent-owner gate would reject every signed invitation.
+    if (/^\/[^/]+\/visit$/.test(req.path)) return next();
     telegramAuthMiddleware(req, res, () => {
       const bodyId = req.body?.userId;
       const queryId = req.query.userId;
@@ -4448,6 +4472,8 @@ export function installAgentProfileRoutes(app) {
     if (!wanted.ok) {
       return res.status(400).json({ error: `mode must be one of give, callin (or ${MODES.join(', ')})` });
     }
+    const visitRefusal = wanted.mode === 'cut' ? visitActionRefusal(agent) : null;
+    if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
     if (amount !== undefined && amount !== null && !Number.isFinite(Number(amount))) {
       return res.status(400).json({ error: 'amount must be a number' });
     }
@@ -4572,6 +4598,8 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === req.params.agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const visitRefusal = visitActionRefusal(agent);
+    if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
 
     // Retiring a retired agent is a no-op, not an error — the button may well
     // be pressed twice on a slow connection.
@@ -4808,6 +4836,8 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const idx = profile.agents.findIndex((a) => a.id === agentId);
     if (idx === -1) return res.status(404).json({ error: 'Agent not found' });
+    const visitRefusal = visitActionRefusal(profile.agents[idx]);
+    if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
     profile.agents.splice(idx, 1);
     saveStore(userId);
     res.json({ success: true });
@@ -5069,6 +5099,8 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const visitRefusal = visitActionRefusal(agent);
+    if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
 
     const finishedTableId = agent.activeTableId ?? null;
     if (agent.activeTableId) activeTables.delete(agent.activeTableId);

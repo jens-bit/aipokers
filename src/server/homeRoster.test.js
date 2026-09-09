@@ -122,6 +122,7 @@ function resetAgents(userId, list) {
 
 beforeEach(() => {
   visitMod.reset();
+  store.adminDb().exec('DELETE FROM visits; DELETE FROM visit_invitations;');
   homeGame.reset();
   registry.resetRegistry('between tests');
   resetAgents(OWNER, [
@@ -140,6 +141,11 @@ beforeEach(() => {
 
 /** The ids this owner actually drafted, straight off the stored record. */
 const ownIds = (userId) => new Set(profiles.agentsOf(userId).map((a) => a.id));
+const invitedVisit = () => {
+  const invitation=visitMod.issueVisitInvitation({agentId:'theirs',userId:OTHER,stake:0});
+  assert.equal(invitation.status,200);
+  return visitMod.requestVisit({agentId:'theirs',hostUserId:OWNER,invitationToken:invitation.body.invitationToken});
+};
 
 // ── The invariant ───────────────────────────────────────────────────────────
 
@@ -177,7 +183,7 @@ test('BUG-46: an agent of another household cannot reach the roster untagged', (
 test('BUG-46: a visitor is visible in the flat, but only ever as a guest', () => {
   assert.deepEqual(visitMod.visitBodiesFor(OWNER), [], 'nobody is visiting yet');
 
-  const out = visitMod.requestVisit({ agentId: 'theirs', hostUserId: OWNER });
+  const out = invitedVisit();
   assert.equal(out.status, 200, JSON.stringify(out.body));
 
   const snap = profiles.homeSnapshot(OWNER, {
@@ -200,7 +206,7 @@ test('BUG-46: a visitor is visible in the flat, but only ever as a guest', () =>
 });
 
 test('BUG-46: a guest seat at the kitchen table is booked under his own owner', () => {
-  const out = visitMod.requestVisit({ agentId: 'theirs', hostUserId: OWNER });
+  const out = invitedVisit();
   assert.equal(out.status, 200, JSON.stringify(out.body));
   const answered = visitMod.answerVisit(out.body.visitId, OWNER, true);
   assert.equal(answered.status, 200, JSON.stringify(answered.body));
