@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-87 — landing cards use the drawing width instead of the hood — FIXED on overnight branch
+The phone hero used 99px backs, taking 55% of the 180px SVG rather than 55% of its visible 99px hood. The wave-60 regression failed at 99 versus 54. It now uses the exact L2Hand calculation, actual Fist atoms, 54px phone/85px desktop backs and a clear face. Desktop art scales to the reference's 280px drawing.
+
+### BUG-88 — first desktop draft appears as an empty black stage — FIXED on overnight branch
+The first-agent path used a full-stage block wrapper with no flex height for BirthScreen. Its input existed and could be focused programmatically while being clipped out of the actual visible stage; the browser's elementFromPoint check failed before repair. Wave 61 now gives the first draft a right column beside the real empty room. Other full-stage sheets also get a flex container. Four landing viewport checks cover actual hit visibility, dimensions, settled scrolling and typing; the adjacent DesktopHome regression holds the first-draft rail and room together. The previous stage-sheet exception is intentionally superseded.
+
 ### BUG-86 — condition tracks collapse as empty inline spans — FIXED on overnight branch
 The C9 screenshot exposed missing condition lines. The shared BodyBars track is a span with height and an absolutely positioned fill but no block display; the browser regression measured a zero-width track. Making the track block-level restores its intended dimensions. Desktop and Watch browser checks cover the shared fix.
 

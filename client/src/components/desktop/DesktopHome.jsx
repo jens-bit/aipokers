@@ -244,9 +244,8 @@ export function DesktopHome({
   }, []);
 
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
-  // The rail can only hold the draft when there IS a rail: the room draws one
-  // beside it, and an empty room does not draw a room at all.
-  const railHostsDraft = !!draft && homeStage && agents.length > 0 && !walletOpen && !bornId;
+  // Wave 61: the first draft also lives beside the actual empty room.
+  const railHostsDraft = !!draft && homeStage && !walletOpen && !bornId;
 
   const deskIndex = agents.findIndex((a) => a.id === deskTableId);
   const deskAgent = deskIndex >= 0 ? agents[deskIndex] : null;
@@ -335,11 +334,8 @@ export function DesktopHome({
           {/* DRAFT-2: on the HOME stage the draft is a RAIL PANEL beside the
               room, not a sheet over it — board 31's rule for every panel, and
               the reason the room is still there while he forms.
-              TWO CASES STAY THE FULL-STAGE SHEET. Every other stage (the casino,
-              a table) has no rail to put a panel in; and an EMPTY room has no
-              rail either — HOME-1's "Nobody lives here yet" is the whole screen,
-              with no 520 beside it — which is also the one moment the draft
-              matters most, because it is how the first agent is made. */}
+              Other stages use the full-stage sheet. Wave 61 gives the first
+              draft the same right column beside the empty room. */}
           {draft && !railHostsDraft && <div className="dsk-sheet">{draft}</div>}
           {stage === 'casino' ? (
             <CasinoScreen

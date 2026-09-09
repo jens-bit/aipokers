@@ -175,8 +175,11 @@
 
 .guest-hero {
   position: relative;
-  min-height: 100dvh;
-  min-height: var(--tg-h, 100dvh);
+  font-family: Inter, sans-serif;
+  font-weight: 400;
+  letter-spacing: normal;
+  height: calc(var(--tg-h, 100dvh) - 26px);
+  min-height: 540px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -223,7 +226,7 @@
   align-items: flex-start;
   justify-content: center;
   gap: 22px;
-  padding: 0 24px 32px;
+  padding: 0 24px 24px;
 }
 
 .guest-hero__head {
@@ -237,7 +240,8 @@
 }
 
 .guest-hero__lede {
-  margin: 0;
+  margin: 14px 0 0;
+  font-weight: 400;
   max-width: 470px;
   font-size: 14.5px;
   line-height: 1.55;
@@ -277,6 +281,7 @@
   align-self: center;
   width: 100%;
   height: 250px;
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -350,7 +355,6 @@
 .guest-hero__hand {
   position: absolute;
   left: 50%;
-  top: 62%;
   transform: translateX(-50%);
   z-index: 4;
   pointer-events: none;
@@ -364,7 +368,14 @@
   border: 1px solid rgba(0, 212, 170, 0.35);
   box-shadow: inset 0 0 0 1px rgba(0, 212, 170, 0.16), 0 14px 34px rgba(0, 0, 0, 0.62);
   transform-origin: 50% 100%;
+  animation: guest-deal 0.55s ease-out both;
 }
+
+.guest-hero__card > span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #00D4AA47; font-family: 'Playfair Display', serif; }
+.guest-hero__fist { position: absolute; z-index: 2; animation: guest-deal 0.55s ease-out both; }
+.guest-hero__fist svg { display: block; overflow: visible; }
+.guest-hero__action { margin-top: 22px; }
+@keyframes guest-deal { from { opacity: 0; translate: 0 16px; } to { opacity: 1; translate: 0 0; } }
 
 .guest-hero__card::after {
   content: '';
@@ -376,6 +387,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .guest-hero__ghost,
+  .guest-hero__card,
+  .guest-hero__fist,
   .claim-wall,
   .claim-wall__sheet { animation: none; }
 }
@@ -389,3 +402,18 @@
 }
 
 .guest-hero__wordmark { font-family: Oswald, sans-serif; font-weight: 500; letter-spacing: 0.26em; }
+
+@media (min-width: 701px) {
+  .guest-hero__masthead { padding: 22px 64px; }
+  .guest-hero__wordmark { font-size: 13px; }
+  .guest-hero__body { flex-direction: row; align-items: center; gap: 40px; padding: 0 64px 30px; }
+  .guest-hero__copy { flex: 1; min-width: 0; }
+  .guest-hero__head { font-size: 72px; }
+  .guest-hero__lede { margin-top: 20px; font-size: 17px; }
+  .guest-hero__action { margin-top: 30px; }
+  .guest-hero__cta { min-height: 54px; font-size: 14px; }
+  .guest-hero__creature { width: min(470px, 42vw); height: 350px; }
+  .guest-hero__felt { width: 400px; height: 120px; bottom: 26px; }
+  .guest-hero__ghost { padding-bottom: 62px; }
+}
+@media (min-width: 1440px) { .guest-hero__head { font-size: 88px; } }

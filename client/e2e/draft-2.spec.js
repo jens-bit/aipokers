@@ -244,11 +244,11 @@ test.describe('DRAFT-2 · the draft in the rail at 1440×900', () => {
     await expectDoorTagClear(page);
   });
 
-  // An empty desk has no rail to put a panel in, so the draft is the full-stage
-  // sheet — and it must still not sit on the door tag of the room behind it.
-  test('an empty desk falls back to the stage sheet, tag still clear', async ({ page }) => {
+  // Wave 61 supersedes the stage-sheet exception for the first agent.
+  test('BUG-88: the empty desk drafts in its right column, tag still clear', async ({ page }) => {
     await openDraft(page, DESK, EMPTY);
     await expect(page.getByTestId('draft-sheet')).toBeVisible();
+    await expect(page.getByTestId('home-rail')).toHaveAttribute('data-panel', 'draft');
     await expectDoorTagClear(page);
     await page.screenshot({ path: 'e2e/__screenshots__/draft-2-desk-empty.png' });
   });

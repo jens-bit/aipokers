@@ -1401,6 +1401,8 @@
 
 .dsk-sheet {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   inset: 0;
   z-index: 20;
   background: var(--dsk-bg);

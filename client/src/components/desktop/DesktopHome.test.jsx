@@ -64,6 +64,15 @@ describe('DesktopHome roster', () => {
     fetchMock.route('/hands', { recentHands: [] });
   });
 
+  it('BUG-88: the first draft occupies the rail beside its actual empty room', async () => {
+    fetchMock.route('/api/agents', { agents: [] });
+    renderHome({ draft: <div data-testid="first-recruiter">One open seat.</div> });
+    await waitFor(() => expect(screen.getByTestId('home-rail')).toHaveAttribute('data-panel', 'draft'));
+    expect(screen.getByTestId('home-rail')).toContainElement(screen.getByTestId('first-recruiter'));
+    expect(screen.getByTestId('home-screen').querySelector('.home-flat')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-ftu')).toBeNull();
+  });
+
   it('sends the Telegram initData header when reading the roster (FLOOR-3)', async () => {
     renderHome();
     // Two things read the roster on this shell now — the desk itself, and the

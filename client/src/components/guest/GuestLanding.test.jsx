@@ -65,13 +65,14 @@ describe('GUEST-1 · one hero viewport', () => {
     expect(screen.getByText('RAILBIRD')).toBeInTheDocument();
   });
 
-  it('he is holding two cards, in front of him, at 55% of the hood', async () => {
+  it('BUG-87: two card backs fit the actual hood and leave his face clear', async () => {
     const { container } = await openLanding();
     const cards = container.querySelectorAll('.guest-hero__card');
     expect(cards).toHaveLength(2);
-    // 180px hood → 99px cards. The number is the brief's, and it is the one
-    // thing on this page that is not the ref's (which fans them at 62%).
-    expect(cards[0].style.width).toBe('99px');
+    // Wave 60 measures the visible hood (55% of the SVG), not its viewport.
+    // 180px drawing → 99px hood → 54px card, as L2Hero now specifies.
+    expect(cards[0].style.width).toBe('54px');
+    expect(container.querySelectorAll('.guest-hero__fist')).toHaveLength(2);
     // Fanned, not stacked.
     expect(cards[0].style.transform).not.toBe(cards[1].style.transform);
   });

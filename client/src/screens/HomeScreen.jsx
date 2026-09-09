@@ -644,7 +644,7 @@ export function HomeScreen({
   // than a room you are standing in, and its empty state is the shell's
   // business (DESK-2) — this queue is the phone.
   const nobodyYet = loaded && agents.length === 0;
-  if (nobodyYet && desktop) {
+  if (nobodyYet && desktop && rail !== 'draft') {
     return (
       <div className="home1 home1--desk home1--empty" data-testid="home-screen">
         <NotYet
@@ -744,7 +744,7 @@ export function HomeScreen({
           line is an OBSERVATION rather than an instruction — the only action
           names what happens next, which is the rule the whole first-five-
           minutes chain is built on. */}
-      {nobodyYet ? (
+      {nobodyYet && rail !== 'draft' ? (
         <div
           className="home1__ftu"
           style={{ left: FLAT.table.cx, top: FLAT.table.cy + 74 }}

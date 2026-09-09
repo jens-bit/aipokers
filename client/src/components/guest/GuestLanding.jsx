@@ -17,25 +17,21 @@
 // sections, board 40. This is not a replacement for it; it is what a stranger
 // gets when he opens the app itself.
 //
-// PORTED FROM design-refs/mood-landing2.jsx — `L2Masthead`, the hero column,
-// `L2Hero`, `L2Hand` and `L2Cta`, wave 54, board 40. Two deliberate departures
-// from the ref, both from the brief:
-//
-//   · the cards are 55% of the hood's width rather than the ref's 62%;
-//   · the CTA's foot reads "Free · no account needed" rather than "Free ·
-//     plays in Telegram", which was true when there was nothing but Telegram
-//     and is the wrong promise on the page that removed the account.
+// Board 40, waves 60/61: L2Masthead, L2Hero, L2Hand and L2Cta.
+// Each back is 55% of the actual hood. The hero leaves a 26px room preview;
+// desktop places the recruiter beside that room, including for the first agent.
 //
 // The marketing palette is burgundy and gold, and the product's teal appears in
 // exactly ONE place on it — the two card backs he is holding. That is the ref's
 // law and it is why the cards are drawn here rather than borrowed from the
 // product's own Card component.
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RailMark } from '../system/RailMark.jsx';
 import App from '../../App.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { HOODS, GLOWS } from '../../lib/identity.js';
+import { HOODS } from '../../lib/identity.js';
+import { Fist } from '../system/GhostHands.jsx';
 import '../../styles/guest.css';
 
 // BUG-52: main.jsx already imports App eagerly. A second lazy import cannot
@@ -44,30 +40,45 @@ import '../../styles/guest.css';
 // The hood he wears on the poster. Fixed, not rolled: this is one drawing on
 // one page, not an agent with an identity.
 const HERO_HOOD = HOODS[0];
-const HERO_GLOW = GLOWS[1].c;      // gold, the marketing accent
-
-const GHOST_SIZE = 180;
-// The brief's number. The ref fans them at 62%; on the phone hero, where the
-// ghost is 180 rather than 280, that reaches the chin.
-const CARD_W = Math.round(GHOST_SIZE * 0.55);
-const CARD_H = Math.round(CARD_W * 1.4);
+const HERO_GLOW = '#CDB380';
 
 /** The two backs, fanned, at chest height so the face stays clear. */
-function HeldCards() {
+function HeldCards({ size }) {
+  // Wave 60: measure the visible hood, which occupies 55% of the SVG box.
+  const hoodWidth = size * 0.55;
+  const cardWidth = Math.round(hoodWidth * 0.55);
+  const cardHeight = Math.round(cardWidth * 1.4);
+  const fistWidth = Math.round(hoodWidth * 0.22);
+  const top = Math.round(size * 0.732) + Math.round(hoodWidth * 0.05);
   return (
-    <div className="guest-hero__hand" style={{ width: CARD_W * 1.62, height: CARD_H }}>
+    <div className="guest-hero__hand" aria-hidden="true" style={{ top, width: cardWidth * 1.62, height: cardHeight + fistWidth }}>
       {[-9, 9].map((deg, i) => (
         <div
           key={deg}
           className="guest-hero__card"
           style={{
-            width: CARD_W,
-            height: CARD_H,
+            width: cardWidth,
+            height: cardHeight,
+            borderRadius: Math.round(cardWidth * 0.055),
+            fontSize: Math.round(cardWidth * 0.3),
+            animationDelay: `${0.3 + i * 0.22}s`,
             left: i ? 'auto' : 0,
             right: i ? 0 : 'auto',
             transform: `rotate(${deg}deg)`,
           }}
-        />
+        ><span>♠</span></div>
+      ))}
+      {[0, 1].map(i => (
+        <div key={i} className="guest-hero__fist" style={{
+          left: i ? 'auto' : Math.round(cardWidth * 0.1),
+          right: i ? Math.round(cardWidth * 0.1) : 'auto',
+          top: cardHeight - Math.round(fistWidth * 0.42),
+          transform: `rotate(${i ? 9 : -9}deg)`, animationDelay: `${0.42 + i * 0.22}s`,
+        }}>
+          <svg width={fistWidth} height={fistWidth * 0.72} viewBox="0 0 21.3 15.4">
+            <g transform={`translate(${i ? 12.3 : 9} 0.4) scale(${i ? -1 : 1} 1)`}><Fist size={96} /></g>
+          </svg>
+        </div>
       ))}
     </div>
   );
@@ -100,6 +111,14 @@ const HODS_VISITOR = HOODS[2];
 
 export function GuestLanding({ visitorName = null }) {
   const roomRef = useRef(null);
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 701px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 701px)');
+    const update = () => setWide(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  const ghostSize = wide ? 280 : 180;
 
   // DRAFT HIM is a scroll and a focus, because what it would have opened is
   // already underneath it. The composer is found by its test id rather than
@@ -123,11 +142,11 @@ export function GuestLanding({ visitorName = null }) {
         <div className="guest-hero__wash" />
 
         <header className="guest-hero__masthead">
-          <RailMark size={30} color="#F4EBDD" /><span className="guest-hero__wordmark">RAILBIRD</span>
+          <RailMark size={wide ? 24 : 20} color="#CDB380" /><span className="guest-hero__wordmark">RAILBIRD</span>
         </header>
 
         <div className="guest-hero__body">
-          <div>
+          <div className="guest-hero__copy">
             {/* VISIT-1 job 6: a knock changes the promise on the page from "make
                 somebody" to "let somebody in" — the first fact this stranger
                 needs is not the product, it is that he is expected. */}
@@ -139,7 +158,7 @@ export function GuestLanding({ visitorName = null }) {
                 ? `${visitorName} wants to sit down for a while. Draft somebody of your own and you can let him in.`
                 : 'A poker player you raise. You draft him in a chat, he is born with a nature and six attributes, and then he lives in a room in your phone — and plays real hands without you.'}
             </p>
-            <div style={{ marginTop: 22 }}>
+            <div className="guest-hero__action">
               <button type="button" className="guest-hero__cta" onClick={draftHim}>
                 DRAFT HIM
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -157,13 +176,13 @@ export function GuestLanding({ visitorName = null }) {
             <div className="guest-hero__ghost">
               <MoodGhost
                 mood="confident"
-                size={GHOST_SIZE}
+                size={ghostSize}
                 ring={false}
                 hood={HERO_HOOD}
                 glow={HERO_GLOW}
                 heat={40}
               />
-              <HeldCards />
+              <HeldCards size={ghostSize} />
             </div>
             {visitorName ? <DoorWithVisitor name={visitorName} /> : null}
           </div>
