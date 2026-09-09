@@ -113,7 +113,9 @@ const cleanup = [];   // { id, owner }
 // agentProfiles caches a wallet the first time it is asked for one. The ladder
 // itself is asserted in src/server/slots.test.js.
 const { saveWallet, deleteOwner } = await import('../src/server/store.js');
-const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 0, earned: 250_000, ledger: [] });
+// BUG-136: established households fund drafts from their safe. Seed spendable
+// chips as well as earned slots; builds must never mint another starter grant.
+const unlockSlots = (owner) => saveWallet(owner, { ownerId: owner, balance: 40_000, earned: 250_000, ledger: [] });
 // TEST-4: start from nothing. Run by `npm run test:e2e` this changes nothing —
 // runScript hands each script a scratch cwd, so the database is empty already.
 // Run BY HAND from the repo root it is the difference between a suite that is

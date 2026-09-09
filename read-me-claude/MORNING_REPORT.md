@@ -1,6 +1,8 @@
 # Railbird — release handoff, 9 September 2026
 
-The main design and interaction repairs are implemented locally. This is ready for Jens's release playtest after the final integration gate and push; it is not a claim that production is already updated or every historical illustration is pixel-identical.
+Jens's morning playtest exposed substantial remaining defects in continuous play. The earlier release-readiness assessment was too broad: individual screen checks missed accounting, repeated speech, shared room occupancy and confusing player flows. The active plan is now [MORNING_PLAYTEST_QUEUE.md](MORNING_PLAYTEST_QUEUE.md). The implementation notes below describe earlier changes, not a claim that the app is ready to share.
+
+Batch42 repairs the reproducible draft/retire money exploit and legacy reload accounting. Focused HTTP/SQLite regressions pass; full server/client checks and seven gameplay e2e checks pass with explicit safe funding in established-owner fixtures. A real phone draft/retire/redraft journey is being added before integration. Nothing in batch42 is deployed yet.
 
 ## What you should notice
 

@@ -144,6 +144,46 @@ async function seed() {
 let seeding = null;
 const seedOnce = () => (seeding ??= seed());
 
+test('BUG-136: draft, retire and redraft through the real phone conserve household chips', async ({ page }) => {
+  page.setDefaultTimeout(15_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const uid = 'grant-walk-' + Date.now();
+  const noise = watchConsole(page);
+  await page.addInitScript(id => localStorage.setItem('agentic_uid', id), uid);
+  await page.goto(BASE);
+  for (let cycle = 0; cycle < 2; cycle++) {
+    await page.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT', exact: true }).click();
+    await page.getByRole('button', { name: 'Aggressive bluffer', exact: true }).click();
+    await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+    await expect(page.locator('.birth-card3')).toBeVisible();
+    await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+    const agents = await roster(uid);
+    expect(agents).toHaveLength(1);
+    const wallet = await api('GET', '/api/wallet?userId=' + uid);
+    expect(wallet.body.balance + agents[0].pocket.balance).toBe(10_000);
+    await page.getByTestId('home-safe').click();
+    await expect(page.getByTestId('safe-sheet').locator('.safe__amount')).toHaveText('$8,000');
+    await page.getByTestId('safe-sheet').getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page.getByTestId('safe-sheet')).not.toBeVisible();
+    const body = page.locator('.home-one[data-agent="' + agents[0].id + '"]');
+    await expect(body).toHaveAttribute('data-walking', 'false');
+    // His idle pacing deliberately keeps moving. Tap the current centre as a
+    // person does instead of waiting for an infinite animation to become stable.
+    const bounds = await body.boundingBox();
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Retire', exact: true }).click();
+    await page.getByRole('button', { name: 'Retire him', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT', exact: true })).toBeVisible();
+    expect((await api('GET', '/api/wallet?userId=' + uid)).body.balance).toBe(10_000);
+    await page.reload();
+  }
+  expect(noise).toEqual([]);
+  await shot(page, 'bug136-retired-household');
+});
+
 // ── Per-test plumbing ───────────────────────────────────────────────────────
 
 /**
