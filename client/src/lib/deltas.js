@@ -1,3 +1,5 @@
+import { money as walletMoney } from './wallet.js';
+
 // WATCH-7 — what the hand did to a seat.
 //
 // The wire has always carried the POT and WHO TOOK IT, never a per-seat net, so
@@ -70,5 +72,5 @@ export function handDelta(result, seat, { stackNow, stackAtDeal } = {}) {
 /** "+$30" / "−$30", with the real minus sign the felt uses everywhere else. */
 export function money(n) {
   if (!Number.isFinite(n)) return null;
-  return (n < 0 ? '−$' : '+$') + Math.abs(n).toLocaleString();
+  return walletMoney(n, { sign: true });
 }
