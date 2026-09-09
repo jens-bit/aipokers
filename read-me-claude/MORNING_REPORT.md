@@ -4,7 +4,7 @@ The main design and interaction repairs are implemented locally. This is ready f
 
 ## What you should notice
 
-- Home and casino use contextual navigation and the available phone shell. The kitchen table remains, actual table taps work, and a pending want has one answer surface. Home bodies use their saved appearance, walk out/return, and retain their real routines.
+- Home and casino use contextual navigation and the available phone shell. The kitchen table remains, actual table taps work, and a pending want has one answer surface. Home bodies use their saved appearance, walk out/return, and retain their real routines. Carry now has the three designed held reactions, five destination labels, safe edge bounds and refusal before lifting during a known active hand.
 - The companion, private conversation, profile, roster, fridge, safe, TV and replay routes are connected. Agents visiting a friend now show actual live-table details and a working Watch destination, with private Home updates. Retirement archives the record through the correct endpoint. Casino pinch enlarges the same felt, and a second pinch opens Watch.
 - Your full-screen phone Watch composition is preserved. Opponent read taps work, owned cards remain above read glass, stale cost notes clear correctly, hidden cards stay private, expression/brow holds are independent, celebrations and gesture-unlocked audio play, and mute is reachable.
 - First-agent entry uses four forming stages, no collar, and persistent hood/glow. Empty/quiet/history states explain the next action without inventing results. Desktop retains the room, roster and conversation with working Watch/Sit/action/return at 1280, 1440 and 1920.
@@ -18,7 +18,9 @@ These are the actual app with controlled example accounts, not production screen
 
 ## Verification
 
-Batch39 main integration passed 108 server / 2242 client / seven e2e. Batch40 adds two Watch regressions and four inspected reference pairs; its final checks and integration outcome are recorded in the work log and final handoff. There are two intentional live server skips and two existing client todos. Batch38 passed the 66-case entry/draft/desktop browser run, build, seven fresh built smoke journeys and 20 Home2 checks. Batch39 passed all 55 desktop/visitor/BUG-55 browser checks, seven fresh built smoke journeys and 20 Home2 checks. Batch40’s first broader run passed 85 browser checks; final validation follows the short-screen scroll correction. The final bot-link repair uses fake bots and a scratch database; no real notification was sent.
+Batch41 final branch gate passed108 server /2250 client /seven e2e,86 browser cases including all53 desktop, build, seven fresh built smoke journeys and20 Home2 checks. Two intentional live server skips and two existing client todos remain. Three carry comparison sheets were inspected; source checks ran again after the last refusal-bubble adjustment. Main integration follows in the work log.
+
+GitHub now contains the earlier work through3958991. Its [Deploy to VPS run](https://github.com/jens-bit/aipokers/actions/runs/34390530302) has successful Tests, Browser smoke, and Deploy & health-check jobs. This is verified workflow status, not a phone account playtest. Batch41 is a new local change; no push was made by Codex.
 
 The controlled sprite audit covers 101 native-size cases, all matching the reference pixels. This does not assert every possible character, game state or viewport is identical. Earlier unexplained Windows/test/capture intermittency stays in BUGS.md; later passing runs are not a diagnosis.
 

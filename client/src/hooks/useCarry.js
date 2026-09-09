@@ -30,12 +30,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { LONG_PRESS_MS, PRESS_SLOP, clampToRoom, fixtureAt, toRoom } from '../components/home/carry.js';
 import { PHONE_ROOM } from '../components/home/flat.js';
 
+// The held silhouette includes its pill, tilt, floating beat and floor shadow.
+// Clamping only the hood clips the pill at the door and the shadow at the floor.
+function heldInRoom(x, y, size, geometry) {
+  const held = clampToRoom(x, y, size + 24, geometry);
+  return { x: held.x, y: Math.max(size + 40, Math.min(geometry.height - 46, held.y)) };
+}
+
 /**
  * @param roomEl   the `.home-flat` element, for the scale and the origin
  * @param onDrop   (agentId, fixture | null) — called once per completed carry
  * @param enabled  off on the desk, and off while a sheet is up
  */
-export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM }) {
+export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, geometry = PHONE_ROOM }) {
   // { id, x, y, over } — where he is in room coordinates and what is under him.
   const [carry, setCarry] = useState(null);
   const pressRef = useRef(null);
@@ -44,11 +51,20 @@ export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM
   const swallowClickRef = useRef(false);
 
   carryRef.current = carry;
+  // A hand can start during the 420ms press. Check the latest snapshot.
+  const liftPolicy = useRef({});
+  liftPolicy.current = { canLift, onRefuse };
+  const allowLift = useCallback((id) => {
+    if (liftPolicy.current.canLift?.(id) !== false) return true;
+    liftPolicy.current.onRefuse?.(id);
+    return false;
+  }, []);
 
   const clear = useCallback(() => {
     const press = pressRef.current;
     if (press?.timer) clearTimeout(press.timer);
     pressRef.current = null;
+    carryRef.current = null;
     setCarry(null);
   }, []);
 
@@ -75,8 +91,8 @@ export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM
       return;
     }
 
-    const held = clampToRoom(at.x, at.y, press.size, geometry);
-    setCarry({ id: press.id, x: held.x, y: held.y, over: fixtureAt(held.x, held.y, geometry) });
+    const held = heldInRoom(at.x, at.y, press.size, geometry);
+    setCarry({ id: press.id, x: held.x, y: held.y, over: fixtureAt(held.x, held.y, geometry), moved: true });
   }, [roomEl, clear, geometry]);
 
   const end = useCallback(() => {
@@ -131,10 +147,12 @@ export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM
     if (!enabled || !roomEl) return false;
     clear();
     const id = String(agentId);
-    pressRef.current = { id, size: geometry.bodySize, lifted: true, picked: true, awaitPress: true };
-    setCarry({ id, x: at.x, y: at.y, over: null });
+    if (!allowLift(id)) return false;
+    pressRef.current = { id, size: Math.max(62, geometry.bodySize * 1.1), lifted: true, picked: true, awaitPress: true };
+    const held = heldInRoom(at.x, at.y, pressRef.current.size, geometry);
+    setCarry({ id, ...held, over: null });
     return true;
-  }, [enabled, roomEl, clear, geometry]);
+  }, [enabled, roomEl, clear, geometry, allowLift]);
 
   /** The handlers one body wears. */
   const bind = useCallback((agentId, { size = 46 } = {}) => {
@@ -142,25 +160,29 @@ export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM
     return {
       onPointerDown(e) {
         // Secondary buttons are not a carry, and neither is a second finger.
-        if (e.button != null && e.button !== 0) return;
+        if ((e.button != null && e.button !== 0) || e.isPrimary === false) return;
         if (pressRef.current) return;
         try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* jsdom */ }
         const id = String(agentId);
-        const press = { id, size, clientX: e.clientX, clientY: e.clientY, lifted: false, timer: null };
+        const press = { id, size: Math.max(62, size * 1.1), clientX: e.clientX, clientY: e.clientY, lifted: false, timer: null };
         press.timer = setTimeout(() => {
           if (pressRef.current !== press) return;
+          if (!allowLift(id)) {
+            liftedRef.current = true; // Swallow the click after a refused long press.
+            return;
+          }
           press.lifted = true;
           liftedRef.current = true;
           const rect = roomEl?.getBoundingClientRect?.();
           const at = toRoom(rect, press.clientX, press.clientY, geometry);
-          const held = at ? clampToRoom(at.x, at.y, size, geometry) : { x: 0, y: 0 };
-          setCarry({ id, x: held.x, y: held.y, over: at ? fixtureAt(held.x, held.y, geometry) : null });
+          const held = at ? heldInRoom(at.x, at.y, press.size, geometry) : { x: 0, y: 0 };
+          setCarry({ id, x: held.x, y: held.y, over: null });
         }, LONG_PRESS_MS);
         pressRef.current = press;
       },
       onPointerMove(e) { move(e.clientX, e.clientY); },
       onPointerUp() { end(); },
-      onPointerCancel() { end(); },
+      onPointerCancel() { clear(); },
       onClickCapture(e) {
         // Rule 1: the tap that opens his thread must not fire behind a carry.
         if (!liftedRef.current) return;
@@ -169,7 +191,7 @@ export function useCarry({ roomEl, onDrop, enabled = true, geometry = PHONE_ROOM
         e.stopPropagation();
       },
     };
-  }, [enabled, roomEl, move, end, geometry]);
+  }, [enabled, roomEl, move, end, clear, geometry, allowLift]);
 
   return { carry, bind, pick, cancel: clear };
 }

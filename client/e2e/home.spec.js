@@ -125,6 +125,7 @@ async function stub(page, cast) {
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: THREAD }));
   await page.route('**/api/home/thread**', route => route.fulfill({ json: cast.agents.length ? THREAD : { sessionId: 'home-empty', lines: [], count: 0 } }));
   await page.route('**/api/fridge?**', route => route.fulfill({ json: { items: [{ id: 'beer', count: 4, price: 12 }, { id: 'snack', count: 2, price: 8 }] } }));
+  await page.route('**/api/slots**',r=>r.fulfill({json:{used:cast.agents.length,cap:4,next:null}}));
   await page.route('**/api/wallet**', (route) => route.fulfill({ json: { balance: 12_000, ledger: [] } }));
   await page.route('**/api/events**', (route) => route.fulfill({ json: { events: [], lastId: 0 } }));
   await page.route('**/api/rooms**', (route) => route.fulfill({ json: { rooms: [], hotWindowMs: 20_000 } }));
@@ -154,7 +155,7 @@ async function stub(page, cast) {
   // rather than silenced: it opens, answers FLOOR_SUB with this cast's own
   // HOME_STATE, and says nothing else. That is the frame the server would
   // send, so the picture is of the real screen and not of a fallback.
-  await page.addInitScript(([agents, game]) => {
+  await page.addInitScript(([agents, game, table]) => {
     class ScriptedSocket {
       constructor(url) {
         this.url = url;
@@ -167,6 +168,7 @@ async function stub(page, cast) {
           this.dispatch('message', {
             data: JSON.stringify({ type: 'home_state', userId: '4242', agents, game }),
           });
+          if (table) this.dispatch('message', { data: JSON.stringify({ type: 'state', state: table, legalActions: [] }) });
         }, 30);
       }
       dispatch(type, event) { for (const fn of this.listeners[type] ?? []) fn(event); }
@@ -181,7 +183,7 @@ async function stub(page, cast) {
     ScriptedSocket.OPEN = 1;
     ScriptedSocket.prototype.OPEN = 1;
     window.WebSocket = ScriptedSocket;
-  }, [cast.agents, cast.game ?? null]);
+  }, [cast.agents, cast.game ?? null, cast.table ?? null]);
 }
 
 async function room(page, cast, viewport = VIEWPORT) {
@@ -652,3 +654,116 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
   await expect(body.locator('g[data-event="asleep"]')).toHaveCount(0);
   await expect(body.locator('[data-face="sulking"]')).toHaveCount(1);
 });
+
+
+test('BUG-134 AUDIT41: a live home hand refuses the lift; between hands can lift', async ({page}) => {
+  const cast = structuredClone(CASTS.household);
+  // The selected spectator connection also identifies the home table.
+  cast.table = { street: 'flop', handNumber: 9, community: ['Ah','Kd','2c'], seats: [], pots: [], pot: 30 };
+  await room(page, cast);
+  const body=page.locator('.home-one[data-agent="a1"]');
+  await body.hover(); await page.mouse.down(); await page.waitForTimeout(500);
+  await expect(page.locator('.home-one.is-carried')).toHaveCount(0);
+  await expect(body).toHaveClass(/is-refusing/);
+  await expect(body).toContainText('I am in a hand.');
+  const speech=await body.locator('.home-bubble').boundingBox(), cards=await body.locator('.home-one__cards').boundingBox();
+  expect(speech.x >= cards.x+cards.width || speech.x+speech.width <= cards.x || speech.y >= cards.y+cards.height || speech.y+speech.height <= cards.y, 'refusal must not cover his cards').toBe(true);
+  const hood=await body.locator('.home-one__body').boundingBox();
+  expect(speech.y+speech.height/2, 'C4 refusal is beside his head').toBeGreaterThanOrEqual(hood.y);
+  expect(speech.y+speech.height/2).toBeLessThanOrEqual(hood.y+hood.height);
+  await page.mouse.up();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await page.screenshot({path:'../artifacts/carry41-refusal.png'});
+  await page.evaluate(table=>{for(const ws of window.__homeSockets) ws.dispatch('message',{data:JSON.stringify({type:'state',state:{...table,street:'complete'}})});},cast.table);
+  await body.hover(); await page.mouse.down(); await page.waitForTimeout(500);
+  await expect(body).toHaveClass(/is-carried/);
+  await page.mouse.up();
+});
+
+for (const height of [844,590]) {
+  for (const [state,over,line,target] of [
+    ['rested',{},'Where are we going?','table'],
+    ['worn',{fatigue:'worn'},'Fine. Carry me.','couch'],
+    ['hot',{mood:{state:'tilted',heat:84}},'Put me down.','door'],
+  ]) {
+    test('BUG-135 AUDIT41: '+state+' carry, one target and bounded voice at '+height, async({page})=>{
+      await room(page,{agents:[agent('a1','Bal',over)]},{width:390,height});
+      const body=page.locator('.home-one[data-agent="a1"]');
+      await body.scrollIntoViewIfNeeded(); await body.hover(); await page.mouse.down();
+      await expect(body).toHaveClass(/is-carried/);
+      await expect(body).toContainText(line);
+      await expect(body.locator('.home-one__body')).toHaveCSS('width','62px');
+      await expect(body.locator('.home-carry-shadow')).toHaveCSS('filter','blur(4px)');
+      await expect(page.locator('.home-carry-target')).toHaveCount(0);
+      await page.screenshot({path:'../artifacts/carry41-'+state+'-'+height+'-lift.png'});
+      const flat=await page.locator('.home-flat').boundingBox(), scale=flat.width/390;
+      const point={table:[208,268],couch:[56,388],door:[372,208]}[target];
+      await page.mouse.move(flat.x+point[0]*scale,flat.y+point[1]*scale,{steps:12});
+      await expect(body).toHaveAttribute('data-over',target);
+      await expect(page.locator('.home-carry-target')).toHaveCount(5);
+      await expect(page.locator('.home-carry-target.is-active')).toHaveCount(1);
+      await expect(page.locator('.home-carry-target.is-active')).toHaveAttribute('data-fixture',target);
+      for(const element of [body.locator('.home-bubble'),page.locator('.home-carry-target__label')]) {
+        const box=await element.boundingBox(); expect(box.x).toBeGreaterThanOrEqual(flat.x);
+        expect(box.x+box.width).toBeLessThanOrEqual(flat.x+flat.width+.5);
+      }
+      await expect(body.locator('.home-bubble')).toHaveAttribute('data-side',target==='couch'?'right':'left');
+      await page.screenshot({path:'../artifacts/carry41-'+state+'-'+height+'-drag.png'});
+      if (target === 'door' && height === 844) {
+        for (const [x,y] of [[390,208],[0,0],[390,612]]) {
+          await page.mouse.move(flat.x+x*scale,flat.y+y*scale,{steps:5});
+          const figure=await body.locator('.home-one__figure').boundingBox();
+          expect(figure.x).toBeGreaterThanOrEqual(flat.x);
+          expect(figure.x+figure.width).toBeLessThanOrEqual(flat.x+flat.width);
+          expect(figure.y).toBeGreaterThanOrEqual(flat.y);
+          const shadow=await body.locator('.home-carry-shadow').boundingBox();
+          expect(shadow.y+shadow.height).toBeLessThanOrEqual(flat.y+flat.height);
+        }
+      }
+      const posts=[]; await page.route('**/api/agents/*/place**',r=>{posts.push(r.request().postDataJSON());return r.fulfill({json:{ok:false,line:'I am in a hand. Give me a minute.'},status:409});});
+      if(target==='couch') {
+        await page.mouse.up(); await expect.poll(()=>posts.length).toBe(1);
+        expect(posts[0].fixture).toBe('couch');
+        await expect(body).toContainText('I am in a hand. Give me a minute.');
+        await expect(body).not.toHaveClass(/is-carried/);
+        await expect(body).toHaveAttribute('data-routine','reads');
+      } else {
+        await body.dispatchEvent('pointercancel'); await page.mouse.up();
+        await expect(body).not.toHaveClass(/is-carried/); expect(posts).toEqual([]);
+        await expect(page.getByTestId('home-screen')).toBeVisible();
+      }
+    });
+  }
+}
+
+for(const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+  test('AUDIT41: explicit Carry ends in the server couch routine at '+viewport.width,async({page})=>{
+    const cast={agents:[agent('a1','Bal',{fatigue:'worn'})]};
+    await room(page,cast,viewport);
+    await page.route('**/api/agents/*/hands?**',r=>r.fulfill({json:{recentHands:[]}}));
+    await page.route('**/api/agents/*/attributes/log?**',r=>r.fulfill({json:{entries:[]}}));
+    await page.route('**/api/agents/*/flagged?**',r=>r.fulfill({json:{flaggedHands:[]}}));
+    await page.locator('.home-one[data-agent="a1"]').click();
+    await page.getByRole('button',{name:'Carry',exact:true}).click();
+    const held=page.locator('.home-one.is-carried'); await expect(held).toContainText('Fine. Carry me.');
+    const flat=await page.locator('.home-flat').boundingBox();
+    const scale=flat.width/(viewport.width===1440?560:390);
+    const [x,y]=viewport.width===1440?[78,544]:[56,388];
+    await page.mouse.move(flat.x+x*scale,flat.y+y*scale);
+    await expect(page.locator('.home-carry-target.is-active')).toHaveAttribute('data-fixture','couch');
+    await page.screenshot({path:'../artifacts/carry41-explicit-'+viewport.width+'.png'});
+    const calls=[];
+    await page.route('**/api/agents/*/place**',async r=>{
+      calls.push(r.request().postDataJSON());
+      cast.agents=[{...cast.agents[0],routine:{key:'sleeps',label:'asleep'}}];
+      await r.fulfill({json:{ok:true,line:'I needed a rest.'}});
+      await page.evaluate(agents=>{for(const ws of window.__homeSockets)ws.dispatch('message',{data:JSON.stringify({type:'home_state',userId:'4242',agents,game:null})});},cast.agents);
+    });
+    await page.mouse.down();await page.mouse.up();
+    await expect.poll(()=>calls.length).toBe(1);expect(calls[0].fixture).toBe('couch');
+    await expect(page.locator('.home-one[data-agent="a1"]')).toHaveAttribute('data-routine','sleeps');
+    await expect(page.locator('.home-one[data-agent="a1"]')).toHaveAttribute('data-walking','false');
+    await expect(page.locator('.home-carry-target')).toHaveCount(0);
+    await page.screenshot({path:'../artifacts/carry41-drop-'+viewport.width+'.png'});
+  });
+}

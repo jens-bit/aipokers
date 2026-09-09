@@ -51,7 +51,7 @@ import { activityKeys } from '../components/system/RailMotion.jsx';
 import { RoomHeader } from '../components/Header.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
 import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
-import { HomeOne, HomeBubble } from '../components/home/atoms.jsx';
+import { HomeOne, HomeBubble, CarryTargets } from '../components/home/atoms.jsx';
 import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
@@ -65,7 +65,6 @@ import { accentFor } from '../components/floor/atoms.jsx';
 import { identitiesFor } from '../lib/identity.js';
 import { placeAgent } from '../lib/place.js';
 import { useCarry } from '../hooks/useCarry.js';
-import { verbFor } from '../components/home/carry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
@@ -531,12 +530,8 @@ export function HomeScreen({
     const agent = home.find((a) => String(a.id) === String(agentId));
     if (!agent) return;
 
-    // The refusal is the SERVER's now. This used to be checked here first,
-    // because there was no route that could answer it and "In a hand" was the
-    // only honest thing the room could say on its own. SERVER-5's /place
-    // answers 409 `inHand` with a line of his — "I am in a hand. Give me a
-    // minute." — so the room shows what he said rather than a state it worked
-    // out about him, which is the rule it keeps everywhere else.
+    // The current home snapshot can refuse the lift early. Placement still
+    // checks on the server, covering a hand starting while he was held.
 
     // The door is where the OWNER is going, with the man in his hand. CASINO-1:
     // a deploy is decided in the building, so this hands him over rather than
@@ -555,12 +550,18 @@ export function HomeScreen({
     roomEl: flatEl,
     geometry,
     onDrop,
+    canLift: id => !(game?.state === 'running'
+      && homeTable.config?.tableId === game.tableId
+      && ['preflop', 'flop', 'turn', 'river'].includes(homeTable.game?.street)
+      && gameAgentIds.some(agentId => String(agentId) === String(id))),
+    onRefuse: id => setSaidOnDrop({ id: String(id), text: 'I am in a hand.', gold: true, refused: true }),
     enabled: true,
   });
 
   useEffect(() => {
     if (!carryAgentId || !flatEl || !home.some(a => String(a.id) === String(carryAgentId))) return;
-    if (pick(carryAgentId)) onCarryStarted?.();
+    pick(carryAgentId);
+    onCarryStarted?.(); // A refusal consumes the request too; never retry it on a roster poll.
   }, [carryAgentId, flatEl, home, pick, onCarryStarted]);
 
   // The line clears itself; it lands once, the way the money line does.
@@ -748,6 +749,7 @@ export function HomeScreen({
       ) : null}
 
       {/* Keep away bodies mounted invisibly at the door so CSS can cross the same body out and back. */}
+      {carry?.moved ? <CarryTargets over={carry.over} geometry={geometry} /> : null}
       {agents.map((agent) => {
         const at = positions.get(String(agent.id));
         if (!at) return null;
@@ -756,24 +758,10 @@ export function HomeScreen({
         const seated = at.seat !== null && at.seat !== undefined;
         const size = seated ? geometry.seatedSize : geometry.bodySize;
         const held = carry?.id === id ? carry : null;
-        // HOME-2 job 5 · HIS LINE, WHEN HE IS IN YOUR HAND.
-        //
-        // Three sources, in the order they stop being true. What he SAID when
-        // you put him down is the newest thing in the room and outranks
-        // everything. Then, while he is held, the line he already has —
-        // FIX-6's queue lets at most two men speak at once, and the man in
-        // your hand is not waiting his turn behind anybody. That is what "his
-        // line if worn or hot" is: a worn man's want IS "I am done for
-        // tonight" and a hot one's IS "let me back in there" (the ref phrases
-        // every want from state), so holding him shows the line he already
-        // had rather than a sentence this screen made up for him.
         const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
-        const own = speakers.find((sp) => sp.id === id);
         const bubble = dropped
-          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(held?.x ?? at.x, F_W) }
-          : (held && own)
-            ? { text: own.text, gold: own.gold, side: bubbleSide(held.x, F_W) }
-            : (bubbles.get(id) ?? null);
+          ? { text: dropped.text, gold: dropped.gold, side: bubbleSide(at.x, F_W) }
+          : (bubbles.get(id) ?? null);
         return (
           <HomeOne
             key={agent.id}
@@ -788,6 +776,8 @@ export function HomeScreen({
             away={isAway}
             returnLine={!isAway && arrival?.agentId === id ? moneyLine(arrival) : null}
             carried={held}
+            roomWidth={F_W}
+            refusing={!held && !!dropped?.refused}
             carryHandlers={desktop ? undefined : bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.
@@ -818,7 +808,7 @@ export function HomeScreen({
       <div className="home1__scale" style={{ width: F_W, height: F_H, ...(!desktop ? { transform: `scale(${deskScale})`, marginBottom: F_H * (deskScale - 1) } : {}) }} ref={setFlatEl}>
         {flat}
       </div>
-      {desktop && carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
+      {desktop && carry && <div className="home-carry-help"><span>Place him on the couch, table, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
     </div>
   );
 
@@ -864,7 +854,7 @@ export function HomeScreen({
       <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} />
       {roomBox}
 
-      {carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
+      {carry && <div className="home-carry-help"><span>Place him on the couch, table, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
 
       <HomeThread
         roomMode
