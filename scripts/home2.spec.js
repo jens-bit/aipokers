@@ -494,7 +494,9 @@ test.describe('HOME-2 job 6 · one sheet, and no money on the table', () => {
     await expect(page.getByTestId('home-table-sheet')).toBeVisible({ timeout: 20_000 });
     // ...and the sheet says where a chair's price comes from, because it is the
     // one place a price is written.
-    await expect(page.getByTestId('home-table-sheet')).toContainText(/chips he has won/i);
+    // BUG-147: clarify the earned threshold without implying a purchase.
+    await expect(page.getByTestId('home-table-sheet')).toContainText(/Your agents’ winning casino sessions unlock seats/i);
+    await expect(page.getByTestId('home-table-sheet')).toContainText('No chips are spent');
   });
 
   test('the sheet closes on the scrim, like every other sheet over this room', async ({ page }) => {

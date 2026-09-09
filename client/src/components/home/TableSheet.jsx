@@ -160,7 +160,7 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
               <span className="table-sheet__ordinal">{seatOrdinal(next.index)}</span>
               {' · '}
               <span className="table-sheet__price">
-                {next.price === 0 ? 'free' : `${chips(next.price)} won`}
+                {next.price === 0 ? 'free' : `${chips(next.price)} chips won`}
               </span>
             </span>
           </div>
@@ -177,7 +177,7 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
             // A locked chair states the price and offers nothing. There is no
             // action because there is no path — see the header.
             <span className="table-sheet__locked" data-testid="home-table-locked">
-              {chips(Math.max(0, next.price - next.earned))} to go
+              {chips(Math.max(0, next.price - next.earned))} chips to go
             </span>
           )}
         </div>
@@ -197,8 +197,8 @@ export function TableSheet({ slots = null, seated = 0, onDraft, onSit = null, on
       ) : null}
 
       <p className="table-sheet__foot">
-        Paid in <b>chips he has won</b>, never bought — the room fills as his
-        agents win and in no other way.
+        Your agents’ <b>winning casino sessions</b> unlock seats. No chips are
+        spent, and losing sessions do not take away progress. Home games do not count.
       </p>
     </div>
   );

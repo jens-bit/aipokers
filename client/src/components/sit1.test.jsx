@@ -91,7 +91,8 @@ describe('the chair is offered from the table sheet', () => {
     render(<TableSheet slots={SLOTS} seated={2} onSit={() => {}} />);
     // The priced chair is still locked and still offers nothing; sitting down
     // is free and next to it, not a path to it.
-    expect(screen.getByTestId('home-table-locked').textContent).toMatch(/50,000 to go/);
+    // BUG-147 names the earned currency; the locked chair remains unavailable.
+    expect(screen.getByTestId('home-table-locked').textContent).toMatch(/50,000 chips to go/);
     expect(screen.queryByTestId('home-table-draft')).toBeNull();
   });
 });

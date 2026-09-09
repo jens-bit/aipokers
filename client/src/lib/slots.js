@@ -86,7 +86,7 @@ export async function fetchSlots() {
 }
 
 /**
- * "2nd seat costs 10,000 won · you have 4,200" — SLOTS-1's refusal, in words.
+ * The threshold is earned progress, not a payment from the safe.
  *
  * Takes the 409 body verbatim (`{ error, price, earned }`) so the one thing the
  * owner is told is the one thing the server actually said. Null when the body
@@ -100,11 +100,11 @@ export function lockedSeatLine({ price, earned, index } = {}) {
   if (!Number.isFinite(cost) || cost <= 0) return null;
   const have = Number.isFinite(Number(earned)) ? whole(Number(earned)) : 0;
   const nth = ORDINALS[(Number(index) || 0) - 1] ?? 'next';
-  return `${nth} seat costs ${chips(cost)} won · you have ${chips(have)}`;
+  return `${nth} seat unlocks at ${chips(cost)} chips won · ${chips(have)} earned`;
 }
 
 /**
- * The row's own words: "2 of 4 seats · next 10,000 won".
+ * The row names the next earned-chip threshold explicitly.
  *
  * The tail is dropped once every seat is taken — there is no next one to earn,
  * and printing a threshold he has already passed reads as a target he missed.
@@ -113,5 +113,5 @@ export function slotsLine(slots) {
   if (!slots) return null;
   const seats = `${slots.used} of ${slots.total} seats`;
   if (slots.nextAt === null || slots.used >= slots.total) return seats;
-  return `${seats} · next ${chips(slots.nextAt)} won`;
+  return `${seats} · next at ${chips(slots.nextAt)} chips won`;
 }

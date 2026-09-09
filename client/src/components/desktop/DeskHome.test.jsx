@@ -214,10 +214,11 @@ describe('DESK-2 · the fixtures open in the rail', () => {
 
     const sheet = await screen.findByTestId('home-table-sheet');
     expect(within(sheet).getByText('3RD SEAT')).toBeInTheDocument();
-    expect(within(sheet).getByText('50,000 won')).toBeInTheDocument();
+    // BUG-147 clarifies earned chips without changing the unlock requirement.
+    expect(within(sheet).getByText('50,000 chips won')).toBeInTheDocument();
     // Not unlocked yet: the distance is stated and there is no action at all,
     // because there is no path from a wallet to a chair.
-    expect(within(sheet).getByTestId('home-table-locked')).toHaveTextContent('38,000 to go');
+    expect(within(sheet).getByTestId('home-table-locked')).toHaveTextContent('38,000 chips to go');
     expect(within(sheet).queryByTestId('home-table-draft')).toBeNull();
   });
 

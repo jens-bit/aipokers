@@ -1000,9 +1000,11 @@ describe('BIRTH-5 · the table, on the phone', () => {
     const sheet = await screen.findByTestId('home-table-sheet');
     expect(within(sheet).getByTestId('home-table-seated')).toHaveTextContent('2 at the table · 2 chairs free');
     expect(sheet).toHaveTextContent('3RD SEAT');
-    expect(sheet).toHaveTextContent('50,000 won');
+    expect(sheet).toHaveTextContent('50,000 chips won');
     // SLOTS-1 rule 1, said out loud on the one screen that names a price.
-    expect(sheet).toHaveTextContent(/chips he has won/i);
+    // BUG-147: earned slots spend no safe chips; Jens rejected the old cost/pronoun copy.
+    expect(sheet).toHaveTextContent(/Your agents’ winning casino sessions unlock seats/i);
+    expect(sheet).toHaveTextContent('No chips are spent');
   });
 
   it('the kitchen table still shows no money, sheet or no sheet', async () => {
@@ -1022,7 +1024,7 @@ describe('BIRTH-5 · the table, on the phone', () => {
     let created = 0;
     await boot([mkAgent('a1', 'The Clock')], null, { onCreateAgent: () => { created += 1; } });
     await userEvent.click(await screen.findByTestId('home-table'));
-    expect(await screen.findByTestId('home-table-locked')).toHaveTextContent('38,000 to go');
+    expect(await screen.findByTestId('home-table-locked')).toHaveTextContent('38,000 chips to go');
     expect(screen.queryByTestId('home-table-draft')).not.toBeInTheDocument();
     expect(created).toBe(0);
   });
@@ -1041,8 +1043,8 @@ describe('BIRTH-5 · the table, on the phone', () => {
 
     const refusal = await screen.findByTestId('home-table-refusal');
     expect(refusal).toHaveTextContent(lockedSeatLine(SLOTS.next));
-    expect(refusal).toHaveTextContent('3rd seat costs 50,000 won');
-    expect(refusal).toHaveTextContent('you have 12,000');
+    expect(refusal).toHaveTextContent('3rd seat unlocks at 50,000 chips won');
+    expect(refusal).toHaveTextContent('12,000 earned');
   });
 
   it('HOME-2 job 6: an unlocked chair has nothing to refuse', async () => {

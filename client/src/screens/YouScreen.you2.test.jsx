@@ -117,7 +117,7 @@ describe('YOU-2 — the slots row', () => {
   it('says how many seats are taken and what opens the next one', async () => {
     fetchMock.route('/api/slots', { used: 2, total: 4, nextAt: 10000 });
     render(<YouScreen />);
-    expect(await screen.findByText('2 of 4 seats · next 10,000 won')).toBeInTheDocument();
+    expect(await screen.findByText('2 of 4 seats · next at 10,000 chips won')).toBeInTheDocument();
     expect(screen.getByText('Slots')).toBeInTheDocument();
   });
 

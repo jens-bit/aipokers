@@ -55,7 +55,7 @@ describe('fetchSlots', () => {
 
 describe('slotsLine', () => {
   it('is the row\'s own words', () => {
-    expect(slotsLine({ used: 2, total: 4, nextAt: 10000 })).toBe('2 of 4 seats · next 10,000 won');
+    expect(slotsLine({ used: 2, total: 4, nextAt: 10000 })).toBe('2 of 4 seats · next at 10,000 chips won');
   });
 
   it('drops the tail once every seat is taken — there is nothing left to earn', () => {
@@ -98,7 +98,7 @@ describe('readSlots — SLOTS-1\'s projection', () => {
   });
 
   it('feeds the line YOU-2 already writes', () => {
-    expect(slotsLine(readSlots(SERVER))).toBe('1 of 4 seats · next 10,000 won');
+    expect(slotsLine(readSlots(SERVER))).toBe('1 of 4 seats · next at 10,000 chips won');
   });
 
   it('is what fetchSlots answers with', async () => {
@@ -109,19 +109,23 @@ describe('readSlots — SLOTS-1\'s projection', () => {
 });
 
 describe('lockedSeatLine — the 409 in words', () => {
+  it('BUG-147: describes earned chips instead of charging the owner for a seat', () => {
+    expect(lockedSeatLine({ price: 10_000, earned: 4_200, index: 2 }))
+      .toBe('2nd seat unlocks at 10,000 chips won · 4,200 earned');
+  });
   it('says the price and what he has, from the refusal body verbatim', () => {
     expect(lockedSeatLine({ price: 10_000, earned: 4_200, index: 2 }))
-      .toBe('2nd seat costs 10,000 won · you have 4,200');
+      .toBe('2nd seat unlocks at 10,000 chips won · 4,200 earned');
   });
 
   it('says "next" when nothing told it which seat this is', () => {
     expect(lockedSeatLine({ price: 50_000, earned: 12_000 }))
-      .toBe('next seat costs 50,000 won · you have 12,000');
+      .toBe('next seat unlocks at 50,000 chips won · 12,000 earned');
   });
 
   it('reads a missing earned as nothing earned, never as "you have undefined"', () => {
     expect(lockedSeatLine({ price: 10_000, index: 2 }))
-      .toBe('2nd seat costs 10,000 won · you have 0');
+      .toBe('2nd seat unlocks at 10,000 chips won · 0 earned');
   });
 
   it('has nothing to say about a body that is not a priced refusal', () => {

@@ -173,7 +173,9 @@ describe('BirthScreen', () => {
   // BIRTH-5 / SLOTS-1. The OTHER 409, and it used to be answered with silence:
   // the body carries no `chat`, so the reply picker found none and "lets go"
   // simply did nothing, forever, with no line and no explanation.
-  it('BIRTH-5: a 409 slotLocked names the price and what he has against it', async () => {
+  // BUG-147: earned seats unlock; the founder's correction supersedes the old
+  // “costs ... you have ...” wording which implied a spendable wallet balance.
+  it('BIRTH-5: a 409 slotLocked names the threshold and earned progress', async () => {
     const user = userEvent.setup();
     fetchMock.route('/api/slots', { used: 1, cap: 4, next: { index: 2, price: 10_000, earned: 4_200, unlocked: false } });
     fetchMock.route('/api/agents/chat', {
@@ -185,7 +187,7 @@ describe('BirthScreen', () => {
     await user.type(composer(), 'lets go');
     await user.click(send());
 
-    expect(await screen.findByText(/2nd seat costs 10,000 won · you have 4,200/i)).toBeInTheDocument();
+    expect(await screen.findByText(/2nd seat unlocks at 10,000 chips won · 4,200 earned/i)).toBeInTheDocument();
     // SLOTS-1 rule 1: it is won, never bought, and the refusal has to say so.
     expect(screen.getByText(/win the rest at the casino/i)).toBeInTheDocument();
   });
@@ -224,7 +226,7 @@ describe('BirthScreen', () => {
     await user.type(composer(), 'lets go');
     await user.click(send());
 
-    expect(await screen.findByText(/Next seat costs 50,000 won · you have 12,000/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Next seat unlocks at 50,000 chips won · 12,000 earned/i)).toBeInTheDocument();
   });
 
   it('BIRTH-5: a host with nowhere to send him draws no link', async () => {
@@ -239,7 +241,7 @@ describe('BirthScreen', () => {
     await user.type(composer(), 'lets go');
     await user.click(send());
 
-    await screen.findByText(/2nd seat costs 10,000 won/i);
+    await screen.findByText(/2nd seat unlocks at 10,000 chips won/i);
     expect(screen.queryByTestId('birth-see-table')).not.toBeInTheDocument();
   });
 
