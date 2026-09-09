@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-97 — desktop equity number disagrees with its own rope — FIXED on design branch
+The rope read snapshot equity first but the number read only a spoken decision. A silent recorded beat showed 81% on the rope and a dash in the strip; a newer snapshot could also disagree with an older decision. Red regressions are in artifacts/batch21-red.log. Both now use the same snapshot/seat/decision precedence, including recorded completion. Browser checks verify 4% at the first recorded beat and 100% at its won ending.
+
+### BUG-98 — replay fabricates a measured 45% heat bar — FIXED on design branch
+Flagged hands do not record body condition. The hero's fallback heat of 45 was nevertheless printed as a measured body bar. Missing heat now omits that bar, as missing stamina already does. The neutral fallback drawing remains; it is not presented as historical condition. The desktop also uses the existing shared replay snapshot adapter, preserving private-card reveal timing and unknown stacks. Red regression confirmed the spurious 45% bar before repair.
+
 ### BUG-96 — seat-rebuild test assumes a random showdown cannot split equally — FIXED on design branch
 The full gate failed in table.seats.test.js with all three banked stacks at 1000. Its checked-down random hand assumed somebody must win or lose; a shared winning board legitimately returns all three equal contributions. A deterministic royal-flush-board reproduction in artifacts/reproduce-bug96.mjs confirms that legal result. The rebuild fixture now folds two players to guarantee unequal balances before adding a seat. The original non-equal-stack, exact per-seat persistence, and 4000-chip conservation assertions remain; no game/dealer code changed. The original failed gate is artifacts/batch20-test-all.log.
 

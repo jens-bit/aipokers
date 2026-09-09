@@ -116,14 +116,14 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
   while (board.length < 5) board.push(null);
 
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
-  const eq = live ? equityPct(heroDecision?.equity) : null;
 
   // His face is the server's mood for this seat, in the shape SEAT-1a settled.
   const heroMoodRaw = hero?.mood;
   const heroMood = typeof heroMoodRaw === 'string'
     ? (heroMoodRaw || 'neutral')
     : (heroMoodRaw?.state ?? 'neutral');
-  const heroHeat = Number.isFinite(heroMoodRaw?.heat) ? heroMoodRaw.heat : 45;
+  // A neutral face can be drawn without inventing a measured body condition.
+  const heroHeat = Number.isFinite(heroMoodRaw?.heat) ? heroMoodRaw.heat : null;
   const heroAccent = hero?.accentColor ?? '#00D4AA';
   // WATCH-8 job 3: the body, at desk scale. Same two bars, same two causes —
   // fatigue is null for a seat with no agent behind it and `drinking` is
@@ -136,6 +136,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
   // is nothing to know, so it sits dead centre rather than empty.
   const heroEquity = between ? null : heroEquityOf(game, heroDecision?.equity ?? null, heroSeat);
   const hasEquity = Number.isFinite(heroEquity);
+  const eq = hasEquity ? heroEquity : null;
   const villainName = opponents.find((o) => !o.seat.folded)?.seat?.displayName ?? null;
 
   // One sentence of thread voice. Long voice lives in the thread; the felt
@@ -208,8 +209,8 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         <div className="dtb__hero-body">
           <span className="dtb__hero-aura" aria-hidden
             style={{ background: `radial-gradient(circle, ${heroAccent}1F, transparent 68%)` }} />
-          <MoodGhost mood={heroMood} accent={heroAccent} size={132} heat={heroHeat}
-            hands={heroPose({ between, action: heroDecision?.action ?? null, pace, heat: heroHeat })}
+          <MoodGhost mood={heroMood} accent={heroAccent} size={132} heat={heroHeat ?? 45}
+            hands={heroPose({ between, action: heroDecision?.action ?? null, pace, heat: heroHeat ?? 45 })}
             bet={betBand(heroDecision?.action?.amount ?? null, game?.pot ?? 0)} ring={false} />
           {/* Fish-tank law: your own agent plays face up, in front of him. */}
           <span className="dtb__hero-cards">

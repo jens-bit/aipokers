@@ -479,10 +479,13 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
       await page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ }).click();
       await expect(page.locator('.dsk-replay')).toBeVisible();
       await expect(page.locator('.dtb__hero-stack')).toHaveText('—');
+      await expect(page.locator('.dtb__strip [data-bar="heat"]')).toHaveCount(0);
+      await expect(page.locator('.dtb__equity-val')).toHaveText('4.0%');
       const scrub = page.getByRole('slider', { name: 'Scrub the replay' });
       await scrub.focus();
       await scrub.press('End');
       await expect(page.getByText('End of replay', { exact: true })).toBeVisible();
+      await expect(page.locator('.dtb__equity-val')).toHaveText('100.0%');
       await expect.poll(() => page.locator('.dtb__tug .tug__fill').evaluate(el => el.getBoundingClientRect().width / el.parentElement.getBoundingClientRect().width)).toBeGreaterThan(0.97);
       await expect(page.getByText('NEXT DEAL SHORTLY')).toHaveCount(0);
       await expect(page.getByRole('button', { name: /Sit out after this hand/i })).toHaveCount(0);

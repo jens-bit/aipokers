@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 21: desktop equity number and rope now share the same source, including silent replay beats and the recorded ending (BUG-97). Unrecorded heat is absent instead of an invented 45% bar (BUG-98). Phone and desktop reuse the same replay snapshot adapter. Watch layout and gameplay are unchanged.
+
 - Design completion batch 20: board 41 B12 loading uses the real entry wait and lazy boundaries, without an artificial delay. The shared RailMark now supports the reference's optical/scale poses. B5 favicon, B5b install/touch icons, manifest and B8 bot-avatar files are exported from that component; the app and /welcome reference them. Reduced motion is respected. BUG-96 fixes a flaky seat-rebuild test that assumed a random showdown could not split equally; game logic is unchanged.
 
 - Design completion batch 19: C9's 54px room header replaces the desktop clock, repeated navigation tabs and duplicate casino Board heading. The real door enters the casino; the contextual header returns home. Household counts distinguish home games, casino occupants and visits. The earnings pill is honestly labelled All time because its source is career net. Wallet and Standup remain accessible. Watch/replay keep their existing controls. Browser/real-server smoke selectors intentionally follow these new destinations, preserving their original replay, layout and action checks.

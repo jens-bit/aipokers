@@ -11,64 +11,18 @@
 // reel, and Scrubber (replay/Scrubber.jsx) owns the transport. Nothing about
 // either is reimplemented for the desk.
 //
-// The one adapter below — a beat, as a table snapshot — is the same mapping
-// ReplayTheatre does privately. That function is not exported from
-// ReplayTheatre.jsx and replay/ is outside this branch's fence, so it lives
-// here for now; it belongs in replay/timeline.js beside buildTimeline, and
-// should move there the next time that file is in scope.
+// Phone and desktop share the recorded-beat snapshot adapter. Missing historical
+// fields stay absent, and opponent cards appear only at the recorded reveal.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { Scrubber } from '../replay/Scrubber.jsx';
-import { beatAt, buildTimeline } from '../replay/timeline.js';
+import { beatAt, buildTimeline, snapshotFor } from '../replay/timeline.js';
 
 // The reel advances in real time; 100ms is smooth enough and cheap enough,
 // the same cadence the mobile theatre runs at.
 const TICK_MS = 100;
-
-// `beat.label` is a display string — 'PRE', not 'preflop' — so lowercasing it
-// hands the stage a street it does not recognise, and the whole felt reads as
-// between-hands. `beat.key` carries the real street, which is what the stage
-// switches on.
-function streetOf(beat) {
-  if (beat.label === 'END') return 'complete';
-  return String(beat.key ?? '').split('-')[0] || 'preflop';
-}
-
-function snapshotFor(timeline, beat, hand, agentName) {
-  return {
-    tableId: hand?.tableId ?? 'replay',
-    handNumber: timeline.handNumber ?? 0,
-    street: streetOf(beat),
-    smallBlind: null,
-    bigBlind: null,
-    pot: beat.pot,
-    community: beat.board,
-    currentBet: 0,
-    toAct: null,
-    pace: beat.pace,
-    heroEquity: beat.equity == null ? null : beat.equity / 100,
-    seats: [
-      {
-        playerId: 'hero',
-        stack: null,
-        holeCards: timeline.holeCards,
-        folded: false,
-        displayName: agentName ?? hand?.agentName ?? 'Your agent',
-      },
-      ...timeline.opponentShowdownCards.map((o) => ({
-        playerId: `opp-${o.seat}`,
-        stack: null,
-        // The villain's hand is public only once it was actually turned over.
-        holeCards: beat.label === 'END' ? (o.holeCards ?? []) : [],
-        folded: false,
-        displayName: o.displayName ?? `Seat ${o.seat + 1}`,
-      })),
-    ],
-    result: null,
-  };
-}
 
 export function DeskReplayStage({ hand, agentName, onBack, onOpenHand, autoPlay = true }) {
   const timeline = useMemo(() => buildTimeline(hand), [hand]);
@@ -95,7 +49,7 @@ export function DeskReplayStage({ hand, agentName, onBack, onOpenHand, autoPlay 
   const seek = useCallback((t) => { setPlaying(false); setAt(t); }, []);
   const toggle = useCallback(() => setPlaying((p) => !p), []);
 
-  const game = snapshotFor(timeline, beat, hand, agentName);
+  const game = snapshotFor(timeline, beat, { ...hand, agentName: agentName ?? hand?.agentName });
 
   // His line at this moment, handed to the stage the way a live decision is.
   // `beat.action` is the flagged entry's own string ("raise 120"), not the

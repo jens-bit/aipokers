@@ -124,6 +124,7 @@ describe('DP-1 — the rope under the board', () => {
     const tug = container.querySelector('.dtb__tug .tug');
     expect(tug).toBeTruthy();
     expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('71.0%');
   });
 
   // WATCH-6 re-expressed: board 31 moves the rope out of the centre and into
@@ -163,6 +164,7 @@ describe('DP-1 — the rope under the board', () => {
       />,
     );
     expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('71.0%');
 
     rerender(
       <DeskTableStage
@@ -172,6 +174,7 @@ describe('DP-1 — the rope under the board', () => {
       />,
     );
     expect(screen.getByLabelText(/Hero equity 20 percent/)).toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('20.0%');
     expect(container.querySelector('.dtb__tug .tug--dead')).toBeNull();
   });
 

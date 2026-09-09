@@ -35,6 +35,20 @@ describe('DP-3 — the replay drives the live stage', () => {
     expect(container.querySelector('.dtb')).not.toHaveTextContent('$0');
   });
 
+  it('BUG-97: recorded equity does not depend on a spoken line', () => {
+    const hand = { ...badBeatHand, streets: badBeatHand.streets.map(s => ({ ...s, reasoning: null })) };
+    const { container } = render(<DeskReplayStage hand={hand} agentName="The Grinder" autoPlay={false} />);
+    expect(screen.getByLabelText(/Hero equity 81 percent/)).toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('81.0%');
+  });
+
+  it('BUG-98: unrecorded body condition is not rendered as measured heat', () => {
+    const { container } = render(<DeskReplayStage hand={badBeatHand} agentName="The Grinder" autoPlay={false} />);
+    expect(container.querySelector('.dtb__strip [data-bar="heat"]')).toBeNull();
+    expect(container.querySelector('.dtb__strip [data-bar="stamina"]')).toBeNull();
+    expect(container.querySelector('.dtb__hero-body .mood-ghost')).toBeTruthy();
+  });
+
   it('brings DP-1 with it: the ladder is on the stage', () => {
     render(<DeskReplayStage hand={badBeatHand} agentName="The Grinder" autoPlay={false} />);
     // The first beat of a bad beat is preflop, and the reel opens calm.
@@ -88,6 +102,7 @@ describe('DP-3 — the transport', () => {
     expect(screen.queryByText('NEXT DEAL SHORTLY')).toBeNull();
     expect(screen.queryByRole('button', { name: /Sit out after this hand/i })).toBeNull();
     expect(screen.getByText('End of replay')).toBeInTheDocument();
+    expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('0.0%');
     expect(container.querySelector('.dtb__pot-amt').textContent).toBe(`$${badBeatHand.pot.toLocaleString()}`);
     expect([...container.querySelector('.dtb__board').children].map(card => card.textContent)).toEqual(['2', '7', 'K', '4', '9']);
   });
