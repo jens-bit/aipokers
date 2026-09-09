@@ -5,7 +5,7 @@
 // DSK2-2 made — a half-typed message survives switching agents, because the
 // panel remounts and the map does not.
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,7 +28,7 @@ function renderHome(props = {}) {
 // as a roster row in the panel. These helpers pick the roster row, the way
 // CasinoFloor.test.jsx picks occupants.
 function rosterRow(name) {
-  const row = screen
+  const row = within(screen.getByTestId('desk-roster'))
     .getAllByRole('button', { name: new RegExp(name) })
     .find((el) => el.classList.contains('dsk-roster-row'));
   if (!row) throw new Error(`no roster row for ${name}`);

@@ -105,3 +105,13 @@ it('BUG-105: public viewing shows only supplied table speech, without private ac
   expect(screen.queryByText('Live analysis')).toBeNull();
   expect(screen.queryByText('History')).toBeNull();
 });
+
+
+it('DkWatch: the current conversation rail retains speech and whisper without the old analysis panels',()=>{
+  renderRail({conversationOnly:true,stored:[{id:'table-line',kind:'table',who:'Granite',text:'Good hand.',t:1}]});
+  expect(screen.getByText('Good hand.')).toBeVisible();
+  expect(screen.getByPlaceholderText('Whisper to him…')).toBeVisible();
+  expect(screen.queryByText('Live analysis')).toBeNull();
+  expect(screen.queryByText('History')).toBeNull();
+  expect(screen.getByText('He is capped.')).toBeVisible();
+});

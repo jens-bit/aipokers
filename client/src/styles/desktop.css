@@ -2295,3 +2295,33 @@
 .owner-hero__desk-hand {display:flex;gap:14px;align-items:center;padding:8px 15px;border-radius:15px;background:rgba(8,16,15,.78);border:1px solid #ffffff26;}
 .owner-hero__chance {display:flex;flex-direction:column;color:#6B6B6B;font:600 8.5px Oswald,sans-serif;}
 .owner-hero__chance strong {font:700 22px 'JetBrains Mono',monospace;color:#00D4AA;}
+
+/* DkWatchScreenM: the shared phone felt in a desktop coordinate space. */
+.dsk-casino-table-viewport {width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;}
+.dsk-casino-table {flex-shrink:0;position:relative;overflow:hidden;border-radius:6px;box-shadow:0 28px 70px #0009;}
+.dsk-casino-table__scene {width:900px;height:648px;transform-origin:0 0;position:relative;display:flex;flex-direction:column;}
+.dsk-casino-table__scene>.watch-felt {max-width:none;width:100%;}
+.dsk-casino-table__back,.dsk-casino-table__sit-out {position:absolute;z-index:8;border:1px solid #ffffff26;border-radius:5px;background:#0c1413db;color:var(--dsk-dim);font:10px var(--dsk-mono);padding:8px;cursor:pointer;}
+.dsk-casino-table__back {left:12px;top:12px;}
+.dsk-casino-table__sit-out {right:12px;top:12px;}
+.dsk-casino-table__name {position:absolute;right:14px;top:17px;color:var(--dsk-dim);font:11px var(--dsk-mono);pointer-events:none;}
+.dsk-casino-table__notice {position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:12px;color:var(--dsk-gold);}
+.dsk-panel--watch.is-conversation .dsk-apanel {border:0;background:none;}
+.dsk-panel--watch.is-conversation .dsk-apanel__body {padding:0;}
+.dsk-panel--watch.is-conversation .thread-row {margin-bottom:12px;}
+
+.dsk-casino-table .watch-hero__strip.watch-felt__hero {padding-bottom:42px;}
+.dsk-panel--watch.is-conversation {background:#0e1413;}
+.dsk-panel--watch.is-conversation .thread-row {display:grid;grid-template-columns:auto 1fr;gap:5px 8px;padding:0;border:0;}
+.dsk-panel--watch.is-conversation .thread-row__who {grid-column:1;grid-row:1;font-size:9px;}
+.dsk-panel--watch.is-conversation .thread-row__at {grid-column:2;grid-row:1;justify-self:start;font-size:9px;}
+.dsk-panel--watch.is-conversation .thread-row__text {grid-column:1/-1;grid-row:2;border:1px solid #ffffff14;border-radius:9px;background:#15201d;padding:9px 11px;font-size:12px;line-height:1.5;}
+.dsk-panel--watch.is-conversation .thread-row--you {max-width:88%;margin-left:auto;}
+.dsk-panel--watch.is-conversation .thread-row--you .thread-row__text {background:#003e352e;border-color:#00d4aa26;}
+.dsk-panel--watch.is-conversation .dsk-composer {padding:10px 12px;}
+.dsk-panel--watch.is-conversation .dsk-composer__hint,
+.dsk-panel--watch.is-conversation .dsk-composer__foot,
+.dsk-panel--watch.is-conversation .dsk-composer__sparkle,
+.dsk-panel--watch.is-conversation .dsk-composer__kbd {display:none;}
+.dsk-panel--watch.is-conversation .dsk-composer__box {border-radius:24px;min-height:42px;align-items:center;padding:5px 7px 5px 14px;}
+.dsk-panel--watch.is-conversation .dsk-composer__input {min-height:22px;padding:2px 0;font-size:16px;}

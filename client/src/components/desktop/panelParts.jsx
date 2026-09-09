@@ -60,8 +60,9 @@ const SLASH_COMMANDS = [
 ];
 
 // The composer is controlled from above so a draft survives switching agents.
-export function PComposer({ value = '', onChange, onSend, placeholder, busy, onCommand }) {
-  const ref = useRef(null);
+export function PComposer({ value = '', onChange, onSend, placeholder, busy, onCommand, compact = false, inputRef }) {
+  const ownRef = useRef(null);
+  const ref = inputRef || ownRef;
   const slash = value.trim().startsWith('/');
 
   // Autosize is deliberate: 2 rows at rest, grows to 5 while typing a long note.
@@ -123,7 +124,7 @@ export function PComposer({ value = '', onChange, onSend, placeholder, busy, onC
         <textarea
           ref={ref}
           className="dsk-composer__input"
-          rows={2}
+          rows={compact ? 1 : 2}
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange?.(e.target.value)}

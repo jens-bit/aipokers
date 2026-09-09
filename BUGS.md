@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-108 — desktop Watch retains the old full-height canvas and Home cannot exit it — FIXED on design branch
+The red browser check measured width/height 0.955 instead of the DkWatch reference's 900/648. DeskCasinoTable now uses shared WatchFelt in a canvas that fits both axes; owned/public modes keep their actual server camera and served cards. The contextual 54px header replaces the old stage tabs, and Back home clears Watch and sends Leave. The current conversation rail retains stored/live speech and whispers; legacy analysis placeholders are not shown in this newer frame. Browser checks cover two wide sizes plus a 1280×600 resize, phone-like face/card presentation, exact owned/public rights, focus through the ghost, retained casino room and actual deployment. Replay retains its existing separate renderer.
+
+### BUG-109 — broad desktop draft test times out during the full gate — OPEN, query scope mitigated
+The first batch28 full gate exceeded the existing five-second test limit while preserving a draft across roster selections. Its helper scanned accessible buttons across the entire room and multiple SVG trees. It now searches inside the permanent roster without changing the selected role/name or any assertion. The focused draft check took 1.17 seconds afterwards. Resource contention is plausible but not proven; no timeout was raised and no assertion skipped. The subsequent full client gate passed 2214 checks.
+
+### BUG-110 — marketing exporter intermittently waits for an unmounted Home — OPEN, diagnostics added
+The first batch28 export stopped in the phone Sit fixture's initial home.room mount. The exporter previously lost its page evidence while closing the browser. It now logs completed scenes/page errors and captures failed page text/PNG with a concise error. The diagnostic run completed all ten screens without a page error; the original cause is not reproduced or declared fixed. This is a capture-tool finding, not an observed production failure.
+
 ### BUG-105 — casino Watch opens a socket without a desktop stage — FIXED on design branch
 Both public and owned casino felt clicks failed a browser assertion for the missing table before repair. Desktop now selects the owned Watch when the table belongs to its roster, or a public stage with supplied table speech and no private composer, analysis/history or seat controls. The assigned server seat wins over duplicate display names. Back and Escape leave the subscription; roster changes leave only when a table is actually active. The desktop floor and explicit selected room are restored after watching. Sending an agent through the casino opens the owned stage and refreshes the roster, and starting a draft leaves it. A fresh built-server sequence passed actual queue/Watch/Back/felt-Watch/Leave. Final full gate and visual evidence follow before integration.
 

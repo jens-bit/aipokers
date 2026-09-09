@@ -297,7 +297,7 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
           const tile = page.locator('.dsk-tile__watch').first();
           await expect(tile).toBeVisible({ timeout: 30_000 });
           await tile.click();
-          await expect(page.locator('.dtb')).toBeVisible({ timeout: 30_000 });
+          await expect(page.getByTestId('desk-casino-table')).toBeVisible({ timeout: 30_000 });
         } else {
           // The DEEPLINK-1 table route, which is how a notification's "watch
           // him" button arrives. `home-<uid>` is homeGame.js's stable id.
@@ -453,7 +453,7 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   const queued=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/agents/'+agent.id+'/queue'&&r.request().method()==='POST');
   await page.getByRole('button',{name:/^the floor,/i}).click();
   const response=await queued;expect(response.status()).toBe(200);const payload=await response.json();
-  expect(payload.tableId).toBeTruthy();await expect(page.locator('.dtb')).toBeVisible();
+  expect(payload.tableId).toBeTruthy();await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   // An unmatched queue waits five seconds before the House takes its seat.
   await expect.poll(()=>received.some(m=>m.type==='state'&&m.state?.tableId===payload.tableId&&m.state.seats?.length>=2),{timeout:15000}).toBe(true);
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await shot(page,'desktop-casino-deployed-watch');
@@ -461,7 +461,7 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   await expect(page.getByTestId('floor-view')).toBeVisible();
   const before=sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length;
   await page.locator('.csn-felt58[data-table="'+payload.tableId+'"] ').click();
-  await expect(page.locator('.dtb')).toBeVisible();
+  await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   await expect.poll(()=>sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length).toBe(before+1);
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
   await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();

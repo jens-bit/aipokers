@@ -25,6 +25,7 @@ const browser = await chromium.launch({ headless: true });
 const records = [];
 async function pageAt(width, height) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  page.on('pageerror', error => console.error('Capture page error:', error.message));
   await page.route('**/api/**', route => route.fulfill({ json: {} }));
   return page;
 }
@@ -51,14 +52,15 @@ async function shot(page, scene, kind) {
     if(!stage || cards.y+cards.height>=verbs.y || Math.abs(stage.width/stage.height-900/648)>.01) throw Error('BUG-99: desktop owner seat is cropped or mis-sized');
   }
   if (scene === 'watch' && kind === 'desktop') {
-    const bounds = await page.locator('.dtb__strip').evaluate(el => ({
-      numbersBottom: Math.max(...[...el.querySelectorAll('.dtb__hero-stack, .dtb__hero-num, .dtb__equity-val')].map(n => n.getBoundingClientRect().bottom)),
+    const bounds = await page.locator('.watch-hero__strip').evaluate(el => ({
+      numbersBottom: Math.max(...[...el.querySelectorAll('.watch-felt__hero-num')].map(n => n.getBoundingClientRect().bottom)),
       barsTop: el.querySelector('.felt-bars').getBoundingClientRect().top,
     }));
     if (bounds.barsTop < bounds.numbersBottom) throw Error('BUG-100: condition labels overlap the desktop numbers: '+JSON.stringify(bounds));
   }
   await page.screenshot({ path: path.join(output, `${scene}-${kind}.png`) });
   records.push({ scene, kind, viewport: page.viewportSize() });
+  console.log('Captured', scene, kind);
 }
 async function tableSocket(page, { owner = false, desktop = false } = {}) {
   const state = { ...watch.TABLE, tableId: desktop && !owner ? 't1' : 'home-4242', heroEquity: .64,
@@ -133,7 +135,7 @@ try {
       if (kind === 'desktop' && !owner) {
         await felt.getByRole('button',{name:/Standup/}).click();
         await felt.getByRole('button',{name:'WATCH →'}).first().click();
-        await felt.waitForSelector('.dtb__hero-cards');
+        await felt.waitForSelector('.watch-hero__cards');
       } else if (!owner) {
         await felt.getByTestId('home-frame-a1').click();
         await felt.waitForSelector('.watch-felt');
@@ -149,4 +151,11 @@ try {
   }
   await fs.writeFile(path.join(output,'capture.json'),JSON.stringify({capturedAt:new Date().toISOString(),source:'App with existing desktop/Home/Watch browser fixtures',records},null,2)+'\n');
   console.log(`Exported ${records.length} current product screens.`);
+} catch (error) {
+  let index=0;
+  for(const context of browser.contexts()) for(const page of context.pages()) {
+    console.error('Capture failure page:',page.url(),(await page.locator('body').innerText().catch(()=>'' )).slice(0,2500));
+    await page.screenshot({path:path.join(root,'../artifacts/marketing-failure-'+index++ + '.png')}).catch(()=>{});
+  }
+  throw new Error(error.message);
 } finally { await browser.close(); }

@@ -1,6 +1,6 @@
 # Railbird — progress and handoff, 9 September 2026
 
-Twenty-seven implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
+Twenty-eight implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
 
 ## What is now implemented
 
@@ -24,9 +24,11 @@ The production build passed. On a fresh scratch server, all four existing smoke 
 
 BUG-94 retains an unexplained earlier Windows child-process exit. BUG-102 records the local invite-test timeout: its inaccurate new-guest fixture and broad query were corrected, and subsequent full runs passed, but resource contention is not proven as the cause. No assertion was skipped or weakened. The overnight execution interruption around 04:56–08:53 remains documented; those hours are not represented as productive work. The scheduled heartbeat was paused at its 09:00 cutoff; the active goal continued afterwards.
 
+Batch28 adds the shared 900×648 desktop Watch canvas, contextual header and compact conversation. Paired owned/public views were inspected; the later roster, real hand data, 16px input and condition labels are documented differences. Full test:all passed 105 server / 2214 client / 7 e2e. The complete browser run passed 39 of 40 before one immediate post-resize measurement; the test now waits for the ResizeObserver layout and preserves the same bounds, and its five-case focused group passed. All seven fresh built-server smoke cases and all 20 Home checks passed. Both four-agent phone hit-target cases remain green. Main integration follows the commit.
+
 ## Remaining work
 
-1. Desktop kitchen-table Watch/Sit is now fixed (BUG-99) and the welcome page uses its working desktop example. Generic casino Watch and post-deploy routing are now fixed and verified (BUG-105). Dropped queue blinds (BUG-106) and the newborn observer crash (BUG-107) are fixed with red-first checks. Next: port the remaining newer desktop Watch geometry/header/rail. Its current header navigation and public hero name also need attention.
+1. Desktop kitchen-table Watch/Sit is now fixed (BUG-99) and the welcome page uses its working desktop example. Generic casino Watch and post-deploy routing are now fixed and verified (BUG-105). Dropped queue blinds (BUG-106) and the newborn observer crash (BUG-107) are fixed with red-first checks. The newer desktop Watch canvas/header/conversation is now ported and paired (BUG-108), with working Home return and public camera naming. Continue the full frame/state and immutable-identity audit.
 2. Desktop floor sizing and its repeated heading are fixed and paired (BUG-103/104). Phone Board ordering/panel styling still differs from the authored example; the full frame inventory needs to distinguish current designs from superseded ones.
 3. Finish the current reference-state inventory and identity presentation audit. Separate current requirements from explicitly parked rare-birth rolls and future design waves. Do not invent a collar or an item economy.
 4. Remaining board-41 applications, unspecified celebration audio, external avatar/account settings and undesigned visit/referral/share/fast-forward states need explicit dispositions.

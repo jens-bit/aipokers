@@ -583,12 +583,13 @@ test.describe('DESK-3, job 4 · watching a felt', () => {
     await page.getByRole('button', { name: /Standup/ }).click();
     await page.getByRole('button', { name: 'WATCH →' }).first().click();
 
-    await expect(page.locator('.dtb')).toBeVisible();
+    await expect(page.getByTestId('desk-casino-table')).toBeVisible();
     await expect(page.getByTestId('desk-roster')).toBeVisible();
     await expect(page.locator('.dsk-panel--watch')).toBeVisible();
 
-    const felt = await page.locator('.dtb').boundingBox();
+    const felt = await page.getByTestId('desk-casino-table').boundingBox();
     expect(felt.width).toBeLessThanOrEqual(901);
+    expect(felt.width/felt.height).toBeCloseTo(900/648,2);
 
     await page.waitForTimeout(400);
     await shot(page, 'watch');
@@ -599,8 +600,9 @@ test.describe('DESK-3, job 4 · watching a felt', () => {
     await page.getByRole('button', { name: /Standup/ }).click();
     await page.getByRole('button', { name: 'WATCH →' }).first().click();
 
-    const felt = await page.locator('.dtb').boundingBox();
+    const felt = await page.getByTestId('desk-casino-table').boundingBox();
     expect(felt.width).toBeLessThanOrEqual(901);
+    expect(felt.width/felt.height).toBeCloseTo(900/648,2);
     await page.waitForTimeout(400);
     await shot(page, 'watch-1920');
   });
@@ -651,10 +653,10 @@ test('BUG-100: desktop condition labels stay below the stack and equity',async({
   await page.reload();
   await page.getByRole('button',{name:/Standup/}).click();
   await page.getByRole('button',{name:'WATCH →'}).first().click();
-  await expect(page.locator('.dtb__strip .felt-bars__label')).toHaveCount(2);
-  await expect(page.locator('.dtb__equity-val')).toHaveText('64.0%');
-  const bounds=await page.locator('.dtb__strip').evaluate(el=>({
-    numbersBottom:Math.max(...[...el.querySelectorAll('.dtb__hero-stack,.dtb__hero-num,.dtb__equity-val')].map(n=>n.getBoundingClientRect().bottom)),
+  await expect(page.locator('.watch-hero__strip .felt-bars__label')).toHaveCount(2);
+  await expect(page.locator('.watch-hero .tug__value')).toHaveText('64%');
+  const bounds=await page.locator('.watch-hero__strip').evaluate(el=>({
+    numbersBottom:Math.max(...[...el.querySelectorAll('.watch-felt__hero-num')].map(n=>n.getBoundingClientRect().bottom)),
     barsTop:el.querySelector('.felt-bars').getBoundingClientRect().top,
   }));
   expect(bounds.barsTop).toBeGreaterThanOrEqual(bounds.numbersBottom+4);
@@ -781,14 +783,16 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect(page.locator('.csn-felt58')).toHaveCount(1);
     await page.evaluate(()=>{window.__casinoWatchSent=[];});
     await page.locator('.csn-felt58').click();
-    await expect(page.locator('.dtb')).toBeVisible();
+    await expect(page.getByTestId('desk-casino-table')).toBeVisible();
     await expect.poll(()=>page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='watch'))).toBe(true);
     const sent=await page.evaluate(()=>window.__casinoWatchSent.find(m=>m.type==='watch'));
     expect(sent.tableId).toBe(tableId);
-    if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();}
-    else {expect(sent.agentId).toBeNull();await expect(page.getByPlaceholder('Whisper to him…')).toHaveCount(0);await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);await expect(page.locator('.dtb__hero-cards')).toHaveText('');}
-    await expect(page.locator('.dtb__pot-amt')).toHaveText('$100');
-    await page.screenshot({path:'../artifacts/casino26-'+(owned?'owned':'public')+'.png'});
+    if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await page.getByRole('button',{name:'Open the thread',exact:true}).click();await expect(page.getByPlaceholder('Whisper to him…')).toBeFocused();}
+    else {expect(sent.agentId).toBeNull();await expect(page.getByPlaceholder('Whisper to him…')).toHaveCount(0);await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);await expect(page.locator('.watch-hero__cards')).toHaveText('');}
+    await expect(page.locator('.watch-felt__pot-amt')).toHaveText('$100');
+    await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity','1');
+    await expect(page.locator('.watch-felt__board')).toHaveCSS('opacity','1');
+    await page.screenshot({path:'../artifacts/casino28-'+(owned?'owned':'public')+'.png'});
     await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);
@@ -810,12 +814,12 @@ test('BUG-105 BUG-106: deploying through the casino opens the game with its queu
   await page.getByTestId('home-door').click();
   await expect(page.locator('.csn-tray')).toBeVisible();
   await page.getByRole('button',{name:'The floor, 5/10 — 118 seated',exact:true}).click();
-  await expect(page.locator('.dtb')).toBeVisible();
+  await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>window.__deployWatch.some(m=>m.tableId==='tbl-deployed'&&m.agentId==='a1'))).toBe(true);
   expect(await page.evaluate(()=>window.__deployWatch.find(m=>m.tableId==='tbl-deployed'))).toMatchObject({smallBlind:5,bigBlind:10});
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
   await page.getByRole('button',{name:'Draft another 1 seat left'}).click();
-  await expect(page.getByTestId('home-screen')).toBeVisible();await expect(page.locator('.dtb')).toHaveCount(0);
+  await expect(page.getByTestId('home-screen')).toBeVisible();await expect(page.getByTestId('desk-casino-table')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -832,7 +836,33 @@ test('BUG-107: an agent arriving on an open desktop can continue to the casino',
   await expect(page.locator('.csn-tray')).toContainText('New Arrival');
   await page.route('**/api/agents/newborn-107/queue',route=>route.fulfill({json:{tableId:'tbl-newborn',agentId:'newborn-107',agentName:'New Arrival',smallBlind:5,bigBlind:10}}));
   await page.getByRole('button',{name:'Deal him in',exact:true}).click();
-  await expect(page.locator('.dtb')).toBeVisible();
+  await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+
+test('BUG-108: desktop Watch uses the designed canvas and Home leaves the table',async({page})=>{
+  await desk(page,{width:1440,height:900});
+  await page.addInitScript(()=>{const Base=window.WebSocket;window.__watch28=[];window.WebSocket=class extends Base{send(raw){super.send(raw);window.__watch28.push(JSON.parse(raw));}};});
+  await page.reload();
+  await page.getByRole('button',{name:/Standup/}).click();
+  await page.getByRole('button',{name:'WATCH →'}).first().click();
+  const stage=page.locator('.dsk-stage--felt');
+  const felt=await stage.getByTestId('desk-casino-table').boundingBox();
+  expect(felt.width/felt.height).toBeCloseTo(900/648,2);
+  await expect(page.locator('.dsk-top--room')).toHaveCSS('height','54px');
+  await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);
+  await page.setViewportSize({width:1280,height:600});
+  // setViewportSize resolves before React commits the ResizeObserver scale.
+  // Await that observable layout change, retaining the exact screen bounds.
+  await expect.poll(async()=> (await stage.getByTestId('desk-casino-table').boundingBox()).y).toBeGreaterThanOrEqual(54);
+  const compact=await stage.getByTestId('desk-casino-table').boundingBox();
+  expect(compact.width/compact.height).toBeCloseTo(900/648,2);
+  expect(compact.y).toBeGreaterThanOrEqual(54);expect(compact.y+compact.height).toBeLessThanOrEqual(600);
+  const composer=await page.getByPlaceholder('Whisper to him…').boundingBox();expect(composer.y+composer.height).toBeLessThan(600);
+  await page.getByRole('button',{name:'Back home',exact:true}).click();
+  expect(await page.evaluate(()=>window.__watch28.some(m=>m.type==='leave'))).toBe(true);
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await expect(stage).toHaveCount(0);
 });

@@ -650,7 +650,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
 // the felt never resizes any more.
 export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
-  bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero,
+  bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero, heroActionLabel,
   agentMood, agentHeat, agentAccent, agentFatigue = null,
   // SIT-1: the owner is the one in the hero seat. Everything above the hero is
   // unchanged — same opponents, same board, same pot — and the bottom of the
@@ -1159,7 +1159,7 @@ export function WatchFelt({
           says={heroSays}
           mood={agentMood || 'neutral'}
           accent={agentAccent || '#00D4AA'}
-          heat={Number.isFinite(agentHeat) ? agentHeat : 45}
+          heat={Number.isFinite(agentHeat) ? agentHeat : null}
           event={heroFace}
           fatigue={heroFatigue}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
@@ -1197,6 +1197,7 @@ export function WatchFelt({
           cost={cost}
           toast={toast}
           onTapFace={onTapHero}
+          actionLabel={heroActionLabel}
         />
         )}
         </>

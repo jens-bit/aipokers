@@ -14,12 +14,12 @@ import { mergeThread } from '../../lib/thread.js';
 export function AnalysisPanel({ title, action, onAction, children }) {
   return (
     <div className="dsk-apanel">
-      <div className="dsk-apanel__head">
+      {(title || action) && <div className="dsk-apanel__head">
         <span className="dsk-label" style={{ fontSize: 9.5 }}>{title}</span>
         {action && (
           <button type="button" className="dsk-apanel__action" onClick={onAction}>{action}</button>
         )}
-      </div>
+      </div>}
       <div className="dsk-apanel__body">{children}</div>
     </div>
   );
@@ -50,8 +50,8 @@ export function WatchRail({
   // WATCH-8 job 3: the STORED half of the record — this stay's lines, with the
   // server's timestamps. The rail used to hold only what the socket happened to
   // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
-  stored = [], readOnly = false,
-  draft, onDraftChange, onSend, sending, onClose,
+  stored = [], readOnly = false, conversationOnly = false,
+  draft, onDraftChange, onSend, sending, onClose, composerRef,
 }) {
   const between = phaseOf(game) === 'between';
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
@@ -90,7 +90,7 @@ export function WatchRail({
   const tableRows = mergeThread(Array.isArray(stored) ? stored : [], liveRows);
 
   return (
-    <div className="dsk-panel dsk-panel--watch">
+    <div className={"dsk-panel dsk-panel--watch"+(conversationOnly?" is-conversation":"")}>
       <PanelHead
         title={agent?.name || 'At the table'}
         sub={between ? 'BETWEEN HANDS' : 'AT THE TABLE'}
@@ -101,13 +101,13 @@ export function WatchRail({
             here, in order, whoever said it. On the phone this is a sheet you
             pull up; at 1440 there is room for it to be always open, which is
             what the ref says on it. */}
-        <AnalysisPanel title="The table">
+        <AnalysisPanel title={conversationOnly ? null : "The table"}>
           {tableRows.length === 0
             ? <div className="dsk-apanel__empty">Nothing said at this table yet.</div>
             : tableRows.map((r) => <ThreadRow key={r.id} row={r} />)}
         </AnalysisPanel>
 
-        {!readOnly && <><AnalysisPanel title="Live analysis">
+        {!readOnly && !conversationOnly && <><AnalysisPanel title="Live analysis">
           {heroDecision?.reasoning && !between && (
             <div className="dsk-apanel__voice">“{heroDecision.reasoning}”</div>
           )}
@@ -156,6 +156,8 @@ export function WatchRail({
       </RailBody>
 
       {!readOnly && <PComposer
+        compact={conversationOnly}
+        inputRef={composerRef}
         value={draft}
         onChange={onDraftChange}
         onSend={onSend}

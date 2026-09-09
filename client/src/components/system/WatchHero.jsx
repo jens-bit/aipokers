@@ -115,7 +115,7 @@ export function WatchHero({
   hole, landed = 2, mucking = false, between = false,
   equity, villain, bigRope, deadRope,
   stack, pos, street, toCall = 0, action, tag, warm, note,
-  cost, onTapFace, timer = null, timerOf = 12,
+  cost, onTapFace, actionLabel = "Open the thread", timer = null, timerOf = 12,
   // WATCH-8 job 2: the body. Two 2px lines along the strip's bottom edge —
   // STAMINA from volume, HEAT from outcomes, and they never share a channel.
   fatigue = null,
@@ -138,7 +138,7 @@ export function WatchHero({
       {/* Him. Twice an opponent, facing the viewer, cards face up in FRONT —
           over the lower third of his body, never behind it. */}
       <button type="button" className="watch-hero__body" onClick={onTapFace}
-        aria-label="Open the thread">
+        aria-label={actionLabel}>
         <span className="watch-hero__aura" aria-hidden
           style={{ background: `radial-gradient(circle, ${accent}${heat > 66 ? '2E' : '1A'}, transparent 68%)` }} />
         <MoodGhost mood={mood} accent={accent} size={HERO_GHOST} heat={heat}

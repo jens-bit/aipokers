@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 28
+
+DkWatchScreenM now uses shared WatchFelt in its 900×648 desktop canvas, with a contextual 54px header and permanent conversation. It fits width and height, keeps the server-assigned camera, private/public card boundaries, real stack/equity/condition and the current reasoning bubble. Ghost tap focuses the owned whisper; public viewing labels its available read action and has no private agent hook/composer/sit-out. Back home sends Leave; Back to the floor retains the selected casino room. The later 250px roster supersedes the older 190px miniature floor strip in this reference. The input is 16px for touch accessibility, and current labelled condition tracks remain. Phone Watch geometry is unchanged; an absent heat measurement no longer becomes an invented 45% inside shared WatchFelt. Replay keeps its existing renderer.
+
+BUG-108's red geometry check preceded the repair. BUG-100 found the condition strip needed additional space under scaling; the four-pixel clearance assertion remains. The legacy 64.0% desktop assertion now reads the shared 64% rope; the actual equity value is unchanged. Existing frame tests now target the new canvas while replay selectors remain. Final paired screenshots, refreshed welcome image, full gates and integration results are recorded in the work log. This does not close the remaining inventory, identity coverage, audio or external rollout work.
+
 ## Design completion — 2026-09-09, batch 27
 
 BUG-106 and BUG-107 are repaired: queue-selected blinds reach WATCH on both shells; the desktop newborn observer resets the current room panel state and opens the birth card without crashing. Red-first reproduction precedes both fixes. All 37 desktop browser cases, 37 focused App/DesktopHome checks, the full gate (105 server / 2211 client / 7 e2e), production build and seven fresh built-server smoke cases passed. Home2 and main integration results follow in the work log. This batch changes behavior, not artwork; batch26's inspected Watch pairs still describe the remaining visual work. Batch26 main integration passed before this batch began.

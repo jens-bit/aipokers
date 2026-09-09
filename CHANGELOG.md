@@ -1,5 +1,7 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+- Design completion batch 28: desktop casino Watch uses the shared animated felt in DkWatch's 900×648 canvas, compact room header and conversation column. Owned/public camera and card privacy remain intact; Home exits Watch, the floor return preserves its room, and tapping your agent focuses the compact whisper. Replay and phone Watch geometry remain unchanged. Unknown heat stays unknown. The welcome exporter follows the current rendered stage.
+
 - Design completion batch 27: queued casino stakes survive both phone and desktop WATCH requests (BUG-106), and newly arriving desktop agents open their birth card without the removed-setter crash (BUG-107). Red-first wire/runtime checks and full desktop flows cover both repairs. No layout or engine changes.
 
 All notable changes to this project are documented here.
