@@ -1,0 +1,6 @@
+.brand-loading{width:100%;min-height:100vh;min-height:100dvh;background:#0B0F0E;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;overflow:hidden;color:#edededc7}
+.brand-loading__mark{width:150px;height:150px;overflow:hidden;animation:brand-rise .56s cubic-bezier(.22,1,.36,1) .1s both}
+.brand-loading p{margin:0;text-align:center;max-width:calc(100% - 80px);letter-spacing:normal;font:500 17px/1.45 'Playfair Display',Georgia,serif;animation:brand-fade .5s ease-out .62s both}
+@keyframes brand-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes brand-fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.brand-loading__mark,.brand-loading p{animation:none}}

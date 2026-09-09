@@ -142,7 +142,7 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
 
     expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
     await waitFor(() => expect(root).not.toBeEmptyDOMElement());
-    expect(screen.getByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
   });
 
   it('a returning guest with the same link knocks straight away — no landing, no referral recorded twice', async () => {

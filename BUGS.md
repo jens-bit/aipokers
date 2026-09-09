@@ -1,6 +1,10 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-96 — seat-rebuild test assumes a random showdown cannot split equally — FIXED on design branch
+The full gate failed in table.seats.test.js with all three banked stacks at 1000. Its checked-down random hand assumed somebody must win or lose; a shared winning board legitimately returns all three equal contributions. A deterministic royal-flush-board reproduction in artifacts/reproduce-bug96.mjs confirms that legal result. The rebuild fixture now folds two players to guarantee unequal balances before adding a seat. The original non-equal-stack, exact per-seat persistence, and 4000-chip conservation assertions remain; no game/dealer code changed. The original failed gate is artifacts/batch20-test-all.log.
+
+
 ### BUG-95 — retrying a refused desktop whisper duplicates an unsent line — FIXED on design branch
 The desktop hook appended the user line before POST and kept it after a refused response, while the composer restored the same text for retry. The regression failed with that extra line before repair. Each optimistic message now has a stable ID and a failed send removes only that message. Retrying preserves the earlier saved history and adds one user line/reply. The compact desktop profile now shares this hook, so its whispers also survive returning to conversation without duplicating requests. Verified in hook/component tests and real browser retry flows at 1280, 1440 and 1920 widths.
 

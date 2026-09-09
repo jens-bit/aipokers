@@ -127,7 +127,12 @@ header('Test 3: stacks persist per seat across the rebuild');
   const table = newTable();
   seatPlayers(table, 3);
   table.maybeStartHand({ clientDriven: true });
-  playDown(table);
+  // BUG-96: a checked-down random board can split three ways and restore all
+  // buy-ins. Two folds guarantee unequal balances for the rebuild to preserve.
+  const before = table.handsThisSession;
+  table.applyAction(table.connections[table.game.toAct], { type: Actions.FOLD });
+  table.applyAction(table.connections[table.game.toAct], { type: Actions.FOLD });
+  assert.strictEqual(table.handsThisSession, before + 1, 'uncontested hand completed');
   const banked = [0, 1, 2].map((i) => table.seatStack(i));
   assert.notDeepStrictEqual(banked, [1000, 1000, 1000], 'blinds moved some chips');
 

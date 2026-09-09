@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 20
+
+Board 41 B5/B5b assets and B12 loading are implemented. The shared mark now has the exact close/lean/hood/far/icon/glyph geometry, including the enlarged eye openings at 16px. SVG/PNG favicon, app/touch icons and the manifest are wired in the app and /welcome. B8's 512px bot avatar is exported and visually paired, but not applied to Telegram. B12 uses the chosen first line during actual entry/lazy waits; it adds no minimum delay and supports reduced motion. Inspected pairs: `client/e2e/shots/design-batch20-loading-b12.png` and `design-batch20-brand-assets.png`. The reference B8 board displays its “512” example at 480px; the delivered file is genuinely 512px. Export instructions and remaining external application are in BRAND_ASSETS.md. B13 does not replace the table/guest room Jens explicitly asked to retain. B15's separate peek/look application and other outstanding brand/long-landing states remain open.
+
 ## Design completion — 2026-09-09, batch 19
 
 C9's latest header is connected: 54px high, room title/subtitle, result and account pill. The kitchen door enters the casino; its header returns home. The Board's second casino heading is removed when the desktop shell owns the title, while Floor/Board controls remain available. All time intentionally replaces Tonight because the server field is career net; home-game players and visiting agents are counted separately from casino occupants. The existing Watch/replay header is retained. The inspected pair `client/e2e/shots/overnight-batch19-desktop-c9.png` shows the actual live room beside C9. The wider room, compact profile and latest header gaps recorded in batches 12/17/18 are now resolved. Reference/sample differences remain: actual hand data and agent routines, no invented chat timestamps, retained couch details.

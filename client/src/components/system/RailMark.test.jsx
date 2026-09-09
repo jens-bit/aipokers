@@ -14,3 +14,11 @@ describe('BUG-57: the Railbird mark', () => {
     });
   });
 });
+
+it('B5 optical glyph has the wider eye holes and no rail or fists',()=>{
+  const {container}=render(<RailMark pose="glyph" size={16}/>);
+  const mask=container.querySelector('mask');
+  expect(mask.querySelectorAll('path')).toHaveLength(4);
+  expect(mask.querySelectorAll('rect')).toHaveLength(1);
+  expect(mask.querySelector('g')).toHaveAttribute('transform','translate(32 32) scale(1.59) translate(-32.5 -26.8)');
+});

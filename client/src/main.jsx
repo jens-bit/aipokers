@@ -1,6 +1,7 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import { BrandLoading } from './components/system/BrandLoading.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import { visitPreview, rememberPendingVisitor, requestVisit } from './lib/visit.js';
@@ -49,9 +50,10 @@ async function boot() {
   // redirected to the marketing page never has the SDK initialised at all, and
   // initialising it up here to save three lines would quietly break that.
   if (isMiniAppSession()) { initTelegram(); return render(<App />); }
-  if (getWebLogin() != null) { initTelegram(); return render(<Suspense fallback={null}><LoginGate><App /></LoginGate></Suspense>); }
+  if (getWebLogin() != null) { initTelegram(); return render(<Suspense fallback={<BrandLoading/>}><LoginGate><App /></LoginGate></Suspense>); }
 
   // (3): is the no-account door open, and are we already through it?
+  render(<BrandLoading/>);
   const { enabled, ownerId } = await resolveGuest();
   if (enabled) {
     initTelegram();
@@ -91,7 +93,7 @@ async function boot() {
       // BUGS-C-1: the landing is lazy, so a Mini App session never pays for
       // it — which is why it needs the boundary the eager import did not.
       return render(
-        <Suspense fallback={null}>
+        <Suspense fallback={<BrandLoading/>}>
           <GuestLanding visitorName={visitor?.agentName ?? null} />
         </Suspense>,
       );
@@ -104,11 +106,12 @@ async function boot() {
   // turning GUEST_ENABLED off on the VPS restores today's behaviour exactly.
   const wantsLogin = new URLSearchParams(window.location.search).has('login');
   if (window.location.hostname === 'agenticpoker.app' && !wantsLogin) {
+    render(null);
     window.location.replace('/welcome');
     return undefined;
   }
   initTelegram();
-  return render(<Suspense fallback={null}><LoginGate><App /></LoginGate></Suspense>);
+  return render(<Suspense fallback={<BrandLoading/>}><LoginGate><App /></LoginGate></Suspense>);
 }
 
 // Exported so a test can await the decision. Deciding which of the four doors

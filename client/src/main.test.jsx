@@ -92,4 +92,17 @@ describe('LAND-2 landing-page guard', () => {
     expect(replace).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(root).not.toBeEmptyDOMElement());
   });
+  it('B12 shows the chosen loading frame while the guest-door request is pending',async()=>{
+    stubLocation('localhost');telegram.signOut();mountPoint();
+    let release, requests=0;
+    fetchMock.route('/api/auth/config',()=>++requests===1 ? new Promise(resolve=>{release=resolve;}) : {guest:false});
+    let loaded;
+    await act(async()=>{loaded=await import('./main.jsx');});
+    expect(document.querySelector('.brand-loading')).toHaveTextContent('You don’t play. You raise a player.');
+    expect(telegram.webApp.readyCalls).toBe(0);
+    await act(async()=>{release({guest:false});await loaded.booted;});
+    await vi.waitFor(()=>expect(document.querySelector('.brand-loading')).toBeNull());
+    expect(telegram.webApp.readyCalls).toBe(1);
+  });
+
 });

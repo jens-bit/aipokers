@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 20: board 41 B12 loading uses the real entry wait and lazy boundaries, without an artificial delay. The shared RailMark now supports the reference's optical/scale poses. B5 favicon, B5b install/touch icons, manifest and B8 bot-avatar files are exported from that component; the app and /welcome reference them. Reduced motion is respected. BUG-96 fixes a flaky seat-rebuild test that assumed a random showdown could not split equally; game logic is unchanged.
+
 - Design completion batch 19: C9's 54px room header replaces the desktop clock, repeated navigation tabs and duplicate casino Board heading. The real door enters the casino; the contextual header returns home. Household counts distinguish home games, casino occupants and visits. The earnings pill is honestly labelled All time because its source is career net. Wallet and Standup remain accessible. Watch/replay keep their existing controls. Browser/real-server smoke selectors intentionally follow these new destinations, preserving their original replay, layout and action checks.
 
 - Design completion batch 18: desktop Profile now uses C4's compact identity, CONDITION and RECENT view in C9's existing column. His sheet retains PROFILE-2 body/skills and tap-to-explain bands. Private whispers share the mounted conversation, preserving its draft and history; chip funding and call-in use authenticated existing routes. Funding stays within the column with recoverable errors. BUG-95 removes a refused optimistic message before retry. Legacy duplicate Player card headings and six-peer-bar tests intentionally follow the newer compact/profile split.
