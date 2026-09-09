@@ -1,4 +1,5 @@
 import { Game, Streets } from '../engine/game.js';
+import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, perceivedMath } from '../agent/handler.js';
 import { appendHand } from './handHistory.js';
@@ -2342,6 +2343,11 @@ export class Table {
     // every other meter write in this file.
     {
       const watched = !(unwatchedPolicyEnabled() && this._unwatchedForMs() >= UNWATCHED_POLICY_MS);
+      // ADMIN-1 job 2: and once for the building. watch_hands is per seat-owner
+      // and per UTC day, which cannot answer "how many hands has the floor
+      // played in the last hour" — the only pulse the dashboard has that
+      // changes minute to minute. One tick per HAND, not per seat.
+      bumpTick('hand');
       for (let seat = 0; seat < this.maxSeats; seat++) {
         if (!this.pending[seat]) continue;
         const ownerId = this.agentUserIds[seat];

@@ -28,6 +28,7 @@
 //      and the honest answer to that is a refund.
 
 import { randomUUID } from 'node:crypto';
+import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import {
   allOwnerIds, agentsOf, saveOwner, seatStatusOf, presentAgentById, presentedRoster,
 } from './agentProfiles.js';
@@ -179,6 +180,11 @@ export function requestVisit({ agentId, hostUserId, stake = 0 } = {}) {
   saveOwner(guestUserId);
   armTick();
 
+  // ADMIN-1 job 2: a knock is a live Map entry that a restart forgets and a
+  // sweep clears after thirty minutes, so "visits in the last 24 hours" had no
+  // source. The tick is the record; the Map stays the truth about who is at
+  // the door right now.
+  bumpTick('visit.knock');
   try { notifyHomeChanged(hostUserId); } catch (err) { console.error('[visit] push failed:', err.message); }
   notifyEvent('visitor', { ownerId: hostUserId, agentId, agentName: record.agentName })
     .catch((err) => console.error('[visit] notify failed:', err.message));
@@ -235,6 +241,7 @@ export function answerVisit(visitId, hostUserId, accept) {
   const line = answerLine(visitId, hostUserId, !!accept);
 
   if (accept) {
+    bumpTick('visit.accept');   // ADMIN-1 job 2, the other half of the knock
     const now = Date.now();
     record.status = 'accepted';
     record.acceptedAt = now;

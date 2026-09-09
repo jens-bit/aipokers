@@ -67,6 +67,24 @@ export function providerFor(model, explicit = null) {
   return PROVIDERS[providerIdFor(model, explicit)];
 }
 
+// ── ADMIN-1 job 2 · the error sink ───────────────────────────────────────────
+//
+// "Is the key healthy" is the first question anybody asks when the floor goes
+// quiet, and until now the only answer was to grep the logs. Every provider
+// error surfaces through exactly one function — the one below — so this is the
+// one place that can count them without a per-provider try/catch.
+//
+// A sink rather than an import, for the reason auth.js takes a guest resolver
+// rather than importing guest.js: this file is under src/agent and the counter
+// lives in the store. The arrow points one way, and a deployment that never
+// mounts the dashboard records nothing and behaves exactly as it did before.
+let errorSink = null;
+
+/** Teach the provider layer where to report a failed call. Called by meter.js. */
+export function setErrorSink(fn) {
+  errorSink = typeof fn === 'function' ? fn : null;
+}
+
 // The one call the rest of the codebase makes.
 export async function complete({
   model = DEFAULT_MODEL,
@@ -79,7 +97,16 @@ export async function complete({
 } = {}) {
   const id = providerIdFor(model, provider);
   const impl = PROVIDERS[id];
-  const result = await impl.complete({ model, system, messages, maxTokens, timeoutMs, transport });
+  let result;
+  try {
+    result = await impl.complete({ model, system, messages, maxTokens, timeoutMs, transport });
+  } catch (err) {
+    // Counted, then rethrown UNCHANGED. Every caller's own error handling —
+    // handler.js's fallback to policy play, the draft routes' 503 — is exactly
+    // what it was; this only makes a note on the way past.
+    try { errorSink?.(err, { model, provider: id }); } catch { /* a counter must never mask an error */ }
+    throw err;
+  }
   return { provider: id, model, ...result };
 }
 

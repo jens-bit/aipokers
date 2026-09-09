@@ -58,6 +58,7 @@ import {
   listNotificationHolds,
   setNotificationHoldDeliverAt,
   deleteNotificationHold,
+  bumpTick,   // ADMIN-1 job 2
 } from './store.js';
 import { isAgentNotifyMuted, setAgentNotifyMuted } from './agentProfiles.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
@@ -498,7 +499,15 @@ function decide(ownerId, at) {
   const dayStart = startOfLocalDay(at, off);
   const recent   = active.store.listNotificationsSince(ownerId, Math.min(dayStart, at - DAY_MS));
   const today    = recent.filter((r) => r.ts >= dayStart);
-  if (today.length >= BUDGET.maxPerDay) return { drop: 'budget' };
+  if (today.length >= BUDGET.maxPerDay) {
+    // ADMIN-1 job 2: a refusal writes nothing to the ledger, by design — it
+    // did not spend a slot and the owner got nothing. But "how many pings did
+    // the budget eat today" is how you find out the budget is set wrong, and
+    // with no row anywhere it was unanswerable. A tally, not a ledger: nothing
+    // about WHICH message is stored.
+    bumpTick('notify.budgetDrop');
+    return { drop: 'budget' };
+  }
 
   const lastTs = recent.length ? recent[recent.length - 1].ts : null;
   if (lastTs !== null && at - lastTs < BUDGET.minGapMs) {

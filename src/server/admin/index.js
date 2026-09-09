@@ -21,6 +21,8 @@
 // adminMeter() rather than running its own SQL over model_calls.
 
 import { presenceMiddleware } from './presence.js';
+import { adminGuard } from './key.js';
+import { adminStats } from './stats.js';
 
 export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
   // Mounted before the routes below it, so that everything an owner's client
@@ -29,4 +31,13 @@ export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
   // at the call site — and so a deployment that removed that line has no
   // presence write either, which is the honest way round.
   app.use(presenceMiddleware({ now }));
+
+  // GET /api/admin/stats — the whole game in one JSON.
+  //
+  // Every leaf is { value, definition }; see stats.js for what each one counts
+  // and what it deliberately does not. Read-only, no model call, and its own
+  // 6-a-minute window on top of the /api limiter src/index.js already applies.
+  app.get('/api/admin/stats', adminGuard(), (_req, res) => {
+    res.json(adminStats({ now: now() }));
+  });
 }

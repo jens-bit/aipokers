@@ -84,6 +84,7 @@ import {
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet } from './store.js';
+import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
 import { identityOf } from '../shared/identity.js';
 import { emitSessionEnd } from './sessions.js';
@@ -1492,6 +1493,13 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       const wallet = walletFor(userId ?? 'anon');
       recordEarned(wallet, sessionPnl);
       saveWalletFor(userId ?? 'anon');
+      // ADMIN-1 job 2: wallets.earned is a LIFETIME total and can only answer
+      // "ever". "Chips won in the last 24 hours" is the one money number that
+      // says whether the floor is alive tonight, and it has to be filed as it
+      // happens because a lifetime counter cannot be differenced after the
+      // fact. Same figure, same moment, same rule — a losing session is not a
+      // debit, it is simply not a credit.
+      bumpTick('chips.won', { value: sessionPnl });
     }
   }
 

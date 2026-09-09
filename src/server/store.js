@@ -298,6 +298,33 @@ function applySchema(d) {
     );
     CREATE INDEX IF NOT EXISTS owner_activity_day  ON owner_activity (day);
     CREATE INDEX IF NOT EXISTS owner_activity_seen ON owner_activity (last_seen);
+
+    -- ADMIN-1 job 2: the hourly tally. Six numbers the dashboard needs at an
+    -- hour's resolution had no durable source at all -- hands played, knocks
+    -- at a door, chips won, a notification the budget refused, a model call
+    -- and a model call that came back 401. Every one of them either lived in
+    -- a ring buffer that dies with the process (events.js), in a per-owner
+    -- table capped at fifty rows (hands), or nowhere.
+    --
+    -- One row per (UTC hour, name), summed the add-and-forget way model_calls
+    -- is. An hour is the resolution because the questions are "in the last
+    -- day" and "in the last week" and the finest tile on the page says "this
+    -- hour"; a row per event would be the biggest table in the database
+    -- bought with nothing. 24 rows a day per name, 168 a week: the whole
+    -- history of this table for a year is smaller than one evening of hands.
+    --
+    -- "value" rides alongside "count" because two of the six are amounts
+    -- rather than tallies -- chips won, dollars spent -- and a second table
+    -- differing only in which column it sums would be a second place to look.
+    CREATE TABLE IF NOT EXISTS event_ticks (
+      hour       TEXT    NOT NULL,
+      name       TEXT    NOT NULL,
+      count      INTEGER NOT NULL DEFAULT 0,
+      value      REAL    NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (hour, name)
+    );
+    CREATE INDEX IF NOT EXISTS event_ticks_hour ON event_ticks (hour);
   `);
 
   // WALLET-1: pockets live inside the agent record, but the wallet screen asks
@@ -1210,6 +1237,61 @@ export function readWatchCalls({ sinceDay = null, ownerId = null } = {}) {
 // is it", "how many has this address made today" and "how many sessions has he
 // had today". A limit written twice is a limit that will one day disagree with
 // itself, so the rules live in exactly one file and the rows live here.
+
+// ── The hourly tally (ADMIN-1) ──────────────────────────────────────
+//
+// Add-and-forget, like the meter. Called from inside a hand and from inside a
+// notifier decision, so it swallows its own errors: a counter that can break a
+// table is worse than no counter, which is the rule every meter write in this
+// codebase already follows.
+
+/** The UTC hour a tick is filed under. String order is time order. */
+export function hourKey(at = Date.now()) {
+  return new Date(at).toISOString().slice(0, 13);
+}
+
+/**
+ * File one thing that happened.
+ *
+ * @param {string} name   what it was ('hand', 'visit.knock', 'model.call', ...)
+ * @param {number} count  how many (default one)
+ * @param {number} value  the amount, for the two that are amounts
+ */
+export function bumpTick(name, { count = 1, value = 0, at = Date.now() } = {}) {
+  try {
+    if (!name) return false;
+    conn().prepare(`
+      INSERT INTO event_ticks (hour, name, count, value, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(hour, name) DO UPDATE SET
+        count      = count + excluded.count,
+        value      = value + excluded.value,
+        updated_at = excluded.updated_at
+    `).run(
+      hourKey(at), String(name),
+      Math.max(0, Math.floor(Number(count) || 0)),
+      Number.isFinite(Number(value)) ? Number(value) : 0,
+      Date.now(),
+    );
+    return true;
+  } catch (err) {
+    console.error('[store] could not record a tick:', err.message);
+    return false;
+  }
+}
+
+/** Ticks at or after an inclusive 'YYYY-MM-DDTHH' bound, oldest first. */
+export function readTicks({ sinceHour = null, name = null } = {}) {
+  const where = [];
+  const args = [];
+  if (sinceHour) { where.push('hour >= ?'); args.push(String(sinceHour)); }
+  if (name !== null) { where.push('name = ?'); args.push(String(name)); }
+  return conn().prepare(`
+    SELECT hour, name, count, value FROM event_ticks
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY hour, name
+  `).all(...args).map((r) => ({ hour: r.hour, name: r.name, count: r.count ?? 0, value: r.value ?? 0 }));
+}
 
 // ── Presence (ADMIN-1) ───────────────────────────────────────────────────────
 //

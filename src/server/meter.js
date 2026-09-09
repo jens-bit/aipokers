@@ -39,10 +39,11 @@
 import crypto from 'node:crypto';
 
 import { costOf } from '../agent/providers/pricing.js';
-import { normaliseUsage } from '../agent/providers/index.js';
+import { normaliseUsage, setErrorSink } from '../agent/providers/index.js';
 import {
   addModelCall, readModelCalls, addDecisionRoute, readDecisionRoutes,
   addWatchHand, readWatchHands, addWatchCall, readWatchCalls,
+  bumpTick,   // ADMIN-1 job 2
 } from './store.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 
@@ -114,6 +115,14 @@ export function recordModelCall({
       usd: Number.isFinite(usd) ? usd : 0,
       unpriced: Number.isFinite(usd) ? 0 : 1,
     });
+    // ADMIN-1 job 2: the same call, filed a second way — by the UTC HOUR, with
+    // no owner, kind or model on it. model_calls is keyed by day and that is
+    // right for a bill; it cannot answer "what has this hour cost", which is
+    // the number you look at when you have just deployed something and want to
+    // know within the hour whether it is expensive. One row an hour, and it is
+    // written here rather than from a second call site so a model call still
+    // has exactly one recorder.
+    bumpTick('model.call', { value: Number.isFinite(usd) ? usd : 0, at });
     return true;
   } catch (err) {
     console.error('[meter] could not record a call:', err.message);
@@ -209,6 +218,42 @@ export function recordDecisionCallWatch({ ownerId = null, watched = false, usd =
     return false;
   }
 }
+
+// ── Key health (ADMIN-1 job 2) ───────────────────────────────────────────────
+//
+// Nothing counted a model call that FAILED. A revoked key, a rate limit and a
+// provider outage all look identical from the outside — the floor goes quiet
+// and the bill goes to zero — and "$0.00 today" is the same reading whether
+// nobody played or nothing worked. These three counters are what tells the two
+// apart at a glance.
+//
+// Bucketed, never itemised: a status class and a tally. No prompt, no model
+// output, no owner, and no part of the key.
+
+/** 401, 429, 5xx, or 'other' — the four readings that mean different things. */
+export function errorBucket(err) {
+  const status = Number(err?.status ?? err?.statusCode ?? err?.response?.status);
+  if (status === 401 || status === 403) return '401';
+  if (status === 429) return '429';
+  if (Number.isFinite(status) && status >= 500 && status < 600) return '5xx';
+  return 'other';
+}
+
+/** One failed model call. Best-effort; never throws, never masks the error. */
+export function recordModelError(err, { at = Date.now() } = {}) {
+  try {
+    bumpTick(`model.err.${errorBucket(err)}`, { at });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Registered at import, the way guest.js registers its resolver with auth.js.
+// index.js imports this module to install the meter routes, so the sink is
+// live for the whole life of the server; a script that imports table.js
+// without booting a server registers nothing and records nothing.
+setErrorSink((err) => recordModelError(err));
 
 // ── Reading ──────────────────────────────────────────────────────────────────
 
