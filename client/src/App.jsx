@@ -1017,6 +1017,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     return (
       <WatchScreen
         seated
+        error={error}
         game={game}
         mySeat={mySeat}
         legalActions={legalActions}
@@ -1045,6 +1046,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     const sessionEnd = findSessionEnd(history);
     return (
       <WatchScreen
+        error={error}
         // W5-1: the paced bundle, not the live one. `paced.game` is null only
         // before the first snapshot, which is the same moment `game` is.
         game={paced.game}
