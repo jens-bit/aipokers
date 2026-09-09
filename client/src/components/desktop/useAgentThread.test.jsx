@@ -28,3 +28,17 @@ it('BUG-80 a late initial load preserves a message sent while it was loading',as
   await act(async()=>{resolve({recentHands:[]});});
   expect(result.current.chat.map(m=>m.content)).toEqual(['Why did you call?','It was the sizing.','Wait for the button.','Fine. I will wait.']);
 });
+
+it('BUG-95 a refused whisper can be retried without duplicating an unsent message',async()=>{
+  let attempts=0;
+  fetchMock.route('/api/agents/chat',()=>++attempts===1 ? {status:503,body:{error:'unavailable'}} : {chat:[{role:'assistant',content:'Fine. I will wait.'}]});
+  const {result}=renderHook(()=>useAgentThread(agent));
+  await waitFor(()=>expect(result.current.chat).toHaveLength(2));
+  await act(async()=>{expect(await result.current.send('Wait for the button.')).toBe(false);});
+  expect(result.current.chat.map(m=>m.content)).toEqual(['Why did you call?','It was the sizing.']);
+  let response;
+  await act(async()=>{expect(await result.current.send('Wait for the button.',{onResult:data=>{response=data;}})).toBe(true);});
+  expect(result.current.chat.map(m=>m.content)).toEqual(['Why did you call?','It was the sizing.','Wait for the button.','Fine. I will wait.']);
+  expect(response.chat[0].content).toBe('Fine. I will wait.');
+  expect(result.current.error).toBe('');
+});

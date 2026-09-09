@@ -80,13 +80,14 @@ export function useAgentThread(agent) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
-  const send = useCallback(async (text) => {
+  const send = useCallback(async (text, { onResult } = {}) => {
     const content = text.trim();
     if (!content || !agentId || sendBusy.current) return false;
     sendBusy.current = true;
     setError('');
     setSending(true);
-    setChat((prev) => [...prev, mkMsg('user', content)]);
+    const pendingMessage = mkMsg('user', content);
+    setChat((prev) => [...prev, pendingMessage]);
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
@@ -101,8 +102,11 @@ export function useAgentThread(agent) {
         setMood(data.pepTalk.newState);
         setCause('feeling better');
       }
+      onResult?.(data);
       return true;
     } catch {
+      // The composer restores the draft for retry; an unsent line is not history.
+      setChat(prev => prev.filter(message => message._id !== pendingMessage._id));
       setError('Could not send your message. Please try again.');
       return false;
     } finally {

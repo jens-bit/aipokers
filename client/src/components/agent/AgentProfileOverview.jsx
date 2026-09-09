@@ -46,7 +46,7 @@ function RecentRow({ entry, row, explained, onExplain }) {
   </div>;
 }
 
-export function AgentProfileOverview({ agent, attrLog, actions, onBack, onWatch, onOpenChat, explained, onExplain, children }) {
+export function AgentProfileOverview({ agent, attrLog, actions, onBack, onWatch, onOpenChat, explained, onExplain, children, sendWhisper = null }) {
   const identity = identityOf(agent);
   const character = normalizeAttrs(agent);
   const [draft, setDraft] = useState('');
@@ -71,9 +71,13 @@ export function AgentProfileOverview({ agent, attrLog, actions, onBack, onWatch,
     if (!text || sending.current) return;
     sending.current = true; setBusy(true); setError(''); setDraft('');
     try {
-      const res = await fetch('/api/agents/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() }, body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agent.id }) });
-      if (!res.ok) throw new Error('Whisper refused');
-      const data = await res.json();
+      // An embedded desktop profile shares its companion's live thread.
+      // The standalone phone profile keeps the same authenticated route.
+      const data = sendWhisper ? await sendWhisper(text) : await (async () => {
+        const res = await fetch('/api/agents/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() }, body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agent.id }) });
+        if (!res.ok) throw new Error('Whisper refused');
+        return res.json();
+      })();
       if (!alive.current) return;
       setReply(data.chat?.filter(m => m.role === 'assistant').at(-1)?.content ?? null);
       if (Array.isArray(data.chat)) setConversation(data.chat);

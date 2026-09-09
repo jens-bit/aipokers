@@ -1,6 +1,10 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-95 — retrying a refused desktop whisper duplicates an unsent line — FIXED on design branch
+The desktop hook appended the user line before POST and kept it after a refused response, while the composer restored the same text for retry. The regression failed with that extra line before repair. Each optimistic message now has a stable ID and a failed send removes only that message. Retrying preserves the earlier saved history and adds one user line/reply. The compact desktop profile now shares this hook, so its whispers also survive returning to conversation without duplicating requests. Verified in hook/component tests and real browser retry flows at 1280, 1440 and 1920 widths.
+
+
 ### BUG-94 — Windows test child exits without a JavaScript assertion — OPEN, not reproduced in isolation
 During recovery of the interrupted overnight gate, src/server/share.test.js exited 3221226505 after about 540ms with no child output. The same suite immediately passed alone through runScript with isolateCwd:true. An earlier client verification ended with Tinypool onUnexpectedExit around 04:56; its companion browser run stopped mid-suite. No matching verifier processes remained when inspected at 08:53. Cause is unproven; do not label this a product assertion failure or claim continuous overnight execution. Evidence: artifacts/batch17-recovered-test-all.log and batch17-share-isolated.log; the complete recovered gate is recorded separately. No test is skipped or weakened for this failure.
 

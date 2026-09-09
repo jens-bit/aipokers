@@ -387,8 +387,37 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
       await expect(column.getByRole('alert')).toContainText('try again');
       await expect(composer).toHaveValue('Wait for me.');
       await column.getByRole('button',{name:'Profile',exact:true}).click();
-      await expect(column.locator('.dsk-pcard__ghost stop[stop-color="#6E5836"]')).toHaveCount(1);
-      await column.getByRole('button',{name:'Back to conversation'}).click();
+      await expect(column.locator('.profile-overview__identity stop[stop-color="#6E5836"]')).toHaveCount(1);
+      await expect(column.getByText('Condition',{exact:true})).toBeVisible();
+      await expect(column.getByText('RECENT',{exact:true})).toBeVisible();
+      const profileComposer=column.getByRole('textbox',{name:'Whisper to him',exact:true});
+      expect((await profileComposer.boundingBox()).y).toBeLessThan(size.height-20);
+      if(size.width===1440) {
+        await page.screenshot({path:'../artifacts/desktop-profile-c4.png'});
+        await column.screenshot({path:'../artifacts/desktop-profile-column-c4.png'});
+      }
+      await profileComposer.fill('Wait for the button.');
+      await column.getByRole('button',{name:'Send whisper'}).click();
+      await expect(profileComposer).toHaveValue('Wait for the button.');
+      await expect(column.getByRole('alert')).toContainText('Could not send your whisper');
+      const whispers=[];
+      await page.route('**/api/agents/chat',route=>{whispers.push(route.request().postDataJSON());return route.fulfill({json:{chat:[{role:'assistant',content:'Yes. The button.'}]}});});
+      await column.getByRole('button',{name:'Send whisper'}).click();
+      await column.getByRole('button',{name:'Open conversation'}).click();
+      await expect(column.locator('.agent-view__thread').getByText('Wait for the button.',{exact:true})).toHaveCount(1);
+      await expect(column.locator('.agent-view__thread').getByText('Yes. The button.',{exact:true})).toHaveCount(1);
+      expect(whispers).toEqual([expect.objectContaining({existingAgentId:'a2',content:'Wait for the button.'})]);
+      await expect(composer).toHaveValue('Wait for me.');
+      await page.route('**/api/wallet?**',route=>route.fulfill({json:{balance:9000}}));
+      await column.getByRole('button',{name:'Profile',exact:true}).click();
+      await column.getByRole('button',{name:'Give him chips',exact:true}).click();
+      const funding=column.locator('.agent-view__fund');
+      await expect(funding.getByRole('dialog')).toBeVisible();
+      const columnBox=await column.boundingBox();
+      // The column owns a 1px left border; the inset sheet fills its content box.
+      expect(await funding.boundingBox()).toEqual({...columnBox,x:columnBox.x+1,width:columnBox.width-1});
+      await funding.getByRole('button',{name:'Back',exact:true}).click();
+      await column.getByRole('button',{name:'Back',exact:true}).click();
       expect(await page.locator('.home-flat').boundingBox()).toEqual(roomBefore);
       const requests=[];
       await page.route('**/api/agents/a2/place?**',route=>{requests.push(route.request().postDataJSON());return route.fulfill({json:{ok:true,line:'I will rest here.'}});});

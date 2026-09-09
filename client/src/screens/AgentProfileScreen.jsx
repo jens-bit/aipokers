@@ -549,7 +549,7 @@ async function retireAgent(agentId) {
 
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false }) {
+export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false, sendWhisper = null }) {
   const [showDetails, setShowDetails] = useState(false);
   useEffect(() => { setShowDetails(false); }, [agent?.id]);
   const [visitStatus, setVisitStatus] = useState(null);
@@ -713,7 +713,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
     else { onOpenChat?.(agent); }
   }
 
-  if (companion && !showDetails) return <AgentProfileOverview key={agent.id} agent={agent} attrLog={attrLog} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
+  if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
     explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
     actions={({ chatAgent }) => <>
       <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? handleVisit : undefined} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>

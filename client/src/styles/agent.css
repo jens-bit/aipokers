@@ -103,3 +103,6 @@
 .agent-view__proposal-details{margin-top:6px;font-size:10px;line-height:1.6}
 .home-carry-help{position:absolute;z-index:12;left:12px;right:12px;top:50px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cdb38044;border-radius:10px;background:#101a18f0;color:#CDB380;font:11px Inter,sans-serif}
 .home-carry-help span{flex:1}.home-carry-help button{min-height:44px;border:0;background:none;color:#A1A1A1;font:11px Inter,sans-serif}
+
+/* Profile funding stays inside the companion column. */
+.dsk-panel--agent{position:relative}
