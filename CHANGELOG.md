@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 16: wave-61 guest room uses the full phone viewport with half-height glass, one vertical casino sign, its empty chair and the retained kitchen table. The embedded first-agent room hides duplicate navigation and older suggestion chips; the real recruiter and four-stage/no-collar flow remain. Desktop guest entry sheds the extra global header. BUG-92/93 cover sign overlap and competing focus/scroll helpers; five landing sizes and seven draft browser flows verify the result. Wider desktop furniture coordinates and its in-room forming preview remain explicitly partial.
+
 - Overnight verification batch 15: re-enabled BUG-43's floor-drop regression after synchronizing its starting measurement with the completed newborn arrival; all 20 real Home browser checks now pass without a skip. BUG-45's casino pocket assertion now awaits the exact selected-room copy and passes in isolation. Original interaction/amount/no-POST assertions stay; gameplay and production timing are unchanged.
 
 - Overnight repair batch 14: desktop casino Board rows now open the authenticated saved hand in the desktop theatre and return to the remembered Board selection. An aged-out hand opens its companion. Recorded stacks remain unknown instead of $0, and the replay ends on its real board/pot with no next-deal or sit-out promise (BUG-89–91). Actual browser checks cover the row, scrubbing to the end and Back.

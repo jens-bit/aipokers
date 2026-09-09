@@ -59,6 +59,7 @@ import { fetchSlots, lockedSeatLine } from '../lib/slots.js';
 import { pillName } from '../lib/names.js';
 import { identityOf } from '../lib/identity.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
+import { TableChairs } from '../components/home/HomeGame.jsx';
 import { DraftSheet } from '../components/draft/DraftSheet.jsx';
 import { FormingGhost as StageGhost, DRAFT_STAGES, draftStage } from '../components/system/FormingGhost.jsx';
 import { pendingVisitorName, clearPendingVisitor } from '../lib/visit.js';
@@ -429,7 +430,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
 // Full draft conversation with FormingGhost gaining definition as you talk.
 // Calls onBirth(agent) when the server confirms agent creation.
 // Pass `agent` prop (existing agent object) to open in edit/rebuild mode.
-export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
+export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus = true }) {
   const userId  = getUserId();
   const isEdit  = !!agent;
 
@@ -477,11 +478,21 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
   // container but the browser does not always scroll the focused element up.
   useEffect(() => {
     const el = inputRef.current;
-    if (!el) return;
-    function onFocus() { setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150); }
+    if (!el || !scrollOnFocus) return;
+    let timer;
+    function onFocus() {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const bounds = el.getBoundingClientRect();
+        const height = window.visualViewport?.height ?? window.innerHeight;
+        // BUG-93: a field already visible must not interrupt the landing's
+        // scroll to the room. Only a keyboard-obscured composer needs a push.
+        if (bounds.top < 0 || bounds.bottom > height) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 150);
+    }
     el.addEventListener('focus', onFocus);
-    return () => el.removeEventListener('focus', onFocus);
-  }, []);
+    return () => { clearTimeout(timer); el.removeEventListener('focus', onFocus); };
+  }, [scrollOnFocus]);
 
   useEffect(() => {
     const el = feedRef.current;
@@ -733,8 +744,8 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
       // to SEE the ancestor that clips it. It is the same clip .dr-app
       // always carried here.
       <div className="dr-app draft2" data-testid="draft-screen" style={{ overflow: 'hidden' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 9,
+        <div className="draft2__header" style={{
+          alignItems: 'center', gap: 9,
           padding: '2px 14px 9px', background: M_PANEL, flexShrink: 0,
         }}>
           <button
@@ -761,7 +772,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable }) {
           {/* the room, dimmed to almost nothing: he is not in it yet */}
           <div className="draft2__room">
             <div className="draft2__room-scale">
-              <HomeFlat lit={false} doorTag="THE CASINO →" />
+              <HomeFlat lit={false}><TableChairs taken={0} of={1} /></HomeFlat>
             </div>
           </div>
           <div className="draft2__veil" />

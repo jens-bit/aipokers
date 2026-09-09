@@ -120,6 +120,9 @@ describe('DRAFT-2: one glass, and it is the thread\'s', () => {
     // way down and the room keeps everything above it.
     expect(css.position).toBe('absolute');
     expect(css.bottom).toBe('0px');
-    expect(parseFloat(css.top)).toBeGreaterThan(0);
+    // Wave 61 replaces the fixed 206px edge with half-height glass, bounded
+    // below the scaled door. jsdom cannot resolve max()/container units;
+    // landing.spec.js verifies the actual sign/sheet boxes at three phones.
+    expect(css.top).toBe('max(50%, 70cqw)');
   });
 });

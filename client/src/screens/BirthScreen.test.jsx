@@ -5,7 +5,7 @@
 // action, the server round-trip produces an agent, and every text field is at
 // least 16px so iOS does not zoom the page (BUG-02).
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -117,6 +117,20 @@ describe('BirthScreen', () => {
 
     await user.click(composer());
     expect(composer()).toHaveFocus();
+  });
+
+  it.each([false, true])('BUG-93: focus scrolls only when the composer is obscured (%s)', async obscured => {
+    vi.useFakeTimers();
+    let unmount;
+    try {
+      ({ unmount } = render(<BirthScreen onBack={() => {}} onBirth={() => {}} />));
+      const input = composer();
+      input.getBoundingClientRect = () => ({ top: 20, bottom: obscured ? window.innerHeight + 100 : 64 });
+      input.scrollIntoView = vi.fn();
+      await act(async () => { input.focus(); await vi.advanceTimersByTimeAsync(200); });
+      expect(input.scrollIntoView).toHaveBeenCalledTimes(obscured ? 1 : 0);
+      if (obscured) expect(input.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+    } finally { unmount?.(); vi.useRealTimers(); }
   });
 
   // AGENTS-2. Four active agents is the roster. When the draft finish is turned

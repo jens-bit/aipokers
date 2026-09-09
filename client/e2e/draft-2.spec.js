@@ -3,10 +3,9 @@
 // THE ONE THING THAT CANNOT BE CHECKED IN JSDOM: whether the glass actually
 // covers the door.
 //
-// draftGlass.test.jsx asserts the arithmetic — the tag's `top` in the room's
-// 390×470 coordinate space is above the sheet's `top`. That is true and it is
-// cheap and it runs on every commit, but it is a statement about two numbers in
-// a stylesheet, not about two boxes on a screen. The room is SCALED (a container
+// draftGlass.test.jsx asserts the single sign and the empty chair. The room
+// uses 390×612 coordinates, while wave 61 places glass at a responsive edge.
+// The room is SCALED (a container
 // query divides by 390), the sheet is not, and at 1440 the desk puts the sheet
 // somewhere else entirely. Whether those two boxes overlap after layout is a
 // question only a browser can answer, which is what this file is for.
@@ -29,10 +28,8 @@ const HOME = 'http://127.0.0.1:5199/';
 // The draft opens from an empty room, which is where an owner meets it first.
 const EMPTY = { agents: [] };
 
-// A room with somebody already in it: the case where the desk HAS a rail, so
-// the draft can be a panel in it. An empty desk has no rail at all (HOME-1's
-// "Nobody lives here yet" is the whole screen), and there the draft stays the
-// full-stage sheet it has always been.
+// Wave 61 keeps the desktop draft in its rail for both the first agent and
+// later housemates, beside the same live room.
 const ONE = {
   agents: [{
     id: 'a1', name: 'The Clock', style: 'Tight', risk: 'Low',
@@ -138,10 +135,9 @@ async function openDraft(page, viewport, cast = EMPTY) {
  * Playwright. The rectangles must not intersect at all.
  */
 async function expectDoorTagClear(page) {
-  // BUGS-C removed the duplicate tag from the live room: desktop uses its
-  // marquee. The standalone draft still uses the tag on its dimmed preview.
+  // BUG-92: both rooms use the single vertical CASINO sign.
   // Measure the actual visible sign in each shell, with the same no-overlap rule.
-  const tag = page.locator('[data-testid="home-door-tag"]:visible, .home1__room [data-testid="home-door-sign"]:visible').first();
+  const tag = page.locator('.draft2__room [data-testid="home-door-sign"]:visible, .home1__room [data-testid="home-door-sign"]:visible').first();
   await expect(tag).toBeVisible();
 
   const tagBox = await tag.boundingBox();

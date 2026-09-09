@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 16
+
+L2's real first-agent phone room now has no extra navigation band, half-height glass, one vertical CASINO sign, an empty chair and the full room canvas. The kitchen table remains by Jens's instruction, and the actual four-stage recruiter replaces the reference's five-stage/collar-era sample. BUG-92/93 document duplicate signage and focus/scroll defects. Five landing sizes and seven draft browser flows cover actual sign clearance, exact settled room origin, typing and reduced-height conversation access. Inspected pairs: `client/e2e/shots/overnight-batch16-guest-room-{390,1280}.png`. The desktop guest room also drops its extra global header, but remains **PARTIAL**: the forming preview is still in the rail, and the room still shares phone coordinates rather than latest DkFlat. `/welcome`, C9's remaining geometry/profile/header, and unverified external rollout settings are not certified by this phone milestone.
+
 ## Overnight repair — 2026-09-09, batch 14
 
 The desktop casino's recorded-hand path is now connected: an owned Board row resolves its real flagged hand into the desktop theatre and Back restores the remembered Board selection. Aged-out hands open their companion. BUG-89–91 fix the dropped callback, fabricated zero stacks and end-of-recording next-deal/sit-out state. The browser exercises the actual row and full recorded end at 1440 and 1920; `client/e2e/shots/overnight-batch14-desktop-replay-end.png` records the inspected result. This is a functional replay repair, not a claim that the broader desktop art or record metadata matches every design frame.

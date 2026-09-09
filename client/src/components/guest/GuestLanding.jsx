@@ -132,7 +132,7 @@ export function GuestLanding({ visitorName = null }) {
     // After the scroll has been asked for, not before: focusing first makes
     // some browsers jump to the field and cancel the smooth scroll.
     window.setTimeout(() => {
-      room.querySelector('[data-testid="draft-input"]')?.focus();
+      room.querySelector('[data-testid="draft-input"]')?.focus({ preventScroll: true });
     }, 320);
   }, []);
 

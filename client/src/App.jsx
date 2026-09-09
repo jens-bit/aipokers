@@ -71,7 +71,7 @@ export default function App({ guestBoot = null }) {
   const guest = useGuestSession({ guestBoot });
   return (
     <>
-      <AppShell guest={guest} />
+      <AppShell guest={guest} guestBoot={guestBoot} />
       {guest.wall && (
         <ClaimWall
           agent={guest.wallAgent}
@@ -85,7 +85,7 @@ export default function App({ guestBoot = null }) {
   );
 }
 
-function AppShell({ guest }) {
+function AppShell({ guest, guestBoot }) {
   const table = useTable({ wsUrl: WS_URL });
   const {
     game, mySeat, legalActions, history,
@@ -673,6 +673,7 @@ function AppShell({ guest }) {
         // born. Returning it from here instead would unmount the whole shell.
         draft={isCreating ? (
           <BirthScreen
+            scrollOnFocus={guestBoot !== 'new'}
             onBack={() => setIsCreating(false)}
             onBirth={() => setIsCreating(false)}
             onSeeTable={navigateToTable}
@@ -693,6 +694,7 @@ function AppShell({ guest }) {
       return (
         <div className="app app--room">
           <BirthScreen
+            scrollOnFocus={guestBoot !== 'new'}
             onBack={() => setIsCreating(false)}
             onBirth={(agent) => {
               setIsCreating(false);

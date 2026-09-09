@@ -59,16 +59,12 @@ describe('DRAFT-2: the draft opens on the room, not on a blank screen', () => {
     expect(container.querySelector('.home-flat').dataset.lit).toBe('false');
   });
 
-  it('hangs the casino tag on the door and does not cover it', () => {
+  it('BUG-92: the first room has one casino sign and an empty chair', () => {
     const { container } = draft();
-    const tag = screen.getByTestId('home-door-tag');
-    expect(tag).toHaveTextContent('THE CASINO');
-
-    // The room's own coordinate space: the tag sits above the sheet's top edge.
-    // The pixel truth at both real widths is client/e2e/draft-2.spec.js's; this
-    // is the arithmetic, and it is the half that can run on every commit.
-    const sheetTop = parseFloat(getComputedStyle(container.querySelector('.draft-sheet')).top);
-    expect(parseFloat(tag.style.top)).toBeLessThan(sheetTop);
+    expect(screen.getByTestId('home-door-sign')).toHaveTextContent('CASINO');
+    expect(screen.queryByTestId('home-door-tag')).toBeNull();
+    expect(container.querySelectorAll('.home-chair')).toHaveLength(1);
+    // Door/sheet clearance is measured in the real browser at every width.
   });
 
   it('is not the old grey chat screen', () => {

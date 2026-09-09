@@ -37,6 +37,8 @@
   position: relative;
 }
 
+.draft2__header { display: flex; }
+
 /* The room, and the sheet over it. Everything below is inside this box, so the
    sheet's `bottom: 0` is the room's bottom and not the viewport's. */
 .draft2__stage {
@@ -55,7 +57,7 @@
   pointer-events: none;
 }
 
-/* The room is a fixed 390x470 coordinate space, scaled to whatever box it is
+/* The room is a fixed 390x612 coordinate space, scaled to whatever box it is
    given — the same container-query trick .home1__scale uses, so the draft's room
    and HOME's room are the same room at the same arithmetic and neither can drift
    from flat.js. */
@@ -66,7 +68,7 @@
   left: 0;
   top: 0;
   width: 390px;
-  height: 470px;
+  height: 612px;
   transform-origin: top left;
   transform: scale(calc(100cqw / 390));
 }
@@ -142,7 +144,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  top: 206px;
+  /* Wave 61 leaves half the room visible. Wider, short windows must still
+     clear the complete doorway at y264 in the scaled 390px plan. */
+  top: max(50%, calc(100cqw * 0.7));
   z-index: 6;
   display: flex;
   flex-direction: column;
@@ -442,3 +446,12 @@
 }
 
 .draft-sheet__chip:hover { background: rgba(0, 212, 170, 0.11); }
+
+.draft-sheet__composer:focus-within { border-color: #00D4AA66; box-shadow: 0 0 0 3px #00D4AA12; }
+
+/* A keyboard-sized viewport belongs to the conversation. The first line and
+   composer remain usable while the room is temporarily covered. */
+@media (max-width: 1099px) and (max-height: 480px) {
+  .draft-sheet { top: 36px; }
+  .draft2__forming { display: none; }
+}

@@ -417,3 +417,18 @@
   .guest-hero__ghost { padding-bottom: 62px; }
 }
 @media (min-width: 1440px) { .guest-hero__head { font-size: 88px; } }
+
+/* L2: the room itself follows the hero, with no second heading above it.
+   The regular signed-in draft keeps its own Back/header and suggestion chips. */
+.guest-landing__room .draft-sheet__above { display: none; }
+.guest-landing__room .draft-sheet { background: var(--glass-panel); }
+.guest-landing__room .draft2__room { opacity: 0.46; }
+.guest-landing__room .draft2__veil { background: linear-gradient(180deg, rgba(6,10,10,0.5), rgba(6,10,10,0.78)); }
+@media (max-width: 1099px) {
+  .guest-landing__room .draft2__header { display: none; }
+  .guest-landing__room .draft2__forming { top: 6%; }
+}
+@media (min-width: 1100px) {
+  .guest-landing__room .dsk-root:has(.draft2) .dsk-top { display: none; }
+  .guest-landing__room .draft2--desk .draft2 { background: #0D1715; }
+}

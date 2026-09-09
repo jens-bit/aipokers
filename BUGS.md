@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-92 — draft repeats the casino sign and covers its destination — FIXED on overnight branch
+BirthScreen retained an older horizontal THE CASINO tag after HomeFlat acquired its vertical CASINO sign. The unit regression reproduced the duplicate. The draft now uses the one vertical sign and the reference's empty chair. Wave 61's half-height glass replaces the older fixed 206px edge, with a width-dependent minimum that keeps the whole sign above the glass in a wide, short Telegram window. At keyboard-sized heights the forming preview yields space to the conversation. Actual browser boxes verify clearance at 390 and 490 widths; the old jsdom parseFloat(top) assertion intentionally becomes the responsive rule because max()/container units cannot resolve to pixels there.
+
+### BUG-93 — focusing the guest recruiter pulls the room below the screen — FIXED on overnight branch
+The actual CTA browser check reproduced a 20px burgundy strip after scrolling, and a competing delayed BirthScreen helper left a 4px strip on desktop. GuestLanding now owns its scroll and focuses with preventScroll; embedded guest drafts do not run the second helper. Ordinary drafts keep keyboard assistance only when their field is actually outside the visible viewport. Regression tests cover visible/obscured fields and five real viewport sizes with an exact settled room origin, hit-tested typing, and shorter-height conversation access. A missing guestBoot prop forwarding introduced during this repair was caught by all five browser cases and corrected before the gate passed.
+
 ### BUG-89 — desktop casino Board drops the replay action — FIXED on overnight branch
 App passed onReplay to DesktopHome, which neither read it nor forwarded a callback to CasinoScreen. An owned recorded-hand row therefore had no replay action. The regression failed on the disabled row before repair. DesktopHome now resolves the same owner-authorized shared-hand lookup into its own theatre; Back restores the casino's remembered Board selection. Expired recordings fall back to the actual companion. Browser checks exercise the real board row at 1440 and 1920 widths; the initial new test wrongly expected Floor after Back and was corrected to the existing persisted Board behavior.
 
