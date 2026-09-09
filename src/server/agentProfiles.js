@@ -1978,12 +1978,15 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // table is at home; it is what he is DOING that changes, which is why it
   // lands on the routine and not on `where`.
   const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
-  // C5 / BUG-131: an accepted visit is visible to its owner even though home
-  // games never write activeTableId. This is a display projection only: the
-  // kitchen-game accounting/fatigue firewall above remains unchanged.
-  const visitingGame = agent.visiting && homeTable
+  // BUG-162 / C5: residents and accepted visitors both have a real Watch
+  // destination. Kitchen games never write activeTableId; read their current
+  // registry seat instead. This is a display projection only: casino presence,
+  // accounting and fatigue above remain unchanged. getLiveGame rejects closed
+  // tables/missing seats and only includes this agent's cards for its owner.
+  const kitchenPreview = homeTable
     ? (liveTables?.getLiveGame?.(homeTable.tableId, { agentId: agent.id, includeHole: owner }) ?? null)
     : null;
+  const kitchenGame = kitchenPreview ? { ...kitchenPreview, home: true } : null;
   // BUGS-B/3: the table he is at is the one that EXISTS, not the one his
   // record still names. home.js's first law is that location is derived and
   // never declared, and this was the one place still handing it the stored
@@ -2095,7 +2098,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     unseenRecap: !!agent.unseenRecap,
     proposal: owner ? (agent.proposal ?? null) : null,
     presence,
-    liveGame: liveGame ?? visitingGame,
+    liveGame: liveGame ?? kitchenGame,
     // HOME-STATE-1: `location` is where he is (home | casino | table) with the
     // table and room he is at and when he got there; `routine` is what he is
     // doing at home, and is null anywhere else. `study` is the tape room he is
@@ -2143,6 +2146,8 @@ export function floorSnapshot(userId, { owner = false } = {}) {
       proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
       activeTableId: p.activeTableId ?? null,
       liveGame: p.liveGame,
+      // The state tag can recognize Home play without changing casino presence.
+      homeTableId: p.homeTableId,
       // HOME-STATE-1: the roster card draws where he is, so it rides the
       // projection the floor already pushes rather than costing a second call.
       location: p.location,

@@ -60,7 +60,8 @@ export function ringSeats(liveGame) {
  * @param money     how this product writes an amount (lib/wallet's `money`)
  */
 export function MiniFelt({ liveGame, accent = '#00D4AA', width = 118, hot = false, money }) {
-  const pot = Number(liveGame?.pot) || 0;
+  // Home's practice pot is real table state, but is not a money result.
+  const pot = liveGame?.home ? 0 : Number(liveGame?.pot) || 0;
   const board = Array.isArray(liveGame?.board) ? liveGame.board.slice(0, 5) : [];
   const ring = ringSeats(liveGame);
 

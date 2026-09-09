@@ -6,6 +6,11 @@ import { fetchMock, telegram } from '../../test/harness.js';
 
 const agent = { id:'c4', name:'Balanced v2.1', mood:{state:'confident',heat:22}, fatigue:'worn', nature:{name:'Rock'}, pocket:{balance:1200}, attrs:{READS:62}, bornAt:Date.UTC(2026,7,4), sessionLog:[] };
 beforeEach(() => { telegram.signIn(); });
+it('BUG-162: Home practice results do not replace real casino history on Profile', () => {
+  const home = {...agent,homeTableId:'kitchen',liveGame:{tableId:'kitchen',net:75,heroSessionHands:80}};
+  expect(profileSession(home)).toBeNull();
+  expect(profileSession({...home,sessionLog:[{net:-820,hands:42}]})).toMatchObject({label:'LAST SESSION',net:-820,hands:42});
+});
 it('C4 names him once, shows actual condition and keeps the composer', () => {
   render(<AgentProfileOverview agent={agent} attrLog={[]}/>);
   expect(screen.getAllByText(agent.name)).toHaveLength(1);

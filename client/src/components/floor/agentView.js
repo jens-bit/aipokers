@@ -47,8 +47,18 @@ export function hasUnseenRecap(agent) {
   return agent?.unseenRecap === true;
 }
 
+// A scoped, current Home seat. A remembered table id by itself is not live.
+export function homeGameOf(agent) {
+  const game = agent?.liveGame;
+  return agent?.homeTableId && game?.tableId === agent.homeTableId ? game : null;
+}
+
 // live > recap > resting. Drives the chip marker and the zoom's state tag.
 export function stateOf(agent) {
+  // BUG-162: casino presence deliberately excludes kitchen games. A current
+  // scoped Home preview is still LIVE on Profile/Watch; a stale table id alone
+  // is not evidence, and must not turn a Home seat into a casino floor player.
+  if (homeGameOf(agent)) return 'live';
   if (presenceOf(agent) === 'playing') return 'live';
   if (hasUnseenRecap(agent)) return 'recap';
   return 'resting';
@@ -76,10 +86,10 @@ export function lastMomentOf(agent) {
 }
 
 // CHAT-2: the number the thread header carries. At a table it is the stack he
-// is actually sitting behind; away from one it is the pocket he would sit down
-// with. Never invented — an agent with neither shows nothing rather than $0.
+// is actually sitting behind at the casino; Home practice chips never replace
+// his pocket. An agent with neither shows nothing rather than $0.
 export function stackOf(agent) {
-  const live = agent?.liveGame?.heroStack;
+  const live = homeGameOf(agent) ? null : agent?.liveGame?.heroStack;
   if (Number.isFinite(live)) return live;
   const pocket = agent?.pocket?.balance;
   if (Number.isFinite(pocket)) return pocket;

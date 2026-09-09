@@ -34,7 +34,7 @@ import { useEffect, useState } from 'react';
 import { MoodGhost } from './system/MoodGhost.jsx';
 import { useSheetDrag } from '../hooks/useSheetDrag.js';
 import { accentFor } from './floor/atoms.jsx';
-import { heatOf, moodOf, presenceOf, hasUnseenRecap } from './floor/agentView.js';
+import { heatOf, moodOf, presenceOf, hasUnseenRecap, homeGameOf } from './floor/agentView.js';
 import { roomLabel } from './home/AwayWall.jsx';
 import { identityOf } from '../lib/identity.js';
 import { fetchWallet, money, signedMoney } from '../lib/wallet.js';
@@ -67,7 +67,7 @@ export function hasUnread(agent) {
 
 // C5's result is a real session result, not lifetime earnings or a guessed night.
 export function rosterResult(agent) {
-  if (Number.isFinite(agent?.liveGame?.net)) return { value: agent.liveGame.net, label: 'Current session result' };
+  if (!homeGameOf(agent) && Number.isFinite(agent?.liveGame?.net)) return { value: agent.liveGame.net, label: 'Current session result' };
   const recent = agent?.sessionLog?.at(-1);
   return { value: Number.isFinite(recent?.net) ? recent.net : null, label: 'Last session result' };
 }

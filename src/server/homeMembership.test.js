@@ -147,6 +147,79 @@ test('BUG-155: host and accepted visitor retain exact-agent cards, reasoning and
   assert.equal(stateOf(hostPublic).state.sessionId, null);
 });
 
+test('BUG-162: both kitchen owners receive their actual live Profile destination without casino accounting', async () => {
+  const table = await kitchen();
+  table.handsThisSession = 80;
+  const before = [HOST, VISITOR].map(uid => {
+    const a = profiles.agentsOf(uid)[0];
+    return { stats:structuredClone(a.stats), sessionLog:structuredClone(a.sessionLog ?? []), pocket:structuredClone(a.pocket), fatigue:a.fatigue };
+  });
+  for (const [index, uid, id] of [[0, HOST, hostAgent], [1, VISITOR, guestAgent]]) {
+    const response = await fetch(base + '/api/agents?userId=' + uid, {headers:{'x-telegram-init-data':credential(uid)}});
+    assert.equal(response.status, 200);
+    const p = (await response.json()).agents.find(a => a.id === id);
+    const expected = registry.getLiveGame(table.tableId, {agentId:id, includeHole:true});
+    assert.equal(p.liveGame?.tableId, table.tableId, 'Profile must have the seated agent’s real Watch destination');
+    assert.deepEqual(p.liveGame.heroHole, expected.heroHole);
+    assert.equal(p.liveGame.heroHole.length, 2);
+    assert.equal(p.homeTableId, table.tableId);
+    assert.equal(p.liveGame.home, true, 'preview consumers must distinguish practice chips from casino money');
+    assert.equal(p.activeTableId, null, 'Home membership is not a casino deployment');
+    assert.equal(p.presence, 'resting', 'legacy casino presence stays scoped to casino activity');
+    assert.equal(p.sessionHands, 0, 'Home hands do not become casino fatigue inputs');
+    assert.equal(p.effectiveAttrs, null);
+    assert.deepEqual(profiles.agentsOf(uid)[0].stats, before[index].stats);
+    assert.deepEqual(p.sessionLog, before[index].sessionLog);
+    assert.deepEqual(profiles.agentsOf(uid)[0].pocket, before[index].pocket);
+    assert.equal(profiles.agentsOf(uid)[0].fatigue, before[index].fatigue);
+    const wire = profiles.floorSnapshot(uid, {owner:true}).find(a => a.id === id);
+    assert.equal(wire.liveGame?.tableId, table.tableId);
+    assert.equal(wire.homeTableId, table.tableId, 'compact pushes must identify the same Home scope');
+  }
+  assert.equal(profiles.presentedRoster(HOST, {owner:true})[0].location.where, 'home');
+  assert.notEqual(profiles.presentedRoster(VISITOR, {owner:true})[0].location.where, 'home');
+  assert.equal(registry.seatedAgentCount(), 0, 'the casino live total excludes both kitchen players');
+});
+
+test('BUG-162: kitchen Profile projections never expose another agent’s private cards', async () => {
+  const table = await kitchen();
+  for (const [uid, id] of [[HOST, hostAgent], [VISITOR, guestAgent]]) {
+    const p = profiles.presentAgentById(id, uid, {owner:false});
+    assert.equal(p.liveGame?.tableId, table.tableId);
+    assert.equal(p.liveGame.heroHole, null);
+    assert.ok(p.liveGame.seats.every(seat => !seat.holeCards && !seat.heroHole));
+    // The established GET contract allows a public projection, not owner fields.
+    const response = await fetch(base + '/api/agents?userId=' + uid, {headers:{'x-telegram-init-data':credential(THIRD)}});
+    assert.equal(response.status, 200);
+    const publicAgent = (await response.json()).agents.find(a => a.id === id);
+    assert.equal(publicAgent.liveGame.heroHole, null, 'the public API projection excludes private cards');
+    assert.equal(publicAgent.strategy, undefined);
+    assert.equal(publicAgent.chatHistory, undefined);
+  }
+  const visitingBody = profiles.homeSnapshot(HOST, {owner:true, visitors:visit.visitBodiesFor(HOST)}).agents.find(a => a.id === guestAgent);
+  assert.equal(visitingBody.guest, true);
+  assert.equal(visitingBody.liveGame, undefined, 'the room body excludes live cards entirely');
+  assert.equal(visit.visitBodiesFor(HOST).find(a => a.id === guestAgent).liveGame.heroHole, null, 'owning the room is not owning its visitor');
+  assert.equal(profiles.presentAgentById(hostAgent, THIRD, {owner:true}), null);
+});
+
+test('BUG-162: absent, removed and closed kitchen seats cannot leave a live Profile destination', async () => {
+  assert.equal(profiles.presentedRoster(HOST, {owner:true})[0].liveGame, null);
+  const table = await kitchen();
+  const index = table.agentIds.indexOf(hostAgent);
+  table.agentIds[index] = null;
+  const removed = profiles.presentedRoster(HOST, {owner:true})[0];
+  assert.equal(removed.liveGame, null);
+  assert.equal(removed.homeTableId, null);
+  table.agentIds[index] = hostAgent;
+  table.closeTable('BUG-162 ended');
+  for (const uid of [HOST, VISITOR]) {
+    const ended = profiles.presentedRoster(uid, {owner:true})[0];
+    assert.equal(ended.liveGame, null);
+    assert.equal(ended.homeTableId, null);
+  }
+});
+
 test('BUG-155: host and accepted visitor can join as humans and receive their own next-hand cards', async () => {
   const table = await kitchen(), h = await join(HOST), v = await join(VISITOR);
   assert.equal(h.reply.type, 'joined'); assert.equal(v.reply.type, 'joined');

@@ -17,6 +17,12 @@ const live = (over = {}) => ({
 });
 
 describe('BUGS-A job 8 · the miniature felt', () => {
+  it('BUG-162: Home previews keep the real board without inventing a money pot', () => {
+    const {container}=render(<MiniFelt liveGame={live({home:true,pot:480})} money={money}/>);
+    expect(container.querySelectorAll('.home-frame__card')).toHaveLength(3);
+    expect(container.querySelector('.home-frame__felt')).not.toBeNull();
+    expect(container.querySelector('.home-frame__pot')).toBeNull();
+  });
   it('draws the board as far as it has run, and no further', () => {
     const { container } = render(<MiniFelt liveGame={live()} money={money} />);
     expect(container.querySelectorAll('.home-frame__card')).toHaveLength(3);

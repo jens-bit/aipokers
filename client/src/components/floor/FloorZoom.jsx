@@ -2,7 +2,7 @@
 // to speak its latest moment. Ported from ZoomView in mood-casino.jsx.
 
 import { FloorGhost, MoodChip, StateTag, PotTicker, MOODS, safeMood, accentFor } from './atoms.jsx';
-import { moodOf, heatOf, causeOf, stateOf, lastMomentOf, presenceOf } from './agentView.js';
+import { moodOf, heatOf, causeOf, stateOf, lastMomentOf, presenceOf, homeGameOf } from './agentView.js';
 import { LiveBar } from '../system/LiveBar.jsx';
 import { fatigueOf, FATIGUE, fatigueLineFor } from '../../lib/attributes.js';
 
@@ -53,7 +53,8 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
   const m = MOODS[safeMood(mood)];
   const accent = accentFor(agent, index);
   const state = stateOf(agent);
-  const playing = presenceOf(agent) === 'playing';
+  const homeLive = !!homeGameOf(agent);
+  const playing = presenceOf(agent) === 'playing' || homeLive;
   const cause = causeOf(agent);
   const pot = Number.isFinite(livePot) && livePot > 0 ? livePot.toLocaleString() : null;
 
@@ -96,6 +97,7 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
             blinds={liveGame.blinds || ''}
             street={liveGame.street || ''}
             pot={liveGame.pot || 0}
+            note={homeLive ? 'Home game' : undefined}
             equity={liveGame.equity || null}
             action={liveGame.lastAction || null}
             board={parseBoard(liveGame.board)}

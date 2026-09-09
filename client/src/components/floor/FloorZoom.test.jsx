@@ -14,8 +14,9 @@
 // jsdom does no layout, so the overlap is arithmetic on the declared boxes and
 // the stacking is read off getComputedStyle with floor.css loaded.
 
-import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../../styles/floor.css';
 
@@ -36,6 +37,17 @@ const renderZoom = (props = {}) => render(
 );
 
 const px = (v) => parseFloat(v) || 0;
+
+it('BUG-162: Home players reached from the casino zoom can Watch without dollar practice winnings', async()=>{
+  const onWatch=vi.fn(), onDeploy=vi.fn();
+  renderZoom({agent:{...playingAgent,presence:'resting',activeTableId:null,homeTableId:'kitchen',liveGame:{tableId:'kitchen',home:true,board:['Ah','Kd','2c'],pot:480}},onWatch,onDeploy});
+  expect(screen.queryByText('$480',{exact:true})).toBeNull();
+  expect(screen.getByText('Home game',{exact:true})).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Deal him in'})).toBeNull();
+  await userEvent.setup().click(screen.getByRole('button',{name:'Watch the table'}));
+  expect(onWatch).toHaveBeenCalledOnce();
+  expect(onDeploy).not.toHaveBeenCalled();
+});
 
 describe('FIX-4 the zoom back button and the speech bubble', () => {
   beforeEach(() => { telegram.signIn(); });

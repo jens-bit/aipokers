@@ -5,6 +5,26 @@ import { AgentProfileScreen } from './AgentProfileScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 const agent = { id:'first',name:'First',attrs:{READS:50},mood:{state:'neutral'},presence:'resting',location:{where:'home'},pocket:{balance:2000},sessionLog:[] };
 beforeEach(()=>{telegram.signIn();fetchMock.route('/hands',{recentHands:[]});fetchMock.route('/flagged',{flaggedHands:[]});});
+it.each([false,true])('BUG-162: a live Home player offers Watch, not an unsupported casino call-in (visitor %s)', async(visiting)=>{
+  const user=userEvent.setup(), onWatch=vi.fn(), onCallIn=vi.fn(), onDeploy=vi.fn();
+  const seated={...agent,attrLog:[],homeTableId:'kitchen',liveGame:{tableId:'kitchen',heroStack:200},...(visiting?{visiting:{hostName:'Fidde'}}:{})};
+  render(<AgentProfileScreen companion agent={seated} onWatch={onWatch} onCallIn={onCallIn} onDeploy={onDeploy}/>);
+  expect(screen.queryByRole('button',{name:'Call him in'})).toBeNull();
+  expect(screen.queryByRole('button',{name:'Deploy'})).toBeNull();
+  await user.click(screen.getByRole('button',{name:'Watch',exact:true}));
+  await user.click(screen.getByRole('button',{name:'Watch live game'}));
+  expect(onWatch).toHaveBeenCalledTimes(2);
+  expect(onWatch).toHaveBeenLastCalledWith(expect.objectContaining({id:agent.id,homeTableId:'kitchen'}));
+  await user.click(screen.getByRole('button',{name:'More actions'}));
+  await user.click(screen.getByRole('button',{name:'His sheet'}));
+  expect(screen.queryByRole('button',{name:'Call him in'})).toBeNull();
+  expect(screen.queryByRole('button',{name:'Deploy'})).toBeNull();
+  const watchButtons=screen.getAllByRole('button',{name:'Watch',exact:true});
+  await user.click(watchButtons.find(button=>button.classList.contains('profile-actions__primary')));
+  expect(onWatch).toHaveBeenCalledTimes(3);
+  expect(onCallIn).not.toHaveBeenCalled();
+  expect(onDeploy).not.toHaveBeenCalled();
+});
 it('C4 opens His sheet and returns without losing the profile route', async()=>{
   fetchMock.route('/api/agents',{agent:{...agent,attrLog:[]}});
   const user=userEvent.setup(), onBack=vi.fn();

@@ -62,6 +62,12 @@ describe('BUGS-A job 9 · where he is, in the room own words', () => {
 });
 
 describe('BUGS-A job 9 · the sheet', () => {
+  it('BUG-162: roster preserves pocket and casino results during no-stakes Home play', () => {
+    render(<RosterRow agent={agent('h','Home player',{homeTableId:'kitchen',liveGame:{tableId:'kitchen',net:75,heroStack:200},pocket:{balance:3000},sessionLog:[{net:-120}]})} index={0} onOpen={()=>{}}/>);
+    expect(screen.getByText('$3,000')).toBeInTheDocument();
+    expect(screen.getByText('−$120')).toBeInTheDocument();
+    expect(screen.queryByText('+$75')).toBeNull();
+  });
   it('BUG-69: the C5 row carries a full name, result and actual pocket separately', async () => {
     fetchMock.route('/api/agents', { agents: [{ ...AT_TABLE, name: 'The Very Patient Grinder', liveGame: { tableId: 't1', heroStack: 1800, net: -120 }, pocket: { balance: 410 } }] });
     render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
@@ -261,8 +267,12 @@ describe('VISIT-1 · send him to a friend', () => {
   });
 });
 
- it('BUG-131: a visitor at a friend table has a live marker, stakes and current result',()=>{
+ // BUG-162 supersedes BUG-131's money assertion: the 1/2 kitchen pot is
+ // practice play, so its +95 is not a dollar result. Live/stakes remain real.
+ it('BUG-131 / BUG-162: a visiting table keeps live/stakes but not practice winnings as money',()=>{
  const traveler={id:'v1',name:'Traveler',visiting:{hostName:'Fidde'},homeTableId:'home-friend',location:{where:'casino'},liveGame:{tableId:'home-friend',blinds:'1/2',net:95},pocket:{balance:410}};
  render(<ul><RosterRow agent={traveler} index={0} onOpen={()=>{}}/></ul>);
- expect(screen.getByRole('img',{name:'Live at a table'})).toBeInTheDocument();expect(screen.getByText('1/2',{exact:true})).toBeInTheDocument();expect(screen.getByText('+$95',{exact:true})).toBeInTheDocument();
+ expect(screen.getByRole('img',{name:'Live at a table'})).toBeInTheDocument();expect(screen.getByText('1/2',{exact:true})).toBeInTheDocument();expect(screen.queryByText('+$95',{exact:true})).toBeNull();
+ expect(screen.getByTitle('Last session result')).toHaveTextContent('—');
+ expect(screen.getByText('$410',{exact:true})).toBeInTheDocument();
  });

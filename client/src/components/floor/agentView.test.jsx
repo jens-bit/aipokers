@@ -20,6 +20,15 @@ import {
 } from './agentView.js';
 import { playingAgent, restingAgent } from '../../test/fixtures/agents.js';
 
+it('BUG-162: Home practice chips never replace the actual pocket in Chat', () => {
+  const home = {homeTableId:'kitchen',liveGame:{tableId:'kitchen',heroStack:200}};
+  expect(stackOf({...home,pocket:{balance:3000}})).toBe(3000);
+  expect(stackOf({...home,pocket:{balance:0}})).toBe(0);
+  expect(stackOf(home)).toBeNull();
+  expect(stackOf({...home,bankroll:900})).toBe(900);
+  expect(stackOf({liveGame:{tableId:'casino',heroStack:200},pocket:{balance:3000}})).toBe(200);
+});
+
 describe('presenceOf', () => {
   it('takes the API answer when there is one', () => {
     expect(presenceOf(playingAgent)).toBe('playing');
@@ -68,6 +77,21 @@ describe('causeOf', () => {
 });
 
 describe('stateOf', () => {
+  it('BUG-162: a proven Home game is live without turning its agent into a casino player', () => {
+    for (const presence of ['resting', 'broke']) {
+      const agent = { presence, homeTableId:'home-host', liveGame:{tableId:'home-host'}, unseenRecap:true };
+      expect(stateOf(agent)).toBe('live');
+      expect(presenceOf(agent)).toBe(presence);
+      expect(splitFloor([agent]).playing).toHaveLength(0);
+    }
+  });
+
+  it('BUG-162: a stale or missing Home preview does not claim a live game', () => {
+    expect(stateOf({presence:'resting', homeTableId:'home-host', liveGame:null})).toBe('resting');
+    expect(stateOf({presence:'resting', homeTableId:'home-host', liveGame:{tableId:'home-old'}})).toBe('resting');
+    expect(stateOf({presence:'resting', liveGame:{tableId:'home-old'}})).toBe('resting');
+  });
+
   it('is live while playing, whatever else is true', () => {
     expect(stateOf(playingAgent)).toBe('live');
     expect(stateOf({ ...playingAgent, unseenRecap: true })).toBe('live');
