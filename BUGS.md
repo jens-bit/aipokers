@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-130 — welcome and notification buttons retain the old bot destination — FIXED on design branch
+Final brand review found OPEN AGENTIC POKER and a hard-coded AigenicPokerBot/game fallback in guestBot/notify. Two red server regressions reproduced the old label and destination. Both now resolve MINI_APP_URL first, then configured TELEGRAM_BOT_USERNAME (main-app launch), then PUBLIC_BASE_URL. URL search parameters preserve an existing theme/query and safely replace startapp. Missing/invalid configuration omits the unusable button rather than linking another bot; deployment must supply a valid destination. Tests use a fake bot and explicitly configured test app. The first verification-script run failed because its shebang had been displaced; restoring the first line fixed that harness error. Three URL tests, 13 guest-bot tests, 16 notifier tests and all 44 notification-script checks pass. No actual message was sent.
+
 ### BUG-123 — profile retirement deletes the record instead of archiving — FIXED on design branch
 The profile still called DELETE despite the server already offering POST /:id/retire. It now uses that authenticated archival endpoint, which finishes an active hand, collects the pocket and retains history. The old DELETE expectation was replaced because it encoded the wrong contract. Red tests reproduced the DELETE and ignored refusal; final client integration and real-browser cancellation/refusal/success pass at 390/1440. The first desktop fixture omitted the server's HOME_STATE retirement push; adding the actual message made its room/one-fewer-chair check pass. No real agent was retired.
 

@@ -1,3 +1,5 @@
+// A configured test app, never a real delivery destination.
+process.env.MINI_APP_URL='https://t.me/railbird_test/game';
 // src/server/notify.test.js — NOTIFY-1
 //
 // The budget is the design, so the budget is what gets asserted. Four suites,
@@ -419,3 +421,7 @@ test('notifyBudget answers on a deployment with the notifier switched off', () =
   assert.equal(board.max, BUDGET.maxPerDay);
   assert.equal(board.enabled, false, 'the cap is real, nothing is sending, and both are said out loud');
 });
+
+ test('BUG-130: notification links preserve configured app path and query',async()=>{
+ const prior=process.env.MINI_APP_URL;try{process.env.MINI_APP_URL='https://t.me/configured_bot/play?theme=dark';clock=localAt(28,10);attach();await notifyEvent('session_ended',{ownerId:'brand130',agentId:'a130',agentName:'Railbird',opener:'A good night.',pnl:40,hands:8,endedAt:clock});const url=new URL(bot.sent[0].opts.reply_markup.inline_keyboard[0][0].url);assert.equal(url.pathname,'/configured_bot/play');assert.equal(url.searchParams.get('theme'),'dark');assert.equal(url.searchParams.get('startapp'),'agent_a130');}finally{detachNotify();if(prior===undefined)delete process.env.MINI_APP_URL;else process.env.MINI_APP_URL=prior;}
+ });

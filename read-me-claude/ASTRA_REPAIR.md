@@ -1,5 +1,7 @@
 # Astra repair and integration — 2026-09-08
 
+**Historical initial repair.** The current implementation and release status are in [MORNING_REPORT.md](MORNING_REPORT.md) and [DESIGN_GAP.md](DESIGN_GAP.md). The remaining-work list below describes 8 September, not the completed local design batches.
+
 Jens asked for repairs after the initial audit, explicitly cancelled the collar stage, and asked Astra to perform the usual integrator checks while Claude was unavailable. This batch addresses the confirmed security failures and a first set of home problems. It does not certify the whole product as ready to share.
 
 ## What changed

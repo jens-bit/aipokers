@@ -1,43 +1,46 @@
-# Railbird — progress and handoff, 9 September 2026
+# Railbird — release handoff, 9 September 2026
 
-Thirty-seven implementation batches are prepared. The full design/spec goal remains active. This is a tested local milestone, not final friends-shareable sign-off or a deployment claim.
+The main design and interaction repairs are implemented locally. This is ready for Jens's release playtest after the final integration gate and push; it is not a claim that production is already updated or every historical illustration is pixel-identical.
 
-Home and casino use the available phone space and contextual navigation. The kitchen table/home games remain, wants have one answer surface, and table taps work. The companion, conversation, compact profile, roster, absence, fridge and TV use actual data. Desktop has the wider room, permanent companion column and fitted Watch/Sit with working actions and return routes.
+## What you should notice
 
-First-agent entry uses four forming stages, no collar, and persistent hood/glow. Batch29 carries that identity through server table messages, casino normalization, floor/preview/deployment and both Watch renderers. Batch30 aligns the phone Board with N3: separate Live now and Tonight above the room doors. The welcome page uses the real entry/room and product captures; Railbird mark/icons/loading assets are prepared.
+- Home and casino use contextual navigation and the available phone shell. The kitchen table remains, actual table taps work, and a pending want has one answer surface. Home bodies use their saved appearance, walk out/return, and retain their real routines.
+- The companion, private conversation, profile, roster, fridge, safe, TV and replay routes are connected. Retirement archives the record through the correct endpoint. Casino pinch enlarges the same felt, and a second pinch opens Watch.
+- Your full-screen phone Watch composition is preserved. Opponent read taps work, hidden cards stay private, expression/brow holds are independent, celebrations and gesture-unlocked audio play, and mute is reachable.
+- First-agent entry uses four forming stages, no collar, and persistent hood/glow. Empty/quiet/history states explain the next action without inventing results. Desktop retains the room, roster and conversation with working Watch/Sit/action/return at 1280, 1440 and 1920.
+- Railbird assets, header motion, locally served design fonts and portrait/wide share cards are prepared. The welcome page now uses ten refreshed actual product renders. Bot entry and notification buttons use configured destinations instead of the old hard-coded bot.
 
-Home departures and returns now move through the doorway instead of unmounting in place. Returning agents show their actual session result briefly, and receive cards when seated.
+## Look at the result
 
-Audio now plays after a user gesture, with original C8 swell/reports/knock timing and reachable phone/desktop mute controls. A listening preview is [c8-original-preview.wav](../client/e2e/sounds/c8-original-preview.wav).
+[Current phone Home, casino and Watch](../client/e2e/shots/railbird-release-phone.png) · [Current desktop Home, casino, Watch and Sit](../client/e2e/shots/railbird-release-desktop.png).
 
-## Latest verification
+These are the actual app with controlled example accounts, not production screenshots. [DESIGN_GAP.md](DESIGN_GAP.md) maps the references, verified states and deliberate differences; [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md) records each batch, failed checks and corrections. The supplied archive was used as reference and was not edited.
 
-Batch37: 107 server checks, 2241 client checks and seven end-to-end scripts passed; two intentional server live skips and two existing client todos remain. All 58 browser checks, seven built smoke journeys and 20 Home layout checks passed. All seven first-use states, hot-table and four wide desktop comparisons were inspected. Opponent read taps, quiet-shift guidance and first-session history are repaired; the header has its authored motion. Main36 post-integration passed; main37 integration follows.
+## Verification
 
-Retirement now finishes the hand and keeps the record through the correct server endpoint. The casino has its authored two-stage pinch camera; ordinary taps still open Watch. A fresh account no longer claims one session of history.
+Final branch checks pass 108 server / 2241 client / seven e2e; the corrected full e2e run passed in 112.7s. Batch37 main also passed. Batch38 main integration follows; its outcome is stated in the final handoff message. There are two intentional live server skips and two existing client todos. The 66-case entry/draft/desktop browser run, build, seven fresh built smoke journeys and 20 Home2 checks passed. The final bot-link repair uses fake bots and a scratch database; no real notification was sent.
 
-The app now serves its original design fonts locally. The first smoke exposed an external Playfair request failure; the new blocked-Google tests and fresh built smoke pass. The original Chrome error's cause remains unproven.
+The controlled sprite audit covers 101 native-size cases, all matching the reference pixels. This does not assert every possible character, game state or viewport is identical. Earlier unexplained Windows/test/capture intermittency stays in BUGS.md; later passing runs are not a diagnosis.
 
-No Claude/Opus review, real notification, paid model call, account update or production change is claimed. The documented overnight execution interruption remains in the work log; the paused heartbeat has not been restarted. BUGS.md retains unexplained earlier Windows/test/capture intermittency rather than claiming later passes prove their cause.
+## What remains outside local implementation
 
-## Work still required
+1. Push and wait for the deploy for that exact commit to go green, then reopen the Mini App. A push alone does not prove the new bundle is live.
+2. Confirm the intended Telegram app destination/account artwork and guest rollout. Last public config inspected had guest=false and botUsername=agenticpoker_bot. These settings were not changed. MINI_APP_URL takes precedence over TELEGRAM_BOT_USERNAME; a username-only launch requires the bot's Main Mini App to be configured. [Telegram's launch documentation](https://core.telegram.org/bots/webapps#launching-the-main-mini-app). Invalid/missing destination configuration now yields no false old-bot button.
+3. Play one real phone session: Home table, one want, whisper, casino Watch and return; then draft from a fresh account. This validates production authentication, real model behavior and latency, Telegram keyboard/viewport behavior and personal visual/audio preference. Those cannot be certified by local fixtures.
 
-[DESIGN_GAP.md](DESIGN_GAP.md) is now the current frame-by-frame inventory; [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md) preserves the earlier audit and batch notes.
+Rare birth tiers and coordinated future flat-day choreography remain explicitly deferred in the spec. Undesigned visit/referral/share variants are not labelled design-complete. The standalone growth notification from the old board is absent from the later v14 shipped ladder; the policy difference is recorded. No 3D redesign was added.
 
-1. S1/S2 are now implemented: portrait/wide formats, Railbird branding, saved appearance and truthful net/pot labels. External Telegram delivery and account configuration still need release verification. C8 audio uses original synthesis; the preview is available for listening feedback.
-2. Empty/hot/1920 comparisons are complete locally, with deliberate later-design differences recorded.
-3. Refresh final product captures and branding applications, then recheck the first-thirty-seconds journey.
-4. Integrate, hand off the push, verify deployed revision and production behavior. Last public config had guest=false and botUsername=agenticpoker_bot. Code availability does not change those settings.
+## Push from PowerShell
 
-Explicitly deferred rare birth rolls/future flat-day choreography and undesigned visit/referral/share variants are distinguished from current missing requirements. The collar remains cancelled.
+After the final message confirms main's gate passed:
 
-## Deployment
-
-Jens pushes after the final integration gate. A successful push starts deployment; it does not prove that the app is serving the new build. The eventual command remains:
-
-```powershell
+~~~powershell
 Set-Location C:\Projects\ai-poker
 git push origin main
-```
+~~~
 
-Automatic approval review rejected npm audit because it sends dependency metadata to npm. That separate permission question remains unanswered; the audit has not run. Installs used --no-audit.
+This follows HOW_WE_WORK: the integrator prepares main and Jens pushes. No push, production database mutation, paid model call, external share/notification or Claude/Opus review is claimed.
+
+My assessment: your diagnosis was right. The gameplay presentation gave a clearer sense of place and action than the surrounding screens. The bottleneck was the implementation and its visual verification, not a need to add 3D. You had enough product direction to identify that gap; the process needed a reliable way to distinguish imported design, implemented code, inspected screens and deployed behavior. The current inventory and saved pairs make those distinctions reviewable.
+
+Automatic approval review rejected npm audit because it sends dependency metadata to npm. The separate approval question is still unanswered, so that audit has not run; installs used --no-audit.
