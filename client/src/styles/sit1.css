@@ -377,3 +377,8 @@
   color: var(--sys-gold, #CDB380);
   cursor: pointer;
 }
+
+.table-sheet__sit-go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

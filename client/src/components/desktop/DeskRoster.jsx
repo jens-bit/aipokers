@@ -33,14 +33,14 @@ function DeskRosterRow({agent,active,onClick}) {
 }
 
 export function DeskRoster({
-  agents = [], activeId = null, watchedId = null, onSelect, onDraftAgent,
+  agents = [], loading = false, activeId = null, watchedId = null, onSelect, onDraftAgent,
 }) {
   const seatsLeft = Math.max(0, MAX_SEATS - agents.length);
   return (
     <div className="dsk3-roster" data-testid="desk-roster">
       <div className="dsk3-roster__head">
         <span className="dsk-label" style={{ fontSize: 9 }}>Your agents</span>
-        <span className="dsk3-roster__count">{agents.length} of {MAX_SEATS}</span>
+        <span className="dsk3-roster__count">{loading ? 'Reading the room…' : `${agents.length} of ${MAX_SEATS}`}</span>
       </div>
       <div className="dsk3-roster__rows">
         {agents.map(agent => (
@@ -51,7 +51,7 @@ export function DeskRoster({
             onClick={() => onSelect?.(agent)}
           />
         ))}
-        {seatsLeft > 0 && onDraftAgent && (
+        {!loading && seatsLeft > 0 && onDraftAgent && (
           <button type="button" className="dsk3-roster__draft" onClick={onDraftAgent}>
             <span className="dsk3-roster__draft-plus" aria-hidden>+</span>
             <span>

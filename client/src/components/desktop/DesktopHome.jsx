@@ -123,10 +123,13 @@ export function DesktopHome({
 
   const load = useCallback(() => {
     fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
-      .then((r) => r.json())
-      .then((data) => setAgents(Array.isArray(data.agents) ? data.agents : []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!Array.isArray(data?.agents)) return;
+        setAgents(data.agents);
+        setLoading(false);
+      })
+      .catch(() => {});
   }, []);
 
   // DP-2: after a fund or a collect, re-read both sides of the transfer rather
@@ -298,7 +301,7 @@ export function DesktopHome({
     const leave=()=>{setPublicTableId(null);onLeave?.();};
     const notice=tableError || (connection==='reconnecting' ? 'Reconnecting…' : !liveGame ? 'Opening the table…' : null);
     return <div className="dsk-root">{topBar}<div className="dsk-body">
-      <DeskRoster agents={agents} activeId={null} watchedId={null} onSelect={rosterSelect} onDraftAgent={()=>{leave();setStage('floor');onCreateAgent?.();}}/>
+      <DeskRoster agents={agents} loading={loading} activeId={null} watchedId={null} onSelect={rosterSelect} onDraftAgent={()=>{leave();setStage('floor');onCreateAgent?.();}}/>
       <div className="dsk-stage dsk-stage--felt"><DeskCasinoTable game={liveGame} mySeat={mySeat} notice={notice} onBack={leave}/></div>
       <WatchRail conversationOnly readOnly game={liveGame} stored={rows} onClose={leave}/>
     </div></div>;
@@ -308,7 +311,7 @@ export function DesktopHome({
     const ready = String(tableConfig?.tableId) === String(homeTableSession.tableId);
     const liveGame = ready && String(game?.tableId) === String(homeTableSession.tableId) ? game : null;
     return <div className="dsk-root">{topBar}<div className="dsk-body">
-      <DeskRoster agents={agents} activeId={null} watchedId={null}
+      <DeskRoster agents={agents} loading={loading} activeId={null} watchedId={null}
         onSelect={rosterSelect} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
       <DeskHomeTable game={liveGame} mySeat={mySeat} seated={homeTableSession.seated}
         legalActions={ready && tableConfig?.sitting ? legalActions : []} onAct={onAct} lastDecision={lastDecision} agents={agents} connection={connection}
@@ -323,6 +326,7 @@ export function DesktopHome({
         {topBar}
         <div className="dsk-body">
           <DeskRoster
+            loading={loading}
             agents={agents}
             activeId={replay.agent?.id ?? null}
             watchedId={watchedId}
@@ -351,6 +355,7 @@ export function DesktopHome({
         {topBar}
         <div className="dsk-body">
           <DeskRoster
+            loading={loading}
             agents={agents}
             activeId={deskAgent.id}
             watchedId={watchedId}
@@ -382,6 +387,7 @@ export function DesktopHome({
             a panel toggles it into. Same column on the room, the casino
             doors, and the room a doorway opens. */}
         <DeskRoster
+          loading={loading}
           agents={agents}
           activeId={born ? born.id : homeFocusId}
           watchedId={watchedId}

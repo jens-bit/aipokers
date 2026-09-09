@@ -102,7 +102,7 @@ export function HomeBoard({ board = [], desktop = false }) {
   );
 }
 
-export function HomeGameTable({ board = [], seatCount = 2, running = true, geometry = PHONE_ROOM }) {
+export function HomeGameTable({ board = [], seatCount = 2, running = true, statusKnown = true, geometry = PHONE_ROOM }) {
   const FLAT = geometry.flat;
   // C9's empty table is bare; its one empty chair says what it is.
   if (!running && geometry.width === 560) return null;
@@ -131,7 +131,7 @@ export function HomeGameTable({ board = [], seatCount = 2, running = true, geome
           name pills, so "under the table" collides with whoever is standing in
           the room. It goes on the felt instead, below the two waiting card backs
           and above the rim. */}
-      {running ? null : (
+      {running || !statusKnown ? null : (
         <span
           className="home-game__label home-game__label--empty"
           style={{ left: FLAT.table.cx, top: FLAT.table.cy + 24, transform: 'translateX(-50%)' }}

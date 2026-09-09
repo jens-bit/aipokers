@@ -64,6 +64,42 @@ describe('DesktopHome roster', () => {
     fetchMock.route('/hands', { recentHands: [] });
   });
 
+  it('BUG-157: desktop does not offer a first agent or claim an empty flat during the initial roster read', async () => {
+    const answers = [];
+    fetchMock.route('/api/agents', () => new Promise(resolve => answers.push(resolve)));
+    renderHome();
+    const roster = await screen.findByTestId('desk-roster');
+    expect(within(roster).queryByText('0 of 4')).toBeNull();
+    expect(within(roster).queryByRole('button', { name: /Draft your first agent/ })).toBeNull();
+    expect(screen.queryByTestId('room-thread-empty-flat')).toBeNull();
+    expect(within(roster).getByText('Reading the room…')).toBeInTheDocument();
+    answers.forEach(answer => answer(agentsResponse));
+    await waitFor(() => expect(within(roster).getByText('2 of 4')).toBeInTheDocument());
+    expect(within(roster).queryByText('Reading the room…')).toBeNull();
+  });
+
+  it('BUG-157: a failed first desktop roster read is not a confirmed empty household', async () => {
+    fetchMock.route('/api/agents', { status: 503, body: {} });
+    renderHome();
+    await waitFor(() => expect(fetchMock.calls.some(c => c.url.includes('/api/agents'))).toBe(true));
+    const roster = screen.getByTestId('desk-roster');
+    expect(within(roster).queryByText('0 of 4')).toBeNull();
+    expect(within(roster).queryByRole('button', { name: /Draft your first agent/ })).toBeNull();
+    expect(screen.queryByTestId('room-thread-empty-flat')).toBeNull();
+  });
+
+  it('BUG-157: a later valid desktop read recovers from the failed first read without losing saved agents', async () => {
+    fetchMock.route('/api/agents', { status: 503, body: {} });
+    renderHome();
+    await waitFor(() => expect(fetchMock.calls.some(c => c.url.includes('/api/agents'))).toBe(true));
+    fetchMock.route('/api/agents', agentsResponse);
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(within(screen.getByTestId('desk-roster')).getByText('2 of 4')).toBeInTheDocument());
+    expect(rosterRow(playingAgent.name)).toBeInTheDocument();
+    expect(rosterRow(restingAgent.name)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Draft your first agent/ })).toBeNull();
+  });
+
   it('BUG-88: the first draft occupies the rail beside its actual empty room', async () => {
     fetchMock.route('/api/agents', { agents: [] });
     renderHome({ draft: <div data-testid="first-recruiter">One open seat.</div> });

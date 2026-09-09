@@ -105,6 +105,7 @@ export function RoomThread({
   lines = [],
   agents = [],
   loading = false,
+  roomLoaded = true,
   sending = false,
   onSay,
   toast = null,
@@ -195,7 +196,7 @@ export function RoomThread({
       {/* An empty flat is not an error: the line is filed and nobody answers it,
           exactly as the route behaves. Saying so beforehand is kinder than a
           composer that swallows the sentence. */}
-      {atHome === 0 ? (
+      {roomLoaded && atHome === 0 ? (
         <p className="room-thread__foot" data-testid="room-thread-empty-flat">
           Nobody is home. They will not answer.
         </p>
