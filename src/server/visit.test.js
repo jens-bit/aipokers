@@ -377,3 +377,19 @@ test('VISIT-1: both seats get their own thread session, so both threads can carr
   assert.ok(guestThread.some((l) => l.text === 'Nice spot.'), "the visitor's own thread carries his line");
   assert.ok(hostThread.some((l) => l.text === 'Cheers.'), "the host's thread carries his, separately");
 });
+
+ test('BUG-131: the visitor owner receives the actual host-table preview with scoped cards',async()=>{
+ const {body:knock}=await visitReq('traveler',HOST,0);
+ assert.equal(profiles.presentedRoster(GUEST,{owner:true}).find(a=>a.id==='traveler').liveGame,null,'a pending knock is not a live game');
+ await answerReq(knock.visitId,HOST,true);
+ const table=registry.getTable(homeGame.homeTableId(HOST));
+ table.maybeStartHand();
+ const expected=registry.getLiveGame(table.tableId,{agentId:'traveler',includeHole:true});
+ assert.equal(expected.heroHole?.length,2,'the privacy check uses a dealt hand');
+ const own=profiles.presentedRoster(GUEST,{owner:true}).find(a=>a.id==='traveler');
+ assert.equal(own.liveGame?.tableId,table.tableId);assert.equal(own.liveGame.net,expected.net);assert.equal(own.liveGame.blinds,expected.blinds);assert.deepEqual(own.liveGame.heroHole,expected.heroHole);
+ assert.notEqual(own.location.where,'home');assert.equal(own.activeTableId,null,'viewing the visit must not become a casino deployment');
+ const other=profiles.presentAgentById('traveler',GUEST,{owner:false});assert.equal(other.liveGame.heroHole,null);
+ table.closeTable('visit preview test');
+ assert.equal(profiles.presentedRoster(GUEST,{owner:true}).find(a=>a.id==='traveler').liveGame,null,'closed table must not remain live');
+ });

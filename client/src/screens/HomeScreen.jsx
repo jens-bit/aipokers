@@ -653,7 +653,7 @@ export function HomeScreen({
   const homeSubtitle = !agents.length ? 'Your room · his story starts here'
     : [casinoCount ? `${casinoCount} at the casino` : null, visitingCount ? `${visitingCount} visiting` : null, `${home.length} home`].filter(Boolean).join(' · ');
   const rosterLiveCount = loaded && roomConnection !== 'reconnecting'
-    ? agents.filter(a => !a.guest && !a.homeTableId && a.liveGame?.tableId).length : undefined;
+    ? agents.filter(a => !a.guest && (!a.homeTableId || a.visiting) && a.liveGame?.tableId).length : undefined;
   const board = homeTable?.game?.community ?? [];
   // P16: a fixture panel dims the room instead of covering it — on the desk you
   // never lose sight of where the money is.

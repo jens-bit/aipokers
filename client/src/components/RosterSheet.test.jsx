@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { RosterSheet, whereLine, hasUnread, canSendVisiting } from './RosterSheet.jsx';
+import { RosterRow, RosterSheet, whereLine, hasUnread, canSendVisiting } from './RosterSheet.jsx';
 import { AgentProfileScreen } from '../screens/AgentProfileScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -258,3 +258,9 @@ describe('VISIT-1 · send him to a friend', () => {
     expect(await screen.findByText('Link copied')).toBeInTheDocument();
   });
 });
+
+ it('BUG-131: a visitor at a friend table has a live marker, stakes and current result',()=>{
+ const traveler={id:'v1',name:'Traveler',visiting:{hostName:'Fidde'},homeTableId:'home-friend',location:{where:'casino'},liveGame:{tableId:'home-friend',blinds:'1/2',net:95},pocket:{balance:410}};
+ render(<ul><RosterRow agent={traveler} index={0} onOpen={()=>{}}/></ul>);
+ expect(screen.getByRole('img',{name:'Live at a table'})).toBeInTheDocument();expect(screen.getByText('1/2',{exact:true})).toBeInTheDocument();expect(screen.getByText('+$95',{exact:true})).toBeInTheDocument();
+ });

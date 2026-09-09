@@ -73,7 +73,7 @@ export function rosterResult(agent) {
 }
 
 export function rosterLive(agent) {
-  return !!agent?.liveGame?.tableId && !agent?.homeTableId;
+  return !!agent?.liveGame?.tableId && (!agent?.homeTableId || !!agent?.visiting);
 }
 
 export function RosterRow({ agent, index, onOpen }) {
@@ -111,6 +111,7 @@ export function RosterRow({ agent, index, onOpen }) {
         <span className="roster__id">
           <span className="roster__name">{agent.name}</span>
           <span className="roster__place"><span className="roster__where">{whereLine(agent)}</span>
+          {agent.visiting && agent.liveGame?.blinds && <span className="roster__routine">{agent.liveGame.blinds}</span>}
           {agent.location?.where === 'home' && agent.routine?.label && <span className="roster__routine">{agent.routine.label}</span>}</span>
         </span>
         <span className="roster__numbers">

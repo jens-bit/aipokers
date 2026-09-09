@@ -1949,6 +1949,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // table is at home; it is what he is DOING that changes, which is why it
   // lands on the routine and not on `where`.
   const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
+  // C5 / BUG-131: an accepted visit is visible to its owner even though home
+  // games never write activeTableId. This is a display projection only: the
+  // kitchen-game accounting/fatigue firewall above remains unchanged.
+  const visitingGame = agent.visiting && homeTable
+    ? (liveTables?.getLiveGame?.(homeTable.tableId, { agentId: agent.id, includeHole: owner }) ?? null)
+    : null;
   // BUGS-B/3: the table he is at is the one that EXISTS, not the one his
   // record still names. home.js's first law is that location is derived and
   // never declared, and this was the one place still handing it the stored
@@ -2060,7 +2066,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     unseenRecap: !!agent.unseenRecap,
     proposal: owner ? (agent.proposal ?? null) : null,
     presence,
-    liveGame,
+    liveGame: liveGame ?? visitingGame,
     // HOME-STATE-1: `location` is where he is (home | casino | table) with the
     // table and room he is at and when he got there; `routine` is what he is
     // doing at home, and is null anywhere else. `study` is the tape room he is

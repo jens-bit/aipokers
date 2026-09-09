@@ -74,3 +74,24 @@ function fakeSocket() {
   ws.send = (raw) => ws.sent.push(JSON.parse(raw));
   return ws;
 }
+
+test('BUG-131: kitchen updates reach proven seat owners as throttled Home snapshots only',t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:10000});
+ const host=fakeSocket(),visitor=fakeSocket(),claimed=fakeSocket(),stranger=fakeSocket();let revision=1;
+ try{
+  floor.configure({homeGames:{state:()=>({revision})}});
+  floor.subscribe(host,{userId:'host131',owner:true});floor.subscribe(visitor,{userId:'guest131',owner:true});floor.subscribe(claimed,{userId:'guest131',owner:false});floor.subscribe(stranger,{userId:'other131',owner:true});
+  for(const ws of [host,visitor,claimed,stranger])ws.sent.length=0;
+  const table={home:true,tableId:'home-host131',agentUserIds:['host131','guest131']};
+  floor.notifyTable(table);
+  assert.equal(visitor.sent.length,1);assert.equal(host.sent.length,1);
+  assert.equal(visitor.sent[0].type,ServerMsg.HOME_STATE);assert.equal(visitor.sent[0].game.revision,1);
+  assert.equal(claimed.sent.length,0);assert.equal(stranger.sent.length,0);
+  revision=2;floor.notifyTable(table);revision=3;floor.notifyTable(table);
+  assert.equal(visitor.sent.length,1,'updates within a second are coalesced');
+  floor.unsubscribe(host);t.mock.timers.tick(1000);
+  assert.equal(visitor.sent.length,2);assert.equal(visitor.sent[1].game.revision,3,'trailing snapshot gets the latest state');
+  assert.equal(host.sent.length,1,'unsubscribe cancels its pending send');
+  assert.ok(visitor.sent.every(m=>m.type===ServerMsg.HOME_STATE),'no private kitchen table in casino messages');
+ }finally{floor.reset();t.mock.timers.reset();}
+});
