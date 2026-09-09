@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-74 — the television ignores its live table when tapped — FIXED on overnight branch
+Home sent the TV tap to the casino and let a studying housemate replace a known live table. The failing Home regression reproduced both. C7 now prioritises the live table and opens Watch; otherwise the household's recorded hand opens its authenticated replay. Mobile replay returns to Home; desktop uses its existing replay panel. An empty tape has no dead tap. Unit and three-size browser checks cover both destinations.
+
 ### BUG-72 — empty chairs are drawn under agents already playing — FIXED on overnight branch
 TableChairs removed the first N positions of a four-seat map, while the bodies used a two/three-seat arrangement. The two-player case left an empty chair under the far player. Regression reproduced the overlap. Spare chairs now exclude actual occupied positions and retain the correct total; C6 adds one dim named chair per away agent, within those free positions.
 

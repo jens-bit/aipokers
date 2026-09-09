@@ -28,7 +28,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { roomsResponse } from '../src/test/fixtures/rooms.js';
-import { bigBluffHand } from '../src/test/fixtures/flagged.js';
+import { bigBluffHand, badBeatHand } from '../src/test/fixtures/flagged.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -194,6 +194,35 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
+  for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
+    test(`C7: the television opens its live table or recorded hand at ${viewport.width}×${viewport.height}`,async({page})=>{
+      const errors=[];
+      page.on('pageerror',e=>errors.push(e.message));
+      await page.route('**/api/agents/*/memory?**',r=>r.fulfill({json:{memories:[]}}));
+      await room(page,CASTS.household,viewport);
+      await expect(page.getByTestId('home-tv-felt')).toBeVisible();
+      if(viewport.width===390&&viewport.height===844) await page.screenshot({path:'../artifacts/tv-c7a.png'});
+      await page.getByTestId('home-tv').click();
+      await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
+      const study={handNumber:badBeatHand.handNumber,startedAt:Date.now()-30000,endsAt:Date.now()+60000};
+      const cast={agents:[
+        agent('bal','Balanced v2.1',{nickname:'Bal',routine:{key:'tape',label:'the tape room'},study,sessionFlagged:[badBeatHand]}),
+        agent('agg','Aggressive v1.3',{routine:{key:'paces',label:'pacing'},mood:{state:'tilted',heat:84}}),
+        agent('val','Value Bot',{routine:{key:'sleeps',label:'asleep'},fatigue:'worn'}),
+      ],game:null,study:{study,book:[],count:0}};
+      await room(page,cast,viewport);
+      await page.route('**/api/agents/*/flagged?**',r=>r.fulfill({json:{flaggedHands:[badBeatHand]}}));
+      await page.route('**/api/agents/*/hands?**',r=>r.fulfill({json:{recentHands:[]}}));
+      await expect(page.getByTestId('home-tape')).toContainText('BAD BEAT');
+      if(viewport.width===390&&viewport.height===844) await page.screenshot({path:'../artifacts/tv-c7b.png'});
+      await page.getByTestId('home-tv').click();
+      await expect(page.locator('.replay-theatre')).toBeVisible();
+      expect((await page.locator('.app').boundingBox()).width).toBe(viewport.width);
+      await page.getByRole('button',{name:'Back',exact:true}).click();
+      await expect(page.getByTestId('home-screen')).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
   for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
     test(`ROSTER-1: C6 absence and vertical door at ${viewport.width}×${viewport.height}`,async({page})=>{
       const cast=[

@@ -129,6 +129,7 @@ export function HomeFlat({
         className="home-flat__tv"
         style={{ left: TV_SCREEN.x, top: TV_SCREEN.y, width: TV_SCREEN.w, height: TV_SCREEN.h }}
         onClick={onTv}
+        disabled={!onTv}
         aria-label={tvLabel ? `Television — ${tvLabel}` : 'Television — the casino'}
         data-testid="home-tv"
       >

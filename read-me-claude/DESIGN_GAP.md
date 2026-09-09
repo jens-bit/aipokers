@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 8
+
+C7 state and tap are ported: known live casino table takes priority, otherwise the household's study/most recent recorded hand appears as tape. Live opens Watch; tape opens the authenticated hand review and returns to Home (desktop keeps its replay panel). Tape carries actual board/flag/hand number, with progress only for an actual timed study. No recorded hand means an inactive empty tape, and an away agent without a projected table retains the casino board. Reference/actual pairs `client/e2e/shots/overnight-batch8-tv-c7a.png` and `overnight-batch8-tv-c7b.png` inspected. Actual fixtures/routines differ from the authored sample, and the kitchen table remains by founder override. The reference's couch-facing-TV change remains undesigned under its freeze. C8/C9, the casino bottom conversation band, and Home day cadence remain material work.
+
 ## Overnight design port — 2026-09-09, batch 7
 
 C6 absence is ported: dim named empty chair, live wall frame, one roster pill in Home's existing 46px header; visits are named distinctly. Current board 29/42 DoorTap replaces the horizontal marquee with the vertical word, bulbs and spill, using the same footprint for bubble clearance. Pair `client/e2e/shots/overnight-batch7-absence-c6.png` inspected. The kitchen table stays by Jens's explicit override of the reference's omission. Spare-chair placement respects actual occupied positions; no permanent backend chair reservation is claimed. Counts reflect known owner live casino tables and stay quiet when none are live. C7 TV click/replay behavior and C8/C9 remain upcoming work.

@@ -405,7 +405,7 @@ function AppShell({ guest }) {
       try { opened = await resolveDeepLink({ kind: 'hand', agentId: String(agentId), handId: row.handNumber }); }
       catch { opened = null; }
       if (!opened) continue;
-      if (opened.kind === 'hand') { setDeepLinkHand(opened); return; }
+      if (opened.kind === 'hand') { setDeepLinkHand({ ...opened, origin: row.origin }); return; }
       setAgentProfileTarget(null);
       openAgentChat(opened.agent);
       return;
@@ -579,15 +579,17 @@ function AppShell({ guest }) {
   // thread of the agent who played it, which is where the message came from.
   if (deepLinkHand) {
     return (
-      <div className="app">
+      <div className={`app${deepLinkHand.origin === 'home' ? ' app--room' : ''}`}>
         <Suspense fallback={null}>
           <ReplayTheatre
             hand={deepLinkHand.hand}
             agentId={deepLinkHand.agent?.id ?? null}
             onBack={() => {
               const agent = deepLinkHand.agent;
+              const origin = deepLinkHand.origin;
               setDeepLinkHand(null);
-              if (agent) openAgentChat(agent);
+              if (origin === 'home') navigateTo('home');
+              else if (agent) openAgentChat(agent);
             }}
           />
         </Suspense>
@@ -794,6 +796,7 @@ function AppShell({ guest }) {
               still draws it — it just is not a mobile tab any more. */}
           {activeTab === 'home' && (
             <HomeScreen
+              onReplay={(agent, hand) => replayEvent({agentIds:[agent.id],handNumber:hand.handNumber,origin:'home'})}
               wsUrl={WS_URL}
               onOpenRoster={() => setRosterOpen(true)}
               openTable={homeTableOpen}

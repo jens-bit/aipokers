@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 8: C7 television now shows a known live table or an actual recorded household hand, with the correct Watch/replay destination and return to Home. Tape shows its real flag, board and hand number; progress appears only during a timed study. Empty tape stays quiet, and unknown away state retains the casino board. BUG-74 reproduced before repair. Reference pairs preserve the requested kitchen table and distinguish live data from sample design content.
+
 - Overnight design batch 7: C6 named empty chairs and Home roster pill, visit-aware wall/header, and current DoorTap's vertical letters/bulbs. BUG-72 removes spare chairs from occupied positions; BUG-73 gives a visiting frame its correct label and agent destination. The old sign/door non-overlap and right-minus-six assertions intentionally become the current reference's exact shared door footprint. Table hit targets, bubble clearance and in-frame checks remain enforced. Reference pair preserves the kitchen table by founder instruction.
 
 - Overnight design batch 6: C4 mobile profile now has one name, the saved 62px identity, condition, compact recorded changes and a working bottom whisper. Detailed skills/money/history remain in More → His sheet; Chat, visit, mute and retirement remain reachable. Funding moves to the compact row and LIVE is the Watch action; integration tests intentionally follow these C4 routes while retaining their origin/funding/auth assertions. BUG-70 scopes detail history to its agent; BUG-71 compresses only the guest verifier's action clock. Watch layout and production timing are unchanged.

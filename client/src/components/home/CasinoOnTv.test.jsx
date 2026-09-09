@@ -8,9 +8,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { CasinoOnTv, onScreen, shortStakes } from './CasinoOnTv.jsx';
+import { CasinoOnTv, TapeOnTv, onScreen, shortStakes, tvProgramme } from './CasinoOnTv.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 import { floorRoom, upstairsRoom, backRoom } from '../../test/fixtures/rooms.js';
+import { badBeatHand, bigBluffHand } from '../../test/fixtures/flagged.js';
 
 const away = (id, over = {}) => ({
   id,
@@ -28,6 +29,21 @@ const inHand = (id, pot, over = {}) => away(id, {
 beforeEach(() => {
   telegram.install();
   telegram.signIn();
+});
+
+it('C7 selects a studied hand before another saved hand and live play before either',()=>{
+  const learner={id:'a1',name:'Bal',study:{handNumber:badBeatHand.handNumber},sessionFlagged:[bigBluffHand,badBeatHand]};
+  expect(tvProgramme([learner],[])).toMatchObject({kind:'tape',hand:badBeatHand});
+  expect(tvProgramme([learner],[inHand('a2',300)])).toMatchObject({kind:'live',agent:{id:'a2'}});
+  expect(tvProgramme([{id:'home'}],[])).toMatchObject({kind:'tape',hand:null});
+  expect(tvProgramme([],[])).toEqual({kind:'casino'});
+});
+it('C7 draws the saved board and flag without inventing a replay clock',()=>{
+  render(<TapeOnTv agent={{name:'Bal'}} hand={badBeatHand}/>);
+  expect(screen.getByText('BAD BEAT')).toBeInTheDocument();
+  expect(screen.getByText('Bal · #37')).toBeInTheDocument();
+  expect(document.querySelectorAll('.home-tv__recording-cards > *')).toHaveLength(5);
+  expect(document.querySelector('.home-tv__recording-progress')).toBeNull();
 });
 
 describe('HOME-2 job 4 · the casino, on the set', () => {
@@ -70,7 +86,7 @@ describe('HOME-2 job 4 · the casino, on the set', () => {
 
   // A television with no signal names nothing rather than inventing rooms.
   it('says nothing about the rooms when the floor does not answer', async () => {
-    fetchMock.route('/api/rooms', null, { status: 500 });
+    fetchMock.route('/api/rooms', { status: 500, body: {} });
     render(<CasinoOnTv away={[]} />);
     expect(await screen.findByTestId('home-tv-board')).toBeInTheDocument();
     expect(screen.getByText('THE CASINO')).toBeInTheDocument();

@@ -37,6 +37,23 @@ import { agentsResponse, playingAgent, restingAgent } from './test/fixtures/agen
 import { fetchMock, socketMock, telegram } from './test/harness.js';
 import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
+import { badBeatHand } from './test/fixtures/flagged.js';
+
+it('C7: the home TV opens its saved hand with credentials and returns to Home',async()=>{
+  telegram.signIn();
+  const user=userEvent.setup();
+  const ag={...restingAgent,location:{where:'home'},sessionFlagged:[badBeatHand]};
+  fetchMock.route('/api/agents',{agents:[ag]});
+  fetchMock.route('/flagged',{flaggedHands:[badBeatHand]});
+  fetchMock.route('/hands',{recentHands:[]});
+  render(<App/>);
+  await waitFor(()=>expect(screen.getByTestId('home-tv')).toHaveAccessibleName(/Replay Loose Cannon/));
+  await user.click(screen.getByTestId('home-tv'));
+  await waitFor(()=>expect(document.querySelector('.replay-theatre')).toBeTruthy());
+  expect(fetchMock.requestsMatching('/flagged').at(-1).headers['x-telegram-init-data']).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Back'}));
+  expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
+});
 
 // BUGS-C job 12: one test below seeds the casino's session-remembered view so
 // it can assert on the building; cleared after every test so it cannot leak

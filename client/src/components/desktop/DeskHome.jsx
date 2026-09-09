@@ -95,6 +95,7 @@ export function DeskHome({
   return (
     <HomeScreen
       desktop
+      onReplay={onOpenFlagged}
       wsUrl={wsUrl}
       onOwnerLine={receiveOwnerLine}
       onWatch={onWatch}

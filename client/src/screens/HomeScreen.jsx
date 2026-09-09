@@ -56,7 +56,7 @@ import { HomeThread } from '../components/home/HomeThread.jsx';
 import { WantToast } from '../components/home/WantToast.jsx';
 import { VisitorToast } from '../components/home/VisitorToast.jsx';
 import { FridgeSheet } from '../components/home/FridgeSheet.jsx';
-import { CasinoOnTv, TapeOnTv, onScreen } from '../components/home/CasinoOnTv.jsx';
+import { CasinoOnTv, TapeOnTv, onScreen, tvProgramme } from '../components/home/CasinoOnTv.jsx';
 import { TableSheet, useSlots } from '../components/home/TableSheet.jsx';
 import { homePositions, bubbleSide, FLAT, DOOR_SPOT, F_W, F_H } from '../components/home/flat.js';
 import { routineKeyOf } from '../components/home/routines.js';
@@ -276,6 +276,7 @@ export function studyTag(book) {
 export function HomeScreen({
   wsUrl = null,
   onWatch,
+  onReplay,
   // BUGS-A job 7: watch a table by id, with no agent behind it. The kitchen
   // table is a real table (HOME-STATE-1) and it is nobody's deployment, so
   // "watch him" is the wrong shape for it.
@@ -460,6 +461,7 @@ export function HomeScreen({
   }, [desktop, roomEl]);
 
   const studying = home.find((a) => routineKeyOf(a) === 'tape') ?? null;
+  const tv = tvProgramme(home, away);
   const studyBook = useStudyBook(studying?.id ?? null);
   const tag = studyTag(studyBook);
 
@@ -704,21 +706,13 @@ export function HomeScreen({
       // always opened the rail panel from this tap; the phone now agrees with it.
       onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
       tableLabel={game?.state === 'running' ? 'The table' : 'The chairs'}
-      // The tape room is a man doing something, so on the desk it opens HIM in
-      // the rail — the same place tapping his body puts him. With nobody
-      // studying the set is showing the casino, so it is a second door into it.
-      onTv={studying ? (
-        desktop
-          ? () => { setFocusId(studying.id); setRail('agent'); }
-          : () => onProfile?.(studying)
-      ) : (!desktop && onCasino ? () => onCasino() : undefined)}
-      tvLabel={studying ? `${studying.name} is watching a hand back` : null}
-      // HOME-2 job 4 · WHAT IS ON THE SET. A hand being reviewed if somebody is
-      // reviewing one — the ref's own `tape` state — and otherwise the casino:
-      // his table in miniature when one of yours is in a hand, the board when
-      // none is. Drawing a felt nobody is sitting at would be the one outright
-      // lie on the screen.
-      tvScreen={studying ? <TapeOnTv /> : <CasinoOnTv away={away} />}
+      // C7: tapping the picture opens that live table or that recorded hand.
+      onTv={tv.kind === 'live' ? () => onWatch?.(tv.agent)
+        : tv.kind === 'tape' ? (tv.hand && onReplay ? () => onReplay(tv.agent,tv.hand) : undefined)
+        : (!desktop && onCasino ? () => onCasino() : undefined)}
+      tvLabel={tv.kind === 'live' ? `Watch ${tv.agent.name}'s live table`
+        : tv.kind === 'tape' ? (tv.hand ? `Replay ${tv.agent.name}'s hand #${tv.hand.handNumber}` : 'Nothing on tape yet') : null}
+      tvScreen={tv.kind === 'tape' ? <TapeOnTv agent={tv.agent} hand={tv.hand}/> : <CasinoOnTv away={away} />}
       // BUGS-C job 4 · no more `doorTag` here. The marquee sign is always
       // drawn (HOME-2 job 4) and DRAFT-2's "THE CASINO →" tag used to be
       // passed alongside it, so the live room carried two casino signs

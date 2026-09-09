@@ -819,6 +819,16 @@ describe('BUGS-C job 3: the table region, mid-hand', () => {
 // ── The tape room ───────────────────────────────────────────────────────────
 
 describe('HOME-1 · the tape room', () => {
+  it('BUG-74: the TV opens the live table it shows, even while somebody studies', async()=>{
+    const live=mkAgent('out','Out',{location:loc('table',{tableId:'t1'}),liveGame:{tableId:'t1',pot:400}});
+    const onWatch=vi.fn(), onCasino=vi.fn(), onProfile=vi.fn();
+    await boot([live,mkAgent('study','Study',{routine:{key:'tape'}})],null,{onWatch,onCasino,onProfile});
+    expect(await screen.findByTestId('home-tv-felt')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('home-tv'));
+    expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({id:'out'}));
+    expect(onCasino).not.toHaveBeenCalled();
+    expect(onProfile).not.toHaveBeenCalled();
+  });
   it('studying puts the replay on the television and the tally under his bubble', async () => {
     defaults();
     fetchMock.route(/\/study\?/, () => ({
