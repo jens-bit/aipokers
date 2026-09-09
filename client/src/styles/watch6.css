@@ -1128,3 +1128,24 @@
   /* A sheet in the owner's hand does not also animate itself in. */
   animation: none;
 }
+
+/* BUG-133 / 52e: his cards, hands and strip stay above the read glass.
+   The ghost and speech recede without moving the felt; the decorative layer
+   cannot intercept the sheet's scrolling, close gesture or controls. */
+.watch-felt--overlay .watch-hero {
+  z-index: 10;
+  pointer-events: none;
+}
+.watch-felt--overlay .watch-hero__body {
+  pointer-events: none;
+}
+.watch-felt--overlay .watch-hero__body > .mood-ghost,
+.watch-felt--overlay .watch-hero__aura,
+.watch-felt--overlay .watch-hero__says {
+  opacity: 0.4;
+}
+/* On a short phone the last rows must be scrollable above his fixed cards,
+   rather than stopping beneath them at the sheet's ordinary bottom padding. */
+.watch-felt--overlay .read-sheet {
+  padding-bottom: 220px;
+}

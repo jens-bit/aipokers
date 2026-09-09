@@ -6,7 +6,7 @@ The main design and interaction repairs are implemented locally. This is ready f
 
 - Home and casino use contextual navigation and the available phone shell. The kitchen table remains, actual table taps work, and a pending want has one answer surface. Home bodies use their saved appearance, walk out/return, and retain their real routines.
 - The companion, private conversation, profile, roster, fridge, safe, TV and replay routes are connected. Agents visiting a friend now show actual live-table details and a working Watch destination, with private Home updates. Retirement archives the record through the correct endpoint. Casino pinch enlarges the same felt, and a second pinch opens Watch.
-- Your full-screen phone Watch composition is preserved. Opponent read taps work, hidden cards stay private, expression/brow holds are independent, celebrations and gesture-unlocked audio play, and mute is reachable.
+- Your full-screen phone Watch composition is preserved. Opponent read taps work, owned cards remain above read glass, stale cost notes clear correctly, hidden cards stay private, expression/brow holds are independent, celebrations and gesture-unlocked audio play, and mute is reachable.
 - First-agent entry uses four forming stages, no collar, and persistent hood/glow. Empty/quiet/history states explain the next action without inventing results. Desktop retains the room, roster and conversation with working Watch/Sit/action/return at 1280, 1440 and 1920.
 - Railbird assets, header motion, locally served design fonts and portrait/wide share cards are prepared. The welcome page now uses ten refreshed actual product renders. Bot entry and notification buttons use configured destinations instead of the old hard-coded bot.
 
@@ -18,7 +18,7 @@ These are the actual app with controlled example accounts, not production screen
 
 ## Verification
 
-Batch39 final branch checks pass 108 server / 2242 client / seven e2e. Batch38 main integration passed 108 / 2241 / seven; batch39 main integration follows and its outcome is stated in the final handoff message. There are two intentional live server skips and two existing client todos. Batch38 passed the 66-case entry/draft/desktop browser run, build, seven fresh built smoke journeys and 20 Home2 checks. Batch39 passes all 55 desktop/visitor/BUG-55 browser checks; its final built-server results are recorded in the work log. The final bot-link repair uses fake bots and a scratch database; no real notification was sent.
+Batch39 main integration passed 108 server / 2242 client / seven e2e. Batch40 adds two Watch regressions and four inspected reference pairs; its final checks and integration outcome are recorded in the work log and final handoff. There are two intentional live server skips and two existing client todos. Batch38 passed the 66-case entry/draft/desktop browser run, build, seven fresh built smoke journeys and 20 Home2 checks. Batch39 passed all 55 desktop/visitor/BUG-55 browser checks, seven fresh built smoke journeys and 20 Home2 checks. Batch40’s first broader run passed 85 browser checks; final validation follows the short-screen scroll correction. The final bot-link repair uses fake bots and a scratch database; no real notification was sent.
 
 The controlled sprite audit covers 101 native-size cases, all matching the reference pixels. This does not assert every possible character, game state or viewport is identical. Earlier unexplained Windows/test/capture intermittency stays in BUGS.md; later passing runs are not a diagnosis.
 

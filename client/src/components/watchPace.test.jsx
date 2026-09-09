@@ -521,3 +521,35 @@ describe('W5-4: why the hand went wrong, pinned', () => {
     expect(row.textContent).toContain('DISCIPLINE');
   });
 });
+
+it('BUG-132: polling the same recorded hand cannot bring a cleared cost back onto the felt', async () => {
+  vi.useFakeTimers();
+  const costAgent = { ...playingAgent, recentHands: [{ handNumber: 1, timestamp: 123456, attrCosts: [{ key: 'DISCIPLINE', line: 'He called a river jam he had already decided to fold.', street: 'river' }] }] };
+  fetchMock.route('/api/agents', () => ({ agents: [structuredClone(costAgent)] }));
+  const view = renderWatch({ ...midHandGame, handNumber: 1 });
+  try {
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(view.container.querySelector('.watch-hero__cost')).toBeTruthy();
+    act(() => rerenderWatch(view.rerender, { ...midHandGame, handNumber: 2, street: 'flop' }));
+    expect(view.container.querySelector('.watch-hero__cost, .watch-hero__cost-dot')).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+    expect(view.container.querySelector('.watch-hero__cost, .watch-hero__cost-dot')).toBeNull();
+    act(() => screen.getByRole('button', { name: 'Chat' }).click());
+    expect(view.container.querySelectorAll('.thread-row.is-cost')).toHaveLength(1);
+    costAgent.recentHands[0].timestamp += 1; // A different recorded hand can reuse its number/text.
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+    expect(view.container.querySelector('.watch-hero__cost')).toBeTruthy();
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
+it('BUG-132: a cost arriving before the first table snapshot clears after the following flop', async () => {
+  vi.useFakeTimers();
+  fetchMock.route('/api/agents', { agents: [{ ...playingAgent, recentHands: [{ handNumber: 2, timestamp: 123456, attrCosts: [{ key: 'DISCIPLINE', line: 'He called too wide.', street: 'river' }] }] }] });
+  const view = renderWatch(null);
+  try {
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    act(() => rerenderWatch(view.rerender, { ...midHandGame, handNumber: 3 }));
+    expect(view.container.querySelector('.watch-hero__cost')).toBeTruthy();
+    act(() => rerenderWatch(view.rerender, { ...midHandGame, handNumber: 4, street: 'flop' }));
+    expect(view.container.querySelector('.watch-hero__cost, .watch-hero__cost-dot')).toBeNull();
+  } finally { view.unmount(); vi.useRealTimers(); }
+});
