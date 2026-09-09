@@ -1,0 +1,608 @@
+<!doctype html>
+<!--
+  src/server/admin/page.html — ADMIN-1 job 4
+
+  One file. No build step, no framework, no bundle — inline CSS and inline JS,
+  served straight off disk with Cache-Control: no-store. That is a deliberate
+  choice and not laziness: this page has to work the day the client build is
+  broken, which is exactly the day somebody opens it.
+
+  The key is typed into the form and kept in sessionStorage, so it lives as
+  long as the tab and no longer. It goes out in the x-admin-key header on every
+  fetch and is never put in a URL.
+
+  Colours are the product's: #00D4AA on #0a0a0c, gold for a warning, red for a
+  problem. JetBrains Mono for the numbers, with a full local mono fallback so
+  the page reads correctly when the font does not load.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Railbird · admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #121215;
+    --line: #1f1f24;
+    --teal: #00D4AA;
+    --teal-dim: #00806720;
+    --gold: #CDB380;
+    --red: #FF4D4F;
+    --ink: #EDEDED;
+    --dim: #888888;
+    --faint: #6B6B6B;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    padding: 0 14px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--teal); }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px;
+    padding: 14px 0 10px; margin-bottom: 4px;
+    background: linear-gradient(var(--bg) 78%, transparent);
+  }
+  h1 {
+    margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--teal);
+  }
+  .meta { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .meta b { color: var(--dim); font-weight: 400; }
+  .spacer { flex: 1 1 auto; }
+
+  button {
+    font: inherit; color: var(--dim); background: transparent;
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  button:hover { color: var(--ink); border-color: var(--dim); }
+  button[aria-pressed="true"] { color: var(--bg); background: var(--teal); border-color: var(--teal); }
+  .toggle { display: inline-flex; gap: 4px; }
+
+  /* ── Problems ───────────────────────────────────────────────────────── */
+  #problems { margin: 0 0 18px; padding: 0; list-style: none; }
+  #problems li {
+    display: flex; gap: 10px; align-items: baseline;
+    border: 1px solid var(--red); border-left-width: 3px; border-radius: 6px;
+    background: #FF4D4F14; padding: 8px 12px; margin-bottom: 6px;
+  }
+  #problems .why { color: var(--dim); font-size: 12px; }
+  #problems.ok li { border-color: #1f3a34; background: #00D4AA0e; }
+  #problems.ok .what { color: var(--teal); }
+
+  /* ── Sections and tiles ─────────────────────────────────────────────── */
+  section { margin-bottom: 26px; }
+  h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--faint); margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 8px; }
+  .tile {
+    position: relative; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px 8px; min-height: 74px; cursor: help;
+  }
+  .tile .label {
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tile .value {
+    font-family: var(--mono); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums;
+    color: var(--ink); margin-top: 3px; line-height: 1.15; word-break: break-all;
+  }
+  .tile .value.null { color: var(--faint); font-weight: 400; }
+  .tile.warn .value { color: var(--gold); }
+  .tile.bad .value { color: var(--red); }
+  .tile.on .value { color: var(--teal); }
+  .tile svg { display: block; width: 100%; height: 18px; margin-top: 6px; overflow: visible; }
+
+  /* ── Tables ─────────────────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12px; }
+  th, td { padding: 7px 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, .l { text-align: left; }
+  thead th {
+    position: sticky; top: 0; background: var(--panel); color: var(--faint);
+    font-weight: 400; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    border-bottom: 1px solid var(--line); cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--ink); }
+  thead th[aria-sort] { color: var(--teal); }
+  tbody tr + tr td { border-top: 1px solid #16161a; }
+  tbody tr:hover td { background: #ffffff06; }
+  td.dim { color: var(--faint); }
+  .pill {
+    display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 10px;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .pill.teal { color: var(--teal); border-color: #00806760; }
+  .pill.red { color: var(--red); border-color: #FF4D4F60; }
+  .more { margin-top: 8px; }
+
+  /* ── The gate ───────────────────────────────────────────────────────── */
+  #gate { max-width: 340px; margin: 18vh auto 0; text-align: left; }
+  #gate p { color: var(--dim); font-size: 13px; }
+  #gate form { display: flex; gap: 8px; margin-top: 14px; }
+  #gate input {
+    flex: 1 1 auto; font: inherit; font-family: var(--mono); color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+  }
+  #gate input:focus { outline: none; border-color: var(--teal); }
+  #gate button { border-color: var(--teal); color: var(--teal); }
+  #err { color: var(--red); font-size: 12px; min-height: 18px; margin-top: 10px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 430px) {
+    body { padding: 0 10px 56px; }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 6px; }
+    .tile .value { font-size: 18px; }
+    h1 { font-size: 13px; }
+  }
+  @media (min-width: 1100px) {
+    body { max-width: 1360px; margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>Railbird · admin</h1>
+  <p>Read-only. Paste the admin key; it is kept for this tab only and sent as a header, never in a URL.</p>
+  <form id="gateForm">
+    <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_KEY" aria-label="Admin key">
+    <button type="submit">Open</button>
+  </form>
+  <div id="err" role="alert"></div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>Railbird · admin</h1>
+    <span class="meta" id="stamp"></span>
+    <span class="spacer"></span>
+    <span class="toggle" role="group" aria-label="Window">
+      <button type="button" id="w24" aria-pressed="true">24h</button>
+      <button type="button" id="w7d" aria-pressed="false">7d</button>
+    </span>
+    <button type="button" id="signout">Forget key</button>
+  </header>
+
+  <ul id="problems"></ul>
+  <div id="board"></div>
+
+  <section>
+    <h2>Retention — first agent drafted, seen again</h2>
+    <div class="scroll"><table id="cohorts"></table></div>
+    <div class="meta" id="cohortsDef" style="margin-top:8px"></div>
+  </section>
+
+  <section>
+    <h2>Owners</h2>
+    <div class="scroll"><table id="owners"></table></div>
+    <button type="button" class="more" id="moreOwners">Show more</button>
+  </section>
+
+  <section>
+    <h2>Recent births</h2>
+    <div class="scroll"><table id="births"></table></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY_STORE = 'railbird.adminKey';
+  var REFRESH_MS = 60000;
+
+  var state = { key: '', window: '24h', ownerSort: 'lastSeen', ownerLimit: 50, timer: null };
+
+  // ── Plumbing ─────────────────────────────────────────────────────────────
+  //
+  // The key rides in the header on every call. sessionStorage, not
+  // localStorage: it should die with the tab.
+  function get(path) {
+    return fetch(path, { headers: { 'x-admin-key': state.key }, cache: 'no-store' }).then(function (res) {
+      if (res.status === 403) throw new Error('That key was refused.');
+      if (res.status === 404) throw new Error('No dashboard here — ADMIN_KEY is not set on this server.');
+      if (res.status === 429) throw new Error('Too many requests — this page allows six a minute.');
+      if (!res.ok) throw new Error('Server said ' + res.status + '.');
+      return res.json();
+    });
+  }
+
+  function el(tag, attrs, kids) {
+    var node = document.createElement(tag);
+    for (var k in (attrs || {})) {
+      if (attrs[k] === null || attrs[k] === undefined) continue;
+      if (k === 'text') node.textContent = attrs[k];
+      else if (k === 'class') node.className = attrs[k];
+      else node.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach(function (kid) { if (kid) node.appendChild(kid); });
+    return node;
+  }
+
+  // ── Formatting ───────────────────────────────────────────────────────────
+
+  function num(v) {
+    if (v === null || v === undefined) return '—';
+    if (typeof v !== 'number') return String(v);
+    if (!isFinite(v)) return '—';
+    if (Number.isInteger(v)) return v.toLocaleString('en-US');
+    return v < 1 ? v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') : v.toFixed(2);
+  }
+  function usd(v) { return v === null || v === undefined ? '—' : '$' + (v < 1 ? v.toFixed(4) : v.toFixed(2)); }
+  function pct(v) { return v === null || v === undefined ? '—' : Math.round(v * 100) + '%'; }
+  function bytes(v) {
+    if (v === null || v === undefined) return '—';
+    var u = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0, n = v;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
+  }
+  function ago(ts) {
+    if (!ts) return 'never';
+    var s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 90) return s + 's ago';
+    if (s < 5400) return Math.round(s / 60) + 'm ago';
+    if (s < 172800) return Math.round(s / 3600) + 'h ago';
+    return Math.round(s / 86400) + 'd ago';
+  }
+  function dur(s) {
+    if (s === null || s === undefined) return '—';
+    if (s < 3600) return Math.round(s / 60) + 'm';
+    if (s < 172800) return (s / 3600).toFixed(1) + 'h';
+    return (s / 86400).toFixed(1) + 'd';
+  }
+  function onOff(v) { return v ? 'on' : 'off'; }
+
+  // ── The sparkline ────────────────────────────────────────────────────────
+  //
+  // Inline SVG, no library. Seven points, oldest left. A flat line is drawn at
+  // the bottom rather than through the middle so "nothing happened all week"
+  // does not look the same as "the same amount happened every day".
+  function spark(points) {
+    if (!points || points.length < 2) return null;
+    var vals = points.map(function (p) { return p.value; });
+    var max = Math.max.apply(null, vals);
+    var W = 100, H = 18;
+    var step = W / (vals.length - 1);
+    var y = function (v) { return max <= 0 ? H - 1 : H - 1 - (v / max) * (H - 2); };
+    var d = vals.map(function (v, i) { return (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+    var area = d + ' L ' + W + ' ' + H + ' L 0 ' + H + ' Z';
+
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    var fill = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    fill.setAttribute('d', area);
+    fill.setAttribute('fill', 'var(--teal-dim)');
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    line.setAttribute('d', d);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', 'var(--teal)');
+    line.setAttribute('stroke-width', '1.25');
+    line.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(fill);
+    svg.appendChild(line);
+    return svg;
+  }
+
+  // ── A tile ───────────────────────────────────────────────────────────────
+  //
+  // `stat` is the { value, definition } pair straight off the wire, and the
+  // definition becomes the title attribute — which is the whole promise of
+  // this page: nothing on it is a mystery.
+  function tile(label, stat, opts) {
+    opts = opts || {};
+    if (!stat) return null;
+    var shown = opts.format ? opts.format(stat.value) : num(stat.value);
+    var node = el('div', {
+      class: 'tile' + (opts.tone ? ' ' + opts.tone : ''),
+      title: label.toUpperCase() + '\n\n' + stat.definition,
+    }, [
+      el('div', { class: 'label', text: label }),
+      el('div', { class: 'value' + (stat.value === null || stat.value === undefined ? ' null' : ''), text: shown }),
+    ]);
+    var line = spark(opts.series);
+    if (line) node.appendChild(line);
+    return node;
+  }
+
+  function section(title, tiles) {
+    var kept = tiles.filter(Boolean);
+    if (!kept.length) return null;
+    return el('section', {}, [el('h2', { text: title }), el('div', { class: 'tiles' }, kept)]);
+  }
+
+  // ── The board ────────────────────────────────────────────────────────────
+
+  function board(s) {
+    var wide = state.window === '7d';
+    var series = s.series.value;
+    var w = function (a, b) { return wide ? b : a; };          // pick by window
+    var lbl = function (t) { return t + ' ' + state.window; };
+
+    var host = document.getElementById('board');
+    host.textContent = '';
+
+    [
+      section('Owners', [
+        tile('owners total', s.owners.total),
+        tile('new 24h', s.owners.new24h),
+        tile('new 7d', s.owners.new7d),
+        tile('active 24h', s.owners.active24h, { series: series.activeOwners }),
+        tile('active 7d', s.owners.active7d, { series: series.activeOwners }),
+        tile('active 30d', s.owners.active30d),
+        tile('guests total', s.owners.guestsTotal),
+        tile('guests claimed', s.owners.guestsClaimed),
+        tile('guests active 24h', s.owners.guestsActive24h),
+      ]),
+
+      section('Agents', [
+        tile('agents total', s.agents.total),
+        tile('born 24h', s.agents.born24h, { series: series.agentsBorn }),
+        tile('born 7d', s.agents.born7d, { series: series.agentsBorn }),
+        tile('per owner avg', s.agents.perOwnerAvg),
+        tile('per owner max', s.agents.perOwnerMax),
+        tile('retired', s.agents.retired),
+        tile('fallback births', s.agents.fallbackBirths, { tone: s.agents.fallbackBirths.value > 0 ? 'bad' : '' }),
+      ]),
+
+      section('Play', [
+        tile('hands 1h', s.play.hands1h, { series: series.hands }),
+        tile(lbl('hands'), w(s.play.hands24h, s.play.hands7d), { series: series.hands }),
+        tile('casino tables live', s.play.casinoTablesLive),
+        tile('home games running', s.play.homeGamesRunning),
+        tile('agents at a table', s.play.agentsSeated),
+        tile('agents away visiting', s.play.agentsVisiting),
+        tile('knocks 24h', s.play.visitKnocks24h, { series: series.visitKnocks }),
+        tile('accepted 24h', s.play.visitAccepted24h),
+      ]),
+
+      section('Money (chips)', [
+        tile('in wallets', s.money.walletChips),
+        tile('in pockets', s.money.pocketChips),
+        tile('biggest pocket', s.money.biggestPocket),
+        tile('chips won 24h', s.money.chipsWon24h, { series: series.chipsWon }),
+        tile('seats unlocked', s.money.seatsUnlocked),
+      ]),
+
+      section('Model', [
+        tile('calls 1h', s.model.calls1h, { series: series.modelCalls }),
+        tile(lbl('calls'), w(s.model.calls24h, s.model.calls7d), { series: series.modelCalls }),
+        tile('usd 1h', s.model.usd1h, { format: usd, series: series.modelUsd }),
+        tile(lbl('usd'), w(s.model.usd24h, s.model.usd7d), { format: usd, series: series.modelUsd }),
+        tile('usd/100 watched', s.model.usdPer100HandsWatched, { format: usd }),
+        tile('usd/100 unwatched', s.model.usdPer100HandsUnwatched, { format: usd }),
+        tile('policy share', s.model.policyShare, { format: pct }),
+        tile('cached tokens', s.model.cachedTokens),
+        tile('last model call', s.model.lastCallAt, {
+          format: ago,
+          tone: keyStale(s) ? 'bad' : 'on',
+        }),
+        tile('401/403 24h', s.model.errors401_24h, { tone: s.model.errors401_24h.value > 0 ? 'bad' : '' }),
+        tile('429 24h', s.model.errors429_24h, { tone: s.model.errors429_24h.value > 0 ? 'warn' : '' }),
+        tile('5xx 24h', s.model.errors5xx_24h, { tone: s.model.errors5xx_24h.value > 0 ? 'bad' : '' }),
+      ]),
+
+      section('Notifications', [
+        tile('sent 24h', s.notifications.sentTotal24h),
+        tile('refused by budget 24h', s.notifications.refusedByBudget24h, { series: series.notifyRefused }),
+        tile('NOTIFY_ENABLED', s.notifications.NOTIFY_ENABLED, {
+          format: onOff, tone: s.notifications.NOTIFY_ENABLED.value ? 'on' : 'bad' }),
+        tile('GUEST_ENABLED', s.notifications.GUEST_ENABLED, {
+          format: onOff, tone: s.notifications.GUEST_ENABLED.value ? 'on' : 'bad' }),
+        tile('TICKER_ENABLED', s.notifications.TICKER_ENABLED, {
+          format: onOff, tone: s.notifications.TICKER_ENABLED.value ? 'on' : 'warn' }),
+        tile('UNWATCHED_POLICY', s.notifications.UNWATCHED_POLICY, {
+          format: onOff, tone: s.notifications.UNWATCHED_POLICY.value ? 'on' : 'warn' }),
+      ].concat(byType(s))),
+
+      section('System', [
+        tile('git sha', s.system.gitSha, { format: function (v) { return v ? String(v).slice(0, 7) : '—'; } }),
+        tile('uptime', s.system.uptimeS, { format: dur }),
+        tile('booted', s.system.bootAt, { format: ago }),
+        tile('node', s.system.node, { format: String }),
+        tile('database', s.system.dbBytes, { format: bytes, tone: s.system.dbBytes.value > 500 * 1024 * 1024 ? 'bad' : '' }),
+        tile('wal', s.system.walBytes, { format: bytes }),
+        tile('disk free', s.system.dataFreeBytes, { format: bytes }),
+      ]),
+    ].forEach(function (node) { if (node) host.appendChild(node); });
+  }
+
+  // "Sent 24h" is a map of type -> count; each type gets its own tile so the
+  // shape of the ladder is visible rather than rolled into one number.
+  function byType(s) {
+    var sent = s.notifications.sent24h;
+    return Object.keys(sent.value || {}).map(function (type) {
+      return tile(type + ' 24h', { value: sent.value[type], definition: sent.definition }, {});
+    });
+  }
+
+  function keyStale(s) {
+    return s.model.errors401_24h.value > 0
+      || (!!s.model.lastCallAt.value && s.play.hands24h.value > 0 && Date.now() - s.model.lastCallAt.value > 6 * 3600e3);
+  }
+
+  // ── Problems ─────────────────────────────────────────────────────────────
+  //
+  // The list comes from the server so that "is anything wrong" has exactly one
+  // definition, whether you read the JSON or look at the strip.
+  function problems(list) {
+    var host = document.getElementById('problems');
+    host.textContent = '';
+    host.className = list.length ? '' : 'ok';
+    if (!list.length) {
+      host.appendChild(el('li', {}, [el('span', { class: 'what', text: 'Nothing red.' })]));
+      return;
+    }
+    list.forEach(function (p) {
+      host.appendChild(el('li', {}, [
+        el('span', { class: 'what', text: p.text }),
+        el('span', { class: 'why', text: p.detail }),
+      ]));
+    });
+  }
+
+  // ── Tables ───────────────────────────────────────────────────────────────
+
+  function fillTable(table, cols, rows, opts) {
+    opts = opts || {};
+    table.textContent = '';
+    var head = el('tr', {}, cols.map(function (c) {
+      var th = el('th', { class: c.left ? 'l' : '', text: c.label, title: c.title || '' });
+      if (c.sort) {
+        if (opts.sort === c.sort) th.setAttribute('aria-sort', 'descending');
+        th.addEventListener('click', function () { opts.onSort(c.sort); });
+      } else {
+        th.style.cursor = 'default';
+      }
+      return th;
+    }));
+    table.appendChild(el('thead', {}, [head]));
+    table.appendChild(el('tbody', {}, rows.map(function (row) {
+      return el('tr', {}, cols.map(function (c) { return c.cell(row); }));
+    })));
+  }
+
+  var td = function (text, cls) { return el('td', { class: cls || '', text: text }); };
+
+  function cohorts(s) {
+    var def = s.retention.definition;
+    document.getElementById('cohortsDef').textContent = def;
+    fillTable(document.getElementById('cohorts'), [
+      { label: 'cohort', left: true, title: def, cell: function (r) { return td(r.day, 'l'); } },
+      { label: 'owners', title: def, cell: function (r) { return td(num(r.owners)); } },
+      { label: 'day 2', title: def, cell: function (r) { return td(num(r.day2)); } },
+      { label: 'day 2 %', title: def, cell: function (r) { return td(pct(r.day2Share), r.day2Share ? '' : 'dim'); } },
+      { label: 'day 7', title: def, cell: function (r) { return td(num(r.day7)); } },
+      { label: 'day 7 %', title: def, cell: function (r) { return td(pct(r.day7Share), r.day7Share ? '' : 'dim'); } },
+    ], s.retention.value.slice().reverse());
+  }
+
+  function owners(payload) {
+    var def = payload.definition;
+    fillTable(document.getElementById('owners'), [
+      { label: 'owner', left: true, sort: 'id', title: def, cell: function (r) { return td(r.id, 'l'); } },
+      { label: 'first agent', left: true, sort: 'name', title: def, cell: function (r) { return td(r.name || '—', 'l' + (r.name ? '' : ' dim')); } },
+      { label: 'agents', sort: 'agents', title: def, cell: function (r) { return td(num(r.agents)); } },
+      { label: 'last seen', sort: 'lastSeen', title: def, cell: function (r) { return td(ago(r.lastSeen), r.lastSeen ? '' : 'dim'); } },
+      { label: 'hands 7d', sort: 'hands7d', title: def, cell: function (r) { return td(num(r.hands7d)); } },
+      { label: 'usd 7d', sort: 'usd7d', title: def, cell: function (r) { return td(usd(r.usd7d)); } },
+      { label: 'chips', sort: 'chips', title: def, cell: function (r) { return td(num(r.chips)); } },
+      { label: 'guest', sort: 'guest', title: def, cell: function (r) {
+        return el('td', {}, [el('span', { class: 'pill' + (r.guest ? ' teal' : ''), text: r.guest ? 'guest' : '—' })]);
+      } },
+    ], payload.rows, {
+      sort: payload.sort,
+      onSort: function (key) { state.ownerSort = key; loadOwners(); },
+    });
+    document.getElementById('moreOwners').hidden = payload.rows.length < state.ownerLimit;
+  }
+
+  function births(payload) {
+    var def = payload.definition;
+    fillTable(document.getElementById('births'), [
+      { label: 'born', left: true, title: def, cell: function (r) { return td(ago(r.bornAt), 'l'); } },
+      { label: 'name', left: true, title: def, cell: function (r) { return td(r.name || '—', 'l'); } },
+      { label: 'owner', left: true, title: def, cell: function (r) { return td(r.owner, 'l'); } },
+      { label: 'hands', title: def, cell: function (r) { return td(num(r.hands)); } },
+      { label: 'where', title: def, cell: function (r) { return td(r.where, 'dim'); } },
+      { label: 'fallback', title: def, cell: function (r) {
+        return el('td', {}, [el('span', { class: 'pill' + (r.fallback ? ' red' : ''), text: r.fallback ? 'BUG-46' : '—' })]);
+      } },
+    ], payload.rows);
+  }
+
+  // ── Load ─────────────────────────────────────────────────────────────────
+
+  function loadOwners() {
+    return get('/api/admin/owners?sort=' + encodeURIComponent(state.ownerSort) + '&limit=' + state.ownerLimit)
+      .then(owners);
+  }
+
+  function stamp(s) {
+    var bits = [
+      (s.system.gitSha.value || 'no sha').slice(0, 7),
+      'up ' + dur(s.system.uptimeS.value),
+      'read ' + new Date(s.at).toLocaleTimeString(),
+    ];
+    document.getElementById('stamp').textContent = bits.join('  ·  ');
+  }
+
+  function load() {
+    return get('/api/admin/stats')
+      .then(function (s) {
+        problems(s.problems);
+        board(s);
+        cohorts(s);
+        stamp(s);
+        return Promise.all([loadOwners(), get('/api/admin/agents/recent').then(births)]);
+      })
+      .then(function () { document.getElementById('err').textContent = ''; })
+      .catch(function (e) { document.getElementById('err').textContent = e.message; });
+  }
+
+  function start(key) {
+    state.key = key;
+    return load().then(function () {
+      if (document.getElementById('err').textContent) return false;
+      try { sessionStorage.setItem(KEY_STORE, key); } catch (e) { /* private window */ }
+      document.getElementById('gate').hidden = true;
+      document.getElementById('app').hidden = false;
+      if (state.timer) clearInterval(state.timer);
+      state.timer = setInterval(load, REFRESH_MS);
+      return true;
+    });
+  }
+
+  // ── Wiring ───────────────────────────────────────────────────────────────
+
+  document.getElementById('gateForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var key = document.getElementById('key').value.trim();
+    if (key) start(key);
+  });
+
+  document.getElementById('signout').addEventListener('click', function () {
+    try { sessionStorage.removeItem(KEY_STORE); } catch (e) { /* private window */ }
+    if (state.timer) clearInterval(state.timer);
+    state.key = '';
+    document.getElementById('app').hidden = true;
+    document.getElementById('gate').hidden = false;
+    document.getElementById('key').value = '';
+  });
+
+  [['w24', '24h'], ['w7d', '7d']].forEach(function (pair) {
+    document.getElementById(pair[0]).addEventListener('click', function () {
+      state.window = pair[1];
+      document.getElementById('w24').setAttribute('aria-pressed', String(pair[1] === '24h'));
+      document.getElementById('w7d').setAttribute('aria-pressed', String(pair[1] === '7d'));
+      load();
+    });
+  });
+
+  document.getElementById('moreOwners').addEventListener('click', function () {
+    state.ownerLimit = Math.min(state.ownerLimit + 200, 500);
+    loadOwners();
+  });
+
+  var saved = '';
+  try { saved = sessionStorage.getItem(KEY_STORE) || ''; } catch (e) { saved = ''; }
+  if (saved) start(saved);
+})();
+</script>
+</body>
+</html>

@@ -20,8 +20,12 @@
 // check, and the dashboard reads its numbers through meter.js's own
 // adminMeter() rather than running its own SQL over model_calls.
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { presenceMiddleware } from './presence.js';
-import { adminGuard } from './key.js';
+import { adminGuard, adminKey } from './key.js';
 import { adminStats } from './stats.js';
 import {
   ownerRows, recentBirths, OWNER_SORTS, OWNER_ROWS_DEFINITION, RECENT_BIRTHS_DEFINITION,
@@ -64,4 +68,34 @@ export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
       rows: recentBirths({ limit: req.query.limit }),
     });
   });
+
+  // GET /admin — the page.
+  //
+  // NOT behind adminGuard: it is the login form, and a form that needs the key
+  // to render cannot ask for it. It carries no data of its own — every number
+  // on it arrives from the three endpoints above, each of which does check the
+  // key. What it does follow is the same "no key configured, no dashboard"
+  // rule, so a deployment without one does not serve a login box for a door
+  // that is not there.
+  //
+  // no-store, always. A cached admin page is a page that shows last hour's
+  // floor to somebody deciding what to do about this one.
+  app.get('/admin', (_req, res) => {
+    if (!adminKey()) return res.status(404).type('text/plain').send('Not found');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.type('html').send(pageHtml());
+  });
+}
+
+// Read once and held: it is a static file that cannot change without a deploy,
+// and a disk read per request on a page that refreshes itself is waste. Read
+// lazily rather than at import so a process that never serves /admin never
+// touches it.
+let cachedPage = null;
+function pageHtml() {
+  if (cachedPage === null) {
+    cachedPage = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'page.html'), 'utf8');
+  }
+  return cachedPage;
 }

@@ -34,6 +34,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { adminDb, _dbPath } from '../store.js';
 import { adminMeter } from '../meter.js';
@@ -135,11 +136,19 @@ function floorCounts() {
 
 // ── System ───────────────────────────────────────────────────────────────────
 
+// The checkout this file was loaded FROM, not the cwd. Everything that
+// persists in this codebase resolves from process.cwd() on purpose (store.js
+// rule 1, and it is what keeps test runs out of the developer's real data/) —
+// but the commit is a fact about the CODE, and a server started from somewhere
+// else still ran this code. Resolved from cwd, the sha read "—" whenever the
+// two differed.
+export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
 // Read out of .git rather than shelled out to git: this runs on a request, and
 // a dashboard that spawns a process every sixty seconds is a dashboard with a
 // process-table problem. GIT_SHA wins when it is set, for a deployment that
 // builds without a .git directory.
-export function gitSha(root = process.cwd()) {
+export function gitSha(root = REPO_ROOT) {
   if (process.env.GIT_SHA) return String(process.env.GIT_SHA).slice(0, 40);
   const read = (...p) => fs.readFileSync(path.join(...p), 'utf8').trim();
   try {
@@ -184,7 +193,7 @@ function freeBytes(dir) {
  * except `series`, `retention` and `problems`, which are shapes rather than
  * single numbers and carry their definition on the container.
  */
-export function adminStats({ now = Date.now(), root = process.cwd() } = {}) {
+export function adminStats({ now = Date.now(), root = REPO_ROOT } = {}) {
   const db = adminDb();
   const t = tallies(db, now);
   const one = (sql, ...args) => Object.values(db.prepare(sql).get(...args) ?? {})[0] ?? 0;
