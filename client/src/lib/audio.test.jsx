@@ -1,17 +1,20 @@
 // client/src/lib/audio.test.jsx — W3-3
 //
-// The sound layer is a stub in this wave: the files are not in the bundle, the
-// hooks are. What is real and testable today is the mute preference and the
-// two events that are silent on purpose.
+// Mute preference, the event catalog and actual scheduled output through the
+// Web Audio test seam; real-browser output is checked separately.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SOUNDS, beat, isMuted, play, resetAudio, setMuted, toggleMuted, onMuteChange } from './audio.js';
+import { SOUNDS, unlockAudio, beat, isMuted, play, resetAudio, setMuted, toggleMuted, onMuteChange } from './audio.js';
+
+import { FakeAudioContext } from '../test/fakeAudio.js';
 
 describe('W3-3 sound', () => {
+  afterEach(()=>{resetAudio();vi.unstubAllGlobals();});
   beforeEach(() => {
     resetAudio();
     try { window.localStorage.clear(); } catch { /* private window */ }
+    vi.stubGlobal('AudioContext',FakeAudioContext);unlockAudio();
   });
 
   it('W3-3: starts unmuted and remembers a mute across reads', () => {

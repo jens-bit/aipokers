@@ -1,6 +1,6 @@
 # Railbird — current design gap inventory
 
-Updated 9 September 2026, batch30. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
+Updated 9 September 2026, batch31. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
 
 This replaces the contradictory old inventory that still called implemented boards 41/42 entirely unbuilt. Its original text and all batch1–29 entries are preserved in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). Chronological execution evidence remains in [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md).
 
@@ -19,7 +19,7 @@ This replaces the contradictory old inventory that still called implemented boar
 | 24 41 empty-state matrix | UNVERIFIED as a complete matrix | Several Home/guest/empty-table cases pass; render all seven authored rows rather than extrapolating from those. |
 | 25 N0–N8 notifications | PARTIAL / external verification pending | Server notification/refusal/budget tests exist. No actual phone delivery is claimed. Do not send real notifications merely to manufacture audit evidence. Compare prepared message payloads to the frames, then verify authorized production settings/delivery. |
 | 26 52a–f/i–n: Watch, betting, hold, thread/read, cards, six seats | VERIFIED existing implementation with remaining matrix audit | Phone composition retained by Jens. Existing Watch/Sit/hand/privacy tests; batch29 saved identities. Keep complete scene checks distinct from unit coverage. |
-| 26 52g/h/p/q/r and 42 C8a/b/c: win/big-win/bust | PARTIAL | Batch11 pairs verify fists up, three bursts for >=100bb and actual knockout, darkened/falling busted opponents, reduced motion and split winners. Audio layer is still a stub; the archive contains zero audio files and names sounds as files to pick. |
+| 26 52g/h/p/q/r and 42 C8a/b/c: win/big-win/bust | PARTIAL | Batch11 pairs verify fists up, three bursts for >=100bb and actual knockout, darkened/falling busted opponents, reduced motion and split winners. Batch31 implements gesture-unlocked original effects and the specified timing; real-browser playback/mute passed. The archive supplies no recording to match. [Original preview](../client/e2e/sounds/c8-original-preview.wav); final listening preference remains Jens's. |
 | 27 K1 arrival/deploy / K2 Board | VERIFIED local journeys; batch30 layout port | Actual deployment/queue/Watch/Leave smoke passes. Phone Board now follows N3/F07: separate Live now and Tonight before room doors. Floor-first toggle is a later approved requirement. |
 | 27 K3 hot felt | PARTIAL | Live pot/Watch/hot rows and floor glow exist. Need a dedicated hot-frame pair, not just ordinary floor screenshots. |
 | 29 F01 empty Home / F02–F03b draft / F04 arrival | VERIFIED locally with recorded differences | Batches1/3/4/17/27 and their pairs. Four forming stages, no collar. Actual names/rolled appearances replace samples. Birth card currently retains the earlier 96px correction rather than C2's illustrated 64px. |
@@ -58,8 +58,8 @@ This replaces the contradictory old inventory that still called implemented boar
 
 ## Ordered work remaining
 
-1. Batch30 checks and both phone Board pairs passed; local main integration follows. Batch29 main gate passed 106 server / 2219 client / 7 end-to-end checks.
-2. Implement and verify the missing audio playback path and C8 sound hooks using reviewable original effects; no reference audio was supplied. Preserve mute and browser gesture restrictions.
+1. Batch30 post-integration main checks passed. Batch31 audio/local browser/build/smoke/Home2 checks passed 106 server / 2225 client / 7 end-to-end; main integration follows.
+2. Audio playback/C8 hooks are implemented in batch31 with original synthesis. Keep the saved preview available for listening feedback; do not represent it as a supplied recording.
 3. Port S1/S2 share formats and compare populated/empty/failed-share states with actual data.
 4. Close the UNVERIFIED expression/pose/empty/transition/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
 5. Refresh final product captures and release evidence. Recheck branding applications and the original first-thirty-seconds journey across phone and desktop.

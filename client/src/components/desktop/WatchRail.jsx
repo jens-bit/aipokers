@@ -1,3 +1,4 @@
+import { MuteToggle } from '../WatchScreen.jsx';
 // Analysis, as rail panels rather than tabs under the felt.
 // Ported from design-refs/mood-desktop3.jsx AnalysisPanel / ARow / WatchRail
 // (screens D3WatchScreenM, D3WatchBetweenScreenM).
@@ -93,7 +94,8 @@ export function WatchRail({
     <div className={"dsk-panel dsk-panel--watch"+(conversationOnly?" is-conversation":"")}>
       <PanelHead
         title={agent?.name || 'At the table'}
-        sub={between ? 'BETWEEN HANDS' : 'AT THE TABLE'}
+        sub={agent?.name ? (between ? 'BETWEEN HANDS' : 'AT THE TABLE') : null}
+        actions={<MuteToggle compact/>}
         onClose={onClose}
       />
       <RailBody>

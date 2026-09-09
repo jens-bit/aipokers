@@ -1,13 +1,6 @@
-// WATCH v3 — the sound layer, as a stub.
-//
-// The sounds themselves are not shipped in this wave; the hooks are, so the
-// call sites land now and the files drop in later without touching the screens.
-// Every entry is the sound column of the ww-ref's haptics table.
-//
-// Muting is the point of the layer existing separately from haptics: the phone
-// is on silent in a bar, so every beat has to survive with the sound off. The
-// preference is per-device and per-viewer, which is exactly what localStorage
-// is for; it is read defensively because a private window throws on access.
+// Per-viewer mute plus original synthesized effects. Audio starts only after
+// a user gesture; silent/blocked browsers do not report a sound as played.
+import { playEffect, resetEngine, stopSounds, unlockEngine } from './audioEngine.js';
 
 export const SOUNDS = {
   cardDealt: { file: 'deal-tick', ms: 12, note: 'one per card, 90ms apart' },
@@ -27,6 +20,9 @@ export const SOUNDS = {
   // It is a sound, not a verdict, and the toggle silences it like everything
   // else here.
   lostPot: { file: 'low-womp', ms: 300, note: 'a low descending womp under the −$ toast' },
+  winSwell: { file: 'win_swell', ms: 400, note: 'C8: one low room swell, no cheer' },
+  bigWinBursts: { file: 'big_win_bursts', ms: 1200, note: 'C8: three soft reports at 0, 260, 520ms' },
+  bustKnock: { file: 'bust_knock', ms: 100, note: 'C8: dry knock at pill landing; room effects duck for 600ms' },
   readForms: null,
   predictionRight: null,
   collectConfirmed: { file: 'soft-note', ms: 300, note: 'a transfer, not a jackpot' },
@@ -52,6 +48,7 @@ export function isMuted() {
 
 export function setMuted(next) {
   muted = !!next;
+  if (muted) stopSounds();
   try {
     window.localStorage.setItem(KEY, muted ? '1' : '0');
   } catch {
@@ -62,7 +59,9 @@ export function setMuted(next) {
 }
 
 export function toggleMuted() {
-  return setMuted(!isMuted());
+  const next=setMuted(!isMuted());
+  if(!next)unlockAudio();
+  return next;
 }
 
 /** Subscribe to mute changes; returns the unsubscribe. */
@@ -75,24 +74,25 @@ export function onMuteChange(fn) {
 export function resetAudio() {
   muted = null;
   listeners.clear();
+  resetEngine();
 }
 
-/**
- * Play one beat. A stub: it resolves what *would* be played and returns it, so
- * the wiring is testable today and the only change when the files arrive is
- * inside this function.
- *
- * Returns the sound that played, or null when there is nothing to play — muted,
- * or an event that is deliberately silent.
- */
-export function play(event) {
-  const sound = SOUNDS[event] ?? null;
-  if (!sound) return null;
-  if (isMuted()) return null;
-  // TODO(W3-3): the audio files are not in the bundle yet. When they land, this
-  // is the one place that changes — an AudioContext primed on the first user
-  // gesture, then a buffer per file.
-  return sound;
+/** Explicitly called from a user gesture, never from an incoming game frame. */
+export function unlockAudio() { return !isMuted() && unlockEngine(); }
+
+export function installAudioUnlock(target=window) {
+  const unlock=()=>unlockAudio();
+  const hide=()=>{if(document.visibilityState==='hidden')stopSounds();};
+  target.addEventListener('pointerdown',unlock,{passive:true});
+  target.addEventListener('keydown',unlock);
+  document.addEventListener('visibilitychange',hide);
+  return ()=>{target.removeEventListener('pointerdown',unlock);target.removeEventListener('keydown',unlock);document.removeEventListener('visibilitychange',hide);};
+}
+
+/** Returns the scheduled sound, or null if muted, locked, hidden or unavailable. */
+export function play(event,options) {
+  const sound=SOUNDS[event]??null;
+  return sound&&!isMuted()&&playEffect(sound,options)?sound:null;
 }
 
 /** Both layers for one event, in the order the ww-ref lists them. */

@@ -1,5 +1,9 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 2026-09-09 — sound playback and celebration audio
+
+Existing sound hooks now play original Web Audio effects after a user gesture. C8 adds the timed swell, three reports and knockout sound. Mute cancels queued/playing effects, remains reachable beside Chat on the owned phone route, and is available in desktop Watch headers. Full tests, real-browser output/mute, all desktop cases across two groups, built smoke and Home2 passed. An original WAV preview and visual pairs are saved under client/e2e.
+
 ## 2026-09-09 — phone casino Board follows N3
 
 Live now and Tonight are separate panels above the room doors, restoring the reference hierarchy and keeping room for the actual table. Existing live Watch/replay routes and the later Floor/Board toggle remain. Full, desktop, three phone-width/height, built smoke and Home2 checks passed. DESIGN_GAP now separates current verified work from missing/unverified frames; old status text is preserved as history.

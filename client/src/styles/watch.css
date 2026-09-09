@@ -1909,3 +1909,8 @@
   text-transform: uppercase;
   color: var(--sys-gold, #CDB380);
 }
+
+.dsk-panel-head .watch-mute.is-compact { margin: 0; flex-shrink: 0; padding: 0 6px; }
+.watch-mute.is-compact span { display: none; }
+
+.watch-screen__header .watch-mute.is-compact { margin: 0; padding: 0 6px; flex-shrink: 0; }

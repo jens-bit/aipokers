@@ -339,3 +339,31 @@ test.describe('WATCH-10 · density on the felt at 390×844', () => {
     expect(felted).not.toMatch(/\d[   ]\d/);
   });
 });
+
+
+test('BUG-112: real browser audio plays a new result once and mute stops output',async({page})=>{
+  await page.addInitScript(()=>{
+    const Native=window.AudioContext||window.webkitAudioContext;
+    window.__audioStarts=[];window.__audioContexts=[];
+    window.AudioContext=class extends Native {
+      constructor(...args){super(...args);window.__audioContexts.push(this);}
+      createBufferSource(){const source=super.createBufferSource(),start=source.start.bind(source),stop=source.stop.bind(source);source.start=(at)=>{window.__audioStarts.push({at,duration:source.buffer.duration,peak:Math.max(...source.buffer.getChannelData(0).map(Math.abs)),contextState:this.state,stopped:false});source.__entry=window.__audioStarts.at(-1);return start(at);};source.stop=(...args)=>{if(source.__entry)source.__entry.stopped=true;return stop(...args);};return source;}
+    };
+  });
+  await felt(page,{owned:true});
+  await expect.poll(()=>page.evaluate(()=>window.__audioContexts[0]?.state)).toBe('running');
+  await page.evaluate(()=>{window.__audioStarts=[];});
+  const ended={...TABLE,street:'complete',toAct:null,result:{winners:[{seat:0,amount:14800}]},bigBlind:100};
+  await page.evaluate(game=>window.__pushWatchState(game),ended);
+  await expect.poll(()=>page.evaluate(()=>window.__audioStarts.length)).toBe(2);
+  const starts=await page.evaluate(()=>window.__audioStarts);
+  expect(starts.map(s=>s.duration).sort()).toEqual([.4,1.2]);
+  for(const s of starts){expect(s.contextState).toBe('running');expect(s.peak).toBeGreaterThan(.01);expect(s.peak).toBeLessThan(.8);}
+  await page.evaluate(game=>window.__pushWatchState(game),ended);expect(await page.evaluate(()=>window.__audioStarts.length)).toBe(2);
+  await page.getByRole('button',{name:'Sound on',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Sound off',exact:true})).toBeVisible();
+  await page.evaluate(game=>window.__pushWatchState(game),{...TABLE,handNumber:TABLE.handNumber+1});
+  await page.evaluate(game=>window.__pushWatchState(game),{...ended,handNumber:TABLE.handNumber+1});
+  expect(await page.evaluate(()=>window.__audioStarts.length)).toBe(2);
+  expect(await page.evaluate(()=>localStorage.getItem('ap_muted'))).toBe('1');
+});

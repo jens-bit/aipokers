@@ -62,7 +62,7 @@ import { Whisper, WhisperComposer, WHISPER_MS } from './system/Whisper.jsx';
 import { onFelt, record } from '../lib/bubbles.js';
 import { sidesById } from '../lib/feltBubbles.js';
 import { fire as fireHaptic } from '../lib/haptics.js';
-import { beat, isMuted, toggleMuted } from '../lib/audio.js';
+import { beat, isMuted, toggleMuted, onMuteChange } from '../lib/audio.js';
 import { PredictBeat } from './system/PredictBeat.jsx';
 import { predictEnabled, settle, getStreak } from '../lib/predict.js';
 import { ResultToast } from './system/ResultToast.jsx';
@@ -77,7 +77,7 @@ import { attrCostOf } from '../lib/attributes.js';
 import { mergeThread } from '../lib/thread.js';
 import { useTableThread } from '../hooks/useTableThread.js';
 import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
-import { BustedName, HandFireworks, handCelebration } from './system/HandCelebration.jsx';
+import { BustedName, HandFireworks, handCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -142,12 +142,14 @@ function posLabel(seat, game) {
 // head. It is still one tap from anywhere on the watch screen, and it is no
 // longer a grey row on a green table.
 
-export function MuteToggle() {
+export function MuteToggle({compact=false}) {
   var [muted, setMuted] = useState(function() { return isMuted(); });
+  useEffect(()=>onMuteChange(setMuted),[]);
   return (
     <button
       type="button"
-      className={'watch-mute' + (muted ? ' is-muted' : '')}
+      className={'watch-mute' + (muted ? ' is-muted' : '') + (compact ? ' is-compact' : '')}
+      aria-label={muted ? 'Sound off' : 'Sound on'}
       aria-pressed={muted}
       onClick={function() { setMuted(toggleMuted()); }}
     >
@@ -894,6 +896,7 @@ export function WatchFelt({
   var heroFatigue = (heroData && heroData.fatigue) || agentFatigue || null;
   var heroDrinking = isDrinking(heroData);
   var celebration = !geom && settled ? handCelebration(game,heroSeat) : null;
+  useCelebrationAudio(game,heroSeat,!geom);
   var majorWin = celebration?.won && (celebration.big || celebration.busted.length>0);
   var winLabel = majorWin ? (celebration.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
     : celebration.busted.length===1 ? `${celebration.busted[0].name} IS OUT`
@@ -1744,7 +1747,7 @@ export function WatchScreen({
     resultSeenRef.current = hand;
     var heroSeat = Number.isInteger(mySeat) ? mySeat : 0;
     var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
-    beat(won ? 'wonPot' : 'lostPot', fireHaptic);
+    fireHaptic(won ? 'wonPot' : 'lostPot'); // Shared felt owns C8 audio on both shells.
   }, [game && game.handNumber, game && game.result, mySeat]);
 
   var heroSeatNo = Number.isInteger(mySeat) ? mySeat : 0;
@@ -2001,6 +2004,7 @@ export function WatchScreen({
         </span>
         <MoodChip mood={mood} small />
         <StateTag state={state} compact />
+        {onOpenThread && <MuteToggle compact/>}
         <div style={{ flex: 1 }} />
         <button
           type="button"

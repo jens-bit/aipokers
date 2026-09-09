@@ -10,12 +10,13 @@ import { AttrTrack } from '../system/AttrBar.jsx';
 import { NavIcon } from './primitives.jsx';
 
 // 46px fixed head with an optional close affordance.
-export function PanelHead({ title, sub, onClose }) {
+export function PanelHead({ title, sub, onClose, actions = null }) {
   return (
     <div className="dsk-panel-head">
       <span className="dsk-panel-head__title">{title}</span>
       {sub && <span className="dsk-panel-head__sub">{sub}</span>}
       <div className="dsk-panel-head__spacer" />
+      {actions}
       {onClose && (
         <button
           type="button"

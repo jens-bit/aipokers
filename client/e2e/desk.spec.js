@@ -790,12 +790,14 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     expect(sent.tableId).toBe(tableId);
     if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await page.getByRole('button',{name:'Open the thread',exact:true}).click();await expect(page.getByPlaceholder('Whisper to him…')).toBeFocused();}
     else {expect(sent.agentId).toBeNull();await expect(page.getByPlaceholder('Whisper to him…')).toHaveCount(0);await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);await expect(page.locator('.watch-hero__cards')).toHaveText('');}
+    await page.getByRole('button',{name:'Sound on',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Sound off',exact:true})).toHaveAttribute('aria-pressed','true');
     await expect(page.locator('.watch-felt__pot-amt')).toHaveText('$100');
     await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity','1');
     await expect(page.locator('.watch-felt__board')).toHaveCSS('opacity','1');
     await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',owned?'sand':'oxblood');
     await expect(page.locator('.watch-hero radialGradient stop').first()).toHaveAttribute('stop-color',owned?'#C9A227':'#7FA8C9');
-    await page.screenshot({path:'../artifacts/casino29-'+(owned?'owned':'public')+'.png'});
+    await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+'.png'});
     await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);

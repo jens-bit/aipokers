@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-112 — sound hooks report playback but the audio layer is a stub — FIXED on design branch
+The red check received a heavy-hit descriptor before any audio device existed. Playback now requires an unlocked running context and schedules actual original buffers; muted/hidden/unavailable output returns null. C8 timing, bounded waveforms, buffer reuse and cancellation pass unit checks; real Chrome plays the watched win once and respects the actual mute button. Full 106/2225/7 gate and built smoke/Home2 pass.
+
+### BUG-113 — owned phone Chat bypasses the only sound control — FIXED on design branch
+The real browser entered the companion when pressing Chat and could not find Sound on. A compact toggle is now directly in that Watch header; desktop owned/public rails also expose the shared control. Internal thread-sheet routes retain their existing toggle. Final actual-UI audio and three-size C8 checks pass; header pairs inspected.
+
 ### BUG-111 — saved appearance disappears between Home and live tables — FIXED on design branch
 Live STATE/liveGame/felt omitted hood/glow; Watch and casino ghosts ignored it, and normalizeFelts discarded it. Validated two-ID projections now reach every live renderer. Mood/camera/occupant changes preserve the right identity; private stored metadata and cards remain excluded. Red server, component and browser checks reproduced the break; final 106/2219/7 gate, 38 desktop, 7 built smoke and 20 Home2 checks passed. Reference pairs design-batch29-owned/public were inspected.
 

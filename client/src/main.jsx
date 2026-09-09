@@ -6,6 +6,9 @@ import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import { visitPreview, rememberPendingVisitor, requestVisit } from './lib/visit.js';
 import './styles/index.css';
+import { installAudioUnlock } from './lib/audio.js';
+const removeAudioUnlock=installAudioUnlock();
+if(import.meta.hot)import.meta.hot.dispose(removeAudioUnlock);
 
 // BUGS-C job 1: a Mini App session (by far the common case) always takes the
 // first branch below and never renders either of these — so they are loaded

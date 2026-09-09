@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { play } from '../../lib/audio.js';
 import { pillName } from '../../lib/names.js';
 import '../../styles/celebration.css';
 
@@ -34,4 +35,19 @@ export function HandFireworks() {
 
 export function BustedName({name}) {
   return <span className="hand-busted-name" aria-hidden="true">{pillName(name)}</span>;
+}
+
+// React to a hand finishing while watched. Joining a completed hand, replay
+// frames, camera changes and repeated state snapshots must not replay effects.
+export function useCelebrationAudio(game,heroSeat=0,enabled=true) {
+  const previous=useRef(null);
+  const hand=game?.handNumber,table=game?.tableId,done=game?.street==='complete'&&!!game?.result;
+  useEffect(()=>{
+    const before=previous.current;previous.current={hand,table,done,heroSeat};
+    if(!enabled||!done||!before||before.done||before.hand!==hand||before.table!==table||before.heroSeat!==heroSeat)return;
+    const result=handCelebration(game,heroSeat);if(!result)return;
+    if(result.won){play('winSwell');if(result.big||result.busted.length)play('bigWinBursts');}
+    else play('lostPot');
+    if(result.busted.length)play('bustKnock',{delayMs:900});
+  },[hand,table,done,heroSeat,enabled,game]);
 }
