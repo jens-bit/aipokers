@@ -8,7 +8,7 @@ import { VisitorToast } from './components/home/VisitorToast.jsx';
 import { shareVisitLink, requestVisit } from './lib/visit.js';
 import { parseStartParam, resolveDeepLink } from './lib/deeplink.js';
 import { startGuest } from './lib/guest.js';
-import { fetchMock, telegram } from './test/harness.js';
+import { fetchMock, socketMock, telegram } from './test/harness.js';
 
 const token = 'vi_0123456789abcdefghij';
 const agent = { id: 'friend1', name: 'Away Day', status: 'idle', location: { where: 'home' }, chatHistory: [] };
@@ -20,6 +20,28 @@ function routes() {
   fetchMock.route(`/api/visit-invites/${token}`, { agentId: agent.id, agentName: agent.name, expiresAt: invite.expiresAt, maxStake: 0 });
 }
 beforeEach(() => { telegram.signIn(); routes(); });
+
+it('BUG-160: a visiting agent profile watches its actual kitchen and keeps the owner viewpoint', async () => {
+  const user = userEvent.setup();
+  const visitor = { ...agent, activeTableId: null, location: { where: 'visiting', tableId: 'home-9402' }, liveGame: { tableId: 'home-9402', state: 'running' } };
+  fetchMock.route('/api/agents?', { agents: [visitor] });
+  fetchMock.route('/memory', { memoryContext: '' });
+  telegram.startWith(`agent_${visitor.id}`);
+  render(<App />);
+  await user.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+  await user.click(await screen.findByRole('button', { name: 'Watch live game' }));
+  await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
+  act(() => { for (const socket of socketMock.instances) if (socket.readyState === 0) socket.open(); });
+  expect(socketMock.instances.flatMap(socket => socket.sent).find(message => message.type === 'watch')).toMatchObject({ tableId: 'home-9402', agentId: visitor.id, userId: '4242' });
+  expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Chat', exact: true }));
+  expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
+});
+
+it('BUG-160: a kitchen table link resolves the visiting agent belonging to this owner', async () => {
+  fetchMock.route('/api/agents?', { agents: [{ ...agent, activeTableId: null, liveGame: { tableId: 'home-9402' } }] });
+  expect(await resolveDeepLink({ kind: 'table', tableId: 'home-9402' })).toMatchObject({ kind: 'table', tableId: 'home-9402', agent: { id: agent.id } });
+});
 afterEach(() => { delete navigator.share; delete navigator.clipboard; localStorage.clear(); sessionStorage.clear(); });
 
 it('BUG-150: sharing obtains owner consent and copies a readable invitation instead of a bare agent link', async () => {

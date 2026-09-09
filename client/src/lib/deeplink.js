@@ -164,7 +164,7 @@ export async function resolveDeepLink(route) {
     // Who is at that table, if he is one of ours. It is what lets the watch
     // screen offer his thread; a table with nobody of ours at it is still
     // watchable, so this never fails the link.
-    const agent = (await roster()).find((a) => a.activeTableId === route.tableId) ?? null;
+    const agent = (await roster()).find((a) => (a.activeTableId || a.liveGame?.tableId || a.location?.tableId) === route.tableId) ?? null;
     return { kind: 'table', tableId: route.tableId, agent };
   }
 

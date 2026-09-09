@@ -768,7 +768,8 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
               openAgentChat(ag, { tab: activeTab, profileAgent: ag });
             }}
             onWatch={async (ag) => {
-              if (!ag?.activeTableId) return;
+              const tableId = ag?.activeTableId || ag?.liveGame?.tableId || ag?.location?.tableId;
+              if (!tableId) return;
               // CHAT-2: captured before the overlay closes, so it still knows
               // whether a thread or the floor is underneath it.
               watchOriginRef.current = hereOrigin();
@@ -780,7 +781,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
               setAgentProfileTarget(null);
               setActiveAgent(ag.id, ag);
               watch({
-                tableId: ag.activeTableId,
+                tableId,
                 agentId: ag.id,
                 userId: getUserId(),
                 agentStrategy: ag.strategy,
