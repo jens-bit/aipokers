@@ -204,6 +204,31 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
       'x-api-secret': msg.apiSecret ?? request.headers['x-api-secret'],
     } });
 
+    // BUG-155: kitchen membership and ownership of one agent's private
+    // cards are separate checks. Reject outsiders before attaching, seating
+    // an AI or creating a table; omitting agentId must not grant public entry.
+    function kitchenFor(msg, { canStart = false } = {}) {
+      let table = tables.get(msg.tableId);
+      const reserved = typeof msg.tableId === 'string' && msg.tableId.startsWith('home-');
+      if (!table?.home && !reserved) return null;
+      const userId = String(msg.userId || 'anon');
+      if (!isOwner(authRequest(msg), userId)) throw new Error('This kitchen is private');
+      if (!table?.home || table.closed) {
+        // A host's explicit Sit/rebuy may restart their actual kitchen. A
+        // WATCH never creates one, and generic JOIN cannot squat on its id.
+        if (msg.tableId !== homeGame.homeTableId(userId)) throw new Error('This kitchen is private');
+        if (!canStart) throw new Error('Home table is not available');
+        homeGame.sync(userId, { manual: true });
+        table = tables.get(msg.tableId);
+      }
+      if (!table?.home || table.closed) throw new Error('Home table is not available');
+      const hostUserId = table.homeOwnerId;
+      if (!hostUserId || (hostUserId !== userId && !visit.hasActiveVisit(hostUserId, userId))) {
+        throw new Error('This kitchen is private');
+      }
+      return table;
+    }
+
     ws.on('message', (data) => {
       let msg;
       try {
@@ -225,7 +250,8 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             if (!isOwner(authRequest(msg), ownerId)) throw new Error('Unauthorized owner');
             if (msg.agentId && !getAgentProfile(msg.agentId, ownerId)) throw new Error('Not your agent owner');
             const protectedServer = process.env.TELEGRAM_BOT_TOKEN || process.env.DEV_API_SECRET;
-            const table = getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind, maxSeats: msg.maxSeats });
+            const table = kitchenFor(msg, { canStart: true })
+              ?? getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind, maxSeats: msg.maxSeats });
             const seat = table.seatPlayer(ws, {
               // BUG-50: public player ids cannot be replayed to steal a seat.
               playerId: protectedServer ? `${ownerId}:${msg.playerId}` : msg.playerId,
@@ -261,6 +287,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
           case ClientMsg.WATCH: {
             if (!msg.tableId) throw new Error('tableId required');
+            const kitchen = kitchenFor(msg);
             const agentProfile = msg.agentId ? getAgentProfile(msg.agentId, msg.userId) : null;
             // The shared development secret is a trusted test/operator
             // identity, like REST. Telegram deployments require a real agent.
@@ -273,9 +300,9 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             }
             // BUG-50: public watching observes an existing table. Only a
             // proven owner may use the legacy path that seats an agent.
-            const table = owner
+            const table = kitchen ?? (owner
               ? getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind ?? 10, bigBlind: msg.bigBlind ?? 20, maxSeats: msg.maxSeats })
-              : tables.get(msg.tableId);
+              : tables.get(msg.tableId));
             if (!table) throw new Error('Table not found');
             const spectatorSeat = table.addSpectator(ws, {
               publicOnly: !owner,

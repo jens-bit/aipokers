@@ -280,6 +280,7 @@ function open(ownerId, roster) {
       ...HOME_BLINDS,
       maxSeats: HOME_SEATS,
       home: true,
+      homeOwnerId: ownerId,
     });
   } catch (err) {
     console.error('[home] could not stand up the kitchen table:', err.message);

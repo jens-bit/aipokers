@@ -175,6 +175,7 @@ export function getOrCreateTable(tableId, opts = {}) {
     // table is a home game decides what may not happen at it, and that is not
     // a thing a later caller should be able to flip.
     home: opts.home === true,
+    homeOwnerId: opts.home === true ? opts.homeOwnerId : null,
     onEmpty: (id) => { tables.delete(id); },
     onStateChange: (t) => stateHook?.(t),
   });
