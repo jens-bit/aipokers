@@ -162,13 +162,11 @@ describe('HANDS-1: the hands are in front of the cards', () => {
     }
   });
 
-  // "The grammar of the pair reads at a glance: hands go UP AND OUT on a win,
-  // IN OVER THE FACE on a loss" — and that pair is THE CEREMONY'S (52g/52h).
-  // WATCH-7's law is that a hand end is quiet: both fists over his head at the
-  // end of every hand he wins is the session moment fired forty times a session.
-  it('keeps a won hand quiet, and saves the fists for the ceremony', () => {
+  // Board 42 C8 supersedes WATCH-7's hold pose: a won hand raises his hands,
+  // while the session ceremony remains a separate session-end event.
+  it('raises his hands for C8 without firing the session ceremony', () => {
     const { container } = renderWatch(settledGame());
-    expect(poseIn(container.querySelector('.watch-hero__hands'))).toBe('hold');
+    expect(poseIn(container.querySelector('.watch-hero__hands'))).toBe('raise');
     expect(container.querySelector('.watch-ceremony')).toBeNull();
 
     const won = render(

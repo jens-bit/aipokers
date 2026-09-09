@@ -76,6 +76,7 @@ import { attrCostOf } from '../lib/attributes.js';
 import { mergeThread } from '../lib/thread.js';
 import { useTableThread } from '../hooks/useTableThread.js';
 import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
+import { BustedName, HandFireworks, handCelebration } from './system/HandCelebration.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -817,10 +818,11 @@ export function WatchFelt({
     ? opponentSeats.filter(function (o) { return o.folded && !mucking[o.seat]; }).length
     : 0;
 
-  var heroWon    = !!(winner && winner.seat === heroSeat);
+  var heroWinner = result?.winners?.find(w=>w.seat===heroSeat);
+  var heroWon    = !!heroWinner;
   var heroShowed = !!(result && revealed[heroSeat]);
   var heroNote   = !settled ? 'waiting for the deal'
-    : heroWon    ? (winner.descr || 'won the pot')
+    : heroWon    ? (new Set(result.winners.map(w=>w.seat)).size>1 ? 'shared the pot' : (heroWinner.descr || 'won the pot'))
     : heroShowed ? 'lost at showdown'
     : 'folded';
 
@@ -888,6 +890,11 @@ export function WatchFelt({
   // snapshot lands, which is the same order his mood already resolves in.
   var heroFatigue = (heroData && heroData.fatigue) || agentFatigue || null;
   var heroDrinking = isDrinking(heroData);
+  var celebration = !geom && settled ? handCelebration(game,heroSeat) : null;
+  var majorWin = celebration?.won && (celebration.big || celebration.busted.length>0);
+  var winLabel = majorWin ? (celebration.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
+    : celebration.busted.length===1 ? `${celebration.busted[0].name} IS OUT`
+    : `WON ${Math.round(celebration.bb)} BB`) : null;
 
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
@@ -899,11 +906,12 @@ export function WatchFelt({
       style={feltStyle} data-pace={pace}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
+      {majorWin && <HandFireworks key={`${game.tableId}:${handNo}`}/>}
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
         var slot = slots[i];
         return (
-          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot}
+          <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (celebration?.busted.some(b=>b.seat===o.seat) ? ' is-busted' : '')}
             data-align={alignFor(slot)}>
             {/* WATCH-10 job 1: on the felt his money IS his chips, and the
                 figure stands beside them (the pile, below). The boxed felt has
@@ -932,6 +940,7 @@ export function WatchFelt({
               timerOf={clock && clock.seat === o.seat ? clock.of : 12}
               onSelect={function() { if (onSelectSeat) onSelectSeat(o.seat); }}
             />
+            {celebration?.busted.some(b=>b.seat===o.seat) && <BustedName key={`${handNo}:${o.seat}`} name={o.name}/>}
             {/* His bank stands beside his name chip, on the felt side: top
                 corners bank BELOW the pill, the rails bank BESIDE the body,
                 inside. Never under the name — that was the pile-up 52m ends.
@@ -1056,11 +1065,11 @@ export function WatchFelt({
               showdown reveals every contested seat — and it was throwing the
               answer away. See lib/handResult.js for where the name comes from
               and in what order. */}
-          <div className="watch-felt__won">
+          <div className={`watch-felt__won${majorWin ? ' is-celebrating' : ''}${majorWin && celebration.busted.length ? ' is-busting' : ''}`}>
             <div className="watch-felt__won-pill" aria-label={handLine ? handLine.line : undefined}>
-              {handLine && <span className="watch-felt__won-to">{handLine.who + ' took'}</span>}
+              {handLine && <span className="watch-felt__won-to">{winLabel || handLine.who + ' took'}</span>}
               <span className="watch-felt__won-amt">
-                {potMoney(result.pot || 0)}
+                {potMoney(majorWin ? celebration.amount : result.pot || 0)}
               </span>
               {handLine && handLine.tail
                 ? <span className="watch-felt__won-with">{handLine.tail}</span>
@@ -1155,7 +1164,7 @@ export function WatchFelt({
           fatigue={heroFatigue}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
           timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
-          pose={heroPose({
+          pose={settled && heroWon ? 'raise' : heroPose({
             between: between,
             action: lastDecision && lastDecision.seat === heroSeat ? lastDecision.action : null,
             pace: pace,

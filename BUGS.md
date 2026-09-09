@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-79 — a split-pot winner is shown as losing when listed second — FIXED on overnight branch
+Watch determined heroWon only from result.winners[0]. A named regression reproduced “lost at showdown” with the hero second in a split pot. It now checks every winner and says “shared the pot”; C8 uses the hero's actual summed payout. New integration tests also enforce ordinary-win hands, big-win effects and the actual busted seat name.
+
 ### BUG-78 — Home's resume timer stops when every game is cooling down — FIXED on overnight branch
 armTick counted only running games and stopped with zero, even when a household had a future cooldown deadline. An isolated real-registry probe reproduced no resumed game without a new click or roster event. The tick now stays alive through pending cooldowns; the same probe passes. HOME-3 adds a five-minute play window followed by ten minutes off, finishing the current hand before a timed break. Manual Carry/table placement remains available during a break or alone.
 

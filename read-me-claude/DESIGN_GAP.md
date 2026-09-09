@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 11
+
+C8 visual effects are **PARTIAL**: ordinary winners raise their hands; 100bb-or-larger hero payouts and hero knockouts get the specified three teal/gold bursts within 1.2s. Busted opponents darken and their actual name falls for 900ms. The 100bb rule is from board 42's caption, distinct from the server feed's 75bb event threshold. Reduced motion is supported. BUG-79 fixes split-pot winners. The reference pairs `client/e2e/shots/overnight-batch11-celebration-c8{a,b,c}.png` were inspected after cloning frames out of the archive's zoomed canvas (the initial crop caught adjacent content and was discarded). By Jens's Watch priority, existing cards, stamina, street strip and ordinary compact result remain; the reference hides those during its samples. Actual hands/payouts/identities differ and are not replaced with authored claims. Audio `win_swell`, `big_win_bursts`, `bust_knock` remains “files to pick” in the reference; no audio parity is claimed. C9 and entry still require work.
+
 ## Overnight behaviour port — 2026-09-09, batch 10
 
 HOME-3 is **PARTIAL**: server scheduling now gives automatic games a five-minute window followed by ten minutes off, finishing the current hand before a break. Two housemates are required for automatic play. The explicit Carry/table action keeps solo House play and can start a game during the break; worn/studying agents remain excluded. BUG-78 fixes automatic resumption after cooldown. The kitchen table is retained. Existing nature/sleep/study/want routines now have time to be seen, but the additional coordinated bed/fridge/corner/door/couch behaviours remain the undesigned Home-day wave listed below; this batch does not invent those assets or certify that whole wave. No Watch geometry or casino clocks changed.

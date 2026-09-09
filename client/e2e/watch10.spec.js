@@ -98,10 +98,13 @@ const TABLE = {
 };
 
 /** Everything the app asks for, from a fixture — and a socket that plays a hand. */
-async function stub(page, { talk = [] } = {}) {
-  await page.route('**/api/agents?**', (r) => r.fulfill({ json: { agents: HOUSEHOLD } }));
+async function stub(page, { talk = [], owned = false } = {}) {
+  const roster = owned ? HOUSEHOLD.map((a,i)=>i===0 ? {...a,activeTableId:TABLE.tableId,location:loc('table',{tableId:TABLE.tableId,room:'floor'}),liveGame:{tableId:TABLE.tableId,pot:TABLE.pot,board:TABLE.community}} : a) : HOUSEHOLD;
+  await page.route('**/api/agents?**', (r) => r.fulfill({ json: { agents: roster } }));
   await page.route('**/api/agents/*/study**', (r) => r.fulfill({ json: { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (r) => r.fulfill({ json: { sessionId: 's1', count: 0, lines: [] } }));
+  await page.route('**/api/home/thread**', (r) => r.fulfill({ json: { sessionId: 'home', count: 0, lines: [] } }));
+  await page.route('**/api/fridge?**', (r) => r.fulfill({ json: { items: [] } }));
   await page.route('**/api/agents/*/memory**', (r) => r.fulfill({ json: { memoryContext: '' } }));
   await page.route('**/api/agents/*/hands**', (r) => r.fulfill({ json: { recentHands: [] } }));
   await page.route('**/api/wallet**', (r) => r.fulfill({ json: { balance: 12000, ledger: [] } }));
@@ -129,8 +132,11 @@ async function stub(page, { talk = [] } = {}) {
   // household and the kitchen table; the table channel answers with WATCHING,
   // the six-handed STATE, and whatever the cast is saying.
   await page.addInitScript(([list, home, table, lines]) => {
+    const sockets=[];
+    window.__pushWatchState=state=>sockets.forEach(socket=>socket.dispatch('message',{data:JSON.stringify({type:'state',state,legalActions:[]})}));
     class ScriptedSocket {
       constructor(url) {
+        sockets.push(this);
         this.url = url;
         this.readyState = 0;
         this.listeners = { open: [], message: [], close: [], error: [] };
@@ -163,18 +169,21 @@ async function stub(page, { talk = [] } = {}) {
     ScriptedSocket.OPEN = 1;
     ScriptedSocket.prototype.OPEN = 1;
     window.WebSocket = ScriptedSocket;
-  }, [HOUSEHOLD, HOME_GAME, TABLE, talk]);
+  }, [roster, owned ? null : HOME_GAME, TABLE, talk]);
 }
 
 /** Open the room, tap the kitchen table, and wait for six seats on the felt. */
 async function felt(page, opts = {}) {
   await stub(page, opts);
-  await page.setViewportSize(VIEWPORT);
+  await page.setViewportSize(opts.viewport ?? VIEWPORT);
   await page.goto(HOME);
   await page.waitForSelector('[data-testid="home-screen"]');
   // The kitchen table opens its sheet, and the sheet offers the game on it.
-  await page.getByTestId('home-table').click();
-  await page.getByTestId('home-table-watch').click();
+  if (opts.owned) await page.getByTestId('home-frame-a1').click();
+  else {
+    await page.getByTestId('home-table').click();
+    await page.getByTestId('home-table-watch').click();
+  }
   await page.waitForSelector('.watch-felt');
   // The deal has to finish before every seat is holding cards.
   await page.waitForFunction(
@@ -210,6 +219,52 @@ function collisions(list) {
 }
 
 test.describe('WATCH-10 · density on the felt at 390×844', () => {
+  test('C8: an ordinary win raises his hands and keeps the compact result',async({page})=>{
+    await felt(page,{owned:true});
+    const game={...TABLE,street:'complete',toAct:null,community:['Kc','9c','4c','2c','5h'],seats:TABLE.seats.map((s,i)=>i===0?{...s,holeCards:['Ks','Kd'],stack:5534}:s),result:{type:'showdown',pot:3694,winners:[{seat:0,amount:3694}],showdown:[{seat:0,holeCards:['Ks','Kd']}]},bigBlind:100};
+    await page.evaluate(state=>window.__pushWatchState(state),game);
+    await expect(page.locator('.watch-hero__hands [data-pose="raise"]')).toHaveCount(1);
+    await expect(page.getByTestId('hand-fireworks')).toHaveCount(0);
+    await expect(page.locator('.watch-felt__won')).not.toHaveClass(/is-celebrating/);
+    await page.waitForTimeout(1200);
+    await page.screenshot({path:'../artifacts/celebration-c8a.png'});
+  });
+  for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
+    test(`C8: result effects preserve the felt and composer at ${viewport.width}×${viewport.height}`,async({page})=>{
+      const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      await felt(page,{viewport,owned:true});
+      const before=await page.locator('.watch-felt').boundingBox();
+      const settled={...TABLE,street:'complete',toAct:null,community:['Kc','9c','4c','2c','5h'],seats:TABLE.seats.map((s,i)=>i===0?{...s,holeCards:['Ks','Kd'],stack:16640}:s),result:{type:'showdown',pot:14800,winners:[{seat:0,amount:14800}],showdown:[{seat:0,holeCards:['Ks','Kd']}]},bigBlind:100};
+      await page.evaluate(game=>window.__pushWatchState(game),settled);
+      await expect(page.getByTestId('hand-fireworks')).toBeVisible();
+      await expect(page.locator('.watch-felt__won-pill')).toContainText('WON 148 BB');
+      await expect(page.locator('.watch-hero__hands [data-pose="raise"]')).toHaveCount(1);
+      expect(await page.locator('.watch-felt').boundingBox()).toEqual(before);
+      const result=await page.locator('.watch-felt__won-pill').boundingBox();
+      const board=await page.locator('.watch-felt__board').boundingBox();
+      expect(result.y+result.height).toBeLessThanOrEqual(board.y);
+      await expect(page.getByTestId('hand-fireworks')).toHaveCSS('pointer-events','none');
+      if(viewport.width===390&&viewport.height===844) {
+        await page.waitForTimeout(500);
+        await page.screenshot({path:'../artifacts/celebration-c8b.png'});
+      }
+      await expect(page.getByTestId('hand-fireworks')).toHaveCount(0);
+      const bust={...settled,handNumber:4,seats:settled.seats.map((s,i)=>i===2?{...s,stack:0}:s)};
+      await page.evaluate(game=>window.__pushWatchState(game),bust);
+      await expect(page.locator('.hand-busted-name')).toHaveText('Granite');
+      await expect(page.locator('.watch-felt__seat.is-busted .seat-ghost__chip')).toHaveCSS('visibility','hidden');
+      if(viewport.width===390&&viewport.height===844) {
+        await page.waitForTimeout(400);
+        await page.screenshot({path:'../artifacts/celebration-c8c.png'});
+      }
+      await page.getByPlaceholder('Whisper to him…').fill('Nice hand.');
+      expect((await page.getByPlaceholder('Whisper to him…').boundingBox()).y).toBeLessThan(viewport.height);
+      await page.emulateMedia({reducedMotion:'reduce'});
+      await page.evaluate(game=>window.__pushWatchState({...game,handNumber:5}),bust);
+      await expect(page.locator('.hand-fireworks__spark').first()).toHaveCSS('animation-name','none');
+      expect(errors).toEqual([]);
+    });
+  }
   test('seats six and draws every one of them', async ({ page }) => {
     await felt(page);
     // Five opponents in the ring, and him at the bottom: six seats.

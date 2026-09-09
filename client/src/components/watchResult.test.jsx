@@ -46,6 +46,28 @@ beforeEach(() => {
 });
 
 describe('BUGS-A job 12 · the felt names the hand', () => {
+  it('C8: an ordinary hero win raises his hands without fireworks',()=>{
+    render(<WatchScreen {...base} game={settled({type:'uncontested',pot:100,winners:[{seat:0,amount:100}]})}/>);
+    expect(document.querySelector('.watch-hero__hands [data-pose="raise"]')).not.toBeNull();
+    expect(screen.queryByTestId('hand-fireworks')).toBeNull();
+  });
+  it('C8: a big win uses actual big blinds and a busted seat gets its own falling name',()=>{
+    const game=settled({type:'showdown',pot:3000,winners:[{seat:0,amount:3000}],showdown:[{seat:0,holeCards:['Ks','Kd']}]});
+    const {rerender}=render(<WatchScreen {...base} game={game}/>);
+    expect(screen.getByTestId('hand-fireworks')).toBeInTheDocument();
+    expect(pillText()).toContain('WON 150 BB');
+    rerender(<WatchScreen {...base} game={{...game,seats:game.seats.map((s,i)=>i===2?{...s,stack:0}:s)}}/>);
+    expect(pillText()).toContain('Granite IS OUT');
+    expect(document.querySelector('.watch-felt__seat.is-busted .hand-busted-name')).toHaveTextContent('Granite');
+  });
+  it('BUG-79: the hero is a winner when he shares the pot after the first listed seat',()=>{
+    render(<WatchScreen {...base} game={settled({
+      type:'showdown',pot:100,winners:[{seat:2,amount:50},{seat:0,amount:50}],
+      showdown:[{seat:0,holeCards:['As','Kd']},{seat:2,holeCards:['Ah','Kc']}],
+    },['Qs','Jc','Td','2h','7c'])}/>);
+    expect(screen.queryByText('lost at showdown')).toBeNull();
+    expect(screen.getByText('shared the pot')).toBeInTheDocument();
+  });
   it('says who took it, how much, and what with', () => {
     render(<WatchScreen {...base} game={settled({
       type: 'showdown',
