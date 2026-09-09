@@ -289,7 +289,7 @@ function isHot(tableId) {
 }
 
 export class Table {
-  constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs, home = false }) {
+  constructor({ tableId, smallBlind, bigBlind, maxSeats = MAX_SEATS, onEmpty, onStateChange, maxHands, handPauseMs, home = false, homeOwnerId = null }) {
     if (!Number.isInteger(maxSeats) || maxSeats < MIN_TO_DEAL || maxSeats > SEAT_LIMIT) {
       throw new Error(`maxSeats must be an integer ${MIN_TO_DEAL}..${SEAT_LIMIT}`);
     }
@@ -314,6 +314,9 @@ export class Table {
     // grind in the product, and the one thing it is for is that it is not
     // work.
     this.home = !!home;
+    // BUG-155: set by homeGame when the kitchen is created, never by a WS
+    // payload. Human seats and visiting agents are not the household owner.
+    this.homeOwnerId = this.home && homeOwnerId != null ? String(homeOwnerId) : null;
     this.smallBlind = smallBlind;
     this.bigBlind = bigBlind;
     this.maxSeats = maxSeats;

@@ -7,21 +7,35 @@
 // to come in, and the two chips are an accept and a decline rather than a
 // yes/later/no.
 
-import { useState } from 'react';
-import { answerVisit } from '../../lib/visit.js';
+import { useEffect, useRef, useState } from 'react';
+import { answerVisit, visitErrorText } from '../../lib/visit.js';
 
 export function VisitorToast({ visitor, onAnswered }) {
   const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+  const request = useRef({ busy:false });
+  useEffect(() => {
+    const current = { busy:false, alive:true };
+    request.current = current;
+    setBusy(null); setError(null);
+    return () => { current.alive = false; };
+  }, [visitor?.id]);
   if (!visitor) return null;
 
   const send = async (accept) => {
-    if (busy) return;
+    const current = request.current;
+    if (current.busy) return;
+    current.busy = true;
+    setError(null);
     setBusy(accept ? 'accept' : 'decline');
     try {
       const res = await answerVisit(visitor.id, accept);
-      onAnswered?.(visitor.id, accept, res.body);
+      if (!current.alive) return;
+      if (res.ok) onAnswered?.(visitor.id, accept, res.body);
+      else setError(visitErrorText(res));
     } finally {
-      setBusy(null);
+      current.busy = false;
+      if (current.alive) setBusy(null);
     }
   };
 
@@ -55,6 +69,20 @@ export function VisitorToast({ visitor, onAnswered }) {
           Not tonight
         </button>
       </span>
+      {error && <span role="alert" className="home-want__text" style={{ flexBasis:'100%' }}>{error}</span>}
     </div>
   );
+}
+
+// Reuse the door's existing message language for an invitation that could not
+// reach it. It stays readable until dismissed; failures never fake a visitor.
+export function VisitNotice({ notice, onDismiss }) {
+  if (!notice) return null;
+  return <div className="home-want" data-testid="visit-link-notice" style={{ position:'fixed', bottom:84, left:'50%', right:'auto', transform:'translateX(-50%)', animation:'none', width:'calc(100% - 28px)', maxWidth:430, zIndex:70, boxSizing:'border-box' }}>
+    <span role={notice.error ? 'alert' : 'status'} className="home-want__text">{notice.text}</span>
+    {!notice.busy && <span className="home-want__chips">
+      {notice.retry && <button type="button" className="home-want__chip home-want__chip--yes" onClick={notice.retry}>Try again</button>}
+      <button type="button" className="home-want__chip" onClick={onDismiss}>Got it</button>
+    </span>}
+  </div>;
 }

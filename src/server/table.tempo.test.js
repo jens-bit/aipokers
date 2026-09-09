@@ -24,8 +24,8 @@ after(() => _closeForTests());
 
 const socket = () => ({ OPEN: 1, readyState: 1, sent: [], send(raw) { this.sent.push(JSON.parse(raw)); } });
 let sequence = 0;
-function tableFor(t, { home = false, stacks = [2000, 2000], watched = true } = {}) {
-  const table = new Table({ tableId: `bug141-${++sequence}`, home, smallBlind: 10, bigBlind: 20, maxSeats: 4 });
+function tableFor(t, { home = false, homeOwnerId = null, stacks = [2000, 2000], watched = true } = {}) {
+  const table = new Table({ tableId: `bug141-${++sequence}`, home, homeOwnerId, smallBlind: 10, bigBlind: 20, maxSeats: 4 });
   if (home) table.handPauseMs = HOME_PAUSE_MS; // homeGame.sync's real wiring
   for (const [seat, buyIn] of stacks.entries()) {
     table.seatPlayer(socket(), { playerId: `p${seat}`, displayName: `P${seat}`, buyIn });
@@ -151,7 +151,9 @@ test('BUG-141: a human joining mid-hand immediately sees public play and joins t
   const { createServer } = await import('./wsServer.js');
   const { wss, tables } = createServer({ port: 0, host: '127.0.0.1' });
   await once(wss, 'listening');
-  const table = tableFor(t, { home: true });
+  // BUG-155: this direct Table fixture must supply the household identity
+  // that homeGame normally stamps when creating a private kitchen.
+  const table = tableFor(t, { home: true, homeOwnerId: 'late-owner' });
   tables.set(table.tableId, table);
   const ws = new WebSocket(`ws://127.0.0.1:${wss.address().port}`);
   const messages = [];

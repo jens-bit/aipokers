@@ -47,6 +47,7 @@ import {
   appendAgentRead,
   getAgentReadBook,
   noteTapeWatch,
+  visitActionRefusal,
 } from './agentProfiles.js';
 import { getRead } from './opponentStats.js';
 import { studyLine } from '../agent/reads.js';
@@ -200,6 +201,8 @@ export function reset() {
 export function beginStudy(agentId, userId, { handId = null } = {}) {
   const agent = getAgentHome(agentId, userId);
   if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+  const visitRefusal = visitActionRefusal(agent);
+  if (visitRefusal) return visitRefusal;
 
   // The tape room is a room in the house. A man in a seat is not in it.
   if (agent.location?.where === 'table') {

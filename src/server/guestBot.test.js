@@ -88,6 +88,31 @@ const fakeBot = {
 
 const handle = (text, fromId) => bot.handleStart(msg(text, fromId), { bot: fakeBot });
 
+test('BUG-150: bot welcome preserves the exact visit invitation into the Mini App without claiming it', async () => {
+  const token = 'visit_vi_0123456789abcdefghij';
+  delete process.env.GUEST_ENABLED;
+  await handle(`/start ${token}`, 9015);
+  const button = sent[0].opts.reply_markup.inline_keyboard[0][0];
+  assert.equal(new URL(button.url).searchParams.get('startapp'), token);
+  assert.match(sent[0].text, /invitation/i);
+  assert.deepEqual(profiles.agentsOf('9015'), []);
+});
+
+test('BUG-150: an unrelated start payload never becomes an arbitrary launch URL', async () => {
+  await handle('/start https://untrusted.example/', 9016);
+  assert.equal(new URL(sent[0].opts.reply_markup.inline_keyboard[0][0].url).searchParams.has('startapp'), false);
+});
+
+test('BUG-150: a claim refused during a visit hand preserves the retry instruction rather than claiming the link is used', async () => {
+  let called=0;
+  const out=await bot.handleStart(msg('/start guest_retry-after-hand',9020),{bot:fakeBot,claim:()=>{called++;return {status:409,body:{error:'visitInHand',message:'Let this hand finish, then keep your agent.'}};}});
+  assert.equal(called,1);
+  assert.equal(out,'visitInHand');
+  assert.match(sent[0].text,/hand finish.*same link/i);
+  assert.doesNotMatch(sent[0].text,/used already|draft somebody new/i);
+  assert.ok(sent[0].opts.reply_markup.inline_keyboard[0][0].url);
+});
+
 // ── Reading the command ─────────────────────────────────────────────────────
 
 test('GUEST-1: /start is recognised in every shape Telegram sends it', () => {

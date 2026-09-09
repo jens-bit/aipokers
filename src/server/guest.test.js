@@ -159,10 +159,26 @@ test('GUEST-1: the token is not derivable from the owner id, and vice versa', as
 });
 
 // VISIT-1 job 6
-test('VISIT-1: a mint carries the referral off a visit link, unvalidated', async () => {
-  const { body } = await post('/api/guest', { visitAgentId: 'agent_friend1' });
+test('BUG-149: a mint carries only the owner-issued invitation referral', async () => {
+  const token='v'.repeat(32);
+  store.saveVisitInvitation({token,agentId:'agent_friend1',ownerId:'friend',expiresAt:Date.now()+60000,maxStake:0,visitId:null});
+  const { body } = await post('/api/guest', { visitInvitationToken:token });
   const row = guest.guestFor(body.ownerId);
   assert.equal(row.referredBy, 'agent_friend1');
+  assert.equal(row.visitInvitationToken,token);
+  assert.equal(body.visitInvitationAccepted,true);
+});
+
+test('BUG-149: a bare public id and an expired invitation create no referral authority', async () => {
+  for(const body of [{visitAgentId:'agent_friend1'},{visitInvitationToken:'x'.repeat(32)}]) {
+    const made=await post('/api/guest',body);
+    assert.equal(guest.guestFor(made.body.ownerId).referredBy,null);
+    assert.equal(guest.guestFor(made.body.ownerId).visitInvitationToken,null);
+    if(body.visitInvitationToken)assert.equal(made.body.visitInvitationAccepted,false);
+  }
+  store.saveVisitInvitation({token:'e'.repeat(32),agentId:'agent_friend1',ownerId:'friend',expiresAt:Date.now()-1,maxStake:0,visitId:null});
+  const made=await post('/api/guest',{visitInvitationToken:'e'.repeat(32)});
+  assert.equal(guest.guestFor(made.body.ownerId).visitInvitationToken,null);
 });
 
 test('VISIT-1: an ordinary mint records no referral at all', async () => {

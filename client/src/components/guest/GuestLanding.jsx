@@ -110,7 +110,8 @@ function DoorWithVisitor({ name }) {
 const HODS_VISITOR = HOODS[2];
 
 export function GuestLanding({ visitorName = null, roomContent = null, showDetails = false,
-  ctaLabel = 'DRAFT HIM', ctaNote = 'Free · no account needed', guestAvailable = true }) {
+  ctaLabel = 'DRAFT HIM', ctaNote = 'Free · no account needed', guestAvailable = true,
+  initialVisitHandled = false, initialVisitNotice = null }) {
   const roomRef = useRef(null);
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 701px)').matches);
   useEffect(() => {
@@ -211,7 +212,7 @@ export function GuestLanding({ visitorName = null, roomContent = null, showDetai
 
       {/* The room, mounted. Not a picture of one. */}
       <div ref={roomRef} className="guest-landing__room">
-        {roomContent ?? <App guestBoot="new" />}
+        {roomContent ?? <App guestBoot="new" initialVisitHandled={initialVisitHandled} initialVisitNotice={initialVisitNotice} />}
       </div>
       {showDetails && <LandingDetails onDraft={draftHim} ctaLabel={ctaLabel} ctaNote={ctaNote} guestAvailable={guestAvailable} />}
     </div>

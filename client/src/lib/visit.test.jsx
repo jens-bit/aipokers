@@ -3,17 +3,26 @@
 // The link that goes out, and the two POSTs that come back through it: the
 // knock and the answer.
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   visitLink, shareVisitLink, requestVisit, answerVisit, VISIT_START_PREFIX,
   visitPreview, rememberPendingVisitor, pendingVisitorName, clearPendingVisitor,
 } from './visit.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
+// BUG-150 replaces the public-id link and false cancellation success contract.
+const token = '0123456789abcdefghijklmnopqrstuv';
+const url = `https://t.me/AigenicPokerBot?start=visit_${token}`;
+const invitation = { agentId:'a1', agentName:'Away Day', invitationToken:token, expiresAt:Date.now()+3600000, maxStake:0, startParam:`visit_${token}` };
+const text = 'Away Day wants a game at your place in Railbird. Open this invitation to let him in. Free home game · no chips staked.';
+
 beforeEach(() => {
   telegram.install();
   telegram.signIn();
+  fetchMock.route('/api/agents/a1/visit-invite', invitation, { method:'POST' });
+  fetchMock.route(`/api/visit-invites/${token}`, { agentId:'a1', agentName:'Away Day', expiresAt:invitation.expiresAt, maxStake:0 });
 });
+afterEach(() => { delete navigator.share; delete navigator.clipboard; });
 
 describe('VISIT_START_PREFIX', () => {
   it('is the sibling of GUEST_START_PREFIX — visit_, not something a link could collide with', () => {
@@ -24,7 +33,7 @@ describe('VISIT_START_PREFIX', () => {
 describe('visitLink', () => {
   it('builds the deep link off GET /api/auth/config', async () => {
     fetchMock.route('/api/auth/config', { botUsername: 'AigenicPokerBot' });
-    expect(await visitLink('a1')).toBe('https://t.me/AigenicPokerBot?start=visit_a1');
+    expect(await visitLink('a1')).toBe(url);
   });
 
   it('is null on a deployment with no bot configured — a disabled button, not a link to nowhere', async () => {
@@ -45,8 +54,8 @@ describe('shareVisitLink', () => {
     Object.defineProperty(navigator, 'share', { value: share, configurable: true });
 
     const res = await shareVisitLink('a1', 'Away Day');
-    expect(res).toEqual({ ok: true, via: 'share' });
-    expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://t.me/AigenicPokerBot?start=visit_a1' }));
+    expect(res).toEqual({ ok:true, via:'share', url, text, title:'Away Day wants a game', expiresAt:invitation.expiresAt });
+    expect(share).toHaveBeenCalledWith({ title:'Away Day wants a game', text, url });
     delete navigator.share;
   });
 
@@ -56,8 +65,8 @@ describe('shareVisitLink', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 
     const res = await shareVisitLink('a1', 'Away Day');
-    expect(res).toEqual({ ok: true, via: 'clipboard', url: 'https://t.me/AigenicPokerBot?start=visit_a1' });
-    expect(writeText).toHaveBeenCalledWith('https://t.me/AigenicPokerBot?start=visit_a1');
+    expect(res).toEqual({ ok:true, via:'clipboard', url, text, title:'Away Day wants a game', expiresAt:invitation.expiresAt });
+    expect(writeText).toHaveBeenCalledWith(`${text}\n\n${url}`);
   });
 
   it('reports failure honestly when there is no link to give', async () => {
@@ -65,12 +74,12 @@ describe('shareVisitLink', () => {
     expect(await shareVisitLink('a1')).toEqual({ ok: false, reason: 'noLink' });
   });
 
-  it('a cancelled share sheet is not a failure', async () => {
+  it('BUG-150: a cancelled share is reported as cancelled with its prepared invitation retained', async () => {
     fetchMock.route('/api/auth/config', { botUsername: 'AigenicPokerBot' });
     Object.defineProperty(navigator, 'share', {
-      value: vi.fn().mockRejectedValue(new Error('cancelled')), configurable: true,
+      value: vi.fn().mockRejectedValue(new DOMException('cancelled', 'AbortError')), configurable: true,
     });
-    expect(await shareVisitLink('a1')).toEqual({ ok: true, via: 'share' });
+    expect(await shareVisitLink('a1')).toEqual({ ok:false, reason:'cancelled', url, text, title:'Away Day wants a game', expiresAt:invitation.expiresAt });
     delete navigator.share;
   });
 });
@@ -80,9 +89,9 @@ describe('requestVisit / answerVisit', () => {
     let posted = null;
     fetchMock.route(/\/agents\/a1\/visit/, ({ body }) => { posted = body; return { visitId: 'v1' }; }, { method: 'POST' });
 
-    const res = await requestVisit('a1');
+    const res = await requestVisit(token);
     expect(res.ok).toBe(true);
-    expect(posted).toEqual(expect.objectContaining({ hostUserId: '4242', stake: 0 }));
+    expect(posted).toEqual({ hostUserId:'4242', stake:0, invitationToken:token });
   });
 
   it('POSTs the answer the same way', async () => {
@@ -96,7 +105,7 @@ describe('requestVisit / answerVisit', () => {
 
   it('a network failure is reported, not thrown', async () => {
     fetchMock.route(/\/agents\/a1\/visit/, () => { throw new Error('offline'); }, { method: 'POST' });
-    const res = await requestVisit('a1');
+    const res = await requestVisit(token);
     expect(res).toEqual({ ok: false, status: 0, body: null });
   });
 });
@@ -105,12 +114,14 @@ describe('requestVisit / answerVisit', () => {
 
 describe('visitPreview', () => {
   it('reads his name off the public route — no auth header at all', async () => {
-    fetchMock.route(/\/agents\/friend1\/visit-preview/, { agentId: 'friend1', agentName: 'Away Day' });
-    expect(await visitPreview('friend1')).toEqual({ agentId: 'friend1', agentName: 'Away Day' });
+    const preview = { agentId:'friend1', agentName:'Away Day', expiresAt:invitation.expiresAt, maxStake:0 };
+    fetchMock.route(`/api/visit-invites/${token}`, preview);
+    expect(await visitPreview(token)).toEqual(preview);
+    expect(fetchMock.requestsMatching(`/api/visit-invites/${token}`)[0].headers).toEqual({});
   });
 
   it('is null for an agent nobody has', async () => {
-    fetchMock.route(/\/agents\/nobody\/visit-preview/, { status: 404, body: {} });
+    fetchMock.route('/api/visit-invites/nobody', { status: 404, body: {} });
     expect(await visitPreview('nobody')).toBeNull();
   });
 });

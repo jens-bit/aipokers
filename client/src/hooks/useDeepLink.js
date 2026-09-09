@@ -16,14 +16,17 @@ import { parseStartParam, readStartParam, subscribeStartParam } from '../lib/dee
 
 export function useDeepLink(onRoute) {
   const handler = useRef(onRoute);
+  const last = useRef(null);
   handler.current = onRoute;
 
   useEffect(() => {
-    const cold = parseStartParam(readStartParam());
-    if (cold) handler.current?.(cold);
-    return subscribeStartParam((raw) => {
+    const routeOnce = (raw) => {
+      if (raw === last.current) return;
+      last.current = raw;
       const route = parseStartParam(raw);
       if (route) handler.current?.(route);
-    });
+    };
+    routeOnce(readStartParam());
+    return subscribeStartParam(routeOnce);
   }, []);
 }

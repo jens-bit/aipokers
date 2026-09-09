@@ -40,8 +40,8 @@ import { guestsEnabled, tokenFromStartParam } from './guest.js';
 import { miniAppUrl } from './miniAppUrl.js';
 
 /** The Mini App button every reply below carries. */
-function openButton(text = 'OPEN RAILBIRD') {
-  const url=miniAppUrl();
+function openButton(text = 'OPEN RAILBIRD', startParam) {
+  const url=miniAppUrl(startParam);
   return url ? { inline_keyboard: [[{ text, url }]] } : undefined;
 }
 
@@ -65,15 +65,22 @@ export function startParamOf(message) {
  * also ride on, and a handler that can take that loop down is a handler that
  * can take inline sharing down with it.
  */
-export async function handleStart(message, { bot } = {}) {
+export async function handleStart(message, { bot, claim = claimGuest } = {}) {
   const param = startParamOf(message);
   if (param === null) return null;
 
   const chatId = message?.chat?.id ?? message?.from?.id;
   const fromId = message?.from?.id;
-  const say = (text) => (bot?.sendMessage
-    ? bot.sendMessage(chatId, text, { reply_markup: openButton() })
+  const say = (text, startParam) => (bot?.sendMessage
+    ? bot.sendMessage(chatId, text, { reply_markup: openButton('OPEN RAILBIRD', startParam) })
     : Promise.resolve(false));
+
+  // BUG-150: the chat is a bridge, not the recipient's room. Preserve the
+  // invitation into the Mini App; only its authenticated client can knock.
+  if (/^visit_[A-Za-z0-9_-]+$/.test(param) && param.length <= 64) {
+    await say('Open your invitation in Railbird to let him in.', param);
+    return 'greeted';
+  }
 
   const token = tokenFromStartParam(param);
   // A bare /start, or a parameter meant for somebody else (an agent deep link
@@ -83,7 +90,12 @@ export async function handleStart(message, { bot } = {}) {
     return 'greeted';
   }
 
-  const out = claimGuest(token, fromId, { via: 'bot' });
+  const out = claim(token, fromId, { via: 'bot' });
+
+  if (out.status === 409 && out.body?.error === 'visitInHand') {
+    await say('Let this hand finish, then open the same link to keep your agent.');
+    return 'visitInHand';
+  }
 
   if (out.status === 200 && out.body?.alreadyClaimed) {
     await say('Already yours. Open the app — he is in the room.');

@@ -100,7 +100,7 @@ export function ClaimWall({ agent, arrival, reason = 'claim', onClose, onClaimed
     const out = await claimGuest(getTelegramInitData());
     setBusy(false);
     if (out.ok) onClaimed?.(out);
-    else setError('That did not go through. Try again.');
+    else setError(out.error === 'visitInHand' ? 'Let this hand finish, then keep your agent.' : 'That did not go through. Try again.');
   }
 
   const line = resultLine(arrival);
@@ -143,7 +143,7 @@ export function ClaimWall({ agent, arrival, reason = 'claim', onClose, onClaimed
             <span className="claim-wall__soon">soon</span>
           </button>
 
-          {error && <p className="claim-wall__error">{error}</p>}
+          {error && <p role="alert" className="claim-wall__error">{error}</p>}
           {!insideTelegram && link === null && (
             <p className="claim-wall__error">
               Keeping him is not set up on this server yet.

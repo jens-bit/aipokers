@@ -129,7 +129,7 @@ describe('GUEST-1 · which door', () => {
 
 describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () => {
   it('a brand new visitor previews his name, records the referral, and lands on the door-knock hero', async () => {
-    stubLocation('agenticpoker.app', { search: '?visit=agent_friend1' });
+    stubLocation('agenticpoker.app', { search: '?startapp=visit_0123456789abcdefghijklmnopqrstuv' });
     telegram.signOut();
     const root = mountPoint();
     fetchMock.route('/api/auth/config', { guest: true });
@@ -137,32 +137,65 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
     // A freshly minted guest has no agents yet; the default returning-owner
     // fixture made this routing check render a whole populated household.
     fetchMock.route('/api/agents', { agents: [] });
-    fetchMock.route(/\/agents\/agent_friend1\/visit-preview/, { agentId: 'agent_friend1', agentName: 'Away Day' });
+    fetchMock.route('/api/visit-invites/0123456789abcdefghijklmnopqrstuv', { agentId:'agent_friend1', agentName:'Away Day' });
     let posted = null;
-    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_visited' }; }, { method: 'POST' });
+    fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId:'g_visited', visitInvitationAccepted:true }; }, { method:'POST' });
 
     await act(async () => { await (await import('./main.jsx')).booted; });
 
-    expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
+    expect(posted).toEqual({ visitInvitationToken:'0123456789abcdefghijklmnopqrstuv' });
+    expect(fetchMock.posts.filter(c => c.url.endsWith('/visit'))).toHaveLength(0);
     await waitFor(() => expect(root).not.toBeEmptyDOMElement());
     await waitFor(() => expect(root.querySelector('.guest-hero')).not.toBeNull());
     expect(within(root.querySelector('.guest-hero')).getByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
   });
 
   it('a returning guest with the same link knocks straight away — no landing, no referral recorded twice', async () => {
-    stubLocation('agenticpoker.app', { search: '?visit=agent_friend1' });
+    stubLocation('agenticpoker.app', { search: '?visit=0123456789abcdefghijklmnopqrstuv' });
     telegram.signOut();
     mountPoint();
     fetchMock.route('/api/auth/config', { guest: true });
     fetchMock.route('/api/guest/me', { ownerId: 'g_back', kind: 'guest' });
     fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/visit-invites/0123456789abcdefghijklmnopqrstuv', { agentId:'agent_friend1', agentName:'Away Day' });
     let visited = null;
     fetchMock.route(/\/agents\/agent_friend1\/visit\b/, ({ body }) => { visited = body; return { visitId: 'v1' }; }, { method: 'POST' });
 
     await act(async () => { await (await import('./main.jsx')).booted; });
 
     expect(fetchMock.posts.filter((c) => c.url.includes('/api/guest') && !c.url.includes('visit'))).toHaveLength(0);
-    await waitFor(() => expect(visited).toEqual(expect.objectContaining({ hostUserId: 'g_back' })));
+    await waitFor(() => expect(visited).toEqual({ hostUserId:'g_back', stake:0, invitationToken:'0123456789abcdefghijklmnopqrstuv' }));
+    expect(fetchMock.posts.filter(c => c.url.endsWith('/visit'))).toHaveLength(1);
+  });
+
+  it('BUG-150: an invitation expiring between preview and mint cannot promise a visitor at the door', async () => {
+    stubLocation('agenticpoker.app', { search:'?visit=0123456789abcdefghijklmnopqrstuv' });
+    telegram.signOut();
+    mountPoint();
+    fetchMock.route('/api/auth/config', { guest:true });
+    fetchMock.route('/api/guest/me', { status:404, body:{} });
+    fetchMock.route('/api/agents?', { agents:[] });
+    fetchMock.route('/api/visit-invites/0123456789abcdefghijklmnopqrstuv', { agentId:'agent_friend1', agentName:'Away Day' });
+    fetchMock.route('/api/guest', { ownerId:'g_plain', visitInvitationAccepted:false }, { method:'POST' });
+    await act(async () => { await (await import('./main.jsx')).booted; });
+    await waitFor(() => expect(screen.getByRole('heading', { name:'Deal him in.', level:1 })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name:'Away Day is at your door.' })).toBeNull();
+    expect(within(screen.getByTestId('visit-link-notice')).getByRole('alert')).toHaveTextContent(/invitation.*no longer available/i);
+    expect(fetchMock.posts.filter(c => c.url.endsWith('/visit'))).toHaveLength(0);
+  });
+
+  it('BUG-150: a refused preview shows a useful explanation without claiming a visitor', async () => {
+    stubLocation('agenticpoker.app', { search:'?visit=0123456789abcdefghijklmnopqrstuv' });
+    telegram.signOut(); mountPoint();
+    fetchMock.route('/api/auth/config', { guest:true });
+    fetchMock.route('/api/guest/me', { status:404, body:{} });
+    fetchMock.route('/api/agents?', { agents:[] });
+    fetchMock.route('/api/visit-invites/0123456789abcdefghijklmnopqrstuv', { status:410, body:{ error:'This invitation has expired.', reason:'invitationExpired' } });
+    fetchMock.route('/api/guest', { ownerId:'g_plain' }, { method:'POST' });
+    await act(async () => { await (await import('./main.jsx')).booted; });
+    expect(within(await screen.findByTestId('visit-link-notice')).getByRole('alert')).toHaveTextContent(/expired.*new invitation/i);
+    expect(fetchMock.posts.find(c => c.url === '/api/guest').body).toEqual({});
+    expect(fetchMock.requestsMatching('/api/visit-invites/0123456789abcdefghijklmnopqrstuv')).toHaveLength(1);
   });
 
   it('with no invite at all, boot is exactly what it was', async () => {

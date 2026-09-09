@@ -68,6 +68,20 @@ function applySchema(d) {
       updated_at INTEGER NOT NULL DEFAULT 0
     );
 
+    -- BUG-149/151: consent and escrow must survive the same restart as pockets.
+    CREATE TABLE IF NOT EXISTS visit_invitations (
+      token TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL UNIQUE,
+      data TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS visits (
+      id TEXT PRIMARY KEY,
+      guest_owner TEXT NOT NULL,
+      status TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS agents (
       owner_id        TEXT    NOT NULL,
       id              TEXT    NOT NULL,
@@ -337,6 +351,7 @@ function applySchema(d) {
   // visit_<agentId> he arrived on. Recorded at birth so a later claim can
   // credit it; nothing pays out yet, this is only the record.
   addColumnIfMissing(d, 'guests', 'referred_by', 'TEXT');
+  addColumnIfMissing(d, 'guests', 'visit_invitation_token', 'TEXT');
 
   // THREAD-2: who said it and who it was said to. Agent ids, 'owner', or
   // 'all' (the room) — the client renders "BALANCE -> GRANITE" from the pair,
@@ -672,6 +687,39 @@ export function saveProfile(ownerId, profile, wallet = null) {
   })();
 
   return list.length;
+}
+
+// BUG-149/151: one active invitation per agent, plus eight completed visit
+// receipts per sender. Active escrow is never pruned. Nested saveOwner calls
+// use SQLite savepoints, so two pockets and the receipt commit together.
+export function loadVisitInvitation(token) {
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{32}$/.test(token)) return null;
+  return jsonParse(conn().prepare('SELECT data FROM visit_invitations WHERE token = ?').get(token)?.data, null);
+}
+export function invitationForAgent(agentId) {
+  return jsonParse(conn().prepare('SELECT data FROM visit_invitations WHERE agent_id = ?').get(String(agentId))?.data, null);
+}
+export function saveVisitInvitation(invitation) {
+  conn().prepare('INSERT INTO visit_invitations (token, agent_id, data) VALUES (?, ?, ?) ON CONFLICT(agent_id) DO UPDATE SET token=excluded.token, data=excluded.data')
+    .run(invitation.token, invitation.agentId, JSON.stringify(invitation));
+}
+export function loadVisitRecords() {
+  return conn().prepare('SELECT data FROM visits').all().map(row=>jsonParse(row.data,null)).filter(Boolean);
+}
+export function agentHasActiveVisit(agentId) {
+  return !!conn().prepare("SELECT 1 FROM visits WHERE status IN ('pending','accepted') AND (json_extract(data,'$.agentId')=? OR json_extract(data,'$.hostAgentId')=?) LIMIT 1")
+    .get(String(agentId),String(agentId));
+}
+export function saveVisitMutation(record, mutate = () => {}, invitation = null) {
+  const d=conn();
+  d.transaction(()=>{
+    mutate();
+    if (invitation) saveVisitInvitation(invitation);
+    d.prepare('INSERT INTO visits (id, guest_owner, status, updated_at, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status, updated_at=excluded.updated_at, data=excluded.data')
+      .run(record.id, record.guestUserId, record.status, Date.now(), JSON.stringify(record));
+    d.prepare("DELETE FROM visits WHERE guest_owner=? AND status NOT IN ('pending','accepted') AND id NOT IN (SELECT id FROM visits WHERE guest_owner=? AND status NOT IN ('pending','accepted') ORDER BY updated_at DESC, rowid DESC LIMIT 8)")
+      .run(record.guestUserId, record.guestUserId);
+  })();
 }
 
 // ── Hand history ─────────────────────────────────────────────────────────────
@@ -1337,11 +1385,11 @@ export function readOwnerActivity(ownerId) {
   }));
 }
 
-export function insertGuest({ token, ownerId, ip = null, referredBy = null, now = Date.now() }) {
+export function insertGuest({ token, ownerId, ip = null, referredBy = null, visitInvitationToken = null, now = Date.now() }) {
   conn().prepare(`
-    INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count, referred_by)
-    VALUES (?, ?, ?, ?, ?, 0, ?)
-  `).run(String(token), String(ownerId), now, now, ip === null ? null : String(ip), referredBy === null ? null : String(referredBy));
+    INSERT INTO guests (token, owner_id, created_at, last_seen_at, ip, session_count, referred_by, visit_invitation_token)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+  `).run(String(token), String(ownerId), now, now, ip === null ? null : String(ip), referredBy === null ? null : String(referredBy), visitInvitationToken);
   return loadGuestByToken(token);
 }
 
@@ -1357,6 +1405,7 @@ const guestRow = (row) => (row ? {
   // VISIT-1 job 6: the agent id off the visit_<agentId> link he arrived on,
   // or null for every guest who did not.
   referredBy: row.referred_by ?? null,
+  visitInvitationToken: row.visit_invitation_token ?? null,
 } : null);
 
 export function loadGuestByToken(token) {

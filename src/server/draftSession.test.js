@@ -51,6 +51,19 @@ async function prepared(userId, brief = 'Tight and patient', name = 'Granite') {
 }
 const finish = (userId, draftId, attemptId = randomUUID()) =>
   say(userId, draftId, 'lets go', 'create', { attemptId });
+
+test('BUG-151: a refused visitor arrival preserves the new agent and replays its factual birth outcome once',async()=>{
+  const userId='draft-refused-visitor',draftId=await prepared(userId);let calls=0;
+  const visitOutcome={ok:false,status:409,reason:'inHand',error:'He is in a hand. Try again after it finishes.',agentName:'Away Day',retryable:true};
+  setBirthListener(()=>{calls++;return visitOutcome;});
+  try{
+    const built=await finish(userId,draftId,'visitor-attempt');
+    assert.ok(built.createdAgent.id);assert.deepEqual(built.visitOutcome,visitOutcome);assert.equal(calls,1);
+    const total=chips(userId);reloadOwners(userId);
+    const replay=await begin(userId,draftId);
+    assert.equal(replay.agentId,built.agentId);assert.deepEqual(replay.visitOutcome,visitOutcome);assert.equal(chips(userId),total);assert.equal(calls,1);
+  }finally{setBirthListener(null);}
+});
 function chips(userId) {
   return (loadWallet(userId)?.balance ?? 0) + (loadProfile(userId)?.agents ?? []).reduce((n, agent) => n + (agent.pocket?.balance ?? 0), 0);
 }

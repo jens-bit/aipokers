@@ -71,6 +71,24 @@ it('BUG-145: createdAgent reaches the birth card without a roster fetch and conf
   expect(sessionStorage.getItem(STORAGE)).toBeNull();
 });
 
+it.each([
+  {ok:false,status:409,reason:'inHand',error:'He is in a hand.',retryable:true,agentName:'Away Day'},
+  {ok:false,status:410,reason:'invitationExpired',retryable:false,agentName:'Away Day'},
+])('BUG-150: a saved birth keeps his identity when the staged invitation returns $reason',async visitOutcome=>{
+  const user=userEvent.setup(),onBirth=vi.fn();begin(ready);chat({...created,visitOutcome});
+  render(<BirthScreen onBack={()=>{}} onBirth={onBirth}/>);
+  await user.click(await dealReady());
+  await waitFor(()=>expect(document.querySelector('.birth-card3')).toBeTruthy(),{timeout:3500});
+  expect(document.querySelector('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood','moss');
+  expect(document.querySelector('.birth-card3__first')).toHaveTextContent('I pick my spot.');
+  await user.dblClick(screen.getByRole('button',{name:'Deal him in',exact:true}));
+  expect(onBirth).toHaveBeenCalledTimes(1);
+  expect(onBirth).toHaveBeenCalledWith({id:newborn.id,name:'Go',strategy:'Patient.'},visitOutcome);
+  expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(1);
+  expect(fetchMock.posts.filter(c=>c.url.endsWith('/visit'))).toHaveLength(0);
+  expect(sessionStorage.getItem(STORAGE)).toBeNull();
+});
+
 it('BUG-145: remount resumes the same draft and an uncertain creation retry keeps its attempt id',async()=>{
   const user=userEvent.setup();begin(ready);chat({status:503,body:{error:'retry'}});
   const {unmount}=render(<BirthScreen onBack={()=>{}} onBirth={()=>{}}/>);

@@ -98,20 +98,21 @@ export async function resolveGuest() {
 
 /** Mint a new guest. Returns his owner id, or null when the server refused. */
 /**
- * `visitAgentId` — VISIT-1 job 6: the agent whose door he arrived at, off a
- * visit_<agentId> link with no Telegram session behind it (a real Mini App
+ * `visitInvitationToken` — BUG-150: the owner's invitation he arrived with,
+ * carried without trusting a public agent id (a real Mini App
  * launch never reaches this path at all — see main.jsx's door order). Stored
  * on the new guest as `referredBy`; nothing is credited yet, only recorded.
  */
-export async function startGuest(visitAgentId = null) {
+export async function startGuest(visitInvitationToken = null, { onCreated } = {}) {
   try {
     const res = await fetch('/api/guest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(visitAgentId ? { visitAgentId } : {}),
+      body: JSON.stringify(visitInvitationToken ? { visitInvitationToken } : {}),
     });
     if (!res.ok) return null;
     const made = await res.json();
+    onCreated?.(made);
     return made?.ownerId ? remember(made.ownerId) : null;
   } catch {
     return null;

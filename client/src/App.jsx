@@ -3,7 +3,7 @@ import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
 import { useHomeThread } from './hooks/useHomeThread.js';
-import { resolveDeepLink } from './lib/deeplink.js';
+import { resolveDeepLink, readStartParam, parseStartParam } from './lib/deeplink.js';
 import { Header } from './components/Header.jsx';
 import { RosterSheet } from './components/RosterSheet.jsx';
 import { WatchScreen } from './components/WatchScreen.jsx';
@@ -24,6 +24,8 @@ import { BirthScreen } from './screens/BirthScreen.jsx';
 import { rowsFromThread } from './lib/thread.js';
 import { useGuestSession } from './hooks/useGuestSession.js';
 import { ClaimWall } from './components/guest/ClaimWall.jsx';
+import { VisitNotice } from './components/home/VisitorToast.jsx';
+import { visitErrorText } from './lib/visit.js';
 
 // BUGS-C job 1: the Telegram entry has to load a home shell, not the whole
 // app. These four are screens a session may never visit in a given sitting
@@ -67,11 +69,13 @@ function agentHandsApiUrl(agentId) {
 // a profile overlay, the room — and AppShell returns from four different
 // places. So the guest session is held out here, one level up, and the shell
 // is handed what it needs. Nothing else about the shell moved.
-export default function App({ guestBoot = null }) {
+export default function App({ guestBoot = null, initialVisitNotice = null, initialVisitHandled = false }) {
   const guest = useGuestSession({ guestBoot });
+  const [visitNotice, setVisitNotice] = useState(initialVisitNotice);
   return (
     <>
-      <AppShell guest={guest} guestBoot={guestBoot} />
+      <AppShell guest={guest} guestBoot={guestBoot} onVisitNotice={setVisitNotice} initialVisitHandled={initialVisitHandled} />
+      <VisitNotice notice={visitNotice} onDismiss={() => setVisitNotice(null)} />
       {guest.wall && (
         <ClaimWall
           agent={guest.wallAgent}
@@ -85,7 +89,7 @@ export default function App({ guestBoot = null }) {
   );
 }
 
-function AppShell({ guest, guestBoot }) {
+function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
   const table = useTable({ wsUrl: WS_URL });
   const {
     game, mySeat, legalActions, history,
@@ -412,16 +416,31 @@ function AppShell({ guest, guestBoot }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useDeepLink((route) => {
+  const visitLaunch = useRef(0);
+  const handledGuestInvite = useRef(initialVisitHandled);
+  function openDeepLink(route) {
+    // A new guest's invitation is retained by the server until his first
+    // agent is born. Boot already previewed it; a second knock is premature.
+    if (handledGuestInvite.current && route.kind === 'visit') { handledGuestInvite.current = false; return; }
+    const attempt = ++visitLaunch.current;
+    if (route.kind === 'visit') onVisitNotice({ busy:true, text:'Opening invitation…' });
     resolveDeepLink(route)
       .then((opened) => {
+        if (attempt !== visitLaunch.current) return;
         if (!opened) return;
         // VISIT-1: the link already DID the thing — the knock landed, or it
         // did not, and either way there is no agent of ours to open a thread
         // on. HOME_STATE carries the rest (his own household sees him at the
         // door), so the only job left here is to be standing in the room.
         if (opened.kind === 'visit') {
-          setActiveTab('home');
+          navigateTo('home');
+          setAgentProfileTarget(null); setRosterOpen(false); setDeployTarget(null);
+          if (!config) { setIsCreating(false); setDeepLinkHand(null); }
+          const status = opened.body?.status;
+          onVisitNotice(opened.ok ? { text:status === 'accepted' ? `${opened.agentName || 'Your visitor'} is already in your room.` : `${opened.agentName || 'Your visitor'} is at your door. Let him in from Home.` } : {
+            error:true, text:visitErrorText(opened),
+            retry:!['invitationExpired', 'invitationUsed', 'invitationRequired'].includes(opened.body?.reason || opened.body?.error) && ![404,410].includes(opened.status) ? () => openDeepLink(route) : null,
+          });
           return;
         }
         if (opened.kind === 'hand') {
@@ -443,8 +462,18 @@ function AppShell({ guest, guestBoot }) {
           openAgentChat(opened.agent);
         }
       })
-      .catch(() => { /* a link that resolves to nothing leaves the app where it was */ });
-  });
+      .catch(() => { if (route.kind === 'visit' && attempt === visitLaunch.current) onVisitNotice({ error:true, text:'Could not open the invitation. Please try again.', retry:() => openDeepLink(route) }); });
+  }
+  useDeepLink(openDeepLink);
+
+  function showBirthVisitOutcome(outcome) {
+    if (!outcome) return;
+    const route = parseStartParam(readStartParam());
+    onVisitNotice(outcome.ok
+      ? { text:`${outcome.agentName || 'Your visitor'} is at your door. Let him in from Home.` }
+      : { error:true, text:`Your agent is home. ${visitErrorText({ body:outcome, status:outcome.status })}`,
+          retry:outcome.retryable && route?.kind === 'visit' ? () => openDeepLink(route) : null });
+  }
 
   const callAgentFinish = useCallback((agentId) => {
     if (!agentId) return;
@@ -688,7 +717,7 @@ function AppShell({ guest, guestBoot }) {
           <BirthScreen
             scrollOnFocus={guestBoot !== 'new'}
             onBack={() => setIsCreating(false)}
-            onBirth={() => setIsCreating(false)}
+            onBirth={(_agent, outcome) => { setIsCreating(false); showBirthVisitOutcome(outcome); }}
             onSeeTable={navigateToTable}
           />
         ) : null}
@@ -709,10 +738,11 @@ function AppShell({ guest, guestBoot }) {
           <BirthScreen
             scrollOnFocus={guestBoot !== 'new'}
             onBack={() => setIsCreating(false)}
-            onBirth={(agent) => {
+            onBirth={(agent, outcome) => {
               setIsCreating(false);
               setNewlyBornAgent(agent);
               navigateTo('home');
+              showBirthVisitOutcome(outcome);
             }}
             onSeeTable={navigateToTable}
           />

@@ -244,6 +244,8 @@ describe('VISIT-1 · send him to a friend', () => {
     const onOpenThread = vi.fn();
     fetchMock.route('/api/auth/config', { botUsername: 'AigenicPokerBot' });
     fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock')] });
+    // BUG-150: preserve navigation assertions, replacing the unsafe public-id link.
+    fetchMock.route('/api/agents/a1/visit-invite', { agentId:'a1', agentName:'The Clock', invitationToken:'invitation1', expiresAt:Date.now()+3600000, maxStake:0, startParam:'visit_invitation1' }, { method:'POST' });
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue() }, configurable: true,
     });
@@ -253,9 +255,9 @@ describe('VISIT-1 · send him to a friend', () => {
     await user.click(screen.getByRole('button', { name: 'Send to a friend' }));
     expect(onOpenThread).not.toHaveBeenCalled();
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'https://t.me/AigenicPokerBot?start=visit_a1',
+      'The Clock wants a game at your place in Railbird. Open this invitation to let him in. Free home game · no chips staked.\n\nhttps://t.me/AigenicPokerBot?start=visit_invitation1',
     ));
-    expect(await screen.findByText('Link copied')).toBeInTheDocument();
+    expect(await screen.findByText('Invitation copied. Paste it to your friend.')).toBeInTheDocument();
   });
 });
 

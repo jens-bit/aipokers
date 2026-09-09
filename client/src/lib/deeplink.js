@@ -54,12 +54,11 @@ export function parseStartParam(raw) {
     return tableId ? { kind: 'table', tableId } : null;
   }
 
-  // VISIT-1: visit_<agentId> — the agent is somebody ELSE'S, so unlike every
-  // other kind above there is nothing of ours to look up. The whole point of
-  // this link is that opening it IS the knock at the door; see requestVisit.
+  // BUG-150: a public agent id cannot authorize a visit. The opaque invitation
+  // is resolved and checked by the server before the recipient asks to host.
   if (s.startsWith('visit_')) {
-    const agentId = s.slice(6);
-    return agentId ? { kind: 'visit', agentId } : null;
+    const invitationToken = s.slice(6);
+    return invitationToken ? { kind: 'visit', invitationToken } : null;
   }
 
   return null;
@@ -82,7 +81,7 @@ export function readStartParam() {
     const fromHash = hash.get('tgWebAppStartParam');
     if (fromHash) return fromHash;
     const query = new URLSearchParams(window.location.search || '');
-    return query.get('tgWebAppStartParam') || query.get('startapp') || '';
+    return query.get('tgWebAppStartParam') || query.get('startapp') || (query.get('visit') ? `visit_${query.get('visit')}` : '');
   } catch {
     return '';
   }
@@ -157,8 +156,8 @@ export async function resolveDeepLink(route) {
   // fetch first. The caller (useDeepLink's consumer) is told whether the
   // knock landed; the room itself shows the answer, through HOME_STATE.
   if (route.kind === 'visit') {
-    const result = await requestVisit(route.agentId);
-    return { kind: 'visit', ok: result.ok, body: result.body };
+    const result = await requestVisit(route.invitationToken);
+    return { kind: 'visit', ...result };
   }
 
   if (route.kind === 'table') {

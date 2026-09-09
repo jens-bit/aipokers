@@ -4,7 +4,8 @@ import App from './App.jsx';
 import { BrandLoading } from './components/system/BrandLoading.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
-import { visitPreview, rememberPendingVisitor, requestVisit } from './lib/visit.js';
+import { resolveVisitInvitation, rememberPendingVisitor, visitErrorText } from './lib/visit.js';
+import { parseStartParam, readStartParam } from './lib/deeplink.js';
 import './styles/index.css';
 import { installAudioUnlock } from './lib/audio.js';
 const removeAudioUnlock=installAudioUnlock();
@@ -78,19 +79,22 @@ async function boot() {
     // than a Telegram start param — a real Mini App launch never reaches this
     // branch at all (door 1 above already took it), so this is specifically
     // the "no Telegram, no account" reader of the same link.
-    const visitAgentId = new URLSearchParams(window.location.search).get('visit');
+    const launch = parseStartParam(readStartParam());
+    const visitInvitationToken = launch?.kind === 'visit' ? launch.invitationToken : null;
 
     if (ownerId) {
       // He already has a household. The special hero is for a stranger with
       // none yet — a returning guest's flat already has the answer, so this
       // is job 1's own knock, made straight away rather than staged behind a
       // birth that already happened.
-      if (visitAgentId) requestVisit(visitAgentId).catch(() => {});
+      // App owns the one launch resolution, including failures and retries.
       const room = <App guestBoot="returning" />;
       return render(wantsWelcome ? welcome(room, { ctaLabel: 'OPEN YOUR ROOM', ctaNote: 'Free · play money only' }) : room);
     }
 
-    const visitor = visitAgentId ? await visitPreview(visitAgentId) : null;
+    const preview = visitInvitationToken ? await resolveVisitInvitation(visitInvitationToken) : null;
+    let visitor = preview?.ok ? preview.body : null;
+    let initialVisitNotice = preview && !preview.ok ? { error:true, text:visitErrorText(preview) } : null;
 
     // Nobody yet — mint one, and land him on the page that IS the game (job
     // 6): one hero viewport, and the room itself directly under it with the
@@ -98,7 +102,12 @@ async function boot() {
     // bounds a crawler or a bounced tab; see guest.js for why that cap is rows
     // rather than a Map. A server that refuses falls through to the login door
     // rather than rendering an app with no owner behind it.
-    const made = await startGuest(visitor ? visitAgentId : null);
+    const made = await startGuest(visitor ? visitInvitationToken : null, { onCreated: (body) => {
+      if (visitor && body.visitInvitationAccepted !== true) {
+        visitor = null;
+        initialVisitNotice = { error:true, text:'This invitation is no longer available. Ask your friend for a new invitation.' };
+      }
+    } });
     if (made) {
       // VISIT-1 job 6: "someone is at your door" — the draft's opening line
       // (BirthScreen.jsx) reads this back once, the first time it renders.
@@ -107,7 +116,7 @@ async function boot() {
       // it — which is why it needs the boundary the eager import did not.
       return render(
         <Suspense fallback={<BrandLoading/>}>
-          <GuestLanding showDetails visitorName={visitor?.agentName ?? null} />
+          <GuestLanding showDetails visitorName={visitor?.agentName ?? null} initialVisitHandled={!!visitInvitationToken} initialVisitNotice={initialVisitNotice} />
         </Suspense>,
       );
     }
@@ -126,7 +135,7 @@ async function boot() {
   }
   if (window.location.hostname === 'agenticpoker.app' && !wantsLogin) {
     render(null);
-    window.location.replace('/welcome');
+    window.location.replace(`/welcome${window.location.search || ''}${window.location.hash || ''}`);
     return undefined;
   }
   initTelegram();
