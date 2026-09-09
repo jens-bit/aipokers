@@ -42,6 +42,14 @@ async function shot(page, scene, kind) {
     });
     if (Math.abs(fit.width - fit.expected) > 1) throw Error('BUG-103: casino did not fit its stage: '+JSON.stringify(fit));
   }
+  if (scene === 'sit' && kind === 'desktop') {
+    const realCards=await page.getByTestId('owner-hero-cards').textContent();
+    if(!/[2-9TJQKA]/.test(realCards)) throw Error('BUG-99: capture never received the matching table state');
+    const stage=await page.getByTestId('desk-home-table').boundingBox();
+    const cards=await page.getByTestId('owner-hero-cards').boundingBox();
+    const verbs=await page.getByTestId('sit-strip').boundingBox();
+    if(!stage || cards.y+cards.height>=verbs.y || Math.abs(stage.width/stage.height-900/648)>.01) throw Error('BUG-99: desktop owner seat is cropped or mis-sized');
+  }
   if (scene === 'watch' && kind === 'desktop') {
     const bounds = await page.locator('.dtb__strip').evaluate(el => ({
       numbersBottom: Math.max(...[...el.querySelectorAll('.dtb__hero-stack, .dtb__hero-num, .dtb__equity-val')].map(n => n.getBoundingClientRect().bottom)),
@@ -63,7 +71,7 @@ async function tableSocket(page, { owner = false, desktop = false } = {}) {
         if (msg.type !== 'watch' && msg.type !== 'join') return super.send(raw);
         setTimeout(() => {
           this.dispatch('message',{data:JSON.stringify(owner ? {type:'joined',seat:0,playerId:'owner'} : {type:'watching',spectatorSeat:0})});
-          this.dispatch('message',{data:JSON.stringify({type:'state',state:{...state,toAct:owner ? 0 : 1},legalActions:owner ? [{type:'fold'},{type:'call',amount:20},{type:'raise',min:80,max:1847}] : []})});
+          this.dispatch('message',{data:JSON.stringify({type:'state',state:{...state,tableId:msg.tableId,toAct:owner ? 0 : 1},legalActions:owner ? [{type:'fold'},{type:'call',amount:20},{type:'raise',min:80,max:1847}] : []})});
           if (!owner) this.dispatch('message',{data:JSON.stringify({type:'decision',seat:0,action:{type:'call',amount:40},equity:.64,reasoning:'Sixes. I can afford to see one more.'})});
         },60);
       }
@@ -116,7 +124,6 @@ try {
     await casino.close();
 
     for (const owner of [false,true]) {
-      if (owner && kind === 'desktop') continue; // Desktop home seating is not wired yet (BUG-99).
       const felt = await pageAt(size.width,size.height);
       if (kind === 'desktop' && !owner) await desk.desk(felt,size);
       else if (!owner) { await watch.stub(felt,{owned:true}); await felt.goto('http://127.0.0.1:5199/'); }

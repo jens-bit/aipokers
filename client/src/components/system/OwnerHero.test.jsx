@@ -74,3 +74,21 @@ describe('the owner in the chair', () => {
     expect(container.querySelector('.felt-bars')).toBeNull();
   });
 });
+
+
+describe('DkOwnerM desktop owner seat',()=>{
+  it('keeps real stack and equity alongside the larger owner cards',()=>{
+    const {container}=render(<OwnerHero variant="desktop" hole={HOLE} stack={1847} equity={64} turn />);
+    expect(container.querySelector('.owner-hero__pill')).toHaveTextContent('YOU $1,847');
+    expect(container.querySelector('.owner-hero__chance')).toHaveTextContent('YOU WIN64%');
+    const card=screen.getByTestId('owner-hero-cards').firstElementChild.firstElementChild;
+    expect(card.style.width).toBe('58px');expect(card.style.height).toBe('81px');
+    expect(container.querySelector('.watch-hero__strip')).toBeNull();
+    expect(container.querySelector('.mood-ghost')).toBeNull();
+  });
+  it('does not invent a stack or a winning chance before the server supplies them',()=>{
+    const {container}=render(<OwnerHero variant="desktop" hole={null} between />);
+    expect(container.querySelector('.owner-hero__pill')).toHaveTextContent('YOU —');
+    expect(container.querySelector('.owner-hero__chance')).toHaveTextContent('YOU WIN—');
+  });
+});

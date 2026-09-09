@@ -1,6 +1,6 @@
 # Railbird — progress and handoff, 9 September 2026
 
-Twenty-four implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
+Twenty-five implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
 
 ## What is now implemented
 
@@ -14,15 +14,17 @@ Twenty-four implementation batches are prepared. The full design/spec goal remai
 
 ## Verification
 
+Batch25 passed the full gate: 105 server checks (two intentional live skips), 2,206 client checks (two existing todos), and seven end-to-end verifiers. All 33 desktop browser cases passed across two non-overlapping groups, along with phone BUG-55 at both heights and seven welcome checks. The final build passed; a fresh scratch server passed all six smoke checks (30.8s) and all 20 Home2 checks (18.2s). The new smoke proves actual desktop Watch/Join/Fold/Leave. Both seating reference pairs were inspected. Main integration follows before a push report.
+
 The latest full gate passed 105 server checks (two intentional live skips), 2,202 client checks (two existing todos) and all seven end-to-end verifiers. A final client run after the scrolling refinement also passed 2,199. Batch22's desktop/draft/landing/welcome group passed 43 checks; final welcome passed eight including ordinary/reduced-motion scrolling, and final guest/Home checks passed seven. Batch23's final set passed all 27 desktop cases and two responsive welcome captures; the phone four-agent table remained clickable at both heights.
 
-The production build passed. On a fresh scratch server, all four existing smoke checks and all 20 Home2 checks passed. The new permanent built-welcome smoke also passed: /welcome and /welcome/ serve no-store with the current hashed bundle, responsive product images load, and neither width raises a page error. Batch22 main integration passed; batch23 adds 27 desktop browser checks, two final welcome captures, all five smoke checks together and all 20 Home2 checks. Batch24 adds the single contextual header, with 83 targeted checks, 27 desktop browser cases, two welcome captures, five fresh built smoke checks and 20 Home2 checks passing. Its main integration is subject to a final gate; the chat confirms the prepared revision. Nothing has been pushed by Astra.
+The production build passed. On a fresh scratch server, all four existing smoke checks and all 20 Home2 checks passed. The new permanent built-welcome smoke also passed: /welcome and /welcome/ serve no-store with the current hashed bundle, responsive product images load, and neither width raises a page error. Batch22 main integration passed; batch23 adds 27 desktop browser checks, two final welcome captures, all five smoke checks together and all 20 Home2 checks. Batch24 adds the single contextual header, with 83 targeted checks, 27 desktop browser cases, two welcome captures, five fresh built smoke checks and 20 Home2 checks passing. Batch24 main integration also passed. Nothing has been pushed by Astra.
 
 BUG-94 retains an unexplained earlier Windows child-process exit. BUG-102 records the local invite-test timeout: its inaccurate new-guest fixture and broad query were corrected, and subsequent full runs passed, but resource contention is not proven as the cause. No assertion was skipped or weakened. The overnight execution interruption around 04:56–08:53 remains documented; those hours are not represented as productive work. The scheduled heartbeat was paused at its 09:00 cutoff; the active goal continued afterwards.
 
 ## Remaining work
 
-1. Desktop kitchen-table Watch/Sit actions and the human seating stage are missing (BUG-99). The welcome page currently uses the working phone seating example at either width.
+1. Desktop kitchen-table Watch/Sit is now fixed (BUG-99) and the welcome page uses its working desktop example. Generic casino Watch and the post-deploy route still need explicit navigation checks.
 2. Desktop floor sizing and its repeated heading are fixed and paired (BUG-103/104). Phone Board ordering/panel styling still differs from the authored example; the full frame inventory needs to distinguish current designs from superseded ones.
 3. Finish the current reference-state inventory and identity presentation audit. Separate current requirements from explicitly parked rare-birth rolls and future design waves. Do not invent a collar or an item economy.
 4. Remaining board-41 applications, unspecified celebration audio, external avatar/account settings and undesigned visit/referral/share/fast-forward states need explicit dispositions.

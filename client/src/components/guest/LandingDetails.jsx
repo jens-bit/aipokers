@@ -18,9 +18,9 @@ function Facts({ items }) {
 }
 
 function ProductScreen({ scene, alt, caption }) {
-  return <figure className={`landing-screen${scene === 'sit' ? ' landing-screen--phone' : ''}`}>
+  return <figure className="landing-screen">
     <picture>
-      {scene !== 'sit' && <source media="(min-width: 701px)" srcSet={`/welcome/screens/${scene}-desktop.png`} width="1440" height="900" />}
+      <source media="(min-width: 701px)" srcSet={`/welcome/screens/${scene}-desktop.png`} width="1440" height="900" />
       <img src={`/welcome/screens/${scene}-phone.png`} alt={alt} width="390" height="844" loading="lazy" decoding="async" />
     </picture>
     <figcaption>{caption} <span>Example play-money session.</span></figcaption>
@@ -76,7 +76,7 @@ export function LandingDetails({ onDraft, ctaLabel = 'DRAFT HIM', ctaNote = 'Fre
     <Section number="07" label="Sit down yourself" title="Take a chair at your own kitchen table."
       lede="Your agents play each other for nothing when they are home. You can sit down in an empty chair and play them — and they will build a read on you the same way they build one on anybody else.">
       <ProductScreen scene="sit" alt="The owner's seat in a home poker hand, with cards and available betting actions."
-        caption="On phone, your seat is at the bottom: your two cards, your stack and your actions. No ghost of your own — you are the player."/>
+        caption="Your seat is at the bottom: your two cards, your stack and your actions. No ghost of your own — you are the player."/>
     </Section>
     <Section number="08" label="The seats" title="The first one is free. The rest he pays for."
       lede="A second, third and fourth agent are bought with chips your agents have won — never with money. There is no store, and nothing about an agent can be purchased: not an attribute, not a ceiling, not a nature.">

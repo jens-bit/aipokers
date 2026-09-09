@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
+import { DeskHomeTable } from './DeskHomeTable.jsx';
 import { DeskHome } from './DeskHome.jsx';
 import { DesktopTopBar, desktopRoomSummary } from './DesktopTopBar.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
@@ -23,6 +24,7 @@ const IDLE_KEY = '__standup__';
 
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
+  tableConfig = null, mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
   // WATCH-8: the socket's own status, so the desk's rail refetches the stored
   // thread when the connection comes back — the same rule the phone's sheet
@@ -49,6 +51,7 @@ export function DesktopHome({
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [casinoHeaderHost, setCasinoHeaderHost] = useState(null);
+  const [homeTableSession, setHomeTableSession] = useState(null);
 
   // One draft per agent (plus the idle panel's own). Lifted above the panels
   // so a half-typed message survives switching agents — the panel remounts,
@@ -201,9 +204,9 @@ export function DesktopHome({
 
   const topBar = (
     <DesktopTopBar
-      roomPortalRef={!homeStage && !deskTableId && !replay ? setCasinoHeaderHost : null}
-      room={!deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
-      onHome={!homeStage ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
+      roomPortalRef={!homeStage && !deskTableId && !replay && !homeTableSession ? setCasinoHeaderHost : null}
+      room={homeTableSession ? {title:'The kitchen table',subtitle:homeTableSession.seated?'You are in the game · play money':'Watching the home game'} : !deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
+      onHome={!homeStage && !homeTableSession ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
       liveCount={liveCount}
       standupLine={playing.length === 0 ? topLine : null}
       net={topNet}
@@ -211,10 +214,10 @@ export function DesktopHome({
       // DESK-2: on the HOME stage the standup is a rail panel, so the button
       // that has always been called Standup opens the standup. Elsewhere it
       // keeps CASINO-1's behaviour — straight to the flagged hands.
-      onStandup={homeStage
+      onStandup={homeTableSession ? undefined : homeStage
         ? () => { setWalletOpen(false); setBornId(null); setHomePanel('standup'); }
         : (firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined)}
-      onWallet={wallet ? () => { setBornId(null); setWalletOpen(true); } : undefined}
+      onWallet={wallet && !homeTableSession ? () => { setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
       stage={stage}
       onStage={(next) => {
@@ -271,6 +274,18 @@ export function DesktopHome({
   useEffect(() => {
     if (deskTableId && !loading && deskIndex < 0) setDeskTableId(null);
   }, [deskTableId, deskIndex, loading]);
+
+  if (homeTableSession) {
+    const ready = String(tableConfig?.tableId) === String(homeTableSession.tableId);
+    const liveGame = ready && String(game?.tableId) === String(homeTableSession.tableId) ? game : null;
+    return <div className="dsk-root">{topBar}<div className="dsk-body">
+      <DeskRoster agents={agents} activeId={null} watchedId={null}
+        onSelect={agent=>{setHomeTableSession(null);onLeave?.();rosterSelect(agent);}} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
+      <DeskHomeTable game={liveGame} mySeat={mySeat} seated={homeTableSession.seated}
+        legalActions={ready && tableConfig?.sitting ? legalActions : []} onAct={onAct} lastDecision={lastDecision} agents={agents} connection={connection}
+        onBack={()=>{setHomeTableSession(null);onLeave?.();}}/>
+    </div></div>;
+  }
 
   if (replay) {
     return (
@@ -372,6 +387,8 @@ export function DesktopHome({
             // spans the body and the panels below are not drawn beside it.
             <DeskHome
               onCasino={() => setStage('casino')}
+              onWatchTable={tableId=>{setHomeTableSession({tableId,seated:false});onSpectate?.(tableId);}}
+              onSitAtTable={tableId=>{setHomeTableSession({tableId,seated:true});onSitAtTable?.(tableId);}}
               wsUrl={wsUrl}
               wallet={wallet}
               game={game}

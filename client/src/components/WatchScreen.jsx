@@ -655,7 +655,7 @@ export function WatchFelt({
   // SIT-1: the owner is the one in the hero seat. Everything above the hero is
   // unchanged — same opponents, same board, same pot — and the bottom of the
   // axis becomes his cards and a YOU pill instead of a ghost he does not have.
-  seated = false,
+  seated = false, ownerVariant = 'phone',
   // WATCH-7: the hand-end receipt, drawn over his strip rather than over the
   // felt, and the ticking stack number under it. Both are the watch screen's;
   // the replay theatre passes neither and is unchanged.
@@ -1125,7 +1125,7 @@ export function WatchFelt({
         // SIT-1 · NO GHOST OF HIS OWN. A ghost is a character with a mood, a
         // face and a pair of hands; the owner has none of those and the product
         // has never drawn him. He gets the pill, the cards and the strip.
-        <OwnerHero
+        <OwnerHero variant={ownerVariant} stack={heroStackRaw}
           hole={heroHole}
           landed={heroLanded}
           mucking={heroMuck}
@@ -1278,7 +1278,7 @@ var REVEAL_TAP_MS = 140;
 
 // W4-2: one seat's read out of the served `state.reads` array, and the facts
 // the sheet's header needs about that seat.
-function readFor(game, seat) {
+export function readFor(game, seat) {
   var list = (game && Array.isArray(game.reads)) ? game.reads : null;
   if (!list) return null;
   for (var i = 0; i < list.length; i++) {
@@ -1287,7 +1287,7 @@ function readFor(game, seat) {
   return null;
 }
 
-function seatSummary(game, seat) {
+export function seatSummary(game, seat) {
   var s = (game && game.seats) ? game.seats[seat] : null;
   if (!s) return null;
   return {

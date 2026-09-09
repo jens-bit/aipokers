@@ -61,6 +61,8 @@ export function DeskHome({
   onCasino,
   onCreateAgent,
   onFocusTable,
+  onWatchTable,
+  onSitAtTable,
   onOpenFlagged,
   drafts = {},
   onDraftChange,
@@ -155,7 +157,10 @@ export function DeskHome({
               sub={`${slots?.used ?? agents.length} / ${slots?.cap ?? 4}`}
               onClose={backToRoom}
             >
-              <TableSheet slots={slots} seated={seated} onDraft={onCreateAgent} />
+              <TableSheet slots={slots} seated={seated} onDraft={onCreateAgent}
+                onWatch={homeGame?.state === 'running' && homeGame.tableId && onWatchTable ? () => { backToRoom(); onWatchTable(homeGame.tableId); } : null}
+                onSit={homeGame?.state === 'running' && homeGame.tableId && onSitAtTable ? () => { backToRoom(); onSitAtTable(homeGame.tableId); } : null}
+              />
             </RailPanel>
           );
         }

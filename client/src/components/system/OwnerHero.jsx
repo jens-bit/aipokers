@@ -39,20 +39,12 @@ export function OwnerHero({
   // Whether the table is waiting on him. The pill is the quiet register for it.
   turn = false,
   timer = null, timerOf = 12,
-  toast,
+  toast, variant = 'phone', stack = null,
 }) {
   const cards = hole && hole.length ? hole : [null, null];
-  return (
-    <div className="watch-hero owner-hero" data-testid="owner-hero">
-      {/* The pill, above the cards, where a name pill sits over a body. */}
-      <span className={`owner-hero__pill${turn ? ' is-turn' : ''}`} data-turn={turn ? 'yes' : 'no'}>
-        YOU
-      </span>
-
-      {/* FISH-TANK LAW, from his side of the glass: his own two cards face up.
-          Face down only while there is no hand — a back between hands is the
-          table waiting, not a card being kept from him. */}
-      <span className="owner-hero__cards" data-testid="owner-hero-cards">
+  const cardW = variant === 'desktop' ? 58 : OWNER_CARD_W;
+  const cardH = variant === 'desktop' ? 81 : OWNER_CARD_H;
+  const hand = (<span className="owner-hero__cards" data-testid="owner-hero-cards">
         {cards.map((c, i) => {
           const down = i < landed;
           return (
@@ -63,12 +55,29 @@ export function OwnerHero({
               style={{ transform: `rotate(${i ? 6 : -6}deg) translateX(${down ? 0 : 34}px)` }}
             >
               {(c && !between)
-                ? <PlayingCard rank={c[0]} suit={c[1]} w={OWNER_CARD_W} h={OWNER_CARD_H} />
-                : <CardBack w={OWNER_CARD_W} h={OWNER_CARD_H} branded />}
+                ? <PlayingCard rank={c[0]} suit={c[1]} w={cardW} h={cardH} />
+                : <CardBack w={cardW} h={cardH} branded />}
             </span>
           );
         })}
+      </span>);
+  if (variant === 'desktop') return <div className="watch-hero owner-hero owner-hero--desk" data-testid="owner-hero">
+    <span className={'owner-hero__pill'+(turn?' is-turn':'')} data-turn={turn?'yes':'no'}>YOU <strong>{Number.isFinite(stack)?money(stack):'—'}</strong>{timer != null && <SeatClock d={20} left={timer} of={timerOf}/>}</span>
+    <div className="owner-hero__desk-hand">{hand}<div className="owner-hero__chance"><span>YOU WIN</span><strong>{Number.isFinite(equity)?Math.round(equity)+'%':'—'}</strong></div></div>
+    <div className="watch-hero__tug"><TugBar equity={equity} villain={villain} big={bigRope} dead={deadRope}/></div>
+    {toast}
+  </div>;
+  return (
+    <div className="watch-hero owner-hero" data-testid="owner-hero">
+      {/* The pill, above the cards, where a name pill sits over a body. */}
+      <span className={`owner-hero__pill${turn ? ' is-turn' : ''}`} data-turn={turn ? 'yes' : 'no'}>
+        YOU
       </span>
+
+      {/* FISH-TANK LAW, from his side of the glass: his own two cards face up.
+          Face down only while there is no hand — a back between hands is the
+          table waiting, not a card being kept from him. */}
+      {hand}
 
       {/* The rope keeps its slot: the equity is his now, and it is the one
           number on this screen that answers "am I ahead". */}

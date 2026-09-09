@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 25: desktop kitchen-table Watch and Sit now open the actual game, with legal betting controls, visible owner cards and Back/Leave (BUG-99). The wider reference felt fits the available stage while keeping the roster and room conversation. Responsive welcome examples now include the desktop seat.
+
 - Design completion batch 24: desktop casino room context and Floor/Board controls now share the existing 54px shell header (BUG-104). The duplicate floor heading/return bar is gone, room selection survives toggling, and Home remains one action away. The product capture is refreshed and paired.
 
 - Design completion batch 23: casino floor attaches its measurement when live tables arrive and fits both desktop axes using the reference's proportions (BUG-103). Late phone plans also fit their actual width. Updated welcome examples include the complete phone composer; the exporter checks floor and composer bounds. Duplicate desktop Floor heading remains tracked as BUG-104.

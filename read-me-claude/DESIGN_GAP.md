@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 25
+
+BUG-99 is implemented and verified against the built server: the home table opens Watch or Sit, actual server legal actions drive the strip, a browser Fold changes the served seat state, and Back sends Leave. The desktop felt uses DkOwnerM’s 900×648 coordinate space with compact 58×81 owner cards, real stack/equity or honest unknowns, and clearance above the action panel. Both modes fit 1280/1440/1920 widths and a 600px-high window. Pairs design-batch25-sit-{390,1280}.png were inspected. Ten marketing captures now include the desktop seat.
+
+Explicit differences: the latest permanent 250px roster and shared room conversation replace this older frame’s 190px casino strip and illustrative private chat. Real hand data replaces authored samples. Owner cards stay fully visible instead of reproducing the reference’s action-row overlap. Phone Watch/Sit geometry and its existing information strip are retained; it is not claimed to be pixel-identical to this older owner illustration. Generic casino Watch, the remaining inventory and external rollout still require work. Final integration results are recorded in OVERNIGHT_DESIGN_WORK.md.
+
 ## Design completion — 2026-09-09, batch 24
 
 The populated desktop floor now has one 54px header: current room and counts, Floor/Board, account/result and Home return. Its former second heading row is gone (BUG-104). Context renders from CasinoScreen's live state into the shell, so selecting rooms and toggling does not duplicate that state. The room fits the recovered height. The actual desktop frame and design-batch24-casino-1280.png were inspected. All 27 desktop browser cases and both refreshed welcome widths pass; phone headers/Watch layout remain unchanged. The permanent board remains 380px, and actual data replaces authored sample occupants and results. Desktop human seating, generic table navigation and remaining inventory work are not certified by this header fix.

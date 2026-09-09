@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-09T10:04:42.421Z",
+  "capturedAt": "2026-09-09T10:54:36.529Z",
   "source": "App with existing desktop/Home/Watch browser fixtures",
   "records": [
     {
@@ -68,6 +68,14 @@
     },
     {
       "scene": "watch",
+      "kind": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "scene": "sit",
       "kind": "desktop",
       "viewport": {
         "width": 1440,

@@ -64,6 +64,7 @@ for (const width of [375,390,768,1280,1440]) {
       });
       await page.locator('.landing-section').nth(1).screenshot({path:`../artifacts/welcome22-home-${width}.png`});
       await page.locator('.landing-section').nth(3).screenshot({path:`../artifacts/welcome22-casino-${width}.png`});
+      await page.locator('.landing-section').nth(6).screenshot({path:`../artifacts/welcome25-sit-${width}.png`});
     }
     expect(errors).toEqual([]);
   });

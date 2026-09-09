@@ -31,6 +31,7 @@
 
 import { test, expect } from '@playwright/test';
 import { felts as floorFelts } from '../src/test/fixtures/rooms.js';
+import { midHandGame } from '../src/test/fixtures/game.js';
 import { bigBluffHand } from '../src/test/fixtures/flagged.js';
 
 const HOME = 'http://127.0.0.1:5199/';
@@ -697,4 +698,62 @@ test.describe('BUG-103 · populated casino floor uses its stage', () => {
       await fits();
     });
   }
+});
+
+
+test.describe('BUG-99 · the desktop kitchen-table camera', () => {
+  for (const size of [{width:1280,height:720}, ...SIZES]) for (const seated of [false,true]) test((seated?'Sit opens your cards and sends a legal action':'Watch opens the existing home game and returns')+' at '+size.width,async({page})=>{
+    await desk(page,size);
+    const heroSeat=seated?2:1;
+    const state={...midHandGame,tableId:GAME.tableId,toAct:heroSeat,seats:midHandGame.seats.slice(0,seated?3:2).map((s,i)=>({...s,holeCards:i===heroSeat?['Ah','Kh']:[],displayName:['Balance','Granite','Jens'][i]}))};
+    await page.addInitScript(({state,seated})=>{
+      const Base=window.WebSocket;window.__homeTableSent=[];
+      window.WebSocket=class extends Base {
+        send(raw){const msg=JSON.parse(raw);window.__homeTableSent.push(msg);super.send(raw);
+          if(msg.type!=='watch'&&msg.type!=='join')return;
+          setTimeout(()=>{
+            this.dispatch('message',{data:JSON.stringify(seated?{type:'joined',seat:2}:{type:'watching',spectatorSeat:1})});
+            this.dispatch('message',{data:JSON.stringify({type:'state',state,legalActions:seated?[{type:'fold'},{type:'call',amount:40},{type:'raise',min:80,max:980}]:[]})});
+          },40);
+        }
+      };
+    },{state,seated});
+    await page.reload();
+    await page.getByTestId('home-table').click();
+    await page.getByTestId(seated?'home-table-sit':'home-table-watch').click();
+    const stage=page.getByTestId('desk-home-table');await expect(stage).toBeVisible();
+    const frame=await stage.boundingBox();expect(frame.width/frame.height,'DkOwnerM uses the 900×648 felt').toBeCloseTo(900/648,2);
+    await expect(stage.locator('.watch-felt')).toBeVisible();
+    await expect(page.getByTestId('room-thread')).toBeVisible();
+    if(seated){
+      await expect(stage.getByTestId('owner-hero')).toBeVisible();
+      await expect(stage.getByTestId('owner-hero-cards').locator('[data-landed="yes"]')).toHaveCount(2);
+      await expect(stage.getByTestId('owner-hero-cards').locator('.owner-hero__card').nth(1)).toHaveCSS('opacity','1');
+      await expect(stage.getByTestId('sit-strip')).toHaveAttribute('data-turn','yes');
+      await expect(stage.getByRole('button',{name:'CHECK',exact:true})).toBeDisabled();
+      const felt=await stage.boundingBox(),verbs=await stage.getByTestId('sit-strip').boundingBox(),cards=await stage.getByTestId('owner-hero-cards').boundingBox();
+      expect(felt.width).toBeLessThanOrEqual(900);expect(verbs.y+verbs.height).toBeLessThanOrEqual(felt.y+felt.height+1);expect(cards.y+cards.height).toBeLessThan(verbs.y);
+      await stage.getByRole('button',{name:'BET',exact:true}).click();
+      await expect(stage.getByTestId('sit-bet-panel')).toBeVisible();
+      await expect(stage.getByTestId('sit-bet-panel')).toHaveCSS('opacity','1');
+      const betting=await stage.getByTestId('sit-bet-panel').boundingBox(), bettingCards=await stage.getByTestId('owner-hero-cards').boundingBox();
+      expect(bettingCards.y+bettingCards.height,'your cards remain above the betting panel').toBeLessThanOrEqual(betting.y);
+      const owner=await stage.getByTestId('owner-hero').boundingBox(), board=await stage.locator('.watch-felt__board').boundingBox();
+      expect(owner.y).toBeGreaterThan(board.y+board.height+8);
+      await page.screenshot({path:'../artifacts/desktop-home25-bet-'+size.width+'.png'});
+      await stage.getByRole('button',{name:/ALL IN/}).click();
+      await expect.poll(()=>page.evaluate(()=>window.__homeTableSent.some(m=>m.type==='action'&&m.action?.type==='raise'&&m.action.amount===980))).toBe(true);
+    }else {await expect(stage.getByTestId('sit-strip')).toHaveCount(0);await expect(stage.getByTestId('owner-hero')).toHaveCount(0);}
+    const sent=await page.evaluate(()=>window.__homeTableSent.find(m=>m.type==='join'||m.type==='watch'));
+    expect(sent.tableId).toBe(GAME.tableId);
+    await page.screenshot({path:'../artifacts/desktop-home25-'+(seated?'sit':'watch')+'-'+size.width+'.png'});
+    await page.setViewportSize({width:size.width,height:600});
+    await expect.poll(async()=> (await stage.boundingBox()).height).toBeLessThanOrEqual(510);
+    const compact=await stage.boundingBox();
+    expect(compact.y).toBeGreaterThanOrEqual(54);expect(compact.y+compact.height).toBeLessThanOrEqual(600);
+    expect(compact.width/compact.height).toBeCloseTo(900/648,2);
+    if(seated){const cards=await stage.getByTestId('owner-hero-cards').boundingBox(),verbs=await stage.getByTestId('sit-strip').boundingBox();expect(cards.y+cards.height).toBeLessThan(verbs.y);}
+    await page.getByRole('button',{name:'Back to the room',exact:true}).click();
+    await expect(page.getByTestId('home-table')).toBeVisible();await expect(page.getByTestId('desk-home-table')).toHaveCount(0);
+  });
 });

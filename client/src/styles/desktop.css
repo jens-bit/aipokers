@@ -2275,3 +2275,23 @@
   .dsk-top__home{width:20px;height:32px;padding:0;background:none;border:0;color:#A1A1A1;font:24px Inter,sans-serif}
 }
 @media(min-width:1501px){.dsk-top--room{padding:0 26px}.dsk-top__room h1{font-size:18px}}
+
+
+/* DkOwnerM: 900×648 felt, uniformly fitted to the real stage. */
+.dsk-stage--home-game {padding:18px 12px;}
+.dsk-home-table-viewport {width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;}
+.dsk-home-table {flex-shrink:0;position:relative;overflow:hidden;border-radius:6px;box-shadow:0 28px 70px #0009;}
+.dsk-home-table__scene {width:900px;height:648px;transform-origin:0 0;position:relative;display:flex;flex-direction:column;}
+.dsk-home-table__scene>.watch-felt {max-width:none;width:100%;}
+.dsk-home-table__back {position:absolute;left:12px;top:12px;z-index:8;width:34px;height:34px;border-radius:50%;background:rgba(12,20,19,.86);border:1px solid #ffffff26;color:#EDEDED;font:24px/1 Inter,sans-serif;}
+.dsk-home-table__actions {position:absolute;bottom:0;left:0;right:0;z-index:9;}
+.dsk-home-table.is-seated .owner-hero {bottom:var(--owner-clearance,112px);}
+.dsk-home-table.is-seated .watch-felt--fill {--wv-board:34%;--wv-pot:26%;}
+.dsk-home-table.is-seated .watch-felt__hero-stack {bottom:34%;}
+.dsk-home-table.is-seated .watch-felt__hero-bet {bottom:48%;}
+
+.owner-hero--desk .owner-hero__pill {display:flex;align-items:center;gap:8px;font-size:11px;}
+.owner-hero--desk .owner-hero__pill strong {font:700 10.5px 'JetBrains Mono',monospace;color:#A1A1A1;}
+.owner-hero__desk-hand {display:flex;gap:14px;align-items:center;padding:8px 15px;border-radius:15px;background:rgba(8,16,15,.78);border:1px solid #ffffff26;}
+.owner-hero__chance {display:flex;flex-direction:column;color:#6B6B6B;font:600 8.5px Oswald,sans-serif;}
+.owner-hero__chance strong {font:700 22px 'JetBrains Mono',monospace;color:#00D4AA;}

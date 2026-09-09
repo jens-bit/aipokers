@@ -397,3 +397,43 @@ test('L2: built welcome loads its current bundle and responsive product screens'
     } finally { await page.close(); }
   }
 });
+
+// BUG-99: a desktop kitchen-table action must reach the built server, not just a mocked socket.
+test('desktop kitchen table Watch, Sit, action and Leave use the actual game',async({page})=>{
+  await page.setViewportSize(SHELLS.desktop);
+  const uid='smokedesksit25';const agent=await agentFor(uid);
+  const placed=await api('POST','/api/agents/'+agent.id+'/place',{userId:uid,fixture:'table'});
+  expect(placed.status).toBe(200);expect(placed.body.seated).toBe(true);
+  const noise=watchConsole(page),received=[],sent=[];
+  page.on('websocket',socket=>{
+    socket.on('framereceived',event=>{try{received.push(JSON.parse(event.payload));}catch{}});
+    socket.on('framesent',event=>{try{sent.push(JSON.parse(event.payload));}catch{}});
+  });
+  await page.addInitScript(id=>localStorage.setItem('agentic_uid',id),uid);
+  await page.goto(BASE);await expect(page.getByTestId('home-screen')).toBeVisible();
+  await page.getByTestId('home-table').click();await page.getByTestId('home-table-watch').click();
+  const stage=page.getByTestId('desk-home-table');await expect(stage).toBeVisible();
+  await expect.poll(()=>received.some(m=>m.type==='watching')).toBe(true);
+  await expect(stage.getByTestId('owner-hero')).toHaveCount(0);
+  await expect(page.getByTestId('room-thread')).toBeVisible();
+  await page.getByRole('button',{name:'Back to the room',exact:true}).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await page.getByTestId('home-table').click();await page.getByTestId('home-table-sit').click();
+  await expect(stage.getByTestId('owner-hero')).toBeVisible();
+  await expect.poll(()=>received.some(m=>m.type==='joined')).toBe(true);
+  await expect(stage.getByTestId('owner-hero-cards').locator('> *')).toHaveCount(2);
+  await expect(stage.getByRole('button',{name:'BET',exact:true})).toBeEnabled({timeout:90000});
+  await stage.getByRole('button',{name:'BET',exact:true}).click();
+  await expect(stage.getByTestId('sit-bet-panel')).toBeVisible();await shot(page,'desktop-home-sit-bet');
+  await stage.getByText('CANCEL',{exact:true}).click();
+  const seat=received.find(m=>m.type==='joined').seat;
+  const hand=received.filter(m=>m.type==='state'&&m.state?.tableId==='home-'+uid).at(-1).state.handNumber;
+  await stage.getByRole('button',{name:'FOLD',exact:true}).click();
+  await expect.poll(()=>sent.some(m=>m.type==='action'&&m.action?.type==='fold')).toBe(true);
+  await expect.poll(()=>received.some(m=>m.type==='state'&&m.state?.tableId==='home-'+uid&&m.state.handNumber===hand&&m.state.seats[seat]?.folded)).toBe(true);
+  expect(received.filter(m=>m.type==='error')).toEqual([]);
+  await page.getByRole('button',{name:'Back to the room',exact:true}).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  expect(sent.filter(m=>m.type==='leave').length).toBeGreaterThanOrEqual(2);
+  expect(noise).toEqual([]);
+});

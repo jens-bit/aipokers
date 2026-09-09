@@ -615,6 +615,12 @@ function AppShell({ guest, guestBoot }) {
     return (
       <Suspense fallback={null}>
       <DesktopHome
+        tableConfig={config}
+        mySeat={mySeat}
+        legalActions={legalActions}
+        onAct={act}
+        onLeave={handleLeave}
+        onSitAtTable={sitTable}
         game={game}
         lastDecision={lastDecision}
         // WATCH-8: the socket's own status, so the desk's rail refetches the

@@ -20,6 +20,6 @@ it('every marketing picture resolves to a real capture at its declared dimension
 });
 it('LAND-4: responsive captures have no inline display override', () => {
   const { container } = render(<LandingDetails/>);
-  expect(container.querySelectorAll('source[media="(min-width: 701px)"]')).toHaveLength(4);
+  expect(container.querySelectorAll('source[media="(min-width: 701px)"]')).toHaveLength(5);
   for (const element of container.querySelectorAll('picture, source, img')) expect(element.style.display).toBe('');
 });

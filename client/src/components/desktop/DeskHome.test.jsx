@@ -15,7 +15,7 @@
 //      covered — safe, fridge, table.
 //   5. NOTHING INSERTS A ROW. The composer POSTs to /api/home/say and reloads.
 
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -291,5 +291,27 @@ describe('FIX-6 · Yes IS the deploy, on the desk too', () => {
     await waitFor(() => expect(deployed).toEqual({ id: 'a1', room: 'upstairs' }));
     // And nothing else was asked: the toast is gone, not replaced by a confirm.
     await waitFor(() => expect(screen.queryByTestId('home-want')).toBeNull());
+  });
+});
+
+
+describe('BUG-99 · kitchen-table actions on desktop', () => {
+  it('watches or sits at the actual running home table', async () => {
+    const onWatchTable=vi.fn(), onSitAtTable=vi.fn();
+    await boot({game:{tableId:'home-u1',state:'running',seats:[{seat:0,agentId:'a1'},{seat:1,agentId:'a2'}]},props:{onWatchTable,onSitAtTable}});
+    await userEvent.click(screen.getByTestId('home-table'));
+    await userEvent.click(screen.getByTestId('home-table-watch'));
+    expect(onWatchTable).toHaveBeenCalledTimes(1);
+    expect(onWatchTable).toHaveBeenCalledWith('home-u1');
+    await userEvent.click(screen.getByTestId('home-table'));
+    await userEvent.click(screen.getByTestId('home-table-sit'));
+    expect(onSitAtTable).toHaveBeenCalledTimes(1);
+    expect(onSitAtTable).toHaveBeenCalledWith('home-u1');
+  });
+  it('offers neither action when no home game is running', async () => {
+    await boot({props:{onWatchTable:vi.fn(),onSitAtTable:vi.fn()}});
+    await userEvent.click(screen.getByTestId('home-table'));
+    expect(screen.queryByTestId('home-table-watch')).toBeNull();
+    expect(screen.queryByTestId('home-table-sit')).toBeNull();
   });
 });
