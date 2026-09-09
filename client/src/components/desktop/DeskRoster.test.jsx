@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { DeskRoster } from './DeskRoster.jsx';
 
-const agent={id:'a1',name:'Granite',identity:{hood:'sand',glow:'gold'},location:{where:'home'},homeTableId:'home-u1',fatigue:'settled',mood:{state:'frustrated',heat:48},routine:{label:'in a hand'},careerStats:{net:9000},sessionLog:[{net:-200}]};
+const agent={id:'a1',name:'Granite',identity:{hood:'sand',glow:'gold'},location:{where:'home'},homeTableId:'home-u1',liveGame:{tableId:'home-u1'},fatigue:'settled',mood:{state:'frustrated',heat:48},routine:{label:'in a hand'},careerStats:{net:9000},sessionLog:[{net:-200}]};
 it('BUG-84 the desktop roster shows his room and actual session result, not lifetime profit',()=>{
   render(<DeskRoster agents={[agent]}/>);
   expect(screen.getByText(/at your table/i)).toBeInTheDocument();

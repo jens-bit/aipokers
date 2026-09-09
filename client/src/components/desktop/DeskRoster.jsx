@@ -13,20 +13,20 @@ import { moodOf, heatOf } from '../floor/agentView.js';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { BodyBars } from '../system/FeltBodyBars.jsx';
 import { identityOf } from '../../lib/identity.js';
-import { whereLine, rosterLive, rosterResult, hasUnread } from '../RosterSheet.jsx';
+import { rosterWhereabouts, rosterLive, rosterResult, hasUnread } from '../RosterSheet.jsx';
 import { signedMoney } from '../../lib/wallet.js';
 
 const MAX_SEATS = 4;
 
 function DeskRosterRow({agent,active,onClick}) {
   const identity=identityOf(agent), heat=heatOf(agent), live=rosterLive(agent), result=rosterResult(agent);
-  const where=whereLine(agent);
-  const line=agent.want?.text || agent.routine?.label || where;
+  const {where,detail}=rosterWhereabouts(agent);
+  const line=agent.want?.text || detail;
   return <button type="button" className={`dsk-roster-row dsk-roster-row--home${active?' is-active':''}`} onClick={onClick}>
     <span className="dsk-roster-face"><MoodGhost size={38} ring={false} mood={moodOf(agent)} heat={heat} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>{hasUnread(agent)&&<i/>}</span>
     <span className="dsk-roster-row__text">
       <span className="dsk-roster-row__name-line"><span className="dsk-roster-row__name">{agent.name}</span><span className={`dsk-roster-place${live?' is-live':''}`}>{where}</span></span>
-      <span className="dsk-roster-row__line">{line}{result.value!==null&&<span title={result.label}> · {signedMoney(result.value)}</span>}</span>
+      <span className="dsk-roster-row__line">{line}{result.value!==null&&<span title={result.label}>{line ? ' · ' : ''}{signedMoney(result.value)}</span>}</span>
       <BodyBars compact fatigue={agent.fatigue} heat={heat} className="dsk-roster-bars"/>
     </span>
   </button>;

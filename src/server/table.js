@@ -111,7 +111,8 @@ import {
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
 import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
-import { appendLine as appendThreadLine, ThreadKind, OWNER as THREAD_OWNER } from './thread.js';
+import { appendLine as appendThreadLine, ThreadKind, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
+import { homeSessionId } from './homeNight.js';
 import { canAffordTable } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
@@ -1795,6 +1796,31 @@ export class Table {
       if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text, { from, to });
       else this._threadTo(s, ThreadKind.OPPONENT, displayName, text);
     }
+    // BUG-163: a kitchen's public speech is also the Home conversation, once
+    // for the actual host room. Seat histories above still belong to their
+    // individual owners; copying those would expose reads/whispers and repeat
+    // each utterance for every resident. The existing Home push/read path
+    // carries this one persisted row without generating another reply.
+    const speaker = this.pending[seat];
+    if (!this.home || !this.homeOwnerId || this.closed || !speaker || from != null || to != null) return;
+    // Legacy spectator CHAT speaks through an agent seat without identifying
+    // the human. Keep its old table history, but never claim the agent said it
+    // or invent a YOU in the host's room (the spectator may be a visitor).
+    if (!isAI && this.aiSeats[seat]) return;
+    const agentId = this.agentIds[seat];
+    const speakerId = agentId ?? speaker.playerId;
+    appendThreadLine({
+      sessionId: homeSessionId(this.homeOwnerId),
+      agentId: speakerId,
+      ownerId: this.homeOwnerId,
+      // No tableId: the seat history already emits its own THREAD_LINE.
+      kind: agentId ? ThreadKind.HIM : ThreadKind.OPPONENT,
+      who: displayName,
+      text,
+      source: ThreadSource.HOME,
+      from: speakerId,
+      to: THREAD_ROOM,
+    });
   }
 
   // An action worth a line. Checks and calls are not: a sheet that records

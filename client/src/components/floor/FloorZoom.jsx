@@ -1,10 +1,34 @@
 // The zoom -- tap a ghost, the camera pushes in and the agent turns forward
 // to speak its latest moment. Ported from ZoomView in mood-casino.jsx.
 
+import { useEffect, useState } from 'react';
 import { FloorGhost, MoodChip, StateTag, PotTicker, MOODS, safeMood, accentFor } from './atoms.jsx';
 import { moodOf, heatOf, causeOf, stateOf, lastMomentOf, presenceOf, homeGameOf } from './agentView.js';
 import { LiveBar } from '../system/LiveBar.jsx';
 import { fatigueOf, FATIGUE, fatigueLineFor } from '../../lib/attributes.js';
+import { timerLeft } from '../../lib/pace.js';
+
+// BUG-165: previews carry the server's epoch deadline, not a fresh duration.
+// Use Watch's rounding helper; no deadline means no clock. A stale snapshot
+// expires locally without another request, and a new snapshot replaces it.
+function usePreviewTimer(game) {
+  const deadline = Number.isFinite(game?.actionDeadline)
+    && game?.street !== 'complete' && game?.street !== 'waiting' ? game.actionDeadline : null;
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (deadline == null) return undefined;
+    // It can expire after render computed "1s" but before this effect runs.
+    // Refresh that render too; returning without a tick would strand the 1s.
+    if (deadline <= Date.now()) { tick(n => n + 1); return undefined; }
+    const id = setInterval(() => {
+      tick(n => n + 1);
+      if (deadline <= Date.now()) clearInterval(id);
+    }, 250);
+    return () => clearInterval(id);
+  }, [deadline]);
+  const left = timerLeft({ deadlineTs: deadline }, Date.now());
+  return left > 0 ? left : null;
+}
 
 // ATTR-2e-2 — ZoomFatigueRow (design-refs/char-play.jsx).
 // The strip stays the GAME. Fatigue is a fact about HIM, so it docks directly
@@ -59,6 +83,7 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
   const pot = Number.isFinite(livePot) && livePot > 0 ? livePot.toLocaleString() : null;
 
   const liveGame = agent ? agent.liveGame || null : null;
+  const timer = usePreviewTimer(liveGame);
 
   // With liveGame: bubble at 30, LiveBar at 118, ghost at 198, shadow at 376.
   // Without liveGame, legacy: bubble at pot ? 58 : 30, ghost at pot ? 178 : 152.
@@ -100,6 +125,7 @@ export function FloorZoom({ agent, index = 0, livePot, onBack, onChat, onWatch, 
             note={homeLive ? 'Home game' : undefined}
             equity={liveGame.equity || null}
             action={liveGame.lastAction || null}
+            timer={timer}
             board={parseBoard(liveGame.board)}
             faceDown={!liveGame.board || liveGame.board.length === 0}
           />

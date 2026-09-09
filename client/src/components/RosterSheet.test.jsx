@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { RosterRow, RosterSheet, whereLine, hasUnread, canSendVisiting } from './RosterSheet.jsx';
+import { RosterRow, RosterSheet, whereLine, rosterWhereabouts, hasUnread, canSendVisiting } from './RosterSheet.jsx';
 import { AgentProfileScreen } from '../screens/AgentProfileScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -38,20 +38,21 @@ describe('BUGS-A job 9 · where he is, in the room own words', () => {
   it('BUG-69: a visit and the kitchen table are not labelled as the casino', () => {
     expect(whereLine(agent('v', 'Visitor', { location: { where: 'casino' }, visiting: { hostName: 'Fidde' } }))).toBe("visiting Fidde's");
     expect(whereLine(agent('v', 'Visitor', { visiting: {} }))).toBe('visiting a friend');
-    expect(whereLine(agent('h', 'Home', { homeTableId: 'home-4242' }))).toBe('at your table');
+    expect(whereLine(agent('h', 'Home', { homeTableId: 'home-4242', liveGame: {tableId:'home-4242'} }))).toBe('at your table');
   });
   it('at a table names the room he is in', () => {
-    expect(whereLine(AT_TABLE)).toBe('at a table · 25/50');
+    // C5 separates the place from the smaller stakes detail.
+    expect(rosterWhereabouts(AT_TABLE)).toEqual({where:'at the casino',detail:'25/50'});
   });
 
   it('at the casino without a hand yet is still not "at home"', () => {
     expect(whereLine(agent('a1', 'x', { location: { where: 'casino', room: 'floor' } })))
-      .toBe('at the casino · 10/20');
+      .toBe('at the casino');
   });
 
   it('home is home', () => {
-    expect(whereLine(agent('a1', 'x'))).toBe('at home');
-    expect(whereLine({})).toBe('at home');
+    expect(whereLine(agent('a1', 'x'))).toBe('home');
+    expect(whereLine({})).toBe('home');
   });
 
   it('the dot is about YOU: something said that you have not read', () => {
@@ -89,15 +90,16 @@ describe('BUGS-A job 9 · the sheet', () => {
     fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock'), AT_TABLE] });
     render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
 
-    const clock = await screen.findByRole('button', { name: /^The Clock — at home/ });
+    const clock = await screen.findByRole('button', { name: /^The Clock — home/ });
     expect(within(clock).getByText('The Clock')).toBeInTheDocument();
-    expect(within(clock).getByText('at home')).toBeInTheDocument();
+    expect(within(clock).getByText('home')).toBeInTheDocument();
     expect(within(clock).getByText('$2,400')).toBeInTheDocument();
 
-    const slick = screen.getByRole('button', { name: /^Big Slick — at a table/ });
+    const slick = screen.getByRole('button', { name: /^Big Slick — at the casino/ });
     // Board42 C5 explicitly labels this POCKET; Watch carries the live stack.
     expect(within(slick).getByText('$2,400')).toBeInTheDocument();
-    expect(within(slick).getByText('at a table · 25/50')).toBeInTheDocument();
+    expect(within(slick).getByText('at the casino')).toBeInTheDocument();
+    expect(within(slick).getByText('25/50')).toBeInTheDocument();
   });
 
   it('the row is the way into his thread', async () => {
