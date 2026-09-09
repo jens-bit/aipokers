@@ -1,6 +1,9 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-78 — Home's resume timer stops when every game is cooling down — FIXED on overnight branch
+armTick counted only running games and stopped with zero, even when a household had a future cooldown deadline. An isolated real-registry probe reproduced no resumed game without a new click or roster event. The tick now stays alive through pending cooldowns; the same probe passes. HOME-3 adds a five-minute play window followed by ten minutes off, finishing the current hand before a timed break. Manual Carry/table placement remains available during a break or alone.
+
 ### BUG-75 — a refused private composer message silently disappears — FIXED on overnight branch
 The private HomeThread path treated sendToAgent's null failure as success, unlike the room path. The new failing regression reproduced a lost draft. A null response now restores the draft and displays a retryable error. The status overlay is pointer-transparent: the first short-screen browser run exposed it covering a carousel dot. The completed three-size casino checks enforce retry text, credentials, recipient and subsequent navigation.
 

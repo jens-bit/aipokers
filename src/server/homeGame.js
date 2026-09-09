@@ -33,13 +33,11 @@
 //      through the normal WATCH path should not lose it because somebody went
 //      out. Same id, torn down and rebuilt underneath.
 //
-//   4. IT IS BOUNDED, BECAUSE IT SPENDS. Every decision at this table is a
-//      model call with nobody necessarily watching — exactly the cost shape
-//      MAX_CONCURRENT_TABLES exists to bound on the floor. The home game is
-//      deliberately NOT counted against that ceiling (a friendly game must
-//      never refuse a real deploy), so it carries its own three bounds
-//      instead: a slow deal pause, a hand cap, and a cooldown after the cap so
-//      a household that is permanently at home does not deal forever.
+//   4. HOME-3 GIVES THE FLAT A DAY. Automatic games need two housemates and
+//      last about five minutes, finishing their current hand before a ten
+//      minute break. Explicit Carry/table placement can start one sooner or
+//      play the House alone. Home decisions remain policy-only, with no
+//      pocket or career effects; the limits give the room time for routines.
 
 import { Where } from './home.js';
 // The street names only — a constant, not a table. Nothing else about the
@@ -65,8 +63,7 @@ export const HOME_BUYIN = HOME_BLINDS.bigBlind * 100;
 // (one agent plus the House) fits inside it.
 export const HOME_SEATS = 4;
 
-// Bound one: the tempo. Three times the casino's pause. Nobody is waiting on
-// this and every hand costs tokens.
+// Home uses compiled policy only. Its slower tempo leaves room for life.
 export const HOME_PAUSE_MS = Number(process.env.HOME_PAUSE_MS ?? 30_000);
 
 // Bound two: the hand cap. A home game is an evening, not a career.
@@ -75,7 +72,10 @@ export const HOME_MAX_HANDS = Number(process.env.HOME_MAX_HANDS ?? 40);
 // Bound three: after the cap, the game is over for a while. Without this the
 // resume tick would stand the same table straight back up and the cap would
 // bound nothing at all.
-export const HOME_COOLDOWN_MS = Number(process.env.HOME_COOLDOWN_MS ?? 15 * 60_000);
+export const HOME_COOLDOWN_MS = Number(process.env.HOME_COOLDOWN_MS ?? 10 * 60_000);
+// HOME-3: roughly a third of a settled household's time is a game. Finish the
+// current hand after five minutes, then give the room ten minutes off.
+export const HOME_PLAY_MS = Number(process.env.HOME_PLAY_MS ?? 5 * 60_000);
 
 // How often a household with a game running is re-checked. This exists for the
 // endings nothing reports: the hand cap, a bust, the stall watchdog. Agent
@@ -99,7 +99,7 @@ let tick = null;
 // eligible() reads them with no idea they came from a second owner.
 let visitorsFor = null;
 
-// ownerId -> { tableId, state, roster: [agentId], cooldownUntil }
+// ownerId -> { tableId, state, roster: [agentId], cooldownUntil, startedAt, manual }
 const households = new Map();
 
 export function configure({
@@ -150,7 +150,7 @@ export function homeTableId(userId) {
  * Idempotent and cheap when nothing has changed, which is the case it is
  * called in most of the time. Returns the same shape `state()` does.
  */
-export function sync(userId, { now = Date.now() } = {}) {
+export function sync(userId, { now = Date.now(), manual = false } = {}) {
   if (!liveTables || !agentsFor || userId == null) return state(userId);
   const ownerId = String(userId);
   const before = state(ownerId);
@@ -180,7 +180,7 @@ export function sync(userId, { now = Date.now() } = {}) {
   // than idling is what stops the deal loop, and the deal loop is the cost.
   if (want.length === 0) {
     if (table) closeHome(table, 'the house is empty');
-    households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [] });
+    households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [], startedAt:null, manual:false });
     return announce(ownerId, before);
   }
 
@@ -188,7 +188,28 @@ export function sync(userId, { now = Date.now() } = {}) {
   // cooldown is armed at that moment rather than when the cap was set, because
   // "how long since the last home game" is the thing being bounded.
   if (!table && household.state === 'running') {
-    households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [], cooldownUntil: now + HOME_COOLDOWN_MS });
+    households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [], startedAt:null, manual:false, cooldownUntil: now + HOME_COOLDOWN_MS });
+    armTick();
+    if (!manual) return announce(ownerId, before);
+    return sync(ownerId, { now, manual:true });
+  }
+
+  // Being alone is life in the flat, not an automatic match against a bot.
+  // Carrying him to the table deliberately still permits the solo House game.
+  if (want.length < 2 && !manual && !household.manual) {
+    if (table) closeHome(table, 'his housemate left');
+    households.set(ownerId, { ...household, tableId:null, state:'paused', roster:[], startedAt:null, manual:false });
+    return announce(ownerId, before);
+  }
+
+  if (table && now - (household.startedAt ?? now) >= HOME_PLAY_MS) {
+    if (table.handInProgress()) {
+      table.maxHands = Math.min(table.maxHands, Math.max(1, table.handsThisSession));
+      return announce(ownerId, before);
+    }
+    closeHome(table, 'time for a break');
+    households.set(ownerId, { ...household, tableId:null, state:'paused', roster:[], startedAt:null, manual:false, cooldownUntil:now+HOME_COOLDOWN_MS });
+    armTick();
     return announce(ownerId, before);
   }
 
@@ -200,7 +221,7 @@ export function sync(userId, { now = Date.now() } = {}) {
   // The composition changed. Rule 2: tear it down rather than patch it.
   if (table) closeHome(table, 'the game broke up');
 
-  if (now < (household.cooldownUntil ?? 0)) {
+  if (!manual && now < (household.cooldownUntil ?? 0)) {
     households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [] });
     return announce(ownerId, before);
   }
@@ -210,7 +231,9 @@ export function sync(userId, { now = Date.now() } = {}) {
     tableId: opened ? tableId : null,
     state: opened ? 'running' : 'paused',
     roster: opened ? want : [],
-    cooldownUntil: household.cooldownUntil ?? 0,
+    cooldownUntil: 0,
+    startedAt: table ? (household.startedAt ?? now) : now,
+    manual: manual || (table && household.manual) || false,
   });
   if (opened) armTick();
   return announce(ownerId, before);
@@ -398,7 +421,8 @@ function armTick() {
     let wanted = 0;
     for (const ownerId of [...households.keys()]) {
       try { sync(ownerId); } catch (err) { console.error('[home] tick failed:', err.message); }
-      if (households.get(ownerId)?.state === 'running') wanted++;
+      const household = households.get(ownerId);
+      if (household?.state === 'running' || household?.cooldownUntil > Date.now()) wanted++;
     }
     if (wanted === 0) stopTick();
   }, HOME_TICK_MS);

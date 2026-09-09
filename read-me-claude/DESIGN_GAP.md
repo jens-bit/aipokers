@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight behaviour port — 2026-09-09, batch 10
+
+HOME-3 is **PARTIAL**: server scheduling now gives automatic games a five-minute window followed by ten minutes off, finishing the current hand before a break. Two housemates are required for automatic play. The explicit Carry/table action keeps solo House play and can start a game during the break; worn/studying agents remain excluded. BUG-78 fixes automatic resumption after cooldown. The kitchen table is retained. Existing nature/sleep/study/want routines now have time to be seen, but the additional coordinated bed/fridge/corner/door/couch behaviours remain the undesigned Home-day wave listed below; this batch does not invent those assets or certify that whole wave. No Watch geometry or casino clocks changed.
+
 ## Overnight design port — 2026-09-09, batch 9
 
 N3/N3b mobile bottom conversation is connected on Floor and Board. The carousel selects its agent; a deployment uses the man in the tray. His saved thread is fetched with owner credentials, sends use the existing private chat route, and a refused message stays in the composer. The footer bounds the available stage so Your table reaches it instead of leaving the previous gap. Idle cards retain their saved identity. Pair `client/e2e/shots/overnight-batch9-casino-n3b.png` inspected: actual empty public events differ from authored live/tonight samples; the current Floor/Board toggle and room doors remain functional. This ports the missing conversation band, not a certification that every casino event/floor frame is now exact. Home rhythm, C8/C9 and entry/integrator work remain.

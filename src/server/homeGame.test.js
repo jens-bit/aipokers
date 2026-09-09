@@ -16,9 +16,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { runScript } from '../test/helpers/runScript.js';
 
 import {
-  HOME_BLINDS, HOME_BUYIN, HOME_SEATS, eligible, homeTableId, configure, sync, reset,
+  HOME_BLINDS, HOME_BUYIN, HOME_SEATS, HOME_PLAY_MS, HOME_COOLDOWN_MS, eligible, homeTableId, configure, sync, reset,
 } from './homeGame.js';
 import { Where } from './home.js';
 import { roomsSnapshot } from './rooms.js';
@@ -94,6 +95,30 @@ const home = (id, name, extra = {}) => ({
 });
 const out = (id, name) => home(id, name, {
   location: { where: Where.TABLE, tableId: 't1', room: 'floor', since: 0 },
+});
+
+test('BUG-78: the resume timer survives a household cooldown with no new owner activity',async()=>{
+  const script=path.join(dir,'rhythm-probe.mjs');
+  fs.writeFileSync(script,`
+    process.env.HOME_TICK_MS='10';
+    process.env.HOME_COOLDOWN_MS='60';
+    delete process.env.ANTHROPIC_API_KEY;
+    const assert=(await import('node:assert/strict')).default;
+    const home=await import(${JSON.stringify(new URL('./homeGame.js',import.meta.url).href)});
+    const registry=await import(${JSON.stringify(new URL('./tableRegistry.js',import.meta.url).href)});
+    const store=await import(${JSON.stringify(new URL('./store.js',import.meta.url).href)});
+    try {
+      home.configure({liveTables:registry,agentsFor:()=>['a','b'].map(id=>({id,name:id,location:{where:'home'},fatigue:'fresh',profile:{}}))});
+      const first=home.sync('timer');
+      registry.getTable(first.tableId).closeTable('end of game');
+      home.sync('timer');
+      assert.equal(home.state('timer'),null);
+      await new Promise(resolve=>setTimeout(resolve,220));
+      assert.equal(home.state('timer')?.state,'running','the server must resume without another click or roster change');
+    } finally { home.reset(); registry.resetRegistry('test over'); store._closeForTests(); }
+  `,'utf8');
+  const result=await runScript(script,{isolateCwd:true,timeoutMs:10000});
+  assert.equal(result.code,0,result.output);
 });
 
 // ── Eligibility ─────────────────────────────────────────────────────────────
@@ -198,15 +223,16 @@ test('SERVER-4: nobody is on the clock when there is no hand in the air', () => 
   assert.equal(sync('flat').seats.some((s) => s.acting), false);
 });
 
-test('HOME-STATE-1: one alone plays the House on the TV, the same way', () => {
+test('HOME-3: one left alone leaves the table; a deliberate placement still plays the House', () => {
   let roster = [home('one', 'The Clock'), home('two', 'River Rat')];
   configure({ liveTables: registry, agentsFor: () => roster });
   sync('flat');
 
-  // One of them is sent out. The game he was in breaks up and the one left
-  // gets the House.
+  // v14 changes the automatic solo rule: one alone lives in the room. The
+  // explicit Carry/table action keeps the existing House game available.
   roster = [home('one', 'The Clock'), out('two', 'River Rat')];
-  const solo = sync('flat');
+  assert.equal(sync('flat'),null);
+  const solo = sync('flat',{manual:true});
   assert.equal(solo.state, 'running');
   assert.deepEqual(solo.seats.map((s) => s.agentId), ['one', null]);
   assert.equal(solo.seats.filter((s) => s.house).length, 1, 'the House on the TV');
@@ -216,6 +242,45 @@ test('HOME-STATE-1: one alone plays the House on the TV, the same way', () => {
   const back = sync('flat');
   assert.deepEqual(back.seats.map((s) => s.agentId).sort(), ['one', 'two']);
   assert.equal(back.seats.some((s) => s.house), false);
+});
+
+test('HOME-3: five minutes of cards gives the household ten minutes for its routines',()=>{
+  configure({liveTables:registry,agentsFor:()=>[home('one','A'),home('two','B')]});
+  const running=sync('flat',{now:1000});
+  const table=registry.getTable(running.tableId);
+  assert.equal(sync('flat',{now:1000+HOME_PLAY_MS-1}).state,'running');
+  assert.equal(sync('flat',{now:1000+HOME_PLAY_MS}),null);
+  assert.equal(table.closed,true);
+  assert.equal(sync('flat',{now:1000+HOME_PLAY_MS+HOME_COOLDOWN_MS-1}),null);
+  assert.equal(sync('flat',{now:1000+HOME_PLAY_MS+HOME_COOLDOWN_MS}).state,'running');
+});
+
+test('HOME-3: a rhythm break waits for the current hand and a housemate does not restart its clock',()=>{
+  let roster=[home('one','A'),home('two','B')];
+  configure({liveTables:registry,agentsFor:()=>roster});
+  sync('flat',{now:1000});
+  roster=[...roster,home('three','C')];
+  const running=sync('flat',{now:1000+HOME_PLAY_MS-20});
+  const table=registry.getTable(running.tableId);
+  table.maybeStartHand();
+  assert.equal(table.handInProgress(),true);
+  const game=table.game;
+  sync('flat',{now:1000+HOME_PLAY_MS});
+  assert.equal(table.closed,false,'do not cut off the hand in the middle');
+  assert.equal(table.game,game);
+  assert.equal(table.maxHands,Math.max(1,table.handsThisSession),'finish this hand before the break');
+});
+
+test('HOME-3: Carry can deliberately start a game during a break but cannot force an occupied agent',()=>{
+  let roster=[home('one','A'),home('two','B')];
+  configure({liveTables:registry,agentsFor:()=>roster});
+  sync('flat',{now:1000});
+  sync('flat',{now:1000+HOME_PLAY_MS});
+  assert.equal(sync('flat',{now:1001+HOME_PLAY_MS,manual:true}).state,'running');
+  roster.push(home('three','C'));
+  assert.equal(sync('flat',{now:1002+HOME_PLAY_MS}).state,'running','a new housemate does not reinstate the old cooldown');
+  roster=[home('one','A',{study:{handNumber:1}}),home('two','B',{fatigue:'worn'})];
+  assert.equal(sync('flat',{now:1002+HOME_PLAY_MS,manual:true}),null);
 });
 
 // ── VISIT-1 ──────────────────────────────────────────────────────────────────
@@ -258,7 +323,7 @@ test('HOME-STATE-1: the table id is stable, so a watcher does not lose it', () =
   configure({ liveTables: registry, agentsFor: () => roster });
   const first = sync('flat').tableId;
   roster = [home('one', 'A'), out('two', 'B')];
-  const second = sync('flat').tableId;
+  const second = sync('flat',{manual:true}).tableId;
   assert.equal(second, first);
 });
 

@@ -251,10 +251,11 @@ test("VISIT-1: while he is out, his OWN owner's kitchen table does not seat him"
   const { body: knock } = await visitReq('traveler', HOST, 0);
   assert.ok(knock.visitId);
 
-  // His own household still has a second body home — that game is HIS OWN,
-  // and it must not include the man who just walked out the door.
-  const own = homeGame.sync(GUEST);
-  assert.ok(own, 'the second agent still gets a home game of his own');
+  // HOME-3 leaves a lone man in the room until deliberately placed. His own
+  // game still must not include the man who just walked out the door.
+  assert.equal(homeGame.sync(GUEST),null);
+  const own = homeGame.sync(GUEST,{manual:true});
+  assert.ok(own, 'the remaining agent can deliberately play the House');
   assert.equal(own.seats.some((s) => s.agentId === 'traveler'), false);
 });
 

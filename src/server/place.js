@@ -139,7 +139,7 @@ function atTable(agent, userId) {
   // the same lie RIDERS-1 fixed on the floor.
   const fatigue = fatigueNow(agent);
   if (fatigue === 'worn') return refuse('worn', { fatigue });
-  const game = homeGame.sync(userId);
+  const game = homeGame.sync(userId, { manual:true });
   const seated = (game?.seats ?? []).some((s) => s.agentId === agent.id);
   return { status: 200, body: { seated, game: game ?? null } };
 }

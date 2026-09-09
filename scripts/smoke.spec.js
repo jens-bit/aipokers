@@ -115,10 +115,15 @@ async function agentFor(userId) {
 }
 
 async function seed() {
-  // Left at home. homeGame.js stands the kitchen table up for anyone home and
-  // idle, and one man alone plays the House on the TV — so a roster of one is
-  // a real home game with a real socket behind it.
+  // HOME-3 no longer starts solo games automatically. Deliberately place him
+  // at the table through the real Carry endpoint for the WATCH/SIT checks.
   const homeAgent = await agentFor(HOME_UID);
+  if (!homeAgent.homeTableId) {
+    const placed = await api('POST', `/api/agents/${homeAgent.id}/place`, { userId:HOME_UID, fixture:'table' });
+    if (placed.status !== 200 || !placed.body?.seated) {
+      throw new Error(`home placement failed: ${placed.status} ${JSON.stringify(placed.body)}`);
+    }
+  }
 
   const floorAgent = await agentFor(FLOOR_UID);
   let floorTableId = floorAgent.activeTableId ?? null;
