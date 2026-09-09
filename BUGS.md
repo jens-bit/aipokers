@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-105 — casino Watch opens a socket without a desktop stage — FIXED on design branch
+Both public and owned casino felt clicks failed a browser assertion for the missing table before repair. Desktop now selects the owned Watch when the table belongs to its roster, or a public stage with supplied table speech and no private composer, analysis/history or seat controls. The assigned server seat wins over duplicate display names. Back and Escape leave the subscription; roster changes leave only when a table is actually active. The desktop floor and explicit selected room are restored after watching. Sending an agent through the casino opens the owned stage and refreshes the roster, and starting a draft leaves it. A fresh built-server sequence passed actual queue/Watch/Back/felt-Watch/Leave. Final full gate and visual evidence follow before integration.
+
+### BUG-106 — queue-selected blinds are dropped by App's Watch request — OPEN
+Static audit: /queue returns smallBlind and bigBlind (and stakes), but both desktop watchPayload and phone onDeployed construct WATCH config without either field. useTable then defaults the new table to 10/20. Existing-table watching need not set a new price; creating the selected queued room does. Reproduce non-default stakes before changing this path.
+
+### BUG-107 — desktop newborn observer calls a removed setter — OPEN, runtime reproduction pending
+DesktopHome's fresh-id observer calls setSelectedId(null), but this component no longer declares that setter. The surviving state is homeFocusId/homePanel. Reproduce an arriving new roster ID and verify the birth card/deal-in flow before repairing it.
+
 ### BUG-104 — desktop casino Floor repeats the shell header — FIXED on design branch
 CasinoScreen now renders its actual room title, counts and Floor/Board control into the existing 54px desktop header. The floor's second heading/return row is absent, Board retains the same control, and returning to Floor preserves its selected room. The shell's Home return stays available; a placement can still be cancelled. A red unit test confirmed the missing shared context; 83 targeted tests and all 27 desktop browser cases pass after the repair. The new header context assertion intentionally replaces the old generic The casino assertion on Floor. Reference/actual pair: client/e2e/shots/design-batch24-casino-1280.png. Phone headers are unchanged.
 

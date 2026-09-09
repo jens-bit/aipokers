@@ -183,6 +183,7 @@ export function CasinoScreen({
   desktop = false,
   shellHeader = false,
   headerTarget = null,
+  initialRoomId = null,
 }) {
   const [agents, setAgents] = useState([]);
   const [wallet, setWallet] = useState(null);
@@ -196,7 +197,7 @@ export function CasinoScreen({
   // Only ever set when he is NOT placing an agent — with somebody in the tray
   // a doorway is the choice of where to seat him, and that is the older and
   // more important meaning of the tap.
-  const [openRoomId, setOpenRoomId] = useState(null);
+  const [openRoomId, setOpenRoomId] = useState(initialRoomId);
   // BUGS-C job 12: floor or board — remembered for the session, not tapped
   // fresh every time the owner leaves and comes back to the casino tab.
   const [view, setView] = useState(readCasinoView);
@@ -624,7 +625,10 @@ export function CasinoScreen({
       )}
       toggle={<ViewToggle view={view} onChange={changeView} />}
       onClose={() => changeView('board')}
-      onWatch={(tableId) => { setOpenRoomId(null); changeView('board'); onSpectate?.(tableId); }}
+      onWatch={(tableId) => {
+        if (desktop) onSpectate?.(tableId, { roomId: openRoom.id });
+        else { setOpenRoomId(null); changeView('board'); onSpectate?.(tableId); }
+      }}
     />
   ) : null;
 

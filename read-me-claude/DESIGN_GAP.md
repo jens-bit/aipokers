@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 26
+
+Casino Watch now reaches the actual desktop stage for owned and public tables (BUG-105), and queue completion opens the owned Watch. Public mode uses only served table speech with no private composer/analysis/history or owner controls. Back/Escape/roster changes leave the active socket; desktop Back restores the explicit floor room. The real queue/Watch/Back/felt-Watch/Leave path passed on a fresh built server. All 36 desktop browser cases pass. Full gate passed 105 server / 2209 client / 7 e2e.
+
+Pairs design-batch26-{owned,public}.png were inspected against DkWatch. They intentionally show remaining differences: the older full-height Watch stage and legacy owned header/analysis rail are still present; the newer reference has a 900×648 felt and compact contextual header. The current 250px roster replaces the older floor strip. Public mode has no dedicated authored frame and is not claimed as an exact visual port. Its camera currently lacks an explicit hero name, and the older Watch header's HOME/CASINO actions need to exit Watch properly. These are remaining design/navigation work, separate from fixing the previously invisible destination. Phone Watch geometry is retained. BUG-106 (selected queue blinds) and BUG-107 (newborn observer) remain open.
+
 ## Design completion — 2026-09-09, batch 25
 
 BUG-99 is implemented and verified against the built server: the home table opens Watch or Sit, actual server legal actions drive the strip, a browser Fold changes the served seat state, and Back sends Leave. The desktop felt uses DkOwnerM’s 900×648 coordinate space with compact 58×81 owner cards, real stack/equity or honest unknowns, and clearance above the action panel. Both modes fit 1280/1440/1920 widths and a 600px-high window. Pairs design-batch25-sit-{390,1280}.png were inspected. Ten marketing captures now include the desktop seat.

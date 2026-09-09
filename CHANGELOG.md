@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 26: casino felt clicks and queue completion now open the visible desktop Watch stage (BUG-105). Owned tables retain their conversation; public tables expose no private controls. Back returns to the selected floor room and leaves the subscription. The newer desktop Watch visual port remains tracked separately.
+
 - Design completion batch 25: desktop kitchen-table Watch and Sit now open the actual game, with legal betting controls, visible owner cards and Back/Leave (BUG-99). The wider reference felt fits the available stage while keeping the roster and room conversation. Responsive welcome examples now include the desktop seat.
 
 - Design completion batch 24: desktop casino room context and Floor/Board controls now share the existing 54px shell header (BUG-104). The duplicate floor heading/return bar is gone, room selection survives toggling, and Home remains one action away. The product capture is refreshed and paired.

@@ -96,3 +96,12 @@ describe('WatchRail between hands', () => {
     expect(screen.getByText(/no finished hands this session yet/i)).toBeInTheDocument();
   });
 });
+
+
+it('BUG-105: public viewing shows only supplied table speech, without private actions',()=>{
+  renderRail({readOnly:true,agent:null,lastDecision:null,stored:[{id:'public-line',kind:'table',who:'Granite',text:'Good hand.',t:1}]});
+  expect(screen.getByText('Good hand.')).toBeVisible();
+  expect(screen.queryByPlaceholderText('Whisper to him…')).toBeNull();
+  expect(screen.queryByText('Live analysis')).toBeNull();
+  expect(screen.queryByText('History')).toBeNull();
+});

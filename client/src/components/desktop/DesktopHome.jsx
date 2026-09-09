@@ -4,7 +4,7 @@ import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, m
 import { DeskHomeTable } from './DeskHomeTable.jsx';
 import { DeskHome } from './DeskHome.jsx';
 import { DesktopTopBar, desktopRoomSummary } from './DesktopTopBar.jsx';
-import { DeskTableStage } from './DeskTableStage.jsx';
+import { DeskTableStage, heroSeatOf } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
 import { useTableThread } from '../../hooks/useTableThread.js';
@@ -24,7 +24,7 @@ const IDLE_KEY = '__standup__';
 
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
-  tableConfig = null, mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
+  tableConfig = null, tableError = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
   // WATCH-8: the socket's own status, so the desk's rail refetches the stored
   // thread when the connection comes back — the same rule the phone's sheet
@@ -52,6 +52,8 @@ export function DesktopHome({
   const [loading, setLoading] = useState(true);
   const [casinoHeaderHost, setCasinoHeaderHost] = useState(null);
   const [homeTableSession, setHomeTableSession] = useState(null);
+  const [publicTableId, setPublicTableId] = useState(null);
+  const [casinoReturnRoomId, setCasinoReturnRoomId] = useState(null);
 
   // One draft per agent (plus the idle panel's own). Lifted above the panels
   // so a half-typed message survives switching agents — the panel remounts,
@@ -167,7 +169,9 @@ export function DesktopHome({
       if (e.key !== 'Escape') return;
       if (flaggedAgent) { setFlaggedAgent(null); return; }
       if (bornId) { setBornId(null); return; }
-      if (deskTableId) { setDeskTableId(null); return; }
+      if (publicTableId) { setPublicTableId(null); onLeave?.(); return; }
+      if (homeTableSession) { setHomeTableSession(null); onLeave?.(); return; }
+      if (deskTableId) { setDeskTableId(null); onLeave?.(); return; }
       if (walletOpen) { setWalletOpen(false); return; }
       // DESK-2: on the HOME stage Escape backs the rail out to the room, which
       // is the resting panel there the way the standup was on the old floor.
@@ -175,7 +179,7 @@ export function DesktopHome({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [flaggedAgent, deskTableId, bornId, walletOpen, homeStage, homePanel]);
+  }, [flaggedAgent, deskTableId, publicTableId, homeTableSession, onLeave, bornId, walletOpen, homeStage, homePanel]);
 
   useEffect(() => {
     if (loading) return;
@@ -204,9 +208,9 @@ export function DesktopHome({
 
   const topBar = (
     <DesktopTopBar
-      roomPortalRef={!homeStage && !deskTableId && !replay && !homeTableSession ? setCasinoHeaderHost : null}
-      room={homeTableSession ? {title:'The kitchen table',subtitle:homeTableSession.seated?'You are in the game · play money':'Watching the home game'} : !deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
-      onHome={!homeStage && !homeTableSession ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
+      roomPortalRef={!homeStage && !deskTableId && !replay && !homeTableSession && !publicTableId ? setCasinoHeaderHost : null}
+      room={publicTableId ? {title:'The casino',subtitle:'Watching the table'} : homeTableSession ? {title:'The kitchen table',subtitle:homeTableSession.seated?'You are in the game · play money':'Watching the home game'} : !deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
+      onHome={!homeStage && !homeTableSession && !publicTableId ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
       liveCount={liveCount}
       standupLine={playing.length === 0 ? topLine : null}
       net={topNet}
@@ -214,10 +218,10 @@ export function DesktopHome({
       // DESK-2: on the HOME stage the standup is a rail panel, so the button
       // that has always been called Standup opens the standup. Elsewhere it
       // keeps CASINO-1's behaviour — straight to the flagged hands.
-      onStandup={homeTableSession ? undefined : homeStage
+      onStandup={homeTableSession || publicTableId ? undefined : homeStage
         ? () => { setWalletOpen(false); setBornId(null); setHomePanel('standup'); }
         : (firstFlaggable ? () => setFlaggedAgent(firstFlaggable) : undefined)}
-      onWallet={wallet && !homeTableSession ? () => { setBornId(null); setWalletOpen(true); } : undefined}
+      onWallet={wallet && !homeTableSession && !publicTableId ? () => { setBornId(null); setWalletOpen(true); } : undefined}
       walletLabel={wallet ? money(wallet.balance) : null}
       stage={stage}
       onStage={(next) => {
@@ -242,6 +246,9 @@ export function DesktopHome({
   // watching him play is still the felt's own gesture (a tile, a body, a
   // doorway), not the roster's.
   const rosterSelect = useCallback((agent) => {
+    if (deskTableId || publicTableId || homeTableSession) onLeave?.();
+    setPublicTableId(null);
+    setHomeTableSession(null);
     setWalletOpen(false);
     setBornId(null);
     setDeskTableId(null);
@@ -249,7 +256,7 @@ export function DesktopHome({
     setStage('floor');
     setHomeFocusId(agent.id);
     setHomePanel('agent');
-  }, []);
+  }, [onLeave, deskTableId, publicTableId, homeTableSession]);
 
   // The board and shared hand links resolve through the same owner-only lookup.
   // Keep the desktop theatre inside this shell so Back restores the casino.
@@ -272,15 +279,27 @@ export function DesktopHome({
 
   // The watched agent left the table (or was retired) — fall back to the floor.
   useEffect(() => {
-    if (deskTableId && !loading && deskIndex < 0) setDeskTableId(null);
-  }, [deskTableId, deskIndex, loading]);
+    if (deskTableId && !loading && deskIndex < 0) { setDeskTableId(null); onLeave?.(); }
+  }, [deskTableId, deskIndex, loading, onLeave]);
+
+  if (publicTableId) {
+    const liveGame=tableConfig?.tableId===publicTableId && game?.tableId===publicTableId ? game : null;
+    const rows=chatMessages.map((m,i)=>({id:'public-'+i,kind:'table',who:m.displayName || 'Table',text:m.text,t:m.timestamp ?? null}));
+    const leave=()=>{setPublicTableId(null);onLeave?.();};
+    const notice=tableError || (connection==='reconnecting' ? 'Reconnecting…' : !liveGame ? 'Opening the table…' : null);
+    return <div className="dsk-root">{topBar}<div className="dsk-body">
+      <DeskRoster agents={agents} activeId={null} watchedId={null} onSelect={rosterSelect} onDraftAgent={()=>{leave();setStage('floor');onCreateAgent?.();}}/>
+      <div className="dsk-stage dsk-stage--felt"><DeskTableStage game={liveGame} mySeat={mySeat} notice={notice} onBack={leave}/></div>
+      <WatchRail readOnly game={liveGame} stored={rows} onClose={leave}/>
+    </div></div>;
+  }
 
   if (homeTableSession) {
     const ready = String(tableConfig?.tableId) === String(homeTableSession.tableId);
     const liveGame = ready && String(game?.tableId) === String(homeTableSession.tableId) ? game : null;
     return <div className="dsk-root">{topBar}<div className="dsk-body">
       <DeskRoster agents={agents} activeId={null} watchedId={null}
-        onSelect={agent=>{setHomeTableSession(null);onLeave?.();rosterSelect(agent);}} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
+        onSelect={rosterSelect} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
       <DeskHomeTable game={liveGame} mySeat={mySeat} seated={homeTableSession.seated}
         legalActions={ready && tableConfig?.sitting ? legalActions : []} onAct={onAct} lastDecision={lastDecision} agents={agents} connection={connection}
         onBack={()=>{setHomeTableSession(null);onLeave?.();}}/>
@@ -325,17 +344,18 @@ export function DesktopHome({
             activeId={deskAgent.id}
             watchedId={watchedId}
             onSelect={rosterSelect}
-            onDraftAgent={onCreateAgent}
+            onDraftAgent={()=>{setDeskTableId(null);onLeave?.();setStage('floor');onCreateAgent?.();}}
           />
           <DeskWatch
             agent={deskAgent}
+            mySeat={mySeat}
             game={watchedId === deskAgent.id ? game : null}
             lastDecision={watchedId === deskAgent.id ? lastDecision : null}
             connection={connection}
             threadLines={watchedId === deskAgent.id ? threadLines : null}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
-            onBack={() => setDeskTableId(null)}
+            onBack={() => { setDeskTableId(null); onLeave?.(); }}
             onSitOut={onSitOut}
           />
         </div>
@@ -374,10 +394,16 @@ export function DesktopHome({
               desktop
               shellHeader
               headerTarget={casinoHeaderHost}
+              initialRoomId={casinoReturnRoomId}
               wsUrl={wsUrl}
               deployAgent={deployAgent}
-              onDeployed={onDeployed}
-              onSpectate={onSpectate}
+              onDeployed={(payload,agent)=>{setDeskTableId(agent.id);load();onDeployed?.(payload,agent);}}
+              onSpectate={(tableId,context)=>{
+                setCasinoReturnRoomId(context?.roomId ?? null);
+                const owner=agents.find(a=>(a.activeTableId || a.liveGame?.tableId)===tableId);
+                if(owner) openTable(owner);
+                else {setPublicTableId(tableId);onSpectate?.(tableId);}
+              }}
               onReplay={replayCasinoEvent}
               onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
             />
@@ -456,11 +482,9 @@ export function DesktopHome({
 
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
-function DeskWatch({ agent, game, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut }) {
+function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut }) {
   const { chat, sending, send, error } = useAgentThread(agent);
-  const seats = game?.seats || [];
-  const named = seats.findIndex((s) => s?.displayName === agent.name);
-  const heroSeat = named >= 0 ? named : 0;
+  const heroSeat = heroSeatOf(game,agent.name,mySeat);
 
   // WATCH-8 job 3: the stored record of this stay. At 1440 the rail is always
   // open, so it is always wanted — where the phone asks for it when the sheet
@@ -484,6 +508,7 @@ function DeskWatch({ agent, game, lastDecision, connection, threadLines, draft, 
         <DeskTableStage
           game={game}
           agentName={agent.name}
+          mySeat={mySeat}
           lastDecision={lastDecision}
           onBack={onBack}
           onSitOut={onSitOut}

@@ -50,7 +50,7 @@ export function WatchRail({
   // WATCH-8 job 3: the STORED half of the record — this stay's lines, with the
   // server's timestamps. The rail used to hold only what the socket happened to
   // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
-  stored = [],
+  stored = [], readOnly = false,
   draft, onDraftChange, onSend, sending, onClose,
 }) {
   const between = phaseOf(game) === 'between';
@@ -107,7 +107,7 @@ export function WatchRail({
             : tableRows.map((r) => <ThreadRow key={r.id} row={r} />)}
         </AnalysisPanel>
 
-        <AnalysisPanel title="Live analysis">
+        {!readOnly && <><AnalysisPanel title="Live analysis">
           {heroDecision?.reasoning && !between && (
             <div className="dsk-apanel__voice">“{heroDecision.reasoning}”</div>
           )}
@@ -152,16 +152,17 @@ export function WatchRail({
           )}
         </AnalysisPanel>
 
+        </>}
       </RailBody>
 
-      <PComposer
+      {!readOnly && <PComposer
         value={draft}
         onChange={onDraftChange}
         onSend={onSend}
         busy={sending}
         placeholder="Whisper to him…"
         onCommand={(cmd) => onDraftChange(`${cmd} `)}
-      />
+      />}
     </div>
   );
 }

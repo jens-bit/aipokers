@@ -437,3 +437,35 @@ test('desktop kitchen table Watch, Sit, action and Leave use the actual game',as
   expect(sent.filter(m=>m.type==='leave').length).toBeGreaterThanOrEqual(2);
   expect(noise).toEqual([]);
 });
+
+
+test('desktop casino deploy and felt Watch open the actual owned game',async({page})=>{
+  await page.setViewportSize(SHELLS.desktop);
+  const uid='smokedeskcasino26',agent=await agentFor(uid),noise=watchConsole(page),received=[],sent=[];
+  page.on('websocket',socket=>{
+    socket.on('framereceived',event=>{try{received.push(JSON.parse(event.payload));}catch{}});
+    socket.on('framesent',event=>{try{sent.push(JSON.parse(event.payload));}catch{}});
+  });
+  await page.addInitScript(id=>localStorage.setItem('agentic_uid',id),uid);
+  await page.goto(BASE);await expect(page.getByTestId('home-screen')).toBeVisible();
+  await page.locator('.dsk-roster-row').filter({hasText:agent.name}).click();
+  await page.getByRole('button',{name:'Carry',exact:true}).click();await page.getByTestId('home-door').click();
+  const queued=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/agents/'+agent.id+'/queue'&&r.request().method()==='POST');
+  await page.getByRole('button',{name:/^the floor,/i}).click();
+  const response=await queued;expect(response.status()).toBe(200);const payload=await response.json();
+  expect(payload.tableId).toBeTruthy();await expect(page.locator('.dtb')).toBeVisible();
+  // An unmatched queue waits five seconds before the House takes its seat.
+  await expect.poll(()=>received.some(m=>m.type==='state'&&m.state?.tableId===payload.tableId&&m.state.seats?.length>=2),{timeout:15000}).toBe(true);
+  await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await shot(page,'desktop-casino-deployed-watch');
+  await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+  await expect(page.getByTestId('floor-view')).toBeVisible();
+  const before=sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length;
+  await page.locator('.csn-felt58[data-table="'+payload.tableId+'"] ').click();
+  await expect(page.locator('.dtb')).toBeVisible();
+  await expect.poll(()=>sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length).toBe(before+1);
+  await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
+  await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+  await expect(page.getByTestId('floor-view')).toBeVisible();
+  expect(sent.filter(m=>m.type==='leave').length).toBeGreaterThanOrEqual(2);
+  expect(received.filter(m=>m.type==='error')).toEqual([]);expect(noise).toEqual([]);
+});

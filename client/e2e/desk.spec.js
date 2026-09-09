@@ -757,3 +757,63 @@ test.describe('BUG-99 · the desktop kitchen-table camera', () => {
     await expect(page.getByTestId('home-table')).toBeVisible();await expect(page.getByTestId('desk-home-table')).toHaveCount(0);
   });
 });
+
+
+test.describe('BUG-105 · the casino Watch destination',()=>{
+  for(const owned of [false,true]) test(owned?'your casino table opens its owned conversation':'a public casino table opens without owner controls',async({page})=>{
+    await desk(page,{width:1440,height:900});
+    const tableId=owned?'t1':'tbl-public',roomId=owned?'upstairs':'floor';
+    const state={...midHandGame,tableId,seats:midHandGame.seats.map((s,i)=>({...s,displayName:i===2?'Big Slick':s.displayName,holeCards:owned&&i===2?['Ah','Kh']:[]}))};
+    await page.addInitScript(({state,owned,tableId,roomId})=>{
+      const Base=window.WebSocket;window.__casinoWatchSent=[];
+      window.WebSocket=class extends Base{
+        send(raw){const msg=JSON.parse(raw);window.__casinoWatchSent.push(msg);super.send(raw);
+          if(msg.type==='floor_sub')setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'room_tables',tables:[{tableId,room:roomId,blinds:{small:25,big:50},pot:200,seats:[{name:'Big Slick',agentId:owned?'a3':null,stack:2000}],board:[]}],rooms:{[tableId]:roomId}})}),30);
+          if(msg.type==='watch' && msg.tableId===tableId)setTimeout(()=>{
+            this.dispatch('message',{data:JSON.stringify({type:'watching',spectatorSeat:owned?2:-1})});
+            this.dispatch('message',{data:JSON.stringify({type:'state',state,legalActions:[]})});
+          },30);
+        }
+      };
+    },{state,owned,tableId,roomId});
+    await page.reload();await page.getByTestId('home-door').click();
+    if(!owned){await page.getByRole('button',{name:'Board',exact:true}).click();await page.getByRole('button',{name:/^The floor,/}).click();}
+    await expect(page.locator('.csn-felt58')).toHaveCount(1);
+    await page.evaluate(()=>{window.__casinoWatchSent=[];});
+    await page.locator('.csn-felt58').click();
+    await expect(page.locator('.dtb')).toBeVisible();
+    await expect.poll(()=>page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='watch'))).toBe(true);
+    const sent=await page.evaluate(()=>window.__casinoWatchSent.find(m=>m.type==='watch'));
+    expect(sent.tableId).toBe(tableId);
+    if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();}
+    else {expect(sent.agentId).toBeNull();await expect(page.getByPlaceholder('Whisper to him…')).toHaveCount(0);await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);await expect(page.locator('.dtb__hero-cards')).toHaveText('');}
+    await expect(page.locator('.dtb__pot-amt')).toHaveText('$100');
+    await page.screenshot({path:'../artifacts/casino26-'+(owned?'owned':'public')+'.png'});
+    await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+    await expect(page.getByTestId('floor-view')).toBeVisible();
+    await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);
+    expect(await page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='leave'))).toBe(true);
+  });
+});
+
+
+test('BUG-105: deploying through the casino puts the new game on the stage',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await desk(page,{width:1440,height:900});
+  await page.route('**/api/agents/a1/queue',r=>r.fulfill({json:{tableId:'tbl-deployed',agentId:'a1',agentName:'Balance'}}));
+  await page.addInitScript(()=>{
+    const Base=window.WebSocket;window.__deployWatch=[];
+    window.WebSocket=class extends Base{send(raw){super.send(raw);const m=JSON.parse(raw);if(m.type==='watch')window.__deployWatch.push(m);}};
+  });
+  await page.reload();await rosterRow(page,'Balance').click();
+  await page.getByRole('button',{name:'Carry',exact:true}).click();
+  await page.getByTestId('home-door').click();
+  await expect(page.locator('.csn-tray')).toBeVisible();
+  await page.getByRole('button',{name:'The floor, 5/10 — 118 seated',exact:true}).click();
+  await expect(page.locator('.dtb')).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>window.__deployWatch.some(m=>m.tableId==='tbl-deployed'&&m.agentId==='a1'))).toBe(true);
+  await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
+  await page.getByRole('button',{name:'Draft another 1 seat left'}).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();await expect(page.locator('.dtb')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

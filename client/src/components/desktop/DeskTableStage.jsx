@@ -93,7 +93,14 @@ function Board({ cards, between }) {
   );
 }
 
-export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut, sitOutPending, replay = false }) {
+export function heroSeatOf(game, agentName, mySeat = null) {
+  const seats=game?.seats ?? [];
+  if(Number.isInteger(mySeat) && mySeat>=0 && seats[mySeat]) return mySeat;
+  const named=seats.findIndex(s=>s?.displayName===agentName);
+  return named>=0 ? named : Math.max(0,seats.findIndex(Boolean));
+}
+
+export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, onBack, onSitOut, sitOutPending, replay = false, notice = null }) {
   const replayEnded = replay && game?.street === Streets.COMPLETE;
   const phase = replayEnded ? 'settled' : phaseOf(game);
   const between = phase === 'between';
@@ -105,8 +112,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
   const pMeta = paceMeta(game);
 
   const seats = game?.seats || [];
-  const named = seats.findIndex((s) => s?.displayName === agentName);
-  const heroSeat = named >= 0 ? named : 0;
+  const heroSeat = heroSeatOf(game,agentName,mySeat);
   const hero = seats[heroSeat];
   const opponents = seats
     .map((s, i) => ({ seat: s, index: i }))
@@ -192,7 +198,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
 
         <Board cards={board} between={between} />
 
-        {between && <span className="dtb__shuffling">SHUFFLING UP…</span>}
+        {(notice || between) && <span className="dtb__shuffling" role={notice ? "status" : undefined}>{notice || "SHUFFLING UP…"}</span>}
         {replayEnded && <span className="dtb__shuffling">End of replay</span>}
       </div>
 
@@ -270,9 +276,9 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
             <div className="dtb__exit-sub">NEXT DEAL SHORTLY</div>
           </div>
           <div className="dtb__exit-spacer" />
-          <button type="button" className="dtb__exit-btn" onClick={onSitOut} disabled={sitOutPending}>
+          {onSitOut && <button type="button" className="dtb__exit-btn" onClick={onSitOut} disabled={sitOutPending}>
             {sitOutPending ? 'Sitting out after this hand' : 'Sit out after this hand'}
-          </button>
+          </button>}
         </div>
       )}
     </div>

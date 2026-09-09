@@ -616,6 +616,8 @@ function AppShell({ guest, guestBoot }) {
       <Suspense fallback={null}>
       <DesktopHome
         tableConfig={config}
+        tableError={error}
+        chatMessages={chatMessages}
         mySeat={mySeat}
         legalActions={legalActions}
         onAct={act}
