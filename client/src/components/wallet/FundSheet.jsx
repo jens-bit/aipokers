@@ -33,7 +33,7 @@ const M_BORDER = 'rgba(255,255,255,0.12)';
 const PRESETS = [2_000, 5_000, 10_000];
 const DEFAULT_AMOUNT = PRESETS[0];
 
-export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile }) {
+export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile, disabled = false }) {
   const pocket = pocketOf(agent);
   const seated = presenceOf(agent) === 'playing';
 
@@ -54,7 +54,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
   const canCallIn = seated || (pocket?.balance ?? 0) > 0;
 
   async function send(decision) {
-    if (busy) return;
+    if (busy || disabled) return;
     setBusy(true);
     try {
       await onConfirm(decision);
@@ -128,6 +128,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               type="button"
               className="wal-preset"
               aria-pressed={amount === preset}
+              disabled={disabled}
               onClick={() => setAmount(preset)}
             >
               {money(preset)}
@@ -145,6 +146,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
                 inputMode="numeric"
                 min="0"
                 step="10"
+                disabled={disabled}
                 value={amount ?? ''}
                 onChange={(e) => setAmount(e.target.value === '' ? null : Number(e.target.value))}
               />
@@ -158,6 +160,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
           <input
             type="checkbox"
             checked={refill}
+            disabled={disabled}
             onChange={(e) => setRefill(e.target.checked)}
           />
           <span className="wal-toggle__text">{refillLabel(amount ?? 0)}</span>
@@ -186,7 +189,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               type="button"
               className="wal-btn wal-btn--ghost"
               style={{ height: 40, width: '100%' }}
-              disabled={busy}
+              disabled={busy || disabled}
               onClick={() => send({ verb: 'callin', amount: null, cap: null, refill: false })}
             >
               {CALL_IN}
@@ -206,7 +209,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
             type="button"
             className="wal-btn wal-btn--primary"
             style={{ height: 46, width: '100%' }}
-            disabled={busy || !(amount > 0)}
+            disabled={busy || disabled || !(amount > 0)}
             onClick={() => send({ verb: 'give', amount, cap: amount, refill })}
           >
             {GIVE}

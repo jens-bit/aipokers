@@ -80,9 +80,11 @@ describe('DP-2 — the wallet in the rail', () => {
 describe('DP-2 — graceful absence', () => {
   beforeEach(() => { telegram.signIn(); });
 
-  it('says so plainly when this deployment has no wallet', () => {
+  // BUG-146: Jens rejected the old claim that a failed read proves no wallet
+  // exists. Keep the absence of money/verbs, but report the actual read failure.
+  it('reports an unconfirmed wallet instead of claiming the deployment has none', () => {
     const { container } = renderPanel({ wallet: null });
-    expect(screen.getByText(/no wallet yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not read your safe');
     expect(container.querySelector('.wal-block')).toBeNull();
     expect(container.querySelector('.wal-row')).toBeNull();
   });
@@ -90,6 +92,33 @@ describe('DP-2 — graceful absence', () => {
 
 describe('DP-2 — funding from the rail', () => {
   beforeEach(() => { telegram.signIn(); });
+
+  it.each(['loading', 'error'])('BUG-146: an open funding sheet respects a %s wallet read and keeps its choices and navigation', async (walletStatus) => {
+    const user = userEvent.setup();
+    const onFund = vi.fn(), onRetry = vi.fn();
+    const props = { wallet, agents: [balancedAgent], onFund, onRetry };
+    const { rerender } = render(<DeskWalletPanel {...props} walletStatus="ready" />);
+    await user.click(screen.getByRole('button', { name: 'Give him chips' }));
+    await user.click(screen.getByRole('button', { name: '$5,000' }));
+    rerender(<DeskWalletPanel {...props} walletStatus={walletStatus} />);
+    expect(screen.getByRole(walletStatus === 'error' ? 'alert' : 'status')).toHaveTextContent(/safe/i);
+    expect(screen.getByRole('button', { name: 'Give him chips' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Call him in' })).toBeDisabled();
+    // The desktop stylesheet hides FundSheet's duplicate head; the rail's
+    // Close and the sheet's Cancel are its two existing ways back.
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Close panel' })).toBeEnabled();
+    if (walletStatus === 'error') {
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(onRetry).toHaveBeenCalledOnce();
+    }
+    expect(onFund).not.toHaveBeenCalled();
+    rerender(<DeskWalletPanel {...props} walletStatus="ready" />);
+    expect(screen.getByRole('spinbutton')).toHaveValue(5000);
+    expect(screen.getByRole('button', { name: 'Give him chips' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 
   it('the sheet takes the panel, and the list is not behind it', async () => {
     const user = userEvent.setup();

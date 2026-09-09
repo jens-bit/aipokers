@@ -80,10 +80,21 @@
 }
 
 .safe__grab {
+  position: relative;
   display: flex;
   justify-content: center;
-  padding: 9px 0 4px;
+  height: 24.5px;
+  padding: 10px 0 11px;
   flex-shrink: 0;
+}
+
+/* F12 has a grab bar, not a second title. Its existing Back action keeps a
+   full hit target without adding a visible navigation row to the balance. */
+.safe__grab .safe__grab-back {
+  position: absolute; top: 0; left: calc(50% - 40px);
+  width: 80px; height: 44px; min-height: 44px; padding: 10px 0 0;
+  display: flex; align-items: flex-start; justify-content: center;
+  background: transparent; border: 0;
 }
 
 .safe__grab span {
@@ -165,17 +176,17 @@
 
 .safe__number {
   text-align: center;
-  padding: 2px 14px 0;
+  padding: 0 14px 4px;
 }
 
 .safe__amount {
   margin-top: 3px;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: "Rozha One", Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
   color: #CDB380;
-  line-height: 1.05;
+  line-height: normal;
 }
 
 /* ── three verbs ─────────────────────────────────────────────────────────── */
@@ -186,10 +197,11 @@
   padding: 13px 14px 0;
 }
 
-.safe__verb {
+.safe .safe__verb {
   flex: 1;
   min-width: 0;
   padding: 9px 0 8px;
+  border: 1px solid;
   border-radius: 11px;
   /* The edge and the wash are set inline from the verb's own colour, the way
      the ref does it (`${v.c}4D` / `${v.c}0F`) — a hex with an alpha suffix
@@ -203,9 +215,9 @@
 
 .safe__verb:active { transform: translateY(1px) }
 
-.safe__verb-label {
+.safe .safe__verb-label {
   font-family: "Oswald", "Helvetica Neue", sans-serif;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--verb);
@@ -257,7 +269,7 @@
   padding-top: 14px;
 }
 
-.safe__pull {
+.safe .safe__pull {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -322,6 +334,12 @@
   color: #A1A1A1;
   text-align: center;
 }
+
+.safe__read-state { padding: 10px 16px; color: #A1A1A1; font-size: 12px; line-height: 1.5; text-align: center; }
+.safe__read-state p { margin: 0 0 4px; }
+.safe__read-state .safe__retry { margin-top: 6px; min-height: 44px; padding: 8px 20px; color: #00D4AA; background: #00D4AA12; border: 1px solid #00D4AA55; border-radius: 8px; cursor: pointer; }
+fieldset.safe__pages { min-width: 0; margin: 0; padding: 0; border: 0; }
+.safe__verb:disabled { opacity: .45; cursor: wait; }
 
 /* ── the rail (DESK-2) ───────────────────────────────────────────────────── */
 

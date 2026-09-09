@@ -55,6 +55,7 @@ export function DeskHome({
   lastDecision = null,
   watchedId = null,
   onRefreshWallet,
+  walletStatus,
   onWatch,
   onProfile,
   onDeploy,
@@ -126,6 +127,8 @@ export function DeskHome({
                 variant="rail"
                 title="The safe"
                 wallet={wallet}
+                walletStatus={walletStatus}
+                onRetry={onRefreshWallet}
                 agents={agents}
                 onRefresh={async () => { await onRefreshWallet?.(); refresh(); }}
                 onClose={backToRoom}

@@ -298,6 +298,11 @@ describe('fetchWallet — absence is a first-class answer', () => {
     expect(await fetchWallet()).toBeNull();
   });
 
+  it.each([null, '', ' ', false, true, []])('BUG-146: an invalid balance %j is not a confirmed zero', async (balance) => {
+    fetchMock.route('/api/wallet', { balance });
+    expect(await fetchWallet()).toBeNull();
+  });
+
   it('is null rather than a throw when the network fails', async () => {
     fetchMock.route('/api/wallet', () => { throw new Error('offline'); });
     expect(await fetchWallet()).toBeNull();

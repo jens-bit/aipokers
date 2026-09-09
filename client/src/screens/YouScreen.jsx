@@ -14,7 +14,8 @@
 
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getUserId, getTelegramInitData, getWebLogin, clearWebLogin } from '../lib/telegram.js';
-import { fetchWallet, money } from '../lib/wallet.js';
+import { money } from '../lib/wallet.js';
+import { useWallet } from '../hooks/useWallet.js';
 import { fetchNotifyBudget } from '../lib/notifyApi.js';
 import { fetchSlots, slotsLine } from '../lib/slots.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
@@ -232,10 +233,7 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
   const [agents, setAgents]   = useState([]);
   const [replays, setReplays] = useState([]);
   const [loading, setLoading] = useState(true);
-  // WUI-1: null until asked, and null again when this deployment has no
-  // wallet. Absence is a first-class answer — the screen then shows exactly
-  // what it showed before the wallet existed.
-  const [wallet, setWallet]   = useState(null);
+  const { wallet, status: walletStatus, refresh: readWallet } = useWallet();
   // DEEPLINK-1 — how much of today's three the bot has already spent. Null
   // until the answer arrives, and null forever on a deployment with no
   // notifier: the row then reads as it always did rather than quoting a cap
@@ -245,12 +243,6 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
   // and null forever on a deployment whose server has no /api/slots. The row is
   // then simply not there, rather than inventing a seat count.
   const [slots, setSlots] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchWallet().then((w) => { if (!cancelled) setWallet(w); });
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,7 +289,6 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
   // arithmetic it has not earned the right to do yet.
   const sessionCount   = agents.reduce((s, a) => s + (a.careerStats?.sessions ?? a.sessionLog?.length ?? 0), 0);
   const thinHistory    = !loading && agentCount > 0 && sessionCount <= 1;
-  const stableBankroll = agents.reduce((s, a) => s + (a.careerStats?.bankroll ?? a.bankroll ?? 0), 0);
 
   // Derived stats
   const winRatePct = (() => {
@@ -322,13 +313,12 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
   useEffect(() => { if (openMoney) setMoneyOpen(true); }, [openMoney]);
 
   async function refreshMoney() {
-    const [w, res] = await Promise.all([
-      fetchWallet(),
+    const [, res] = await Promise.all([
+      readWallet(),
       fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     ]);
-    setWallet(w);
     if (res?.agents) setAgents(res.agents);
   }
 
@@ -398,10 +388,8 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
           </div>
         </div>
 
-        {/* The money line, and the only way in. It reads the same on a
-            deployment with no wallet — the stable's chips, which is what this
-            screen showed before there was one — so the tap target never
-            disappears and never lies about which number it is. */}
+        {/* The safe remains reachable when its read fails. Agent bankrolls
+            are a different balance and must never stand in for this one. */}
         <button
           type="button"
           className="you-money"
@@ -415,8 +403,11 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
         >
           <ChipGlyph />
           <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700, color: M_TEXT }}>
-            {wallet ? money(wallet.balance) : (stableBankroll > 0 ? stableBankroll.toLocaleString() : '—')}
+            {wallet ? money(wallet.balance) : '—'}
           </span>
+          {walletStatus !== 'ready' ? <span style={{ fontSize: 11, color: M_DIM }}>
+            {walletStatus === 'loading' ? 'Checking…' : wallet ? 'Last confirmed' : 'Unavailable'}
+          </span> : null}
           <div style={{ flex: 1 }} />
           {wallet && wallet.staked > 0 && (
             <Num size={11} color={M_GOLD} weight={600}>{money(wallet.staked)} out</Num>
@@ -524,6 +515,8 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
       {moneyOpen ? (
         <SafeSheet
           wallet={wallet}
+          walletStatus={walletStatus}
+          onRetry={readWallet}
           agents={agents}
           onRefresh={refreshMoney}
           onClose={() => setMoneyOpen(false)}

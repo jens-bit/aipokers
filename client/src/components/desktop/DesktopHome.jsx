@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
+import { callInAgent, collectFrom, collectsEverything, fundAgent, money, pocketOf } from '../../lib/wallet.js';
+import { useWallet } from '../../hooks/useWallet.js';
 import { DeskHomeTable } from './DeskHomeTable.jsx';
 import { DeskHome } from './DeskHome.jsx';
 import { activityKeys } from '../system/RailMotion.jsx';
@@ -72,7 +73,7 @@ export function DesktopHome({
   // DP-3: a flagged hand opens on the stage, with its beats in the rail —
   // D3ReplayScreenM's own split.
   const [replay, setReplay] = useState(null);
-  const [wallet, setWallet] = useState(null);
+  const { wallet, status: walletStatus, refresh: readWallet } = useWallet();
   // CASINO-1: 'floor' (today's room) or 'casino' (the building). Local to the
   // desk because the desktop shell has no tab bar to hold it.
   //
@@ -94,12 +95,6 @@ export function DesktopHome({
   const homeStage = stage !== 'casino';
 
   useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchWallet().then((w) => { if (!cancelled) setWallet(w); });
-    return () => { cancelled = true; };
-  }, []);
 
   // ATTR-2e-1: the card he was born with. App owns BirthScreen and is out of
   // this slice's scope, so the arrival is observed here instead — an id that
@@ -137,9 +132,9 @@ export function DesktopHome({
   // DP-2: after a fund or a collect, re-read both sides of the transfer rather
   // than guessing at either locally.
   const refreshWallet = useCallback(async () => {
-    setWallet(await fetchWallet());
+    await readWallet();
     load();
-  }, [load]);
+  }, [load, readWallet]);
 
   useEffect(() => {
     load();
@@ -433,6 +428,7 @@ export function DesktopHome({
               onSitAtTable={tableId=>{setHomeTableSession({tableId,seated:true});onSitAtTable?.(tableId);}}
               wsUrl={wsUrl}
               wallet={wallet}
+              walletStatus={walletStatus}
               game={game}
               lastDecision={lastDecision}
               watchedId={watchedId}
@@ -464,6 +460,8 @@ export function DesktopHome({
         {walletOpen ? (
           <DeskWalletPanel
             wallet={wallet}
+            walletStatus={walletStatus}
+            onRetry={readWallet}
             agents={agents}
             onClose={() => setWalletOpen(false)}
             onFund={async (agent, decision) => {

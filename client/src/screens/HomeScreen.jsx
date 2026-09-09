@@ -68,6 +68,7 @@ import { useCarry } from '../hooks/useCarry.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
+import { useWallet } from '../hooks/useWallet.js';
 import '../styles/home1.css';
 
 // Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
@@ -934,18 +935,13 @@ export function HomeScreen({
  * down at, and the room is where that shows.
  */
 function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
-  const [wallet, setWallet] = useState(null);
-
-  const read = useCallback(async () => {
-    const w = await fetchWallet();
-    setWallet(w);
-  }, []);
-
-  useEffect(() => { read(); }, [read]);
+  const { wallet, status, refresh: read } = useWallet();
 
   return (
     <SafeSheet
       wallet={wallet}
+      walletStatus={status}
+      onRetry={read}
       agents={agents}
       onRefresh={async () => { await read(); onMoved?.(); }}
       onClose={onClose}

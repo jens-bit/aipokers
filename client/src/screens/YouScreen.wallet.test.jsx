@@ -116,6 +116,21 @@ describe('SAFE-2 — one number, three verbs', () => {
 describe('WUI-1 — graceful absence', () => {
   beforeEach(() => { telegram.signIn(); });
 
+  it('BUG-146: failed safe reads never substitute the agents’ bankroll as safe money', async () => {
+    withoutWallet();
+    fetchMock.route('/api/agents?', { agents: [{ id: 'known-agent', name: 'Known agent', bankroll: 12345, stats: { handsPlayed: 10 }, careerStats: { sessions: 3 } }] });
+    render(<YouScreen openMoney />);
+    await screen.findByRole('alert');
+    await screen.findByText('Lifetime');
+    expect(screen.getByRole('button', { name: 'Money' })).toHaveTextContent('Unavailable');
+    expect(screen.getByRole('button', { name: 'Money' }).textContent).not.toMatch(/\d/);
+    fetchMock.route('/api/wallet', { balance: 0, ledger: [] });
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(document.querySelector('.safe__amount')).toHaveTextContent('$0');
+    expect(screen.getByRole('button', { name: /^GIVE/ })).toBeEnabled();
+  });
+
   it('shows today\'s You screen when this deployment has no wallet', async () => {
     withoutWallet();
     const { container } = render(<YouScreen />);

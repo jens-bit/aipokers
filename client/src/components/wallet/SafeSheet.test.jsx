@@ -26,6 +26,78 @@ import { fetchMock, telegram } from '../../test/harness.js';
 const agents = walletAgentsResponse.agents;
 const noop = () => {};
 
+it('BUG-146: failed refresh in a funding page preserves usable Cancel and Back without enabling payment', async () => {
+  const user = userEvent.setup();
+  const props = { wallet: { balance: 8000, ledger: [] }, agents, onRefresh: noop, onClose: noop };
+  const { rerender } = render(<SafeSheet {...props} walletStatus="ready" />);
+  await user.click(screen.getByRole('button', { name: /^GIVE/ }));
+  await user.click(within(screen.getByText(balancedAgent.name).closest('.wal-row')).getByRole('button', { name: 'Give him chips' }));
+  rerender(<SafeSheet {...props} walletStatus="error" />);
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not read your safe');
+  expect(screen.getByRole('button', { name: 'Give him chips' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog', { name: `Fund ${balancedAgent.name}` })).toBeNull();
+});
+
+it('BUG-148: F12 leads with the balance without a second title row, and still closes', async () => {
+  const onClose = vi.fn();
+  const { container } = render(<SafeSheet wallet={{ balance: 54000, ledger: [] }} onClose={onClose} />);
+  expect(container.querySelector('.safe__head')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Back', exact: true }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('BUG-148: a reversed grab drag springs back instead of becoming a Back tap', () => {
+  const onClose = vi.fn();
+  render(<SafeSheet wallet={{ balance: 54000, ledger: [] }} onClose={onClose} />);
+  const grab = screen.getByRole('button', { name: 'Back', exact: true });
+  for (const [type, clientY] of [['pointerdown', 100], ['pointermove', 160], ['pointermove', 100], ['pointerup', 100]]) {
+    fireEvent(grab, new MouseEvent(type, { bubbles: true, clientY }));
+  }
+  fireEvent.click(grab, { detail: 1 });
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent(grab, new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+  fireEvent(grab, new MouseEvent('pointerup', { bubbles: true, clientY: 100 }));
+  fireEvent.click(grab, { detail: 1 });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+describe('BUG-146: the safe distinguishes loading, failure and a real zero', () => {
+  it('announces the pending read without claiming the safe does not exist', () => {
+    render(<SafeSheet wallet={null} walletStatus="loading" />);
+    expect(screen.getByRole('status')).toHaveTextContent('Checking your safe');
+    expect(screen.queryByText(/no safe on this deployment/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^GIVE/ })).toBeNull();
+  });
+
+  it('offers a read retry when the balance request fails', async () => {
+    const onRetry = vi.fn();
+    render(<SafeSheet wallet={null} walletStatus="error" onRetry={onRetry} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not read your safe');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/nothing has been lost/i)).toBeNull();
+  });
+
+  it('keeps the previous balance clearly marked after a failed refresh', () => {
+    render(<SafeSheet wallet={{ balance: 2340, ledger: [] }} walletStatus="error" onRetry={noop} />);
+    expect(screen.getByText('$2,340')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Showing your last confirmed balance');
+    for (const label of ['GIVE', 'TAKE', 'RULES']) {
+      expect(screen.getByRole('button', { name: new RegExp('^' + label) })).toBeDisabled();
+    }
+  });
+
+  it('shows a confirmed zero as zero with working controls', () => {
+    render(<SafeSheet wallet={{ balance: 0, ledger: [] }} walletStatus="ready" />);
+    expect(document.querySelector('.safe__amount')).toHaveTextContent('$0');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: /^GIVE/ })).toBeEnabled();
+  });
+});
+
 // The fixture's own ledger stamps, read as an evening rather than as whenever
 // the suite happens to run.
 const NOW = 1788702000000;

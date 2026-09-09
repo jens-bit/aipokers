@@ -272,9 +272,8 @@ function authHeaders(extra = {}) {
   return { 'x-telegram-init-data': getTelegramInitData(), ...extra };
 }
 
-// Returns the wallet, or null when this deployment has no wallet yet. Null is
-// a first-class answer: every surface falls back to what it shows today rather
-// than rendering an empty money UI.
+// Null means the projection could not be read; it does not prove an empty or
+// nonexistent safe. useWallet keeps the request state and last confirmation.
 export async function fetchWallet() {
   try {
     const res = await fetch(`/api/wallet?userId=${encodeURIComponent(getUserId())}`, {
@@ -283,7 +282,8 @@ export async function fetchWallet() {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || typeof data !== 'object') return null;
-    if (!Number.isFinite(Number(data.balance))) return null;
+    if (!['number', 'string'].includes(typeof data.balance)
+      || String(data.balance).trim() === '' || !Number.isFinite(Number(data.balance))) return null;
     return {
       balance: Number(data.balance),
       staked: toAmount(data.staked) ?? 0,

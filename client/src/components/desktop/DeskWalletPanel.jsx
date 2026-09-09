@@ -19,9 +19,11 @@ import { WalletBlock } from '../wallet/WalletBlock.jsx';
 import { PocketList } from '../wallet/PocketRow.jsx';
 import { FundSheet } from '../wallet/FundSheet.jsx';
 import { PanelHead, RailBody } from './panelParts.jsx';
+import { SafeReadStatus } from '../wallet/SafeSheet.jsx';
 
 export function DeskWalletPanel({
   wallet, agents = [], onFund, onCollect, onCallIn, onClose,
+  walletStatus = wallet ? 'ready' : 'error', onRetry,
 }) {
   // Which agent the rail is currently funding. The sheet takes the panel the
   // way it takes the screen on mobile: choosing how an agent gets money is a
@@ -38,10 +40,12 @@ export function DeskWalletPanel({
           sub={(fundTarget.name || 'AGENT').toUpperCase()}
           onClose={() => setFundTarget(null)}
         />
+        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
         <div className="dsk-wallet__sheet">
           <FundSheet
             agent={fundTarget}
             wallet={wallet}
+            disabled={walletStatus !== 'ready'}
             index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
             onCancel={() => setFundTarget(null)}
             onConfirm={async (decision) => {
@@ -58,18 +62,13 @@ export function DeskWalletPanel({
     <div className="dsk-panel dsk-wallet">
       <PanelHead
         title="Your wallet"
-        sub={wallet ? 'BACKER AND HORSE' : 'NOT ON THIS DEPLOYMENT'}
+        sub={wallet ? 'BACKER AND HORSE' : 'YOUR SAFE'}
         onClose={onClose}
       />
       <RailBody>
-        {/* Graceful absence, the same as the You screen: no wallet, no money
-            UI. The panel says so rather than drawing an empty one. */}
-        {!wallet ? (
-          <div className="dsk-apanel__empty">
-            This deployment has no wallet yet.
-          </div>
-        ) : (
-          <>
+        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
+        {wallet ? (
+          <fieldset className="safe__pages" disabled={walletStatus !== 'ready'}>
             <WalletBlock wallet={wallet} />
             {/* PocketList already carries "pocket size sets his stakes" as its
                 own header. The desktop ref's line is four words longer — "…
@@ -82,8 +81,8 @@ export function DeskWalletPanel({
               onCollect={onCollect}
               onCallIn={onCallIn}
             />
-          </>
-        )}
+          </fieldset>
+        ) : null}
       </RailBody>
     </div>
   );

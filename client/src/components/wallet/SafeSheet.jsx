@@ -32,10 +32,10 @@
 //      and the roster; a sheet that fetched them again would disagree with the
 //      screen behind it for as long as the request took. It is handed them and
 //      says when something moved.
-//   4. NO WALLET, NO VERBS. On a deployment without one the safe says it does
-//      not know rather than drawing three buttons onto a 404.
+//   4. NO CONFIRMED READ, NO VERBS. Loading and failure are separate, and a
+//      failed refresh retains a clearly marked last confirmation.
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 
 import { FundSheet } from './FundSheet.jsx';
@@ -73,6 +73,19 @@ const TITLES = {
 /** How many ledger rows a pull shows, and how many each scroll to the end adds. */
 export const LEDGER_PAGE = 12;
 
+export function SafeReadStatus({ status, wallet, onRetry }) {
+  if (status === 'ready') return null;
+  return (
+    <div className="safe__read-state" role={status === 'error' ? 'alert' : 'status'}>
+      <p>{status === 'error' ? 'Could not read your safe.' : 'Checking your safe…'}</p>
+      {wallet ? <p>Showing your last confirmed balance.</p> : null}
+      {status === 'error' && onRetry ? (
+        <button type="button" className="safe__retry" onClick={onRetry}>Try again</button>
+      ) : null}
+    </div>
+  );
+}
+
 // ── the rules page ──────────────────────────────────────────────────────────
 // WALLET-7's vocabulary, unchanged: the four stored modes are not the owner's
 // words and never appear here. What a rule IS, on this page, is the one toggle
@@ -105,7 +118,7 @@ function RuleRow({ agent, busy, onSetRefill }) {
 }
 
 /**
- * @param wallet        the walletProjection, or null on a deployment without one
+ * @param wallet        the last confirmed walletProjection, or null before a read
  * @param agents        the roster; pockets are filtered out of it here
  * @param onRefresh     called after any verb lands, so the host re-reads
  * @param onClose       put the sheet away
@@ -114,6 +127,7 @@ function RuleRow({ agent, busy, onSetRefill }) {
  */
 export function SafeSheet({
   wallet, agents = [], onRefresh, onClose, onOpenProfile,
+  walletStatus = wallet ? 'ready' : 'error', onRetry = onRefresh,
   title = 'The safe', variant = 'sheet', now,
 }) {
   const inRail = variant === 'rail';
@@ -125,6 +139,7 @@ export function SafeSheet({
   // in one scroll" — is the whole of the difference.
   const [pulled, setPulled] = useState(false);
   const [limit, setLimit] = useState(LEDGER_PAGE);
+  const grabPointer = useRef(null);
 
   const showLedger = inRail || pulled;
   // In the rail the scroll belongs to the panel around us, so there is no
@@ -235,6 +250,7 @@ export function SafeSheet({
               key={v.key}
               type="button"
               className="safe__verb"
+              disabled={walletStatus !== 'ready'}
               data-verb={v.key}
               style={{ '--verb': v.color, borderColor: `${v.color}4D`, background: `${v.color}0F` }}
               onClick={() => setPage(v.key)}
@@ -244,12 +260,7 @@ export function SafeSheet({
             </button>
           ))}
         </div>
-      ) : (
-        <p className="safe__absent">
-          There is no safe on this deployment yet. Nothing has been lost — there is
-          simply nothing here to count.
-        </p>
-      )}
+      ) : null}
 
       {wallet ? (
         <div className="safe__tonight">
@@ -352,6 +363,7 @@ export function SafeSheet({
       <FundSheet
         agent={fundTarget}
         wallet={wallet}
+        disabled={walletStatus !== 'ready'}
         index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
         onCancel={() => setFundTarget(null)}
         onConfirm={handleFund}
@@ -392,16 +404,33 @@ export function SafeSheet({
         {...(inRail ? {} : drag.handlers)}
       >
         {inRail ? null : (
-          <div className="safe__grab" aria-hidden><span /></div>
+          <div className="safe__grab">
+            {page === 'safe' && !fundTarget ? (
+              <button type="button" className="safe__grab-back" aria-label="Back"
+                onPointerDown={e => {
+                  grabPointer.current = { y: e.clientY, moved: false };
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
+                }}
+                onPointerMove={e => {
+                  if (grabPointer.current && Math.abs(e.clientY - grabPointer.current.y) > 5) grabPointer.current.moved = true;
+                }}
+                onPointerUp={e => {
+                  if (grabPointer.current && Math.abs(e.clientY - grabPointer.current.y) > 5) grabPointer.current.moved = true;
+                }}
+                onClick={e => {
+                  const dragged = e.detail !== 0 && grabPointer.current?.moved;
+                  grabPointer.current = null;
+                  if (!dragged) back();
+                }}
+              ><span aria-hidden /></button>
+            ) : <span aria-hidden />}
+          </div>
         )}
 
-        {/* Two heads on one page is the same door drawn twice, so ours steps
-            aside twice. The funding page brings its own — a title, and a back
-            that cancels the decision rather than the sheet. And in the rail the
-            PANEL's head already names the safe and already has the way out, so
-            on the number there is nothing left for ours to say; inside a verb
-            it is the only way back to the balance, and it returns. */}
-        {fundTarget || (inRail && page === 'safe') ? null : (
+        {/* F12 opens directly on the balance; its grab bar returns to the room.
+            The rail already has its panel head, and funding has its own Back.
+            Only a verb needs this row to return to the balance. */}
+        {fundTarget || page === 'safe' ? null : (
         <div className="safe__head">
           <button type="button" className="safe__back" onClick={back} aria-label="Back">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -413,7 +442,8 @@ export function SafeSheet({
         </div>
         )}
 
-        <div className="safe__pages">{body}</div>
+        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
+        <fieldset className="safe__pages" disabled={walletStatus !== 'ready' && !fundTarget}>{body}</fieldset>
       </div>
     </div>
   );

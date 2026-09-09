@@ -197,6 +197,88 @@ async function room(page, cast, viewport = VIEWPORT) {
 }
 
 for (const viewport of [{width:390,height:590},{width:390,height:844},{width:1440,height:900}]) {
+  test('BUG-146/147: the safe retries real UI reads and seats explain earned chips at '+viewport.width+'x'+viewport.height, async ({page}) => {
+    await stub(page, CASTS.alone);
+    await page.setViewportSize(viewport);
+    let phase = 'loading', release;
+    const initialRead = new Promise(resolve => { release = resolve; });
+    await page.route('**/api/wallet**', async route => {
+      if (phase === 'loading') await initialRead;
+      if (phase === 'error') return route.fulfill({status:503,json:{error:'unavailable'}});
+      return route.fulfill({json:{balance:phase === 'zero' ? 0 : 54000,staked:2000,ledger:[]}});
+    });
+    await page.route('**/api/agents/*/fund', route => route.fulfill({json:{moved:0}}));
+    await page.route('**/api/slots**', route => route.fulfill({json:{used:1,cap:4,next:{index:2,price:10000,earned:4200,unlocked:false}}}));
+    await page.goto(HOME);
+    await page.getByTestId('home-safe').click();
+    const safe = page.getByTestId('safe-sheet');
+    await expect(safe.getByRole('status')).toContainText('Checking your safe');
+    await expect(safe.locator('.safe__amount')).toHaveText('—');
+    phase = 'error'; release();
+    await expect(safe.getByRole('alert')).toContainText('Could not read your safe');
+    const retry = safe.getByRole('button',{name:'Try again'});
+    const box = await retry.boundingBox();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    await page.screenshot({path:'../artifacts/batch45-safe-error-'+viewport.width+'x'+viewport.height+'.png'});
+    phase = 'ready'; await retry.click();
+    await expect(safe.locator('.safe__amount')).toHaveText('$54,000');
+    await expect(safe.getByRole('alert')).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    // BUG-148: F12's Amt is Rozha44 and the three verbs have real hairlines.
+    await expect.soft(safe.locator('.safe__amount')).toHaveCSS('font-family', /Rozha One/);
+    await expect.soft(safe.locator('.safe__amount')).toHaveCSS('font-size', '44px');
+    await expect.soft(safe.getByRole('button',{name:/^GIVE/})).toHaveCSS('border-top-width','1px');
+    await expect.soft(safe.locator('.safe__verb-label').first()).toHaveCSS('font-family', /Oswald/);
+    await expect.soft(safe.locator('.safe__verb-label').first()).toHaveCSS('font-size', '10px');
+    if (viewport.width === 390) {
+      await expect.soft(safe.getByRole('button',{name:/Pull up for the ledger/i})).toHaveCSS('font-family', /Oswald/);
+    }
+    await page.screenshot({path:'../artifacts/batch45-safe-ready-'+viewport.width+'x'+viewport.height+'.png'});
+    if (viewport.width === 390) {
+      await safe.getByRole('button',{name:/Pull up for the ledger/i}).click();
+      await expect(safe.getByTestId('safe-ledger')).toBeVisible();
+      await page.screenshot({path:'../artifacts/batch45-safe-ledger-'+viewport.height+'.png'});
+      // BUG-148: a cancelled downward gesture is not a Back tap. A complete
+      // drag collapses the ledger once; tapping the grab still closes later.
+      const grab = safe.getByRole('button',{name:'Back',exact:true});
+      const handle = await grab.boundingBox();
+      const x = handle.x + handle.width / 2, y = handle.y + 12;
+      await page.mouse.move(x,y); await page.mouse.down();
+      await page.mouse.move(x,y+60,{steps:6});
+      await page.mouse.move(x,y,{steps:6}); await page.mouse.up();
+      await expect(safe).toBeVisible();
+      await expect(safe).toHaveClass(/is-pulled/);
+      await page.mouse.move(x,y); await page.mouse.down();
+      await page.mouse.move(x,y+100,{steps:10}); await page.mouse.up();
+      await expect(safe).toBeVisible();
+      await expect(safe).not.toHaveClass(/is-pulled/);
+    }
+    await safe.getByRole('button',{name:/^RULES/}).click();
+    // This attempt deliberately fails its subsequent read; the server-owned
+    // checkbox stays at its confirmed value instead of optimistically changing.
+    phase = 'error'; await safe.getByRole('checkbox').first().click();
+    await expect(safe.getByRole('alert')).toContainText('Showing your last confirmed balance');
+    await safe.getByRole('button',{name:'Back',exact:true}).click();
+    await expect(safe.locator('.safe__amount')).toHaveText('$54,000');
+    await expect(safe.getByRole('button',{name:/^GIVE/})).toBeDisabled();
+    phase = 'zero'; await retry.click();
+    await expect(safe.locator('.safe__amount')).toHaveText('$0');
+    await expect(safe.getByRole('button',{name:/^GIVE/})).toBeEnabled();
+    if (viewport.width === 390) await safe.getByRole('button',{name:'Back',exact:true}).click();
+    else await page.getByRole('button',{name:'Close panel',exact:true}).click();
+    await page.getByTestId('home-table').click();
+    const table = page.getByTestId('home-table-sheet');
+    await expect(table).toContainText('2nd seat unlocks at 10,000 chips won · 4,200 earned');
+    await expect(table).toContainText('Your agents’ winning casino sessions unlock seats');
+    await expect(table).toContainText('No chips are spent');
+    await expect(table).toContainText('Home games do not count');
+    await page.screenshot({path:'../artifacts/batch45-earned-seat-'+viewport.width+'x'+viewport.height+'.png'});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(viewport.width);
+  });
+}
+
+for (const viewport of [{width:390,height:590},{width:390,height:844},{width:1440,height:900}]) {
   test('BUG-140/141/143/144: join, read, showdown, lose and play again at '+viewport.width+'x'+viewport.height, async ({page}) => {
     await stub(page, CASTS.household);
     await page.setViewportSize(viewport);

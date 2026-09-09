@@ -37,6 +37,20 @@ function renderSheet(props = {}) {
   );
 }
 
+it('BUG-146: an unconfirmed wallet disables funding controls while Cancel and Back remain available', async () => {
+  const onCancel = vi.fn(), onConfirm = vi.fn();
+  renderSheet({ disabled: true, onCancel, onConfirm });
+  expect(screen.getByRole('button', { name: 'Give him chips' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Call him in' })).toBeDisabled();
+  expect(screen.getByRole('spinbutton')).toBeDisabled();
+  expect(screen.getByRole('checkbox')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(onCancel).toHaveBeenCalledOnce();
+  expect(onConfirm).not.toHaveBeenCalled();
+});
+
 // The choices live in the sheet body; the confirm button lives in the footer.
 const body = () => within(document.querySelector('.wal-sheet__body'));
 const amountField = () => screen.getByLabelText(/Amount/i);
