@@ -361,14 +361,15 @@ describe('CASINO-1 deploy', () => {
     expect(within(door('the back room')).getByText('$10,000')).toBeInTheDocument();
   });
 
-  it('a bigger pocket opens the room above', async () => {
+  it('BUG-45: a bigger pocket opens the room above', async () => {
     routeFloor({ agents: [richCannon] });
     renderCasino({ deployAgent: richCannon });
 
     await screen.findByText('placing Loose Cannon');
     expect(door('upstairs')).not.toHaveAttribute('data-shut');
-    // The tray opens on the rung he actually buys.
-    expect(screen.getByText('pocket $6,000 · buy-in at 25/50 is $5,000')).toBeInTheDocument();
+    // The heading exists before rooms load and the selection effect runs.
+    // Wait for that specific decision, including when this test runs alone.
+    expect(await screen.findByText('pocket $6,000 · buy-in at 25/50 is $5,000')).toBeInTheDocument();
   });
 
   // FIX-6 job 2 replaces the old rule here. It used to be "picking an open room

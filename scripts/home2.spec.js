@@ -406,22 +406,17 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     await page.mouse.up();
   });
 
-  // BUG-43 · FIXME, not deleted, and the body below is untouched so it comes
-  // back on with one word. It reads `data-spot` before the drag and asserts the
-  // same value after, but the room lives at fifty times production's tempo in
-  // this job (HOME_PAUSE_MS=600) and the man walks under his own routine in
-  // between: seen expecting `door:born` and receiving `tape`, with
-  // `data-walking="true"` on the element — his routine moved him, and the drop
-  // had nothing to do with it. The rule is worth keeping and the claim beside
-  // it still holds unassisted (the POST assertion proves the drop asked the
-  // server nothing); what it needs is either the room quiesced for the length
-  // of a gesture or the claim restated as "the DROP moved nobody". That is a
-  // product call for the tab that owns HOME-2 job 5, not an assertion the
-  // integrator edits to reach green. Un-fixme it when the fix lands.
-  test.fixme('BUG-43: dropping him on the floor puts him back where he was, and asks nobody', async ({ page }) => {
+  // BUG-43: measure a settled body, not the doorway beat of a fresh birth.
+  // The original position and no-POST assertions stay; the arrival itself is
+  // covered separately and must not be mistaken for a drag moving him.
+  test('BUG-43: dropping him on the floor puts him back where he was, and asks nobody', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
     const body = page.locator('.home-one').first();
+    // The fresh seed is entering through the door. Let that independent
+    // arrival finish before measuring whether the drop itself moves him.
+    await expect(body).not.toHaveAttribute('data-spot', 'door:born');
+    await expect(body).toHaveAttribute('data-walking', 'false');
     const before = await body.getAttribute('data-spot');
 
     const posts = [];

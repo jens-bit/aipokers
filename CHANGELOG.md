@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight verification batch 15: re-enabled BUG-43's floor-drop regression after synchronizing its starting measurement with the completed newborn arrival; all 20 real Home browser checks now pass without a skip. BUG-45's casino pocket assertion now awaits the exact selected-room copy and passes in isolation. Original interaction/amount/no-POST assertions stay; gameplay and production timing are unchanged.
+
 - Overnight repair batch 14: desktop casino Board rows now open the authenticated saved hand in the desktop theatre and return to the remembered Board selection. An aged-out hand opens its companion. Recorded stacks remain unknown instead of $0, and the replay ends on its real board/pot with no next-deal or sit-out promise (BUG-89–91). Actual browser checks cover the row, scrubbing to the end and Back.
 
 - Overnight design batch 13: board 40's wave-61 guest hero now leaves a 26px room preview, uses its phone/desktop typography and character sizes, and carries the wave-60 hood-relative backs and real fists. BUG-87 repairs the oversized cards. BUG-88 puts the first desktop recruiter in the right column beside its empty home, with usable full-stage fallbacks. The real guest creation/authentication and four-stage collar-free draft remain. The standalone archive is a bundled design canvas, not a production landing document; the long `/welcome` page and deployment guest switch still need their own work.

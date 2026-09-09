@@ -107,13 +107,13 @@ Global button/input minimum heights overrode the 26px send and compact line. Bro
 
 ## OPEN
 
-### BUG-45 — `CasinoScreen.test.jsx` "a bigger pocket opens the room above" only passes with the file
+### BUG-45 — isolated casino pocket assertion runs before the tray is ready — FIXED on overnight branch
 **Severity:** Medium (a green suite hiding an order dependency — BUG-36's family)
 **Where:** `client/src/screens/CasinoScreen.test.jsx:353` (was `:339` on origin/main — the line moved, the body did not)
 **What:** Run the file and it passes. Run the one test — `npx vitest run src/screens/CasinoScreen.test.jsx -t "a bigger pocket opens the room above"` — and it fails on `getByText('pocket $6,000 · buy-in at 25/50 is $5,000')`: the doorway assertion above it passes, the tray text is simply not in the DOM. So the tray's copy depends on something an earlier test in the file leaves behind, not on what this test sets up.
 **Pre-existing, and not bugs-c's.** `git show origin/main:client/src/screens/CasinoScreen.test.jsx` has this test byte-identical; bugs-c (job 12, the floor-first casino) added tests around it and moved it down 14 lines without touching it. Reproduced on merged main 2026-09-08.
 **Why it matters more than it looks:** the suite is green in CI and will stay green, because CI runs the file. What it is not doing is proving this claim — it is proving "this claim holds *after* the tests above it ran". That is the shape BUG-36 has on the server side.
-**Fix:** not made here. Find the leak (a module-level fixture, `fetchMock` state, or a `localStorage` key the earlier tests write) and give this test its own setup. Do not delete the `-t` reproduction from this entry — it is the whole diagnosis.
+**Verified repair (batch15):** the isolated command above failed again. The “placing” heading renders before asynchronous rooms and the selected-room effect have finished, so it was not a readiness signal for the tray's specific decision. Awaiting that exact same pocket/buy-in text with findByText passes in isolation and keeps the original amount and affordability assertions. No shared-state leak or product rule change was needed for this reproduction. The case now carries BUG-45 in its name; the original `-t` command still matches it.
 
 ---
 
@@ -137,7 +137,7 @@ Global button/input minimum heights overrode the 26px send and compact line. Bro
 
 ---
 
-### BUG-43 — HOME-2's job 5 gesture tests race the room's own life
+### BUG-43 — HOME-2's floor-drop check starts during the birth walk — FIXED on overnight branch
 **Severity:** Medium (a gate that goes red on a different test each run is BUG-34's lesson, not a new one)
 **Where:** `scripts/home2.spec.js:404` ("dropping him on the floor…") and `:359` ("drop on the couch changes his state")
 **What:** Both read a state BEFORE the drag and assert against it AFTER, and the room keeps living in between. The room's tempo in this job is `HOME_PAUSE_MS=600` — fifty times production's 30s — so the man walks under his own routine while the spec measures him.
@@ -146,7 +146,7 @@ Global button/input minimum heights overrode the 26px send and compact line. Bro
 **Measurement (2026-09-07, local, the CI env exactly):** against a server whose room had the man at the table, `:359` failed 3 runs out of 3 while the other three job-5 tests passed; against a freshly seeded room, `:359` passed and `:404` failed. One suite, two tests, and which one is red depends only on what the room happened to be doing.
 **Found by:** the integrator, gating CI #84 — this step never ran in CI before (#82's smoke job predates it), so main has never seen it green.
 **Fix:** not made here, because the honest fix is a product question the integrator should not answer alone: `:404` needs the room quiesced for the length of a gesture (or the claim restated as "the DROP moved nobody", which the POST assertion beside it already proves), and `:359` needs to ask whether he is in a hand rather than inferring it from where he is sitting. Both belong to the tab that owns HOME-2 job 5. Do not re-run to green.
-**Marked, not deleted (Testing law #6):** `:404` is `test.fixme('BUG-43: …')` with its body untouched — it is the one that is red from the empty data dir CI starts with, so the gate goes green while saying out loud what it is not checking. Un-fixme it when the drag rule is decided.
+**Verified repair (batch15):** restored the preserved test and reproduced `door:born` → `floor:0` against a fresh scratch household. The test now waits for the separate doorway beat and arrival walk to finish before taking its starting-position measurement. The original same-spot and no-place/give/study-POST assertions are unchanged; no production clock or gameplay rule changes. The isolated fresh-household case passes and the full real-server Home suite passes all20 with no skip. BUG-58 already covers the couch drop's real server-authorized response.
 **`:359` is deliberately left live.** It passes from a fresh room and fails once the man is at the table, so it is the same bug with a different trigger rather than a second one; fixme-ing a test that currently passes would hide coverage the product still has. If a CI run goes red on "drop on the couch changes his state", this entry is the reason and the answer is the fix, not a second fixme.
 
 ---
