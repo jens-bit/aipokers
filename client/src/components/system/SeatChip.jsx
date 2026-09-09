@@ -109,7 +109,7 @@ export function SeatChip({
             fontFamily: '"JetBrains Mono", ui-monospace, monospace',
             fontSize: 10, fontWeight: 600, color: '#EDEDED',
             fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
-          }}>${stack}</span>
+          }}>{stack == null ? '—' : `$${stack}`}</span>
           {pos && (
             <span style={{
               fontFamily: '"Oswald", "Inter", sans-serif',

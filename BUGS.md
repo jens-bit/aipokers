@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-89 — desktop casino Board drops the replay action — FIXED on overnight branch
+App passed onReplay to DesktopHome, which neither read it nor forwarded a callback to CasinoScreen. An owned recorded-hand row therefore had no replay action. The regression failed on the disabled row before repair. DesktopHome now resolves the same owner-authorized shared-hand lookup into its own theatre; Back restores the casino's remembered Board selection. Expired recordings fall back to the actual companion. Browser checks exercise the real board row at 1440 and 1920 widths; the initial new test wrongly expected Floor after Back and was corrected to the existing persisted Board behavior.
+
+### BUG-90 — desktop replay reports unrecorded stacks as zero — FIXED on overnight branch
+Replay snapshots intentionally have stack:null, but the desktop stage replaced it with zero. The named regression failed on the hero's $0. Hero and opponent seats now show an em dash for missing values while real zero stacks remain zero. No recorded balance is invented.
+
+### BUG-91 — a completed desktop recording promises another deal — FIXED on overnight branch
+The replay ends with street:complete and no live result object, so phaseOf treated it as between hands: it hid the recorded board, said NEXT DEAL SHORTLY and offered a sit-out button with no handler. The regression failed on that promise before repair. A replay-specific completed phase keeps its actual board/pot and says End of replay, with no live sit-out control. The shared live-table phase rules remain unchanged.
+
 ### BUG-87 — landing cards use the drawing width instead of the hood — FIXED on overnight branch
 The phone hero used 99px backs, taking 55% of the 180px SVG rather than 55% of its visible 99px hood. The wave-60 regression failed at 99 versus 54. It now uses the exact L2Hand calculation, actual Fist atoms, 54px phone/85px desktop backs and a clear face. Desktop art scales to the reference's 280px drawing.
 

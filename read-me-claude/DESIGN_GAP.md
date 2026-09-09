@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight repair — 2026-09-09, batch 14
+
+The desktop casino's recorded-hand path is now connected: an owned Board row resolves its real flagged hand into the desktop theatre and Back restores the remembered Board selection. Aged-out hands open their companion. BUG-89–91 fix the dropped callback, fabricated zero stacks and end-of-recording next-deal/sit-out state. The browser exercises the actual row and full recorded end at 1440 and 1920; `client/e2e/shots/overnight-batch14-desktop-replay-end.png` records the inspected result. This is a functional replay repair, not a claim that the broader desktop art or record metadata matches every design frame.
+
 ## Overnight design port — 2026-09-09, batch 13
 
 H1/H2 and the real guest entry are **PARTIAL**. The hero now follows the wave-61 viewport-minus-26px geometry, 180/280px character, Inter/Rozha typography and wave-60 card/fist measurements. The first desktop draft now occupies the right column beside the actual empty home; BUG-87/88 record reproduced sizing and clipped-recruiter defects. Four browser sizes (390×700, 390×590, 1280×800, 1440×900) exercise the mounted real recruiter, settled scroll, actual input hit visibility and typing. Inspected pairs: `client/e2e/shots/overnight-batch13-landing-{390,1280}.png`. Current RailMark is retained; the archive's bot handle is not assumed to be a configured live username. Reference sheen, room/header/desktop coordinates and the phone draft's older duplicate door tag remain differences. The supplied “standalone” landing HTML unpacked to a React/Babel design canvas with multiple frames; it cannot responsibly be shipped as-is. This corrects the older LAND-6 inventory claim. `/welcome` still needs the long-page port and current public rollout settings remain unverified.

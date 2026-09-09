@@ -16,6 +16,7 @@ import { DeskReplayPanel } from './DeskReplayPanel.jsx';
 import { PanelHead } from './panelParts.jsx';
 import { DeskRoster } from './DeskRoster.jsx';
 import { CasinoScreen } from '../../screens/CasinoScreen.jsx';
+import { resolveDeepLink } from '../../lib/deeplink.js';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';
@@ -243,6 +244,18 @@ export function DesktopHome({
     setHomePanel('agent');
   }, []);
 
+  // The board and shared hand links resolve through the same owner-only lookup.
+  // Keep the desktop theatre inside this shell so Back restores the casino.
+  const replayCasinoEvent = useCallback(async row => {
+    for (const agentId of row?.agentIds ?? []) {
+      let opened;
+      try { opened = await resolveDeepLink({ kind: 'hand', agentId: String(agentId), handId: row.handNumber }); }
+      catch { continue; }
+      if (opened?.kind === 'hand') { setReplay({ agent: opened.agent, hand: opened.hand }); return; }
+      if (opened?.kind === 'agent') { rosterSelect(opened.agent); return; }
+    }
+  }, [rosterSelect]);
+
   const born = bornId ? agents.find((a) => a.id === bornId) ?? null : null;
   // Wave 61: the first draft also lives beside the actual empty room.
   const railHostsDraft = !!draft && homeStage && !walletOpen && !bornId;
@@ -344,6 +357,7 @@ export function DesktopHome({
               deployAgent={deployAgent}
               onDeployed={onDeployed}
               onSpectate={onSpectate}
+              onReplay={replayCasinoEvent}
               onCancelDeploy={() => { onCancelDeploy?.(); setStage('floor'); }}
             />
           ) : (

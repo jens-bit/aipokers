@@ -93,8 +93,9 @@ function Board({ cards, between }) {
   );
 }
 
-export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut, sitOutPending }) {
-  const phase = phaseOf(game);
+export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut, sitOutPending, replay = false }) {
+  const replayEnded = replay && game?.street === Streets.COMPLETE;
+  const phase = replayEnded ? 'settled' : phaseOf(game);
   const between = phase === 'between';
   const live = phase === 'live';
 
@@ -167,7 +168,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
           <div key={o.index} className={`dtb__seat dtb__seat--${slot}`}>
             <SeatChip
               name={o.seat.displayName || `Seat ${o.index + 1}`}
-              stack={(o.seat.stack ?? 0).toLocaleString()}
+              stack={Number.isFinite(o.seat.stack) ? o.seat.stack.toLocaleString() : null}
               pos={posLabel(o.index, game)}
               acting={live && game?.toAct === o.index}
               folded={!!o.seat.folded}
@@ -191,6 +192,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         <Board cards={board} between={between} />
 
         {between && <span className="dtb__shuffling">SHUFFLING UP…</span>}
+        {replayEnded && <span className="dtb__shuffling">End of replay</span>}
       </div>
 
       {/* Him, at the bottom, twice a seat and facing the room. A flowed column:
@@ -233,7 +235,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
           <div>
             <span className="dsk-label" style={{ fontSize: 8.5 }}>Stack</span>
             <div className="dtb__hero-stack">
-              ${(hero?.stack ?? 0).toLocaleString()}
+              {Number.isFinite(hero?.stack) ? `$${hero.stack.toLocaleString()}` : '—'}
               {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
               {heroDrinking && <Bottle size={14} className="dtb__bottle" />}
             </div>
@@ -260,7 +262,7 @@ export function DeskTableStage({ game, agentName, lastDecision, onBack, onSitOut
         </div>
       </div>
 
-      {between && (
+      {between && !replay && (
         <div className="dtb__exit">
           <div>
             <div className="dtb__exit-title">Between hands</div>

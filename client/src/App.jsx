@@ -648,7 +648,7 @@ function AppShell({ guest }) {
         wsUrl={WS_URL}
         deployAgent={deployTarget?.agent ?? null}
         onCancelDeploy={() => setDeployTarget(null)}
-        onReplay={replayEvent}
+        // The desktop shell resolves board hands into its own replay stage.
         onPlace={placeInCasino}
         onSpectate={(tableId) => {
           if (!tableId) return;

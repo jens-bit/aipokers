@@ -431,6 +431,32 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
 
 test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent board', () => {
   for (const size of SIZES) {
+    test(`BUG-89/91: casino hand replays to its recorded end and returns at ${size.width}`, async ({ page }) => {
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await desk(page, size);
+      await page.route('**/api/events**', route => route.fulfill({ json: { events: [{ id: 91, ts: Date.now(), type: 'bigPot', tableId: 't1', agentIds: ['a2'], handNumber: bigBluffHand.handNumber, pot: bigBluffHand.pot, headline: 'Granite won the recorded hand' }], lastId: 91 } }));
+      await page.route('**/api/agents/a2/flagged**', route => route.fulfill({ json: { flaggedHands: [bigBluffHand] } }));
+      await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
+      await page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ }).click();
+      await expect(page.locator('.dsk-replay')).toBeVisible();
+      await expect(page.locator('.dtb__hero-stack')).toHaveText('—');
+      const scrub = page.getByRole('slider', { name: 'Scrub the replay' });
+      await scrub.focus();
+      await scrub.press('End');
+      await expect(page.getByText('End of replay', { exact: true })).toBeVisible();
+      await expect.poll(() => page.locator('.dtb__tug .tug__fill').evaluate(el => el.getBoundingClientRect().width / el.parentElement.getBoundingClientRect().width)).toBeGreaterThan(0.97);
+      await expect(page.getByText('NEXT DEAL SHORTLY')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /Sit out after this hand/i })).toHaveCount(0);
+      expect((await page.locator('.dsk-replay__stage').boundingBox()).height).toBeGreaterThan(300);
+      if (size.width === 1440) await page.screenshot({ path: '../artifacts/desktop-casino-replay-end.png' });
+      await page.locator('.dtb__back').click();
+      await expect(page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ })).toBeVisible();
+      await expect(page.getByTestId('desk-roster')).toBeVisible();
+      expect(errors).toEqual([]);
+    });
     test(`three columns on the casino stage too (${size.width}x${size.height})`, async ({ page }) => {
       await desk(page, size);
       await page.getByRole('button', { name: 'CASINO', exact: true }).click();

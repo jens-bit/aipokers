@@ -4,8 +4,8 @@
 // "Nothing new is invented — the ALL-IN hold and the showdown reveal are the
 // same beats, replayed." The mobile theatre makes that true by handing its own
 // felt the same shape the server sends; this does the same with the desk felt.
-// DeskTableStage does not know it is being replayed, which is why the pacing
-// ladder and the rope DP-1 gave it work here for free.
+// The same felt carries the pacing ladder and rope. Its replay flag keeps
+// recorded completion separate from a live table waiting for another deal.
 //
 // Reused as they are: buildTimeline and beatAt (replay/timeline.js) own the
 // reel, and Scrubber (replay/Scrubber.jsx) owns the transport. Nothing about
@@ -109,6 +109,7 @@ export function DeskReplayStage({ hand, agentName, onBack, onOpenHand, autoPlay 
     <div className="dsk-replay">
       <div className="dsk-replay__stage">
         <DeskTableStage
+          replay
           game={game}
           agentName={agentName}
           lastDecision={lastDecision}
