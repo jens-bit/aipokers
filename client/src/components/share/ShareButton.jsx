@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { ShareCard } from './ShareCard.jsx';
 import { buildShareModel } from './shareModel.js';
-import { renderSharePng } from './drawShareCard.js';
+import { renderSharePng, shareDimensions } from './drawShareCard.js';
 import { shareHand } from './shareHand.js';
 
 const TEAL = '#00D4AA';
@@ -78,6 +78,8 @@ function ActionButton({ children, onClick, primary, disabled }) {
  */
 export function ShareSheet({ model, agentId = null, onClose }) {
   const ghostRef = useRef(null);
+  const [format, setFormat] = useState('story');
+  const dimensions = shareDimensions(format);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null);
 
@@ -85,7 +87,7 @@ export function ShareSheet({ model, agentId = null, onClose }) {
     setBusy(true);
     setOutcome(null);
     try {
-      const png = await renderSharePng(model, { ghostNode: ghostRef.current?.querySelector('svg') ?? null });
+      const png = await renderSharePng(model, { format, ghostNode: ghostRef.current?.querySelector('svg') ?? null });
       const via = share
         ? await shareHand({ model, png, agentId })
         // "Save image" is the same last route the share falls back to, asked
@@ -98,7 +100,7 @@ export function ShareSheet({ model, agentId = null, onClose }) {
     } finally {
       setBusy(false);
     }
-  }, [model, agentId]);
+  }, [model, agentId, format]);
 
   return (
     <div
@@ -119,21 +121,24 @@ export function ShareSheet({ model, agentId = null, onClose }) {
       <div style={{
         position: 'relative', background: PANEL, borderTop: `1px solid ${BORDER}`,
         borderTopLeftRadius: 18, borderTopRightRadius: 18,
-        boxShadow: '0 -18px 40px rgba(0,0,0,0.55)', padding: '9px 14px 22px',
+        boxShadow: '0 -18px 40px rgba(0,0,0,0.55)', padding: '9px 14px 22px', maxHeight: '100%', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
           <div style={{ width: 34, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
         </div>
 
+        <div role="group" aria-label="Image format" style={{display:'flex',justifyContent:'center',gap:8,marginBottom:12}}>
+          {['story','preview'].map(key=><button key={key} disabled={busy} type="button" aria-pressed={format===key} onClick={()=>{setFormat(key);setOutcome(null);}} style={{...ghostButtonStyle,background:format===key?'#123C36':'transparent'}}>{shareDimensions(key).label}</button>)}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <ShareCard model={model} size={296} ghostRef={ghostRef} />
+          <ShareCard model={model} format={format} size={format==='story'?'min(296px, calc((100dvh - 190px) * 0.5625))':396} ghostRef={ghostRef} />
         </div>
 
         <div style={{
           marginTop: 10, textAlign: 'center', fontSize: 11.5,
           color: outcome ? DIM : MUTED, minHeight: 16,
         }}>
-          {outcome ?? 'Exports at 1080×1080.'}
+          {outcome ?? ('Exports at '+dimensions.width+'×'+dimensions.height+'.')}
         </div>
 
         <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>

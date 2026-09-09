@@ -1,25 +1,10 @@
-// SHARE-1 — the card's data, and nothing else.
-//
-// Ref: design-refs/mood-share.jsx. The ref hard-codes a SHARE object and draws
-// from it; this is that object, derived from a real flagged hand. Everything
-// the card can show is decided here, once, so the DOM preview and the canvas
-// export cannot disagree about what they are showing — they read the same
-// model and only differ in how they paint it.
-//
-// The ref's rule, kept: nothing on this card is composed. His line is his own
-// last words in the hand, the amount is the pot the server recorded, and the
-// name of the hand is read off the cards. No invite code, no referral link, no
-// "get your own agent" — "a card that asks for a signup is an ad, and people
-// do not forward ads." The only mark is agenticpoker.app.
-//
-// Input is one entry from GET /api/agents/:id/flagged (buildFlaggedEntry in
-// src/server/flaggedHands.js), the same shape the replay theatre plays.
-
 import { buildTimeline } from '../replay/timeline.js';
 import { handName } from './handName.js';
 import { UNCONTESTED } from '../../lib/handResult.js';
 
-export const MARK = 'agenticpoker.app';
+import { shareAmount } from '../../../../src/shared/shareAmount.js';
+import { storedIdentity } from '../../lib/identity.js';
+export const MARK = 'RAILBIRD';
 
 // The mood palette, from MoodGhost. The ghost owns the face; the card uses the
 // same colour for the aura behind it and for his line.
@@ -56,10 +41,7 @@ export function talkLine(hand) {
 }
 
 /** −$1,840 / +$3,694. A true minus sign, as everywhere else in the app. */
-export function formatAmount(pot, won) {
-  const n = Number.isFinite(pot) ? Math.abs(pot) : 0;
-  return `${won ? '+' : '−'}$${n.toLocaleString('en-US')}`;
-}
+export function formatAmount(net) { return shareAmount({net}); }
 
 /** Only the cards that are actually readable — a card back is not shareable. */
 function knownCards(cards) {
@@ -90,7 +72,7 @@ export function buildShareModel(hand, { agentName, mood, heat } = {}) {
   // BIRTH-4: the poster carries his tier too, so the shared face is the face
   // that was on the felt. The PNG serializes this same node, so both agree.
   const heatValue = Number.isFinite(heat) ? Math.max(0, Math.min(100, heat)) : 45;
-  const amount = formatAmount(timeline.pot, timeline.won);
+  const amount = shareAmount(hand);
   // Two hole cards and three board cards are the least that names a hand. Show
   // his hand, not the board's — so the name is only offered when his own cards
   // are in it, which is exactly when the API let us see them.
@@ -115,6 +97,8 @@ export function buildShareModel(hand, { agentName, mood, heat } = {}) {
     name: (typeof agentName === 'string' && agentName.trim())
       || (typeof hand?.agentName === 'string' && hand.agentName.trim())
       || 'Your agent',
+    identity: storedIdentity(hand),
+    nature: typeof hand?.nature === 'string' ? hand.nature : null,
     mood: moodKey,
     moodColor: MOOD_COLOR[moodKey],
     heat: heatValue,
@@ -125,7 +109,7 @@ export function buildShareModel(hand, { agentName, mood, heat } = {}) {
     amount,
     hand: handWord,
     result: handWord ? `${amount} · ${handWord}` : amount,
-    resultColor: timeline.won ? WON_COLOR : LOST_COLOR,
+    resultColor: Number.isFinite(hand?.net) ? (hand.net > 0 ? WON_COLOR : hand.net < 0 ? LOST_COLOR : '#EDEDED') : '#CDB380',
     talk: talkLine(hand),
     stamp: timeline.handNumber != null ? `HAND #${timeline.handNumber}` : null,
     mark: MARK,
@@ -149,5 +133,5 @@ export function shareCaption(model) {
 export function shareFilename(model) {
   const slug = model.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent';
   const hand = model.stamp ? `-${model.stamp.replace(/[^0-9]/g, '')}` : '';
-  return `agenticpoker-${slug}${hand}.png`;
+  return `railbird-${slug}${hand}.png`;
 }

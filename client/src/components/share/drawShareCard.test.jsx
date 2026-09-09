@@ -25,6 +25,7 @@ function recordingCtx() {
     fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
     font: '', textAlign: '', textBaseline: '',
     createRadialGradient: () => ({ stops: [], addColorStop() {} }),
+    createLinearGradient: () => ({addColorStop(){}}), translate(){}, rotate(){},
     fillRect: (...a) => rects.push(a),
     beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, arcTo() {},
     ellipse() {}, arc() {}, fill() {}, stroke() {}, save() {}, restore() {}, scale() {},
@@ -65,84 +66,23 @@ describe('trackedWidth', () => {
   });
 });
 
-describe('drawShareCard', () => {
-  it('paints everything the card promises', () => {
-    const { ctx, text } = recordingCtx();
-    drawShareCard(ctx, model);
-    const all = painted(text);
-
-    expect(all).toContain('Aggressive v1.3');   // his name
-    expect(all).toContain('BAD BEAT');          // the flag, drawn letter by letter
-    expect(all).toContain('−$1,840');           // what it cost
-    expect(all).toContain('· pair of aces');    // what he held
-    expect(all).toContain('He got there.');     // his own line
-    expect(all).toContain('AGENTICPOKER.APP');  // the mark
-    expect(all).toContain('HAND #37');          // the stamp, tracked
-  });
-
-  it('paints his two cards and the board', () => {
-    const { ctx, text } = recordingCtx();
-    drawShareCard(ctx, model);
-    // Aces, then 2s 7h Kd 4c 9s — seven cards, seven ranks and seven suits.
-    // Card faces are the only thing set in Arial — the tracked labels spell out
-    // single letters too, and 'A' from AGENTICPOKER is not an ace.
-    const faces = text.filter((t) => t.font.includes('Arial'));
-    expect(faces.filter((t) => /^(10|[2-9]|[AKQJ])$/.test(t.text)).map((t) => t.text))
-      .toEqual(['A', 'A', '2', '7', 'K', '4', '9']);
-    expect(faces.filter((t) => '♠♥♦♣'.includes(t.text)).map((t) => t.text))
-      .toEqual(['♥', '♦', '♠', '♥', '♦', '♣', '♠']);
-  });
-
-  it('colours the amount by whether he won it', () => {
-    const { ctx, text } = recordingCtx();
-    drawShareCard(ctx, model);
-    expect(text.find((t) => t.text === '−$1,840').color).toBe('#FF4D4F');
-
-    const wonModel = buildShareModel({ ...badBeatHand, won: true }, { agentName: 'A' });
-    const second = recordingCtx();
-    drawShareCard(second.ctx, wonModel);
-    expect(second.text.find((t) => t.text === '+$1,840').color).toBe('#00D4AA');
-  });
-
-  it('quotes his line in his mood, and says nothing when he said nothing', () => {
-    const { ctx, text } = recordingCtx();
-    drawShareCard(ctx, model);
-    const quote = text.find((t) => t.text.includes('He got there'));
-    expect(quote.color).toBe('#FF4D4F'); // tilted
-    expect(quote.font).toContain('italic');
-
-    const quiet = buildShareModel(
-      { ...badBeatHand, streets: [{ street: 'flop', board: ['2s', '7h', 'Kd'], action: 'bet 10' }] },
-      { agentName: 'A' },
-    );
-    const second = recordingCtx();
-    drawShareCard(second.ctx, quiet);
-    expect(painted(second.text)).not.toContain('He got there');
-  });
-
-  it('draws his face when there is one, and exports without it when there is not', () => {
-    const withGhost = recordingCtx();
-    drawShareCard(withGhost.ctx, model, { ghost: { nodeName: 'IMG' } });
-    expect(withGhost.images).toHaveLength(1);
-    expect(withGhost.images[0].slice(3)).toEqual([76, 76]);
-
-    const without = recordingCtx();
-    drawShareCard(without.ctx, model);
-    expect(without.images).toHaveLength(0);
-    expect(painted(without.text)).toContain('−$1,840');
-  });
-
-  it('fits a long result line by shrinking it, not by clipping it', () => {
-    const long = { ...model, hand: 'a hand with an unreasonably long name indeed', result: `${model.amount} · a hand with an unreasonably long name indeed` };
-    const { ctx, text } = recordingCtx();
-    drawShareCard(ctx, long);
-    const line = text.find((t) => t.text.includes('unreasonably'));
-    const size = Number(/\s(\d+)px/.exec(line.font)[1]);
-    expect(size).toBeLessThan(24);
-    expect(size).toBeGreaterThanOrEqual(14); // never smaller than legible
-    // Shrunk, never clipped: the whole line is still drawn.
-    expect(painted(text)).toContain('unreasonably long name indeed');
-  });
+describe('drawShareCard S1/S2',()=>{
+ it.each(['story','preview'])('paints real facts and the reserved footer in %s',format=>{
+  const {ctx,text,images}=recordingCtx();drawShareCard(ctx,model,{format,ghost:{}});
+  expect(painted(text)).toContain('AGGRESSIVE V1.3');expect(painted(text)).toContain('$1,840 pot');
+  expect(painted(text)).toContain('pair of aces');expect(painted(text)).toContain('RAILBIRD');
+  expect(painted(text)).toContain('He got there.');expect(images).toHaveLength(1);
+  const suits=text.filter(t=>t.text==='♠');expect(suits).toHaveLength(2);
+  expect(text.some(t=>['A','K','Q'].includes(t.text)&&t.font.includes('Arial'))).toBe(false);
+ });
+ it('colours the recorded net rather than inferring from a won flag',()=>{
+  const {ctx,text}=recordingCtx();drawShareCard(ctx,buildShareModel({...badBeatHand,won:true,net:-120}));
+  expect(text.find(t=>t.text==='−$120').color).toBe('#FF4D4F');
+ });
+ it('does not invent a quote or a character when neither is available',()=>{
+  const {ctx,text,images}=recordingCtx();drawShareCard(ctx,buildShareModel({pot:100,streets:[]}));
+  expect(images).toHaveLength(0);expect(painted(text)).not.toContain('“');
+ });
 });
 
 describe('svgNodeToImage', () => {
@@ -198,13 +138,15 @@ describe('renderSharePng', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob')
       .mockImplementation(function toBlob(cb) { cb({ type: 'image/png', size: 1, canvas: this }); });
 
-    const png = await renderSharePng(model, { size: 1080 });
+    const png = await renderSharePng(model, { format: 'story' });
 
     expect(png).toMatchObject({ type: 'image/png' });
     expect(png.canvas.width).toBe(1080);
-    expect(png.canvas.height).toBe(1080);
+    expect(png.canvas.height).toBe(1920);
     // One scale, at the top: everything below draws in 360-unit space.
-    expect(scaled).toEqual([[3, 3]]);
+    expect(scaled).toEqual([]); // Native export coordinates are also used by the preview.
+    const wide = await renderSharePng(model, {format: 'preview'});
+    expect([wide.canvas.width,wide.canvas.height]).toEqual([1200,630]);
   });
 
   it('gives back nothing, rather than throwing, where there is no canvas', async () => {
@@ -220,4 +162,10 @@ describe('renderSharePng', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) => cb(null));
     await expect(renderSharePng(model)).resolves.toBeNull();
   });
+});
+
+it('BUG-116: long unbroken quote words fit the card and are visibly truncated',()=>{
+ const {ctx}=recordingCtx();const lines=wrapText(ctx,'a'.repeat(300),60,2);
+ expect(lines).toHaveLength(2);expect(lines[1].endsWith('…')).toBe(true);
+ for(const line of lines)expect(ctx.measureText(line).width).toBeLessThanOrEqual(60);
 });

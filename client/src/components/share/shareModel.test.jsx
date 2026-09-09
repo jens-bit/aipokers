@@ -15,11 +15,11 @@ const model = (hand, who = { agentName: 'Aggressive v1.3', mood: 'tilted' }) =>
   buildShareModel(hand, who);
 
 describe('formatAmount', () => {
-  it('signs the pot and groups the thousands', () => {
+  it('signs only a recorded net and groups the thousands', () => {
     expect(formatAmount(3694, true)).toBe('+$3,694');
-    expect(formatAmount(1840, false)).toBe('−$1,840');
-    expect(formatAmount(0, true)).toBe('+$0');
-    expect(formatAmount(undefined, false)).toBe('−$0');
+    expect(formatAmount(-1840)).toBe('−$1,840');
+    expect(formatAmount(0, true)).toBe('$0');
+    expect(formatAmount(undefined, false)).toBe('Result unavailable');
   });
 });
 
@@ -63,15 +63,15 @@ describe('buildShareModel', () => {
   });
 
   it('reads the result line the way the ref writes it', () => {
-    // −$1,840 with aces on a nine-high river: a pair, and it lost.
-    expect(model(badBeatHand).result).toBe('−$1,840 · pair of aces');
-    expect(model(badBeatHand).amount).toBe('−$1,840');
+    // $1,840 pot with aces on a nine-high river: a pair, and it lost.
+    expect(model(badBeatHand).result).toBe('$1,840 pot · pair of aces');
+    expect(model(badBeatHand).amount).toBe('$1,840 pot');
     expect(model(badBeatHand).hand).toBe('pair of aces');
-    expect(model(badBeatHand).resultColor).toBe('#FF4D4F');
+    expect(model(badBeatHand).resultColor).toBe('#CDB380');
 
     const won = model(bigBluffHand);
-    expect(won.result).toBe('+$620 · ace-high');
-    expect(won.resultColor).toBe('#00D4AA');
+    expect(won.result).toBe('$620 pot · ace-high');
+    expect(won.resultColor).toBe('#CDB380');
     expect(won.won).toBe(true);
   });
 
@@ -80,7 +80,7 @@ describe('buildShareModel', () => {
     const hidden = model({ ...badBeatHand, holeCards: [] });
     expect(hidden.holeCards).toEqual([]);
     expect(hidden.hand).toBeNull();
-    expect(hidden.result).toBe('−$1,840');
+    expect(hidden.result).toBe('$1,840 pot');
 
     // Folded preflop: two cards, no board.
     const preflop = model({
@@ -105,7 +105,7 @@ describe('buildShareModel', () => {
 
   it('carries the mark and nothing that asks for a signup', () => {
     const m = model(badBeatHand);
-    expect(m.mark).toBe('agenticpoker.app');
+    expect(m.mark).toBe('RAILBIRD');
     const flat = JSON.stringify(m).toLowerCase();
     for (const ad of ['invite', 'referral', 'sign up', 'signup', 'download', 'join']) {
       expect(flat).not.toContain(ad);
@@ -117,7 +117,7 @@ describe('the words that travel with it', () => {
   it('captions with his line, then who and what it cost, then the mark', () => {
     expect(shareCaption(model(badBeatHand))).toBe(
       '“He got there. I called anyway and I should not have.”\n'
-      + 'Aggressive v1.3 · −$1,840 · pair of aces\n'
+      + 'Aggressive v1.3 · $1,840 pot · pair of aces\n'
       + MARK,
     );
   });
@@ -128,7 +128,7 @@ describe('the words that travel with it', () => {
   });
 
   it('names the file so it is recognisable in a downloads folder', () => {
-    expect(shareFilename(model(badBeatHand))).toBe('agenticpoker-aggressive-v1-3-37.png');
-    expect(shareFilename(model({ ...badBeatHand, handNumber: null }))).toBe('agenticpoker-aggressive-v1-3.png');
+    expect(shareFilename(model(badBeatHand))).toBe('railbird-aggressive-v1-3-37.png');
+    expect(shareFilename(model({ ...badBeatHand, handNumber: null }))).toBe('railbird-aggressive-v1-3.png');
   });
 });

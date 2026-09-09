@@ -52,7 +52,7 @@ describe('shareHand — the picture itself', () => {
 
     expect(via).toBe('web-share');
     const [{ files, text }] = nav.share.mock.calls[0];
-    expect(files[0].name).toBe('agenticpoker-aggressive-v1-3-37.png');
+    expect(files[0].name).toBe('railbird-aggressive-v1-3-37.png');
     expect(files[0].type).toBe('image/png');
     expect(text).toBe(shareCaption(model));
   });
@@ -113,7 +113,7 @@ describe('shareHand — desktop, where Telegram share is unavailable', () => {
 
     expect(via).toBe('download');
     expect(fetchMock.posts).toHaveLength(0);
-    expect(clicked).toEqual([{ download: 'agenticpoker-aggressive-v1-3-37.png', href: 'blob:card' }]);
+    expect(clicked).toEqual([{ download: 'railbird-aggressive-v1-3-37.png', href: 'blob:card' }]);
     await vi.waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:card'));
     expect(nav.clipboard.writeText).toHaveBeenCalledWith(shareCaption(model));
   });

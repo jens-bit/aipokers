@@ -34,6 +34,7 @@
 //      PNG, and the newest KEEP_SHARES cards on disk — older ones are deleted
 //      when a new one lands. Nothing here may be the thing that fills the VPS.
 
+import { shareAmount } from '../shared/shareAmount.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,7 +50,7 @@ import { telegramAuthMiddleware, isOwner } from './auth.js';
 // park files on the box.
 export const SHARE_LIMIT = { max: 5, windowMs: 60 * 60 * 1000 };
 
-// The card exports at 1080x1080; a PNG of it is a few hundred KB. 8 MB is
+// Cards export at 1080×1920 or 1200×630; a PNG of it is a few hundred KB. 8 MB is
 // generous enough that a future higher-resolution card still fits and small
 // enough that it is not a place to store something else.
 export const MAX_PNG_BYTES = 8 * 1024 * 1024;
@@ -60,9 +61,8 @@ export const SHARE_BODY_LIMIT = '12mb';   // base64 inflates by 4/3, plus JSON
 // is not one anyone is still typing the bot's name to find.
 export const KEEP_SHARES = 200;
 
-export const MARK = 'agenticpoker.app';
+export const MARK = 'RAILBIRD';
 
-const MINI_APP_URL = process.env.MINI_APP_URL || 'https://t.me/AigenicPokerBot/game';
 
 // Telegram fetches the photo itself, so the URL has to be reachable from the
 // public internet — a relative path or localhost is useless to it.
@@ -149,7 +149,6 @@ export function _resetShares() {
 // his line, then who and what it cost, then the mark. Nothing is composed — if
 // he said nothing in the hand, the caption says nothing for him.
 
-const money = (n) => `$${Math.abs(Math.round(Number(n) || 0)).toLocaleString('en-US')}`;
 
 /** The last thing he actually said in the hand, or null. */
 export function talkLine(hand) {
@@ -189,7 +188,7 @@ export function handDescription(hand) {
 }
 
 export function shareCaption(hand, agentName) {
-  const amount = `${hand?.won ? '+' : '−'}${money(hand?.pot)}`;
+  const amount = shareAmount(hand);
   const named = handDescription(hand);
   const talk = talkLine(hand);
 
@@ -210,7 +209,10 @@ export function shareImageUrl(id) {
 
 // The tap has to land on the hand the card is about, not the home screen.
 export function shareOpenUrl({ agentId, handId }) {
-  return `${MINI_APP_URL}?startapp=hand_${agentId}_${handId}`;
+  const bot = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
+  const url = new URL(process.env.MINI_APP_URL || (bot ? 'https://t.me/' + bot : publicBaseUrl()));
+  url.searchParams.set('startapp', 'hand_' + agentId + '_' + handId);
+  return url.toString();
 }
 
 /** The InlineQueryResultPhoto both routes hand to Telegram. */
@@ -221,8 +223,8 @@ export function photoResult(record) {
     id: record.id,
     photo_url: url,
     thumbnail_url: url,
-    photo_width: 1080,
-    photo_height: 1080,
+    photo_width: record.width ?? 1080,
+    photo_height: record.height ?? 1080,
     caption: record.caption,
     reply_markup: { inline_keyboard: [[{ text: 'Open', url: shareOpenUrl(record) }]] },
   };
@@ -339,7 +341,7 @@ export function _resetShareRate() { shareHits.clear(); }
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**
- * base64 (with or without a data: prefix) to a verified PNG buffer.
+ * base64 (with or without a data: prefix) to a PNG-signature/IHDR-checked buffer.
  * @returns {{ png: Buffer } | { error: string }}
  */
 export function decodePng(raw) {
@@ -352,9 +354,13 @@ export function decodePng(raw) {
   const png = Buffer.from(body, 'base64');
   if (png.length === 0) return { error: 'png is not valid base64' };
   if (png.length > MAX_PNG_BYTES) return { error: 'png too large' };
-  // The bytes are hosted publicly and fetched by Telegram. Only a real PNG.
+  // Reject a different file type before inspecting its PNG header.
   if (!png.subarray(0, 8).equals(PNG_MAGIC)) return { error: 'png is not a PNG' };
-  return { png };
+  // Inspect IHDR for dimensions; this is a bounded header check, not a full image decoder.
+  if (png.length < 33 || png.readUInt32BE(8) !== 13 || png.toString('ascii',12,16) !== 'IHDR') return { error: 'png has no valid IHDR' };
+  const width=png.readUInt32BE(16), height=png.readUInt32BE(20);
+  if (!width || !height || width>4096 || height>4096) return {error:'png dimensions out of range'};
+  return { png, width, height };
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────────
@@ -409,6 +415,8 @@ export function installShareRoutes(app, { bot = defaultShareBot(), now = () => D
       ownerId: userId,
       agentId,
       handId,
+      width: decoded.width,
+      height: decoded.height,
       caption: shareCaption(found.hand, found.agentName),
       createdAt: now(),
     };

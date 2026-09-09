@@ -19,7 +19,7 @@ const renderButton = (props = {}) => render(
 function installCanvas() {
   const ctx = new Proxy({}, {
     get: (target, key) => {
-      if (key === 'createRadialGradient') return () => ({ addColorStop() {} });
+      if (key === 'createRadialGradient' || key === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (key === 'measureText') return (t) => ({ width: String(t).length * 6 });
       if (key in target) return target[key];
       return () => {};
@@ -67,10 +67,8 @@ describe('ShareButton', () => {
     await user.click(screen.getByRole('button', { name: 'Share this hand' }));
 
     const sheet = screen.getByRole('dialog', { name: 'Share this hand' });
-    expect(within(sheet).getByText('Aggressive v1.3')).toBeInTheDocument();
-    expect(within(sheet).getByText('−$1,840')).toBeInTheDocument();
-    expect(within(sheet).getByText('agenticpoker.app')).toBeInTheDocument();
-    expect(within(sheet).getByText('Exports at 1080×1080.')).toBeInTheDocument();
+    expect(within(sheet).getByRole('img')).toHaveAccessibleName(/Aggressive v1.3.*\$1,840 pot.*RAILBIRD/);
+    expect(within(sheet).getByText('Exports at 1080×1920.')).toBeInTheDocument();
   });
 
   it('renders nothing at all without a hand to share', () => {
@@ -97,7 +95,7 @@ describe('ShareButton', () => {
 
     await waitFor(() => expect(share).toHaveBeenCalled());
     const [{ files }] = share.mock.calls[0];
-    expect(files[0].name).toBe('agenticpoker-aggressive-v1-3-37.png');
+    expect(files[0].name).toBe('railbird-aggressive-v1-3-37.png');
     expect(await screen.findByText('Shared.')).toBeInTheDocument();
   });
 
@@ -113,7 +111,7 @@ describe('ShareButton', () => {
     await user.click(screen.getByRole('button', { name: 'Save image' }));
 
     expect(await screen.findByText(/Saved to your downloads/)).toBeInTheDocument();
-    expect(clicked).toEqual(['agenticpoker-aggressive-v1-3-37.png']);
+    expect(clicked).toEqual(['railbird-aggressive-v1-3-37.png']);
     expect(switchInlineQuery).not.toHaveBeenCalled();
     expect(share).not.toHaveBeenCalled();
     delete telegram.webApp.switchInlineQuery;

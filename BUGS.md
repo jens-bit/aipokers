@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-114 — a shared hand labels the whole pot as personal winnings/losses — FIXED on design branch
+Red model checks reproduced both a falsely signed legacy pot and a split winner's net loss being shown as profit. Future flagged hands now store final stack minus the pre-blind starting stack; legacy records say "$… pot". Server captions and image models share the same amount function. Only validated hood/glow IDs accompany new records; owner/public filtering remains intact.
+
+### BUG-115 — share output is square and retains old brand/bot defaults — FIXED on design branch
+S1/S2 now use one painter for the 1080×1920 story and 1200×630 preview/export, Railbird stamp/filenames and a reserved card-back footer. IHDR dimensions reach Telegram photo metadata. Open uses the configured app URL or bot username. The default public serving domain is preserved until deployment configuration establishes its replacement; no account/domain change is claimed. Actual browser downloads match preview pixels at both phone heights. No external message was sent.
+
+### BUG-116 — one long word can escape the share card — FIXED on design branch
+The old word-only wrapper returned one 300-character line beyond the quote width. A red boundary check now passes with bounded character splitting and a visible ellipsis, including the final line. Long tracked names use their actual letter spacing when wrapped.
+
 ### BUG-112 — sound hooks report playback but the audio layer is a stub — FIXED on design branch
 The red check received a heavy-hit descriptor before any audio device existed. Playback now requires an unlocked running context and schedules actual original buffers; muted/hidden/unavailable output returns null. C8 timing, bounded waveforms, buffer reuse and cancellation pass unit checks; real Chrome plays the watched win once and respects the actual mute button. Full 106/2225/7 gate and built smoke/Home2 pass.
 
@@ -62,6 +71,10 @@ The desktop hook appended the user line before POST and kept it after a refused 
 
 ### BUG-94 — Windows test child exits without a JavaScript assertion — OPEN, not reproduced in isolation
 During recovery of the interrupted overnight gate, src/server/share.test.js exited 3221226505 after about 540ms with no child output. The same suite immediately passed alone through runScript with isolateCwd:true. An earlier client verification ended with Tinypool onUnexpectedExit around 04:56; its companion browser run stopped mid-suite. No matching verifier processes remained when inspected at 08:53. Cause is unproven; do not label this a product assertion failure or claim continuous overnight execution. Evidence: artifacts/batch17-recovered-test-all.log and batch17-share-isolated.log; the complete recovered gate is recorded separately. No test is skipped or weakened for this failure.
+
+Batch31 main integration repeated this native exit in agentLifecycle.test.js (3221226505, empty child output, about 690ms). Three isolated runScript executions passed all 15 lifecycle checks; a read-only Application event query found no matching node.exe crash record. The complete main31 recheck passed 106 server / 2225 client / 7 e2e. These measurements do not establish the native failure cause. Evidence: artifacts/batch31-main-test-all.log, batch31-lifecycle-diagnostic.log, batch31-main-test-all-rechecked.log.
+
+
 
 
 ### BUG-92 — draft repeats the casino sign and covers its destination — FIXED on overnight branch

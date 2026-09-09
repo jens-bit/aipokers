@@ -1,3 +1,4 @@
+import { storedIdentity } from '../shared/identity.js';
 // src/server/flaggedHands.js — FLAG-1
 // Classifies completed hands into notable types for the floor's hand-review
 // sheet. Pure functions only; side-effect-free — callers in table.js handle
@@ -117,7 +118,7 @@ export function classifyHand({ won, resultType, decisions, pot, sessionBiggestPo
 //                             which means the identity has to be stored with the
 //                             hand rather than looked up afterwards at a table
 //                             that may no longer exist.
-export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, opponentShowdownCards = [], attrCosts = [], opponents = [] }) {
+export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCards, won, net = null, identity = null, opponentShowdownCards = [], attrCosts = [], opponents = [] }) {
   const streets = (decisions ?? []).map((d) => ({
     street:    d.street    ?? 'preflop',
     board:     Array.isArray(d.community) ? [...d.community] : [],
@@ -147,6 +148,8 @@ export function buildFlaggedEntry({ flagType, decisions, handNumber, pot, holeCa
         }))
       : [],
     won:        !!won,
+    net: Number.isFinite(net) ? net : null,
+    identity: (() => { const i = storedIdentity({identity}); return i ? {hood:i.hood.id,glow:i.glow.id} : null; })(),
     opponents:  Array.isArray(opponents)
       ? opponents
           .filter((o) => o && o.playerId != null)

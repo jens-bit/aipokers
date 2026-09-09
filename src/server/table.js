@@ -3260,6 +3260,9 @@ export class Table {
         flagType,
         decisions,
         handNumber: this.game.handNumber,
+        net: Number.isFinite(this.currentHandStartStacks[seat]) && Number.isFinite(this.game.seats[seat]?.stack)
+          ? this.game.seats[seat].stack - this.currentHandStartStacks[seat] : null,
+        identity: this._seatIdentity(seat),
         pot,
         holeCards,
         won,

@@ -30,6 +30,7 @@ import {
   installShareRoutes,
   handleInlineQuery,
   shareCaption,
+  shareOpenUrl,
   handDescription,
   decodePng,
   parseHandId,
@@ -203,8 +204,8 @@ test('the caption is built from the stored hand, and the request cannot touch it
     const { caption } = bot.saved[0].result;
     assert.equal(caption, [
       '“He does not have it. He never has it.”',
-      'Aggressive v1.3 · −$3,694 · A High',
-      'agenticpoker.app',
+      'Aggressive v1.3 · $3,694 pot · A High',
+      'RAILBIRD',
     ].join('\n'));
     assert.doesNotMatch(caption, /evil\.example|Telegram Support/);
   });
@@ -225,16 +226,16 @@ test('shareCaption reads his last words, the pot, and the hand he held', () => {
   };
   assert.equal(handDescription(paired), 'Pair, A\'s');
   assert.equal(handDescription({ ...paired, streets: paired.streets.slice(0, 1) }), 'A High');
-  assert.match(shareCaption(bigBluff, 'Aggressive v1.3'), /^“Nobody calls here\.”\nAggressive v1\.3 · \+\$880 · /);
+  assert.match(shareCaption(bigBluff, 'Aggressive v1.3'), /^“Nobody calls here\.”\nAggressive v1\.3 · \$880 pot · /);
 
   // Nothing is composed. He said nothing, so the card says nothing for him.
   const silent = { ...badBeat, streets: badBeat.streets.map((s) => ({ ...s, reasoning: null })) };
-  assert.equal(shareCaption(silent, 'Aggressive v1.3'), 'Aggressive v1.3 · −$3,694 · A High\nagenticpoker.app');
+  assert.equal(shareCaption(silent, 'Aggressive v1.3'), 'Aggressive v1.3 · $3,694 pot · A High\nRAILBIRD');
 
   // And an unnameable hand loses the name rather than the caption.
   assert.equal(handDescription({ ...badBeat, holeCards: [] }), null);
   assert.equal(shareCaption({ ...badBeat, holeCards: [] }, 'Aggressive v1.3'),
-    '“He does not have it. He never has it.”\nAggressive v1.3 · −$3,694\nagenticpoker.app');
+    '“He does not have it. He never has it.”\nAggressive v1.3 · $3,694 pot\nRAILBIRD');
 });
 
 // ── 3. Who may prepare what ──────────────────────────────────────────────────
@@ -535,4 +536,27 @@ test('GUEST-1: a message handler that throws does not stop the share cards', asy
   // It kept polling. A handler that can take this loop down is a handler that
   // can take inline sharing down with it, for somebody who never tapped a link.
   assert.ok(polls >= 3, `only polled ${polls} times`);
+});
+
+// BUG-114/115: signed amounts need accounting; format comes from uploaded PNG bytes.
+test('net captions handle split winners and old records honestly',()=>{
+ assert.match(shareCaption({...badBeat,won:true,net:-120},'Granite'),/−\$120/);
+ assert.match(shareCaption({...badBeat,net:0},'Granite'),/\$0/);
+ assert.match(shareCaption(badBeat,'Granite'),/\$3,694 pot/);
+});
+test('PNG dimensions are read from IHDR and retained for the bot',async()=>{
+ const decoded=decodePng(PNG_B64);assert.equal(decoded.width,1);assert.equal(decoded.height,1);
+ await withServer(async({prepare,bot})=>{await prepare(body());assert.equal(bot.saved[0].result.photo_width,1);assert.equal(bot.saved[0].result.photo_height,1);});
+ const short=Buffer.from(PNG_B64,'base64').subarray(0,20);assert.ok(decodePng(short.toString('base64')).error);
+ const huge=Buffer.from(PNG_B64,'base64');huge.writeUInt32BE(99999,16);assert.ok(decodePng(huge.toString('base64')).error);
+ assert.equal(photoResult({id:'x',width:1200,height:630}).photo_height,630);
+});
+
+test('Open targets the configured bot or app URL, never a hardcoded former bot',()=>{
+ const previous=process.env.TELEGRAM_BOT_USERNAME, previousUrl=process.env.MINI_APP_URL;
+ try {process.env.TELEGRAM_BOT_USERNAME='@configured_bot';delete process.env.MINI_APP_URL;
+  assert.equal(shareOpenUrl({agentId:'a',handId:1}),'https://t.me/configured_bot?startapp=hand_a_1');
+  process.env.MINI_APP_URL='https://t.me/configured_bot/play?theme=dark';
+  const url=new URL(shareOpenUrl({agentId:'a',handId:1}));assert.equal(url.pathname,'/configured_bot/play');assert.equal(url.searchParams.get('theme'),'dark');assert.equal(url.searchParams.get('startapp'),'hand_a_1');
+ }finally{if(previous===undefined)delete process.env.TELEGRAM_BOT_USERNAME;else process.env.TELEGRAM_BOT_USERNAME=previous;if(previousUrl===undefined)delete process.env.MINI_APP_URL;else process.env.MINI_APP_URL=previousUrl;}
 });

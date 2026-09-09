@@ -244,7 +244,7 @@ describe('WATCH-10 job 3 · the result line names the hand wherever it is said',
       streets: [{ street: 'river', board: ['2h', '7h', 'Th', '3c', '8d'] }],
     }, { agentName: 'Granite' });
     expect(model.hand).toBe('ace-high flush');
-    expect(model.result).toBe('+$3,694 · ace-high flush');
+    expect(model.result).toBe('$3,694 pot · ace-high flush');
   });
 
   it('says uncontested on the share card rather than nothing at all', () => {
@@ -260,7 +260,7 @@ describe('WATCH-10 job 3 · the result line names the hand wherever it is said',
       streets: [{ street: 'preflop', board: [] }],
     }, { agentName: 'Granite' });
     expect(model.hand).toBe(UNCONTESTED);
-    expect(model.result).toBe('+$240 · uncontested');
+    expect(model.result).toBe('$240 pot · uncontested');
   });
 
   it('a hand he lost never claims nobody called it', () => {
@@ -276,7 +276,7 @@ describe('WATCH-10 job 3 · the result line names the hand wherever it is said',
     // that is unchanged. What must never happen is a LOST hand calling itself
     // uncontested: he did not take a pot nobody called, he folded.
     expect(model.hand).not.toBe(UNCONTESTED);
-    expect(model.result).toContain('−$180');
+    expect(model.result).toContain('$180 pot');
   });
 });
 
