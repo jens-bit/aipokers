@@ -23,6 +23,9 @@
 import { presenceMiddleware } from './presence.js';
 import { adminGuard } from './key.js';
 import { adminStats } from './stats.js';
+import {
+  ownerRows, recentBirths, OWNER_SORTS, OWNER_ROWS_DEFINITION, RECENT_BIRTHS_DEFINITION,
+} from './owners.js';
 
 export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
   // Mounted before the routes below it, so that everything an owner's client
@@ -39,5 +42,26 @@ export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
   // 6-a-minute window on top of the /api limiter src/index.js already applies.
   app.get('/api/admin/stats', adminGuard(), (_req, res) => {
     res.json(adminStats({ now: now() }));
+  });
+
+  // GET /api/admin/owners?sort=&limit= — a row per owner, sortable by any
+  // column. The id is masked to its last four characters in the query result,
+  // so no version of this response carries a whole one.
+  app.get('/api/admin/owners', adminGuard(), (req, res) => {
+    const sort = String(req.query.sort ?? 'lastSeen');
+    res.json({
+      sort: sort in OWNER_SORTS ? sort : 'lastSeen',
+      sorts: Object.keys(OWNER_SORTS),
+      definition: OWNER_ROWS_DEFINITION,
+      rows: ownerRows({ sort, limit: req.query.limit, now: now() }),
+    });
+  });
+
+  // GET /api/admin/agents/recent — the last 50 births.
+  app.get('/api/admin/agents/recent', adminGuard(), (req, res) => {
+    res.json({
+      definition: RECENT_BIRTHS_DEFINITION,
+      rows: recentBirths({ limit: req.query.limit }),
+    });
   });
 }
