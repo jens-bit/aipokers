@@ -50,7 +50,7 @@ import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { activityKeys } from '../components/system/RailMotion.jsx';
 import { RoomHeader } from '../components/Header.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
-import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
+import { HomeGameTable, TableChairs, useHomeTable, homeBoardFor } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble, CarryTargets } from '../components/home/atoms.jsx';
 import { useRoomBubbles } from '../components/home/roomBubbles.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
@@ -656,7 +656,7 @@ export function HomeScreen({
     : [casinoCount ? `${casinoCount} at the casino` : null, visitingCount ? `${visitingCount} visiting` : null, `${home.length} home`].filter(Boolean).join(' · ');
   const rosterLiveCount = loaded && roomConnection !== 'reconnecting'
     ? agents.filter(a => !a.guest && (!a.homeTableId || a.visiting) && a.liveGame?.tableId).length : undefined;
-  const board = homeTable?.game?.community ?? [];
+  const board = homeBoardFor(homeTable, game?.state === 'running' ? game.tableId : null);
   // P16: a fixture panel dims the room instead of covering it — on the desk you
   // never lose sight of where the money is.
   const dimmed = desktop && rail !== 'thread' && rail !== 'agent' && rail !== 'draft';
@@ -835,6 +835,7 @@ export function HomeScreen({
             home,
             away,
             game,
+            liveHomeTable: homeTable,
             focus,
             wanting,
             refresh,
@@ -904,6 +905,9 @@ export function HomeScreen({
         <MobileTableSheet
           seated={game?.state === 'running' ? (game.seats ?? []).filter(Boolean).length : 0}
           maxSeats={game?.state === 'running' ? game.maxSeats : null}
+          game={game}
+          liveTable={homeTable}
+          agents={agents}
           onClose={() => setTableOpen(false)}
           onDraft={onCreateAgent ? () => { setTableOpen(false); onCreateAgent(); } : undefined}
           // SIT-1 · only when there is a game to sit down at. A kitchen table
@@ -963,17 +967,17 @@ function MobileSafeSheet({ agents, onClose, onMoved, onOpenProfile }) {
  * paid when the sheet is opened, not on every mount of a screen most owners
  * never open it from.
  */
-function MobileTableSheet({ seated = 0, maxSeats = null, onClose, onDraft, onSit, onWatch }) {
+function MobileTableSheet({ seated = 0, maxSeats = null, game, liveTable, agents, onClose, onDraft, onSit, onWatch }) {
   const { slots } = useSlots();
   return (
     <div className="home-sheet" role="dialog" aria-label="The table" data-testid="home-table-sheet-mobile">
       <button type="button" className="home-sheet__scrim" onClick={onClose} aria-label="Close" />
-      <div className="home-sheet__panel">
+      <div className="home-sheet__panel home-sheet__panel--table">
         <div className="home-sheet__head">
           <span className="home-sheet__title">The table</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
+        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} game={game} liveTable={liveTable} agents={agents} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
       </div>
     </div>
   );

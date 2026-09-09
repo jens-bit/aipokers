@@ -36,6 +36,8 @@ Pairs belong at the exact named path: reference left, current actual right, same
 
 ## Latest inspected partial evidence
 
+Batch46 Home table-sheet component: [phone pair](../artifacts/worktrees/home-table-preview/artifacts/preview-pair-390x844.png) and [desktop component comparison](../artifacts/worktrees/home-table-preview/artifacts/preview-pair-1440x900.png) were inspected by builder and reviewer. The92px live felt now shows staged public cards and saved occupants using the existing Home spectator; the phone width is358px. The supplemental title, portrait/card treatment, sheet placement and actual full roster differ. TableSheetM is exported in the current Home script graph but is not a separately mounted current board frame. The desktop comparison preserves a native phone reference beside1440×900 actual and does not certify a desktop board. These component checks do not change individual frame statuses.
+
 [Batch 45 draft notes](../artifacts/batch45-draft-client-notes.md) record functioning 1→2→3→4 at three sizes, neutral hood before colour, real name/identity and safe retries. Pairs retain responsive glass position, current Home table, compact header, real transcript and 16px fields. Stage 4 has the real-name caption but lacks the reference name/resource pill; draft stamina/heat are not invented. The card retains the 96px well correction and Home backdrop. The 24-S5 pair is evidence for 40e's card application, not proof of the entire first-run journey or the separately named 24-40e target.
 
 F12/F12b pairs include corrected typography/borders and removal of the extra title. **Room, actual data and external phone chrome still differ**; the actual ledger is honestly empty. These rows remain PARTIAL despite functional gates.

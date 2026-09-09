@@ -1487,20 +1487,42 @@ button.home-flat__table:active { filter: brightness(1.12); }
 /* ── THE TABLE (TableSheet) ─────────────────────────────────────────────── */
 
 .table-sheet { padding: 14px 16px 18px; }
+.home-sheet__panel--table { padding-left: 0; padding-right: 0; }
+.home-sheet__panel--table > .home-sheet__head { padding-left: 16px; padding-right: 16px; }
 
 .table-sheet__felt {
   position: relative;
-  height: 104px;
+  height: 92px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: radial-gradient(ellipse at 50% 42%, #2C3B36 0%, #1E2A27 66%, #17201E 100%);
+  overflow: hidden;
 }
-.table-sheet__felt-line {
+.table-sheet__section-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: #6B6B6B;
+  padding-bottom: 7px;
+}
+.table-sheet__board {
   position: absolute;
-  left: 11px;
-  bottom: 9px;
-  font-size: 11px;
-  color: #A1A1A1;
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+}
+.table-sheet__portrait {
+  position: absolute;
+  top: 64px;
+  transform: translate(-50%, -50%);
+}
+.table-sheet__seat-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 8px;
+  color: #CDB380;
 }
 
 .table-sheet__next {

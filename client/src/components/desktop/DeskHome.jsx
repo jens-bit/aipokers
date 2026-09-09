@@ -108,7 +108,7 @@ export function DeskHome({
       onPanel={onPanel}
       focusId={focusId}
       onFocusId={onFocusId}
-      renderRail={({ panel: open, openPanel, setFocus, agents, loaded, home, game: homeGame, focus, toast, refresh, carryAgent, roomTarget }) => {
+      renderRail={({ panel: open, openPanel, setFocus, agents, loaded, home, game: homeGame, liveHomeTable, focus, toast, refresh, carryAgent, roomTarget }) => {
         const backToRoom = () => openPanel('thread');
 
         if (open === 'draft' && draft) {
@@ -161,6 +161,7 @@ export function DeskHome({
               onClose={backToRoom}
             >
               <TableSheet slots={slots} seated={seated} maxSeats={homeGame?.state === 'running' ? homeGame.maxSeats : null} onDraft={onCreateAgent}
+                game={homeGame} liveTable={liveHomeTable} agents={agents}
                 onWatch={homeGame?.state === 'running' && homeGame.tableId && onWatchTable ? () => { backToRoom(); onWatchTable(homeGame.tableId); } : null}
                 onSit={homeGame?.state === 'running' && homeGame.tableId && onSitAtTable ? () => { backToRoom(); onSitAtTable(homeGame.tableId); } : null}
               />

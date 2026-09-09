@@ -27,6 +27,17 @@ import { useEffect } from 'react';
 import { PHONE_ROOM, tableSeats } from './flat.js';
 import { pillName } from '../../lib/names.js';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
+import { stagedCount } from '../../lib/pace.js';
+
+// BUG-144: terminal STATE can contain the full runout while PACE still holds
+// the flop. The room and its preview must reveal the same cards as Watch.
+export function homeBoardFor(table, tableId) {
+  if (!tableId || table?.config?.tableId !== tableId) return [];
+  const community = Array.isArray(table.game?.community) ? table.game.community : [];
+  const count = stagedCount(table.paceFrame || table.game?.paceFrame);
+  return community.slice(0, Math.min(5, count ?? 5))
+    .filter(card => typeof card === 'string' && /^[2-9TJQKA][shdc]$/.test(card));
+}
 
 /**
  * Keep a spectator socket pointed at the home table.

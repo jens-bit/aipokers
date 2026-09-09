@@ -1,6 +1,9 @@
 # Bug Report — Railbird
 Last updated: 2026-09-10 (Railbird design completion); statuses and evidence below.
-Named BUG headings: 153, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
+Named BUG headings: 154, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
+
+### BUG-162 — actual Home players appear idle in profiles and resting in Watch — OPEN, built browser reproduction
+The rebuilt three-owner invitation journey passes sender Profile Watch after BUG160: Away Day sees only its own actual cards. Its Watch header nevertheless says RESTING. The next host agent deep-link opens House Friend's profile as idle, with Deploy and no Watch live game, while the real host Home table contains House Friend, Housemate and the accepted visitor. The roster projection derives casino liveGame and visitingGame but omits the resident's actual Home game. Repair the current-seat projection and its status consumers without converting Home hands into casino career stats or exposing another owner's cards. Evidence: artifacts/batch46-visit-journey-after160.log and artifacts/visit46-built-browser/failure-1.png, failure-2.png. Isolated repair underway.
 
 ### BUG-161 — a refused private kitchen link displays a live game waiting to deal — OPEN, built browser reproduction
 An unrelated signed owner opens ?startapp=table_home-9402. Both direct and browser WebSockets correctly receive This kitchen is private, with no state/watching/joined response. The actual mobile screen hides that error and displays LIVE, SHUFFLING and waiting for the deal indefinitely. Forward the refusal to the existing Watch surface with a working way home; do not change the approved valid-game layout or disable authorization. Evidence: artifacts/visit46-built-browser/privacy-cold-browser.png and.json. Isolated repair underway.

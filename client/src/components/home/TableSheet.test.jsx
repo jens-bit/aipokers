@@ -3,6 +3,20 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { TableSheet } from './TableSheet.jsx';
 
+it('BUG-154: the live preview shows the current community cards and its actual players', () => {
+  const agents = [{ id: 'wild', name: 'Wild Card', mood: { state: 'frustrated' }, identity: { hood: 'ash', glow: 'teal' } },
+    { id: 'granite', name: 'Granite', mood: { state: 'neutral' } }];
+  render(<TableSheet slots={{ cap: 4, used: 4, next: null }} seated={2} maxSeats={4}
+    game={{ tableId: 'kitchen', state: 'running', seats: agents.map((a, seat) => ({ seat, agentId: a.id, name: a.name })) }}
+    liveTable={{ config: { tableId: 'kitchen' }, game: { community: ['9h', 'Js', '4c'], seats: [{ holeCards: ['As','Ah'] }] } }}
+    agents={agents} onWatch={vi.fn()} />);
+  expect(screen.getByRole('img', { name: 'Wild Card' })).toBeVisible();
+  expect(screen.getByRole('img', { name: 'Granite' })).toBeVisible();
+  expect(screen.getByLabelText('Community cards: 9h Js 4c')).toBeVisible();
+  expect(screen.queryByText('A', { exact: true })).not.toBeInTheDocument();
+  expect(screen.getByTestId('home-table-seated')).toHaveTextContent('2 at the table · 2 chairs free');
+});
+
 it('BUG-154: a full agent roster does not consume the human chair at a three-player game', async () => {
   const sit = vi.fn(), watch = vi.fn();
   render(<TableSheet slots={{ cap: 4, used: 4, next: null }} seated={3} maxSeats={4} onSit={sit} onWatch={watch} />);

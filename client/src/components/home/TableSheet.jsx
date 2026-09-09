@@ -41,6 +41,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { lockedSeatLine } from '../../lib/slots.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { HomeTablePreview } from './HomeTablePreview.jsx';
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH'];
 
@@ -91,7 +92,7 @@ export function useSlots() {
  *                  anyone can pull a chair up to it, and a SIT DOWN that stands
  *                  a table up would be a second way to start a home game.
  */
-export function TableSheet({ slots = null, seated = 0, maxSeats = null, onDraft, onSit = null, onWatch = null }) {
+export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = null, liveTable = null, agents = [], onDraft, onSit = null, onWatch = null }) {
   const cap = slots?.cap ?? 4;
   const used = slots?.used ?? 0;
   const next = slots?.next ?? null;
@@ -105,20 +106,19 @@ export function TableSheet({ slots = null, seated = 0, maxSeats = null, onDraft,
           did, on the same theory, and design 52's rule takes both — the sheet is
           a picture of the home table and the home table does not talk about
           money. What is left is who is at it and how many chairs are free. */}
-      <div className="table-sheet__felt">
-        <span className="table-sheet__felt-line" data-testid="home-table-seated">
-          {seated === 1 ? '1 at the table' : `${seated} at the table`}
-          {free !== null ? ` · ${free === 1 ? '1 chair free' : `${free} chairs free`}` : ''}
-        </span>
-      </div>
+      <div className="table-sheet__section-label">{onWatch ? 'HOME GAME · LIVE' : 'HOME GAME'}</div>
+      <HomeTablePreview game={game} liveTable={liveTable} agents={agents} />
 
       {/* P17's first section: the game that is actually on, and the way to it.
           The felt above is the picture; this is the verb. */}
       {onWatch ? (
         <div className="table-sheet__live">
           <div className="table-sheet__sit-text">
-            <span className="table-sheet__sit-title">Home game</span>
-            <span className="table-sheet__sit-sub">They are playing right now.</span>
+            <span className="table-sheet__sit-title">Watch the hand</span>
+            <span className="table-sheet__sit-sub" data-testid="home-table-seated">
+              {seated === 1 ? '1 at the table' : `${seated} at the table`}
+              {free !== null ? ` · ${free === 1 ? '1 chair free' : `${free} chairs free`}` : ''}
+            </span>
           </div>
           <button
             type="button"
@@ -129,7 +129,10 @@ export function TableSheet({ slots = null, seated = 0, maxSeats = null, onDraft,
             WATCH
           </button>
         </div>
-      ) : null}
+      ) : <p className="table-sheet__full" data-testid="home-table-seated">
+        {seated === 1 ? '1 at the table' : `${seated} at the table`}
+        {free !== null ? ` · ${free === 1 ? '1 chair free' : `${free} chairs free`}` : ''}
+      </p>}
 
       {/* SIT-1 · 52·T's second section. The sheet that prices a chair also has
           the one that costs nothing: playing them yourself is free, at a table
