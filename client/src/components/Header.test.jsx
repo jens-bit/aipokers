@@ -23,13 +23,21 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+it('BUG-139: the roster icon remains a separate control beside the live count', () => {
+  render(<RoomHeader title="Home" onOpenRoster={() => {}} liveCount={1} />);
+  const roster = screen.getByRole('button', { name: 'Your agents' });
+  expect(roster.querySelector('svg')).not.toBeNull();
+  expect(roster).not.toHaveTextContent('1 AGENT LIVE');
+  expect(screen.getByText('1 AGENT LIVE').closest('button')).toBeNull();
+});
+
 it('C5: the Home roster pill distinguishes unknown, nobody live and a known live agent',()=>{
   const {rerender}=render(<RoomHeader title="Home" onOpenRoster={()=>{}}/>);
   expect(screen.queryByText('NOBODY LIVE')).toBeNull();
   rerender(<RoomHeader title="Home" onOpenRoster={()=>{}} liveCount={0}/>);
-  expect(screen.getByRole('button',{name:'Your agents'})).toHaveTextContent('NOBODY LIVE');
+  expect(screen.getByText('NOBODY LIVE')).toBeInTheDocument();
   rerender(<RoomHeader title="Home" onOpenRoster={()=>{}} liveCount={1}/>);
-  expect(screen.getByRole('button',{name:'Your agents'})).toHaveTextContent('1 AGENT LIVE');
+  expect(screen.getByText('1 AGENT LIVE')).toBeInTheDocument();
 });
 
 describe('BUGS-A job 2 · the agents-live pill', () => {

@@ -146,7 +146,24 @@ export function homePositions(agents = [], { gameAgentIds = [], geometry = null 
     out.set(id, { x: at.x, y: at.y, spot: `table:${i}`, seat: i });
   });
 
-  let floor = 0;
+  // BUG-137: destinations are shared furniture, not unlimited identical seats.
+  // Reserve the real game chairs first, then find a clear resting footprint.
+  const size = geometry?.bodySize ?? 46;
+  const width = geometry?.width ?? F_W, height = geometry?.height ?? F_H;
+  const footprint = p => ({ left: p.x - size / 2 - 11, right: p.x + size / 2 + 11, top: p.y - size - 26, bottom: p.y + 3 });
+  const intersects = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const clear = p => ![...out.values()].some(at => at.spot !== 'door:away' && intersects(footprint(p), footprint(at)));
+  const candidates = [...floorSpots];
+  const flat = geometry?.flat ?? FLAT;
+  const furniture = [flat.safe, flat.fridge, flat.door, flat.couch, geometry?.tvScreen ?? TV_SCREEN]
+    .map(f => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y + f.h }));
+  const table = flat.table;
+  furniture.push({ left: table.cx - table.rx, right: table.cx + table.rx, top: table.cy - table.ry, bottom: table.cy + table.ry });
+  // Extra guests use clear floor space instead of wrapping back onto a resident.
+  for (let y = 190; y <= height - 12; y += size + 36) for (let x = 42; x <= width - 42; x += size + 28) {
+    const p = { x, y };
+    if (!furniture.some(f => intersects(footprint(p), f))) candidates.push(p);
+  }
   for (const agent of agents) {
     const id = String(agent?.id ?? '');
     if (!id || out.has(id)) continue;
@@ -159,13 +176,15 @@ export function homePositions(agents = [], { gameAgentIds = [], geometry = null 
     }
     const key = agent?.routine?.key ?? null;
     const place = routines[key];
-    if (place) {
+    if (place && clear(place)) {
       out.set(id, { x: place.x, y: place.y, spot: key, seat: null });
       continue;
     }
-    const at = floorSpots[floor % floorSpots.length];
-    floor += 1;
-    out.set(id, { x: at.x, y: at.y, spot: `floor:${floor - 1}`, seat: null });
+    const index = candidates.findIndex(p => clear(p) && !furniture.some(f => intersects(bodyRect(p, size), f)));
+    // The supported household plus visitors fits the room. Keep this total for
+    // malformed oversized snapshots too, without returning a missing coordinate.
+    const at = candidates[index] ?? { x: width / 2, y: height - 12 };
+    out.set(id, { x: at.x, y: at.y, spot: `floor:${index}`, seat: null });
   }
   return out;
 }

@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-137 — Home agents settle on identical destinations — FIXED locally, final verification pending
+Four agents with the same routine shared one coordinate; idle visitors also wrapped back to occupied floor points. Home placement now reserves game chairs, checks resting footprints including the pill and pacing room, and assigns a clear floor position when a fixture is occupied. Extra floor candidates avoid furniture. Visual inspection caught an existing desktop floor point inside the fridge; a new red regression now excludes it too. The TV accepts only one active study per household and releases its chair when finished; empty-tape errors remain specific. Pure regressions and real phone/desktop crowded-room checks pass. This does not claim a complete movement/pathfinding or personality simulation.
+
+### BUG-138 — expired Home recap immediately requeues itself forever — FIXED locally, final verification pending
+The bubble resolver evicted an expired line then appended that same line back to its own queue. It now records a delivered event/text key, gives each line one turn and leaves it quiet on identical roster polls. A new recap timestamp admits another event even with identical wording. Unread markers remain available. The prior test expressly expected the clock to restart; Jens's no-spam request supersedes that behavior, and it now asserts an empty bubble plus no timer. Browser checks wait through all four returning agents and confirm an identical Home push does not restart speech.
+
+### BUG-139 — live count replaces the roster icon — FIXED locally, final verification pending
+Restored the existing 30px gold person control beside a separate live-status pill, using the same roster route in Home/casino. The number no longer doubles as a hidden navigation button. Unknown remains hidden; zero remains an honest quiet count. Unit red reproduced the missing icon, and phone browser checks verify separation and actual roster opening. Existing count checks now target the status pill rather than assert the explicitly superseded combined control.
+
 ### BUG-136 — replacement drafts mint chips; legacy reload funds the wrong balance — FIXED locally, verification in progress
 Jens reproduced an unlimited draft/retire loop. New-agent creation awarded 10,000 on every draft, then retirement collected its pocket. A starting grant now belongs to the household once; subsequent agents draw up to 2,000 from its existing safe. A durable SQLite flag survives empty rosters, truncated ledgers, restart and guest claims. Existing balances are preserved. Legacy households are recognized from roster or wallet history; no retrospective recovery of already-inflated balances is attempted. The legacy reload endpoint now transfers safe chips to the actual pocket and refuses insufficient funds or retired agents instead of reporting a cosmetic bankroll grant. Profile, pocket, safe and grant marker commit atomically.
 

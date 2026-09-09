@@ -40,6 +40,7 @@ import {
   getFlaggedHand,
   latestFlaggedHand,
   getAgentHome,
+  presentedRoster,
   getAgentAttributes,
   setAgentStudy,
   getAgentStudy,
@@ -224,6 +225,11 @@ export function beginStudy(agentId, userId, { handId = null } = {}) {
     return { status: 409, body: { error: 'That hand records nobody to form a read on.', handId: flagged.hand?.handNumber ?? handId } };
   }
 
+  // BUG-137: one television and one chair. Validate the requested tape first,
+  // so an empty library still explains that there is nothing to watch.
+  // This check is synchronous with startStudy and cannot race a second request.
+  const watching = presentedRoster(userId).find(a => a.id !== agentId && a.study);
+  if (watching) return { status: 409, body: { error: `${watching.name} is using the TV. Let him finish first.`, occupiedBy: watching.id } };
   const text = lineFor(flagged.hand, subject, {
     reads: getAgentAttributes(agentId, userId)?.attrs?.READS ?? null,
   });

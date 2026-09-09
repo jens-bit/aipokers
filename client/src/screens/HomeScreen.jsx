@@ -505,7 +505,7 @@ export function HomeScreen({
       // While asking, do not replace that duplicate with an old recap.
       const line = agent.want ? null
         : landed ? null // The compact return result is independent of speech placement.
-        : agent.unseenRecap ? { text: agent.sessionRecap?.text, gold: true }
+        : agent.unseenRecap ? { text: agent.sessionRecap?.text, eventId: agent.sessionRecap?.at, gold: true }
         : (isStudying && tag) ? { text: tag, gold: false }
         : null;
       if (!line?.text) continue;

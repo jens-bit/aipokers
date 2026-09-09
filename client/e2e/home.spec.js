@@ -196,6 +196,40 @@ async function room(page, cast, viewport = VIEWPORT) {
   await page.waitForTimeout(600);
 }
 
+for (const width of [390, 1440]) test('BUG-137/138: a crowded returning household stands apart and stops repeating its recap at ' + width, async ({ page }) => {
+  const cast = { agents: Array.from({ length: 4 }, (_, i) => agent('return-' + i, 'Return ' + i, {
+    routine: { key: 'waits', label: 'waiting by the door' }, unseenRecap: true,
+    sessionRecap: { text: 'Table closed while I was away', at: 123 + i },
+  })) };
+  await room(page, cast, { width, height: 844 });
+  const bodies = page.locator('.home-one:not(.is-away)');
+  await expect(bodies).toHaveCount(4);
+  const boxes = await bodies.evaluateAll(nodes => nodes.map(n => {
+    const b = n.getBoundingClientRect(); return { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+  }));
+  for (let a = 0; a < boxes.length; a++) for (let b = a + 1; b < boxes.length; b++) {
+    const x = boxes[a], y = boxes[b];
+    expect(x.right <= y.left || y.right <= x.left || x.bottom <= y.top || y.bottom <= x.top).toBe(true);
+  }
+  await expect(page.locator('.home-bubble')).toHaveCount(1);
+  await page.waitForTimeout(18_000);
+  await expect(page.locator('.home-bubble')).toHaveCount(0);
+  await page.evaluate(agents => {
+    for (const socket of window.__homeSockets) socket.dispatch('message', { data: JSON.stringify({ type: 'home_state', userId: '4242', agents, game: null }) });
+  }, cast.agents);
+  await expect(page.locator('.home-bubble')).toHaveCount(0);
+  await page.screenshot({ path: '../artifacts/batch43-room-' + width + '.png' });
+  if (width < 1100) {
+    const icon = page.getByRole('button', { name: 'Your agents', exact: true });
+    await expect(icon.locator('svg')).toBeVisible();
+    const count = await page.locator('.room-header__live').boundingBox();
+    const button = await icon.boundingBox();
+    expect(count.x + count.width).toBeLessThan(button.x);
+    await icon.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  }
+});
+
 test.describe('HOME-1 · board 29 at 390×844', () => {
   for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
     test(`N3: casino conversation and carousel at ${viewport.width}×${viewport.height}`,async({page})=>{
@@ -284,7 +318,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       const game={state:'running',tableId:'home-4242',seats:[{seat:0,agentId:'agg',house:false},{seat:1,agentId:'blf',house:false}],handsPlayed:7};
       await room(page,{agents:cast,game},viewport);
       await page.route('**/api/slots**',r=>r.fulfill({json:{used:4,cap:4,next:null}}));
-      await expect(page.getByRole('button',{name:'Your agents',exact:true})).toHaveText('1 AGENT LIVE');
+      await expect(page.locator('.room-header__live')).toHaveText('1 AGENT LIVE');
       await expect(page.getByLabel("Bal's empty chair")).toBeVisible();
       await expect(page.getByTestId('home-frame-bal')).toBeVisible();
       const sign=page.getByTestId('home-door-sign');

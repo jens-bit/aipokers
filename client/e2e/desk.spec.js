@@ -1033,7 +1033,7 @@ for(const width of [390,490]) test('BUG-131: visiting agent is live in the roste
  const traveler={...BALANCE,name:'Traveler',visiting:{hostName:'Fidde',hostUserId:'friend'},homeTableId:'home-friend',location:loc('casino'),liveGame:{tableId:'home-friend',heroSeat:0,heroHole:['Ah','Kd'],blinds:'1/2',street:'flop',board:['5c','4h','8c'],pot:120,net:95,heroStack:295,seats:[{displayName:'Traveler',stack:295},{displayName:'Host',stack:105}]}};
  await stub(page,{agents:[traveler],game:null});await page.setViewportSize({width,height:844});
  await page.addInitScript(()=>{const Base=window.WebSocket;window.__visitWatch=[];window.WebSocket=class extends Base{send(raw){super.send(raw);const msg=JSON.parse(raw);if(msg.type==='watch')window.__visitWatch.push(msg);}};});
- await page.goto(HOME);await expect(page.getByRole('button',{name:'Your agents',exact:true})).toContainText('1 AGENT LIVE');
+ await page.goto(HOME);await expect(page.locator('.room-header__live')).toHaveText('1 AGENT LIVE');
  await page.getByRole('button',{name:'Your agents',exact:true}).click();await expect(page.getByRole('img',{name:'Live at a table'})).toBeVisible();
  await expect(page.getByText("visiting Fidde's",{exact:true})).toBeVisible();await expect(page.getByText('1/2',{exact:true})).toBeVisible();await expect(page.getByText('+$95',{exact:true})).toBeVisible();
  await page.waitForTimeout(300);await page.screenshot({path:'../artifacts/visitor39-roster-'+width+'.png'});

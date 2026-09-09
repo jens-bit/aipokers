@@ -2,7 +2,9 @@
 
 Jens's morning playtest exposed substantial remaining defects in continuous play. The earlier release-readiness assessment was too broad: individual screen checks missed accounting, repeated speech, shared room occupancy and confusing player flows. The active plan is now [MORNING_PLAYTEST_QUEUE.md](MORNING_PLAYTEST_QUEUE.md). The implementation notes below describe earlier changes, not a claim that the app is ready to share.
 
-Batch42 repairs the reproducible draft/retire money exploit and legacy reload accounting. Focused HTTP/SQLite regressions pass; full server/client checks and seven gameplay e2e checks pass with explicit safe funding in established-owner fixtures. A real phone draft/retire/redraft journey is being added before integration. Nothing in batch42 is deployed yet.
+Batch42 (9294b28) repairs the reproducible draft/retire money exploit and legacy reload accounting. The actual built phone journey now drafts, opens the safe, retires through Profile, reloads and repeats while conserving10,000 household chips. Main integration passed109 server checks,2250 client tests and seven gameplay e2e checks.
+
+Batch43 fixes settled Home overlap, repeated recap bubbles and the missing separate roster icon. The household TV now admits one active study at a time. Red regressions preceded each correction;102 Home/desktop browser checks, eight built smoke journeys and20 Home2 checks passed. The final furniture-clearance correction passed2255 client tests and four focused browser journeys, with actual phone/desktop captures inspected. Final local integration remains pending. Neither batch was pushed by Codex; human result wording, pace, personality, profile discoverability and the remaining morning queue still need work.
 
 ## What you should notice
 
