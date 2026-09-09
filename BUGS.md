@@ -1,6 +1,44 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-121 — `homeGame.test.js` intermittently red inside a full `test:all` — BUG-34's family, OPEN
+**Severity:** Medium (a flaky gate is what lets a real red through — the testing law's own words)
+**Where:** `src/server/homeGame.test.js`, the `BUG-78: the resume timer survives a household cooldown` probe
+**Found by:** the ADMIN-1 branch's finish gate, 2026-09-09.
+
+**What.** One `npm run test:all` came back red on this suite; the visible assertion was
+`expected 'running', actual undefined` from the probe's resume check. Every re-run since has been green,
+which is BUG-36's profile exactly: red inside the full run, green on its own.
+
+**Measured, both sides of the branch** (Node v24.15.0, Windows 11, `runScript` in a scratch cwd each time):
+
+| tree | runs | failures |
+|---|---|---|
+| `feature/admin-1` | 72 @ concurrency 6 | 1 |
+| `feature/admin-1` | 48 @ concurrency 8 | 1 |
+| `feature/admin-1` | 60 @ concurrency 8 | 0 |
+| base `511dd4e` (no ADMIN-1) | 72 @ concurrency 6 | 0 |
+
+About 1% on the branch, 0 in 72 on the base — **which distinguishes nothing.** BUG-34's own entry makes
+this point: a sample this size cannot tell 1% from 0%, and reading a failure as merge-caused on that
+evidence is how the last person got it wrong. Recorded here so the next person starts from the numbers
+rather than from the branch that happened to be in the tab.
+
+**Ruled out as the cause.** ADMIN-1 adds two `CREATE TABLE IF NOT EXISTS` to `applySchema` and one
+`bumpTick` per finished hand. Store-open time was measured on both trees and is unchanged (first open
+33ms vs 36ms, warm 2.6-3.3ms both). The probe closes its table immediately and completes no hand, so the
+per-hand tick is not in its path at all.
+
+**Not fixed, and deliberately not patched.** The probe waits a single 220ms for a 60ms cooldown plus a
+10ms tick, which is a thin margin under concurrency and was the obvious suspect — but polling to a 2s
+deadline instead (the repair `tapeRoom.test.js` took) still failed once in 48, so the thin margin is not
+demonstrably the cause and the failing assertion was never captured with its output. Changing a test on
+an unconfirmed theory would hide whatever this really is. The next step is `node scripts/stress-suites.js`
+with the child's full stderr kept, which is what finally named the `verify-pace.js` and `tapeRoom.js`
+causes in BUG-34.
+
+---
+
 ### BUG-119 — sleeping agents wear the bored face — FIXED on design branch
 The independent 101-sprite audit found exactly one missing drawing: asleep (62 different native-size pixels). Home still mapped sleeps to bored, whose eyes remain partly open. The later reference’s separate downward lids and size-dependent lash ticks are now ported and mapped to the served sleep routine. Three red checks preceded the repair; actual phone/desktop Home confirms waking removes the overlay. All 101 controlled sprites now match pixels.
 
