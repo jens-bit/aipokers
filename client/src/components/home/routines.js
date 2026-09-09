@@ -32,9 +32,8 @@ export const ROUTINES = {
   plays:    { label: 'in a hand',      pose: 'hold' },
   tape:     { label: 'the tape room',  pose: 'hold',   anim: 'home-lean' },
   sulks:    { label: 'facing the wall', pose: 'cover', back: true },
-  // The eyes close. `bored` is the face the ref uses for sleep and it is the
-  // one FACE_EVENTS entry that draws lids rather than a brow.
-  sleeps:   { label: 'asleep',         pose: 'rest',   face: 'bored', prop: 'zzz' },
+  // The later Home reference gives sleep its own closed lids, distinct from bored/pleased.
+  sleeps:   { label: 'asleep',         pose: 'rest',   face: 'asleep', prop: 'zzz' },
   waits:    { label: 'by the door',    pose: 'rest' },
   paces:    { label: 'pacing',         pose: 'clench', anim: 'home-pace' },
   reads:    { label: 'reading',        pose: 'hold',   prop: 'paper' },

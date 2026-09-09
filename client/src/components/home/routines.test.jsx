@@ -9,6 +9,8 @@
 // and that the nature fallback only ever fires when the server sent nothing.
 
 import { describe, expect, it } from 'vitest';
+import { render } from '@testing-library/react';
+import { HomeOne } from './atoms.jsx';
 import { ROUTINES, ROUTINE_KEYS, presentRoutine, routineKeyOf, isBusy } from './routines.js';
 import { HAND_POSES } from '../system/GhostHands.jsx';
 import { FACE_EVENTS } from '../system/GhostFace.jsx';
@@ -52,7 +54,7 @@ describe('HOME-1 · the brief\'s routines are drawn the way it names them', () =
 
   it('sleep closes his eyes', () => {
     const r = presentRoutine(agent('sleeps'));
-    expect(r.face).toBe('bored');
+    expect(r.face).toBe('asleep');
     expect(r.prop).toBe('zzz');
   });
 
@@ -102,4 +104,14 @@ describe('HOME-1 · busy means out of the home game', () => {
     expect(isBusy(agent('paces'))).toBe(false);
     expect(isBusy(agent('sulks'))).toBe(false);
   });
+});
+
+it('BUG-119: a sleeping Home body has closed lids, and wakes when its served routine changes', () => {
+  const props = { agent: agent('sleeps'), at: { x: 80, y: 400, spot: 'couch' }, size: 44 };
+  const { container, rerender } = render(<HomeOne {...props} />);
+  expect(container.querySelector('g[data-event="asleep"]')).not.toBeNull();
+  expect(container.querySelector('g[data-event="bored"]')).toBeNull();
+  rerender(<HomeOne {...props} agent={agent('waits')} />);
+  expect(container.querySelector('g[data-event="asleep"]')).toBeNull();
+  expect(container.querySelector('[data-face="neutral"]')).not.toBeNull();
 });

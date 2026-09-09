@@ -13,8 +13,8 @@
 export function faceTier(h) { return h <= 33 ? 'low' : h <= 66 ? 'mid' : 'high'; }
 export function faceDetail(size) { return size >= 42 ? 3 : size >= 36 ? 2 : size >= 30 ? 1 : 0; }
 
-// Six transient expressions, 2–6s, drawn OVER the state and never stored.
-export const FACE_EVENTS = ['stunned', 'smug', 'locked', 'bored', 'wary', 'pleased'];
+// Six transient expressions plus the later Home asleep overlay. Sleep follows the served routine.
+export const FACE_EVENTS = ['stunned', 'smug', 'locked', 'bored', 'wary', 'pleased', 'asleep'];
 
 // Three momentary brow overrides, drawn on top and gone within a second.
 export function ghostBrow({ brow, eye, cy }) {
@@ -90,6 +90,14 @@ export function ghostFace({ mood, heat = 45, size = 40, event, eye, cy }) {
           <ellipse cx={R + 1.6} cy={cy} rx="2.2" ry="2" fill={eye} />
           {d > 0 && <><path d={`M30 ${cy - 5.6} L37 ${cy - 6.8}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" />
             <path d={`M50.4 ${cy - 6.8} L43.4 ${cy - 5.6}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" /></>}
+        </g>
+      ),
+      asleep: (
+        <g data-event="asleep">
+          <path d={`M30 ${cy - 1.4} Q${L} ${cy + 3.4} 37 ${cy - 1.4}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+          <path d={`M43 ${cy - 1.4} Q${R} ${cy + 3.4} 50 ${cy - 1.4}`} stroke={eye} strokeWidth="2" fill="none" strokeLinecap="round"/>
+          {d > 0 && <><path d={`M29.4 ${cy + 1.2} L27.8 ${cy + 3}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round"/>
+          <path d={`M50.6 ${cy + 1.2} L52.2 ${cy + 3}`} stroke={eye} strokeWidth="1.1" strokeLinecap="round"/></>}
         </g>
       ),
       // closed, curving up: the only genuinely warm face in the set

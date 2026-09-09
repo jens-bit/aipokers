@@ -93,3 +93,16 @@ it('is unchanged for a caller that asks for nothing new', () => {
   expect(container.querySelector('[data-pose]')).toBeNull();
   expect(container.querySelector('[data-event]')).toBeNull();
 });
+
+it('BUG-119: asleep has downward closed lids distinct from pleased and drops lashes at avatar size', () => {
+  const { container, rerender } = render(<MoodGhost event="asleep" size={62} />);
+  const face = container.querySelector('g[data-event="asleep"]');
+  expect(face).not.toBeNull();
+  expect(face.querySelectorAll('ellipse,circle,rect')).toHaveLength(0);
+  expect(face.querySelectorAll('path')).toHaveLength(4);
+  const asleep = face.querySelector('path').getAttribute('d');
+  rerender(<MoodGhost event="pleased" size={62} />);
+  expect(container.querySelector('g[data-event="pleased"] path').getAttribute('d')).not.toBe(asleep);
+  rerender(<MoodGhost event="asleep" size={24} />);
+  expect(container.querySelectorAll('g[data-event="asleep"] path')).toHaveLength(2);
+});

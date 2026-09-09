@@ -638,3 +638,17 @@ test('BUG-117 reduced motion and an initially away body do not animate or interc
  await push([home]);await expect(body).toHaveCSS('opacity','1');expect(await body.evaluate(el=>el.getAnimations().length)).toBe(0);
  await push([away]);await expect(body).toHaveCSS('opacity','0');expect(await body.evaluate(el=>el.getAnimations().length)).toBe(0);
 });
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) test('BUG-119 sleeping face wakes with the Home routine at ' + viewport.width, async ({ page }) => {
+  await page.setViewportSize(viewport);
+  const sleepy = agent('sleep119', 'Granite', { routine: { key: 'sleeps', label: 'asleep' }, fatigue: 'worn', mood: { state: 'sulking', heat: 22 } });
+  await page.route('**/api/slots**', route => route.fulfill({ json: { slots: [], available: 3, cap: 4 } }));
+  await room(page, { agents: [sleepy], game: null });
+  const body = page.locator('.home-one[data-agent="sleep119"]');
+  await expect(body.locator('g[data-event="asleep"]')).toHaveCount(1);
+  await expect(body.locator('g[data-event="bored"]')).toHaveCount(0);
+  await page.screenshot({ path: '../artifacts/sleep34-' + viewport.width + '.png' });
+  await page.evaluate(agents => { for (const sock of window.__homeSockets ?? []) sock.dispatch('message', { data: JSON.stringify({ type: 'home_state', userId: '4242', agents, game: null }) }); }, [{ ...sleepy, routine: { key: 'waits', label: 'by the door' }, fatigue: 'fresh' }]);
+  await expect(body.locator('g[data-event="asleep"]')).toHaveCount(0);
+  await expect(body.locator('[data-face="sulking"]')).toHaveCount(1);
+});

@@ -1,6 +1,6 @@
 # Railbird — current design gap inventory
 
-Updated 9 September 2026, batch33. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
+Updated 9 September 2026, batch34. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
 
 This replaces the contradictory old inventory that still called implemented boards 41/42 entirely unbuilt. Its original text and all batch1–29 entries are preserved in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). Chronological execution evidence remains in [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md).
 
@@ -10,9 +10,9 @@ This replaces the contradictory old inventory that still called implemented boar
 
 | Board / frames | Current assessment | Evidence or next action |
 |---|---|---|
-| 01 S1–S3/S5, 02 42–45: tokens, bodies, expressions, heat and sizes | PARTIAL | Shared mood/identity atoms and face tests exist. Batch29 verifies saved hood/glow across moods and camera seats in live tables. Still render the complete expression/size matrix against Faces before declaring all anatomy exact. |
+| 01 S1–S3/S5, 02 42–45: tokens, bodies, expressions, heat and sizes | VERIFIED controlled artwork; trigger timing PARTIAL | Batch34 compares 101 native-size sprites: five moods/three tiers, seven heat steps, four sizes, seven expression overlays including repaired asleep, nine poses at two sizes, and three brows at two sizes. All pixels match with the same explicit cloth/glow and no ring; six pairs inspected. This is not every identity/ring combination. Batch29 covers served identity; decision/result expression timing still needs its separate audit. |
 | 01 S6: mark | VERIFIED locally | Shared Railbird mark; batch20 loading/reduction/export pairs. Account applications remain below. |
-| 02 48–51: eight hand poses and brow triggers | PARTIAL | Existing push/toss/muck/hold, Watch tests and batch11 win/bust effects. Full pose/brow matrix remains unpaired. |
+| 02 48–51: hand poses and brow triggers | VERIFIED artwork; MISSING brow wiring | Later reference has nine poses including raise; all nine match at 96/34px. Twitch/lift/knit match at 62/24px, but no production caller passes a brow (BUG-120). Wire the 400ms/700ms/heat>=55 triggers and inspect their actual transitions next. |
 | 10 Character / 11 Biography | VERIFIED implementation; presentation PARTIAL | Existing attributes, nature, biography and growth laws. The old claim that condition dips never reach the client is obsolete: current owner projection and C4/C9 present condition/recent. Continuous numeric stamina is not fabricated from the server's three fatigue bands. |
 | 20–23 / 30 older mobile/navigation and 24 D1 login | SUPERSEDED | Use current 26/29/31/42 and the current guest/sign-in flow. Earlier birth-card composition is only authoritative where not replaced. |
 | 24 40a–40i first five minutes | PARTIAL | Four-stage draft, birth arrival, first game and recap paths exist; draft overflow/identity/birth/deployment repaired in batches4/17/27. Telegram first-open and the entire fresh-account sequence still need production playtest. |
@@ -58,10 +58,10 @@ This replaces the contradictory old inventory that still called implemented boar
 
 ## Ordered work remaining
 
-1. Batch31 main recheck passed after a native lifecycle child crash; BUG-94 records three isolated passes and the unresolved cause. Batch32 passed 107 server / 2221 client / 7 end-to-end, 38 desktop plus three share checks, build, seven smoke and 20 Home2 checks. Main32 integration passed 107 / 2221 / 7. Batch33 passed 107 / 2225 / 7, all 38 desktop cases plus focused Home checks, build, seven smoke journeys and 20 Home2 checks; main33 integration follows.
+1. Batch31 main recheck passed after a native lifecycle child crash; BUG-94 records three isolated passes and the unresolved cause. Batch32 passed 107 server / 2221 client / 7 end-to-end, 38 desktop plus three share checks, build, seven smoke and 20 Home2 checks. Main32 integration passed 107 / 2221 / 7. Batch33 passed 107 / 2225 / 7, all 38 desktop cases plus focused Home checks, build, seven smoke journeys and 20 Home2 checks; main33 integration passed 107 / 2225 / 7. Batch34 passed 107 / 2227 / 7, 42 browser cases, build, seven smoke journeys and 20 Home2 checks; main34 integration follows.
 2. Audio playback/C8 hooks are implemented in batch31 with original synthesis. Keep the saved preview available for listening feedback; do not represent it as a supplied recording.
 3. S1/S2 formats and populated/quiet/unavailable-canvas checks are implemented in batch32. Actual external Telegram delivery remains a release verification, not an automated test send.
-4. Close the UNVERIFIED expression/pose/empty/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
+4. Close the UNVERIFIED expression timing/brow triggers/empty/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
 5. Refresh final product captures and release evidence. Recheck branding applications and the original first-thirty-seconds journey across phone and desktop.
 6. Final integrator fetch, checks and explicit push handoff. Jens pushes; verify deployed commit and production behavior afterwards. External account/feature settings and founder playtest remain explicit, not silently counted complete.
 

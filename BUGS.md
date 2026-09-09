@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-119 — sleeping agents wear the bored face — FIXED on design branch
+The independent 101-sprite audit found exactly one missing drawing: asleep (62 different native-size pixels). Home still mapped sleeps to bored, whose eyes remain partly open. The later reference’s separate downward lids and size-dependent lash ticks are now ported and mapped to the served sleep routine. Three red checks preceded the repair; actual phone/desktop Home confirms waking removes the overlay. All 101 controlled sprites now match pixels.
+
+### BUG-120 — the authored brow overrides have no gameplay caller — OPEN
+The artwork audit verifies twitch/lift/knit geometry, but source search finds no production caller passing a brow into MoodGhost. The design names raised-against/400ms, strong peek/700ms and heat >=55/until cooler. Existing face events have separate mappings and a common 1400ms decision hold; correct artwork does not certify these triggers/timings. Wire and test the actual shared Watch path next, preserving private-card boundaries.
+
 ### BUG-117 — Home agents disappear instead of crossing the room — FIXED on design branch
 A red same-DOM-body check reproduced unmount-on-departure. Home now retains away bodies invisibly at the door, disables their input, and uses the later reference’s 2.2s out / 1.9s home movement. Known away location overrides stale home-game membership without shifting other chair indices. Door light and away wall frame follow the crossing; room props are hidden and cards appear only on landing. Actual intermediate motion, identity, three viewport sizes and reduced motion pass browser checks.
 
