@@ -5,7 +5,7 @@
 // shipped; the server's number is what SERVER-3 is adding. Both have to be
 // right, and the caller must never be able to tell which one it got.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { serverDelta, handDelta, money } from './deltas.js';
 
 describe('WATCH-7: result.deltas, in every shape the server might send it', () => {
@@ -66,12 +66,25 @@ describe('WATCH-7: the money the toast prints', () => {
     expect(money(30)).toBe('+$30');
     expect(money(-30)).toBe('−$30');
     expect(money(0)).toBe('+$0');
-    // toLocaleString, so the separator is the runtime's, not a comma.
-    expect(money(1250)).toBe('+$' + (1250).toLocaleString());
+    // BUG-37: the shared wallet/felt format is fixed, independent of locale.
+    expect(money(1250)).toBe('+$1,250');
   });
 
   it('is null for a number there is none of', () => {
     expect(money(null)).toBeNull();
     expect(money(undefined)).toBeNull();
+  });
+
+  it('BUG-37: hand and session deltas retain wallet grouping on a Swedish device', () => {
+    const original = Number.prototype.toLocaleString;
+    const locale = vi.spyOn(Number.prototype, 'toLocaleString').mockImplementation(function (...args) {
+      return original.call(this, args[0] ?? 'sv-SE', args[1]);
+    });
+    try {
+      expect(money(-1000)).toBe('−$1,000');
+      expect(money(12345.5)).toBe('+$12,345.50');
+      expect(money(0)).toBe('+$0');
+      expect(money(NaN)).toBeNull();
+    } finally { locale.mockRestore(); }
   });
 });
