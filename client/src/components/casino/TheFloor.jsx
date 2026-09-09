@@ -35,6 +35,7 @@
 // felts go. `floorPlan` derives that, and reproduces the ref's own six exactly
 // — the jitter tables below are its coordinates, read back out.
 
+import { useEffect, useRef } from 'react';
 import { HOODS, GLOWS, storedIdentity } from '../../lib/identity.js';
 import { M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { pillName } from '../../lib/names.js';
@@ -297,17 +298,57 @@ function FloorStairs({ lines = 0 }) {
  * @param width    the room's drawn width; the plan is scaled to it
  */
 export function TheFloor({
-  felts = [], mineAt = {}, standing = [], boardLines = 0, onWatch = null, width = FLOOR_W, height = FLOOR_H,
+  felts = [], mineAt = {}, standing = [], boardLines = 0, onWatch = null, width = FLOOR_W, height = FLOOR_H, zoom = null, onZoom = null,
 }) {
   const k = width / FLOOR_W;
   const shown = felts.slice(0, FLOOR_CAP);
   const plan = floorPlan(shown.length);
 
+  const root = useRef(null), gesture = useRef(null), suppressClick = useRef(0);
+  const focusedIndex = zoom ? shown.findIndex(f => f.tableId === zoom.tableId) : -1;
+  const focused = shown[focusedIndex], place = plan[focusedIndex];
+  useEffect(() => {
+    const el = root.current;
+    if (!el || !onZoom || !onWatch) return;
+    const distance = ts => Math.hypot(ts[0].clientX-ts[1].clientX, ts[0].clientY-ts[1].clientY);
+    const start = e => {
+      // The room's pinch must never start its parent's dismiss-sheet drag.
+      e.stopPropagation();
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect(), ts = e.touches;
+      const x=((ts[0].clientX+ts[1].clientX)/2-rect.left)/k;
+      const y=((ts[0].clientY+ts[1].clientY)/2-rect.top)/k;
+      let index = focusedIndex;
+      if (index < 0) index = plan.map((p,i)=>({i,d:Math.hypot(x-p.x,y-p.y),r:p.r})).sort((a,b)=>a.d-b.d).find(p=>p.d<p.r*1.8)?.i ?? -1;
+      gesture.current={distance:distance(ts), index, zoomed:focusedIndex>=0, done:false};
+    };
+    const move = e => {
+      const g=gesture.current;
+      if (!g || e.touches.length!==2) return;
+      e.preventDefault(); e.stopPropagation(); suppressClick.current=Date.now()+500;
+      if(g.done || g.index<0 || g.distance<8) return;
+      const ratio=distance(e.touches)/g.distance, target=shown[g.index];
+      if(ratio>1.3 && target) {
+        g.done=true;
+        if(g.zoomed) onWatch(target.tableId);
+        else onZoom({tableId:target.tableId,blinds:target.blinds});
+      } else if(ratio<.75 && g.zoomed) { g.done=true; onZoom(null); }
+    };
+    const end=e=>{ e.stopPropagation(); if(e.touches.length===0) gesture.current=null; };
+    el.addEventListener('touchstart',start,{passive:false});
+    el.addEventListener('touchmove',move,{passive:false});
+    el.addEventListener('touchend',end);el.addEventListener('touchcancel',end);
+    return()=>{el.removeEventListener('touchstart',start);el.removeEventListener('touchmove',move);el.removeEventListener('touchend',end);el.removeEventListener('touchcancel',end);};
+  }, [shown, k, focusedIndex, onWatch, onZoom]);
+  const camera = focused ? 'translate('+(width/2-place.x*k*2.3)+'px,'+(height*.46-place.y*k*2.3)+'px) scale('+(k*2.3)+')' : 'scale('+k+')';
   return (
-    <div className="csn-floor58" style={{ width, height }} data-testid="the-floor">
+    <div ref={root} className="csn-floor58" style={{ width, height }} data-testid="the-floor" data-zoom={focused?.tableId}
+      onClickCapture={e=>{if(Date.now()<suppressClick.current){e.preventDefault();e.stopPropagation();}}}>
+
       <div
         className="csn-floor58__room"
-        style={{ width: FLOOR_W, height: height / k, transform: `scale(${k})` }}
+        style={{ width: FLOOR_W, height: height / k, transform: camera }}
       >
         {/* the carpet, running away from the door */}
         {Array.from({ length: 9 }).map((_, i) => (
@@ -339,6 +380,10 @@ export function TheFloor({
 
         <FloorBar standing={standing} />
       </div>
+      {focused && <>
+        <div className="csn-floor58__vignette" aria-hidden="true" />
+        <button className="csn-floor58__watch" onClick={()=>onWatch?.(focused.tableId)}>Watch this table</button>
+      </>}
     </div>
   );
 }

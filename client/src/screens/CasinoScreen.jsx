@@ -201,13 +201,15 @@ export function CasinoScreen({
   // BUGS-C job 12: floor or board — remembered for the session, not tapped
   // fresh every time the owner leaves and comes back to the casino tab.
   const [view, setView] = useState(readCasinoView);
-  const changeView = useCallback((v) => { setView(v); writeCasinoView(v); }, []);
+  const [zoom, setZoom] = useState(null);
+  const changeView = useCallback((v) => { setZoom(null); setView(v); writeCasinoView(v); }, []);
 
   // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
   // the server's table -> room map. The doorways are still drawn from `rooms`;
   // everything that names a particular felt now reads the felts.
   const { rooms, felts, roomOf } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
+  useEffect(() => { if (zoom && !felts.some(f => f.tableId === zoom.tableId)) setZoom(null); }, [felts, zoom]);
 
   // The roster, on the same 10s beat the floor uses. It is what puts your own
   // agents in the doorway of the room they are sitting in.
@@ -586,16 +588,17 @@ export function CasinoScreen({
   const roomOnStage = view === 'floor' && openRoom && !trayAgent ? openRoom : null;
   const headerPortal = desktop && headerTarget ? createPortal(<>
     <div className="dsk-top__room">
-      <h1>{roomOnStage?.name ?? 'The casino'}</h1>
-      <p>{roomOnStage ? roomOnStage.stakes.label + ' · ' + count(roomOnStage.seated) + ' in · ' + count(roomOnStage.tables) + ' tables' : sub}</p>
+      <h1>{zoom ? 'Table · ' + (zoom.blinds || roomOnStage?.stakes.label || '') : roomOnStage?.name ?? 'The casino'}</h1>
+      <p>{zoom ? 'pinch again to watch' : roomOnStage ? roomOnStage.stakes.label + ' · ' + count(roomOnStage.seated) + ' in · ' + count(roomOnStage.tables) + ' tables' : sub}</p>
     </div>
-    {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView}/>}
+    {zoom ? <button type="button" className="dsk-btn dsk-btn--ghost" onClick={()=>setZoom(null)}>Back to the floor</button> : !trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView}/>}
     {trayAgent && <button type="button" className="dsk-btn dsk-btn--ghost" aria-label="Stop placing him" onClick={onCancelDeploy}>Not now</button>}
   </>, headerTarget) : null;
 
   const floorView = view === 'floor' && openRoom && !trayAgent ? (
     <FloorView
       room={openRoom}
+      zoom={zoom} onZoom={setZoom}
       headerOwned={!!headerPortal}
       onHome={desktop ? null : onBack}
       onOpenRoster={desktop ? null : onOpenRoster}

@@ -871,3 +871,84 @@ test('BUG-108: desktop Watch uses the designed canvas and Home leaves the table'
   await expect(page.getByTestId('home-screen')).toBeVisible();
   await expect(stage).toHaveCount(0);
 });
+
+
+test.describe('BUG-125: authored casino camera with real touch input',()=>{
+  test.use({hasTouch:true});
+  for(const size of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}])test('pinch, return, then Watch at '+size.width+'x'+size.height,async({page,context})=>{
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await stub(page);await page.setViewportSize(size);
+    await page.addInitScript(()=>{
+      const Base=window.WebSocket;window.__zoomWatch=[];
+      window.WebSocket=class extends Base{send(raw){super.send(raw);const m=JSON.parse(raw);
+        if(m.type==='floor_sub')setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'room_tables',tables:[{tableId:'tbl-zoom',room:'floor',blinds:'10/20',smallBlind:10,bigBlind:20,pot:4180,hot:true,seats:[{name:'Granite',stack:2000},{name:'Bal',stack:2200}],board:['Ah','Kd','2c']}],rooms:{'tbl-zoom':'floor'}})}),20);
+        if(m.type==='watch' && m.tableId==='tbl-zoom')window.__zoomWatch.push(m);
+      }};
+    });
+    await page.goto(HOME);await page.getByTestId('home-door').click();
+    await page.getByRole('button',{name:'Board',exact:true}).click();await page.getByRole('button',{name:/^The floor,/}).click();
+    const floor=page.getByTestId('the-floor'),felt=page.locator('.csn-felt58').first();await expect(felt).toBeVisible();
+    await floor.evaluate(el=>{el.__originalFelt=el.querySelector('.csn-felt58')});
+    const cdp=await context.newCDPSession(page);
+    async function pinch(spread=true){
+      const box=await felt.boundingBox(),cx=box.x+box.width/2,cy=box.y+box.height/2;
+      const distances=spread?[30,38,48,58]:[70,58,46,35];
+      for(let i=0;i<distances.length;i++)await cdp.send('Input.dispatchTouchEvent',{type:i?'touchMove':'touchStart',touchPoints:[{x:cx-distances[i]/2,y:cy,id:1},{x:cx+distances[i]/2,y:cy,id:2}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    }
+    await pinch();await expect(floor).toHaveAttribute('data-zoom','tbl-zoom');
+    await expect(page.getByText('pinch again to watch',{exact:true})).toBeVisible();
+    expect(await floor.evaluate(el=>el.__originalFelt===el.querySelector('.csn-felt58'))).toBe(true);
+    expect(await page.evaluate(()=>window.__zoomWatch.length)).toBe(0);
+    await page.waitForTimeout(450);
+    const room=await floor.boundingBox(),button=await page.getByRole('button',{name:'Watch this table',exact:true}).boundingBox();
+    expect(button.y+button.height).toBeLessThanOrEqual(size.height);expect(button.y).toBeGreaterThan(room.y);
+    if(size.width<1100){await expect(page.locator('.csn-floor__head')).toHaveCount(1);expect(room.height).toBeGreaterThan(size.height*.65);}
+    await page.screenshot({path:'../artifacts/floor36-zoom-'+size.width+'-'+size.height+'.png'});
+    await pinch(false);await expect(floor).not.toHaveAttribute('data-zoom','tbl-zoom');
+    await page.waitForTimeout(450);await pinch();await expect(floor).toHaveAttribute('data-zoom','tbl-zoom');await page.waitForTimeout(450);
+    await page.getByRole('button',{name:'Back to the floor',exact:true}).click();await expect(floor).not.toHaveAttribute('data-zoom','tbl-zoom');
+    await page.waitForTimeout(450);await pinch();await expect(floor).toHaveAttribute('data-zoom','tbl-zoom');await page.waitForTimeout(450);
+    await pinch();await expect.poll(()=>page.evaluate(()=>window.__zoomWatch.length)).toBe(1);
+    expect(await page.evaluate(()=>window.__zoomWatch[0].tableId)).toBe('tbl-zoom');
+    expect(errors).toEqual([]);
+  });
+});
+
+
+for(const width of [390,1440])test('BUG-123: retirement keeps the room and remaining agent at '+width,async({page})=>{
+  const original=[BALANCE,GRANITE];let retired=false,refuse=true;const requests=[];
+  await stub(page,{agents:original,game:null});await page.setViewportSize({width,height:844});
+  await page.route('**/api/agents?**',r=>r.fulfill({json:{agents:retired?[GRANITE]:original}}));
+  await page.route('**/api/agents/a1/retire?**',async r=>{
+    requests.push(r.request().method());
+    if(refuse)return r.fulfill({status:503,json:{error:'Try again'}});
+    retired=true;await page.evaluate(()=>{window.__retired36=true;for(const socket of window.__retireSockets36??[])socket.dispatch('message',{data:JSON.stringify({type:'home_state',userId:'4242',agents:window.__remaining36,game:null})});});
+    return r.fulfill({json:{archived:true,pending:false,collected:2000}});
+  });
+  await page.addInitScript(remaining=>{
+    const Base=window.WebSocket;window.__remaining36=remaining;window.__retireSockets36=[];window.WebSocket=class extends Base{
+      constructor(url){super(url);window.__retireSockets36.push(this);}
+      dispatch(type,event){
+        if(type==='message' && window.__retired36){const m=JSON.parse(event.data);if(m.type==='home_state'){m.agents=m.agents.filter(a=>a.id!=='a1');event={data:JSON.stringify(m)};}}
+        super.dispatch(type,event);
+      }
+    };
+  },[GRANITE]);
+  await page.goto(HOME);await expect(page.getByTestId('home-screen')).toBeVisible();
+  const room=await page.locator('.home-flat').boundingBox();
+  if(width<1100)await page.locator('.home-one[data-agent="a1"]').click();else await rosterRow(page,'Balance').click();
+  await page.getByRole('button',{name:'Profile',exact:true}).click();
+  await page.getByRole('button',{name:'More actions',exact:true}).click();await page.getByRole('button',{name:'Retire',exact:true}).click();
+  await expect(page.getByText('He finishes the hand, his chips come home, his record is kept.')).toBeVisible();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();expect(requests).toEqual([]);
+  await page.getByRole('button',{name:'More actions',exact:true}).click();await page.getByRole('button',{name:'Retire',exact:true}).click();
+  await page.getByRole('button',{name:'Retire him',exact:true}).click();await expect(page.getByText('Could not retire him. Try again.')).toBeVisible();
+  refuse=false;await page.getByRole('button',{name:'Retire him',exact:true}).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();await expect(page.locator('.home-chair')).toHaveCount(1,{timeout:15000});
+  await expect(page.locator('.home-one[data-agent="a1"]')).toHaveCount(0);
+  expect(await page.locator('.home-flat').boundingBox()).toEqual(room);
+  expect(requests).toEqual(['POST','POST']);
+  await page.waitForTimeout(2300);
+  await page.screenshot({path:'../artifacts/retire36-'+width+'.png'});
+});

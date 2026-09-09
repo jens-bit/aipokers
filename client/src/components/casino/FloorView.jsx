@@ -219,7 +219,7 @@ export function FloorView({
   // caller (CasinoScreen.jsx owns which view is current) so this file never
   // has to know about the toggle's own state.
   toggle = null,
-  headerOwned = false,
+  headerOwned = false, zoom = null, onZoom = null,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
@@ -249,6 +249,7 @@ export function FloorView({
   // wrapper appears, and reconnect if the list disappears/reappears.
   const roomRef = useRef(null);
   const [floorW, setFloorW] = useState(FLOOR_W);
+  const [floorH, setFloorH] = useState(FLOOR_H);
   const hasFelts = ranked.length > 0;
   useLayoutEffect(() => {
     const el = roomRef.current;
@@ -256,6 +257,7 @@ export function FloorView({
     const measure = () => {
       const w = el.clientWidth;
       const h = el.clientHeight;
+      if (zoom && h > 0) setFloorH(h);
       if (w > 0 && (!desktop || h > 0)) {
         setFloorW(desktop ? Math.min(w, h * FLOOR_W / FLOOR_H) : w);
       }
@@ -265,11 +267,11 @@ export function FloorView({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasFelts, desktop]);
+  }, [hasFelts, desktop, !!zoom]);
 
   return (
     <div
-      className={`csn-floor${desktop ? ' csn-floor--desk' : ''}`}
+      className={`csn-floor${desktop ? ' csn-floor--desk' : ''}${zoom ? ' csn-floor--zoom' : ''}`}
       data-testid="floor-view"
       data-room={room.id}
       role="group"
@@ -279,19 +281,19 @@ export function FloorView({
       {...(desktop ? {} : drag.handlers)}
     >
       {!headerOwned && <div className="csn-floor__head">
-        <button type="button" className="csn-floor__back" onClick={onHome || onClose} aria-label={onHome ? 'Back home' : 'Back to the casino'}>
-          {onHome ? '← HOME' : '← THE CASINO'}
+        <button type="button" className="csn-floor__back" onClick={zoom ? () => onZoom?.(null) : onHome || onClose} aria-label={zoom ? 'Back to the floor' : onHome ? 'Back home' : 'Back to the casino'}>
+          {zoom ? '← THE FLOOR' : onHome ? '← HOME' : '← THE CASINO'}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT,
             lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{room.name}</div>
+          }}>{zoom ? 'Table · ' + (zoom.blinds || room.stakes.label) : room.name}</div>
           <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
-            {`${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
+            {zoom ? 'pinch again to watch' : `${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
           </div>
         </div>
-        {toggle}
+        {!zoom && toggle}
         {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
       </div>}
 
@@ -301,12 +303,13 @@ export function FloorView({
             <div className="csn-floor__plan" ref={roomRef}>
               <TheFloor
                 felts={ranked}
+                zoom={zoom} onZoom={onZoom}
                 mineAt={mineAt}
                 standing={standing}
                 boardLines={events.length}
                 onWatch={onWatch}
                 width={floorW}
-                height={floorW * (FLOOR_H / FLOOR_W)}
+                height={zoom && !desktop ? floorH : floorW * (FLOOR_H / FLOOR_W)}
               />
             </div>
           ) : rows.length > 0 ? (
@@ -321,13 +324,13 @@ export function FloorView({
             </p>
           )}
 
-          {beyond > 0 && (
+          {!zoom && beyond > 0 && (
             <p className="csn-floor__unnamed">
               {`${beyond} more table${beyond === 1 ? '' : 's'} running in here than the room has space to draw.`}
             </p>
           )}
 
-          {unnamed > 0 && (
+          {!zoom && unnamed > 0 && (
             <p className="csn-floor__unnamed">
               {`${unnamed} more table${unnamed === 1 ? '' : 's'} in here the floor has not named.`}
             </p>
@@ -338,7 +341,7 @@ export function FloorView({
         {/* The board by the stairs. On the phone it is under the room, where
             the stairs are; on the desk it is the right column, which is the
             same place — you pass it on the way out either way. */}
-        {board && (
+        {board && (!zoom || desktop) && (
           <div className="csn-floor__board">{board}</div>
         )}
       </div>

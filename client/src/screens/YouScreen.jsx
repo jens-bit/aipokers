@@ -430,9 +430,9 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
       {thinHistory && (
         <div className="ftu-you-note">
           <NotYet
-            fact="ONE SESSION OF HISTORY"
+            fact={sessionCount === 0 ? 'NO SESSION HISTORY YET' : 'ONE SESSION OF HISTORY'}
             voice={null}
-            fills="A second session gives him a mood line to plot, and a week gives him a win rate worth believing. Until then the only honest number on this screen is the balance."
+            fills={sessionCount === 0 ? 'His first session starts the record. A second gives him a mood line to plot; until then, the balance is what we know.' : 'A second session gives him a mood line to plot, and a week gives him a win rate worth believing. Until then the only honest number on this screen is the balance.'}
           />
         </div>
       )}

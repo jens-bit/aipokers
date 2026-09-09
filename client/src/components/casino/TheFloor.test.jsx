@@ -14,7 +14,7 @@
 // where N felts go. floorPlan reproduces those six exactly, which is the test
 // that this is a port and not a redesign.
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -184,5 +184,36 @@ describe('CASINO-2 job 5 · the room', () => {
     const { container } = render(<TheFloor felts={[]} />);
     expect(felts(container)).toHaveLength(0);
     expect(screen.getByText('THE BAR')).toBeInTheDocument();
+  });
+});
+
+
+describe('BUG-125: the casino pinch camera', () => {
+  const touch = (el, kind, distance, y = 108) => fireEvent[kind](el, { touches: [{ clientX: 64-distance/2, clientY:y }, { clientX:64+distance/2, clientY:y }] });
+  it('zooms the same felt first, then watches on a second spread', () => {
+    const onZoom=vi.fn(), onWatch=vi.fn();
+    const {rerender,container}=render(<TheFloor felts={[felt({tableId:'t1'})]} onZoom={onZoom} onWatch={onWatch}/>);
+    const el=screen.getByTestId('the-floor');
+    touch(el,'touchStart',40); touch(el,'touchMove',70);
+    expect(onZoom).toHaveBeenCalledWith(expect.objectContaining({tableId:'t1'}));
+    expect(onWatch).not.toHaveBeenCalled();
+    fireEvent.touchEnd(el,{touches:[]});
+    rerender(<TheFloor felts={[felt({tableId:'t1'})]} zoom={{tableId:'t1'}} onZoom={onZoom} onWatch={onWatch}/>);
+    expect(container.querySelector('.csn-floor58__room').style.transform).not.toBe('scale(1)');
+    expect(screen.getByRole('button',{name:'Watch this table'})).toBeInTheDocument();
+    touch(el,'touchStart',40); touch(el,'touchMove',70);
+    expect(onWatch).toHaveBeenCalledTimes(1); expect(onWatch).toHaveBeenCalledWith('t1');
+    touch(el,'touchMove',90); expect(onWatch).toHaveBeenCalledTimes(1);
+  });
+  it('pinching back leaves the camera without entering a game; ordinary table taps still watch', () => {
+    const onZoom=vi.fn(),onWatch=vi.fn();
+    const {rerender}=render(<TheFloor felts={[felt({tableId:'t1'})]} zoom={{tableId:'t1'}} onZoom={onZoom} onWatch={onWatch}/>);
+    const el=screen.getByTestId('the-floor');
+    touch(el,'touchStart',80);touch(el,'touchMove',40);
+    expect(onZoom).toHaveBeenCalledWith(null);expect(onWatch).not.toHaveBeenCalled();
+    fireEvent.touchCancel(el,{touches:[]});
+    rerender(<TheFloor key="fresh" felts={[felt({tableId:'t1'})]} onWatch={onWatch}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Watch table t1'}));
+    expect(onWatch).toHaveBeenCalledTimes(1); expect(onWatch).toHaveBeenCalledWith('t1');
   });
 });

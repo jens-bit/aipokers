@@ -531,17 +531,13 @@ function RetireSheet({ agent, busy, error, onCancel, onConfirm }) {
 }
 
 
-// DELETE /api/agents/:id is what the server offers today (agentProfiles.js).
-// NOTE for the server side: it splices the record out, so of the three
-// promises the sheet makes it currently keeps none — he does not finish the
-// hand, his pocket is not collected, and the record is gone rather than kept.
-// A POST /:id/retire that ends the session, collects, and marks him retired is
-// the endpoint this call wants; when it lands, point `retireAgent` at it and
-// nothing else on this screen changes.
+// Retirement uses the existing archival route: finish the current hand,
+// collect the pocket and retain history. Pending retirement returns home;
+// server roster events keep the still-playing agent present until it completes.
 async function retireAgent(agentId) {
   const res = await fetch(
-    `/api/agents/${encodeURIComponent(agentId)}?userId=${encodeURIComponent(getUserId())}`,
-    { method: 'DELETE', headers: { 'x-telegram-init-data': getTelegramInitData() } },
+    `/api/agents/${encodeURIComponent(agentId)}/retire?userId=${encodeURIComponent(getUserId())}`,
+    { method: 'POST', headers: { 'x-telegram-init-data': getTelegramInitData() } },
   );
   if (!res.ok) throw new Error(`retire failed (${res.status})`);
   return res.json().catch(() => ({}));
@@ -562,7 +558,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   // pocket -> wallet, and only while it is the freshest thing on the card.
   const [collected, setCollected] = useState(null);
   // CHAT-2: the retire flow. `pending` is the confirm sheet; `busy` and
-  // `error` belong to the DELETE it fires.
+  // `error` belong to the retirement request.
   const [retirePending, setRetirePending] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState(null);

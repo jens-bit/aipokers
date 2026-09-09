@@ -1,6 +1,18 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-123 — profile retirement deletes the record instead of archiving — FIXED on design branch
+The profile still called DELETE despite the server already offering POST /:id/retire. It now uses that authenticated archival endpoint, which finishes an active hand, collects the pocket and retains history. The old DELETE expectation was replaced because it encoded the wrong contract. Red tests reproduced the DELETE and ignored refusal; final client integration and real-browser cancellation/refusal/success pass at 390/1440. The first desktop fixture omitted the server's HOME_STATE retirement push; adding the actual message made its room/one-fewer-chair check pass. No real agent was retired.
+
+### BUG-124 — zero sessions are labelled one session of history — FIXED on design branch
+The first-use inventory found sessionCount<=1 always labelled ONE SESSION OF HISTORY. A red check reproduced the fabricated count. Zero now says NO SESSION HISTORY YET and explains the first session; the one-session explanation remains distinct.
+
+### BUG-125 — F18 casino pinch camera is absent — FIXED on design branch
+The old FloorZoom component was an unrelated agent focus, not the casino gesture. The actual floor now enlarges the selected existing felt 2.3x, adds the reference vignette and Watch action, and changes the same header. A second spread watches; shrink/back leaves the camera, and ordinary table taps still watch. Native two-touch handling prevents the parent's dismiss drag and suppresses accidental post-pinch clicks. Actual touch journeys pass at 390x844/590 and 1440, preserving the same felt node and available height. The first broad run found resize hit-target failures at two desktop widths because the transition applied to every scale update; the transition is now restricted to focused cameras. All three resize cases pass. Reference quiet/sample seats differ from actual hot/public data, and the existing conversation remains.
+
+### BUG-126 — B15 brand motion moves the rail and lacks the notification look — OPEN
+The supplied frame specifies head-only 520ms peek and 440ms look, with a stationary rail. Current BrandLoading animates the whole mark for 560ms and no production caller supplies the look. The precise application/timing port is next; static brand artwork coverage does not count this complete.
+
 ### BUG-119 — sleeping agents wear the bored face — FIXED on design branch
 The independent 101-sprite audit found exactly one missing drawing: asleep (62 different native-size pixels). Home still mapped sleeps to bored, whose eyes remain partly open. The later reference’s separate downward lids and size-dependent lash ticks are now ported and mapped to the served sleep routine. Three red checks preceded the repair; actual phone/desktop Home confirms waking removes the overlay. All 101 controlled sprites now match pixels.
 
