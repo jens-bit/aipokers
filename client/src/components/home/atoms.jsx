@@ -112,7 +112,7 @@ export function RoutineProp({ kind, size }) {
 // these colours in the product: the pill here, the strip over the felt, the
 // seat pill and the profile card cannot disagree about a man.
 
-export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', heat = 45, news = false, guest = false }) {
+export function NamePill({ name, nickname = null, fatigue = 'fresh', heat = 45, news = false, guest = false }) {
   const h = Math.max(0, Math.min(100, Number(heat) || 0));
   // Fatigue is three stages on the wire and one length-and-colour on screen.
   const stam = Math.round((staminaOf(fatigue) ?? 1) * 100);
@@ -122,7 +122,8 @@ export function NamePill({ name, nickname = null, accent, fatigue = 'fresh', hea
           and the only place it is said. A body already reads as a stranger's
           the moment he is not one you can tap; this is what says WHY. */}
       {guest ? <span className="home-pill__guest" data-testid="home-pill-guest">GUEST</span> : null}
-      <span className="home-pill__name" style={{ color: accent }}>{shortName(name, nickname)}</span>
+      {/* Board 29 HomeOne, reused by 42 C5: the name is primary text, not glow. */}
+      <span className="home-pill__name" style={{ color: '#EDEDED' }}>{shortName(name, nickname)}</span>
       <span className="home-pill__bars" aria-hidden>
         <span className="home-pill__bar" data-bar="stamina">
           <i style={{ width: `${stam}%`, background: staminaPct(stam) }} />
@@ -184,8 +185,7 @@ export function HomeOne({
   const heldSide = speechX > roomWidth / 2 ? 'left' : 'right';
   const heldRoom = besideHead ? (heldSide === 'left' ? speechX : roomWidth - speechX) - size / 2 - 16 : null;
   const shownBubble = heldVoice ? { text: heldVoice.says, side: heldSide } : refusing && bubble ? { ...bubble, side: heldSide } : bubble;
-  // His colour is his, not his mood's. Everything his name pill and his body
-  // are tinted with comes from here.
+  // His hood and glow stay his birth identity; the pill text stays neutral.
   const glow = identity?.glow?.c ?? accent;
 
   return (
@@ -232,7 +232,6 @@ export function HomeOne({
         name={agent?.name}
         // Not on the wire yet; read the moment it is (lib/names.js).
         nickname={agent?.nickname}
-        accent={glow}
         fatigue={fatigue}
         heat={heat}
         news={!!news}
