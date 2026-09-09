@@ -15,7 +15,7 @@
 // that opens one — because wave 61's rule is that the landing is the game.
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 
 import App from './App.jsx';
 import { fetchMock, telegram } from './test/harness.js';
@@ -134,6 +134,9 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
     const root = mountPoint();
     fetchMock.route('/api/auth/config', { guest: true });
     fetchMock.route('/api/guest/me', { status: 404, body: {} });
+    // A freshly minted guest has no agents yet; the default returning-owner
+    // fixture made this routing check render a whole populated household.
+    fetchMock.route('/api/agents', { agents: [] });
     fetchMock.route(/\/agents\/agent_friend1\/visit-preview/, { agentId: 'agent_friend1', agentName: 'Away Day' });
     let posted = null;
     fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_visited' }; }, { method: 'POST' });
@@ -142,7 +145,8 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
 
     expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
     await waitFor(() => expect(root).not.toBeEmptyDOMElement());
-    expect(await screen.findByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
+    await waitFor(() => expect(root.querySelector('.guest-hero')).not.toBeNull());
+    expect(within(root.querySelector('.guest-hero')).getByRole('heading', { name: 'Away Day is at your door.' })).toBeInTheDocument();
   });
 
   it('a returning guest with the same link knocks straight away — no landing, no referral recorded twice', async () => {
@@ -177,7 +181,7 @@ describe('VISIT-1 job 6 · a friend\'s invite with no Telegram behind it', () =>
     // chunk, so the heading arrives a microtask after boot resolves rather
     // than on its tick. The two tests above already read it this way.
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument());
+      expect(screen.getByRole('heading', { name: 'Deal him in.', level: 1 })).toBeInTheDocument());
   });
 });
 

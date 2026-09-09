@@ -1,0 +1,60 @@
+/* Board 40 L2Section / L2Big / L2BigDesk. Only product captures use teal. */
+.landing-details { background:#150710; color:#F4EBDD; font-family:Inter,system-ui,sans-serif; letter-spacing:normal; }
+.landing-section { padding:54px 24px; border-top:1px solid rgba(205,179,128,.16); }
+.landing-section--alt { background:#2A0E18; }
+.landing-section__eyebrow { display:flex; gap:12px; align-items:baseline; padding-bottom:12px; color:#CDB380; font-family:Oswald,sans-serif; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.18em; }
+.landing-section__eyebrow span { font:700 11px 'JetBrains Mono',monospace; letter-spacing:.1em; }
+.landing-details h2 { font:400 30px/1.06 'Rozha One',Georgia,serif; letter-spacing:.005em; margin:0; max-width:620px; }
+.landing-section__lede { font-size:13.5px; line-height:1.6; color:rgba(244,235,221,.62); margin:14px 0 0; max-width:560px; }
+.landing-section__content { margin-top:26px; }
+.landing-details h3 { margin:0; font:600 9.5px Oswald,sans-serif; letter-spacing:.18em; color:#CDB380; }
+.landing-facts { display:grid; grid-template-columns:1fr; gap:16px; }
+.landing-facts>div { border-top:1px solid rgba(205,179,128,.16); padding-top:12px; }
+.landing-facts p { font-size:13.5px; line-height:1.6; color:rgba(244,235,221,.62); margin:7px 0 0; }
+.landing-screen { margin:0 auto 28px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.landing-screen:last-child { margin-bottom:0; }
+.landing-screen picture { display:block; width:min(335.4px,100%); }
+.landing-screen img { display:block; width:100%; height:auto; border-radius:12px; border:1px solid rgba(205,179,128,.16); }
+.landing-screen figcaption { max-width:540px; text-align:center; font-size:12.5px; line-height:1.5; color:rgba(244,235,221,.44); }
+.landing-screen figcaption span { display:block; margin-top:4px; }
+.landing-quotes { display:flex; flex-wrap:wrap; gap:18px; }
+.landing-quotes blockquote { flex:1; min-width:min(230px,100%); margin:0; padding:18px 20px; background:rgba(244,235,221,.03); border:1px solid rgba(205,179,128,.16); border-radius:4px; }
+.landing-quotes blockquote p { font:italic 17px/1.35 'Playfair Display',Georgia,serif; margin:11px 0 0; }
+.landing-quotes footer { font-size:12px; line-height:1.5; color:rgba(244,235,221,.44); margin-top:10px; }
+.landing-example-note { font-size:11px; color:rgba(244,235,221,.44); margin:14px 0 0; }
+.landing-seats { display:flex; flex-wrap:wrap; gap:12px; }
+.landing-seats>div { flex:1; min-width:150px; padding:16px 18px; border:1px solid rgba(205,179,128,.16); border-radius:4px; }
+.landing-seats>div:first-child { background:rgba(205,179,128,.07); }
+.landing-seats strong { display:block; margin-top:8px; font:400 24px/1 'Rozha One',Georgia,serif; }
+.landing-seats>div:first-child strong { color:#E8D5A8; }
+.landing-seats p { font-size:11.5px; color:rgba(244,235,221,.44); margin:7px 0 0; }
+.landing-close { padding:48px 24px 24px; border-top:1px solid rgba(205,179,128,.16); }
+.landing-close h2 { font-size:34px; }
+.landing-close>p { font-size:13.5px; line-height:1.6; color:rgba(244,235,221,.62); margin:14px 0 0; }
+.landing-close__action { margin-top:26px; }
+.landing-close blockquote { max-width:480px; margin:34px auto 0; padding-top:20px; border-top:1px solid rgba(205,179,128,.16); }
+.landing-close blockquote p { font:italic 16px/1.4 'Playfair Display',Georgia,serif; margin:0; }
+.landing-close blockquote footer { font:10.5px/1.5 'JetBrains Mono',monospace; color:rgba(244,235,221,.44); margin-top:9px; }
+.landing-footer { display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; padding:22px 24px 32px; border-top:1px solid rgba(205,179,128,.16); }
+.landing-footer span { font:10.5px 'JetBrains Mono',monospace; color:rgba(244,235,221,.44); }
+.landing-footer p { flex:1; min-width:220px; margin:0; font-size:11px; line-height:1.5; color:rgba(244,235,221,.44); }
+@media(min-width:701px) {
+  .landing-section { padding:54px 64px; }
+  .landing-section__eyebrow { font-size:10px; }
+  .landing-details h2 { font-size:44px; }
+  .landing-section__lede { font-size:15px; }
+  .landing-section__content { margin-top:34px; }
+  .landing-screen { margin-bottom:40px; }
+  .landing-screen picture { width:100%; }
+  .landing-facts { grid-template-columns:1fr 1fr; gap:20px 46px; }
+  .landing-quotes { gap:30px; }
+  .landing-quotes blockquote p { font-size:20px; }
+  .landing-seats strong { font-size:30px; }
+  .landing-close { padding:72px 64px 30px; text-align:center; }
+  .landing-close h2 { font-size:56px; max-width:none; }
+  .landing-close>p { font-size:15.5px; max-width:440px; margin:14px auto 0; }
+  .landing-close blockquote { margin-top:46px; }
+  .landing-close blockquote p { font-size:19px; }
+  .landing-footer { padding:26px 64px 40px; }
+}
+.landing-screen--phone picture { width:min(370.5px,100%); }

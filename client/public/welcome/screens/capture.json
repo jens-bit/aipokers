@@ -1,0 +1,78 @@
+{
+  "capturedAt": "2026-09-09T09:12:55.317Z",
+  "source": "App with existing desktop/Home/Watch browser fixtures",
+  "records": [
+    {
+      "scene": "home",
+      "kind": "phone",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "scene": "wants",
+      "kind": "phone",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "scene": "casino",
+      "kind": "phone",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "scene": "watch",
+      "kind": "phone",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "scene": "sit",
+      "kind": "phone",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "scene": "home",
+      "kind": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "scene": "wants",
+      "kind": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "scene": "casino",
+      "kind": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "scene": "watch",
+      "kind": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}

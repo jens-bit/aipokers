@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 22: /welcome shares the current app entry, real guest room and nine L2 sections. Responsive captures of the running product replace the old hand-drawn illustrations. Guest-off deployments keep the real sign-in path; no external setting changed. BUG-100 clears desktop condition labels and BUG-101 waits for actual scrolling before focusing. Built welcome is now in the deployment smoke suite. Desktop table actions and floor sizing remain open (BUG-99/103).
+
 - Design completion batch 21: desktop equity number and rope now share the same source, including silent replay beats and the recorded ending (BUG-97). Unrecorded heat is absent instead of an invented 45% bar (BUG-98). Phone and desktop reuse the same replay snapshot adapter. Watch layout and gameplay are unchanged.
 
 - Design completion batch 20: board 41 B12 loading uses the real entry wait and lazy boundaries, without an artificial delay. The shared RailMark now supports the reference's optical/scale poses. B5 favicon, B5b install/touch icons, manifest and B8 bot-avatar files are exported from that component; the app and /welcome reference them. Reduced motion is respected. BUG-96 fixes a flaky seat-rebuild test that assumed a random showdown could not split equally; game logic is unchanged.

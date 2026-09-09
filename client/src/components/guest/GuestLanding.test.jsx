@@ -102,6 +102,17 @@ describe('GUEST-1 · and the room, directly under it', () => {
     expect(screen.getByTestId('draft-input')).toBeInTheDocument();
   });
 
+  it('BUG-101: waits for a long page scroll to end before focusing the recruiter', async () => {
+    const { container } = await openLanding();
+    const room = container.querySelector('.guest-landing__room');
+    const roomBounds = vi.spyOn(room, 'getBoundingClientRect').mockReturnValue({ top: 800 });
+    await userEvent.click(screen.getByRole('button', { name: /DRAFT HIM/ }));
+    expect(screen.getByTestId('draft-input')).not.toHaveFocus();
+    roomBounds.mockReturnValue({ top: 0 });
+    await act(async () => { window.dispatchEvent(new Event('scrollend')); });
+    expect(screen.getByTestId('draft-input')).toHaveFocus();
+  });
+
   it('and puts the cursor in the composer', async () => {
     vi.useFakeTimers();
     try {

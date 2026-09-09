@@ -1,47 +1,39 @@
-# Railbird — morning handoff, 9 September 2026
+# Railbird — progress and handoff, 9 September 2026
 
-The overnight revision is substantially closer to the design, but the full specification is **not complete**. The remaining items below are real gaps, not a claim that passing tests makes every frame finished. No production deployment or Claude/Opus sign-off is claimed.
+Twenty-two implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
 
-## What changed
+## What is now implemented
 
-- Home and casino use one contextual navigation band and the available phone width. The kitchen table remains functional; wants have one answer surface rather than duplicate speech over the felt.
-- Board 42 companion, conversation, compact mobile profile, roster, absence and TV states are connected to actual stored data and authenticated actions. Failed messages remain recoverable. The casino gains its bottom conversation band.
-- Birth identity persists, the draft stays at four stages without a collar, long conversations scroll correctly, and the actual guest first-agent room follows the reference. Desktop's forming preview now sits over its real table beside the recruiter.
-- Home games follow the five-minute play / ten-minute break cadence, with explicit placement still supported. Agent routines remain visible during breaks.
-- Large-win/bust visual effects were added while preserving the Watch presentation Jens likes. Desktop casino recordings now open, preserve recorded end state and return correctly; unknown recorded stacks stay unknown.
-- Desktop uses the wider 560×700 reference room with shared furniture, routine, seat, carry and speech-clearance coordinates.
+- Home/casino phone layout uses one contextual header and the available width. The kitchen table, room routines, play/rest cadence, fridge and TV remain functional. Pending wants have one answer surface and the felt is clickable.
+- Board 42's companion, conversation, compact profile, roster, absence and TV states use actual stored data and authenticated actions. Desktop has the wider room, compact profile and latest contextual header.
+- First-agent entry uses the actual recruiter and four stages, without a collar. Hood/glow identity persists and the forming preview sits over the desktop room's table.
+- Watch's phone presentation is preserved, with large-win/bust visual effects. Desktop recordings open from casino rows, end honestly and return to their originating board. Missing recorded stack/body data is not invented; the equity number and rope agree.
+- Board 41's chosen loading frame and favicon/install/touch/avatar exports are prepared from the shared mark. Avatar export does not mean a Telegram account was changed.
+- The long welcome page shares the actual guest entry and room, followed by the nine L2 explanatory sections. Current product captures replace the previous hand-drawn illustrations. Guest-off deployments show the existing sign-in path. Four section comparisons are in client/e2e/shots/design-batch22-*.png.
 
-Seventeen reviewable batches contain the work. Details and per-batch evidence are in OVERNIGHT_DESIGN_WORK.md, DESIGN_GAP.md, BUGS.md and CHANGELOG.md. Reference/actual pairs are committed under client/e2e/shots/overnight-batch*.png.
+## Verification
 
-## Final verification
+The latest full gate passed 105 server checks (two intentional live skips), 2,199 client checks (two existing todos) and all seven end-to-end verifiers. A final client run after the scrolling refinement also passed 2,199. The desktop/draft/landing/welcome browser group passed 43 checks; final welcome passed eight including ordinary/reduced-motion scrolling, and final guest/Home checks passed seven.
 
-- Full repository gate: 105 server tests passed (two intentional live skips), 2,181 client tests passed (two pre-existing todos), all seven end-to-end verifiers passed.
-- 36 recovered browser checks passed: desktop, draft, guest entry and Jens's four-agent/pending-want table-click regression at both short and tall phone heights.
-- Current production build passed. Fresh scratch-server smoke: all four passed. Home interaction suite: all 20 passed, with the old BUG-43 skip repaired.
-- Final wider desktop and guest pairs were inspected. The additional crop audit independently reconfirmed C1; the broader optional recrop stopped at C7b and is not represented as complete.
-- One Windows share-test child crashed without a JavaScript assertion. It passed in isolation and the complete rerun passed. BUG-94 retains the unexplained failure; no assertion was weakened or skipped for it.
+The production build passed. On a fresh scratch server, all four existing smoke checks and all 20 Home2 checks passed. The new permanent built-welcome smoke also passed: /welcome and /welcome/ serve no-store with the current hashed bundle, responsive product images load, and neither width raises a page error. Main integration is subject to its own final gate; the chat confirms the prepared revision. Nothing has been pushed by Astra.
 
-The verification processes stopped around 04:56 and were no longer running when inspected at 08:53. Work was recovered and the final gates rerun. The intervening hours must not be counted as productive execution. The overnight heartbeat was paused at the planned 09:00 cutoff.
+BUG-94 retains an unexplained earlier Windows child-process exit. BUG-102 records the local invite-test timeout: its inaccurate new-guest fixture and broad query were corrected, and subsequent full runs passed, but resource contention is not proven as the cause. No assertion was skipped or weakened. The overnight execution interruption around 04:56–08:53 remains documented; those hours are not represented as productive work. The scheduled heartbeat was paused at its 09:00 cutoff; the active goal continued afterwards.
 
-## Still required before full design/spec sign-off
+## Remaining work
 
-1. Port the long /welcome page from the approved design using actual product components/screens, rather than shipping the archive's React/Babel design canvas.
-2. Finish C9's compact CONDITION/RECENT desktop profile and latest header; refine guest empty-roster presentation and remaining fixture details.
-3. Audit the remaining generated-possession/rare-hood states and remaining board-41 brand deliverables against the archive. Persisted hood/glow and no-collar birth are implemented; this is not a claim that every proposed item is drawn.
-4. Complete the broader reference-state inventory and visual acceptance pass. Undesigned visit/referral/share/fast-forward states and the future coordinated room-routine wave must stay explicitly identified rather than invented.
-5. Resolve replay metadata debt: desktop decision/snapshot equity consistency and unavailable historical condition/identity data require an honest presentation.
-6. Select the reference's still-unspecified celebration audio files. Existing Watch cards/strip remain by Jens's explicit preference.
-7. Verify real deployment settings and a production playtest: guest rollout flag, actual Telegram bot username, public URL/share configuration and deployed commit. These were not changed or assumed from sample branding in the archive.
+1. Desktop kitchen-table Watch/Sit actions and the human seating stage are missing (BUG-99). The welcome page currently uses the working phone seating example at either width.
+2. The desktop casino floor uses too little of its stage (BUG-103). Its late ROOM_TABLES measurement and the approved wider geometry need a focused port and browser proof.
+3. Finish the current reference-state inventory and identity presentation audit. Separate current requirements from explicitly parked rare-birth rolls and future design waves. Do not invent a collar or an item economy.
+4. Remaining board-41 applications, unspecified celebration audio, external avatar/account settings and undesigned visit/referral/share/fast-forward states need explicit dispositions.
+5. Complete production rollout verification and playtest after deployment. A public config check returned guest=false and botUsername=agenticpoker_bot; these were not changed. Guest entry is not enabled merely because the code exists.
 
-## Deploying this reviewed revision
+## Deployment workflow
 
-Main is to be prepared only after the final gates. The final chat message confirms that state. In PowerShell, the existing workflow is:
+Jens pushes after the final integration gate. A push starts deployment; it does not prove the new build is live. Check the successful run's commit and then reopen the app to exercise Home table, casino, companion, welcome and first draft.
 
 ```powershell
 Set-Location C:\Projects\ai-poker
 git push origin main
 ```
 
-A push starts deployment; it does not itself prove the new build is live. Check the successful deployment's commit, reopen the Mini App, then exercise Home table, casino, companion and first draft. This revision is available for Jens's playtest; full friends-shareable/spec completion is still an open goal.
-
-The project has a working gameplay foundation. The main process gap was treating code and test completion as proof of visual completion. The paired renders now make that difference visible and reviewable.
+The working gameplay foundation is clear. The earlier process gap was treating code/tests as proof of design parity. The paired renders expose the remaining differences instead of hiding them behind passing checks.

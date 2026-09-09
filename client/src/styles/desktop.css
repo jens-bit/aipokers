@@ -2159,8 +2159,8 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  /* WATCH-8: the bottom six pixels belong to the body bars. */
-  padding: 9px 13px 15px;
+  /* Two labelled condition rows need their own space below the numbers. */
+  padding: 9px 13px 33px;
   border-radius: 13px;
   background: rgba(13, 23, 21, 0.72);
   backdrop-filter: blur(18px) saturate(1.2);

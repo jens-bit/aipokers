@@ -29,7 +29,6 @@ import * as registry from './server/tableRegistry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.join(__dirname, '..', 'client', 'dist');
-const PUBLIC_DIR = path.join(__dirname, '..', 'client', 'public');
 
 const port = Number(process.env.PORT ?? 8765);
 const host = process.env.HOST ?? '0.0.0.0';
@@ -201,14 +200,12 @@ if (openApiSpec) {
   });
 }
 
-// GET /welcome — serve the landing page (static, no framework).
-// Prefer the built copy from client/dist; fall back to client/public for
-// dev / WS-only mode. Must be registered before the SPA static fallback
-// so it is not swallowed by the catch-all index.html route.
+// /welcome shares the actual guest entry and current product captures. Both
+// entry URLs must receive the fresh hashed bundle, never an older static page.
 app.get('/welcome', (_req, res) => {
-  const built = path.join(STATIC_DIR, 'welcome', 'index.html');
-  const source = path.join(PUBLIC_DIR, 'welcome', 'index.html');
-  res.setHeader('Cache-Control', 'no-store');  // CACHE-2: Telegram caches index files
+  const built = path.join(STATIC_DIR, 'index.html');
+  const source = path.join(__dirname, '..', 'client', 'index.html');
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(existsSync(built) ? built : source);
 });
 

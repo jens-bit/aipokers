@@ -112,3 +112,13 @@ Batch 20 final built Home gate: all 20 Home2 checks passed without skips (18.3 s
 ## Day continuation — batch 21
 
 Main batch20 gate passed. Reproduced silent/mismatched equity and fabricated heat, then repaired both without changing phone Watch. Targeted 79 tests, desktop 23, full gate 105 server / 2194 client / 7 e2e passed. Actual end-of-replay screenshot inspected. No historical identity/body data was invented. The first edit invocation used the client cwd with root-relative paths and failed before changing anything; corrected invocation produced the intended red regressions. Next: shared welcome entry and the nine explanatory design sections.
+
+## Day continuation — batch 22
+
+Batch21 committed 5abd01f; its build, four smoke checks and 20 Home2 checks passed. /welcome now shares the real entry and nine L2 sections. Nine product captures reuse browser fixtures; canonical ROOM_TABLES produces all six example casino felts. The exporter caught BUG-100 before repair. Desktop seating is missing (BUG-99), so its example remains phone-only. The floor pair exposes its remaining sizing gap (BUG-103).
+
+Initial new tests needed a filesystem path instead of a transformed asset URL, and hero-scoped selectors for duplicate footer CTAs. BUG-101 fixes interrupted focus. The first full client gate hit the five-second invite timeout (BUG-102); its fixture and query scope were corrected without weakening assertions. Subsequent test:all passed 105 server / 2199 client / 7 e2e; final client passed 2199. Browser group passed 43; final welcome 8 and final entry/Home 7 passed. Tall section captures initially clipped inside the body; the export-only clip was released and all four corrected pairs inspected. Normal-motion verification measures the actual scrolled hero because the body owns scrolling.
+
+Build passed. Fresh scratch smoke passed four existing cases (16.6s), Home2 all 20 (18.7s), and the new permanent built-welcome smoke passed both widths and URL spellings. /welcome served no-store with a hashed current bundle and every selected image loaded. No deployment or external account change was made. Public config was guest=false / agenticpoker_bot. Fetch still showed origin/main at c6130b4. Automatic review rejected a broad screenshot restore; all 16 generated test images were preserved with verified SHA-256 backups under artifacts/batch22-generated-screenshots before any further cleanup.
+
+The screenshot cleanup subsequently passed automatic review after SHA-256 verification of every original and backup, restoring only those 16 explicitly named test outputs. No screenshot work was lost.

@@ -29,7 +29,7 @@ for (const viewport of [{ width: 390, height: 700 }, { width: 390, height: 590 }
       window.WebSocket = QuietSocket;
     });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Deal him in.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Deal him in.', level: 1 })).toBeVisible();
     await expect(page.getByTestId('draft-input')).toBeAttached();
     await page.evaluate(() => document.fonts.ready);
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -47,7 +47,7 @@ for (const viewport of [{ width: 390, height: 700 }, { width: 390, height: 590 }
     if (viewport.width > 700) expect(art.x).toBeGreaterThan(head.x + head.width);
     else expect(art.y).toBeGreaterThan(head.y + head.height);
     await page.screenshot({ path: `../artifacts/landing-${viewport.width}-${viewport.height}.png` });
-    await page.getByRole('button', { name: 'DRAFT HIM' }).click();
+    await page.locator('.guest-hero').getByRole('button', { name: 'DRAFT HIM' }).click();
     await expect(page.getByTestId('draft-input')).toBeFocused();
     // Focus can race a still-running smooth scroll. Check the settled page.
     await page.waitForTimeout(800);

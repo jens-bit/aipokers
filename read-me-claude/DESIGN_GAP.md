@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 22
+
+The long /welcome page now uses L2's shared hero, actual room and nine approved subjects. Sections, typography, padding and responsive product captures are ported; both routes serve the current bundle. Four unclipped reference/actual pairs were inspected: design-batch22-{home,casino}-{390,1280}.png. Actual screens retain their real table, fixtures, actors and session data; they omit the decorative iPhone status-bar bezel. Section 07 uses the functioning phone seating experience at either width while desktop seating remains unbuilt (BUG-99). The floor pair reveals a remaining desktop sizing gap (BUG-103). L2 is implemented with these explicit product/illustration differences; the overall specification remains incomplete.
+
+Full gate: 105 server passes / 2 intentional live skips, 2199 client passes / 2 existing todos, 7 e2e passes. Browser group: 43 passed; final welcome 8 and latest entry/Home 7 passed after scroll refinement. The four existing built smoke checks passed, the new built-welcome smoke passed both widths, and Home2 passed all 20. LANDING_PAGE.md documents capture refresh. Read-only live config returned guest=false and botUsername=agenticpoker_bot; neither was changed.
+
 ## Design completion — 2026-09-09, batch 20
 
 Board 41 B5/B5b assets and B12 loading are implemented. The shared mark now has the exact close/lean/hood/far/icon/glyph geometry, including the enlarged eye openings at 16px. SVG/PNG favicon, app/touch icons and the manifest are wired in the app and /welcome. B8's 512px bot avatar is exported and visually paired, but not applied to Telegram. B12 uses the chosen first line during actual entry/lazy waits; it adds no minimum delay and supports reduced motion. Inspected pairs: `client/e2e/shots/design-batch20-loading-b12.png` and `design-batch20-brand-assets.png`. The reference B8 board displays its “512” example at 480px; the delivered file is genuinely 512px. Export instructions and remaining external application are in BRAND_ASSETS.md. B13 does not replace the table/guest room Jens explicitly asked to retain. B15's separate peek/look application and other outstanding brand/long-landing states remain open.

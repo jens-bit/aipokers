@@ -13,9 +13,8 @@
 // scroll, because the thing it would have navigated to is already on the page
 // and already his.
 //
-// The long marketing page is untouched and still lives at /welcome — nine
-// sections, board 40. This is not a replacement for it; it is what a stranger
-// gets when he opens the app itself.
+// The same entry also serves /welcome. Its nine explanatory sections follow
+// the real room, using captures of current product components.
 //
 // Board 40, waves 60/61: L2Masthead, L2Hero, L2Hand and L2Cta.
 // Each back is 55% of the actual hood. The hero leaves a 26px room preview;
@@ -27,6 +26,7 @@
 // product's own Card component.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LandingDetails } from './LandingDetails.jsx';
 import { RailMark } from '../system/RailMark.jsx';
 import App from '../../App.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
@@ -109,7 +109,8 @@ function DoorWithVisitor({ name }) {
 // have to read as two people, not one drawing twice.
 const HODS_VISITOR = HOODS[2];
 
-export function GuestLanding({ visitorName = null }) {
+export function GuestLanding({ visitorName = null, roomContent = null, showDetails = false,
+  ctaLabel = 'DRAFT HIM', ctaNote = 'Free · no account needed', guestAvailable = true }) {
   const roomRef = useRef(null);
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 701px)').matches);
   useEffect(() => {
@@ -125,15 +126,34 @@ export function GuestLanding({ visitorName = null }) {
   // threaded down through App as a ref: the draft sheet is four components
   // deep and behind a branch, and a prop drilled through all of it to move a
   // cursor is a worse thing to own than one query.
+  const scrollCleanup = useRef(() => {});
+  useEffect(() => () => scrollCleanup.current(), []);
   const draftHim = useCallback(() => {
     const room = roomRef.current;
     if (!room) return;
-    room.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // After the scroll has been asked for, not before: focusing first makes
-    // some browsers jump to the field and cancel the smooth scroll.
-    window.setTimeout(() => {
+    scrollCleanup.current();
+    let timer;
+    const focus = () => {
+      if (Math.abs(room.getBoundingClientRect().top) > 1) return;
+      scrollCleanup.current();
       room.querySelector('[data-testid="draft-input"]')?.focus({ preventScroll: true });
-    }, 320);
+    };
+    scrollCleanup.current = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('scrollend', focus, true);
+    };
+    const instant = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (instant) {
+      room.scrollIntoView({ behavior: 'instant', block: 'start' });
+      focus();
+    } else {
+      window.addEventListener('scrollend', focus, true);
+      room.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // The footer can be many screens away. Focus after the actual scroll,
+      // with a fallback for WebViews that do not emit scrollend yet.
+      if (Math.abs(room.getBoundingClientRect().top) < 1) focus();
+      else timer = window.setTimeout(focus, 1500);
+    }
   }, []);
 
   return (
@@ -160,14 +180,14 @@ export function GuestLanding({ visitorName = null }) {
             </p>
             <div className="guest-hero__action">
               <button type="button" className="guest-hero__cta" onClick={draftHim}>
-                DRAFT HIM
+                {ctaLabel}
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
                   stroke="#1A0A10" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                   <path d="M5 12h13" />
                   <path d="M13 6l6 6-6 6" />
                 </svg>
               </button>
-              <span className="guest-hero__free">Free · no account needed</span>
+              <span className="guest-hero__free">{ctaNote}</span>
             </div>
           </div>
 
@@ -191,8 +211,9 @@ export function GuestLanding({ visitorName = null }) {
 
       {/* The room, mounted. Not a picture of one. */}
       <div ref={roomRef} className="guest-landing__room">
-        <App guestBoot="new" />
+        {roomContent ?? <App guestBoot="new" />}
       </div>
+      {showDetails && <LandingDetails onDraft={draftHim} ctaLabel={ctaLabel} ctaNote={ctaNote} guestAvailable={guestAvailable} />}
     </div>
   );
 }

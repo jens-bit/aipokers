@@ -36,10 +36,15 @@ const GuestLanding = lazy(() => import('./components/guest/GuestLanding.jsx').th
 // function: the first two paths still render on the same tick they always did,
 // and only a visitor who has no credential at all waits for one round trip.
 
+const wantsWelcome = /^\/welcome\/?$/.test(window.location.pathname);
 const root = createRoot(document.getElementById('root'));
 
 function render(tree) {
   root.render(<StrictMode>{tree}</StrictMode>);
+}
+
+function welcome(roomContent, options = {}) {
+  return <Suspense fallback={<BrandLoading/>}><GuestLanding showDetails roomContent={roomContent} {...options}/></Suspense>;
 }
 
 async function boot() {
@@ -50,7 +55,11 @@ async function boot() {
   // redirected to the marketing page never has the SDK initialised at all, and
   // initialising it up here to save three lines would quietly break that.
   if (isMiniAppSession()) { initTelegram(); return render(<App />); }
-  if (getWebLogin() != null) { initTelegram(); return render(<Suspense fallback={<BrandLoading/>}><LoginGate><App /></LoginGate></Suspense>); }
+  if (getWebLogin() != null) {
+    initTelegram();
+    const room = <Suspense fallback={<BrandLoading/>}><LoginGate><App /></LoginGate></Suspense>;
+    return render(wantsWelcome ? welcome(room, { ctaLabel: 'OPEN YOUR ROOM', ctaNote: 'Free · play money only', guestAvailable: false }) : room);
+  }
 
   // (3): is the no-account door open, and are we already through it?
   render(<BrandLoading/>);
@@ -74,7 +83,8 @@ async function boot() {
       // is job 1's own knock, made straight away rather than staged behind a
       // birth that already happened.
       if (visitAgentId) requestVisit(visitAgentId).catch(() => {});
-      return render(<App guestBoot="returning" />);
+      const room = <App guestBoot="returning" />;
+      return render(wantsWelcome ? welcome(room, { ctaLabel: 'OPEN YOUR ROOM', ctaNote: 'Free · play money only' }) : room);
     }
 
     const visitor = visitAgentId ? await visitPreview(visitAgentId) : null;
@@ -94,7 +104,7 @@ async function boot() {
       // it — which is why it needs the boundary the eager import did not.
       return render(
         <Suspense fallback={<BrandLoading/>}>
-          <GuestLanding visitorName={visitor?.agentName ?? null} />
+          <GuestLanding showDetails visitorName={visitor?.agentName ?? null} />
         </Suspense>,
       );
     }
@@ -105,6 +115,12 @@ async function boot() {
   // The marketing redirect is kept for the deployment where guests are off, so
   // turning GUEST_ENABLED off on the VPS restores today's behaviour exactly.
   const wantsLogin = new URLSearchParams(window.location.search).has('login');
+  if (wantsWelcome) {
+    initTelegram();
+    return render(welcome(<LoginGate><App /></LoginGate>, {
+      ctaLabel: 'MEET HIM', ctaNote: 'Free · sign in with Telegram', guestAvailable: false,
+    }));
+  }
   if (window.location.hostname === 'agenticpoker.app' && !wantsLogin) {
     render(null);
     window.location.replace('/welcome');

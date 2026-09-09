@@ -623,3 +623,32 @@ test('C9 room header and door give one route between Home and casino',async({pag
   await header.getByRole('button',{name:'Back home'}).click();
   await expect(page.getByTestId('home-table')).toBeVisible();
 });
+
+
+test('BUG-100: desktop condition labels stay below the stack and equity',async({page})=>{
+  await desk(page,SIZES[0]);
+  await page.addInitScript(()=>{
+    const Base=window.WebSocket;
+    window.WebSocket=class extends Base {
+      send(raw){
+        super.send(raw);
+        if(JSON.parse(raw).type!=='watch')return;
+        setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'state',state:{
+          tableId:'t1',handNumber:3,street:'flop',pot:240,community:['5c','4h','8c'],heroEquity:.64,toAct:1,
+          seats:[{playerId:'a3',displayName:'Big Slick',stack:1847,holeCards:['6h','6s'],fatigue:'fresh',mood:{state:'confident',heat:24}},
+            {playerId:'villain',displayName:'Granite',stack:2104,holeCards:[],mood:{state:'neutral',heat:30}}],result:null,
+        },legalActions:[]})}),60);
+      }
+    };
+  });
+  await page.reload();
+  await page.getByRole('button',{name:/Standup/}).click();
+  await page.getByRole('button',{name:'WATCH →'}).first().click();
+  await expect(page.locator('.dtb__strip .felt-bars__label')).toHaveCount(2);
+  await expect(page.locator('.dtb__equity-val')).toHaveText('64.0%');
+  const bounds=await page.locator('.dtb__strip').evaluate(el=>({
+    numbersBottom:Math.max(...[...el.querySelectorAll('.dtb__hero-stack,.dtb__hero-num,.dtb__equity-val')].map(n=>n.getBoundingClientRect().bottom)),
+    barsTop:el.querySelector('.felt-bars').getBoundingClientRect().top,
+  }));
+  expect(bounds.barsTop).toBeGreaterThanOrEqual(bounds.numbersBottom+4);
+});

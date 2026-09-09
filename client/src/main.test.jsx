@@ -64,6 +64,22 @@ describe('LAND-2 landing-page guard', () => {
     expect(telegram.webApp.readyCalls).toBe(0);
   });
 
+  it('/welcome with guests disabled renders the sign-in door without a redirect loop', async () => {
+    const replace = stubLocation('agenticpoker.app');
+    window.location.pathname = '/welcome';
+    telegram.signOut();
+    fetchMock.route('/api/auth/config', { guest: false, botUsername: '' });
+    fetchMock.route('/api/auth/me', { status: 401, body: {} });
+    const root = mountPoint();
+    await act(async () => { await (await import('./main.jsx')).booted; });
+    await vi.waitFor(() => expect(root.querySelector('.landing-details')).not.toBeNull());
+    expect(replace).not.toHaveBeenCalled();
+    expect(root.querySelector('h1')).toHaveTextContent('Deal him in.');
+    expect(root.querySelector('.guest-hero__free')).toHaveTextContent('Free · sign in with Telegram');
+    expect(fetchMock.posts.filter(c => c.url.includes('/api/guest'))).toHaveLength(0);
+    await vi.waitFor(() => expect(root.querySelector('.ftu-login')).not.toBeNull());
+  });
+
   it('renders the app for a Telegram user on the production domain', async () => {
     const replace = stubLocation('agenticpoker.app');
     telegram.signIn();

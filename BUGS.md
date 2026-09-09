@@ -1,6 +1,21 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-99 — desktop kitchen table exposes neither Watch nor Sit — OPEN
+The marketing capture opened the desktop table panel but found no home-table-sit. DeskHome passes only slots/seated/onDraft to TableSheet, while the phone passes onWatch/onSit from its running home game. App routes every desktop state through DesktopHome before its phone-only seated branch. This needs actual desktop action wiring and a verified human stage, not a button opening an unseen socket. The welcome seating example is explicitly the phone experience.
+
+### BUG-100 — desktop condition labels cross the stack and equity — FIXED on design branch
+A browser capture measured the condition group's top at 846px against the numbers' bottom at 858px: a 12px overlap. The strip still reserved six pixels after both bars acquired labels. Bottom padding now reserves both labelled rows. The exporter and desktop browser regression assert a clear gap. Evidence: artifacts/batch22-bodybars-red.log and batch22-capture-verified.log. Phone Watch is unchanged.
+
+### BUG-101 — recruiter focus interrupts a long landing scroll — FIXED on design branch
+At 375px, the room remained 32px below the viewport after the old 320ms focus timer interrupted scrolling. Reduced motion now scrolls immediately; ordinary motion listens for scrollend from the body's scroller and checks the room has arrived before focusing with preventScroll. A bounded fallback supports older WebViews; listeners/timers are cleared on a new action or unmount. Browser coverage includes a footer over 5000px away, real typing and both motion settings. The first normal-motion test incorrectly measured window.scrollY; it now measures the hero's actual offscreen position.
+
+### BUG-102 — invite unit test exceeds five seconds in a full local gate — OPEN, mitigated setup
+The first batch22 full client gate timed out in the new-visitor invite case; a focused run took about 1.8 seconds. Its newly minted guest incorrectly had a returning owner's household. The fixture now gives it an empty roster, and the exact-heading assertion is scoped to the mounted hero. Referral/heading assertions remain, without a timeout increase or skip. The subsequent full gate and final client run passed all 2199 checks. Resource contention is possible but unproven. Evidence: artifacts/batch22-test-all.log and batch22-test-all-final.log.
+
+### BUG-103 — desktop casino floor leaves much of its stage unused — OPEN
+The paired design-batch22-casino-1280.png shows its six felts and bar using much less space than the approved DkCasinoFloor. FloorView caps a shared 390×470 plan; its one-time measurement effect can encounter a ref not mounted until ROOM_TABLES arrives. Reproduce late-frame sizing, then port the approved desktop geometry and recheck phone layout before closing this item.
+
 ### BUG-97 — desktop equity number disagrees with its own rope — FIXED on design branch
 The rope read snapshot equity first but the number read only a spoken decision. A silent recorded beat showed 81% on the rope and a dash in the strip; a newer snapshot could also disagree with an older decision. Red regressions are in artifacts/batch21-red.log. Both now use the same snapshot/seat/decision precedence, including recorded completion. Browser checks verify 4% at the first recorded beat and 100% at its won ending.
 

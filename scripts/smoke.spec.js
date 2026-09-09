@@ -371,3 +371,29 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
     });
   });
 }
+
+// The marketing route must load the same production bundle and public assets.
+// This runs against dist; Vite's SPA fallback cannot prove the server route.
+test('L2: built welcome loads its current bundle and responsive product screens', async ({ browser }) => {
+  for (const width of [390, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    try {
+      await page.route('https://telegram.org/**', route => route.fulfill({ body: '' }));
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      const config = await (await page.request.get(`${BASE}/api/auth/config`)).json();
+      const response = await page.goto(`${BASE}/welcome${width === 1440 ? '/' : ''}`);
+      expect(response.status()).toBe(200);
+      expect(response.headers()['cache-control']).toBe('no-store');
+      await expect(page.getByRole('heading', { name: 'Deal him in.', level: 1 })).toBeVisible();
+      await expect(page.locator('.landing-section')).toHaveCount(8);
+      await expect(page.locator('.guest-hero .guest-hero__cta')).toHaveText(config.guest ? 'DRAFT HIM' : 'MEET HIM');
+      for (const img of await page.locator('.landing-screen img').all()) {
+        await img.scrollIntoViewIfNeeded();
+        await expect.poll(() => img.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
+      }
+      expect(await page.locator('script[type=module]').getAttribute('src')).toMatch(/^\/assets\//);
+      expect(errors).toEqual([]);
+    } finally { await page.close(); }
+  }
+});
