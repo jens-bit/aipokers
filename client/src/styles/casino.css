@@ -851,3 +851,14 @@
   border-radius: 5px;
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6);
 }
+
+/* N3/F07: the phone board has two separate panels before the room doors. */
+.csn-board--separated { background: none; border: 0; overflow: visible; }
+.csn-board--separated .csn-board__body { gap: 10px; }
+.csn-board--separated .csn-live,
+.csn-board--separated .csn-tonight {
+  background: #0C1211;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}

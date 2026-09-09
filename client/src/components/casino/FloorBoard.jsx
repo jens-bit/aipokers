@@ -380,11 +380,11 @@ export function Tonight({ events = [], mineIds = NOBODY, rows = 3, stakesFor = n
  */
 export function FloorBoard({
   felts = [], events = [], mineIds = NOBODY, rooms = [], playing = 0,
-  liveLimit = 3, rows = 3, stakesFor = null, onWatch = null, onReplay = null,
+  liveLimit = 3, rows = 3, stakesFor = null, onWatch = null, onReplay = null, separated = false,
 }) {
   return (
-    <div className="csn-board">
-      <div className="csn-board__head">
+    <div className={`csn-board${separated ? ' csn-board--separated' : ''}`}>
+      {!separated && <div className="csn-board__head">
         <LiveDot color={M_GOLD} />
         <span style={{ fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em', color: M_GOLD }}>
           ON THE FLOOR RIGHT NOW
@@ -392,7 +392,7 @@ export function FloorBoard({
         <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 8, color: M_MUTED }}>
           {count(playing)} playing
         </span>
-      </div>
+      </div>}
       <div className="csn-board__body">
         <LiveNow felts={felts} mineIds={mineIds} rooms={rooms} limit={liveLimit} onWatch={onWatch} />
         <Tonight events={events} mineIds={mineIds} rows={rows} stakesFor={stakesFor} onReplay={onReplay} />

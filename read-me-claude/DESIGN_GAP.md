@@ -1,288 +1,68 @@
-# DESIGN GAP — what the design says, what the app does, what is left
-
-## Design completion — 2026-09-09, batch 29
-
-BUG-111: saved hood/glow now follows each real agent through live STATE, owner liveGameView, public feltView, casino normalization, floor bodies, preview tables, deployment tray, and shared phone/desktop Watch. Only validated palette IDs leave the server. Mood and camera seat changes keep appearance; unknown anonymous seats retain their existing fallback. Historical replay has no new invented identity metadata.
-
-Red checks reproduced absent live identity and all three casino renderers dropping it. The browser then caught normalizeFelts discarding the new field; corrected without weakening its floor assertion. The live smoke wire check was corrected to use the server's spectatorSeat (STATE intentionally does not carry agentId). Final test:all passed 106 server / 2219 client / 7 e2e. Build passed, with the existing >500KB bundle warning. All 38 desktop checks passed; the earlier four layout/BUG-55 checks also passed. Fresh built server artifacts/smoke-batch29-verified passed seven smoke journeys (51.4s) and 20 Home2 checks (19.4s). The first Home2 invocation mistakenly used an unsupported base-URL variable and failed against idle port 8765; the corrected run used SMOKE_BASE_URL=18886.
-
-Reference/actual pairs client/e2e/shots/design-batch29-{owned,public}.png were inspected. Geometry is unchanged from batch28; actual saved identities and served hands differ from authored illustrations. Current roster supersedes the reference's older floor strip, and public Watch has no distinct authored frame. Main28's post-integration test:all had already passed. Batch29 main integration follows; no push or account change is made. The full design/spec goal stays open.
-
-## Design completion — 2026-09-09, batch 28
-
-DkWatchScreenM now uses shared WatchFelt in its 900×648 desktop canvas, with a contextual 54px header and permanent conversation. It fits width and height, keeps the server-assigned camera, private/public card boundaries, real stack/equity/condition and the current reasoning bubble. Ghost tap focuses the owned whisper; public viewing labels its available read action and has no private agent hook/composer/sit-out. Back home sends Leave; Back to the floor retains the selected casino room. The later 250px roster supersedes the older 190px miniature floor strip in this reference. The input is 16px for touch accessibility, and current labelled condition tracks remain. Phone Watch geometry is unchanged; an absent heat measurement no longer becomes an invented 45% inside shared WatchFelt. Replay keeps its existing renderer.
-
-BUG-108's red geometry check preceded the repair. BUG-100 found the condition strip needed additional space under scaling; the four-pixel clearance assertion remains. The legacy 64.0% desktop assertion now reads the shared 64% rope; the actual equity value is unchanged. Existing frame tests now target the new canvas while replay selectors remain. Final paired screenshots, refreshed welcome image, full gates and integration results are recorded in the work log. This does not close the remaining inventory, identity coverage, audio or external rollout work.
-
-## Design completion — 2026-09-09, batch 27
-
-BUG-106 and BUG-107 are repaired: queue-selected blinds reach WATCH on both shells; the desktop newborn observer resets the current room panel state and opens the birth card without crashing. Red-first reproduction precedes both fixes. All 37 desktop browser cases, 37 focused App/DesktopHome checks, the full gate (105 server / 2211 client / 7 e2e), production build and seven fresh built-server smoke cases passed. Home2 and main integration results follow in the work log. This batch changes behavior, not artwork; batch26's inspected Watch pairs still describe the remaining visual work. Batch26 main integration passed before this batch began.
-
-## Design completion — 2026-09-09, batch 26
-
-Casino Watch now reaches the actual desktop stage for owned and public tables (BUG-105), and queue completion opens the owned Watch. Public mode uses only served table speech with no private composer/analysis/history or owner controls. Back/Escape/roster changes leave the active socket; desktop Back restores the explicit floor room. The real queue/Watch/Back/felt-Watch/Leave path passed on a fresh built server. All 36 desktop browser cases pass. Full gate passed 105 server / 2209 client / 7 e2e.
-
-Pairs design-batch26-{owned,public}.png were inspected against DkWatch. They intentionally show remaining differences: the older full-height Watch stage and legacy owned header/analysis rail are still present; the newer reference has a 900×648 felt and compact contextual header. The current 250px roster replaces the older floor strip. Public mode has no dedicated authored frame and is not claimed as an exact visual port. Its camera currently lacks an explicit hero name, and the older Watch header's HOME/CASINO actions need to exit Watch properly. These are remaining design/navigation work, separate from fixing the previously invisible destination. Phone Watch geometry is retained. BUG-106 (selected queue blinds) and BUG-107 (newborn observer) remain open.
-
-## Design completion — 2026-09-09, batch 25
-
-BUG-99 is implemented and verified against the built server: the home table opens Watch or Sit, actual server legal actions drive the strip, a browser Fold changes the served seat state, and Back sends Leave. The desktop felt uses DkOwnerM’s 900×648 coordinate space with compact 58×81 owner cards, real stack/equity or honest unknowns, and clearance above the action panel. Both modes fit 1280/1440/1920 widths and a 600px-high window. Pairs design-batch25-sit-{390,1280}.png were inspected. Ten marketing captures now include the desktop seat.
-
-Explicit differences: the latest permanent 250px roster and shared room conversation replace this older frame’s 190px casino strip and illustrative private chat. Real hand data replaces authored samples. Owner cards stay fully visible instead of reproducing the reference’s action-row overlap. Phone Watch/Sit geometry and its existing information strip are retained; it is not claimed to be pixel-identical to this older owner illustration. Generic casino Watch, the remaining inventory and external rollout still require work. Final integration results are recorded in OVERNIGHT_DESIGN_WORK.md.
-
-## Design completion — 2026-09-09, batch 24
-
-The populated desktop floor now has one 54px header: current room and counts, Floor/Board, account/result and Home return. Its former second heading row is gone (BUG-104). Context renders from CasinoScreen's live state into the shell, so selecting rooms and toggling does not duplicate that state. The room fits the recovered height. The actual desktop frame and design-batch24-casino-1280.png were inspected. All 27 desktop browser cases and both refreshed welcome widths pass; phone headers/Watch layout remain unchanged. The permanent board remains 380px, and actual data replaces authored sample occupants and results. Desktop human seating, generic table navigation and remaining inventory work are not certified by this header fix.
-
-## Design completion — 2026-09-09, batch 23
-
-BUG-103 is resolved: the casino plan measures when live tables arrive and fits DkFloorStage's 390×470 coordinate space into both desktop axes. The former 520px cap is gone; short windows keep all six felt centers and the bar visible. The existing 380px permanent board is retained. Phone plans now measure late content to their actual inner width. Reviewed pairs: client/e2e/shots/design-batch23-casino-{390,1280}.png. The phone marketing fixture now reports the real viewport, so its composer is no longer cropped; both captures have geometry guards.
-
-Remaining casino differences are explicit: the desktop Floor still repeats the shell heading (BUG-104), the phone Board has its existing doorway order and combined live/tonight panel, and actual occupants/results replace authored examples. Empty bar space has no invented crowd. Full gate: 105 server / 2201 client / 7 e2e; final browser 27 desktop + 2 welcome; preserved phone BUG-55 passed both heights; build, all 5 built smoke and 20 Home2 checks passed. The full design goal remains open.
-
-## Design completion — 2026-09-09, batch 22
-
-The long /welcome page now uses L2's shared hero, actual room and nine approved subjects. Sections, typography, padding and responsive product captures are ported; both routes serve the current bundle. Four unclipped reference/actual pairs were inspected: design-batch22-{home,casino}-{390,1280}.png. Actual screens retain their real table, fixtures, actors and session data; they omit the decorative iPhone status-bar bezel. Section 07 uses the functioning phone seating experience at either width while desktop seating remains unbuilt (BUG-99). The floor pair reveals a remaining desktop sizing gap (BUG-103). L2 is implemented with these explicit product/illustration differences; the overall specification remains incomplete.
-
-Full gate: 105 server passes / 2 intentional live skips, 2199 client passes / 2 existing todos, 7 e2e passes. Browser group: 43 passed; final welcome 8 and latest entry/Home 7 passed after scroll refinement. The four existing built smoke checks passed, the new built-welcome smoke passed both widths, and Home2 passed all 20. LANDING_PAGE.md documents capture refresh. Read-only live config returned guest=false and botUsername=agenticpoker_bot; neither was changed.
-
-## Design completion — 2026-09-09, batch 20
-
-Board 41 B5/B5b assets and B12 loading are implemented. The shared mark now has the exact close/lean/hood/far/icon/glyph geometry, including the enlarged eye openings at 16px. SVG/PNG favicon, app/touch icons and the manifest are wired in the app and /welcome. B8's 512px bot avatar is exported and visually paired, but not applied to Telegram. B12 uses the chosen first line during actual entry/lazy waits; it adds no minimum delay and supports reduced motion. Inspected pairs: `client/e2e/shots/design-batch20-loading-b12.png` and `design-batch20-brand-assets.png`. The reference B8 board displays its “512” example at 480px; the delivered file is genuinely 512px. Export instructions and remaining external application are in BRAND_ASSETS.md. B13 does not replace the table/guest room Jens explicitly asked to retain. B15's separate peek/look application and other outstanding brand/long-landing states remain open.
-
-## Design completion — 2026-09-09, batch 19
-
-C9's latest header is connected: 54px high, room title/subtitle, result and account pill. The kitchen door enters the casino; its header returns home. The Board's second casino heading is removed when the desktop shell owns the title, while Floor/Board controls remain available. All time intentionally replaces Tonight because the server field is career net; home-game players and visiting agents are counted separately from casino occupants. The existing Watch/replay header is retained. The inspected pair `client/e2e/shots/overnight-batch19-desktop-c9.png` shows the actual live room beside C9. The wider room, compact profile and latest header gaps recorded in batches 12/17/18 are now resolved. Reference/sample differences remain: actual hand data and agent routines, no invented chat timestamps, retained couch details.
-
-## Design completion — 2026-09-09, batch 18
-
-C4's compact profile is now the C9 desktop profile, replacing the duplicate Player card header and immediate six-bar display. It reuses the phone's identity, CONDITION/RECENT, real session summary and authenticated detailed attribute history. More → His sheet keeps the newer PROFILE-2 body/skills split and exact bands on request. Whispers share the mounted desktop thread and preserve its separate draft. Chip funding/call-in use existing routes, with the funding sheet contained in the column. BUG-95 removes refused optimistic lines before retry. Inspected pair: `client/e2e/shots/overnight-batch18-desktop-profile.png`; the actual idle fixture has no recorded changes, unlike the authored phone sample. Three browser widths verify whisper refusal/retry, one resulting message, draft preservation, funding boundaries and Carry. C9 remains **PARTIAL** for its latest header; this resolves the previous compact-profile gap, not every desktop detail.
-
-## Day continuation — batch 21
-
-Replay metadata: the desktop number now agrees with its rope, and an unrecorded body condition no longer appears as 45% heat. Shared phone/desktop snapshot mapping preserves the recorded reveal. Targeted 79 tests and all 23 desktop browser checks pass; inspected artifacts/desktop-casino-replay-end.png. Full gate: 105 server passes / 2 intentional live skips, 2194 client passes / 2 existing todos, 7 e2e passes. This is data correctness, not a claim that old recordings contain identity/body/stack metadata. Built smoke/Home2 will run with the next integration build before a push report.
-
-## Overnight design port — 2026-09-09, batch 17
-
-C9 now uses the reference's wider 560×700 floor, furniture coordinates, four wall positions and uniformly scaled room. HomeFlat, chairs, home-game cards, routine destinations, the newborn doorway, carry conversion/drop targets and speech exclusions share that layout definition. The phone keeps its original coordinates. The empty desktop now contains the actual room; the first-agent preview is portaled over its real table while the recruiter stays in the right column. Latest C9/L2 outer spacing is retained. Pure tests cover destinations and scaled drops; browser checks cover the room bounds, fixture coordinates, actual Carry request, first-draft preview and unchanged phone flows. Inspected pairs: `client/e2e/shots/overnight-batch17-desktop-c9.png` and `overnight-batch17-guest-room-1280.png`. C9 remains **PARTIAL** for its compact profile and latest header. Existing detailed couch anatomy, actual TV/hand data and real four-stage recruiter differ from authored samples. Guest roster-empty presentation and fixture label details remain differences. This supersedes the earlier shared-phone-room limitation, without claiming complete product parity.
-
-
-## Overnight design port — 2026-09-09, batch 16
-
-L2's real first-agent phone room now has no extra navigation band, half-height glass, one vertical CASINO sign, an empty chair and the full room canvas. The kitchen table remains by Jens's instruction, and the actual four-stage recruiter replaces the reference's five-stage/collar-era sample. BUG-92/93 document duplicate signage and focus/scroll defects. Five landing sizes and seven draft browser flows cover actual sign clearance, exact settled room origin, typing and reduced-height conversation access. Inspected pairs: `client/e2e/shots/overnight-batch16-guest-room-{390,1280}.png`. The desktop guest room also drops its extra global header, but remains **PARTIAL**: the forming preview is still in the rail, and the room still shares phone coordinates rather than latest DkFlat. `/welcome`, C9's remaining geometry/profile/header, and unverified external rollout settings are not certified by this phone milestone.
-
-## Overnight repair — 2026-09-09, batch 14
-
-The desktop casino's recorded-hand path is now connected: an owned Board row resolves its real flagged hand into the desktop theatre and Back restores the remembered Board selection. Aged-out hands open their companion. BUG-89–91 fix the dropped callback, fabricated zero stacks and end-of-recording next-deal/sit-out state. The browser exercises the actual row and full recorded end at 1440 and 1920; `client/e2e/shots/overnight-batch14-desktop-replay-end.png` records the inspected result. This is a functional replay repair, not a claim that the broader desktop art or record metadata matches every design frame.
-
-## Overnight design port — 2026-09-09, batch 13
-
-H1/H2 and the real guest entry are **PARTIAL**. The hero now follows the wave-61 viewport-minus-26px geometry, 180/280px character, Inter/Rozha typography and wave-60 card/fist measurements. The first desktop draft now occupies the right column beside the actual empty home; BUG-87/88 record reproduced sizing and clipped-recruiter defects. Four browser sizes (390×700, 390×590, 1280×800, 1440×900) exercise the mounted real recruiter, settled scroll, actual input hit visibility and typing. Inspected pairs: `client/e2e/shots/overnight-batch13-landing-{390,1280}.png`. Current RailMark is retained; the archive's bot handle is not assumed to be a configured live username. Reference sheen, room/header/desktop coordinates and the phone draft's older duplicate door tag remain differences. The supplied “standalone” landing HTML unpacked to a React/Babel design canvas with multiple frames; it cannot responsibly be shipped as-is. This corrects the older LAND-6 inventory claim. `/welcome` still needs the long-page port and current public rollout settings remain unverified.
-
-## Overnight design port — 2026-09-09, batch 12
-
-C9 is **PARTIAL**: its 380px right column, 132px saved identity, 268px stage, line/action row, saved private conversation, latest flagged-hand card and bottom composer are ported. Profile opens the detailed sheet in the same column. Carry starts an explicit placement gesture in the visible room; three desktop widths verify chat failure recovery, profile identity, replay return and the real placement request. The roster now uses actual household locations/current-or-last session results and 38px identity/condition lines. BUG-80–86 record the defects reproduced during the port. Inspected pairs: `client/e2e/shots/overnight-batch12-column-c9.png` and `overnight-batch12-desktop-c9.png`. The latest archive's desktop.jsx difference is only its Railbird wordmark; desktop2/3/home-desk are identical. Remaining differences: the current room still shares the phone's 390×612 coordinates, whereas latest DkFlat explicitly defines a wider 560×700 desktop room; current top-bar controls remain, profile does not yet have C4's compact CONDITION/RECENT counterpart, saved messages have no fabricated timestamps and a hand is appended rather than linked to an arbitrary chat sentence. This supersedes the older “C9 NOT BUILT” inventory without claiming whole-desktop parity.
-
-## Overnight design port — 2026-09-09, batch 11
-
-C8 visual effects are **PARTIAL**: ordinary winners raise their hands; 100bb-or-larger hero payouts and hero knockouts get the specified three teal/gold bursts within 1.2s. Busted opponents darken and their actual name falls for 900ms. The 100bb rule is from board 42's caption, distinct from the server feed's 75bb event threshold. Reduced motion is supported. BUG-79 fixes split-pot winners. The reference pairs `client/e2e/shots/overnight-batch11-celebration-c8{a,b,c}.png` were inspected after cloning frames out of the archive's zoomed canvas (the initial crop caught adjacent content and was discarded). By Jens's Watch priority, existing cards, stamina, street strip and ordinary compact result remain; the reference hides those during its samples. Actual hands/payouts/identities differ and are not replaced with authored claims. Audio `win_swell`, `big_win_bursts`, `bust_knock` remains “files to pick” in the reference; no audio parity is claimed. C9 and entry still require work.
-
-## Overnight behaviour port — 2026-09-09, batch 10
-
-HOME-3 is **PARTIAL**: server scheduling now gives automatic games a five-minute window followed by ten minutes off, finishing the current hand before a break. Two housemates are required for automatic play. The explicit Carry/table action keeps solo House play and can start a game during the break; worn/studying agents remain excluded. BUG-78 fixes automatic resumption after cooldown. The kitchen table is retained. Existing nature/sleep/study/want routines now have time to be seen, but the additional coordinated bed/fridge/corner/door/couch behaviours remain the undesigned Home-day wave listed below; this batch does not invent those assets or certify that whole wave. No Watch geometry or casino clocks changed.
-
-## Overnight design port — 2026-09-09, batch 9
-
-N3/N3b mobile bottom conversation is connected on Floor and Board. The carousel selects its agent; a deployment uses the man in the tray. His saved thread is fetched with owner credentials, sends use the existing private chat route, and a refused message stays in the composer. The footer bounds the available stage so Your table reaches it instead of leaving the previous gap. Idle cards retain their saved identity. Pair `client/e2e/shots/overnight-batch9-casino-n3b.png` inspected: actual empty public events differ from authored live/tonight samples; the current Floor/Board toggle and room doors remain functional. This ports the missing conversation band, not a certification that every casino event/floor frame is now exact. Home rhythm, C8/C9 and entry/integrator work remain.
-
-## Overnight design port — 2026-09-09, batch 8
-
-C7 state and tap are ported: known live casino table takes priority, otherwise the household's study/most recent recorded hand appears as tape. Live opens Watch; tape opens the authenticated hand review and returns to Home (desktop keeps its replay panel). Tape carries actual board/flag/hand number, with progress only for an actual timed study. No recorded hand means an inactive empty tape, and an away agent without a projected table retains the casino board. Reference/actual pairs `client/e2e/shots/overnight-batch8-tv-c7a.png` and `overnight-batch8-tv-c7b.png` inspected. Actual fixtures/routines differ from the authored sample, and the kitchen table remains by founder override. The reference's couch-facing-TV change remains undesigned under its freeze. C8/C9, the casino bottom conversation band, and Home day cadence remain material work.
-
-## Overnight design port — 2026-09-09, batch 7
-
-C6 absence is ported: dim named empty chair, live wall frame, one roster pill in Home's existing 46px header; visits are named distinctly. Current board 29/42 DoorTap replaces the horizontal marquee with the vertical word, bulbs and spill, using the same footprint for bubble clearance. Pair `client/e2e/shots/overnight-batch7-absence-c6.png` inspected. The kitchen table stays by Jens's explicit override of the reference's omission. Spare-chair placement respects actual occupied positions; no permanent backend chair reservation is claimed. Counts reflect known owner live casino tables and stay quiet when none are live. C7 TV click/replay behavior and C8/C9 remain upcoming work.
-
-## Overnight design port — 2026-09-09, batch 6
-
-C4 mobile profile is ported and inspected in `client/e2e/shots/overnight-batch6-profile-c4.png`. One name, saved 62px face, nature/birth date, actual condition, compact RECENT rows with the existing first-time explainer, session result and a real authenticated whisper. Full skills/history/money remain behind More → His sheet. Differences are deliberate and explicit: the server has three fatigue bands rather than a continuous stamina sample; recorded growth has no hand association unless supplied, costs are not mislabeled as growth; THIS/LAST SESSION replaces an uncomputed TONIGHT total. A live agent offers Call him in and LIVE/Watch, rather than the reference's contradictory Deploy+LIVE. Default desktop profile remains the existing detailed card until C9. C6–C9 and the other queues are not certified yet.
-
-## Overnight design port — 2026-09-09, batch 5
-
-C5 roster is ported and visually inspected in `client/e2e/shots/overnight-batch5-roster-c5.png`: full names, 38px faces, 60px rows, want/live/unread priority, visiting/home-table locations, signed actual session results and separate pocket. Still PARTIAL: the retained wallet/ledger footer comes from the earlier approved navigation; the reference's two-live sample differs from the one live table actually known in the fixture. The server does not currently project a visitor's friend's live table into this owner roster. Send to a friend remains available in profile More. C4 and C6–C9 are still pending. No production deployment is claimed.
-
-## Overnight design port — 2026-09-09, batch 4
-
-First-agent reliability: persistent hood/glow shared by server and client (BUG-66), readable long drafts at full phone width (BUG-67), one character when the card rises (BUG-68). Four forming stages and no collar remain the explicit founder override. Identity is cosmetic; no skill or money changes. No new item inventory is invented from the archived collar drawing.
-
-Birth card remains PARTIAL against board 23 C2: hierarchy/one body/first words/closed sheet/action are verified in `client/e2e/shots/overnight-batch4-birth-card.png`; actual uses Granite fixture and the prior BIRTH-4 96px face correction, reference uses Hothead and 64px. Current Home arrival/navigation supersedes the older casino/tab-bar surroundings. The latest archive's board29 draft is still the guiding draft reference, with the cancelled collar excluded. Phone/desktop draft browser checks pass; SQLite upgrade and restart preserve colors.
-
-## Overnight design port — 2026-09-09, batch 3
-
-F13 fridge is ported with actual household stock and Buy 6 charged by the server to the safe. Reference/actual pair `client/e2e/shots/overnight-batch3-fridge-f13.png` uses matching 4 beers/2 snacks and $12/$8 prices; differing occupants/balance and the retained table are labelled. Small visible buy pills retain 44px touch targets. Manual GIVE rows were an earlier interaction, intentionally replaced by the stock shelf; want answers and Carry still give items.
-
-Empty and occupied Home share the 76px conversation strip. It speaks to the household route and renders streamed replies, including overheard conversations when expanded. Private whispers remain in the agent view. BUG-64/65 are fixed on the branch. Casino's bottom conversation band, first meeting, C4–C9 and other listed differences remain pending; this entry supersedes the earlier claim that restocking/empty composer are missing. No production deployment is claimed.
-
-## Overnight design port — 2026-09-09, batch 2
-
-Board 42 C1–C3 are now **PARTIAL**, implemented on the actual phone agent route: 178px character, 40px contextual header, real four-action row, inline want answers, saved chat history, compact hand card and Whisper composer. Home/table/roster agent taps reach this view. Watch remains the existing gameplay screen. CARRY opens Home with the agent lifted and lets the next gesture place him; Escape/Cancel drops the selection without a request. Wants and chat have explicit failure handling (BUG-61–63).
-
-Reference-state screenshots cover C1, C2, C3 and three phone sizes. Differences still stated: stamina uses the server's three fatigue bands instead of the ref's continuous sample percentages; LIVE appears only for a known live table; the latest flagged hand is attached at the conversation end because the server does not link an arbitrary chat sentence to a particular hand. Timestamps absent from stored chatHistory are not fabricated. C4 profile, C5 roster, C6 absence and C7–C9 remain in the upcoming batches. Fridge stock is supported by the server but its current sheet only gives items; finish that path next. The records below are historical and are superseded by this entry where they say the entire agent view is unbuilt.
-
-## Overnight design port — 2026-09-08, batch 1
-
-Jens clarified that Watch's gameplay presentation is the successful reference point; preserve it. Home/casino now use one contextual header, one-step Home from either casino view, a roster doorway in that header, and full mobile width. Home safe/couch/fridge/right-wall artwork is ported; safe displays the owner's actual wallet balance. Conversation band corrected from 100px to 76px with a circular send control; design Inter/mono fonts included. Table is intentionally retained even in archive frames that omit its visible surface, per Jens's explicit instruction. BUG-59/60 have browser evidence; all first-batch gates passed. These changes are not yet deployed.
-
-Home and casino remain PARTIAL: empty-room composer, casino conversation strip, TV content, door treatment and mixed routines still differ. Board 42 agent view is next. See OVERNIGHT_DESIGN_WORK.md for evidence and active queue. This update supersedes stale status prose below without certifying its other historical SHIPPED claims.
-
-## Railbird playtest follow-up — 2026-09-08
-
-After Jens's successful push of 4007703, his four-agent screenshot reproduced an invisible agent click area over the felt (BUG-55), the duplicated request (BUG-56), and the unported client brand (BUG-57). These are now repaired on the playtest branch and await the integrator's push report. Requests appear once in a compact F11-material strip; the room bubble duplication is removed as a repair choice for this playtest, while board 42's full agent view remains NOT BUILT. RailMark/wordmark now reach actual phone/watch/desktop/guest headers, page title, favicon and /welcome. Board 41 is therefore PARTIAL, not entirely unbuilt. Other brand deliverables, landing layout and room artwork remain in their queues.
-
-The reference/product pair is `client/e2e/shots/railbird-home-reference-pair.png`. It demonstrates the cleared felt and actual brand import, and also shows the remaining furniture/composition differences. The mobile count explicitly says “N in casino”; it excludes home games. Telegram's outer bot name still needs BotFather `/setname` → Railbird. Read `RAILBIRD_PLAYTEST_REPAIR.md` for test evidence, known gaps and the gesture-test correction. Historical status rows below are not a fresh certification.
-
-## Astra repair update — 2026-09-08
-
-Jens asked Astra to continue repairs while Claude was unavailable. The collar stage is cancelled by explicit founder instruction; four stages are intentional. This overrides the former F03 requirement.
-
-Security goes before the sharing queues: BUG-47–50 cover Telegram verification, ownership, private data and WebSocket access. BUG-46's failed-draft fallback is repaired in both completion paths. See BUGS.md and ASTRA_REPAIR.md for evidence and deployment status.
-
-The flat's reference height is now 612px and the empty-home draft action clears the TV. Agent taps consistently select the agent, including at the table. These are **PARTIAL** home corrections, not completion of board 29 or board 42. The actual reference/product pair is `client/e2e/shots/astra-home-empty-pair.png`: geometry separation is fixed; header, fixture artwork, empty-table composition and brand still differ. The large agent view, roster, celebrations and landing remain in their existing queues. `sessionDips` already travels on the owner projection; its missing presentation needs work, not an invented transport fix.
-
-For this explicitly requested Astra repair pass, Astra performs the code and pair review that the usual workflow assigns to the integrator/Opus. Claude/Opus has not run or signed off. Jens's production playtest is still pending. Older SHIPPED labels below are historical ledger claims; this update does not re-certify them.
-
-Written 2026-09-08 late by Cowork from design 58 (wave 63, zip 55) rendered board by board, the code on main at 99d1ee4 + today's merges (bugs-c, cost-2, CI fixes), the tab reports, BUGS.md, and Jens's phone playtests of 7 and 8 Sep. This file is the ledger for "are we there yet". One line per frame. Nothing here is marked SHIPPED unless it was either playtested on prod or has a pair (reference crop next to a render) that matches.
-
-Status words, used exactly:
-- **SHIPPED** — on main, and it looks like the frame (playtested or paired).
-- **PARTIAL** — built, but does not match the frame; the difference is written down.
-- **BUILT?** — code exists for it; nobody has put it next to the frame. Needs a pair.
-- **NOT BUILT** — designed, no code.
-- **NOT DESIGNED** — decided or shipped, but no board shows it. Needs a wave before a port.
-- **SUPERSEDED** — an older board replaced by a later one; ignore.
-
-Board numbers are Claude Design's. File names in `design-refs/` are in brackets.
-
----
-
-## 0. Where we are, in one paragraph
-
-The engine, the character system, the money, the watch felt and the casino are shipped and mostly match their boards. The **home** is built but half of it does not look like board 29 (bubbles, want toast, seated taps), and the **agent view** (board 42) is the design the home has been missing — none of it is built. The **brand** (board 41, the ghost at the rail) is not in the product at all; the app still says Agentic Poker with a spade. The **landing** on prod is the nine-section v2, not the wave-61 hero; the guest demo on it is empty because `GUEST_ENABLED` is off on the VPS. Four shipped features have **no design** (visit/knock/accept, the referral door, the share card's visit variant, hold-to-fast-forward). "Ready to share with three friends" is the list in §4; it is about seven queues and two design waves away.
-
----
-
-## 1. Board by board
-
-### 01 Foundations · Design System [Agentic Poker Design System.html] and 02 Faces [Agentic Poker Faces.html]
-- S1 tokens, S2 mood logic, S3 ghost anatomy, S5 state matrix — **SHIPPED** (V5GLASS, hoods × glows, moods on the face).
-- S6 the mark — **NOT BUILT** (see board 41).
-- 02/42–45 heat continuum, six expressions, four sizes, moods — **BUILT?** (faces move with heat on the felt; never paired).
-- 02/48–51 eight poses, push/toss/cover, brow triggers — **PARTIAL**: floating hands push/toss/muck shipped (WATCH-10); brow twitch/lift/knit not verified; the hands-up celebration is board 42 C8.
-
-### 10 Character, 11 Biography — **SHIPPED** (ATTR-1/2/3, natures, bands, biography law). CONDITION (fresh/worn/hungry/tilted) on the profile is **PARTIAL**: dips never reach the client (bugs-d job 7).
-
-### 20, 21, 22, 23, 30 — **SUPERSEDED** by 26, 29, 31. Not audited.
-
-### 24 First Five Minutes [Agentic Poker First Five Minutes.html]
-- 40a Telegram front door, 40b empty floor → now F01, 40c–40e draft → now F02–F03b, 40f he walks in → F04, 40g first hand, 40h first recap, 40i You seeded — **SHIPPED** as their board-29 successors.
-- 41 empty states as matrix rows — **BUILT?** (seven rows; bugs-a covered several; never paired).
-- D1 web login — replaced by guest mode (G1–G4).
-
-### 25 Notifications [Agentic Poker Notifications.html]
-- N0–N8 (session recap, proposal, mood alert, quiet win, milestone, budget, refusals, he grew) — **PARTIAL**: `notify.js` shipped with the budget and refusals; `NOTIFY_ENABLED` is off on the VPS, so nothing has ever been received on a phone; message texts never compared to the frames. Turn it on, then read one of each against N1–N8.
-
-### 26 Watch v5 [Agentic Poker Watch v5.html]
-- 52a seated betting, 52b pre-flop hold, 52c whisper 4 s, 52d thread glass with his cards on top, 52e read, 52f cost toast → 52k dot, 52i opponent mucks, 52j a bet as objects, 52m anatomy, 52n table sizes — **SHIPPED** (WATCH-7..10, SIT-1). Jens 7 Sep: the play animation is "amazing".
-- 52g WON both fists up, 52h LOST tilted — **PARTIAL**: result card ships; the fists-up pose is C8a, not built.
-- 52p ordinary win, 52q big win (fireworks, 148 bb), 52r bust (seat goes dark, pill falls) — **NOT BUILT** (new in wave 63; = board 42 C8).
-
-### 27 Casino [Agentic Poker Casino.html]
-- K1 arriving with an agent, K2 the board by the stairs — **SHIPPED** (CASINO-2; floor-first since BUGS-C-12).
-- K3 a felt goes hot (all-in upstairs, HOT glow, tap to spectate) — **BUILT?** (LIVE NOW rows glow when hot; the felt-level HOT on the floor never paired).
-
-### 29 Home [Agentic Poker Home.html]
-- F01 open, nobody yet — **SHIPPED** (bugs-a).
-- F02, F02b, F03, F03b the draft in glass, he forms, name — **SHIPPED** (DRAFT-2, BIRTH-5). **Jens override, 2026-09-08:** cancel the separate collar stage and its geometry. Four stages are intentional; do not add a fifth. F03's original collar requirement is SUPERSEDED, and the reference now shows the final colour/name stage.
-- F04 born, he walks in — **SHIPPED**.
-- F05 alone at home — **PARTIAL**: bottom strip now matches (BUGS-C-5); room bubbles tamed (BUGS-C-2) but the seated-at-table bubble still spans the table (bugs-d 3).
-- F06 sent out (1.8 s, three frames) — **BUILT?** (walk to the door exists; the three-beat animation never paired).
-- F07 the casino, two boards; F07b nobody of yours in — **SHIPPED** (CASINO-2).
-- F08 his table; F08b the hand ends and names the hand — **SHIPPED** (WATCH-10).
-- F09 he comes home (1.6 s) — **BUILT?**.
-- F10 the home game, four creatures — **PARTIAL**: game ships; bubbles wrong (bugs-d 3); tapping a seated agent opens the table, not him (bugs-d 4, reverses BUGS-C-3).
-- F11 a want — **PARTIAL**: toast is a gold card with big buttons, not the slim row with small pills; bubble and toast say the same sentence (bugs-d 1, 2). Reference crops in `design-refs/frames/`.
-- F12 the safe, F12b the ledger — **PARTIAL**: SAFE-2 shipped; BUG-39 safe not on glass.
-- F13 the fridge — **PARTIAL**: sheet ships; beer does nothing on prod (bugs-d 8).
-- F14 you sit down, F15 BET — **SHIPPED** (SIT-1, phone). Desktop = DESK-4.
-- F16 one retires (one chair fewer) — **BUILT?** (retire exists; the chair-count change never paired).
-- F17 the floor, a room not a list — **SHIPPED** (CASINO-2 FloorView).
-- F18 pinching in (zoom, not navigate) — **BUILT?** (`FloorZoom.jsx` exists; never verified on a phone).
-- C1–C5 carry: lift, drag, over the door, drop, he refuses — **PARTIAL**: HOME-2 carry ships; BUG-43 (drop on the floor) parked; fixture capacity missing and a drop re-plans everyone (bugs-d 9).
-- G1–G4 guest: recruiter up, he walks in, one session, claim wall — **BUILT?**: GUEST-1 on main, `GUEST_ENABLED` off on the VPS; never seen on prod.
-- S1 story 1080×1920, S2 link preview 1200×630 — **NOT BUILT** (SHARE-2; old share card exists).
-
-### 31 Desktop [Agentic Poker Desktop Parity.html]
-- P1–P13 (deal, heating, all-in, between hands, collect, broke, resting, no brief, first recap, heat pip, glass rail, WON on stage, seated + thread) — **BUILT?** (DESK-2 era; desk.spec.js has screenshots; never paired against P frames).
-- X1 the flat three columns, X2 hover a body, X3 hover a fixture — **SHIPPED** (DESK-3).
-- X4 the safe in the column, X5 casino full width, X6 watching one — **BUILT?** (DESK-3 report says the casino fills the remaining width; never paired).
-- X7 you sit down, X8 BET inside the felt — **NOT BUILT** (DESK-4).
-- Y1–Y4 at 1920 — **BUILT?** (desk.spec runs 1920×1080; never paired).
-- Z1 keep him (guest claim as the column) — **BUILT?** (GUEST-1 desktop path; off on prod).
-- C9 the agent in the column — **NOT BUILT** (board 42).
-
-### 40 Landing [Agentic Poker Landing.html] + [Railbird Landing Page (standalone).html]
-- H1/H2 the hero (wave 60/61: one viewport, the sign over the door, "Deal him in.", then the guest room) — **NOT BUILT**. Prod shows L1/L2's nine-section v2 (PR #7) with an empty demo phone. The standalone landing page in design 58 is a complete static page; LAND-6 ports it as-is.
-- L1/L2 nine sections — **PARTIAL** (v2 ships; copy and card colours pre-wave-60).
-
-### 41 Brand [Railbird Brand.html] — everything **NOT BUILT**
-- B1 the mark, B3 reduction, B4 chat list, B5 favicon, B5b app icon, B6 lockups, B7 four fields, B8 bot avatar, B9 page header, B10 sign over the door, B11 share-card corner, B12 loading screen, B13 the far pose / empty room, B14 bot description, B15 motion. Verified on the board (overlays, 40 px chat list, 16 px favicon). Code: RailMark into `client/`, favicon/manifest/icons, the loading screen, the empty room; assets uploaded by hand to BotFather (avatar 512, description). Jens set the hood PNG as the bot avatar on 8 Sep; replace with B8's vector export.
-
-### 42 The Agent [Railbird The Agent.html] — everything **NOT BUILT**
-- C1 the agent (him at 196 px, action row DEPLOY · GIVE CHIPS · CARRY · PROFILE), C2 his line first (Yes/Later/No under his bubble only), C3 the whisper (three exchanges, hand card inline), C4 what left the chat (profile: name once, CONDITION, RECENT) — AGENT-1.
-- C5/C5b/C5c the roster behind the header pill; C6 absence (dimmed chair with name tag, lit frame) — ROSTER-1.
-- C7a/C7b the TV by state (live feed / tape room on the couch) — TV-1. Board flags one "not done": the tape-room couch sits at x244 and does not face the TV; a flat change, frozen. Port the state logic, keep the couch where it is.
-- C8a/b/c ordinary win, big win with fireworks, bust — CELEBRATE-1 (on Watch v5; sounds named `win_swell`, `big_win_bursts`, `bust_knock`, files to pick).
-- C9 desktop column — DESK-5.
-
----
-
-## 2. Shipped with no design (needs a wave before anyone touches it again)
-
-- **Visit**: the knock, the accept push, the visitor at the host's table with a GUEST tag, "Send to a friend" (which blinks and hides its button), the bare link with no text. VISIT-1 was built from a server spec only.
-- **The referral door**: "<name> is at your door" for a stranger with no account, and the auto-knock after his first draft.
-- **Share card, visit variant** (two faces) and the **selfie states** for the per-agent public accounts.
-- **Hold-to-fast-forward** on replays (BUGS-C-10) — works, undrawn.
-- **The flat's day** (HOME-3): bed, fridge, corner, door, couch behaviours from the states. Decided, deliberately parked until the friends have played.
-- **Fixture capacity** and the roster's absence rule are in wave 63 (C6) only as a picture of the result, not of the walking.
-- **Rename**: every string, the bot username, the domain (RENAME-1 written, not run). Not a design item but blocks B8/B9/B14.
-
----
-
-## 3. The process from here (so this file stops being needed)
-
-1. **Cowork crops the frame before writing the job.** Every visual job names its frame (board + number) and Cowork puts the crop in `design-refs/frames/<board>-<frame>.png`. No crop, no job. (Four crops exist: 29-F10, 29-F11 and two zooms.)
-2. **The tab renders a pair.** Each visual job ends with `client/e2e/shots/<queue>-<n>-pair.png`: reference left, its own 390×844 render right, same scale. A job without its pair is not done. Pairs go in the report.
-3. **The integrator does not merge a visual job without its pairs** and does not judge them.
-4. **Opus judges the pairs, once per queue.** After a queue's report, one opus pass over the pair PNGs only (never the boards, never the zips): match / not, one line each. This is the only time opus looks at screenshots. Not-matching pairs go back to the tab as a fix job before the merge.
-5. **Cowork renders boards on import** (as done for design 58) and keeps this file current; the render is the source of the status words above, plus Jens's playtests.
-6. **Jens plays prod after every green deploy** against the frames named in the queue, on the phone, and says match / not per frame. That is the final word; a pair that matched and a playtest that didn't means the pair was rendered wrong.
-
----
-
-## 4. The plan to "ready to share"
-
-Ready to share = three friends can open it from Telegram with no explanation and the first thirty seconds make sense. Concretely: the home looks like board 29, tapping an agent gives you him (board 42 C1–C4), the roster exists (C5/C6), the brand is Railbird everywhere (board 41, RENAME-1), the landing is the wave-61 hero with the guest demo running (board 40 + `GUEST_ENABLED`), notifications are on, and the three HIGH/annoying bugs (Grinder fallback, fridge beer, send-to-a-friend blink) are gone. Wins get a celebration. Desktop and visit polish can follow.
-
-Order, one queue at a time, each gated by pairs, opus, and a playtest:
-
-1. **Import design 58** (integrator commit of `design-refs/`) and **bugs-d** (written; 9 jobs; pairs against 29-F10/F11). Playtest: the home.
-2. **BRAND-1 + RENAME-1** (one PLATFORM queue): strings to config, RailMark from `mood-brand.jsx` into the client, favicon/manifest/app icon, loading screen, empty room (B12, B13); BotFather avatar and description by hand. Pairs against 41-B4/B5/B9/B12/B13.
-3. **AGENT-1** (FRONTEND, opus): C1–C4. Pairs against 42-C1..C4. Server: the want's `line`, `sessionDips` on the wire, RECENT entries from the existing upgrade events.
-4. **ROSTER-1 + TV-1** (FRONTEND): C5, C6, C7a/b. Pairs.
-5. **CELEBRATE-1** (WATCH): C8a/b/c on the felt + sounds. Pairs against 26-52p/q/r.
-6. **LAND-6** (GitHub app or PLATFORM): port the standalone landing page and the hero; `GUEST_ENABLED=1`, `TELEGRAM_BOT_USERNAME`, `NOTIFY_ENABLED=1` on the VPS; then read N1–N8 on a phone.
-7. **Remaining server/tooling work**: BUG-34's broader Windows shutdown investigation and CSS split. BUG-46 is repaired in Astra's first security/home batch; deploy and playtest it before sharing.
-8. **Friends test** (Fidde, Jonathan's office, Alexander). Day two.
-9. After: **design waves** for the undrawn shipped features (visit + referral door + share variants + selfies), then **HOME-3** behaviours with the friends' reactions, then **DESK-4/5**, **SHARE-2**.
-
-Design is frozen again from here: no new boards until queue 5 is on main. The only design work before that is the wave in step 9, and only after step 8.
+# Railbird — current design gap inventory
+
+Updated 9 September 2026, batch30. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
+
+This replaces the contradictory old inventory that still called implemented boards 41/42 entirely unbuilt. Its original text and all batch1–29 entries are preserved in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). Chronological execution evidence remains in [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md).
+
+**Status meanings:** VERIFIED means the named local implementation/check or pair was inspected; it is not a production deployment claim. PARTIAL names a known difference. UNVERIFIED means code exists but the complete frame/state has not been compared. MISSING means required implementation/assets are absent. SUPERSEDED means a newer reference or Jens's instruction replaces it. UNDESIGNED means the supplied reference does not specify the interaction. These are separate from release status: Jens's push and a production playtest remain outstanding.
+
+## Current frame inventory
+
+| Board / frames | Current assessment | Evidence or next action |
+|---|---|---|
+| 01 S1–S3/S5, 02 42–45: tokens, bodies, expressions, heat and sizes | PARTIAL | Shared mood/identity atoms and face tests exist. Batch29 verifies saved hood/glow across moods and camera seats in live tables. Still render the complete expression/size matrix against Faces before declaring all anatomy exact. |
+| 01 S6: mark | VERIFIED locally | Shared Railbird mark; batch20 loading/reduction/export pairs. Account applications remain below. |
+| 02 48–51: eight hand poses and brow triggers | PARTIAL | Existing push/toss/muck/hold, Watch tests and batch11 win/bust effects. Full pose/brow matrix remains unpaired. |
+| 10 Character / 11 Biography | VERIFIED implementation; presentation PARTIAL | Existing attributes, nature, biography and growth laws. The old claim that condition dips never reach the client is obsolete: current owner projection and C4/C9 present condition/recent. Continuous numeric stamina is not fabricated from the server's three fatigue bands. |
+| 20–23 / 30 older mobile/navigation and 24 D1 login | SUPERSEDED | Use current 26/29/31/42 and the current guest/sign-in flow. Earlier birth-card composition is only authoritative where not replaced. |
+| 24 40a–40i first five minutes | PARTIAL | Four-stage draft, birth arrival, first game and recap paths exist; draft overflow/identity/birth/deployment repaired in batches4/17/27. Telegram first-open and the entire fresh-account sequence still need production playtest. |
+| 24 41 empty-state matrix | UNVERIFIED as a complete matrix | Several Home/guest/empty-table cases pass; render all seven authored rows rather than extrapolating from those. |
+| 25 N0–N8 notifications | PARTIAL / external verification pending | Server notification/refusal/budget tests exist. No actual phone delivery is claimed. Do not send real notifications merely to manufacture audit evidence. Compare prepared message payloads to the frames, then verify authorized production settings/delivery. |
+| 26 52a–f/i–n: Watch, betting, hold, thread/read, cards, six seats | VERIFIED existing implementation with remaining matrix audit | Phone composition retained by Jens. Existing Watch/Sit/hand/privacy tests; batch29 saved identities. Keep complete scene checks distinct from unit coverage. |
+| 26 52g/h/p/q/r and 42 C8a/b/c: win/big-win/bust | PARTIAL | Batch11 pairs verify fists up, three bursts for >=100bb and actual knockout, darkened/falling busted opponents, reduced motion and split winners. Audio layer is still a stub; the archive contains zero audio files and names sounds as files to pick. |
+| 27 K1 arrival/deploy / K2 Board | VERIFIED local journeys; batch30 layout port | Actual deployment/queue/Watch/Leave smoke passes. Phone Board now follows N3/F07: separate Live now and Tonight before room doors. Floor-first toggle is a later approved requirement. |
+| 27 K3 hot felt | PARTIAL | Live pot/Watch/hot rows and floor glow exist. Need a dedicated hot-frame pair, not just ordinary floor screenshots. |
+| 29 F01 empty Home / F02–F03b draft / F04 arrival | VERIFIED locally with recorded differences | Batches1/3/4/17/27 and their pairs. Four forming stages, no collar. Actual names/rolled appearances replace samples. Birth card currently retains the earlier 96px correction rather than C2's illustrated 64px. |
+| 29 F05 alone / F10 home game / F11 want | VERIFIED local repairs | One contextual header, full phone space, retained table, distinct agent/table taps, one want answer surface and safe table hit target. BUG-55 passes at 390×590 and 390×844. One-agent reference has no active home game; table furniture remains by Jens's override. |
+| 29 F06 departure / F09 return | UNVERIFIED complete animation | Walking code exists; compare the authored three departure beats/1.8s and return/1.6s to actual transitions. Do not mark matched from static Home pairs. |
+| 29 F07/F07b casino / F08/F08b own hand | VERIFIED local flow; PARTIAL visual coverage | Batch30 N3b pair and phone layout checks; actual live-table smoke and preserved Watch. Both quiet N3b and live-server N3 pairs are inspected in batch30. |
+| 29 F12/F12b safe/ledger | VERIFIED local repair | Glass safe/ledger and real wallet tests; Home2 browser checks. Earlier BUG-39 status is superseded. |
+| 29 F13 fridge | VERIFIED local implementation | Batch3 stock/prices/charged restock pair and server smoke. Current identity/condition flows and beer tests supersede the old “beer does nothing” note; final production playtest remains. |
+| 29 F14/F15 human Sit/BET | VERIFIED locally | Phone existing Sit; batch25 desktop shared felt with real Join/action/Leave and 1280/1440/1920 geometry pairs. |
+| 29 F16 retire / F18 pinch zoom | UNVERIFIED complete frames | Existing retire and FloorZoom code. Need direct browser interaction/state evidence and reference comparisons. |
+| 29 F17 casino floor | VERIFIED local sizing; PARTIAL all states | Batch23 responsive/late-felt sizing, batch24 one header, batch26 actual owned/public Watch, batch29 saved identity. No claim that an ordinary floor pair covers every hot/empty/crowded frame. |
+| 29 carry C1–C5 | VERIFIED repaired paths; PARTIAL walking coverage | BUG-43/45 re-enabled and fixed in batch15; explicit placement/cancel/refusal/fixture-capacity tests. Preserve the remaining unpaired transition distinction. |
+| 29 G1–G4 / 31 Z1 guest | VERIFIED locally; production pending | Batches13/16/22 real guest room, claim and responsive entry. Last inspected public config guest=false; implementation does not imply enabled rollout. |
+| 29 S1 story / S2 preview | PARTIAL, formats need port | Current SHARE-2 exists but server advertises a square 1080×1080 card. Reference specifies 1080×1920 and 1200×630, both from one proportional composition. Inspect/port these formats and real-data sharing; keep visit variant separate. |
+| 31 P1–P13 older DESK-2 composition | SUPERSEDED layout; state audit remains | Later X/Y and C9 define the three columns. Retain applicable game/result/privacy states; do not restore old panels merely to match obsolete screenshots. |
+| 31 X1–X3 flat/hover, X4 safe, X5 casino | VERIFIED local implementation | Batches12/17/18/19/23/24 wider room, compact profile/context header and floor. Current 38-case desktop run covers multiple widths and interaction. |
+| 31 X6 Watch | VERIFIED local port | Batch28 shared 900×648 felt/context header/conversation; batch29 identity. Inspected owned/public pairs. Later permanent 250px roster supersedes the older miniature floor strip. |
+| 31 X7/X8 Sit/BET | VERIFIED locally | Batch25 pairs and real server action smoke. The older “NOT BUILT” entry is obsolete. |
+| 31 Y1–Y4 1920 variants | PARTIAL | 1920 browser checks pass; consolidate one-to-one comparison for every authored Y frame. |
+| 40 H1/H2 and standalone L2 | VERIFIED local port with documented differences | Batches13/22/23/25/28: real guest room, nine sections, current product captures, responsive/reduced-motion checks. Guest-disabled deployments retain sign-in. Production served revision still unverified. |
+| 41 B1/B3–B7/B9–B12: mark/reductions/icons/lockups/header/sign/share/loading | PARTIAL by application | Shared mark, favicon/install/touch exports and loading verified in batch20. Existing headers/signs are Railbird. Audit the share-card corner with S1/S2 and enumerate any remaining application rather than calling the whole board absent. |
+| 41 B8/B14: bot avatar/description | Prepared assets; external application pending | Avatar export exists. BotFather application and account username remain external; no account change claimed. Last public botUsername=agenticpoker_bot. |
+| 41 B13 empty room/far pose / B15 motion | PARTIAL | Actual empty room and shared loading present; kitchen table retained intentionally. Audit remaining mark motion/application against their precise frames. |
+| 42 C1–C3 companion/conversation/want | VERIFIED local port with differences | Batch2 inspected pairs, real private conversation and actual hand card; 178px character follows implemented fit. Carry explicitly returns to the visible room for placement. |
+| 42 C4 profile | VERIFIED local port with differences | Batch6 phone/batch18 desktop: name once, nature/birth, CONDITION/RECENT, real session values and More. No invented TONIGHT sum or nonexistent continuous stamina. |
+| 42 C5–C6 roster/absence | PARTIAL | Batches5/7 pairs and current location/unread/want/identity. Friend's live table is not projected into this owner's roster; no backend permanent chair reservation is claimed. |
+| 42 C7a/b TV live/tape | VERIFIED local state/tap with reference limitation | Batch8 real live Watch or authenticated latest/study hand, inactive when absent. Couch-facing-TV relocation explicitly unfinished in reference; retained room/table is intentional. |
+| 42 C9 desktop companion | VERIFIED local port with differences | Batches12/17/18/19, pairs, complete desktop interactions. Real saved messages lack fabricated timestamps; hand card is not attached to a guessed sentence. |
+
+## Undesigned or explicitly deferred
+
+- Visit/knock/accept, referral door, two-agent share variant, public-account selfie states, and hold-to-fast-forward have no complete authored interaction design. Existing behavior can be tested and repaired, but it cannot be labelled reference parity.
+- The coordinated flat-day behaviors are a future wave after friends' feedback. Existing routines and batch10 five-minutes-play/ten-off cadence remain; full invented furniture choreography is outside the supplied current design.
+- Rare silver/gold birth rolls are explicitly parked in master-spec v14 until population justifies them. The cancelled collar does not authorize a new item economy.
+- Notification delivery, guest enablement, username/domain/account setup, and production deployment are separate release tasks. No secret or paid API/model action is needed for the local visual audit.
+
+## Ordered work remaining
+
+1. Batch30 checks and both phone Board pairs passed; local main integration follows. Batch29 main gate passed 106 server / 2219 client / 7 end-to-end checks.
+2. Implement and verify the missing audio playback path and C8 sound hooks using reviewable original effects; no reference audio was supplied. Preserve mute and browser gesture restrictions.
+3. Port S1/S2 share formats and compare populated/empty/failed-share states with actual data.
+4. Close the UNVERIFIED expression/pose/empty/transition/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
+5. Refresh final product captures and release evidence. Recheck branding applications and the original first-thirty-seconds journey across phone and desktop.
+6. Final integrator fetch, checks and explicit push handoff. Jens pushes; verify deployed commit and production behavior afterwards. External account/feature settings and founder playtest remain explicit, not silently counted complete.
+
+Current known tooling issues remain in BUGS.md: intermittent Windows child exits (BUG-94), earlier invite/draft test timeouts (BUG-102/109), and marketing capture timeout (BUG-110). Later successful runs are evidence, not proof of their original causes. Dependency audit remains unrun because automatic approval review rejected sending dependency metadata to npm; the approval question is still unanswered.

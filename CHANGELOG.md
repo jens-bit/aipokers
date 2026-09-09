@@ -1,5 +1,9 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 2026-09-09 — phone casino Board follows N3
+
+Live now and Tonight are separate panels above the room doors, restoring the reference hierarchy and keeping room for the actual table. Existing live Watch/replay routes and the later Floor/Board toggle remain. Full, desktop, three phone-width/height, built smoke and Home2 checks passed. DESIGN_GAP now separates current verified work from missing/unverified frames; old status text is preserved as history.
+
 ## 2026-09-09 — saved identity on every live table surface
 
 Agents retain their birth hood/glow in casino previews, deployment and live Watch, including opponents. Public table messages expose only the two validated palette IDs. Server, client, desktop, built smoke and Home2 checks passed; inspected reference pairs are recorded in DESIGN_GAP batch29.

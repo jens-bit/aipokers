@@ -432,7 +432,8 @@ export function CasinoScreen({
       rooms={rooms}
       playing={seated}
       liveLimit={trayAgent ? 2 : 3}
-      rows={trayAgent ? 0 : 3}
+      rows={trayAgent ? 0 : desktop ? 3 : 2}
+      separated={!desktop && !trayAgent}
       stakesFor={stakesForTable}
       onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
       onReplay={onReplay ?? null}
@@ -477,7 +478,7 @@ export function CasinoScreen({
         gap: 10, padding: '11px 14px',
       }}>
         {/* K3 · the one thing that asks for you now */}
-        {!trayAgent && focus && (
+        {!trayAgent && focus && (desktop || !felts.some(f => f.tableId === focus.tableId && f.pot > 0)) && (
           <div
             className="csn-hot"
             style={{
@@ -502,15 +503,11 @@ export function CasinoScreen({
           </div>
         )}
 
-        {/* CASINO-2 job 3 · THE THREE DOORS, DIRECTLY UNDER THE SIGN.
-            They are the building's own organisation, they are the only
-            navigation on this screen, and they never scroll off — so they are
-            the first thing under the header and they are 60px tall rather than
-            152, because a door you are walking through is not a decision.
+        {!trayAgent && !desktop && board}
 
-            The TALL doorway is still here and is still board 27: it is the
-            DEPLOY choice, below, and it earns a third of the screen because
-            placing a man is the one decision made in this room. */}
+        {/* N3 places the phone's event panels before these compact room doors.
+            Desktop keeps the board in its own column. The taller deployment
+            doorways below remain the explicit choice when carrying an agent. */}
         {!trayAgent && (
           <RoomDoors
             rooms={rooms}
@@ -519,9 +516,6 @@ export function CasinoScreen({
             onOpen={lookIntoRoom}
           />
         )}
-
-        {/* K2 · the board, split by tense. On the desk it is in the rail. */}
-        {!trayAgent && !desktop && board}
 
         {/* CASINO-2 job 4 · YOUR TABLE, once per man.
             Everything above this is about strangers — three rooms with

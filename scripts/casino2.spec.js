@@ -202,7 +202,13 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
       await test.step('the board answers two questions', async () => {
         const board = page.locator('.csn-board').first();
         await expect(board).toBeVisible({ timeout: 20_000 });
-        await expect(board.getByText('ON THE FLOOR RIGHT NOW', { exact: true })).toBeVisible();
+        if (desktop) await expect(board.getByText('ON THE FLOOR RIGHT NOW', { exact: true })).toBeVisible();
+        else {
+          await expect(board.getByText('ON THE FLOOR RIGHT NOW', { exact: true })).toHaveCount(0);
+          const live=await board.locator('.csn-live').boundingBox(),tonight=await board.locator('.csn-tonight').boundingBox(),door=await page.locator('.csn-room-door').first().boundingBox();
+          expect(live.y+live.height).toBeLessThan(tonight.y);
+          expect(tonight.y+tonight.height).toBeLessThan(door.y);
+        }
         // Exact, because a quiet floor's own copy contains both words —
         // "Nothing has finished tonight yet." is the TONIGHT half saying it is
         // empty, which is a state this has to pass through, not trip over.

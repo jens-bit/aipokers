@@ -210,6 +210,10 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       const floor=await page.getByTestId('floor-view').boundingBox();
       expect(floor.y+floor.height).toBeLessThanOrEqual((await footer.boundingBox()).y);
       await page.getByTestId('casino-view-toggle').getByRole('button',{name:'Board',exact:true}).click();
+      const live=await page.locator('.csn-live').boundingBox(),tonight=await page.locator('.csn-tonight').boundingBox(),door=await page.locator('.csn-room-door').first().boundingBox();
+      expect(live.y+live.height).toBeLessThan(tonight.y);
+      expect(tonight.y+tonight.height).toBeLessThan(door.y);
+      await expect(page.getByText('ON THE FLOOR RIGHT NOW',{exact:true})).toHaveCount(0);
       await page.getByRole('tab',{name:'Agg',exact:true}).click();
       await expect(page.getByTestId('home-thread-line')).toContainText('Agg');
       const input=page.getByRole('textbox',{name:'Say something to Agg'});
@@ -228,7 +232,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
         const panel=await page.getByTestId('your-tables').boundingBox();
         expect(Math.abs(panel.y+panel.height-(await footer.boundingBox()).y)).toBeLessThanOrEqual(12);
       }
-      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/casino-n3b.png'});}
+      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/casino30-n3b.png'});}
       await page.getByTestId('home-thread-line').click();
       await expect(page.getByRole('dialog',{name:"Bal's thread"})).toBeVisible();
       await page.getByRole('button',{name:'Close the thread'}).click();
