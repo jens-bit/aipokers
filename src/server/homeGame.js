@@ -167,6 +167,10 @@ export function sync(userId, { now = Date.now(), manual = false } = {}) {
   const ownerId = String(userId);
   const before = state(ownerId);
 
+  const readRoster = () => {
+    const guests = visitorsFor ? (visitorsFor(ownerId) ?? []) : [];
+    return eligible([...agentsFor(ownerId), ...guests]);
+  };
   let roster = [];
   try {
     // VISIT-1: the household's own eligible bodies first, then whoever is
@@ -174,8 +178,7 @@ export function sync(userId, { now = Date.now(), manual = false } = {}) {
     // which is right, and eligible()'s own slice(0, HOME_SEATS) is what
     // enforces it. One call, one cap, exactly as it was before there was
     // anyone else's agent to seat here.
-    const guests = visitorsFor ? (visitorsFor(ownerId) ?? []) : [];
-    roster = eligible([...agentsFor(ownerId), ...guests]);
+    roster = readRoster();
   } catch (err) {
     console.error('[home] roster lookup failed:', err.message);
     return before;
@@ -186,7 +189,7 @@ export function sync(userId, { now = Date.now(), manual = false } = {}) {
   let table = liveTables.getTable?.(tableId) ?? null;
   if (table && (table.closed || !table.home)) table = null;
 
-  const want = roster.map((a) => a.id);
+  let want = roster.map((a) => a.id);
 
   // BUG-152: a return changes the room immediately, but must not erase the
   // hand its housemates are still playing. Reconcile the new roster only at
@@ -237,7 +240,26 @@ export function sync(userId, { now = Date.now(), manual = false } = {}) {
   }
 
   // The composition changed. Rule 2: tear it down rather than patch it.
-  if (table) closeHome(table, 'the game broke up');
+  if (table) {
+    closeHome(table, 'the game broke up');
+    // BUG-151: closing may end a visit. The roster read before that close
+    // still contains its guest, so it cannot authorize the replacement game.
+    // Read once more at this boundary, without recursive sync or a new loop.
+    try {
+      roster = readRoster();
+      want = roster.map((a) => a.id);
+    } catch (err) {
+      console.error('[home] roster lookup after close failed:', err.message);
+      households.set(ownerId, { ...household, tableId:null, state:'paused', roster:[], startedAt:null, manual:false });
+      return announce(ownerId, before);
+    }
+    // The departing visitor may have been the last company in the room.
+    // Preserve the existing solo/manual rules for the newly read roster.
+    if (want.length === 0 || (want.length < 2 && !manual && !household.manual)) {
+      households.set(ownerId, { ...household, tableId:null, state:'paused', roster:[], startedAt:null, manual:false });
+      return announce(ownerId, before);
+    }
+  }
 
   if (!manual && now < (household.cooldownUntil ?? 0)) {
     households.set(ownerId, { ...household, tableId: null, state: 'paused', roster: [] });

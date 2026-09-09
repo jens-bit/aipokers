@@ -243,3 +243,39 @@ test('BUG-151: restarting after a paid close cannot refund or pay the wager twic
   visit.reconcileVisits();visit.reconcileVisits();
   assert.equal(pocket(G),3200);assert.equal(pocket(H),2800);assert.equal(recordFor(id).result.outcome,'guest');
 });
+
+for(const change of ['add','remove'])test(`BUG-151: ${change} a resident at the hand boundary without reseating an ended visitor`,()=>{
+  const {table,id}=setup({thirdSeat:change==='remove'});
+  table.maybeStartHand();table._clearTimers();
+  assert.equal(table.handInProgress(),true);
+  if(change==='add')profiles.agentsOf(H).push(agent(H+'-new-resident'));
+  else profiles.agentsOf(H).splice(profiles.agentsOf(H).findIndex(a=>a.id===H+'-other'),1);
+  profiles.saveOwner(H);
+  home.sync(H);
+  assert.equal(registry.getTable(table.tableId),table,'a roster change must wait for this hand');
+  assert.equal(table.closed,false);assert.equal(recordFor(id).closedGame,undefined);
+  assert.equal(visit.hasActiveVisit(H,G),true);
+
+  // The guest wins the existing legal hand; any third seat folds first.
+  const g=table.agentIds.indexOf(G+'-agent');
+  while(table.game.street!==Streets.COMPLETE){
+    const seat=table.game.toAct,legal=table.game.legalActions(seat);
+    table.game.act(seat,{type:seat!==g?Actions.FOLD:legal.some(a=>a.type===Actions.CALL)?Actions.CALL:Actions.CHECK});
+  }
+  table._handCompleted();table._clearTimers();home.sync(H);
+  const replacement=registry.getTable(table.tableId);replacement?._clearTimers();
+  assert.equal(table.closed,true);assert.ok(recordFor(id).closedGame);
+  assert.equal(visit.hasActiveVisit(H,G),false);
+  assert.equal(visit.listVisitorsFor(H).length,0);
+  assert.equal(replacement?.agentIds.includes(G+'-agent')??false,false,'closed visitor must not enter a replacement game without membership');
+  if(change==='add')assert.deepEqual(replacement.agentIds.filter(Boolean).sort(),[H+'-agent',H+'-new-resident'].sort());
+  else assert.equal(replacement,null,'one remaining resident returns to the ordinary solo room');
+
+  // Return to his own household is still performed by the existing sweep.
+  profiles.agentsOf(G).push(agent(G+'-housemate'));profiles.saveOwner(G);home.sync(G);
+  settle(id,'guest');
+  const source=registry.getTable(home.homeTableId(G));source?._clearTimers();
+  assert.ok(source?.agentIds.includes(G+'-agent'),'visitor returns to his own real household');
+  assert.equal(source.agentIds.filter(id=>id===G+'-agent').length,1);
+  assert.equal(registry.getTable(home.homeTableId(H))?.agentIds.includes(G+'-agent')??false,false);
+});
