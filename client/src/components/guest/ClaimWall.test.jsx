@@ -39,6 +39,23 @@ beforeEach(() => {
   fetchMock.route('/api/guest/link', { url: 'https://t.me/TestBot?start=guest_abc' });
 });
 
+it('BUG-150: claiming during a visit hand explains the safe retry and keeps his guest identity',async()=>{
+  telegram.signIn();
+  localStorage.setItem('agentic_guest_owner','g_in_hand');
+  const onClaimed=vi.fn();
+  fetchMock.route('/api/guest/claim',{status:409,body:{error:'visitInHand',message:'Let this hand finish, then keep your agent.'}},{method:'POST'});
+  await openWall({agent:AGENT,onClaimed});
+  await userEvent.click(screen.getByRole('button',{name:'CONTINUE IN TELEGRAM'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Let this hand finish, then keep your agent.');
+  expect(onClaimed).not.toHaveBeenCalled();
+  expect(localStorage.getItem('agentic_guest_owner')).toBe('g_in_hand');
+  expect(screen.getByRole('button',{name:'keep playing as a guest'})).toBeEnabled();
+  fetchMock.route('/api/guest/claim',{ownerId:'4242',agents:1,visitEnded:true},{method:'POST'});
+  await userEvent.click(screen.getByRole('button',{name:'CONTINUE IN TELEGRAM'}));
+  expect(onClaimed).toHaveBeenCalledTimes(1);
+  expect(fetchMock.posts.filter(c=>c.url==='/api/guest/claim')).toHaveLength(2);
+});
+
 // ── The result line ─────────────────────────────────────────────────────────
 
 describe('GUEST-1 · what he just did', () => {

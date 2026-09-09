@@ -490,6 +490,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   const alive = useRef(true);
   const operation = useRef(0);
   const createdRef = useRef(null);
+  const visitOutcomeRef = useRef(null);
   const handedOff = useRef(false);
   const timers = useRef(new Set());
   const birthCallback = useRef(onBirth);
@@ -523,7 +524,10 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     if (!alive.current || handedOff.current) return;
     handedOff.current = true;
     if (!isEdit) writeDraftSession(userId, null);
-    birthCallback.current?.(newborn);
+    // Creating him succeeded even if the separate guest invitation could not
+    // arrive. Keep the card and identity, then explain the visit in Home.
+    if (visitOutcomeRef.current) birthCallback.current?.(newborn, visitOutcomeRef.current);
+    else birthCallback.current?.(newborn);
   }
   function absorbDraft(data, replaceChat = false) {
     if (data.draftId) {
@@ -616,6 +620,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     if (createdRef.current) return;
     const newborn = { id: data.agentId ?? data.createdAgent?.id ?? data.id, name: data.agentName ?? data.createdAgent?.name ?? data.name ?? 'New agent', strategy: data.strategy ?? data.createdAgent?.strategy ?? '' };
     createdRef.current = newborn;
+    visitOutcomeRef.current = data.visitOutcome ?? null;
     setCreatedPending(true); setAgentName(newborn.name); setPhase(1);
     let record = data.createdAgent?.id === newborn.id ? data.createdAgent : null;
     if (typeof data.firstAgent === 'boolean') setFirstAgent(data.firstAgent);

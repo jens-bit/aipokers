@@ -84,8 +84,9 @@ describe('GUEST-1 · minting one', () => {
   it('carries the referral off a visit link, when there is one', async () => {
     let posted = null;
     fetchMock.route('/api/guest', ({ body }) => { posted = body; return { ownerId: 'g_new' }; }, { method: 'POST' });
-    await startGuest('agent_friend1');
-    expect(posted).toEqual({ visitAgentId: 'agent_friend1' });
+    // BUG-150: the owner-issued invitation replaces public-id consent.
+    await startGuest('0123456789abcdefghijklmnopqrstuv');
+    expect(posted).toEqual({ visitInvitationToken:'0123456789abcdefghijklmnopqrstuv' });
   });
 
   it('sends no referral at all for an ordinary mint', async () => {

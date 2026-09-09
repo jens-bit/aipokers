@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AgentProfileOverview } from '../components/agent/AgentProfileOverview.jsx';
-import { canSendVisiting, shareVisitLink } from '../lib/visit.js';
+import { canSendVisiting, shareVisitLink, copyVisitInvitation, visitErrorText } from '../lib/visit.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
 import { AttrCluster } from '../components/system/AttrCluster.jsx';
@@ -355,7 +355,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 // place the button lives; before this the two ran side by side, the same
 // button twice on one screen. The header always keeps Deploy/Call him in and
 // the overflow menu.
-function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, compact, agent, onSheet, onChat }) {
+function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, visitStatus, onCopyVisit, compact, agent, onSheet, onChat }) {
   const [menu, setMenu] = useState(false);
   const moreButton = useRef(null);
   useEffect(() => {
@@ -465,7 +465,14 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
             }}
           >{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
 
-          {onVisit && <button type="button" onClick={() => { setMenu(false); onVisit(); }} style={{ width:'100%', minHeight:44, padding:'0 13px', textAlign:'left', color:M_TEAL, background:'none', borderBottom:`1px solid ${M_BORDER}`, fontFamily:OSWALD, fontSize:11, letterSpacing:'.12em', textTransform:'uppercase' }}>Send to a friend</button>}
+          {onVisit && <button type="button" disabled={visitStatus?.busy} onClick={onVisit} style={{ width:'100%', minHeight:44, padding:'0 13px', textAlign:'left', color:M_TEAL, background:'none', borderBottom:`1px solid ${M_BORDER}`, fontFamily:OSWALD, fontSize:11, letterSpacing:'.12em', textTransform:'uppercase' }}>Send to a friend</button>}
+          {visitStatus && <div className="profile-visit-status" style={{ maxWidth:260, padding:'9px 13px', fontSize:12, lineHeight:1.5, color:M_TEXT }}>
+            <div role={visitStatus.error ? 'alert' : 'status'}>{visitStatus.text}</div>
+            {visitStatus.url && !visitStatus.busy && <>
+              <button type="button" onClick={onCopyVisit} style={{ width:'100%', minHeight:44, padding:0, textAlign:'left', color:M_TEAL, background:'none', border:0 }}>Copy invitation</button>
+              <a href={visitStatus.url} target="_blank" rel="noreferrer" style={{ color:M_DIM }}>Open invitation</a>
+            </>}
+          </div>}
 
           <button
             type="button"
@@ -562,10 +569,32 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   const [showDetails, setShowDetails] = useState(false);
   useEffect(() => { setShowDetails(false); }, [agent?.id]);
   const [visitStatus, setVisitStatus] = useState(null);
-  useEffect(() => { setVisitStatus(null); }, [agent?.id]);
-  async function handleVisit() {
-    const res = await shareVisitLink(agent.id, agent.name);
-    setVisitStatus(res.ok ? (res.via === 'clipboard' ? { text: 'Link copied' } : res.via === 'link' ? { text: 'Open the visit link', url: res.url } : null) : { text: 'Could not create a visit link. Please try again.' });
+  const visitRequest = useRef({ busy:false, prepared:null });
+  useEffect(() => {
+    const request = { busy:false, prepared:null, alive:true };
+    visitRequest.current = request;
+    setVisitStatus(null);
+    return () => { request.alive = false; };
+  }, [agent?.id]);
+  async function handleVisit(copy = false) {
+    const request = visitRequest.current;
+    if (request.busy || !agent?.id) return;
+    request.busy = true;
+    setVisitStatus({ busy:true, text:copy ? 'Copying invitation…' : 'Preparing invitation…' });
+    const res = copy && request.prepared
+      ? await copyVisitInvitation(request.prepared)
+      : await shareVisitLink(agent.id, agent.name, request.prepared);
+    request.busy = false;
+    if (!request.alive) return;
+    if (res.url) request.prepared = res;
+    const text = res.ok
+      ? (res.via === 'clipboard' ? 'Invitation copied. Paste it to your friend.' : 'Invitation shared. Your friend can open it to let him in.')
+      : res.reason === 'cancelled' ? 'Sharing cancelled. You can copy the invitation below.'
+      : res.reason === 'shareFailed' ? 'Could not open sharing. Copy the invitation below.'
+      : res.reason === 'clipboardFailed' ? 'Could not copy the invitation. Please try again.'
+      : res.reason === 'clipboardUnavailable' ? 'Copying is unavailable here. Open the invitation below.'
+      : visitErrorText(res);
+    setVisitStatus({ ...res, text, error:!res.ok && res.reason !== 'cancelled' });
   }
   // WUI-3: the receipt for a collect that just happened. Drawn as a transfer,
   // pocket -> wallet, and only while it is the freshest thing on the card.
@@ -725,8 +754,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
   if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} career={<CareerGrid compact careerStats={agent.careerStats}/>} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
     explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
     actions={({ chatAgent }) => <>
-      <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? handleVisit : undefined} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
-      {visitStatus && <div role="status" className="profile-visit-status">{visitStatus.url ? <a href={visitStatus.url} target="_blank" rel="noreferrer">{visitStatus.text}</a> : visitStatus.text}</div>}
+      <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? () => handleVisit() : undefined} visitStatus={visitStatus} onCopyVisit={() => handleVisit(true)} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
     </>}>
     {retirePending && <RetireSheet agent={agent} busy={retireBusy} error={retireError} onCancel={() => setRetirePending(false)} onConfirm={handleRetireConfirm}/>}
   </AgentProfileOverview>;
@@ -776,9 +804,10 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
         onFund={() => onFund?.(agent)}
         onRetire={() => { setRetireError(null); setRetirePending(true); }}
         onToggleMute={handleToggleMute}
-        onVisit={canSendVisiting(agent) ? handleVisit : undefined}
+        onVisit={canSendVisiting(agent) ? () => handleVisit() : undefined}
+        visitStatus={visitStatus}
+        onCopyVisit={() => handleVisit(true)}
       />
-      {visitStatus && <div role="status" className="profile-visit-status" style={{padding:'8px 14px',fontSize:12,color:M_TEAL}}>{visitStatus.url ? <a href={visitStatus.url} target="_blank" rel="noreferrer">{visitStatus.text}</a> : visitStatus.text}</div>}
 
       {/* Scrollable body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
