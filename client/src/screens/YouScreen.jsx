@@ -451,7 +451,7 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
       </div>
       <div style={{ margin: '0 14px 14px', borderRadius: 12, overflow: 'hidden', border: `1px solid ${M_BORDER}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: M_BORDER, flexShrink: 0 }}>
         <StatCell label="Hands played" value={loading ? '—' : formatHands(totalHands)} />
-        <StatCell label="Win rate" value={loading ? '—' : winRatePct ? `${winRatePct}%` : '—'} color={M_TEAL} />
+        {!thinHistory && <StatCell label="Win rate" value={loading ? '—' : winRatePct ? `${winRatePct}%` : '—'} color={M_TEAL} />}
         <StatCell label="Biggest pot" value={loading ? '—' : biggestPot ? `$${biggestPot}` : '—'} color={M_GOLD} />
         <StatCell label="Agents built" value={loading ? '—' : String(agentCount)} />
       </div>

@@ -10,8 +10,17 @@ The first-use inventory found sessionCount<=1 always labelled ONE SESSION OF HIS
 ### BUG-125 — F18 casino pinch camera is absent — FIXED on design branch
 The old FloorZoom component was an unrelated agent focus, not the casino gesture. The actual floor now enlarges the selected existing felt 2.3x, adds the reference vignette and Watch action, and changes the same header. A second spread watches; shrink/back leaves the camera, and ordinary table taps still watch. Native two-touch handling prevents the parent's dismiss drag and suppresses accidental post-pinch clicks. Actual touch journeys pass at 390x844/590 and 1440, preserving the same felt node and available height. The first broad run found resize hit-target failures at two desktop widths because the transition applied to every scale update; the transition is now restricted to focused cameras. All three resize cases pass. Reference quiet/sample seats differ from actual hot/public data, and the existing conversation remains.
 
-### BUG-126 — B15 brand motion moves the rail and lacks the notification look — OPEN
-The supplied frame specifies head-only 520ms peek and 440ms look, with a stationary rail. Current BrandLoading animates the whole mark for 560ms and no production caller supplies the look. The precise application/timing port is next; static brand artwork coverage does not count this complete.
+### BUG-126 — B15 header lacks head-only peek and activity look — FIXED on design branch
+The initial entry confused two applications: B12's whole-mark 560ms loading rise already matches its reference and remains unchanged. B15 is the header glyph: a 520ms head-only peek and 440ms look with stationary rail. RailMotion now provides both; new owner wants/unseen recaps trigger a look, with its badge after 440ms. Existing activity is a baseline badge, not a new arrival. Repeated state does not restart it. Unit clocks and actual Home WebSocket/browser motion, stationary rail, delayed badge and reduced motion pass. The clip belongs to the stationary wrapper so the rail cannot move. No actual external notification is claimed.
+
+### BUG-127 — a quiet first shift omits the replay explanation — FIXED on design branch
+Phone's no-flags message omitted the authored fact and explanatory next step; desktop did not render that state. Both now explain NOTHING WORTH FLAGGING and where future replayable hands will appear. Desktop requires successful hands and flagged-hand responses before making the quiet-shift claim. Red component tests preceded the repair; actual phone and desktop checks pass.
+
+### BUG-128 — first-session history displays a premature win rate — FIXED on design branch
+The You screen warned that one session was insufficient while still displaying its rate. A red first-session case reproduced the contradictory 52%. Zero/one-session history now omits the rate and keeps the factual balance, hands and explanatory state.
+
+### BUG-129 — the pot display intercepts opponent read taps — FIXED on design branch
+The real preflop browser journey reproduced Playwright's hit-target refusal: the full-width pot intercepted Doyle's read button. The display now uses pointer-events:none. Actual taps open five unknown read values without invented confidence bands, while preserving the live felt. The failed first harness imported React DOM incorrectly; only the subsequent real button interception is product-red evidence.
 
 ### BUG-119 — sleeping agents wear the bored face — FIXED on design branch
 The independent 101-sprite audit found exactly one missing drawing: asleep (62 different native-size pixels). Home still mapped sleeps to bored, whose eyes remain partly open. The later reference’s separate downward lids and size-dependent lash ticks are now ported and mapped to the served sleep routine. Three red checks preceded the repair; actual phone/desktop Home confirms waking removes the overlay. All 101 controlled sprites now match pixels.

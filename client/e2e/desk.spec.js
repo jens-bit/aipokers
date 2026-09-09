@@ -30,7 +30,7 @@
 // Look: client/e2e/__screenshots__/desk3-*.png
 
 import { test, expect } from '@playwright/test';
-import { felts as floorFelts } from '../src/test/fixtures/rooms.js';
+import { felts as floorFelts, rooms as canonicalRooms } from '../src/test/fixtures/rooms.js';
 import { midHandGame } from '../src/test/fixtures/game.js';
 import { bigBluffHand } from '../src/test/fixtures/flagged.js';
 
@@ -735,6 +735,7 @@ test.describe('BUG-99 · the desktop kitchen-table camera', () => {
       await expect(stage.getByRole('button',{name:'CHECK',exact:true})).toBeDisabled();
       const felt=await stage.boundingBox(),verbs=await stage.getByTestId('sit-strip').boundingBox(),cards=await stage.getByTestId('owner-hero-cards').boundingBox();
       expect(felt.width).toBeLessThanOrEqual(900);expect(verbs.y+verbs.height).toBeLessThanOrEqual(felt.y+felt.height+1);expect(cards.y+cards.height).toBeLessThan(verbs.y);
+      if(size.width===1920)await page.screenshot({path:'../artifacts/owner37-wide.png'});
       await stage.getByRole('button',{name:'BET',exact:true}).click();
       await expect(stage.getByTestId('sit-bet-panel')).toBeVisible();
       await expect(stage.getByTestId('sit-bet-panel')).toHaveCSS('opacity','1');
@@ -762,8 +763,8 @@ test.describe('BUG-99 · the desktop kitchen-table camera', () => {
 
 
 test.describe('BUG-105 · the casino Watch destination',()=>{
-  for(const owned of [false,true]) test(owned?'your casino table opens its owned conversation':'a public casino table opens without owner controls',async({page})=>{
-    await desk(page,{width:1440,height:900});
+  for(const width of [1440,1920]) for(const owned of [false,true]) test((owned?'your casino table opens its owned conversation':'a public casino table opens without owner controls')+' at '+width,async({page})=>{
+    await desk(page,{width,height:width===1920?1080:900});
     const tableId=owned?'t1':'tbl-public',roomId=owned?'upstairs':'floor';
     const state={...midHandGame,tableId,seats:midHandGame.seats.map((s,i)=>({...s,displayName:i===2?'Big Slick':s.displayName,identity:{hood:['oxblood','moss','sand'][i],glow:['ice','violet','gold'][i]},holeCards:owned&&i===2?['Ah','Kh']:[]}))};
     await page.addInitScript(({state,owned,tableId,roomId})=>{
@@ -797,7 +798,7 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect(page.locator('.watch-felt__board')).toHaveCSS('opacity','1');
     await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',owned?'sand':'oxblood');
     await expect(page.locator('.watch-hero radialGradient stop').first()).toHaveAttribute('stop-color',owned?'#C9A227':'#7FA8C9');
-    await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+'.png'});
+    await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+(width===1920?'-1920':'')+'.png'});
     await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);
@@ -951,4 +952,80 @@ for(const width of [390,1440])test('BUG-123: retirement keeps the room and remai
   expect(requests).toEqual(['POST','POST']);
   await page.waitForTimeout(2300);
   await page.screenshot({path:'../artifacts/retire36-'+width+'.png'});
+});
+
+test('B15: head-only look, delayed badge and reduced motion',async({page})=>{
+ await stub(page,{agents:[BALANCE],game:null});
+ await page.addInitScript(()=>{const Base=window.WebSocket;window.__brandHomeSockets=[];window.WebSocket=class extends Base{constructor(url){super(url);window.__brandHomeSockets.push(this);}};});
+ await page.goto(HOME);await expect(page.getByTestId('home-screen')).toBeVisible();
+ await expect(page.locator('.room-header .rail-motion')).toBeVisible();
+ await page.clock.install();await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+100)));
+ await page.evaluate(agents=>window.__brandHomeSockets.forEach(s=>s.dispatch('message',{data:JSON.stringify({type:'home_state',userId:'4242',agents,game:null})})),[{...BALANCE,want:{id:'new-want',text:'Let me play.',kind:'play'}}]);
+ await expect(page.locator('.room-header [data-motion="look"]')).toBeVisible();
+ await expect(page.locator('.room-header .rail-motion__badge')).toHaveCount(0);
+ await page.clock.runFor(440);await expect(page.locator('.room-header .rail-motion__badge')).toHaveCount(1);
+ await page.locator('.room-header').screenshot({path:'../artifacts/brand37-header.png'});
+ await page.evaluate(async()=>{
+   const ReactNS=await import('/node_modules/.vite/deps/react.js'); const React=ReactNS.default??ReactNS;
+   const ReactDOM=await import('/node_modules/.vite/deps/react-dom_client.js'); const createRoot=(ReactDOM.default??ReactDOM).createRoot;
+   const {RailMotion}=await import('/src/components/system/RailMotion.jsx');
+   const host=document.createElement('div');host.id='brand37-proof';host.style.cssText='position:fixed;left:30px;top:100px;width:200px;height:200px;background:#0B0F0E;z-index:999';document.body.append(host);
+   const root=createRoot(host);window.__brandNews37=news=>root.render(React.createElement(RailMotion,{size:200,news}));window.__brandNews37([]);
+ });
+ await expect(page.locator('#brand37-proof .rail-motion')).toBeVisible();
+ await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+100)));
+ await page.evaluate(()=>window.__brandNews37(['a1:want:new']));
+ const mark=page.locator('#brand37-proof'),head=mark.locator('[data-motion="look"]'),rail=mark.locator('.rail-motion__rail');
+ await expect(head).toBeVisible();await expect(mark.locator('.rail-motion__badge')).toHaveCount(0);
+ const before=await rail.boundingBox();
+ await head.evaluate(el=>{const a=el.getAnimations()[0];a.pause();a.currentTime=198;});
+ await expect(head).toHaveCSS('transform','matrix(1, 0, 0, 1, -3.5, 0)');expect(await rail.boundingBox()).toEqual(before);
+ await mark.screenshot({path:'../artifacts/brand37-look.png'});
+ await page.clock.runFor(439);await expect(mark.locator('.rail-motion__badge')).toHaveCount(0);
+ await page.clock.runFor(1);await expect(mark.locator('.rail-motion__badge')).toHaveCount(1);
+ expect(await rail.boundingBox()).toEqual(before);
+ await page.evaluate(()=>window.__brandNews37(['a1:want:new']));await expect(mark.locator('[data-motion="look"]')).toHaveCount(0);
+ await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>window.__brandNews37(['a1:want:another']));await page.clock.runFor(1);await expect(mark.locator('[data-motion]')).toHaveCount(0);
+});
+
+for(const width of [390,1440])test('FTU37: quiet first shift is explained in the companion at '+width,async({page})=>{
+ await stub(page,{agents:[BALANCE],game:null});await page.route('**/api/agents/*/hands**',r=>r.fulfill({json:{recentHands:[{handNumber:1,summary:'A quiet hand.'}]}}));await page.setViewportSize({width,height:844});await page.goto(HOME);
+ await page.locator('.home-one[data-agent="a1"]').click();
+ await expect(page.getByText('NOTHING WORTH FLAGGING',{exact:true})).toBeVisible();
+ await expect(page.getByText('When a hand is worth watching, it arrives here as a replay you can scrub.')).toBeVisible();
+ await page.screenshot({path:'../artifacts/empty37-quiet-'+width+'.png'});
+});
+
+test('FTU37: no agents and no brief stay in the current room and recruiter flow',async({page})=>{
+ await stub(page,{agents:[],game:null,slots:{used:0,cap:4,next:{index:1,price:0,earned:0,unlocked:true}}});await page.route('**/api/home/thread**',r=>r.fulfill({json:{sessionId:null,count:0,lines:[]}}));await page.goto(HOME);
+ await expect(page.getByRole('button',{name:'DRAFT YOUR FIRST AGENT',exact:true})).toBeVisible();await expect(page.getByTestId('home-table')).toBeVisible();
+ await page.screenshot({path:'../artifacts/empty37-no-agents.png'});
+ await page.getByRole('button',{name:'DRAFT YOUR FIRST AGENT',exact:true}).click();await expect(page.getByPlaceholder(/Describe how it should play/i)).toBeVisible();
+ await page.waitForTimeout(600);await page.screenshot({path:'../artifacts/empty37-no-brief.png'});
+});
+
+test('FTU37: no history and no staked chips remain factual and fundable',async({page})=>{
+ const fresh={...BALANCE,stats:{handsPlayed:0},careerStats:{sessions:0,hands:0},sessionLog:[],pocket:{balance:0,mode:'topup',broke:true}};
+ await stub(page,{agents:[fresh],game:null});await page.route('**/api/stats',r=>r.fulfill({json:{activeAgents:0}}));await page.route('**/api/notifications/budget**',r=>r.fulfill({json:{enabled:false}}));await page.route('**/api/wallet**',r=>r.fulfill({json:{balance:20000,staked:0,playing:{live:0,total:1},ledger:[]}}));await page.goto(HOME);
+ await page.getByRole('button',{name:'Your agents',exact:true}).click();await page.getByTestId('roster-ledger').click();
+ await expect(page.getByText('NO SESSION HISTORY YET',{exact:true})).toBeVisible();await expect(page.getByText('Win rate',{exact:true})).toHaveCount(0);
+ await page.screenshot({path:'../artifacts/empty37-history.png'});
+ await page.getByRole('button',{name:'Back home',exact:true}).click();await page.getByTestId('home-safe').click();await page.getByRole('button',{name:/^GIVE/}).click();
+ await expect(page.getByText('$0',{exact:true}).first()).toBeVisible();await page.waitForTimeout(600);await page.screenshot({path:'../artifacts/empty37-nothing-staked.png'});
+});
+test('K3/N3: a hot public table is visible and watchable without a false held-runout claim',async({page})=>{
+ await stub(page,{agents:[BALANCE],game:null});
+ await page.route('**/api/rooms**',r=>r.fulfill({json:{rooms:canonicalRooms.map(r=>r.id==='floor'?{...r,tables:1,seated:4,hot:['tbl-hot'],biggestPot:{tableId:'tbl-hot',pot:4180}}:{...r,tables:0,seated:0,hot:[],biggestPot:null})}}));
+ await page.addInitScript(()=>{const Base=window.WebSocket;window.__hotWatch=[];window.WebSocket=class extends Base{send(raw){super.send(raw);const m=JSON.parse(raw);
+   if(m.type==='floor_sub')setTimeout(()=>this.dispatch('message',{data:JSON.stringify({type:'room_tables',tables:[{tableId:'tbl-hot',room:'floor',blinds:'10/20',smallBlind:10,bigBlind:20,pot:4180,hot:true,seated:4,seats:[{name:'Granite',stack:2000},{name:'Bal',stack:2200},{name:'Ozy',stack:4100},{name:'Doyle',stack:600}],board:['Ah','Kd','2c']}],rooms:{'tbl-hot':'floor'}})}),20);
+   if(m.type==='watch' && m.tableId==='tbl-hot')window.__hotWatch.push(m);
+ }};});
+ await page.goto(HOME);await page.getByTestId('home-door').click();await expect(page.locator('.csn-felt58[data-hot="true"]')).toBeVisible();
+ await page.screenshot({path:'../artifacts/hot37-floor.png'});
+ await page.getByRole('button',{name:'Board',exact:true}).click();
+ const watch=page.getByRole('button',{name:/\$4,180 in the middle.*Watch this table/});await expect(watch).toBeVisible();
+ await expect(page.locator('.csn-room-door[data-hot="true"]')).toBeVisible();
+ await expect(page.getByText(/runout held for you/i)).toHaveCount(0);
+ await page.screenshot({path:'../artifacts/hot37-board.png'});
+ await watch.click();await expect.poll(()=>page.evaluate(()=>window.__hotWatch.length)).toBe(1);
 });

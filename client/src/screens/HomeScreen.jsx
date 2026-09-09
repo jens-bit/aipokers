@@ -47,6 +47,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useHomeState } from '../hooks/useHomeState.js';
 import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
+import { activityKeys } from '../components/system/RailMotion.jsx';
 import { RoomHeader } from '../components/Header.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
 import { HomeGameTable, TableChairs, useHomeTable } from '../components/home/HomeGame.jsx';
@@ -860,7 +861,7 @@ export function HomeScreen({
 
   return (
     <div className="home1" data-testid="home-screen">
-      <RoomHeader title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} />
+      <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} />
       {roomBox}
 
       {carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}

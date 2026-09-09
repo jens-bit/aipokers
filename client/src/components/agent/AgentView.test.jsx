@@ -101,3 +101,10 @@ it('BUG-63: a late recap response cannot erase a newly sent message', async () =
   expect(screen.getByText('Are you there?')).toBeInTheDocument();
   expect(screen.getAllByText('I heard you.').length).toBeGreaterThan(0);
 });
+
+
+it('BUG-127: a quiet shift keeps the authored explanation in the phone companion',async()=>{
+ fetchMock.route('/hands',{recentHands:[{handNumber:1}]});fetchMock.route('/flagged',{flaggedHands:[]});show();
+ expect(await screen.findByText('NOTHING WORTH FLAGGING')).toBeInTheDocument();
+ expect(screen.getByText('When a hand is worth watching, it arrives here as a replay you can scrub.')).toBeInTheDocument();
+});

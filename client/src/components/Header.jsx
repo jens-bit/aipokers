@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RailMotion } from './system/RailMotion.jsx';
 import { RailMark } from './system/RailMark.jsx';
 import { Streets } from '../lib/protocol.js';
 
@@ -134,10 +135,10 @@ export function RosterButton({ onOpenRoster, liveCount }) {
   return <button type="button" className={`room-header__roster${known ? ' room-header__roster--count' : ''}${known && !liveCount ? ' is-quiet' : ''}`} onClick={onOpenRoster} aria-label="Your agents" title={known ? `${liveCount} of your agents at a live table` : 'Your agents'}>{known ? <><i aria-hidden/><span>{liveCount ? `${liveCount} ${liveCount === 1 ? 'AGENT' : 'AGENTS'} LIVE` : 'NOBODY LIVE'}</span></> : <PersonIcon />}</button>;
 }
 
-export function RoomHeader({ title, subtitle, onOpenRoster, liveCount }) {
+export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = null }) {
   return (
     <header className="room-header" data-testid="room-header">
-      <RailMark size={20} />
+      <RailMotion size={20} news={news} />
       <div className="room-header__copy">
         <h1>{title}</h1>
         {subtitle && <div className="room-header__sub">{subtitle}</div>}

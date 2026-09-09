@@ -400,3 +400,16 @@ for (const height of [844, 590]) test('BUG-120/121 real felt brow and expression
   await page.clock.runFor(1000); await expect(page.locator('g[data-event="stunned"]')).toHaveCount(0);
   expect(await page.locator('.watch-felt').boundingBox()).toEqual(before);
 });
+
+test('FTU37: BUG-129 first preflop and no read retain the live felt',async({page})=>{
+ await felt(page,{owned:true});
+ const first={...TABLE,handNumber:1,street:'preflop',community:[],pot:30,reads:[],heroEquity:null};
+ await page.evaluate(state=>{window.__pushWatchMessage({type:'hand_start',handNumber:1});window.__pushWatchState(state);},first);
+ await expect(page.locator('.watch-felt')).toBeVisible();await expect(page.locator('.watch-hero__cards')).toBeVisible();
+ await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity','1');
+ await page.screenshot({path:'../artifacts/empty37-first-preflop.png'});
+ await page.getByRole('button',{name:'Doyle_v3 — read',exact:true}).click();
+ await expect(page.getByText('NO EVIDENCE YET',{exact:true})).toBeVisible();await expect(page.locator('.read-sheet .read-bar')).toHaveCount(5);await expect(page.locator('.read-sheet .read-bar__band')).toHaveCount(0);
+ await expect(page.locator('.read-sheet .read-bar__value')).toHaveText(['··','··','··','··','··']);
+ await page.waitForTimeout(600);await page.screenshot({path:'../artifacts/empty37-no-reads.png'});
+});

@@ -187,6 +187,8 @@
    Before WV2-5 both rules landed on the same node, so the "pill" stretched
    the full width of the felt. */
 .watch-felt__pot {
+  /* BUG-129: this full-width display must not intercept seat/read taps. */
+  pointer-events: none;
   position: absolute;
   top: var(--wv-pot, 60px);
   left: 0;

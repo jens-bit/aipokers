@@ -11,11 +11,12 @@ import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 export function ThreadPanel({
   agent, accentIndex, draft, onDraftChange, onClose, onWatch, onDeploy, onCarry, onReplay,
 }) {
-  const { chat, sending, accepting, send, acceptProposal, error, moodOverride } = useAgentThread(agent);
+  const { chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride } = useAgentThread(agent);
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const [view, setView] = useState('thread');
   const [hand, setHand] = useState(null);
+  const [flagsKnown,setFlagsKnown]=useState(false);
   const [funding, setFunding] = useState(false);
   const [wallet, setWallet] = useState(null);
   const [pocketOverride, setPocketOverride] = useState(null);
@@ -53,10 +54,10 @@ export function ThreadPanel({
 
   useEffect(() => {
     let alive = true;
-    setHand(null);
+    setHand(null); setFlagsKnown(false);
     fetch(`/api/agents/${encodeURIComponent(agent.id)}/flagged?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (alive) setHand(data?.flaggedHands?.[0] ?? null); })
+      .then(data => { if (alive) { setHand(data?.flaggedHands?.[0] ?? null); setFlagsKnown(Array.isArray(data?.flaggedHands)); } })
       .catch(() => {});
     return () => { alive = false; };
   }, [agent.id]);
@@ -78,7 +79,7 @@ export function ThreadPanel({
       onBack={() => setView('thread')} onOpenChat={() => setView('thread')}
       onWatch={onWatch} onDeploy={onDeploy} onCallIn={callIn} onFund={openFunds}
       onRetired={onClose} sendWhisper={profileWhisper} /> : <AgentView desktop agent={currentAgent} mood={moodOverride ?? moodOf(agent)} heat={heatOf(agent)}
-      chat={hand && onReplay ? [...chat,{role:'replay',hand,_id:'latest-hand'}] : chat}
+      chat={hand && onReplay ? [...chat,{role:'replay',hand,_id:'latest-hand'}] : flagsKnown && !hand && hasHands ? [...chat,{role:'noflags',_id:'quiet-shift'}] : chat}
       loading={sending} draft={draft} setDraft={onDraftChange} send={handleSend}
       inputRef={inputRef} feedRef={feedRef} onBack={onClose} onOpenProfile={() => setView('card')}
       onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry}

@@ -201,3 +201,11 @@ it('C4/C9 calls a live agent in through the existing wallet verb',async()=>{
   await waitFor(()=>expect(onClose).toHaveBeenCalledOnce());
   expect(fetchMock.posts.find(c=>c.url.endsWith('/fund')).body).toMatchObject({verb:'callin',userId:'4242'});
 });
+
+
+it('BUG-127: a completed quiet shift explains the missing replay in the desktop companion',async()=>{
+ telegram.signIn();fetchMock.route('/hands',{recentHands:[{handNumber:1}]});fetchMock.route('/flagged',{flaggedHands:[]});
+ renderPanel();
+ expect(await screen.findByText('NOTHING WORTH FLAGGING')).toBeInTheDocument();
+ expect(screen.getByText('When a hand is worth watching, it arrives here as a replay you can scrub.')).toBeInTheDocument();
+});

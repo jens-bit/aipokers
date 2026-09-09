@@ -269,3 +269,16 @@ First broad browser run: 45 passed, two existing BUG-103 resize hit-target asser
 Main35 post-integration passed 107 / 2233 / 7. Main36 integration follows. Remaining work: full seven-state first-use comparison, K3, Y1-Y4 and brand applications/motion (new BUG-126), final captures and release handoff. No push, real retirement, account mutation, external message or paid model call occurred.
 
 Final batch36 Home2 passed all 20 checks (18.7s); the fresh scratch server was stopped.
+
+
+## Batch37 — first-use matrix, hot/wide comparisons and header motion, 9 September 2026
+
+Main36 post-integration passed 107 / 2236 / 7. BUG-126's original entry conflated B12 loading with B15 header motion: B12 already matches its 560ms whole-mark reference. New RailMotion preserves the stationary rail with 520ms head peek and 440ms activity look, baseline vs new activity, delayed badge and reduced motion. BUG-127 restores the quiet-shift replay explanation on phone and desktop. BUG-128 hides premature zero/one-session win rates. BUG-129 fixes a real full-width pot overlay intercepting the opponent read target.
+
+Four initial component failures preceded motion/quiet changes; 42 focused tests passed. The later first-session rate test failed before its fix. First browser matrix passed four/failed two: an optimized React DOM import error and a pot hit-target refusal. Corrected import plus actual button target gave five pass/one real interception failure; pointer-events:none fixes it. Final matrix six passed. K3 test initially had an extra brace, then an edit used the wrong relative cwd; both harness errors occurred before product checks. Corrected wide/hot selection passed all 26. Final broad group passed all 58 (51 desktop/phone desktop-spec paths, two fonts, two BUG-55, two reaction clocks, one preflop read). The seven-state screenshot review caught mid-animation captures and the empty fixture's unrelated seeded room dialogue; corrected fixture and 600ms capture settle passed all three affected journeys. No production code workaround was added for those capture issues.
+
+Inspected pairs: design-batch37-{empty,hot,wide,brand}.png. The empty matrix retains current room/table, four-stage draft, SAFE2 Give and Watch4 reads. K3's tall doors are superseded by N3; no false held-public-runout promise. Y1–Y4 preserve later C9 roster and actual sample population/hand data. B13's central empty placeholder is superseded by the retained room; B15's look is visually captured at 198ms with exact -3.5px transform and stationary rail. Peek duration is unit/browser wiring coverage, not a separate phase pixel comparison.
+
+Final test:all passed 107 server / 2241 client / seven e2e (two intentional server live skips/two existing client todos). Build passed with existing >500KB chunk warning. Fresh keyless scratch passed seven smoke journeys (41.6s) and 20 Home2 checks. No push, real agent change, paid model call, external message or account update occurred. Main37 integration follows; final product capture refresh and release evidence remain.
+
+Final batch37 Home2 passed 20 (18.4s). Scratch server stopped. 15 incidental tracked PNGs were hash-backed-up and restored; four new pairs remain.

@@ -1,6 +1,6 @@
 # Railbird — progress and handoff, 9 September 2026
 
-Thirty-six implementation batches are prepared. The full design/spec goal remains active. This is a tested local milestone, not final friends-shareable sign-off or a deployment claim.
+Thirty-seven implementation batches are prepared. The full design/spec goal remains active. This is a tested local milestone, not final friends-shareable sign-off or a deployment claim.
 
 Home and casino use the available phone space and contextual navigation. The kitchen table/home games remain, wants have one answer surface, and table taps work. The companion, conversation, compact profile, roster, absence, fridge and TV use actual data. Desktop has the wider room, permanent companion column and fitted Watch/Sit with working actions and return routes.
 
@@ -12,7 +12,7 @@ Audio now plays after a user gesture, with original C8 swell/reports/knock timin
 
 ## Latest verification
 
-Batch36: 107 server checks, 2236 client checks and seven end-to-end scripts passed; two intentional server live skips and two existing client todos remain. The broad browser run passed 45 and exposed two resize failures; the correction passed all eight focused resize/retire/pinch cases, covering every selected case. Reference pairs for retirement and the casino zoom were inspected. Main35 post-integration passed; main36 integration follows.
+Batch37: 107 server checks, 2241 client checks and seven end-to-end scripts passed; two intentional server live skips and two existing client todos remain. All 58 browser checks, seven built smoke journeys and 20 Home layout checks passed. All seven first-use states, hot-table and four wide desktop comparisons were inspected. Opponent read taps, quiet-shift guidance and first-session history are repaired; the header has its authored motion. Main36 post-integration passed; main37 integration follows.
 
 Retirement now finishes the hand and keeps the record through the correct server endpoint. The casino has its authored two-stage pinch camera; ordinary taps still open Watch. A fresh account no longer claims one session of history.
 
@@ -25,7 +25,7 @@ No Claude/Opus review, real notification, paid model call, account update or pro
 [DESIGN_GAP.md](DESIGN_GAP.md) is now the current frame-by-frame inventory; [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md) preserves the earlier audit and batch notes.
 
 1. S1/S2 are now implemented: portrait/wide formats, Railbird branding, saved appearance and truthful net/pot labels. External Telegram delivery and account configuration still need release verification. C8 audio uses original synthesis; the preview is available for listening feedback.
-2. Complete the remaining empty/hot/1920 comparisons and repair reproduced failures.
+2. Empty/hot/1920 comparisons are complete locally, with deliberate later-design differences recorded.
 3. Refresh final product captures and branding applications, then recheck the first-thirty-seconds journey.
 4. Integrate, hand off the push, verify deployed revision and production behavior. Last public config had guest=false and botUsername=agenticpoker_bot. Code availability does not change those settings.
 
