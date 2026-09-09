@@ -350,17 +350,17 @@ Pair paths here are reserved checkpoints, not claims that an authored reference 
 
 <a id="gap-g2"></a> **G2** — Authored audit row; EXISTS/MAPS/MISSING describe design coverage, not current implementation status. Exact state must be checked.
 
-<a id="gap-g3"></a> **G3** — Board 25 says 2/day, 4h gap,00–08 quiet; master v14§8.6 says3/day,30min,23–08 and expanded ladder. Latest goal asks board text verification; unresolved policy/copy reconciliation must be explicit.
+<a id="gap-g3"></a> **G3** — Apply the notification policy conflict above. The budget timeline and each rule require an explicit text/timing comparison; existing notifier tests do not settle the design conflict.
 
 <a id="gap-g4"></a> **G4** — Board 31 explicitly retains this state row; apply it to current three-column shell and verify all five surfaces.
 
-<a id="gap-g5"></a> **G5** — Board 41 explicitly selects line1; these two alternatives remain documented, not simultaneous product requirements.
+<a id="gap-g5"></a> **G5** — Board 41 explicitly selects line 1; these two alternatives remain documented, not simultaneous product requirements.
 
-<a id="gap-g6"></a> **G6** — Celebration exists, including batch44 timing/result repairs; authored visual phases and final current layout need individual pairs.
+<a id="gap-g6"></a> **G6** — Celebration exists, including batch 44 timing/result repairs; authored visual phases and final current layout need individual pairs.
 
 <a id="gap-g7"></a> **G7** — Celebration implemented with original synthesized audio; supplied reference has no recording. Exact current phase pairs and physical listening remain.
 
-<a id="gap-g8"></a> **G8** — Companion/Profile implementation exists with real conversation/stats and known stage/data differences. Batch44/45 changes invalidate blanket older pair claims.
+<a id="gap-g8"></a> **G8** — Companion/Profile implementation exists with real conversation/stats and known stage/data differences. Batches 44–45 require current evidence rather than blanket older pair claims.
 
 <a id="gap-g9"></a> **G9** — Current atom includes raise; stale Eight poses caption must not drop the authored ninth pose. Pair must use actual board size.
 
@@ -368,7 +368,7 @@ Pair paths here are reserved checkpoints, not claims that an authored reference 
 
 <a id="gap-g11"></a> **G11** — Current stocked fridge exists; v14 snack semantics differ from old beer example. Match glass/stock geometry with actual data.
 
-<a id="gap-g12"></a> **G12** — DirectionB is not selected for app identity/header; retained only for marquee/hero.
+<a id="gap-g12"></a> **G12** — Direction B is not selected for app identity/header; retained only for marquee/hero.
 
 <a id="gap-g13"></a> **G13** — Embedded standalone is wave 62 bird artwork; current board 41 and mood-atoms wave 63 replace the mark with ghost-at-rail.
 
@@ -382,9 +382,9 @@ Pair paths here are reserved checkpoints, not claims that an authored reference 
 
 <a id="gap-g18"></a> **G18** — Floor-first entry is the later approved behavior; Board remains reachable. Do not restore two headers to match an older overview.
 
-<a id="gap-g19"></a> **G19** — Batch 45 now verifies the functioning four-stage draft, neutral hood before colour, name handoff, served identity and safe retries. Full-frame differences remain: responsive glass/header,16px input and missing pre-birth name/resource pill; no invented stamina/heat. See inspected pairs.
+<a id="gap-g19"></a> **G19** — Batch 45 verifies the functioning four-stage draft, neutral hood before colour, name handoff, served identity and safe retries. Full-frame differences remain: responsive glass/header, 16px input and missing pre-birth name/resource pill; no invented stamina/heat. See inspected pairs.
 
-<a id="gap-g20"></a> **G20** — HTML badge timing conflicts with current JSX WALKS: use source out2.2s/home1.9s; current cast/table replaces schematic sample.
+<a id="gap-g20"></a> **G20** — Apply the crossing caption/source timing conflict above. Current cast and retained table replace the schematic samples.
 
 <a id="gap-g21"></a> **G21** — Implementation or earlier evidence exists; this audit has not inspected a current matching pair for this individual frame.
 
@@ -404,7 +404,7 @@ Pair paths here are reserved checkpoints, not claims that an authored reference 
 
 <a id="gap-g29"></a> **G29** — Saved cast and true 1/2 kitchen stakes replace samples. Visiting projection/labels exist, but the full visit lifecycle requires its own audit. Named absence is visual, not a promise of permanent backend chair reservation.
 
-<a id="gap-g30"></a> **G30** — Source state remains required; current implementation has later layout/copy/data changes. Compare this exact frame before promotion. Apply current ghost-at-rail branding, retained kitchen table, four forming stages/no collar, fixed identity and the existing Watch composition. Current sample data must be real, not fabricated.
+<a id="gap-g30"></a> **G30** — Source state remains required; current implementation has later layout/copy/data changes. This source inventory does not establish an exact-frame match. Apply the global overrides and truthful-data rule above, then compare the named frame.
 
 <a id="gap-g31"></a> **G31** — Standalone He grew notification is drawn in board 25 but absent in v14 shipped ladder/current notifier; do not hide the gap behind grouped notification coverage.
 
