@@ -110,11 +110,10 @@ function announce(line) {
   }
 }
 
-// HOME-STATE-1: where the line was said. `table` is every line that predates
-// the home and every line a felt produces; `home` is the nightly exchange
-// between two agents who spent the evening in — a conversation with no table
-// under it, filed against a synthetic session id so it reads back through the
-// same route the felt's thread does.
+// HOME-STATE-1 / THREAD-2: the transcript this row belongs to. TABLE keeps an
+// agent's felt history; HOME keeps the host's daily room conversation. Public
+// kitchen speech appears once in that room as well as in each seat's history
+// (BUG-163). Reads, whispers and felt action logs stay in the seat history.
 export const ThreadSource = Object.freeze({
   TABLE: 'table',
   HOME: 'home',
@@ -318,7 +317,8 @@ function defaultLabel(kind) {
  * `owner` is the ownership proof the REST layer already computes. Without it
  * the private half is withheld rather than the whole thread refused: the room
  * talking and the seats talking are public at a real table, and a spectator
- * who can watch the felt can hear them.
+ * who can watch the felt can hear them. A Home conversation is host-private
+ * regardless of the speaker's row style, including a named human or House.
  */
 export function readThread(sessionId, { owner = false, limit, agentId, ownerId } = {}) {
   if (!sessionId) return [];
@@ -332,7 +332,7 @@ export function readThread(sessionId, { owner = false, limit, agentId, ownerId }
   // BUG-49: a session id is a locator, not permission to read its private lines.
   const scoped = rows.filter(r => (agentId == null || r.agentId === agentId)
     && (ownerId == null || String(r.ownerId) === String(ownerId)));
-  const visible = owner ? scoped : scoped.filter((r) => !PRIVATE_KINDS.has(r.kind));
+  const visible = owner ? scoped : scoped.filter((r) => r.source !== ThreadSource.HOME && !PRIVATE_KINDS.has(r.kind));
   return visible.map(({ ownerId, agentId, ...line }) => line);
 }
 
