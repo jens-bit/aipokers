@@ -196,6 +196,70 @@ async function room(page, cast, viewport = VIEWPORT) {
   await page.waitForTimeout(600);
 }
 
+for (const viewport of [{width:390,height:590},{width:390,height:844},{width:1440,height:900}]) {
+  test('BUG-140/141/143/144: join, read, showdown, lose and play again at '+viewport.width+'x'+viewport.height, async ({page}) => {
+    await stub(page, CASTS.household);
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      const Base = window.WebSocket;
+      window.__humanSent = [];
+      window.__humanPush = message => window.__humanSocket.dispatch('message', {data:JSON.stringify(message)});
+      window.WebSocket = class extends Base {
+        send(raw) {
+          super.send(raw);
+          const message = JSON.parse(raw);
+          window.__humanSent.push(message);
+          if (message.type !== 'join') return;
+          window.__humanSocket = this;
+          setTimeout(() => {
+            const seats = ['The Clock','River Rat'].map((displayName,seat)=>({seat,playerId:'bot'+seat,displayName,stack:1800,holeCards:[],mood:{state:'neutral',heat:30}}));
+            window.__humanPush({type:'joined',seat:2,waitingForNextHand:true});
+            window.__humanPush({type:'state',yourSeat:2,waitingForNextHand:true,legalActions:[],state:{tableId:'home-u1',handNumber:7,street:'flop',pace:'calm',pot:120,currentBet:0,toAct:0,smallBlind:1,bigBlind:2,community:['5c','4h','8c'],seats,waitingForNextHand:true}});
+          },40);
+        }
+      };
+    });
+    await page.goto(HOME);
+    await page.getByTestId('home-table').click({position:{x:55,y:50}});
+    await page.getByTestId('home-table-sit').click();
+    await expect(page.getByText('NEXT HAND',{exact:true})).toBeVisible();
+    await expect(page.locator('.watch-felt .seat-ghost')).toHaveCount(2);
+    const seats = ['The Clock','River Rat','You'].map((displayName,seat)=>({seat,playerId:'p'+seat,displayName,stack:seat===2?2000:1800,holeCards:seat===2?['As','Kd']:[],mood:{state:'neutral',heat:30}}));
+    const game = {tableId:'home-u1',handNumber:8,street:'river',pace:'calm',pot:400,currentBet:0,toAct:2,smallBlind:1,bigBlind:2,community:['5c','4h','8c','Ks','2d'],seats,waitingForNextHand:false};
+    await page.evaluate(game => {
+      window.__humanPush({type:'hand_start',handNumber:8});
+      window.__humanPush({type:'state',yourSeat:2,waitingForNextHand:false,state:game,legalActions:[{type:'check'},{type:'fold'},{type:'bet',min:2,max:2000}]});
+    },game);
+    await expect(page.getByTestId('owner-hero-cards')).toContainText('AK');
+    await page.getByRole('button',{name:'CHECK',exact:true}).click();
+    await expect.poll(()=>page.evaluate(()=>window.__humanSent.some(m=>m.type==='action'&&m.action?.type==='check'))).toBe(true);
+    await page.locator('.watch-felt .seat-ghost').first().click();
+    await expect(page.getByRole('dialog',{name:/read/})).toBeVisible();
+    await page.getByRole('button',{name:'Close read',exact:true}).click();
+    await expect(page.getByRole('dialog',{name:/read/})).toHaveCount(0);
+    const end = {...game,street:'complete',pace:'showdown',toAct:null,seats:seats.map((s,i)=>({...s,stack:i===2?0:2800})),result:{pot:4000,winners:[{seat:0,amount:4000,descr:'three eights'}],showdown:[{seat:0,holeCards:['8h','8d']},{seat:2,holeCards:['As','Kd']}]}};
+    await page.evaluate(state=>window.__humanPush({type:'state',yourSeat:2,state,legalActions:[]}),end);
+    await expect(page.locator('.watch-felt__board')).toHaveText('548K2');
+    await expect(page.locator('.watch-felt__card--landing')).toHaveCount(0);
+    await page.evaluate(()=>window.__humanPush({type:'table_closed',reason:'Busted'}));
+    await expect(page.getByText('YOU LOST',{exact:true})).toBeVisible();
+    await expect(page.locator('.watch-ceremony')).toHaveCSS('opacity','1');
+    await expect(page.getByText('Fund him again',{exact:true})).toHaveCount(0);
+    const playAgain = page.getByRole('button',{name:'Play again',exact:true});
+    const button = await playAgain.boundingBox();
+    expect(button.height).toBeGreaterThanOrEqual(44);
+    expect(button.y).toBeGreaterThanOrEqual(0);
+    expect(button.y+button.height).toBeLessThanOrEqual(viewport.height);
+    await page.screenshot({path:'../artifacts/batch44-human-'+viewport.width+'x'+viewport.height+'.png'});
+    await playAgain.click();
+    await expect.poll(()=>page.evaluate(()=>window.__humanSent.filter(m=>m.type==='join').length)).toBe(2);
+    await expect(page.getByText('YOU LOST',{exact:true})).toHaveCount(0);
+    await expect(page.getByText('NEXT HAND',{exact:true})).toBeVisible();
+    await page.getByRole('button',{name:viewport.width>=1100?'Back to the room':'Leave table',exact:true}).click();
+    await expect(page.getByTestId('home-table')).toBeVisible();
+  });
+}
+
 for (const width of [390, 1440]) test('BUG-137/138: a crowded returning household stands apart and stops repeating its recap at ' + width, async ({ page }) => {
   const cast = { agents: Array.from({ length: 4 }, (_, i) => agent('return-' + i, 'Return ' + i, {
     routine: { key: 'waits', label: 'waiting by the door' }, unseenRecap: true,
@@ -349,6 +413,8 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await page.getByRole('button',{name:/^Balanced v2.1 —/}).click();
       await page.getByRole('button',{name:'Profile',exact:true}).click();
       const profile=page.locator('.profile-overview');
+      await expect(profile.getByRole('region',{name:'Skills',exact:true})).toBeVisible();
+      await expect(profile.getByRole('region',{name:'Career',exact:true})).toBeVisible();
       await expect(profile.getByText(ag.name,{exact:true})).toHaveCount(1);
       await expect(profile.getByText('Called the river sizing.')).toBeVisible();
       expect((await profile.boundingBox()).width).toBe(viewport.width);

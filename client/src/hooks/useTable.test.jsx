@@ -141,6 +141,46 @@ describe('W3-6 useTable handles PACE', () => {
     vi.stubGlobal('WebSocket', ListenerSocket);
   });
 
+  it('BUG-141: a queued human sees the public hand, then follows their compacted seat into the next deal', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    act(() => { result.current.connect({ tableId: 'tbl-pace', displayName: 'YOU', buyIn: 2000 }); });
+    const ws = lastSocket();
+    act(() => { ws.open(); ws.emit({ type: 'joined', seat: 3, waitingForNextHand: true }); });
+    const publicHand = { ...STATE, waitingForNextHand: true, seats: STATE.seats.map(seat => ({ ...seat, holeCards: [] })) };
+    act(() => { ws.emit({ type: 'state', state: publicHand, yourSeat: 3, waitingForNextHand: true, legalActions: [{ type: 'fold' }] }); });
+    expect(result.current.status).toBe('waiting');
+    expect(result.current.mySeat).toBe(3);
+    expect(result.current.game.waitingForNextHand).toBe(true);
+    expect(result.current.game.seats.every(seat => seat.holeCards.length === 0)).toBe(true);
+    expect(result.current.legalActions).toEqual([]);
+
+    const nextHand = { ...STATE, handNumber: 8, street: 'preflop', community: [], waitingForNextHand: false, toAct: 1,
+      seats: [{ playerId: 'p_house', displayName: 'House', stack: 1980, holeCards: [] }, { playerId: 'p_you', displayName: 'YOU', stack: 1990, holeCards: ['Ac', 'Ah'] }] };
+    const legalActions = [{ type: 'call', amount: 10 }, { type: 'fold' }];
+    act(() => { ws.emit({ type: 'hand_start', handNumber: 8 }); ws.emit({ type: 'state', state: nextHand, yourSeat: 1, waitingForNextHand: false, legalActions }); });
+    expect(result.current.status).toBe('playing');
+    expect(result.current.mySeat).toBe(1);
+    expect(result.current.game.waitingForNextHand).toBe(false);
+    expect(result.current.game.seats[result.current.mySeat].holeCards).toEqual(['Ac', 'Ah']);
+    expect(result.current.legalActions).toEqual(legalActions);
+  });
+
+  it.each(['envelope', 'snapshot', 'joined'])('BUG-141: queued status from the %s reaches the game view and clears on a new connection', (source) => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    act(() => { result.current.connect({ tableId: 'tbl-pace', displayName: 'YOU', buyIn: 2000 }); });
+    const ws = lastSocket();
+    act(() => { ws.open(); ws.emit({ type: 'joined', seat: 3, ...(source === 'joined' ? { waitingForNextHand: true } : {}) }); });
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, ...(source === 'snapshot' ? { waitingForNextHand: true } : {}) }, yourSeat: 3, ...(source === 'envelope' ? { waitingForNextHand: true } : {}), legalActions: [] }); });
+    expect(result.current.status).toBe('waiting');
+    expect(result.current.game.waitingForNextHand).toBe(true);
+    act(() => { result.current.disconnect(); result.current.connect({ tableId: 'another', displayName: 'YOU', buyIn: 2000 }); });
+    const next = lastSocket();
+    act(() => { next.open(); next.emit({ type: 'joined', seat: 0 }); next.emit({ type: 'state', state: { ...STATE, tableId: 'another' }, legalActions: [] }); });
+    expect(result.current.status).toBe('playing');
+    expect(result.current.mySeat).toBe(0);
+    expect(result.current.game.waitingForNextHand).toBe(false);
+  });
+
   it('BUG-50: WATCH carries the owner identity and Telegram credential', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     const ws = connectWatching(result);
@@ -205,6 +245,42 @@ describe('W3-6 useTable handles PACE', () => {
     expect(result.current.paceFrame).not.toBeNull();
 
     act(() => { ws.emit({ type: WIRE.HAND_START, handNumber: 8 }); });
+    expect(result.current.paceFrame).toBeNull();
+    expect(result.current.game.paceFrame).toBeNull();
+  });
+
+  it('BUG-144: an authoritative snapshot recovers a missed runout PACE in both exposed views', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit({ type: 'pace', tableId: STATE.tableId, pace: 'allin', potBb: 184.7, board: ['Kc', '9c', '4c'], card: '4c' }); });
+    const finalFrame = { pace: 'showdown', potBb: 184.7, board: ['Kc', '9c', '4c', '2c', '5h'], card: '5h' };
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, street: 'complete', community: finalFrame.board, paceFrame: finalFrame }, legalActions: [] }); });
+    expect(result.current.paceFrame).toEqual(finalFrame);
+    expect(result.current.game.paceFrame).toEqual(finalFrame);
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, paceFrame: null }, legalActions: [] }); });
+    expect(result.current.paceFrame).toBeNull();
+    expect(result.current.game.paceFrame).toBeNull();
+  });
+
+  it('BUG-144: a new-hand snapshot clears the previous board even when HAND_START was missed', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => { ws.emit({ type: 'pace', tableId: STATE.tableId, ...RUNOUT[0] }); });
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, handNumber: 8, street: 'preflop', community: [] }, legalActions: [] }); });
+    expect(result.current.paceFrame).toBeNull();
+    expect(result.current.game.paceFrame).toBeNull();
+    expect(result.current.game.community).toEqual([]);
+  });
+
+  it('BUG-144: a legacy snapshot in the same hand keeps its held board in both views', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    const heldFrame = { pace: 'allin', potBb: 184.7, board: ['Kc', '9c', '4c'], card: '4c' };
+    act(() => { ws.emit({ type: 'pace', tableId: STATE.tableId, ...heldFrame }); });
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, street: 'complete', community: RUNOUT[0].board }, legalActions: [] }); });
+    expect(result.current.paceFrame).toEqual(heldFrame);
+    expect(result.current.game.paceFrame).toEqual(heldFrame);
+    act(() => { ws.emit({ type: 'state', state: { ...STATE, tableId: 'another-table' }, legalActions: [] }); });
     expect(result.current.paceFrame).toBeNull();
     expect(result.current.game.paceFrame).toBeNull();
   });

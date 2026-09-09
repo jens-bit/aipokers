@@ -24,7 +24,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { WatchScreen, MUCK_MS } from './WatchScreen.jsx';
+import { WatchScreen, WatchFelt, MUCK_MS } from './WatchScreen.jsx';
 import { midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse, playingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -84,6 +84,60 @@ beforeEach(() => {
   telegram.signIn();
   fetchMock.route('/api/agents', agentsResponse);
   resetHaptics();
+});
+
+describe('BUG-144: the board only reveals cards the viewer has not seen', () => {
+  it('does not animate a known river when a river all-in is awarded without a new card', () => {
+    const game = settledGame({pace:'allin',community:['5c','4h','8c','Ks','2d']});
+    const {container,rerender}=renderWatch(game,{paceFrame:{pace:'allin',board:game.community,card:null}});
+    expect(container.querySelector('.watch-felt__board').textContent).toBe('548K2');
+    act(()=>rerenderWatch(rerender,{...game,pace:'showdown'},{paceFrame:{pace:'showdown',board:game.community,card:null}}));
+    expect(container.querySelector('.watch-felt__won')).toBeTruthy();
+    expect(container.querySelector('.watch-felt__card--landing')).toBeNull();
+  });
+  it('uses the retained staged snapshot in a desktop felt without a separate frame prop', () => {
+    const game = settledGame({pace:'allin',community:['5c','4h','8c','Ks','2d'],paceFrame:{pace:'allin',board:['5c','4h','8c'],card:null}});
+    const {container} = render(<WatchFelt game={game} mySeat={0}/>);
+    expect(container.querySelector('.watch-felt__board').textContent).toBe('548');
+    expect(container.querySelector('.watch-felt__won')).toBeNull();
+  });
+  it('does not announce the winner or loss toast before a staged all-in has revealed its cards', () => {
+    const end = settledGame({ pace:'allin',community:['5c','4h','8c','Ks','2d'],
+      result:{pot:400,winners:[{seat:1}],deltas:{0:-200},showdown:[{seat:1,holeCards:['8h','8d']}]}});
+    const held = {pace:'allin',board:['5c','4h','8c'],card:null};
+    const {container,rerender} = renderWatch(end,{paceFrame:held});
+    expect(container.querySelector('.watch-felt__board').textContent).toBe('548');
+    expect(container.querySelector('.watch-felt__won')).toBeNull();
+    expect(container.querySelector('.watch-result-toast')).toBeNull();
+    expect(container.textContent).not.toContain('SHUFFLING');
+    expect(container.querySelector('.watch-hero__strip').textContent).not.toContain('COMPLETE');
+    act(()=>rerenderWatch(rerender,{...end,pace:'showdown'},{paceFrame:{pace:'showdown',board:end.community,card:'2d'}}));
+    expect(container.querySelector('.watch-felt__won')).toBeTruthy();
+    expect(container.querySelector('.watch-result-toast')).toBeTruthy();
+  });
+  it('keeps an already visible river face up when normal showdown arrives', () => {
+    const river = { ...midHandGame, street: 'river', community: ['5c', '4h', '8c', 'Ks', '2d'] };
+    const { container, rerender } = renderWatch(river);
+    const board = () => container.querySelector('.watch-felt__board');
+    expect(board().textContent).toBe('548K2');
+    act(() => rerenderWatch(rerender, settledGame({ pace: 'showdown', community: river.community })));
+    expect(board().textContent).toBe('548K2');
+    expect(board().querySelector('.watch-felt__card--landing')).toBeNull();
+  });
+  it('retains the visible flop while revealing only an unseen all-in turn and river', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = renderWatch(midHandGame);
+      act(() => rerenderWatch(rerender, settledGame({ pace: 'showdown', community: ['5c', '4h', '8c', 'Ks', '2d'] })));
+      const board = () => container.querySelector('.watch-felt__board');
+      expect(board().textContent).toBe('548');
+      expect(board().querySelector('.watch-felt__card--landing')).toBeNull();
+      act(() => vi.advanceTimersByTime(450));
+      expect(board().textContent).toBe('548K');
+      act(() => vi.advanceTimersByTime(450));
+      expect(board().textContent).toBe('548K2');
+    } finally { vi.useRealTimers(); }
+  });
 });
 
 describe('W5-2: a fold throws something away', () => {

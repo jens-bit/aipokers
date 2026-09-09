@@ -39,7 +39,9 @@ it('C4 sends an authenticated whisper and offers the actual reply in the convers
   expect(request.body).toMatchObject({content:'How was that hand?',existingAgentId:agent.id});
   expect(request.headers['x-telegram-init-data']).toBeTruthy();
   await user.click(screen.getByRole('button',{name:'Open conversation'}));
-  expect(onOpenChat).toHaveBeenCalledWith(expect.objectContaining({id:agent.id,chatHistory:[{role:'assistant',content:'I saw him fold that river.'}],mood:{state:'neutral',heat:12}}));
+  expect(onOpenChat).toHaveBeenCalledWith(expect.objectContaining({id:agent.id,chatHistory:[{role:'user',content:'How was that hand?'},{role:'assistant',content:'I saw him fold that river.'}],mood:{state:'neutral',heat:12}}));
+  await user.click(screen.getByRole('button',{name:'Back to chat'}));
+  expect(onOpenChat).toHaveBeenLastCalledWith(expect.objectContaining({id:agent.id,chatHistory:[{role:'user',content:'How was that hand?'},{role:'assistant',content:'I saw him fold that river.'}],mood:{state:'neutral',heat:12}}));
 });
 it('C4 restores a refused whisper for retry', async () => {
   const user = userEvent.setup();
@@ -49,4 +51,23 @@ it('C4 restores a refused whisper for retry', async () => {
   await user.click(screen.getByRole('button',{name:'Send whisper'}));
   await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent('Could not send'));
   expect(screen.getByRole('textbox')).toHaveValue('Keep going.');
+});
+
+it('BUG-143: returning to Chat preserves prior messages and both sides of repeated profile whispers', async () => {
+  const user=userEvent.setup(), onOpenChat=vi.fn();
+  const history=[{role:'assistant',content:'I remember that table.'},{role:'user',content:'Read his river.'},{role:'assistant',content:'He bets too big.'}];
+  fetchMock.route('/api/agents/chat',{chat:[{role:'assistant',content:'I will wait for value.'}]});
+  render(<AgentProfileOverview agent={{...agent,chatHistory:history}} attrLog={[]} onOpenChat={onOpenChat}/>);
+  await user.type(screen.getByRole('textbox'), 'Take your time.');
+  await user.click(screen.getByRole('button',{name:'Send whisper'}));
+  await screen.findByText('I will wait for value.');
+  await user.click(screen.getByRole('button',{name:'Back to chat'}));
+  expect(onOpenChat.mock.lastCall[0].chatHistory).toEqual([...history,{role:'user',content:'Take your time.'},{role:'assistant',content:'I will wait for value.'}]);
+  await user.type(screen.getByRole('textbox'), 'Good.');
+  await user.click(screen.getByRole('button',{name:'Send whisper'}));
+  await waitFor(()=>expect(screen.getByRole('textbox')).toBeEnabled());
+  await user.click(screen.getByRole('button',{name:'Open conversation'}));
+  expect(onOpenChat.mock.lastCall[0].chatHistory).toEqual([...history,
+    {role:'user',content:'Take your time.'},{role:'assistant',content:'I will wait for value.'},
+    {role:'user',content:'Good.'},{role:'assistant',content:'I will wait for value.'}]);
 });

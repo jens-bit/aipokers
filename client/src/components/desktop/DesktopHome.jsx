@@ -27,6 +27,7 @@ const IDLE_KEY = '__standup__';
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
   tableConfig = null, tableError = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
+  sessionEnd = null, onRebuy,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
   // WATCH-8: the socket's own status, so the desk's rail refetches the stored
   // thread when the connection comes back — the same rule the phone's sheet
@@ -316,6 +317,7 @@ export function DesktopHome({
         onSelect={rosterSelect} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
       <DeskHomeTable game={liveGame} mySeat={mySeat} seated={homeTableSession.seated}
         legalActions={ready && tableConfig?.sitting ? legalActions : []} onAct={onAct} lastDecision={lastDecision} agents={agents} connection={connection}
+        sessionEnd={homeTableSession.seated ? sessionEnd : null} onRebuy={onRebuy} buyIn={tableConfig?.buyIn}
         onBack={()=>{setHomeTableSession(null);onLeave?.();}}/>
     </div></div>;
   }

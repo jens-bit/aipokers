@@ -173,7 +173,9 @@ export const LONELY_SEATS = Number(process.env.LONELY_SEATS ?? 3);
 
 // ── AGE-35: server-side session loop ────────────────────────────────────────
 // Pause between a completed hand and the next deal on an autonomous table.
-const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 8000);
+// BUG-141: a visible result needs a readable beat, not eight idle seconds.
+// Staged all-in runouts are added separately before this pause starts.
+const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 3000);
 // COST-1: the pause on a table NOBODY IS WATCHING.
 //
 // PACE-1 already established the principle for the all-in hold: "a five-second
@@ -391,6 +393,7 @@ export class Table {
     // PACE-1: the pacing ladder for the hand in progress. Reset to CALM at each
     // deal; only ever advances within a hand.
     this.pace = PACE.CALM;
+    this._lastPaceFrame = null;
     // The board as it stood before the action that closed the hand — the cards
     // the client has actually been shown. The engine runs the rest of the board
     // out synchronously, so without this snapshot there is nothing left to
@@ -398,6 +401,7 @@ export class Table {
     this._boardBeforeAct = [];
     this._raiseCounts = {};
     this._paceTimers = [];                         // PACE-1 staged-hold timers
+    this._pendingPaceResult = null;
     // PACE-1b: hero equity is Monte Carlo and the felt asks for it on every
     // snapshot, so it is computed once per (hand, board, seat) and reused.
     this._heroEquity = new Map();
@@ -450,6 +454,8 @@ export class Table {
     // one is allowed to slow down when nobody is watching.
     this._handPauseNamed = Number.isFinite(handPauseMs) || HAND_PAUSE_EXPLICIT;
     this._nextHandTimer = null;
+    this._nextHandDueAt = null;
+    this._nextHandResultAt = null;
     this._stallTimer = null;
     this.stallMs = SESSION_STALL_MS_EXPLICIT
       ? SESSION_STALL_MS
@@ -621,7 +627,8 @@ export class Table {
   // True once the seat is actually represented in the current Game. A seat
   // that joined mid-hand is occupied but not yet dealt in.
   _seatIsInGame(seat) {
-    return !!this.game && seat < this.game.seats.length;
+    return !!this.game && !!this.pending[seat]
+      && this.game.seats[seat]?.playerId === this.pending[seat].playerId;
   }
 
   // Copy the live Game stacks back onto the table's per-seat ledger, so chips
@@ -629,7 +636,9 @@ export class Table {
   _captureStacks() {
     if (!this.game) return;
     for (let i = 0; i < this.game.seats.length && i < this.maxSeats; i++) {
-      if (this.pending[i]) this.seatStacks[i] = this.game.seats[i].stack;
+      // BUG-141: a rebuy can occupy the old busted player's chair before
+      // the next reconcile. That old zero belongs to the old identity.
+      if (this._seatIsInGame(i)) this.seatStacks[i] = this.game.seats[i].stack;
     }
   }
 
@@ -699,7 +708,7 @@ export class Table {
   //   4. rebuild the Game when the roster no longer matches what it was built
   //      from, carrying stacks, hand number and the button across
   _reconcileSeats() {
-    if (this.closed) return;
+    if (this.closed || this._pendingPaceResult) return;
     if (this.game && this.game.street !== Streets.COMPLETE && this.game.street !== Streets.WAITING) return;
 
     this._captureStacks();
@@ -1145,11 +1154,15 @@ export class Table {
     this._stallTimer.unref?.();
   }
 
-  _scheduleNextHand(ms) {
+  _scheduleNextHand(ms, { resultAt = null } = {}) {
     this._resetStallWatchdog();
     if (this._nextHandTimer) clearTimeout(this._nextHandTimer);
+    this._nextHandDueAt = Date.now() + Math.max(0, ms);
+    this._nextHandResultAt = resultAt;
     this._nextHandTimer = setTimeout(() => {
       this._nextHandTimer = null;
+      this._nextHandDueAt = null;
+      this._nextHandResultAt = null;
       if (this.closed) return;
       try {
         this.maybeStartHand();
@@ -1161,12 +1174,26 @@ export class Table {
     this._nextHandTimer.unref?.();
   }
 
+  // BUG-141: arriving during a previously unwatched pause should not leave
+  // somebody looking at the remaining 25-second cost throttle. Only shorten
+  // a completed hand's timer, measured from its result, never a live hand,
+  // initial deal or staged runout. Repeated viewers cannot restart the wait.
+  _refreshNextDealForViewer() {
+    if (!this._nextHandTimer || this._nextHandResultAt === null || !this.isWatched()) return;
+    const dueAt = this._nextHandResultAt + this._dealPauseMs();
+    if (dueAt >= this._nextHandDueAt) return;
+    this._scheduleNextHand(Math.max(0, dueAt - Date.now()), { resultAt: this._nextHandResultAt });
+  }
+
   _clearTimers() {
     for (const t of this._paceTimers ?? []) clearTimeout(t);
     this._paceTimers = [];
+    this._pendingPaceResult = null;
     if (this._aiInactivityTimer) { clearTimeout(this._aiInactivityTimer); this._aiInactivityTimer = null; }
     if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
     if (this._nextHandTimer) { clearTimeout(this._nextHandTimer); this._nextHandTimer = null; }
+    this._nextHandDueAt = null;
+    this._nextHandResultAt = null;
     if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
     if (this._lonelyTimer) { clearTimeout(this._lonelyTimer); this._lonelyTimer = null; }
   }
@@ -1178,6 +1205,9 @@ export class Table {
   // Idempotent — a second call is a no-op.
   closeTable(reason, { recap = null } = {}) {
     if (this.closed) return;
+    // BUG-144: a manual close may end the wait, but never strand the viewer
+    // on half a board. Flush the resolved result before the closing message.
+    this._finishPaceHold({ runLifecycle: false });
     this.closed = true;
     this.autoPlay = false;
     this._captureStacks();
@@ -1286,6 +1316,11 @@ export class Table {
     // off. Recorded now because a final stack cannot tell you afterwards.
     this.seatEndReason[seat] = 'calledIn';
 
+    if (this._pendingPaceResult) {
+      this.seatLeaving[seat] = true;
+      return { pending: true, seat };
+    }
+
     const inHand = this.handInProgress();
     if (inHand) {
       if (afterHand) this._benchAfterHand.add(seat);
@@ -1328,6 +1363,7 @@ export class Table {
       }
       this.connections[existingSeat] = ws;
       if (displayName) this.pending[existingSeat].displayName = displayName;
+      this._refreshNextDealForViewer();
       return existingSeat;
     }
 
@@ -1345,6 +1381,7 @@ export class Table {
     this.seatStacks[free] = buyIn;
     this.seatLeaving[free] = false;
     this.seatJoinedAtHand[free] = this.handsThisSession;
+    this._refreshNextDealForViewer();
     return free;
   }
 
@@ -1838,6 +1875,7 @@ export class Table {
     // private thread or seat controls, and never creates another player.
     if (publicOnly) {
       this.spectators.push({ ws, spectatorSeat: -1 });
+      this._refreshNextDealForViewer();
       return -1;
     }
     const existingSeat = agentId ? this.agentIds.findIndex((id) => id === agentId) : -1;
@@ -1850,6 +1888,7 @@ export class Table {
 
     if (attachSeat !== -1) {
       this.spectators.push({ ws, spectatorSeat: attachSeat });
+      this._refreshNextDealForViewer();
       return attachSeat;
     }
 
@@ -1878,6 +1917,7 @@ export class Table {
       agentProfile,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
+    this._refreshNextDealForViewer();
     // Schedule House as fallback opponent after HOUSE_FALLBACK_MS if still alone.
     this.scheduleHouseFallback();
     return seat;
@@ -1905,6 +1945,28 @@ export class Table {
       legalActions: [],
       yourSeat: seat,
       snapshot: true,
+    }));
+  }
+
+  // BUG-141: sitting down during a hand reserves a seat for the NEXT deal.
+  // The pending roster is ahead of the engine until its between-hands
+  // reconcile. Keep the assigned seat, but watch this hand as the public.
+  waitingForNextHand(seat) {
+    return !!this.game && !!this.pending[seat]
+      && !this._seatIsInGame(seat);
+  }
+
+  sendPlayerSnapshot(ws, seat, { snapshot = false } = {}) {
+    if (!ws || ws.readyState !== ws.OPEN || !this.game || !this.pending[seat]) return;
+    const waitingForNextHand = this.waitingForNextHand(seat);
+    const viewSeat = waitingForNextHand ? -1 : seat;
+    const state = this._augmentState(this.game.getPublicState(viewSeat), viewSeat);
+    state.waitingForNextHand = waitingForNextHand;
+    ws.send(JSON.stringify({
+      type: ServerMsg.STATE, state,
+      legalActions: waitingForNextHand ? [] : this.game.legalActions(seat),
+      yourSeat: seat, waitingForNextHand,
+      ...(snapshot ? { snapshot: true } : {}),
     }));
   }
 
@@ -2105,6 +2167,12 @@ export class Table {
   }
 
   removeConnection(ws) {
+    // A seated player's explicit departure can compact the roster below.
+    // Publish the final held result while those seat indices still mean it.
+    if (this._pendingPaceResult && this.connections.includes(ws)) {
+      this._finishPaceHold();
+      if (this.closed) return;
+    }
     // Spectator disconnect: remove from spectator list but keep the AI playing.
     const specIdx = this.spectators.findIndex((s) => s.ws === ws);
     if (specIdx !== -1) {
@@ -2186,7 +2254,7 @@ export class Table {
   // triggers. Tables with a seated human are untouched: they still deal on
   // JOIN and on DEAL exactly as before.
   maybeStartHand({ clientDriven = false } = {}) {
-    if (this.closed) return;
+    if (this.closed || this._pendingPaceResult) return;
     if (clientDriven && (this.autoPlay || this.isAiOnly())) {
       // WV2-1: observation still never deals — but if nothing is driving this
       // AI-only table, hand it to the session loop before backing off.
@@ -2403,6 +2471,24 @@ export class Table {
       this._benchAfterHand.clear();
     }
 
+    if (this._pendingPaceResult) {
+      // The cards and award still refer to this exact roster. Natural bust,
+      // cap and departure paths must not close or rebuild it underneath them.
+      this._pendingPaceResult.afterAward = () => this._finishCompletedHand();
+      const changesRoster = this.seatLeaving.some(Boolean)
+        || this._survivingSeats().length < MIN_TO_DEAL
+        || (this.autoPlay && this.handsThisSession >= this.maxHands);
+      if (!changesRoster && (this.isAiOnly() || this.home)) {
+        this._scheduleNextHand(this._dealPauseMs() + holdMs, { resultAt: Date.now() + holdMs });
+      }
+      return;
+    }
+    this._finishCompletedHand();
+  }
+
+  _finishCompletedHand() {
+    if (this.closed) return;
+
     // A departure or a bust only ends the TABLE when it can no longer be
     // dealt. With three or more agents seated, one leaving is just a seat
     // opening up -- the rest play on.
@@ -2458,7 +2544,11 @@ export class Table {
     // take the table away from him. At home he asked for it by sitting down,
     // the hand cap still bounds the evening, and every other seat is his own.
     if (this.isAiOnly() || this.home) {
-      this._scheduleNextHand(this._dealPauseMs() + holdMs);
+      // An ordinary continuing hand already booked hold + pause. Keep that
+      // deadline when the award lands; a forced early flush books a fresh
+      // pause instead of retaining the remainder of a hold nobody will see.
+      if (this._nextHandTimer && this._nextHandResultAt !== null && this._nextHandResultAt <= Date.now()) return;
+      this._scheduleNextHand(this._dealPauseMs(), { resultAt: Date.now() });
     }
   }
 
@@ -3484,10 +3574,7 @@ export class Table {
     for (let seat = 0; seat < this.connections.length; seat++) {
       const ws = this.connections[seat];
       if (!ws || ws.readyState !== ws.OPEN) continue;
-      if (seat >= nGameSeats) continue; // shouldn't happen given the contiguity invariant
-      const state = this._augmentState(this.game.getPublicState(seat), seat);
-      const legal = this.game.legalActions(seat);
-      ws.send(JSON.stringify({ type: ServerMsg.STATE, state, legalActions: legal, yourSeat: seat }));
+      this.sendPlayerSnapshot(ws, seat);
     }
     // Send read-only state to spectators (no legal actions). PACE-1b: the seat
     // a spectator is attached to is his own, so it carries his agent's live
@@ -3585,6 +3672,12 @@ export class Table {
     // client that joins mid-hand is not calm until the next transition.
     state.pace = this.pace ?? PACE.CALM;
     state.potBb = potInBb(state.pot ?? this.game?.pot ?? 0, this.bigBlind);
+    // BUG-144: desktop and a late watcher can receive STATE without the
+    // earlier PACE event. The same public stage must survive that snapshot.
+    if (this._lastPaceFrame?.handNumber === state.handNumber && Array.isArray(this._lastPaceFrame.board)) {
+      const { pace, potBb, board, card } = this._lastPaceFrame;
+      state.paceFrame = { pace, potBb, board: [...board], card: card ?? null };
+    }
     // SERVER-3: the acting seat's deadline, so the client draws the ring the
     // server is actually keeping rather than one it started on arrival. Null
     // when nobody is to act and null for a human seat -- see _armActionTimer.
@@ -3715,8 +3808,16 @@ export class Table {
       actionClosed,
       revealed: g?.street === Streets.SHOWDOWN,
     });
+    // BUG-144: the engine has already dealt its full board when the final
+    // call lands. Announce the held board BEFORE the terminal STATE below;
+    // otherwise the client queue shows all five cards, then hides them again
+    // when the first delayed stage arrives. A river already seen needs none.
+    const initialHold = pace === null && board === null && g?.street === Streets.COMPLETE
+      && this.spectators.length > 0 && anyAllIn && actionClosed
+      && this._boardBeforeAct.length < g.community.length;
+    const visibleBoard = initialHold ? this._boardBeforeAct : board;
     const advanced = advancePace(this.pace, next);
-    if (!force && advanced === this.pace && !card) return this.pace;
+    if (!force && advanced === this.pace && !card && !initialHold) return this.pace;
     this.pace = advanced;
     const msg = {
       type: ServerMsg.PACE,
@@ -3724,8 +3825,9 @@ export class Table {
       pace: this.pace,
       potBb: potInBb(potChips, this.bigBlind),
     };
-    if (board) msg.board = [...board];
+    if (visibleBoard) msg.board = [...visibleBoard];
     if (card) msg.card = card;
+    this._lastPaceFrame = { ...msg, handNumber: g?.handNumber ?? null };
     this._broadcast(msg);
     return this.pace;
   }
@@ -3751,23 +3853,42 @@ export class Table {
     });
     if (plan.frames.length === 0) return 0;
 
+    const pending = { result, finalBoard, handNumber: this.game?.handNumber,
+      awardAt: Date.now() + plan.awardAt, timers: [], afterAward: null };
+    this._pendingPaceResult = pending;
+
     for (const f of plan.frames) {
       const t = setTimeout(() => {
-        if (this.closed) return;
+        if (this.closed || this._pendingPaceResult !== pending) return;
         this._broadcastPace({ pace: f.pace, board: f.board, card: f.card });
       }, f.at);
       t.unref?.();
+      pending.timers.push(t);
       this._paceTimers.push(t);
     }
     const award = setTimeout(() => {
-      if (this.closed) return;
-      this._broadcast({ type: ServerMsg.HAND_RESULT, result });
+      if (this.closed || this._pendingPaceResult !== pending) return;
+      this._finishPaceHold();
     }, plan.awardAt);
     award.unref?.();
+    pending.timers.push(award);
     this._paceTimers.push(award);
 
     console.log(`[table:${this.tableId}] pace hold ${plan.holdMs}ms + ${runout.length} card(s) → award at ${plan.awardAt}ms`);
     return plan.totalMs;
+  }
+
+  _finishPaceHold({ runLifecycle = true } = {}) {
+    const pending = this._pendingPaceResult;
+    if (!pending) return;
+    this._pendingPaceResult = null;
+    for (const timer of pending.timers) clearTimeout(timer);
+    this._paceTimers = this._paceTimers.filter((timer) => !pending.timers.includes(timer));
+    // Also needed on a river all-in: with no new card, the staged plan has
+    // no SHOWDOWN frame of its own. Settling is not another card landing.
+    this._broadcastPace({ force: true, pace: PACE.SHOWDOWN, board: pending.finalBoard });
+    this._broadcast({ type: ServerMsg.HAND_RESULT, result: pending.result });
+    if (runLifecycle) pending.afterAward?.();
   }
 
   // BUG-12 / BUG-15: an AI seat's reasoning/equity are secret from every
@@ -3873,8 +3994,10 @@ export class Table {
     const seat = this.seatOfAgent(agentId);
     if (seat === null) return null;
     const g = this.game;
-    const dealtIn = !!g && seat < g.seats.length;
-    const inHand = !!g && g.street !== Streets.WAITING && dealtIn;
+    const dealtIn = this._seatIsInGame(seat);
+    // BUG-141: the completed board is held for the result beat, but there
+    // is no live decision to narrate while the next deal is pending.
+    const inHand = !!g && g.street !== Streets.WAITING && g.street !== Streets.COMPLETE && dealtIn;
     return {
       tableId: this.tableId,
       seat,

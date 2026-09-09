@@ -6,6 +6,13 @@
 .profile-overview__nature{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .profile-overview__nature b{font:600 9.5px Oswald,sans-serif;letter-spacing:.14em;color:#6B6B6B;text-transform:uppercase}
 .profile-overview__nature span{font:9.5px 'JetBrains Mono',monospace;color:#484848}
+.profile-overview__chat{position:relative;flex-shrink:0;min-height:36px;padding:0 8px;margin-left:auto;border:1px solid #00d4aa4d;border-radius:6px;background:transparent;color:#00D4AA;font:600 9px Oswald,sans-serif;letter-spacing:.12em;cursor:pointer}
+.profile-overview__chat:before{content:"";position:absolute;inset:-4px 0}
+.profile-overview .agent-view__live+.profile-overview__chat{margin-left:0}
+.profile-overview__composure{margin-top:4px;color:#6B6B6B;font:9px 'JetBrains Mono',monospace}
+.profile-overview__skills>.attr-cluster{padding:10px 0}
+.profile-overview__skills .attr-bar{min-height:36px}
+.profile-overview__skills .attr-cluster{gap:0}
 .profile-overview__resource{display:flex;align-items:center;gap:6px;margin-top:4px;color:#3AB77C}
 .profile-overview__resource>b{font:600 8px Oswald,sans-serif;letter-spacing:.12em;color:#6B6B6B;width:46px}
 .profile-overview__resource>i{width:112px;height:3px;background:#ffffff1f;border-radius:2px;overflow:hidden}

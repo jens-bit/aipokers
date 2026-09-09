@@ -50,9 +50,8 @@ export function useTable({ wsUrl }) {
   // Last AI decision — { action, reasoning, seat } — cleared each hand start.
   const [lastDecision, setLastDecision] = useState(null);
   // W3-6: the newest PACE frame — { pace, potBb, board, card }. `pace` also
-  // rides every STATE snapshot; what arrives only here is the STAGED RUNOUT
-  // during a spectator-only all-in hold, where the server turns the board a
-  // card at a time and the felt has to follow it rather than run its own clock.
+  // rides every STATE snapshot. New servers also cache the staged runout in
+  // STATE, so reconnecting can recover a missed card without replaying it.
   const [paceFrame, setPaceFrame] = useState(null);
   // BUG-33: the newest READ push — the agent's read on his opponents, one entry
   // each. The same array rides every STATE snapshot for the owner's spectator,
@@ -75,24 +74,47 @@ export function useTable({ wsUrl }) {
   const reconnectAttemptRef = useRef(0);
   const userInitiatedCloseRef = useRef(false);
   const lastStreetRef = useRef(null);
+  const waitingForNextHandRef = useRef(false);
+  const paceStateRef = useRef({ frame: null, tableId: null, handNumber: null });
 
   const handleServerMessage = useCallback((msg) => {
     switch (msg.type) {
       case ServerMsg.JOINED:
         setMySeat(msg.seat);
+        waitingForNextHandRef.current = msg.waitingForNextHand === true;
+        if (waitingForNextHandRef.current) setLegalActions([]);
         setStatus('waiting');
         break;
 
       case ServerMsg.WATCHING:
+        waitingForNextHandRef.current = false;
         setMySeat(msg.spectatorSeat);
         setStatus('watching');
         break;
 
       case ServerMsg.STATE: {
         const s = msg.state;
-        setGame(s);
-        setLegalActions(msg.legalActions || []);
-        setStatus(s.street === Streets.COMPLETE ? 'waiting' : 'playing');
+        // A mid-hand arrival has a reserved lobby seat, not a hand in the
+        // current game. The next deal may compact that seat: each snapshot's
+        // yourSeat is authoritative, rather than only the original JOINED.
+        const waiting = typeof msg.waitingForNextHand === 'boolean' ? msg.waitingForNextHand
+          : typeof s.waitingForNextHand === 'boolean' ? s.waitingForNextHand : waitingForNextHandRef.current;
+        waitingForNextHandRef.current = waiting;
+        if (Number.isInteger(msg.yourSeat)) setMySeat(msg.yourSeat);
+        // BUG-144: Watch consumes both the game snapshot and the explicit
+        // paceFrame prop. Keep them together, including a reconnect that missed
+        // PACE or HAND_START. A same-hand legacy snapshot without the field
+        // still needs its held PACE; clearing it would reveal cards early.
+        const previousPace = paceStateRef.current;
+        const changedHand = (s.tableId != null && previousPace.tableId != null && s.tableId !== previousPace.tableId)
+          || (Number.isInteger(s.handNumber) && Number.isInteger(previousPace.handNumber) && s.handNumber !== previousPace.handNumber);
+        const frame = Object.hasOwn(s, 'paceFrame') ? (s.paceFrame ?? null)
+          : changedHand ? null : previousPace.frame;
+        paceStateRef.current = { frame, tableId: s.tableId ?? previousPace.tableId, handNumber: s.handNumber ?? previousPace.handNumber };
+        setPaceFrame(frame);
+        setGame({ ...s, paceFrame: frame, waitingForNextHand: waiting });
+        setLegalActions(waiting ? [] : (msg.legalActions || []));
+        setStatus(waiting || s.street === Streets.COMPLETE ? 'waiting' : 'playing');
 
         if (lastStreetRef.current !== s.street) {
           const prev = lastStreetRef.current;
@@ -120,6 +142,7 @@ export function useTable({ wsUrl }) {
           board: msg.board ?? null,
           card: msg.card ?? null,
         };
+        paceStateRef.current = { ...paceStateRef.current, frame, tableId: msg.tableId ?? paceStateRef.current.tableId };
         setPaceFrame(frame);
         setGame((g) => (g ? { ...g, pace: frame.pace, paceFrame: frame } : g));
         break;
@@ -147,6 +170,7 @@ export function useTable({ wsUrl }) {
         setLastDecision(null);
         // A new deal resets the ladder to calm; the staged runout belonged to
         // the hand that just ended.
+        paceStateRef.current = { ...paceStateRef.current, frame: null, handNumber: msg.handNumber ?? null };
         setPaceFrame(null);
         setGame((g) => (g ? { ...g, paceFrame: null } : g));
         setHistory((h) => [{ kind: 'handStart', handNumber: msg.handNumber, entries: [] }, ...h]);
@@ -340,6 +364,7 @@ export function useTable({ wsUrl }) {
     setMySeat(null);
     setChatMessages([]);
     setLastDecision(null);
+    paceStateRef.current = { frame: null, tableId: null, handNumber: null };
     setPaceFrame(null);
     setReads(null);
     // WATCH-9: a new table (or no table) is a new thread — carrying the last
@@ -348,6 +373,7 @@ export function useTable({ wsUrl }) {
     // stored half.
     setThreadLines([]);
     lastStreetRef.current = null;
+    waitingForNextHandRef.current = false;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
 
@@ -374,6 +400,7 @@ export function useTable({ wsUrl }) {
     setMySeat(null);
     setChatMessages([]);
     setLastDecision(null);
+    paceStateRef.current = { frame: null, tableId: null, handNumber: null };
     setPaceFrame(null);
     setReads(null);
     // WATCH-9: a new table (or no table) is a new thread — carrying the last
@@ -382,6 +409,7 @@ export function useTable({ wsUrl }) {
     // stored half.
     setThreadLines([]);
     lastStreetRef.current = null;
+    waitingForNextHandRef.current = false;
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
 
@@ -408,11 +436,13 @@ export function useTable({ wsUrl }) {
     setStatus('idle');
     setConfig(null);
     setGame(null);
+    waitingForNextHandRef.current = false;
     setMySeat(null);
     setHistory([]);
     setLegalActions([]);
     setChatMessages([]);
     setLastDecision(null);
+    paceStateRef.current = { frame: null, tableId: null, handNumber: null };
     setPaceFrame(null);
     setReads(null);
     // WATCH-9: a new table (or no table) is a new thread — carrying the last

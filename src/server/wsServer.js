@@ -231,7 +231,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             });
             ws.tableId = msg.tableId;
             ws.publicOnly = false;
-            send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat });
+            send(ws, { type: ServerMsg.JOINED, tableId: msg.tableId, seat,
+              waitingForNextHand: table.waitingForNextHand(seat) });
+            // BUG-141: a late join observes the current hand immediately,
+            // without being shown anybody else's private cards or actions.
+            table.sendPlayerSnapshot(ws, seat, { snapshot: true });
             // Auto-seat AI when the player explicitly asked for it (vs-You flow),
             // or schedule House as a fallback opponent if no one else joins.
             console.log(`[JOIN] AI_ENABLED=${process.env.AI_ENABLED}, wantAI=${msg.wantAI} (type: ${typeof msg.wantAI}), agentDisplayName=${msg.agentDisplayName ?? 'n/a'}`);

@@ -343,7 +343,8 @@ describe('W3-1 pacing states', () => {
     vi.useFakeTimers();
     try {
       const river = { ...paced('showdown'), community: ['5c', '4h', '8c', 'Kd', '2s'] };
-      const { container } = renderWatch(river);
+      const { container, rerender } = renderWatch({ ...midHandGame, community: [] });
+      rerender(<WatchScreen game={river} mySeat={0} config={spectatorConfig} chatMessages={[]} />);
       const board = () => container.querySelector('.watch-felt__board');
 
       // The reveal starts closed — nothing has flipped yet.
@@ -816,13 +817,13 @@ describe('W3-5 the staged runout', () => {
     }
   });
 
-  it('W3-5: falls back to the local flip when no frame arrives', () => {
+  it('BUG-144: a late join shows the completed board without replaying its reveal', () => {
     vi.useFakeTimers();
     try {
       const { container } = renderWatch(river);
-      expect(faceUpRanks(board(container))).toEqual([]);
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8', 'K', '2']);
       act(() => { vi.advanceTimersByTime(FLIP_MS * 3); });
-      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8']);
+      expect(faceUpRanks(board(container))).toEqual(['5', '4', '8', 'K', '2']);
     } finally {
       vi.useRealTimers();
     }
@@ -861,7 +862,9 @@ describe('W3-5 the staged runout', () => {
   it('W3-5: a frame with no board defers to the fallback', () => {
     vi.useFakeTimers();
     try {
-      const { container } = renderWatch(river, { paceFrame: { pace: 'showdown', card: '2s' } });
+      const { container, rerender } = renderWatch({ ...midHandGame, community: [] });
+      rerender(<WatchScreen game={river} mySeat={0} config={spectatorConfig} chatMessages={[]}
+        paceFrame={{ pace: 'showdown', card: '2s' }} />);
       act(() => { vi.advanceTimersByTime(FLIP_MS); });
       expect(faceUpRanks(board(container))).toEqual(['5']);
     } finally {

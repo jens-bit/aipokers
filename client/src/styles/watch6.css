@@ -733,7 +733,18 @@
   gap: 8px;
 }
 
-.watch-ceremony__acts .watch-btn { width: 100%; }
+.watch-ceremony__acts .watch-btn { width: 100%; flex: none; min-height: 44px; }
+.dsk-home-table__scene .watch-ceremony__block {
+  width: 420px;
+  max-width: calc(100% - 24px);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+.dsk-home-table__scene .watch-ceremony__acts .watch-btn {
+  min-height: calc(48px / var(--table-scale, 1));
+  font-size: calc(12px / var(--table-scale, 1));
+}
 
 
 /* ── the last two flat greys on this screen ──────────────────────────────

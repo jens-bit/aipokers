@@ -17,7 +17,7 @@
 // stat whose live reading IS heat, so it rides on the heat bar as its caption
 // rather than as a bar of its own. Nothing the engine tracks left the card.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AgentProfileOverview } from '../components/agent/AgentProfileOverview.jsx';
 import { canSendVisiting, shareVisitLink } from '../lib/visit.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
@@ -270,31 +270,31 @@ function buildActivityRows(agent, { firstCosts = [], explained = new Set() } = {
 }
 
 // ── Career stat grid ───────────────────────────────────────────────────────
-function CareerGrid({ careerStats }) {
+function CareerGrid({ careerStats, compact = false }) {
   const cs = careerStats ?? {};
-  const hands    = cs.hands ?? 0;
-  const sessions = cs.sessions ?? 0;
-  const winRate  = typeof cs.winRate === 'number' ? `${cs.winRate}%` : '—';
-  const bigPot   = cs.biggestPot > 0 ? cs.biggestPot.toLocaleString() : '—';
+  const hands    = Number.isFinite(cs.hands) ? cs.hands.toLocaleString() : '—';
+  const sessions = Number.isFinite(cs.sessions) ? cs.sessions.toLocaleString() : '—';
+  const winRate  = Number.isFinite(cs.winRate) ? `${cs.winRate}%` : '—';
+  const bigPot   = Number.isFinite(cs.biggestPot) ? cs.biggestPot.toLocaleString() : '—';
   // Bankroll is the live chip balance; fall back to net P&L for pre-BANK-1 data.
-  const bankrollV = typeof cs.bankroll === 'number'
+  const bankrollV = Number.isFinite(cs.bankroll)
     ? cs.bankroll.toLocaleString()
-    : (cs.net != null ? (cs.net >= 0 ? `+${cs.net.toLocaleString()}` : `−${Math.abs(cs.net).toLocaleString()}`) : '—');
-  const bankrollColor = typeof cs.bankroll === 'number'
+    : (Number.isFinite(cs.net) ? (cs.net >= 0 ? `+${cs.net.toLocaleString()}` : `−${Math.abs(cs.net).toLocaleString()}`) : '—');
+  const bankrollColor = Number.isFinite(cs.bankroll)
     ? (cs.bankroll >= 10_000 ? M_TEAL : cs.bankroll > 0 ? M_GOLD : M_RED)
     : (cs.net == null ? M_TEXT : cs.net >= 0 ? M_TEAL : M_RED);
 
   const cells = [
-    { l: 'Hands',       v: hands.toLocaleString(), c: M_TEXT        },
-    { l: 'Win rate',    v: winRate,                 c: typeof cs.winRate === 'number' && cs.winRate >= 50 ? M_TEAL : M_RED },
-    { l: 'Sessions',    v: sessions.toString(),     c: M_TEXT        },
+    { l: 'Hands',       v: hands, c: M_TEXT        },
+    { l: 'Win rate',    v: winRate,                 c: !Number.isFinite(cs.winRate) ? M_MUTED : cs.winRate >= 50 ? M_TEAL : M_RED },
+    { l: 'Sessions',    v: sessions,     c: M_TEXT        },
     { l: 'Biggest pot', v: bigPot,                  c: M_GOLD        },
     { l: 'Bankroll',    v: bankrollV,               c: bankrollColor },
   ];
 
   return (
     <div style={{
-      margin: '0 14px 12px', borderRadius: 12, overflow: 'hidden',
+      margin: compact ? '6px 0 12px' : '0 14px 12px', borderRadius: 12, overflow: 'hidden',
       border: `1px solid ${M_BORDER}`,
       display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
       gap: 1, background: M_BORDER,
@@ -357,6 +357,18 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
 // the overflow menu.
 function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggleMute, onVisit, compact, agent, onSheet, onChat }) {
   const [menu, setMenu] = useState(false);
+  const moreButton = useRef(null);
+  useEffect(() => {
+    if (!menu) return;
+    function dismiss(event) {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMenu(false);
+      moreButton.current?.focus();
+    }
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [menu]);
 
   return (
     <div
@@ -398,6 +410,7 @@ function ActionRow({ live, muted, showFund, onPrimary, onFund, onRetire, onToggl
       <button
         type="button"
         aria-label="More actions"
+        ref={moreButton}
         aria-expanded={menu}
         onClick={() => setMenu((v) => !v)}
         style={{
@@ -709,7 +722,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
     else { onOpenChat?.(agent); }
   }
 
-  if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
+  if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} career={<CareerGrid compact careerStats={agent.careerStats}/>} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
     explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
     actions={({ chatAgent }) => <>
       <ActionRow compact agent={agent} live={isLive} muted={isMuted} showFund onPrimary={() => (isLive ? onCallIn?.(agent) : onDeploy?.(agent))} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? handleVisit : undefined} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
@@ -740,6 +753,7 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
         <span style={{ flex: 1, fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {agent.name}
         </span>
+        {onOpenChat && <button type="button" className="profile-overview__chat" aria-label="Back to chat" onClick={() => onOpenChat(agent)}>CHAT</button>}
       </div>
 
       {/* MoodBand — how he is, and the one way to go and look at him. */}

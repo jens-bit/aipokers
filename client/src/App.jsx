@@ -619,6 +619,8 @@ function AppShell({ guest, guestBoot }) {
       <Suspense fallback={null}>
       <DesktopHome
         tableConfig={config}
+        sessionEnd={findSessionEnd(history)}
+        onRebuy={() => { const nextGame = { ...config }; disconnect(); connect(nextGame); }}
         tableError={error}
         chatMessages={chatMessages}
         mySeat={mySeat}
@@ -1001,6 +1003,7 @@ function AppShell({ guest, guestBoot }) {
         onLeave={handleLeave}
         onSitOut={sitOut}
         sessionEnd={findSessionEnd(history)}
+        onRebuy={() => { const nextGame = { ...config }; disconnect(); connect(nextGame); }}
         onBackToFloor={() => { handleLeave(); navigateTo('home'); }}
         config={config}
       />

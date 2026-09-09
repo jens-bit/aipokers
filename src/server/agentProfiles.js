@@ -40,6 +40,7 @@ import { recordAnthropicCall, Kind as MeterKind } from './meter.js';
 import { rankHands, mostRewatched, tapePhrase, tapeHeatDrift } from './salience.js';
 import {
   ATTR_KEYS,
+  NATURES,
   ensureAttributes,
   birthAttributes,
   effectiveAttrs,
@@ -3228,7 +3229,13 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // different players and have to answer differently; the old line said
   // "tilted" for both and said nothing at all when he was level, which is
   // exactly when the model reached for a customer-service voice.
-  const moodLine = `\n${moodPromptLine(agent.mood)}`;
+  const scene = ownerChatScene(agent, table);
+  // The old recovery cause names the removed bar. It is an internal legacy
+  // label, not evidence that a character visibly home has gone somewhere else.
+  const chatMood = scene.atHome && agent.mood?.cause === 'rested at the bar'
+    ? { ...agent.mood, cause: 'rested at home' }
+    : agent.mood;
+  const moodLine = `\n${moodPromptLine(chatMood)}`;
   let pepLine = '';
   if (pepTalk?.soothed) {
     pepLine = `\nOwner just talked you down — mood eased to ${pepTalk.mood.state}. Acknowledge briefly, in character.`;
@@ -3238,11 +3245,21 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     proposalLine = `\nPending self-change: "${agent.proposal.text}". Raise it only if the conversation opens a natural door — never force it.`;
   }
 
-  // MERGE-1: house order is bio → relationship → mood. BIO-2 puts the bio
-  // context in the table-talk and decision briefings rather than here, so in
-  // this prompt the order is relationship then mood: what he remembers about
-  // you frames how he is taking today, not the other way round.
-  //
+  // BUG-142: the birth voice and earned opponent history were missing from
+  // owner chat, so the model had only "casual" and a strategy to work from.
+  // Use the same authored nature as the birth card; never invent a new one.
+  const natureName = typeof agent.nature === 'string' ? agent.nature : agent.nature?.name;
+  const nature = NATURES.find((entry) => entry.name === natureName);
+  const natureBlock = nature
+    ? `\nNature: ${nature.name}. Built for: ${nature.builtFor} Will struggle: ${nature.struggle}\nYour authored voice: "${nature.sig}". This is a voice example, not a catchphrase to repeat. Keep its cadence and outlook; do not recite your birth introduction.`
+    : '';
+  // MERGE-1: bio → relationship → mood. Only the actual ledger can establish
+  // a nemesis or rival; merely giving a stranger a name cannot create a past.
+  const bio = deriveRoles(agent.bioLedger ?? {});
+  const memories = ['nemesis', 'rival', 'victim'].map((role) => bio[role]?.opinion).filter(Boolean);
+  const bioBlock = memories.length
+    ? `\nOpponent memories: ${memories.join(' ')} These are memories, not evidence that those opponents are here now.`
+    : '';
   // RELATE-1b: what he remembers about THIS owner, carried into the reply.
   // The same needle lands differently depending on the record — an owner who
   // has been on his back all week gets a different answer to one who reads his
@@ -3261,11 +3278,48 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, an AI poker agent on Agentic Poker. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${ownerBlock}${moodLine}${pepLine}${proposalLine}${tableBlock}${recentLines}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${moodLine}${pepLine}${proposalLine}
+CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
-You are already built and playing. Talk about specific hands, decision rationale, or strategy — never ask what kind of poker agent to create.`;
+Answer what your owner actually said. Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
+
+You already exist. Never ask what kind of poker agent to create. Mention hands or opponents only when the supplied facts support them; admit when you do not know.`;
+}
+
+// Read the same location witnesses as the room. A stale stored casino ID is
+// not proof of a live table; home games deliberately have no activeTableId.
+function ownerChatScene(agent, table = null) {
+  const homeTable = liveTables?.homeTableOf?.(agent.id) ?? null;
+  if (homeTable && (!table || table.tableId === homeTable.tableId)) {
+    return { atHome: true, description: agent.visiting
+      ? 'at the kitchen table in the home you are visiting'
+      : 'at the kitchen table at home' };
+  }
+  if (table) return { atHome: false, description: 'at a casino table' };
+  if (agent.visiting) return { atHome: true, description: 'visiting another home' };
+  const casinoTableExists = agent.activeTableId && (liveTables
+    ? liveTables.hasTable?.(agent.activeTableId)
+    : true);
+  if (casinoTableExists) return { atHome: false, description: 'at the casino, waiting for a game' };
+  const sinceRest = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
+  const routine = routineFor({
+    nature: agent.nature, studying: !!agent.study,
+    fatigue: restedFatigue(agent.fatigue ?? 'fresh', sinceRest),
+    unseenRecap: !!agent.unseenRecap,
+    broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
+  });
+  return { atHome: true, description: `at home, ${routine.label}` };
+}
+
+function unavailableOwnerReply(agent, content, table) {
+  // A known fact can still be answered without a model. Other messages must
+  // not be disguised as a successful conversation with canned strategy tips.
+  if (/^\s*(?:where are you(?: now)?|what are you doing|are you (?:home|at home|at the bar))\s*[?.!]*\s*$/i.test(content)) {
+    return { message: `I am ${ownerChatScene(agent, table).description}.`, unavailable: false };
+  }
+  return { message: 'I cannot answer that right now. Try me again in a moment.', unavailable: true };
 }
 
 // BUGS-B/2: the felt, in the two or three lines he would actually have in his
@@ -3287,8 +3341,10 @@ YOU ARE IN A HAND RIGHT NOW — ${ctx.blinds} blinds, hand ${ctx.handNumber}, ${
 // live registry rather than the stored flag, for the same reason presentAgent
 // asks it — a record that names a table proves nothing about a table existing.
 function whisperTableFor(agent) {
-  if (!agent?.activeTableId) return null;
-  const table = liveTables?.getTable?.(agent.activeTableId) ?? null;
+  // BUG-142: home seats intentionally never set activeTableId. They still
+  // have a hand to talk about and a seat for the owner's reply to reach.
+  const table = liveTables?.homeTableOf?.(agent?.id)
+    ?? (agent?.activeTableId ? liveTables?.getTable?.(agent.activeTableId) : null);
   if (!table || table.closed) return null;
   return table.seatOfAgent?.(agent.id) === null ? null : table;
 }
@@ -3549,30 +3605,32 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   }
 
   const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
+  let reply = null;
   try {
-    const reply = await callClaude([{ role: 'user', content }], systemText, 100,
+    reply = await callClaude([{ role: 'user', content }], systemText, 100,
       { ownerId: userId, kind: MeterKind.CHAT });
-    const msg = reply || "Tell me what's on your mind — we can review hands or adjust strategy.";
-    existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
-    if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
-    saveStore(userId);
-    const seat = deliverWhisper(table, existingAgent.id, msg);
-    return {
-      chat: [{ role: 'assistant', content: msg }],
-      // BUGS-B/2: where his answer landed, so a client can tell "he said it at
-      // the table" from "he said it in the thread". Null when he is not seated.
-      whisper: whisperView && seat !== null ? whisperView : null,
-      pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
-      // MOOD-2b: what his mood did with what you said. `kind` is needle |
-      // care | neutral; heat is where he ended up.
-      mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
-              heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
-              moved: said.moved, kind: said.kind },
-    };
   } catch (err) {
     console.error('[agentProfiles] agent-chat error:', err.message);
-    return { chat: [{ role: 'assistant', content: 'Something went wrong — try again.' }] };
   }
+  const fallback = unavailableOwnerReply(existingAgent, content, tableCtx);
+  const msg = reply?.trim() || fallback.message;
+  existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+  if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+  saveStore(userId);
+  const seat = deliverWhisper(table, existingAgent.id, msg);
+  return {
+    chat: [{ role: 'assistant', content: msg }],
+    ...(!reply?.trim() && fallback.unavailable ? { replyUnavailable: true } : {}),
+    // BUGS-B/2: where his answer landed, so a client can tell "he said it at
+    // the table" from "he said it in the thread". Null when he is not seated.
+    whisper: whisperView && seat !== null ? whisperView : null,
+    pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
+    // MOOD-2b: what his mood did with what you said. `kind` is needle |
+    // care | neutral; heat is where he ended up.
+    mood: { state: said.mood?.state ?? existingAgent.mood?.state ?? 'neutral',
+            heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
+            moved: said.moved, kind: said.kind },
+  };
 }
 
 /**

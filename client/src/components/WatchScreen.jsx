@@ -460,7 +460,7 @@ function useFlyTo(rootRef, targets, deps) {
 // It does not time out. A session ending is worth a tap.
 export function SessionCeremony({
   won, busted, agentName, net, stack, hands, reason, mood, heat, accent,
-  onFund, onFloor, onTalk, talkLabel,
+  onFund, onFloor, onTalk, talkLabel, human = false, onRebuy,
   // WATCH-10 job 3 · the last hand, NAMED. lib/handResult.js's parts, exactly
   // as the felt's own result pill takes them, so the sentence the owner read a
   // beat ago on the felt is the sentence he reads here. Absent when the session
@@ -478,10 +478,10 @@ export function SessionCeremony({
             big word. WON here means the night, not the hand — the hand has not
             been announced like this since WATCH-7. */}
         <div className="watch-ceremony__name">
-          {(agentName || 'YOUR AGENT').toUpperCase() + ' · TONIGHT'}
+          {human ? 'YOUR GAME' : (agentName || 'YOUR AGENT').toUpperCase() + ' · TONIGHT'}
         </div>
         <div className="watch-ceremony__head">
-          {busted ? 'BUSTED' : (won ? 'WON' : 'LOST')}
+          {human ? (won == null && !busted ? 'GAME ENDED' : won ? 'YOU WON' : 'YOU LOST') : busted ? 'BUSTED' : (won ? 'WON' : 'LOST')}
         </div>
 
         {/* WHERE HE STANDS AT THE END OF IT: the night's net against the buy-in,
@@ -528,18 +528,27 @@ export function SessionCeremony({
             and nowhere else: a hand end is quiet (WATCH-7), and both fists over
             his head forty times a session is the exact mistake that law fixed.
             The ceremony is the one moment big enough for it. */}
-        <div className="watch-ceremony__ghost">
+        {!human && <div className="watch-ceremony__ghost">
           <span className="watch-ceremony__aura" aria-hidden />
           <MoodGhost mood={mood || (won ? 'confident' : 'frustrated')}
             accent={accent || '#00D4AA'} size={76} heat={Number.isFinite(heat) ? heat : 45}
             event={won ? 'smug' : 'stunned'} ring={false} />
           <GhostHandLayer className="watch-ceremony__hands"
             pose={won ? 'raise' : 'cover'} size={76} />
-        </div>
+        </div>}
 
         {/* A busted agent has one thing he needs and it is not conversation. */}
         <div className="watch-ceremony__acts">
-          {busted ? (
+          {human ? (
+            <>
+              <button type="button" className="watch-btn watch-btn--primary" onClick={onRebuy}>
+                Play again
+              </button>
+              <button type="button" className="watch-btn watch-btn--ghost" onClick={onFloor}>
+                Back home
+              </button>
+            </>
+          ) : busted ? (
             <>
               <button type="button" className="watch-btn watch-btn--primary watch-ceremony__fund"
                 onClick={onFund}>
@@ -632,7 +641,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
 // the felt FILLS its parent and the interior tops are proportions of it, because
 // the felt never resizes any more.
 export function WatchFelt({
-  game, mySeat, lastDecision, handEquity, flipped, line, geom, selectedSeat, onSelectSeat,
+  game, mySeat, lastDecision, handEquity, flipped, newCard = null, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero, heroActionLabel,
   agentMood, agentHeat, agentAccent, agentFatigue = null,
   // SIT-1: the owner is the one in the hero seat. Everything above the hero is
@@ -646,10 +655,13 @@ export function WatchFelt({
 }) {
   var pace = paceOf(game);
   var pMeta = paceMeta(game);
+  flipped = flipped ?? stagedCount(game?.paceFrame);
+  var animateLanding = newCard ?? (stagedCount(game?.paceFrame) != null ? !!game.paceFrame.card : flipped != null);
+  var revealing = handSettled(game) && (pace === 'allin' || (flipped != null && flipped < (game?.community?.length || 0)));
   var live      = handActive(game);
-  var settled   = !live && handSettled(game);
-  var between   = !live && !settled;
-  var street    = game ? (game.street || '').toUpperCase() : '';
+  var settled   = !live && handSettled(game) && !revealing;
+  var between   = !live && !settled && !revealing;
+  var street    = revealing ? 'ALL IN' : game ? (game.street || '').toUpperCase() : '';
   var pot       = game ? (game.pot || 0) : 0;
   var community = game ? (game.community || []) : [];
   var result    = settled ? game.result : null;
@@ -660,8 +672,9 @@ export function WatchFelt({
   }
   var winner = (result && result.winners && result.winners.length) ? result.winners[0] : null;
 
-  var heroSeat  = Number.isInteger(mySeat) ? mySeat : 0;
-  var seatCount = Math.max((game && game.seats) ? game.seats.length : 2, 2);
+  var queued = seated && game?.waitingForNextHand;
+  var heroSeat  = queued ? (game?.seats?.length || 0) : Number.isInteger(mySeat) ? mySeat : 0;
+  var seatCount = Math.max((game?.seats?.length || 2) + (queued ? 1 : 0), 2);
   var heroData  = game && game.seats ? game.seats[heroSeat] : null;
   var heroIdentity = storedIdentity({identity:heroData?.identity});
 
@@ -738,7 +751,7 @@ export function WatchFelt({
   var toCall = (live && heroData && game.currentBet != null)
     ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
     : 0;
-  var toActLabel = (game && game.toAct === heroSeat && live) ? 'TO ACT' : null;
+  var toActLabel = (!queued && game && game.toAct === heroSeat && live) ? 'TO ACT' : null;
   var actionLabel = settled ? null : (lastDecision && lastDecision.action
     ? formatAction(lastDecision.action)
     : toActLabel);
@@ -807,7 +820,7 @@ export function WatchFelt({
   var heroWinner = result?.winners?.find(w=>w.seat===heroSeat);
   var heroWon    = !!heroWinner;
   var heroShowed = !!(result && revealed[heroSeat]);
-  var heroNote   = !settled ? 'waiting for the deal'
+  var heroNote   = queued ? 'You join after this hand' : revealing ? 'waiting for the runout' : !settled ? 'waiting for the deal'
     : heroWon    ? (new Set(result.winners.map(w=>w.seat)).size>1 ? 'shared the pot' : (heroWinner.descr || 'won the pot'))
     : heroShowed ? 'lost at showdown'
     : 'folded';
@@ -1033,7 +1046,7 @@ export function WatchFelt({
 
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
         {boardSlots.map(function(c, i) {
-          var isLanding = pace === 'showdown' && i === landed - 1;
+          var isLanding = pace === 'showdown' && animateLanding && i === landed - 1;
           var cls = 'watch-felt__card' + (isLanding ? ' watch-felt__card--landing' : '');
           return (
             <div key={i} className={cls}>
@@ -1123,7 +1136,7 @@ export function WatchFelt({
           villain={villainName}
           bigRope={pMeta.heat}
           deadRope={!hasEquity}
-          turn={!!(game && live && game.toAct === heroSeat)}
+          turn={!!(!queued && game && live && game.toAct === heroSeat)}
           street={street}
           pos={posLabel(heroSeat, game)}
           toCall={toCall}
@@ -1133,12 +1146,12 @@ export function WatchFelt({
           // the OWNER and the decisions on the wire are the agents' — so the
           // ghost's label would have printed The Grinder's fold on the owner's
           // own strip, over his own cards, while it was still his turn.
-          action={(lastDecision && lastDecision.seat === heroSeat && lastDecision.action)
+          action={(!queued && lastDecision && lastDecision.seat === heroSeat && lastDecision.action)
             ? formatAction(lastDecision.action)
             : toActLabel}
           tag={pace === 'allin' && !settled ? 'HOLDING' : null}
           warm={warm}
-          note={live ? null : heroNote}
+          note={queued ? heroNote : live ? null : heroNote}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
           timerOf={clock && clock.seat === heroSeat ? clock.of : 12}
           toast={toast}
@@ -1369,6 +1382,7 @@ export function WatchScreen({
   // object exactly once: { reason?, hands?, finalStack?, busted? }.
   sessionEnd = null,
   onFund,
+  onRebuy,
   onBackToFloor,
   // ── SIT-1 · the owner is playing this one himself ────────────────────────
   //
@@ -1436,8 +1450,9 @@ export function WatchScreen({
   var state  = agent ? stateOf(agent)  : 'live';
   // His own seat carries the mood the server computed for this table; the agent
   // record is the fallback for the moment before the first snapshot lands.
+  var queued = seated && !!game?.waitingForNextHand;
   var heroSeatIdx = Number.isInteger(mySeat) ? mySeat : 0;
-  var heroSeatRow = (game && game.seats) ? game.seats[heroSeatIdx] : null;
+  var heroSeatRow = !queued && game?.seats ? game.seats[heroSeatIdx] : null;
   var heroMood = heroSeatRow ? moodStateOf(heroSeatRow) : mood;
   var heroHeat = heroSeatRow && Number.isFinite(moodHeatOf(heroSeatRow))
     ? moodHeatOf(heroSeatRow) : 45;
@@ -1596,7 +1611,9 @@ export function WatchScreen({
   // the cards being revealed, and a toast over his strip covers nothing.
   var [toastHand, setToastHand] = useState(null);
   var toastSeenRef = useRef(null);
-  var settledNow = handSettled(game);
+  var visibleFrame = stagedCount(paceFrame || game?.paceFrame);
+  var stagedRevealPending = handSettled(game) && (pace === 'allin' || (visibleFrame != null && visibleFrame < (game?.community?.length || 0)));
+  var settledNow = handSettled(game) && !stagedRevealPending;
   var settledHand = game ? game.handNumber : null;
   useEffect(function () {
     if (!settledNow) { setToastHand(null); return undefined; }
@@ -1617,7 +1634,7 @@ export function WatchScreen({
   if (!settledNow && currentHand != null && stackAtDealRef.current.hand !== currentHand) {
     stackAtDealRef.current = { hand: currentHand, stack: heroStackNow };
   }
-  var handNet = netForSeat(game && game.result, heroSeatIdx, {
+  var handNet = queued ? null : netForSeat(game && game.result, heroSeatIdx, {
     stackNow: heroStackNow,
     stackAtDeal: stackAtDealRef.current.hand === currentHand
       ? stackAtDealRef.current.stack
@@ -1696,18 +1713,31 @@ export function WatchScreen({
   var staged = stagedCount(frame);
   var [flipped, setFlipped] = useState(null);
   var dealtCount = (game && game.community) ? game.community.length : 0;
+  var boardScope = `${game?.tableId}:${game?.handNumber}`;
+  var seenBoard = useRef({ scope: null, count: 0 });
+  var revealFrom = useRef(0);
   useEffect(function() {
-    if (staged != null) return undefined;               // the server is driving
-    if (pace !== 'showdown') { setFlipped(null); return undefined; }
-    setFlipped(0);
-    var n = 0;
+    var previous = seenBoard.current;
+    var known = previous.scope === boardScope ? previous.count : dealtCount;
+    if (staged != null) {
+      seenBoard.current = { scope: boardScope, count: staged };
+      setFlipped(null);
+      return undefined;
+    }
+    seenBoard.current = { scope: boardScope, count: dealtCount };
+    // A normal river is already face up. Only animate the unseen part of a
+    // runout, and show a late join's completed board without replaying it.
+    if (pace !== 'showdown' || known >= dealtCount) { setFlipped(null); return undefined; }
+    setFlipped(known);
+    revealFrom.current = known;
+    var n = known;
     var id = setInterval(function() {
       n += 1;
       setFlipped(n);
       if (n >= dealtCount) clearInterval(id);
     }, FLIP_MS);
     return function() { clearInterval(id); };
-  }, [staged != null, pace, dealtCount, game && game.handNumber]);
+  }, [staged, pace, dealtCount, boardScope]);
 
   var faceUp = staged != null ? staged : flipped;
 
@@ -1739,19 +1769,19 @@ export function WatchScreen({
   useEffect(function() {
     var result = game && game.result ? game.result : null;
     var hand = game ? game.handNumber : null;
-    if (!result || resultSeenRef.current === hand) return;
+    if (queued || stagedRevealPending || !result || resultSeenRef.current === hand) return;
     resultSeenRef.current = hand;
     var heroSeat = Number.isInteger(mySeat) ? mySeat : 0;
     var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
     fireHaptic(won ? 'wonPot' : 'lostPot'); // Shared felt owns C8 audio on both shells.
-  }, [game && game.handNumber, game && game.result, mySeat]);
+  }, [game && game.handNumber, game && game.result, mySeat, queued, stagedRevealPending]);
 
   var heroSeatNo = Number.isInteger(mySeat) ? mySeat : 0;
-  var heroSeatData = game && game.seats ? game.seats[heroSeatNo] : null;
+  var heroSeatData = !queued && game?.seats ? game.seats[heroSeatNo] : null;
   var heroHoleCards = (heroSeatData && heroSeatData.holeCards)
     ? heroSeatData.holeCards.map(pc).filter(Boolean)
     : null;
-  var isWarmNow = !between && isWarm(heroHoleCards, heroEquityOf(game, handEquity, heroSeatNo));
+  var isWarmNow = !queued && !between && isWarm(heroHoleCards, heroEquityOf(game, handEquity, heroSeatNo));
   var warmSeenRef = useRef(null);
   useEffect(function() {
     var hand = game ? game.handNumber : null;
@@ -1922,7 +1952,9 @@ export function WatchScreen({
       : null;
     ceremonyNode = (
       <SessionCeremony
-        won={!busted && Number.isFinite(sessionNet) && sessionNet >= 0}
+        human={seated}
+        onRebuy={onRebuy}
+        won={busted ? false : Number.isFinite(sessionNet) ? sessionNet >= 0 : null}
         busted={busted}
         agentName={agentName}
         net={sessionNet}
@@ -1998,7 +2030,7 @@ export function WatchScreen({
         <span className="watch-screen__title">
           {config ? (config.displayName || 'Watching') : 'Watching'}
         </span>
-        <MoodChip mood={mood} small />
+        {!seated && <MoodChip mood={mood} small />}
         <StateTag state={state} compact />
         {onOpenThread && <MuteToggle compact/>}
         <div style={{ flex: 1 }} />
@@ -2012,15 +2044,16 @@ export function WatchScreen({
       {/* THE FELT IS THE SCREEN: header → felt → composer, nothing between. */}
       <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
         game={game} mySeat={mySeat} lastDecision={lastDecision}
-        handEquity={handEquity} flipped={faceUp} line={feltLine}
+        handEquity={handEquity} flipped={faceUp}
+        newCard={staged != null ? !!frame.card : flipped != null && flipped > revealFrom.current} line={feltLine}
         agentMood={heroMood} agentHeat={heroHeat} agentAccent={heroAccent}
         agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
         onTapHero={function() { openChat(); }}
-        overlay={overlay}
+        overlay={ceremonyNode ? null : overlay}
         toast={toastNode}
-        heroStackShown={heroStackTicked}
+        heroStackShown={queued ? null : heroStackTicked}
         // No speech over the ceremony: the session is the only thing being said
         // then, and every line is in the record either way. A hand-end toast is
         // not a ceremony and does not silence him.
@@ -2031,7 +2064,7 @@ export function WatchScreen({
         // SIT-1 · you are IN the hand, so there is nobody to whisper to. The
         // composer's slot carries the four verbs instead — same slot, same
         // height, so the felt above is measured identically either way.
-        <SitStrip
+        !sessionEnd && <SitStrip
           game={game}
           mySeat={mySeat}
           legalActions={legalActions}

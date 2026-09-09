@@ -97,6 +97,21 @@ describe('the chair is offered from the table sheet', () => {
 });
 
 describe('the felt you land on', () => {
+  it('BUG-141: reusing a busted chair does not show the previous occupant loss', () => {
+    const { container } = sitScreen({ game: { ...HOME_GAME, street:'complete', waitingForNextHand:true,
+      seats:HOME_GAME.seats.map((s,i)=>i===2?{...s,stack:0}:s), result:{pot:4000,winners:[{seat:0}],deltas:{2:-2000},showdown:[]} } });
+    expect(container.querySelector('.watch-felt__hero-stack').textContent).not.toContain('$0');
+    expect(container.querySelector('.watch-result-toast')).toBeNull();
+  });
+  it('BUG-141: a queued chair explains the wait and keeps both current opponents visible', () => {
+    const { container } = sitScreen({ game: { ...HOME_GAME, waitingForNextHand: true,
+      seats: HOME_GAME.seats.slice(0, 2), toAct: 2 } });
+    expect(screen.getByText('You join after this hand')).toBeInTheDocument();
+    expect(container.querySelectorAll('.seat-ghost')).toHaveLength(2);
+    expect(screen.getByTestId('owner-hero-cards').textContent).toBe('');
+    expect(screen.getByRole('button', { name: 'CHECK', exact: true })).toBeDisabled();
+    expect(screen.getByText('NEXT HAND')).toBeInTheDocument();
+  });
   it('is the watch felt, not a second table', () => {
     const { container } = sitScreen();
     expect(container.querySelector('.watch-screen')).toBeTruthy();
@@ -172,6 +187,23 @@ describe('the verbs are where the whisper row was', () => {
 });
 
 describe('the way in and out', () => {
+  it('BUG-140: closing a table before your first deal does not invent a loss', () => {
+    sitScreen({ game: { ...HOME_GAME, waitingForNextHand:true, seats:HOME_GAME.seats.slice(0,2) }, sessionEnd:{reason:'Table closed'}, onRebuy:vi.fn() });
+    expect(screen.getByText('GAME ENDED')).toBeInTheDocument();
+    expect(screen.queryByText('YOU LOST')).toBeNull();
+  });
+  it('BUG-140: a human bust says YOU LOST and offers playing again or Home', () => {
+    const onRebuy = vi.fn(), onBackToFloor = vi.fn();
+    const game = { ...HOME_GAME, street: 'complete', seats: HOME_GAME.seats.map((s, i) => i === 2 ? { ...s, stack: 0 } : s) };
+    const { container } = sitScreen({ game, sessionEnd: { busted: true, finalStack: 0, hands: 8 }, onRebuy, onBackToFloor });
+    expect(screen.getByText('YOU LOST')).toBeInTheDocument();
+    expect(screen.queryByText('Fund him again')).not.toBeInTheDocument();
+    expect(container.querySelector('.watch-ceremony__ghost')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Play again', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back home', exact: true }));
+    expect(onRebuy).toHaveBeenCalledTimes(1);
+    expect(onBackToFloor).toHaveBeenCalledTimes(1);
+  });
   it('opens the room’s thread in the same glass, without leaving the felt', () => {
     sitScreen();
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }));

@@ -89,7 +89,7 @@ export function SitStrip({ game = null, mySeat = null, legalActions = [], onAct,
   // arrives on the turn with the flop's sizes still on screen.
   useEffect(() => { setBetOpen(false); }, [street, handNo]);
 
-  const yourTurn = !!(game && Number.isInteger(mySeat) && game.toAct === mySeat);
+  const yourTurn = !!(game && !game.waitingForNextHand && Number.isInteger(mySeat) && game.toAct === mySeat);
   const fold = yourTurn ? findLegal(legalActions, Actions.FOLD) : null;
   const check = yourTurn ? findLegal(legalActions, Actions.CHECK) : null;
   const call = yourTurn ? findLegal(legalActions, Actions.CALL) : null;
@@ -118,6 +118,7 @@ export function SitStrip({ game = null, mySeat = null, legalActions = [], onAct,
   return (
     <div className="sit-strip" data-testid="sit-strip" data-turn={yourTurn ? 'yes' : 'no'}>
       <Glass up={yourTurn} className="sit-strip__glass">
+        {game?.waitingForNextHand && <div className="sit-strip__head" role="status"><span className="sit-strip__turn">NEXT HAND</span></div>}
         {yourTurn && (
           <div className="sit-strip__head">
             <span className="sit-strip__turn">YOUR TURN</span>

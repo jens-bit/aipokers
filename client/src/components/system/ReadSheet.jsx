@@ -22,6 +22,22 @@ export function ReadSheet({ entry, seat, onClose }) {
   const model = normalizeReads(entry);
   // BUGS-A job 5: the same gesture every other sheet answers to.
   const drag = useSheetDrag(onClose);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const returnFocus = document.activeElement;
+    const dismiss = event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      // DesktopHome handles Escape at window level by leaving the table.
+      // Closing this read must not also give up the owner's seat.
+      event.stopPropagation();
+      closeRef.current?.();
+      returnFocus?.focus?.();
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, []);
 
   // The server has no `forming` flag — it stops sending a READ message once
   // nothing has changed — so the transition is noticed here: this opponent's
@@ -61,7 +77,8 @@ export function ReadSheet({ entry, seat, onClose }) {
       {...drag.handlers}
     >
       <button type="button" className="read-sheet__grab" onClick={onClose} aria-label="Close read">
-        <span className="read-sheet__grab-bar" />
+        <span className="read-sheet__grab-bar" aria-hidden="true" />
+        <span className="read-sheet__close-label">Close <span aria-hidden="true">×</span></span>
       </button>
 
       <div className="read-sheet__head">

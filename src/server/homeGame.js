@@ -63,8 +63,10 @@ export const HOME_BUYIN = HOME_BLINDS.bigBlind * 100;
 // (one agent plus the House) fits inside it.
 export const HOME_SEATS = 4;
 
-// Home uses compiled policy only. Its slower tempo leaves room for life.
-export const HOME_PAUSE_MS = Number(process.env.HOME_PAUSE_MS ?? 30_000);
+// BUG-141: keep the game moving while somebody plays or watches. The five
+// minute game window and ten minute cooldown still leave room for routines.
+// Home is policy-only, so this faster gap never adds paid model decisions.
+export const HOME_PAUSE_MS = Number(process.env.HOME_PAUSE_MS ?? 3000);
 
 // Bound two: the hand cap. A home game is an evening, not a career.
 export const HOME_MAX_HANDS = Number(process.env.HOME_MAX_HANDS ?? 40);

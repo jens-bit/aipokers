@@ -209,6 +209,38 @@ async function boxes(page, selector) {
 const intersects = (a, b) => a.left < b.right && b.left < a.right
   && a.top < b.bottom && b.top < a.bottom;
 
+for (const height of [590,844]) test('BUG-144: staged all-in reveals only new cards and then settles at '+height,async({page})=>{
+  await page.clock.install({time:new Date('2030-09-09T12:00:00Z')});
+  await felt(page,{owned:true,viewport:{width:390,height}});
+  await page.clock.pauseAt(new Date('2030-09-09T12:01:00Z'));
+  const held={pace:'allin',board:TABLE.community,card:null};
+  const finalBoard=[...TABLE.community,'Kd','2s'];
+  const end={...TABLE,street:'complete',pace:'allin',toAct:null,community:finalBoard,paceFrame:held,
+    seats:TABLE.seats.map((s,i)=>i===0?{...s,stack:s.stack-200,allIn:true}:s),
+    result:{pot:4180,winners:[{seat:1,amount:4180,descr:'three eights'}],deltas:{0:-200},showdown:[{seat:1,holeCards:['8h','8d']},{seat:0,holeCards:['6h','6s']} ]}};
+  await page.evaluate(({held,end})=>{
+    window.__pushWatchMessage({type:'pace',...held});
+    window.__pushWatchState(end);
+  },{held,end});
+  await page.clock.runFor(4000);
+  await expect(page.locator('.watch-felt__board')).toHaveText('548');
+  await expect(page.locator('.watch-felt__won')).toHaveCount(0);
+  await expect(page.locator('.watch-result-toast')).toHaveCount(0);
+  await page.screenshot({path:'../artifacts/batch44-runout-held-'+height+'.png'});
+  await page.evaluate(board=>window.__pushWatchMessage({type:'pace',pace:'showdown',board,card:'Kd'}),finalBoard.slice(0,4));
+  await page.clock.runFor(50);
+  await expect(page.locator('.watch-felt__board')).toHaveText('548K');
+  await expect(page.locator('.watch-felt__won')).toHaveCount(0);
+  await page.evaluate(board=>window.__pushWatchMessage({type:'pace',pace:'showdown',board,card:'2s'}),finalBoard);
+  await page.clock.runFor(50);
+  await expect(page.locator('.watch-felt__board')).toHaveText('548K2');
+  await expect(page.locator('.watch-felt__won')).toBeVisible();
+  await page.evaluate(state=>window.__pushWatchState(state),{...end,pace:'showdown',paceFrame:{pace:'showdown',board:finalBoard,card:null}});
+  await page.clock.runFor(50);
+  await expect(page.locator('.watch-felt__card--landing')).toHaveCount(0);
+  await page.screenshot({path:'../artifacts/batch44-runout-finished-'+height+'.png'});
+});
+
 /** Every unordered pair that shares area. */
 function collisions(list) {
   const out = [];
