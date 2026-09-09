@@ -76,7 +76,7 @@ import { pickOpponent } from '../lib/reads.js';
 import { attrCostOf } from '../lib/attributes.js';
 import { mergeThread } from '../lib/thread.js';
 import { useTableThread } from '../hooks/useTableThread.js';
-import { faceOf, FACE_HOLD_MS } from '../lib/faces.js';
+import { useTableReactions } from '../hooks/useTableReactions.js';
 import { BustedName, HandFireworks, handCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
 
 // ---- helpers ---------------------------------------------------------------
@@ -394,26 +394,6 @@ export function useSweep(game) {
   return sweep;
 }
 
-// ---- SERVER-3 · a face is a MOMENT -----------------------------------------
-// The decision triggers — dealtStrong, raisedAgainst, allIn — are things he is
-// reacting to, and a reaction that stays up for the rest of the street stops
-// being a reaction and becomes his resting face, which is the one job the mood
-// system already has. So the trigger is held for FACE_HOLD_MS and then let go.
-// The hand-end triggers are not held: they last exactly as long as the result
-// they belong to is on the felt.
-function useFaceDecision(lastDecision) {
-  var [held, setHeld] = useState(lastDecision);
-
-  useEffect(function () {
-    setHeld(lastDecision);
-    if (!lastDecision || !lastDecision.event) return undefined;
-    var t = setTimeout(function () { setHeld(null); }, FACE_HOLD_MS);
-    return function () { clearTimeout(t); };
-  }, [lastDecision]);
-
-  return held;
-}
-
 // ---- SERVER-3 · the clock the server is keeping ----------------------------
 // state.actionTimer is { seat, deadlineTs, totalMs }. The ring counts that down
 // rather than starting one of its own on arrival — which was off by the network
@@ -728,7 +708,6 @@ export function WatchFelt({
   var mucking = useMuck(game, heroSeat);
   var sweep   = useSweep(game);
   var clock   = useActionTimer(game);
-  var faceDecision = useFaceDecision(lastDecision);
 
   // 52i: one fixed spot beside the pot, and one pile on it. The pairs that have
   // landed stay on the felt for the rest of the hand — a fold that dissolves
@@ -740,6 +719,7 @@ export function WatchFelt({
   var beatNow = live ? dealBeat(dealT) : { landed: 2, backs: true };
   var heroLanded = between ? 2 : beatNow.landed;
   var warm = live && isWarm(heroHole, heroEquityOf(game, handEquity, heroSeat));
+  var reactions = useTableReactions({ decision: lastDecision, result, scope: `${game?.tableId}:${handNo}`, active: live, heroSeat, strongPeek: !seated && peeking && warm });
 
   var boardSlots = community.map(pc);
   while (boardSlots.length < 5) boardSlots.push(null);
@@ -784,7 +764,8 @@ export function WatchFelt({
       heat: moodHeatOf(s),
       // SERVER-3: the face he is pulling, from the trigger the server sent —
       // one name, one expression, whichever message carried it.
-      event: faceOf(si, faceDecision, result),
+      event: reactions.face(si),
+      brow: reactions.brow(si, moodHeatOf(s)),
       // WATCH-8 job 2: the body. `fatigue` is null for a seat with no agent
       // behind it; `drinking` is FRIDGE-1's, and may not be on the wire at all.
       fatigue: s.fatigue || null,
@@ -889,7 +870,7 @@ export function WatchFelt({
   var heroContrib = (heroData && heroData.contribThisStreet) || 0;
   var heroBetOut  = live && heroContrib > 0;
   var heroSweeping = !!(sweep && sweep.seats.indexOf(heroSeat) >= 0);
-  var heroFace = faceOf(heroSeat, faceDecision, result);
+  var heroFace = reactions.face(heroSeat);
   // WATCH-8 job 2 · his body. Fatigue comes off his seat where the server puts
   // it; the agent record is the fallback for the moment before the first
   // snapshot lands, which is the same order his mood already resolves in.
@@ -930,6 +911,7 @@ export function WatchFelt({
               mood={o.mood}
               heat={Number.isFinite(o.heat) ? o.heat : 45}
               event={o.event}
+              brow={o.brow}
               fatigue={o.fatigue}
               drinking={o.drinking}
               folded={o.folded}
@@ -1170,6 +1152,7 @@ export function WatchFelt({
           accent={heroIdentity?.glow.c || agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : null}
           event={heroFace}
+          brow={reactions.brow(heroSeat, agentHeat)}
           fatigue={heroFatigue}
           timer={clock && clock.seat === heroSeat ? clock.left : null}
           timerOf={clock && clock.seat === heroSeat ? clock.of : 12}

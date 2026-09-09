@@ -1,0 +1,292 @@
+[
+  {
+    "file": "inter-normal-cyrillic-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/bf121758-17d0-422b-aa95-61a3b692b93b.woff2",
+    "sha256": "fccca918fea40089dacadc7045861314d1a6bc91f1f323cc1eeb22ebcdb321b5",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-cyrillic.woff2",
+    "source": "Railbird Landing Page (standalone).html/98a5dce9-aac9-4aa5-aed0-27550afd9dd8.woff2",
+    "sha256": "aebf2ab4a4ce6810d73c1ac7be7cafb4e5ec4cee2d6db5fb3e09691747ec4bd6",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-greek-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/8db8a20e-f273-4ae5-921e-88cd0ad19b0f.woff2",
+    "sha256": "a2e2c783ca6f9c20486e81e72a279203e86730bbf8f01ff6a5ee9dbd09e1c271",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-greek.woff2",
+    "source": "Railbird Landing Page (standalone).html/f3c08960-48bf-48d3-af4a-0f8787bdebd7.woff2",
+    "sha256": "46dd4cdca58c26ae87cc6927657bf83b2e8abfc39ffd0ab176e301a8d28d22bf",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-vietnamese.woff2",
+    "source": "Railbird Landing Page (standalone).html/e2963363-9d37-41ca-9c68-1f870e655de7.woff2",
+    "sha256": "8db00ff46c67b22cda8bed865acf7077651cac8d2841d5b40980556b48961931",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/aaed60d5-f744-4bcf-9d3b-d8929eba6ac5.woff2",
+    "sha256": "a28eb6d3ccb534ae0c94ca999371df024aab60b08c3c8a5720ee9e32fa0faaa2",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "inter-normal-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/de68f517-3e77-479c-8583-d224b6a95255.woff2",
+    "sha256": "c940764593d0fe5d596be327ca7558855e018039fb78509aa21921fd3644c3e4",
+    "family": "Inter",
+    "style": "normal",
+    "weight": "100 900",
+    "copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+    "licenseUrl": "https://openfontlicense.org"
+  },
+  {
+    "file": "jetbrains-mono-normal-cyrillic-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/bd9c9886-2fe4-41b1-9447-9193fc278183.woff2",
+    "sha256": "9343de2ca5d9549f792e7962375af8efb0f320c7643bfd36c884b5a30e5c396f",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "jetbrains-mono-normal-cyrillic.woff2",
+    "source": "Railbird Landing Page (standalone).html/44e0df64-2956-4cdf-a933-279784540319.woff2",
+    "sha256": "4995a9a43ac659ec32fcd8b463755cd6a07b31a6e6b3894a6a153b661cf490e2",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "jetbrains-mono-normal-greek.woff2",
+    "source": "Railbird Landing Page (standalone).html/2a6ec4f7-0548-4a76-ba33-307463d896bf.woff2",
+    "sha256": "49c3da6c9a2b279b0f1f860f5cfb1f5dc38d88a5c7be9c9b1837bbc4e3db6111",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "jetbrains-mono-normal-vietnamese.woff2",
+    "source": "Railbird Landing Page (standalone).html/fa3e902d-5d34-4391-9867-9a7ea1fc3a71.woff2",
+    "sha256": "d44eb1936043a56038eb02dd70b243f379bef65783f94ec12f277550720411f1",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "jetbrains-mono-normal-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/74e911e3-79f6-4fc7-9a64-878f944ef63d.woff2",
+    "sha256": "9c38cb2d0d2d93c1ee6e21fa78db76f13ea7e15e15cc64214c7ca89b6aaa35c4",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "jetbrains-mono-normal-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/b256de87-d940-4fe8-8549-908f7b3420ee.woff2",
+    "sha256": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4",
+    "family": "JetBrains Mono",
+    "style": "normal",
+    "weight": "400 800",
+    "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "oswald-normal-cyrillic-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/7715cecb-e5ef-451e-a51f-dabf33315705.woff2",
+    "sha256": "9feb685bacd358b6a87797379478ce95de7580461a476a3eabcbe3d74ad9e517",
+    "family": "Oswald",
+    "style": "normal",
+    "weight": "400 700",
+    "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "oswald-normal-cyrillic.woff2",
+    "source": "Railbird Landing Page (standalone).html/17c1fcac-fd2a-4c3e-918e-04d028805eb9.woff2",
+    "sha256": "514ecf75b904f66460a1160531fb2626f3e886118ecdb7d2611e88fe1bc578a1",
+    "family": "Oswald",
+    "style": "normal",
+    "weight": "400 700",
+    "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "oswald-normal-vietnamese.woff2",
+    "source": "Railbird Landing Page (standalone).html/2c8161de-0439-4084-84e2-ff732e66590b.woff2",
+    "sha256": "4dcc5a78747cadd5c40e10eb590829447bee4a9166632f0f681b9aeab254c8f8",
+    "family": "Oswald",
+    "style": "normal",
+    "weight": "400 700",
+    "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "oswald-normal-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/fd464fd1-7913-40fd-a1b0-6a5c07ff258c.woff2",
+    "sha256": "7b6295733e76a64d4e0b61e68a565fac062bfc9a285dfcdee9e20ca0b3a613f5",
+    "family": "Oswald",
+    "style": "normal",
+    "weight": "400 700",
+    "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "oswald-normal-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/e1a4b39a-a47c-446c-a42b-c4559e3b06a8.woff2",
+    "sha256": "9dde3797547520f762f4ba3a822d417a0872b962bc78753a7ee9f955382b6b85",
+    "family": "Oswald",
+    "style": "normal",
+    "weight": "400 700",
+    "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+    "licenseUrl": "https://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-italic-cyrillic.woff2",
+    "source": "Railbird Landing Page (standalone).html/06ce3c18-df3f-4508-8aa6-845b6a768eb9.woff2",
+    "sha256": "baa0a049708f94c756135c0adc33edf11c10dd6c539436d511c2c666a7d0ee63",
+    "family": "Playfair Display",
+    "style": "italic",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-italic-vietnamese.woff2",
+    "source": "Railbird Landing Page (standalone).html/69b303b5-4800-4481-b6ac-4bbdf645317f.woff2",
+    "sha256": "35a2bab58d032302776e37f54b9ce932bb07fa3139751053a374ba54f1b494f9",
+    "family": "Playfair Display",
+    "style": "italic",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-italic-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/38920a85-b81f-4950-b734-52e41b982043.woff2",
+    "sha256": "4d6a56168573c731f483ecfbaa468d38a674be49335160476bfa1eaf7c399fbb",
+    "family": "Playfair Display",
+    "style": "italic",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-italic-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/ff110687-50b5-44f5-9b02-78e9dd6c3657.woff2",
+    "sha256": "c68530044e7c4ce6cd3c1c239d0a93be71af53821574714f83e1380d8b393d14",
+    "family": "Playfair Display",
+    "style": "italic",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-normal-cyrillic.woff2",
+    "source": "Railbird Landing Page (standalone).html/7a9a7398-1e8c-4689-9196-93386c1d107e.woff2",
+    "sha256": "d7f9db9b1034978ebebdf7312aa4aee55dff3ef6039e7ff71413780bd4a05558",
+    "family": "Playfair Display",
+    "style": "normal",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-normal-vietnamese.woff2",
+    "source": "Railbird Landing Page (standalone).html/93699aa4-ed3e-4ab7-bc32-ed9521d328e8.woff2",
+    "sha256": "8fa67d5f0ab2a1d0b924729a0411a069b384d7a236edd96a6767ef342a6d048f",
+    "family": "Playfair Display",
+    "style": "normal",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-normal-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/4bd7a2f1-923c-4cc2-8d33-ab9a89ff2c30.woff2",
+    "sha256": "5628567856d60d714e7a35bcac9e3de08b336d63b12138f61b970990a1ee9547",
+    "family": "Playfair Display",
+    "style": "normal",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "playfair-display-normal-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/a73e982d-1f9d-451f-ab75-991ea87ccc7a.woff2",
+    "sha256": "5d91eb5d522a03081946c44c8ca17c902230dfed5f0f9b5014262135d47b15b2",
+    "family": "Playfair Display",
+    "style": "normal",
+    "weight": "400 900",
+    "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\".",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "rozha-one-normal-devanagari.woff2",
+    "source": "Railbird Landing Page (standalone).html/43c8af9e-186c-4c29-bc49-79c582b2290d.woff2",
+    "sha256": "60cef1c6bd13e7453a81a85a1a5055607a100f7f252714e0f04ac59b579cc783",
+    "family": "Rozha One",
+    "style": "normal",
+    "weight": "400",
+    "copyright": "Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com)",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "rozha-one-normal-latin-ext.woff2",
+    "source": "Railbird Landing Page (standalone).html/c39c0323-7453-4e26-8bb9-83b81f68444d.woff2",
+    "sha256": "992e7dfc736f00b3fff040b3462e0d97995cd728c648b2eef36fef63bdfbe275",
+    "family": "Rozha One",
+    "style": "normal",
+    "weight": "400",
+    "copyright": "Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com)",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  },
+  {
+    "file": "rozha-one-normal-latin.woff2",
+    "source": "Railbird Landing Page (standalone).html/dda06ecc-961b-4347-8915-cff2fb964613.woff2",
+    "sha256": "34bee9547f0804454bf7ca3444aa59b99329b5bd0e297ac095f9c51f1f0d87b8",
+    "family": "Rozha One",
+    "style": "normal",
+    "weight": "400",
+    "copyright": "Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com)",
+    "licenseUrl": "http://scripts.sil.org/OFL"
+  }
+]

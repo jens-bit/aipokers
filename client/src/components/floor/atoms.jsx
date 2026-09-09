@@ -6,7 +6,7 @@ import { useId } from 'react';
 import { Card } from '../Card.jsx';
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
 import { identityOf } from '../../lib/identity.js';
-import { ghostFace } from '../system/GhostFace.jsx';
+import { ghostFace, ghostBrow } from '../system/GhostFace.jsx';
 import { roomStyle } from './layouts.js';
 
 const IDENTITY_ROOM = { k: 1, ox: 0, oy: 0 };
@@ -54,7 +54,7 @@ export function safeMood(mood) {
 // floor kept drawing the flat face months after the face system shipped. There
 // is one face function now; the body (scalloped wisp, bob, posture) is all this
 // component still owns.
-export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null }) {
+export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null, brow = null }) {
   const uid = useId().replace(/:/g, '');
   const key = safeMood(mood);
   const m = MOODS[key];
@@ -98,6 +98,7 @@ export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent 
         <path d={body} fill={`url(#fb${uid})`} stroke={`${glow || accent}55`} strokeWidth="1.1" />
         <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
         {ghostFace({ mood: key, heat, size, event, eye, cy })}
+        {brow && ghostBrow({ brow, eye, cy })}
       </svg>
     </div>
   );

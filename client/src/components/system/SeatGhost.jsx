@@ -92,7 +92,7 @@ export function SeatGhost({
   // seat with neither chips nor a figure would say nothing about his money at
   // all. Where there are chips, the chips answer.
   identity = null,
-  name, stack = null, accent = '#00D4AA', mood = 'neutral', heat = 45, event = null,
+  name, stack = null, accent = '#00D4AA', mood = 'neutral', heat = 45, event = null, brow = null,
   folded, acting, selected,
   dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
   dealer = false, action = null,
@@ -137,7 +137,7 @@ export function SeatGhost({
 
         <span className="seat-ghost__ghost">
           {/* A tilted opponent bobs faster. It is the only tell the posture gives. */}
-          <FloorGhost hood={look?.hood} glow={look?.glow.c} mood={m} heat={heat} accent={accent} event={event}
+          <FloorGhost hood={look?.hood} glow={look?.glow.c} mood={m} heat={heat} accent={accent} event={event} brow={brow}
             size={size} speed={m === 'tilted' ? 3.2 : 5.6} />
         </span>
 

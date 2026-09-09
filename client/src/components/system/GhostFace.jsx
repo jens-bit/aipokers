@@ -19,19 +19,19 @@ export const FACE_EVENTS = ['stunned', 'smug', 'locked', 'bored', 'wary', 'pleas
 // Three momentary brow overrides, drawn on top and gone within a second.
 export function ghostBrow({ brow, eye, cy }) {
   if (brow === 'twitch') return (
-    <g>
+    <g data-brow={brow}>
       <path d={`M30.2 ${cy - 7.6} L37 ${cy - 7.6}`} stroke={eye} strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
       <path d={`M49.8 ${cy - 10.2} L43 ${cy - 8.6}`} stroke={eye} strokeWidth="1.4" strokeLinecap="round" />
     </g>
   );
   if (brow === 'lift') return (
-    <g>
+    <g data-brow={brow}>
       <path d={`M30.2 ${cy - 10} L37 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round" />
       <path d={`M49.8 ${cy - 10} L43 ${cy - 10}`} stroke={eye} strokeWidth="1.3" strokeLinecap="round" />
     </g>
   );
   if (brow === 'knit') return (
-    <g>
+    <g data-brow={brow}>
       <path d={`M30.6 ${cy - 8.2} L37.4 ${cy - 5.6}`} stroke={eye} strokeWidth="1.6" strokeLinecap="round" />
       <path d={`M49.4 ${cy - 8.2} L42.6 ${cy - 5.6}`} stroke={eye} strokeWidth="1.6" strokeLinecap="round" />
     </g>

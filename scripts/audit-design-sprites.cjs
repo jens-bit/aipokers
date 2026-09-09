@@ -132,6 +132,7 @@ async function render(page, cases) {
     const refs = await render(p, cases);
     await p.goto('http://127.0.0.1:5201/artifacts/faces34-actual.html');
     const actual = await render(p, cases);
+    fs.writeFileSync(path.join(output, "faces34-svgs.json"), JSON.stringify({ cases, refs }));
     if (refs.length !== cases.length || actual.length !== cases.length) throw Error('Missing render: reference ' + refs.length + ' actual ' + actual.length + ' expected ' + cases.length);
     const results = await p.evaluate(async ({
       refs,

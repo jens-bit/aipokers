@@ -133,6 +133,7 @@ async function stub(page, { talk = [], owned = false } = {}) {
   // the six-handed STATE, and whatever the cast is saying.
   await page.addInitScript(([list, home, table, lines]) => {
     const sockets=[];
+    window.__pushWatchMessage=msg=>sockets.forEach(socket=>socket.dispatch('message',{data:JSON.stringify(msg)}));
     window.__pushWatchState=state=>sockets.forEach(socket=>socket.dispatch('message',{data:JSON.stringify({type:'state',state,legalActions:[]})}));
     class ScriptedSocket {
       constructor(url) {
@@ -366,4 +367,36 @@ test('BUG-112: real browser audio plays a new result once and mute stops output'
   await page.evaluate(game=>window.__pushWatchState(game),{...ended,handNumber:TABLE.handNumber+1});
   expect(await page.evaluate(()=>window.__audioStarts.length)).toBe(2);
   expect(await page.evaluate(()=>localStorage.getItem('ap_muted'))).toBe('1');
+});
+
+for (const height of [844, 590]) test('BUG-120/121 real felt brow and expression clocks at 390x' + height, async ({ page }) => {
+  await page.clock.install({ time: new Date('2030-09-09T12:00:00Z') });
+  await felt(page, { owned: true, viewport: { width: 390, height } });
+  await page.clock.pauseAt(new Date('2030-09-09T12:01:00Z'));
+  const before = await page.locator('.watch-felt').boundingBox();
+  const hot = { ...TABLE, seats: TABLE.seats.map(s => ({ ...s, mood: { state: 'neutral', heat: 55 } })) };
+  await page.evaluate(state => window.__pushWatchState(state), hot);
+  await expect(page.locator('[data-brow="knit"]')).toHaveCount(6);
+  await page.evaluate(() => window.__pushWatchMessage({ type: 'decision', seat: 1, action: { type: 'call', amount: 40 }, event: 'raisedAgainst' }));
+  await expect(page.locator('[data-brow="twitch"]')).toHaveCount(1);
+  await page.clock.runFor(399); await expect(page.locator('[data-brow="twitch"]')).toHaveCount(1);
+  await page.screenshot({ path: '../artifacts/reaction35-' + height + '-twitch.png' });
+  await page.clock.runFor(1); await expect(page.locator('[data-brow="twitch"]')).toHaveCount(0);
+  await expect(page.locator('[data-brow="knit"]')).toHaveCount(6);
+  const strong = { ...TABLE, handNumber: TABLE.handNumber + 1, heroEquity: 0.8 };
+  await page.evaluate(state => { window.__pushWatchMessage({ type: 'hand_start', handNumber: state.handNumber }); window.__pushWatchState(state); }, strong);
+  await expect(page.locator('[data-brow="knit"]')).toHaveCount(0);
+  await page.clock.runFor(180); await expect(page.locator('.watch-hero [data-brow="lift"]')).toHaveCount(1);
+  await page.clock.runFor(699); await expect(page.locator('.watch-hero [data-brow="lift"]')).toHaveCount(1);
+  await page.screenshot({ path: '../artifacts/reaction35-' + height + '-lift.png' });
+  await page.clock.runFor(1); await expect(page.locator('[data-brow="lift"]')).toHaveCount(0);
+  const result = { ...strong, street: 'complete', toAct: null, result: { pot: 4180, winners: [{ seat: 0, amount: 4180, descr: 'a pair' }], showdown: [], events: { 0: 'wonBig', 1: 'badBeat' } } };
+  await page.evaluate(state => window.__pushWatchState(state), result);
+  await expect(page.locator('.watch-hero g[data-event="smug"]')).toHaveCount(1);
+  await expect(page.locator('.watch-felt__seat g[data-event="stunned"]')).toHaveCount(1);
+  await page.clock.runFor(1500); await page.evaluate(state => window.__pushWatchState(state), result);
+  await page.clock.runFor(500); await expect(page.locator('g[data-event="smug"]')).toHaveCount(0);
+  await expect(page.locator('g[data-event="stunned"]')).toHaveCount(1);
+  await page.clock.runFor(1000); await expect(page.locator('g[data-event="stunned"]')).toHaveCount(0);
+  expect(await page.locator('.watch-felt').boundingBox()).toEqual(before);
 });

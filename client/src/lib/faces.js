@@ -60,10 +60,7 @@ export function faceOf(seat, lastDecision, result) {
   return null;
 }
 
-/**
- * HOW LONG A FACE HOLDS. An expression is a MOMENT — the ref gives the brow
- * triggers 400–700ms and only `knit` persists. A face that stays up for the rest
- * of the street stops being a reaction and becomes the character's resting
- * state, which is the one thing the mood system is for.
- */
-export const FACE_HOLD_MS = 1400;
+// The expression sheet gives independent holds; locked uses the middle of 3–5s.
+// Asleep is a Home routine overlay and is deliberately not a timed hand reaction.
+export const FACE_HOLD_MS = { stunned: 3000, smug: 2000, locked: 4000, bored: 6000, wary: 4000, pleased: 3000 };
+export function faceHoldMs(face) { return FACE_HOLD_MS[face] ?? 0; }

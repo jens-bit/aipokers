@@ -530,7 +530,7 @@ describe('HANDS-1: the faces are the triggers the server sent', () => {
 
       // A face is a MOMENT. Held any longer it stops being a reaction and
       // becomes his resting face, which is the mood system's job.
-      act(() => { vi.advanceTimersByTime(FACE_HOLD_MS + 40); });
+      act(() => { vi.advanceTimersByTime(FACE_HOLD_MS.locked + 40); });
       expect(faceOn(container.querySelector('.watch-hero'))).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -560,5 +560,66 @@ describe('HANDS-1: the faces are the triggers the server sent', () => {
   it('is silent on a server that sends neither', () => {
     const { container } = renderWatch(midHandGame);
     expect(faceOn(container.querySelector('.watch-hero'))).toBeNull();
+  });
+});
+
+describe('BUG-120/121: authored reactions have their own clocks', () => {
+  it('a raise against one seat twitches only that brow for 400ms', () => {
+    vi.useFakeTimers(); try {
+      const { container } = renderWatch(midHandGame, { lastDecision: { seat: 1, action: { type: 'call', amount: 40 }, event: 'raisedAgainst' } });
+      const seats = container.querySelectorAll('.watch-felt__seat');
+      expect(seats[0].querySelector('[data-brow="twitch"]')).not.toBeNull();
+      expect(container.querySelector('.watch-hero [data-brow="twitch"]')).toBeNull();
+      act(() => vi.advanceTimersByTime(399)); expect(seats[0].querySelector('[data-brow="twitch"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1)); expect(seats[0].querySelector('[data-brow="twitch"]')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('heat 55 knits the hero and opponent brows until each cools', () => {
+    const hot = { ...midHandGame, seats: midHandGame.seats.map(s => ({ ...s, mood: { state: 'neutral', heat: 55 } })) };
+    const { container, rerender } = renderWatch(hot);
+    expect(container.querySelectorAll('[data-brow="knit"]')).toHaveLength(3);
+    rerenderWatch(rerender, midHandGame);
+    expect(container.querySelectorAll('[data-brow="knit"]')).toHaveLength(0);
+  });
+  it('a strong owner peek lifts for 700ms, while unknown cards cannot', () => {
+    vi.useFakeTimers(); try {
+      const { container, unmount } = renderWatch({ ...midHandGame, heroEquity: 0.8 });
+      act(() => vi.advanceTimersByTime(180));
+      expect(container.querySelector('.watch-hero [data-brow="lift"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(699)); expect(container.querySelector('.watch-hero [data-brow="lift"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1)); expect(container.querySelector('.watch-hero [data-brow="lift"]')).toBeNull();
+      unmount();
+      const hidden = { ...midHandGame, seats: midHandGame.seats.map(s => ({ ...s, holeCards: [] })) };
+      const view = renderWatch({ ...hidden, heroEquity: 0.8 });
+      act(() => vi.advanceTimersByTime(180)); expect(view.container.querySelector('[data-brow="lift"]')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('a locked face lasts four seconds even when another seat acts', () => {
+    vi.useFakeTimers(); try {
+      const { container, rerender } = renderWatch(midHandGame, { lastDecision: { seat: 0, action: { type: 'raise', amount: 940 }, event: 'allIn' } });
+      act(() => vi.advanceTimersByTime(1600));
+      rerenderWatch(rerender, midHandGame, { lastDecision: { seat: 1, action: { type: 'call', amount: 940 }, event: 'raisedAgainst' } });
+      expect(container.querySelector('.watch-hero g[data-event="locked"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(2399)); expect(container.querySelector('.watch-hero g[data-event="locked"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1)); expect(container.querySelector('.watch-hero g[data-event="locked"]')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('result expressions expire independently and identical STATE refreshes do not restart them', () => {
+    vi.useFakeTimers(); try {
+      const g = settledGame({ result: { pot: 400, winners: [{ seat: 0 }], showdown: [], events: { 0: 'wonBig', 1: 'badBeat' } } });
+      const { container, rerender } = renderWatch(g);
+      act(() => vi.advanceTimersByTime(1500));
+      rerenderWatch(rerender, { ...g, result: { ...g.result, events: { ...g.result.events } } });
+      act(() => vi.advanceTimersByTime(500));
+      expect(Boolean(container.querySelector('.watch-hero g[data-event="smug"]'))).toBe(false);
+      expect(container.querySelector('.watch-felt__seat g[data-event="stunned"]')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1000)); expect(container.querySelector('g[data-event="stunned"]')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('new hand scope clears the previous hand expressions', () => {
+    const { container, rerender } = renderWatch(settledGame({ result: { pot: 400, winners: [{ seat: 0 }], showdown: [], events: { 0: 'wonBig' } } }));
+    expect(container.querySelector('g[data-event="smug"]')).not.toBeNull();
+    rerenderWatch(rerender, { ...midHandGame, handNumber: 2 });
+    expect(container.querySelector('g[data-event="smug"]')).toBeNull();
   });
 });
