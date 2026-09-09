@@ -672,9 +672,8 @@ export function HomeScreen({
       // every other fixture's, and it is the SAME surface either door opens.
       onSafe={desktop ? () => setRail('safe') : () => setSafeOpen(true)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
-      // Never on the desk: DeskHome keeps the casino a rail away and a door
-      // that navigated out of the room would take the rail with it.
-      onDoor={!desktop && onCasino ? () => onCasino() : undefined}
+      // C9: the room's door is the casino destination on phone and desktop.
+      onDoor={onCasino ? () => onCasino() : undefined}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
       // Three trees wanted this tap and all three are now sections of the sheet

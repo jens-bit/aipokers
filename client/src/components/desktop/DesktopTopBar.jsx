@@ -9,16 +9,31 @@ function initialsOf(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null }) {
+// The roster can include home-game players and visitors; neither is casino-live.
+export function desktopRoomSummary(agents, loading = false) {
+  if (loading) return 'Reading the room…';
+  if (!agents.length) return 'Your room · his story starts here';
+  let home = 0, casino = 0, visiting = 0;
+  for (const agent of agents) {
+    if (agent.visiting) visiting++;
+    else if (agent.homeTableId || agent.location?.where === 'home') home++;
+    else if ((agent.location?.where && agent.location.where !== 'home') || agent.activeTableId || agent.liveGame?.tableId) casino++;
+    else home++;
+  }
+  return [home + ' home', casino ? casino + ' at the casino' : null, visiting ? visiting + ' visiting' : null].filter(Boolean).join(' · ');
+}
+
+export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null, room = null, onHome = null }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
+    if (room) return undefined;
     const id = setInterval(
       () => setClock(new Date().toLocaleTimeString('en-US', { hour12: false })),
       1000,
     );
     return () => clearInterval(id);
-  }, []);
+  }, [!!room]);
 
   const name = getTelegramDisplayName() || 'Player';
   // AUTH-1: web-only. Inside the Mini App Telegram owns the session, so there
@@ -29,6 +44,20 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup,
     clearWebLogin();
     window.location.reload();
   }
+
+  if (room) return <header className="dsk-top dsk-top--room">
+    {onHome && <button type="button" className="dsk-top__home" aria-label="Back home" onClick={onHome}>‹</button>}
+    <LogoMark/>
+    <div className="dsk-top__room"><h1>{room.title}</h1><p>{room.subtitle}</p></div>
+    <div className="dsk-top__spacer"/>
+    <button type="button" className="dsk-top__result" aria-label="Standup — all-time result" onClick={onStandup} disabled={!onStandup}>
+      <span>All time</span><strong className={net?.startsWith('−') ? 'is-loss' : ''}>{net ?? '—'}</strong>
+    </button>
+    <button type="button" className="dsk-top__account" aria-label={onWallet ? 'Wallet for ' + name : name} title={onWallet ? 'Your wallet' : undefined} onClick={onWallet} disabled={!onWallet}>
+      <span className="dsk-top__avatar">{name.trim().slice(0,1).toUpperCase()}</span><span>{name}</span>
+    </button>
+    {webLogin && <button type="button" className="dsk-btn dsk-btn--ghost dsk-top__logout" onClick={logout}>Log out</button>}
+  </header>;
 
   return (
     <div className="dsk-top">

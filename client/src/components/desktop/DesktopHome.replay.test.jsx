@@ -19,7 +19,7 @@ describe('desktop casino replay', () => {
   });
   it('BUG-89: a board hand opens its owned desktop replay and returns to the casino', async () => {
     render(<DesktopHome onWatchAgent={() => {}} onCreateAgent={() => {}} />);
-    await userEvent.click(screen.getByRole('button', { name: /^casino$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'The door — the casino', exact: true }));
     const row = await screen.findByRole('button', { name: "Replay tonight's hand" });
     expect(row).toBeEnabled();
     await userEvent.click(row);
@@ -33,7 +33,7 @@ describe('desktop casino replay', () => {
   it('BUG-89: an expired flagged hand falls back to its actual companion', async () => {
     fetchMock.route(`/api/agents/${playingAgent.id}/flagged`, { flaggedHands: [] });
     render(<DesktopHome onWatchAgent={() => {}} onCreateAgent={() => {}} />);
-    await userEvent.click(screen.getByRole('button', { name: /^casino$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'The door — the casino', exact: true }));
     const row = await screen.findByRole('button', { name: "Replay tonight's hand" });
     expect(row).toBeEnabled();
     await userEvent.click(row);

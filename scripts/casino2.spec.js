@@ -137,7 +137,7 @@ async function openCasino(page, uid, desktop) {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
   if (desktop) {
-    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.getByTestId('home-door').click();
   } else {
     // Named, not a bare click: if the door ever loses its test id this fails
     // saying the door is missing rather than timing out on a mystery locator.
@@ -185,7 +185,8 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
           .getByRole('button', { name: 'Board', exact: true })
           .click();
 
-        const sign = page.locator('.csn-marquee__word');
+        // C9's desktop shell owns the one casino title; the phone keeps its sign.
+        const sign = page.locator(desktop ? '.dsk-top__room h1' : '.csn-marquee__word');
         await expect(sign).toBeVisible({ timeout: 20_000 });
 
         // "The casino" NEVER WRAPS. Two words in a narrow flex column broke as

@@ -474,7 +474,7 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
       await desk(page, size);
       await page.route('**/api/events**', route => route.fulfill({ json: { events: [{ id: 91, ts: Date.now(), type: 'bigPot', tableId: 't1', agentIds: ['a2'], handNumber: bigBluffHand.handNumber, pot: bigBluffHand.pot, headline: 'Granite won the recorded hand' }], lastId: 91 } }));
       await page.route('**/api/agents/a2/flagged**', route => route.fulfill({ json: { flaggedHands: [bigBluffHand] } }));
-      await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
       await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
       await page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ }).click();
       await expect(page.locator('.dsk-replay')).toBeVisible();
@@ -496,7 +496,7 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
     });
     test(`three columns on the casino stage too (${size.width}x${size.height})`, async ({ page }) => {
       await desk(page, size);
-      await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+      await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
       // BUG-53: the casino opens on the floor; the board is an explicit choice.
       await expect(page.getByTestId('floor-view')).toBeVisible();
       await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
@@ -518,7 +518,7 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
 
   test('the three doorways sit side by side, same top, same height', async ({ page }) => {
     await desk(page, SIZES[0]);
-    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
       // BUG-53: the casino opens on the floor; the board is an explicit choice.
       await expect(page.getByTestId('floor-view')).toBeVisible();
       await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
@@ -541,7 +541,7 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
   // staying up beside it, so this is still three columns rather than two.
   test('a doorway opens the floor full width, with the board as its own column, beside the roster', async ({ page }) => {
     await desk(page, SIZES[0]);
-    await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+    await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
       // BUG-53: the casino opens on the floor; the board is an explicit choice.
       await expect(page.getByTestId('floor-view')).toBeVisible();
       await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
@@ -598,4 +598,25 @@ test.describe('DESK-3, job 4 · watching a felt', () => {
     await page.waitForTimeout(400);
     await shot(page, 'watch-1920');
   });
+});
+
+test('C9 room header and door give one route between Home and casino',async({page})=>{
+  await desk(page,{width:1440,height:900});
+  const header=page.locator('.dsk-top--room');
+  await expect(header).toHaveCSS('height','54px');
+  await expect(header.getByRole('heading',{name:'The flat'})).toBeVisible();
+  await expect(page.getByRole('group',{name:'Stage'})).toHaveCount(0);
+  await page.getByRole('button',{name:'The door — the casino',exact:true}).click();
+  await expect(header.getByRole('heading',{name:'The casino'})).toBeVisible();
+  await page.getByRole('button',{name:'Board',exact:true}).click();
+  await expect(page.locator('.csn-head')).toHaveCount(0);
+  await expect(page.locator('.csn-desk__stage')).toBeVisible();
+  await header.getByRole('button',{name:'Back home'}).click();
+  await expect(page.getByTestId('home-table')).toBeVisible();
+  await expect(header.getByRole('heading',{name:'The flat'})).toBeVisible();
+  await page.getByRole('button',{name:'The door — the casino',exact:true}).click();
+  await page.getByRole('button',{name:'Floor',exact:true}).click();
+  await expect(page.locator('.csn-floor')).toBeVisible();
+  await header.getByRole('button',{name:'Back home'}).click();
+  await expect(page.getByTestId('home-table')).toBeVisible();
 });

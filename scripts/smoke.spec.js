@@ -248,7 +248,7 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
       await test.step('CASINO', async () => {
         if (desktop) {
-          await page.getByRole('button', { name: 'CASINO', exact: true }).click();
+          await page.getByTestId('home-door').click();
         } else {
           // HOME-2 job 1: there is no bottom bar. The casino is the DOOR.
           await page.getByTestId('home-door').click();
@@ -261,7 +261,7 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         if (desktop) {
           // There is no YOU tab at 1440 — the money is a rail panel opened from
           // the balance in the top bar (DP-2).
-          await page.locator('.dsk-top__wallet').click();
+          await page.getByRole('button', { name: /^Wallet for / }).click();
           await expect(page.locator('.dsk-wallet')).toBeVisible({ timeout: 20_000 });
         } else {
           // HOME-2 job 1: YOU is the avatar top-right, and the record is one
@@ -292,8 +292,8 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
           // while HOME is on stage; on CASINO the same button goes to flagged
           // hands. Clicking it also drops the wallet rail from the YOU step,
           // so that panel does not need closing on its own.
-          await page.getByRole('button', { name: 'HOME', exact: true }).click();
-          await page.locator('.dsk-top__standup').click();
+          await page.locator('.dsk-top--room').getByRole('button', { name: 'Back home' }).click();
+          await page.getByRole('button', { name: 'Standup — all-time result' }).click();
           const tile = page.locator('.dsk-tile__watch').first();
           await expect(tile).toBeVisible({ timeout: 30_000 });
           await tile.click();

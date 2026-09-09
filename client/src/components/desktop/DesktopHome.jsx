@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { callInAgent, collectFrom, collectsEverything, fetchWallet, fundAgent, money, pocketOf } from '../../lib/wallet.js';
 import { DeskHome } from './DeskHome.jsx';
-import { DesktopTopBar } from './DesktopTopBar.jsx';
+import { DesktopTopBar, desktopRoomSummary } from './DesktopTopBar.jsx';
 import { DeskTableStage } from './DeskTableStage.jsx';
 import { WatchRail } from './WatchRail.jsx';
 import { useAgentThread } from './useAgentThread.js';
@@ -200,6 +200,8 @@ export function DesktopHome({
 
   const topBar = (
     <DesktopTopBar
+      room={!deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
+      onHome={!homeStage ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
       liveCount={liveCount}
       standupLine={playing.length === 0 ? topLine : null}
       net={topNet}
@@ -353,6 +355,7 @@ export function DesktopHome({
           {stage === 'casino' ? (
             <CasinoScreen
               desktop
+              shellHeader
               wsUrl={wsUrl}
               deployAgent={deployAgent}
               onDeployed={onDeployed}
@@ -365,6 +368,7 @@ export function DesktopHome({
             // (the room's thread, or a fixture, or one man), so the HOME stage
             // spans the body and the panels below are not drawn beside it.
             <DeskHome
+              onCasino={() => setStage('casino')}
               wsUrl={wsUrl}
               wallet={wallet}
               game={game}

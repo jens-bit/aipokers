@@ -180,6 +180,7 @@ export function CasinoScreen({
   onOpenRoster = null,
   onSend = null,
   desktop = false,
+  shellHeader = false,
 }) {
   const [agents, setAgents] = useState([]);
   const [wallet, setWallet] = useState(null);
@@ -653,7 +654,7 @@ export function CasinoScreen({
     return (
       <div className="csn csn--desk" style={{ background: M_BG }}>
         <div className="csn-desk__stage">
-          {head}
+          {!shellHeader && head}
           {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
           {roomsColumn}
           {tray}

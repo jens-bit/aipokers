@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 19
+
+C9's latest header is connected: 54px high, room title/subtitle, result and account pill. The kitchen door enters the casino; its header returns home. The Board's second casino heading is removed when the desktop shell owns the title, while Floor/Board controls remain available. All time intentionally replaces Tonight because the server field is career net; home-game players and visiting agents are counted separately from casino occupants. The existing Watch/replay header is retained. The inspected pair `client/e2e/shots/overnight-batch19-desktop-c9.png` shows the actual live room beside C9. The wider room, compact profile and latest header gaps recorded in batches 12/17/18 are now resolved. Reference/sample differences remain: actual hand data and agent routines, no invented chat timestamps, retained couch details.
+
 ## Design completion — 2026-09-09, batch 18
 
 C4's compact profile is now the C9 desktop profile, replacing the duplicate Player card header and immediate six-bar display. It reuses the phone's identity, CONDITION/RECENT, real session summary and authenticated detailed attribute history. More → His sheet keeps the newer PROFILE-2 body/skills split and exact bands on request. Whispers share the mounted desktop thread and preserve its separate draft. Chip funding/call-in use existing routes, with the funding sheet contained in the column. BUG-95 removes refused optimistic lines before retry. Inspected pair: `client/e2e/shots/overnight-batch18-desktop-profile.png`; the actual idle fixture has no recorded changes, unlike the authored phone sample. Three browser widths verify whisper refusal/retry, one resulting message, draft preservation, funding boundaries and Carry. C9 remains **PARTIAL** for its latest header; this resolves the previous compact-profile gap, not every desktop detail.
