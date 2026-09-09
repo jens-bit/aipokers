@@ -18,7 +18,7 @@ These are the actual app with controlled example accounts, not production screen
 
 ## Verification
 
-Batch41 final branch gate passed108 server /2250 client /seven e2e,86 browser cases including all53 desktop, build, seven fresh built smoke journeys and20 Home2 checks. Two intentional live server skips and two existing client todos remain. Three carry comparison sheets were inspected; source checks ran again after the last refusal-bubble adjustment. Main integration follows in the work log.
+Batch41 final branch gate passed108 server /2250 client /seven e2e,86 browser cases including all53 desktop, build, seven fresh built smoke journeys and20 Home2 checks. Two intentional live server skips and two existing client todos remain. Three carry comparison sheets were inspected; source checks ran again after the last refusal-bubble adjustment. Post-merge verification on Node24 hit the existing native-process crash in guestLimits (BUG-94/34). A separate full run using a checksum-verified temporary Node22.22.2, matching the documented VPS version and CI major, passed108 server/2250 client/seven e2e. The original Node24 failure remains recorded and unresolved; no system runtime or dependency was changed.
 
 GitHub now contains the earlier work through3958991. Its [Deploy to VPS run](https://github.com/jens-bit/aipokers/actions/runs/34390530302) has successful Tests, Browser smoke, and Deploy & health-check jobs. This is verified workflow status, not a phone account playtest. Batch41 is a new local change; no push was made by Codex.
 

@@ -1,6 +1,6 @@
 # Railbird — current design gap inventory
 
-Updated 9 September 2026, batch40. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
+Updated 9 September 2026, batch41. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
 
 This replaces the contradictory old inventory that still called implemented boards 41/42 entirely unbuilt. Its original text and all batch1–29 entries are preserved in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). Chronological execution evidence remains in [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md).
 
