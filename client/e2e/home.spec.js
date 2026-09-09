@@ -195,6 +195,49 @@ async function room(page, cast, viewport = VIEWPORT) {
 
 test.describe('HOME-1 · board 29 at 390×844', () => {
   for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
+    test(`N3: casino conversation and carousel at ${viewport.width}×${viewport.height}`,async({page})=>{
+      const errors=[];
+      page.on('pageerror',e=>errors.push(e.message));
+      await room(page,{agents:[agent('bal','Bal'),agent('agg','Agg')],game:null},viewport);
+      await page.route('**/api/rooms',r=>r.fulfill({json:roomsResponse}));
+      await page.route('**/api/rooms/*/tables',r=>r.fulfill({json:{tables:[]}}));
+      const requests=[];
+      await page.route('**/api/agents/chat',r=>{requests.push({body:r.request().postDataJSON(),headers:r.request().headers()});return r.fulfill({status:503,json:{error:'Try again'}});});
+      await page.getByTestId('home-door').click();
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      const footer=page.locator('.home-thread');
+      expect((await footer.boundingBox()).y+(await footer.boundingBox()).height).toBe(viewport.height);
+      const floor=await page.getByTestId('floor-view').boundingBox();
+      expect(floor.y+floor.height).toBeLessThanOrEqual((await footer.boundingBox()).y);
+      await page.getByTestId('casino-view-toggle').getByRole('button',{name:'Board',exact:true}).click();
+      await page.getByRole('tab',{name:'Agg',exact:true}).click();
+      await expect(page.getByTestId('home-thread-line')).toContainText('Agg');
+      const input=page.getByRole('textbox',{name:'Say something to Agg'});
+      await input.fill('Play it patient');
+      await page.getByRole('button',{name:'Send',exact:true}).click();
+      await expect(page.getByRole('alert')).toContainText('Could not send');
+      await expect(input).toHaveValue('Play it patient');
+      expect(requests).toHaveLength(1);
+      expect(requests[0].body.existingAgentId).toBe('agg');
+      expect(requests[0].headers['x-telegram-init-data']).toContain('hash=deadbeef');
+      // Capture the resting band separately from its intentional error state.
+      await page.getByRole('tab',{name:'Bal',exact:true}).click();
+      await expect(page.getByTestId('home-thread-line')).toContainText('Bal');
+      await expect.poll(()=>page.locator('.csn-your__track').evaluate(el=>Math.abs(el.scrollLeft))).toBeLessThan(1);
+      if(viewport.height===844){
+        const panel=await page.getByTestId('your-tables').boundingBox();
+        expect(Math.abs(panel.y+panel.height-(await footer.boundingBox()).y)).toBeLessThanOrEqual(12);
+      }
+      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/casino-n3b.png'});}
+      await page.getByTestId('home-thread-line').click();
+      await expect(page.getByRole('dialog',{name:"Bal's thread"})).toBeVisible();
+      await page.getByRole('button',{name:'Close the thread'}).click();
+      await page.getByRole('button',{name:'Back home',exact:true}).click();
+      await expect(page.getByTestId('home-screen')).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
+  for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
     test(`C7: the television opens its live table or recorded hand at ${viewport.width}×${viewport.height}`,async({page})=>{
       const errors=[];
       page.on('pageerror',e=>errors.push(e.message));

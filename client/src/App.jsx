@@ -876,6 +876,7 @@ function AppShell({ guest }) {
             <Suspense fallback={null}>
             <CasinoScreen
               wsUrl={WS_URL}
+              onSend={sendToAgent}
               onOpenRoster={() => setRosterOpen(true)}
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}

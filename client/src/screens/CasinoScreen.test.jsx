@@ -70,6 +70,24 @@ function renderCasino(props = {}) {
 
 const door = (name) => screen.getByRole('button', { name: new RegExp(`^${name},`) });
 
+it('N3: the casino conversation follows the carousel agent and sends to him',async()=>{
+  telegram.signIn();
+  startOnBoard();
+  const bal={...fundedCannon,id:'bal',name:'Bal',unseenRecap:false}, agg={...fundedCannon,id:'agg',name:'Agg',unseenRecap:false};
+  routeFloor({agents:[bal,agg]});
+  fetchMock.route('/thread',({url})=>({lines:[{id:1,kind:'him',text:url.includes('/bal/')?'Watch this one.':'My turn.',ts:Date.now()}]}));
+  const send=vi.fn().mockResolvedValue({ok:true});
+  renderCasino({onSend:send});
+  expect(await screen.findByTestId('home-thread-line')).toHaveTextContent('Bal');
+  await userEvent.click(screen.getByRole('tab',{name:'Agg'}));
+  await waitFor(()=>expect(screen.getByTestId('home-thread-line')).toHaveTextContent('My turn.'));
+  await userEvent.type(screen.getByRole('textbox',{name:'Say something to Agg'}),'Hold your nerve');
+  await userEvent.click(screen.getByRole('button',{name:'Send',exact:true}));
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({id:'agg'}),'Hold your nerve');
+  await userEvent.click(screen.getByTestId('home-thread-line'));
+  expect(screen.getByRole('dialog',{name:"Agg's thread"})).toHaveTextContent('HIS CONVERSATION');
+});
+
 // ── The gate, as pure functions ─────────────────────────────────────────────
 
 describe('CASINO-1 the pocket gate', () => {

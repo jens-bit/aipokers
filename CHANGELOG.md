@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Overnight design batch 9: N3/N3b casino conversation band now follows the agent selected in Your table, with authenticated private sends, its saved thread and recoverable failures. Floor and Board keep one header and a bottom composer; the phone's card fills the remaining stage. Desktop retains its separate rail. BUG-75–77 reproduce and repair lost failed messages, carousel recipient oscillation, and missing idle-card identity. The reference/actual pair labels the quiet real floor rather than inserting sample pots or stories.
+
 - Overnight design batch 8: C7 television now shows a known live table or an actual recorded household hand, with the correct Watch/replay destination and return to Home. Tape shows its real flag, board and hand number; progress appears only during a timed study. Empty tape stays quiet, and unknown away state retains the casino board. BUG-74 reproduced before repair. Reference pairs preserve the requested kitchen table and distinguish live data from sample design content.
 
 - Overnight design batch 7: C6 named empty chairs and Home roster pill, visit-aware wall/header, and current DoorTap's vertical letters/bulbs. BUG-72 removes spare chairs from occupied positions; BUG-73 gives a visiting frame its correct label and agent destination. The old sign/door non-overlap and right-minus-six assertions intentionally become the current reference's exact shared door footprint. Table hit targets, bubble clearance and in-frame checks remain enforced. Reference pair preserves the kitchen table by founder instruction.

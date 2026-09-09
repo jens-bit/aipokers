@@ -39,6 +39,7 @@ import { money, pocketOf } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
 import { feltForAgent } from '../../hooks/useCasinoRooms.js';
 import { TableFelt } from './TableFelt.jsx';
+import { identityOf } from '../../lib/identity.js';
 
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
 const M_DIM = '#A1A1A1';
@@ -65,12 +66,15 @@ export function whereLine(agent) {
 /** The page for a man who is not at a felt. Never a felt with nobody in it. */
 function AwayPage({ agent, index, onSend }) {
   const pocket = pocketOf(agent);
+  const identity = identityOf(agent);
   return (
     <div className="csn-your__away">
       <MoodGhost
         mood={moodOf(agent)}
         heat={heatOf(agent)}
-        accent={accentFor(agent, index)}
+        accent={identity.glow.c}
+        hood={identity.hood}
+        glow={identity.glow.c}
         size={46}
         ring={false}
       />
@@ -106,9 +110,12 @@ function AwayPage({ agent, index, onSend }) {
  * @param onWatch (tableId) => watch it
  * @param onSend  (agent)   => take him to the casino to be placed
  */
-export function YourTables({ agents = [], felts = [], onWatch = null, onSend = null }) {
+export function YourTables({ agents = [], felts = [], onWatch = null, onSend = null, onSelectAgent = null }) {
   const [page, setPage] = useState(0);
   const trackRef = useRef(null);
+  const scrollTarget = useRef(null);
+  const selectedId = agents[page]?.id ?? null;
+  useEffect(() => { onSelectAgent?.(selectedId); }, [selectedId, onSelectAgent]);
 
   // The page you are on is whichever one the track is scrolled to. Read from
   // the scroll rather than owned by React: the flick is the browser's, and a
@@ -116,7 +123,12 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
   const onScroll = useCallback(() => {
     const el = trackRef.current;
     if (!el || el.clientWidth === 0) return;
-    setPage(Math.round(el.scrollLeft / el.clientWidth));
+    const next = Math.round(el.scrollLeft / el.clientWidth);
+    // A dot chooses its recipient immediately. Intermediate animation frames
+    // must not select the old man again and erase his replacement's draft.
+    if (scrollTarget.current != null && next !== scrollTarget.current) return;
+    scrollTarget.current = null;
+    setPage(next);
   }, []);
 
   // A roster that shrinks under you (an agent retired) must not leave the dots
@@ -127,6 +139,7 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
 
   const goTo = useCallback((i) => {
     const el = trackRef.current;
+    scrollTarget.current = i;
     setPage(i);
     if (!el) return;
     const left = i * el.clientWidth;
@@ -150,7 +163,7 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
 
   return (
     <div className="csn-your" data-testid="your-tables">
-      <div className="csn-your__track" ref={trackRef} onScroll={onScroll}>
+      <div className="csn-your__track" ref={trackRef} onScroll={onScroll} onPointerDown={() => { scrollTarget.current = null; }} onWheel={() => { scrollTarget.current = null; }}>
         {agents.map((agent, i) => {
           const felt = feltForAgent(felts, agent);
           return (

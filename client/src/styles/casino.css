@@ -533,6 +533,13 @@
   background: #0A0F0F;
 }
 
+.csn--phone > .csn-floor { position: relative; inset: auto; flex: 1; }
+.csn--phone { font-family: Inter, system-ui, sans-serif; }
+.csn--phone .home-thread__line { font: inherit; text-transform: none; letter-spacing: normal; }
+/* N3: the conversation bounds the phone stage; its remaining space belongs
+   to Your table instead of an unused gap above the composer. */
+.csn--phone .csn-your { max-height: none; }
+
 .csn-floor__head {
   flex-shrink: 0;
   display: flex;

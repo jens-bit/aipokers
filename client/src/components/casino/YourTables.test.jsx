@@ -8,7 +8,7 @@
 // The flick itself is the browser's (scroll-snap), so what is asserted here is
 // the structure it snaps through and the dots that report where it landed.
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -27,6 +27,31 @@ const atFelt = {
 };
 const pages = () => [...document.querySelectorAll('.csn-your__page')];
 const dots = () => screen.getAllByRole('tab');
+
+it('BUG-77: the idle casino page retains his saved hood and glow',()=>{
+  render(<YourTables agents={[{...restingAgent,identity:{hood:'sand',glow:'gold'}}]}/>);
+  const ghost=document.querySelector('.csn-your__away svg');
+  expect(ghost.querySelector('stop[stop-color="#6E5836"]')).not.toBeNull();
+  expect(ghost.outerHTML).toContain('#C9A227');
+});
+
+it('BUG-76: a dot keeps its recipient during intermediate smooth scroll frames',async()=>{
+  const select=vi.fn();
+  render(<YourTables agents={[atFelt,restingAgent]} onSelectAgent={select}/>);
+  const track=document.querySelector('.csn-your__track');
+  Object.defineProperty(track,'clientWidth',{value:390});
+  track.scrollTo=vi.fn();
+  await userEvent.click(dots()[1]);
+  select.mockClear();
+  fireEvent.scroll(track,{target:{scrollLeft:40}});
+  expect(dots()[1]).toHaveAttribute('aria-selected','true');
+  expect(select).not.toHaveBeenCalled();
+  fireEvent.scroll(track,{target:{scrollLeft:390}});
+  fireEvent.pointerDown(track);
+  fireEvent.scroll(track,{target:{scrollLeft:0}});
+  expect(dots()[0]).toHaveAttribute('aria-selected','true');
+  expect(select).toHaveBeenLastCalledWith(atFelt.id);
+});
 
 describe('CASINO-2 job 4 · a page is a man', () => {
   it('one page per agent, in roster order', () => {

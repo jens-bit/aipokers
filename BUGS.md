@@ -1,6 +1,15 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-75 — a refused private composer message silently disappears — FIXED on overnight branch
+The private HomeThread path treated sendToAgent's null failure as success, unlike the room path. The new failing regression reproduced a lost draft. A null response now restores the draft and displays a retryable error. The status overlay is pointer-transparent: the first short-screen browser run exposed it covering a carousel dot. The completed three-size casino checks enforce retry text, credentials, recipient and subsequent navigation.
+
+### BUG-76 — a carousel dot temporarily reselects the previous agent — FIXED on overnight branch
+The dot selected its destination immediately, but intermediate smooth-scroll events rounded back to the old page. Connecting the conversation exposed lost drafts during that transition in Chromium. A named unit regression reproduced the intermediate frame. The chosen destination now holds until reached; a new pointer/wheel gesture gives selection back to manual scrolling. All three browser sizes passed afterward.
+
+### BUG-77 — the idle casino card drops an agent's saved colours — FIXED on overnight branch
+AwayPage passed only a roster accent into MoodGhost, leaving its default dark hood. The failing saved sand/gold identity test now passes: the page uses identityOf for cloth and glow, matching Home and the profile.
+
 ### BUG-74 — the television ignores its live table when tapped — FIXED on overnight branch
 Home sent the TV tap to the casino and let a studying housemate replace a known live table. The failing Home regression reproduced both. C7 now prioritises the live table and opens Watch; otherwise the household's recorded hand opens its authenticated replay. Mobile replay returns to Home; desktop uses its existing replay panel. An empty tape has no dead tap. Unit and three-size browser checks cover both destinations.
 

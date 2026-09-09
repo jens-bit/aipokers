@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Overnight design port — 2026-09-09, batch 9
+
+N3/N3b mobile bottom conversation is connected on Floor and Board. The carousel selects its agent; a deployment uses the man in the tray. His saved thread is fetched with owner credentials, sends use the existing private chat route, and a refused message stays in the composer. The footer bounds the available stage so Your table reaches it instead of leaving the previous gap. Idle cards retain their saved identity. Pair `client/e2e/shots/overnight-batch9-casino-n3b.png` inspected: actual empty public events differ from authored live/tonight samples; the current Floor/Board toggle and room doors remain functional. This ports the missing conversation band, not a certification that every casino event/floor frame is now exact. Home rhythm, C8/C9 and entry/integrator work remain.
+
 ## Overnight design port — 2026-09-09, batch 8
 
 C7 state and tap are ported: known live casino table takes priority, otherwise the household's study/most recent recorded hand appears as tape. Live opens Watch; tape opens the authenticated hand review and returns to Home (desktop keeps its replay panel). Tape carries actual board/flag/hand number, with progress only for an actual timed study. No recorded hand means an inactive empty tape, and an away agent without a projected table retains the casino board. Reference/actual pairs `client/e2e/shots/overnight-batch8-tv-c7a.png` and `overnight-batch8-tv-c7b.png` inspected. Actual fixtures/routines differ from the authored sample, and the kitchen table remains by founder override. The reference's couch-facing-TV change remains undesigned under its freeze. C8/C9, the casino bottom conversation band, and Home day cadence remain material work.

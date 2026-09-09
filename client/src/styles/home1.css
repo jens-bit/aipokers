@@ -1117,7 +1117,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .fridge-stock__foot b{color:#A1A1A1}
 .fridge-stock__loading,.fridge-stock__error{padding:6px 0;font:11px/1.4 Inter,sans-serif;color:#CDB380}
 .fridge-stock__error button{display:block;padding:6px 0;color:#CDB380;font:11px Inter,sans-serif}
-.home-thread__error{position:absolute;left:12px;right:12px;bottom:76px;padding:8px 10px;border:1px solid #cdb38044;border-radius:10px;background:#1b2019;color:#CDB380;font:11px/1.4 Inter,sans-serif;z-index:20}
+.home-thread__error{position:absolute;left:12px;right:12px;bottom:76px;padding:8px 10px;border:1px solid #cdb38044;border-radius:10px;background:#1b2019;color:#CDB380;font:11px/1.4 Inter,sans-serif;z-index:20;pointer-events:none}
 .home-thread__night{margin:6px 12px;border-top:1px solid #cdb38044;padding-top:6px}
 .home-thread__night summary{min-height:32px;color:#CDB380;font:600 9px/32px Oswald,sans-serif;letter-spacing:.12em;cursor:pointer}
 

@@ -45,6 +45,7 @@ import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 import { M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { Num } from '../components/wallet/atoms.jsx';
+import { HomeThread } from '../components/home/HomeThread.jsx';
 
 const POLL_MS = 10_000;
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
@@ -177,6 +178,7 @@ export function CasinoScreen({
   // than a tab; the desk never passes one, because the desk did not leave home.
   onBack = null,
   onOpenRoster = null,
+  onSend = null,
   desktop = false,
 }) {
   const [agents, setAgents] = useState([]);
@@ -184,6 +186,9 @@ export function CasinoScreen({
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
+  const [threadOpen, setThreadOpen] = useState(false);
+  const [sending, setSending] = useState(false);
   // BUGS-A job 7: which doorway the owner has walked up to and looked into.
   // Only ever set when he is NOT placing an agent — with somebody in the tray
   // a doorway is the choice of where to seat him, and that is the older and
@@ -234,6 +239,20 @@ export function CasinoScreen({
   }, [deployAgent, agents]);
 
   const pocket = useMemo(() => (trayAgent ? pocketOf(trayAgent) : null), [trayAgent]);
+  const speaker = trayAgent ?? agents.find(a => a.id === conversationId)
+    ?? agents.find(a => a.liveGame?.tableId) ?? agents[0] ?? null;
+  useEffect(() => { setThreadOpen(false); }, [speaker?.id]);
+  const sendConversation = async (agent, text) => {
+    if (!onSend || sending) return null;
+    setSending(true);
+    try { return await onSend(agent, text); }
+    finally { setSending(false); }
+  };
+  const conversation = !desktop && speaker && onSend ? <HomeThread
+    key={speaker.id} agent={speaker} open={threadOpen} onToggle={setThreadOpen}
+    onSend={sendConversation} sending={sending} privateContext="HIS CONVERSATION"
+    placeholder={`Whisper to ${speaker.nickname || speaker.name}…`}
+  /> : null;
 
   // The tray opens on the rung his pocket buys, and re-opens there whenever the
   // agent or his money changes. An explicit tap wins until then.
@@ -509,6 +528,7 @@ export function CasinoScreen({
           <YourTables
             agents={agents}
             felts={felts}
+            onSelectAgent={setConversationId}
             onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
             onSend={onPlace ?? null}
           />
@@ -611,10 +631,11 @@ export function CasinoScreen({
   if (floorView) {
     return (
       <div
-        className={`csn${desktop ? ' csn--desk-room' : ''}`}
-        style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: M_BG }}
+        className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}`}
+        style={{ flex: 1, minHeight: 0, position: 'relative', display:'flex', flexDirection:'column', overflow: 'hidden', background: M_BG }}
       >
         {floorView}
+        {conversation}
       </div>
     );
   }
@@ -659,12 +680,13 @@ export function CasinoScreen({
 
   return (
     <div
-      className="csn"
+      className="csn csn--phone"
       style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
       {head}
       {roomsColumn}
       {tray}
+      {conversation}
     </div>
   );
 }

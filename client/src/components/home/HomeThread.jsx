@@ -132,6 +132,8 @@ export function HomeThread({
   roomMode = false,
   roomPushed,
   connection = null,
+  privateContext = 'AT HOME',
+  placeholder = 'Say something to the room…',
 }) {
   const privateThread = useThread(agent?.id, { enabled: !!agent && !roomMode });
   const room = useHomeThread({ enabled: roomMode, pushed: roomPushed, connection });
@@ -168,7 +170,7 @@ export function HomeThread({
       // not. Keeping a line the server did not store would be this screen
       // inventing a conversation, which is the one thing it must never do.
       setPending((prev) => prev.filter((r) => r.id !== id));
-      if (roomMode && !body) { setDraft(text); setError('Could not send your message. Please try again.'); }
+      if ((roomMode && !body) || body === null) { setDraft(text); setError('Could not send your message. Please try again.'); }
       reload();
     }).catch(() => {
       setPending(prev => prev.filter(r => r.id !== id));
@@ -201,7 +203,7 @@ export function HomeThread({
           <div className="home-thread__head">
             <GlassLabel>{roomMode ? 'THE ROOM' : pillName(agent.name)}</GlassLabel>
             <span className="home-thread__spacer" />
-            <span className="home-thread__state">{loading ? 'LOADING' : 'AT HOME'}</span>
+            <span className="home-thread__state">{loading ? 'LOADING' : privateContext}</span>
           </div>
           <div className="home-thread__body no-scrollbar" data-testid="home-thread-rows">
             {shown.length === 0 && !loading ? (
@@ -228,7 +230,7 @@ export function HomeThread({
             className="home-thread__input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Say something to the room…"
+            placeholder={placeholder}
             aria-label={roomMode ? 'Say something to the room' : `Say something to ${agent.name}`}
             data-testid="home-thread-input"
             disabled={busy}
